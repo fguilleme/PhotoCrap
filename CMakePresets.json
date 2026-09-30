@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "configurePresets": [{
+    "name": "release", "displayName": "Release",
+    "binaryDir": "${sourceDir}/build",
+    "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "BUILD_TESTING": "ON" }
+  }],
+  "buildPresets": [{ "name": "release", "configurePreset": "release", "configuration": "Release" }],
+  "testPresets": [{ "name": "release", "configurePreset": "release", "configuration": "Release", "output": { "outputOnFailure": true } }]
+}

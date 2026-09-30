@@ -1,0 +1,36 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    name: ${{ matrix.os }} / Qt 6.8.3
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          modules: 'qtimageformats'
+          cache: true
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel 3
+      - name: Test engine and QML
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Deploy Qt dependencies
+        run: cmake --install build --config Release --prefix dist
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoCrap-${{ matrix.os }}
+          path: dist/
+          if-no-files-found: error

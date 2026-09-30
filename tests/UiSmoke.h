@@ -1,0 +1,47 @@
+#pragma once
+#include <QtTest>
+#include <QQuickItem>
+#include <QQuickWindow>
+#include "Document.h"
+
+// Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
+// Compiled only with BUILD_TESTING; production builds need no Qt Test runtime.
+inline bool runUiSmoke(QQuickWindow *window,Document &document) {
+    auto require=[](bool ok,const char *message){if(!ok) qWarning("UI check failed: %s",message); return ok;};
+    auto area=window->findChild<QQuickItem*>("drawingArea");
+    if(!require(area,"drawing area exists")) return false;
+    document.newDocument(300,200,true);
+    QTest::qWait(100);
+    document.setColor(Qt::red); document.setBrushSize(16); document.setTool("brush");
+    QPoint start=area->mapToScene(QPointF(area->width()/3,area->height()/2)).toPoint();
+    QPoint end=area->mapToScene(QPointF(area->width()*2/3,area->height()/2)).toPoint();
+    QTest::mousePress(window,Qt::LeftButton,Qt::NoModifier,start);
+    QTest::mouseMove(window,end,20);
+    QTest::mouseRelease(window,Qt::LeftButton,Qt::NoModifier,end);
+    if(!require(document.canUndo() && document.composite().pixelColor(100,100).red()>200 && document.composite().pixelColor(100,100).alpha()>0,"pointer paints document")) return false;
+    document.undo();
+    if(!require(document.composite().pixelColor(100,100).alpha()==0,"gesture undoes")) return false;
+    document.redo();
+    document.setTool("text");
+    auto textField=window->findChild<QQuickItem*>("textField");
+    if(!require(textField,"text field exists")) return false;
+    textField->forceActiveFocus();
+    QTest::keyClick(window,Qt::Key_B);
+    if(!require(document.tool()=="text","typing B does not switch tools")) return false;
+    QMetaObject::invokeMethod(window,"guard",Q_ARG(QVariant,QVariant("new")));
+    QTest::qWait(200);
+    auto guard=window->findChild<QObject*>("unsavedDialog");
+    if(!require(guard && guard->property("visible").toBool(),"unsaved changes are guarded")) return false;
+    QMetaObject::invokeMethod(guard,"close");
+    QTest::qWait(150);
+    document.newDocument(300,200,true);
+    QMetaObject::invokeMethod(window,"guard",Q_ARG(QVariant,QVariant("new")));
+    QTest::qWait(150);
+    auto dialog=window->findChild<QObject*>("newDialog");
+    if(!require(dialog && dialog->property("visible").toBool() && dialog->property("height").toReal()>200,"new document dialog has content")) return false;
+    QMetaObject::invokeMethod(dialog,"reject");
+    document.createDemo(); document.setTool("brush");
+    QTest::qWait(200);
+    qInfo("UI interaction checks passed");
+    return true;
+}

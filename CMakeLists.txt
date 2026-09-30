@@ -13,7 +13,11 @@ qt_add_library(photocrap_core STATIC src/Document.cpp src/Document.h)
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui)
 target_include_directories(photocrap_core PUBLIC src)
 
-qt_add_executable(PhotoCrap src/main.cpp src/CanvasItem.cpp src/CanvasItem.h)
+qt_add_executable(PhotoCrap
+    src/main.cpp
+    src/CanvasItem.cpp src/CanvasItem.h
+    src/ShortcutManager.cpp src/ShortcutManager.h
+)
 # Homebrew exposes QML plugins through relative symlinks. Scan the real module
 # directory so Qt's deploy step copies binaries, not links into the Cellar.
 set(photocrap_qml_import_paths "")
@@ -51,7 +55,10 @@ if(BUILD_TESTING)
     target_sources(PhotoCrap PRIVATE tests/UiSmoke.h)
     target_compile_definitions(PhotoCrap PRIVATE PHOTOCRAP_TESTING)
     target_link_libraries(PhotoCrap PRIVATE Qt6::Test)
-    qt_add_executable(photocrap_tests tests/DocumentTest.cpp)
+    qt_add_executable(photocrap_tests
+        tests/DocumentTest.cpp
+        src/ShortcutManager.cpp src/ShortcutManager.h
+    )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)

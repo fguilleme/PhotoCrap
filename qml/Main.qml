@@ -35,23 +35,23 @@ ApplicationWindow {
     property bool importing: false
     property bool changingSecondary: false
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: "Luminosité"
     property var tools: [
-        {name:"move", icon:"↖", label:"Déplacement", key:"V"},
-        {name:"select", icon:"⬚", label:"Sélection rectangulaire", key:"M"},
-        {name:"crop", icon:"⌗", label:"Recadrage", key:"C"},
-        {name:"brush", icon:"╱", label:"Pinceau", key:"B"},
-        {name:"eraser", icon:"▱", label:"Gomme", key:"E"},
-        {name:"fill", icon:"◩", label:"Remplissage contigu", key:"G"},
-        {name:"gradient", icon:"▨", label:"Dégradé", key:"D"},
-        {name:"picker", icon:"⌖", label:"Pipette", key:"I"},
-        {name:"text", icon:"T", label:"Texte rasterisé", key:"T"},
-        {name:"rectangle", icon:"□", label:"Rectangle", key:"U"},
-        {name:"ellipse", icon:"○", label:"Ellipse", key:"O"},
-        {name:"line", icon:"╲", label:"Ligne", key:"L"},
-        {name:"hand", icon:"✥", label:"Navigation", key:"H"}
+        {name:"move", icon:"↖", label:"Déplacement", shortcut:"toolMove"},
+        {name:"select", icon:"⬚", label:"Sélection rectangulaire", shortcut:"toolSelect"},
+        {name:"crop", icon:"⌗", label:"Recadrage", shortcut:"toolCrop"},
+        {name:"brush", icon:"╱", label:"Pinceau", shortcut:"toolBrush"},
+        {name:"eraser", icon:"▱", label:"Gomme", shortcut:"toolEraser"},
+        {name:"fill", icon:"◩", label:"Remplissage contigu", shortcut:"toolFill"},
+        {name:"gradient", icon:"▨", label:"Dégradé", shortcut:"toolGradient"},
+        {name:"picker", icon:"⌖", label:"Pipette", shortcut:"toolPicker"},
+        {name:"text", icon:"T", label:"Texte rasterisé", shortcut:"toolText"},
+        {name:"rectangle", icon:"□", label:"Rectangle", shortcut:"toolRectangle"},
+        {name:"ellipse", icon:"○", label:"Ellipse", shortcut:"toolEllipse"},
+        {name:"line", icon:"╲", label:"Ligne", shortcut:"toolLine"},
+        {name:"hand", icon:"✥", label:"Navigation", shortcut:"toolHand"}
     ]
     property var activeInfo: {
         const list = editor.layers
@@ -102,37 +102,42 @@ ApplicationWindow {
         function onStatusMessage(message) { window.status = message; statusTimer.restart() }
         function onDocumentChanged() { Qt.callLater(window.fitCanvas) }
     }
+    Connections {
+        target: shortcuts
+        function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
+    }
     Timer { id: statusTimer; interval: 5000; onTriggered: window.status = "Prêt à créer" }
 
-    Action { id: newAction; text: "Nouveau…"; shortcut: StandardKey.New; onTriggered: guard("new") }
-    Action { id: openAction; text: "Ouvrir…"; shortcut: StandardKey.Open; onTriggered: guard("open") }
-    Action { id: saveAction; text: "Enregistrer le projet"; shortcut: StandardKey.Save; onTriggered: { resumeAfterSave=false; save(false) } }
-    Action { id: saveAsAction; text: "Enregistrer sous…"; shortcut: StandardKey.SaveAs; onTriggered: { resumeAfterSave=false; save(true) } }
-    Action { id: exportAction; text: "Exporter l’image…"; shortcut: "Ctrl+Shift+E"; onTriggered: exportDialog.open() }
-    Action { id: importAction; text: "Importer comme calque…"; shortcut: "Ctrl+Shift+O"; onTriggered: { importing=true; openDialog.open() } }
-    Action { id: undoAction; text: "Annuler"; shortcut: StandardKey.Undo; enabled: editor.canUndo; onTriggered: editor.undo() }
-    Action { id: redoAction; text: "Rétablir"; shortcut: StandardKey.Redo; enabled: editor.canRedo; onTriggered: editor.redo() }
-    Action { id: copyAction; text: "Copier l’image visible"; shortcut: StandardKey.Copy; onTriggered: editor.copy() }
-    Action { id: pasteAction; text: "Coller comme calque"; shortcut: StandardKey.Paste; onTriggered: editor.paste() }
-    Action { id: selectAction; text: "Tout sélectionner"; shortcut: StandardKey.SelectAll; onTriggered: editor.selectAll() }
-    Action { id: deselectAction; text: "Désélectionner"; shortcut: "Ctrl+D"; onTriggered: editor.deselect() }
-    Action { id: deleteAction; text: "Effacer les pixels"; shortcut: "Delete"; onTriggered: editor.clearSelected() }
-    Action { id: addAction; text: "Nouveau calque"; shortcut: "Ctrl+Shift+N"; onTriggered: editor.addLayer() }
-    Action { id: duplicateAction; text: "Dupliquer le calque"; shortcut: "Ctrl+J"; onTriggered: editor.duplicateLayer() }
+    Action { id: newAction; text: "Nouveau…"; shortcut: (shortcuts.revision, shortcuts.sequence("new")); enabled: !window.modalOpen; onTriggered: guard("new") }
+    Action { id: openAction; text: "Ouvrir…"; shortcut: (shortcuts.revision, shortcuts.sequence("open")); enabled: !window.modalOpen; onTriggered: guard("open") }
+    Action { id: saveAction; text: "Enregistrer le projet"; shortcut: (shortcuts.revision, shortcuts.sequence("save")); enabled: !window.modalOpen; onTriggered: { resumeAfterSave=false; save(false) } }
+    Action { id: saveAsAction; text: "Enregistrer sous…"; shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen; onTriggered: { resumeAfterSave=false; save(true) } }
+    Action { id: exportAction; text: "Exporter l’image…"; shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen; onTriggered: exportDialog.open() }
+    Action { id: importAction; text: "Importer comme calque…"; shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
+    Action { id: undoAction; text: "Annuler"; shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: editor.canUndo && !window.modalOpen; onTriggered: editor.undo() }
+    Action { id: redoAction; text: "Rétablir"; shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: editor.canRedo && !window.modalOpen; onTriggered: editor.redo() }
+    Action { id: copyAction; text: "Copier l’image visible"; shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.copy() }
+    Action { id: pasteAction; text: "Coller comme calque"; shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
+    Action { id: selectAction; text: "Tout sélectionner"; shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
+    Action { id: deselectAction; text: "Désélectionner"; shortcut: (shortcuts.revision, shortcuts.sequence("deselect")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.deselect() }
+    Action { id: deleteAction; text: "Effacer les pixels"; shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.clearSelected() }
+    Action { id: addAction; text: "Nouveau calque"; shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
+    Action { id: duplicateAction; text: "Dupliquer le calque"; shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
+    Action { id: preferencesAction; text: "Réglages…"; shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: preferencesDialog.open() }
     Instantiator {
         model: window.tools
         delegate: Shortcut {
             required property var modelData
-            sequence: modelData.key
+            sequence: (shortcuts.revision, shortcuts.sequence(modelData.shortcut))
             enabled: !window.editingText && !window.modalOpen
             onActivated: { editor.tool = modelData.name; workspace.forceActiveFocus() }
         }
     }
     Shortcut { enabled: !window.modalOpen; sequence: "Escape"; onActivated: { editor.cancelStroke(); editor.deselect() } }
-    Shortcut { sequence: "Ctrl+0"; onActivated: fitCanvas() }
-    Shortcut { sequence: "Ctrl+1"; onActivated: setZoom(1) }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: "["; onActivated: editor.brushSize = editor.brushSize-5 }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: "]"; onActivated: editor.brushSize = editor.brushSize+5 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomFit")); onActivated: fitCanvas() }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSmaller")); onActivated: editor.brushSize = editor.brushSize-5 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushLarger")); onActivated: editor.brushSize = editor.brushSize+5 }
 
     menuBar: MenuBar {
         background: Rectangle { color: "#22272e" }
@@ -157,6 +162,8 @@ ApplicationWindow {
             MenuItem { action: copyAction }
             MenuItem { action: pasteAction }
             MenuItem { action: deleteAction }
+            MenuSeparator {}
+            MenuItem { action: preferencesAction }
         }
         Menu {
             title: "Image"
@@ -200,7 +207,11 @@ ApplicationWindow {
             MenuItem { text: "Zoom avant"; onTriggered: setZoom(zoom*1.25) }
             MenuItem { text: "Zoom arrière"; onTriggered: setZoom(zoom/1.25) }
         }
-        Menu { title: "Aide"; MenuItem { text: "À propos de PhotoCrap"; onTriggered: aboutDialog.open() } }
+        Menu {
+            title: "Aide"
+            MenuItem { text: "Raccourcis clavier…"; onTriggered: preferencesDialog.open() }
+            MenuItem { text: "À propos de PhotoCrap"; onTriggered: aboutDialog.open() }
+        }
     }
 
     ColumnLayout {
@@ -588,6 +599,161 @@ ApplicationWindow {
             Label { text: "La sélection limite la zone traitée.\nL’opération peut être annulée."; color: "#8996a4" }
         }
         onApplied: { editor.applyFilter(window.adjustment,adjustmentSlider.value); close() }
+    }
+    Dialog {
+        id: preferencesDialog
+        objectName: "preferencesDialog"
+        title: "Réglages"
+        anchors.centerIn: parent
+        modal: true
+        width: Math.min(820, window.width - 80)
+        height: Math.min(680, window.height - 80)
+        closePolicy: Popup.CloseOnEscape
+
+        contentItem: RowLayout {
+            spacing: 0
+
+            Rectangle {
+                Layout.preferredWidth: 190
+                Layout.fillHeight: true
+                color: "#1d232a"
+                border.color: "#343d47"
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    Label {
+                        text: "RÉGLAGES"
+                        color: "#71808e"
+                        font.pixelSize: 9
+                        font.bold: true
+                        font.letterSpacing: 1.6
+                        bottomPadding: 6
+                    }
+                    ItemDelegate {
+                        Layout.fillWidth: true
+                        highlighted: true
+                        text: "⌨   Raccourcis clavier"
+                        Accessible.name: "Raccourcis clavier"
+                    }
+                    Item { Layout.fillHeight: true }
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Les réglages sont enregistrés automatiquement."
+                        color: "#71808e"
+                        font.pixelSize: 10
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.leftMargin: 22
+                Layout.rightMargin: 14
+                Layout.topMargin: 14
+                spacing: 10
+
+                Label {
+                    text: "Raccourcis clavier"
+                    color: "#eef2f5"
+                    font.pixelSize: 20
+                    font.bold: true
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Cliquez dans un champ puis saisissez une combinaison comme Ctrl+Shift+E. Sur macOS, Ctrl correspond à la touche Commande. Videz un champ pour désactiver la commande."
+                    color: "#95a2af"
+                    wrapMode: Text.WordWrap
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: "#39424c" }
+
+                ListView {
+                    id: shortcutList
+                    objectName: "shortcutList"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 3
+                    model: shortcuts.entries
+                    section.property: "category"
+                    section.criteria: ViewSection.FullString
+                    ScrollBar.vertical: ScrollBar {}
+
+                    section.delegate: Label {
+                        required property string section
+                        width: shortcutList.width
+                        height: 34
+                        text: section.toUpperCase()
+                        color: "#7f958a"
+                        font.pixelSize: 9
+                        font.bold: true
+                        font.letterSpacing: 1.4
+                        verticalAlignment: Text.AlignBottom
+                        bottomPadding: 6
+                    }
+
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: shortcutList.width
+                        height: 42
+                        radius: 4
+                        color: shortcutField.activeFocus ? "#303b38" : index % 2 ? "#252b33" : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 9
+                            anchors.rightMargin: 5
+                            spacing: 10
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.label
+                                color: "#d3dbe2"
+                                elide: Text.ElideRight
+                            }
+                            TextField {
+                                id: shortcutField
+                                objectName: "shortcut_" + modelData.id
+                                Layout.preferredWidth: 175
+                                text: modelData.sequence
+                                placeholderText: "Aucun"
+                                selectByMouse: true
+                                Accessible.name: "Raccourci pour " + modelData.label
+                                onEditingFinished: {
+                                    if (text !== modelData.sequence && !shortcuts.setSequence(modelData.id, text))
+                                        text = modelData.sequence
+                                }
+                            }
+                            ToolButton {
+                                text: "×"
+                                enabled: modelData.sequence.length > 0
+                                ToolTip.visible: hovered
+                                ToolTip.text: "Désactiver ce raccourci"
+                                onClicked: shortcuts.setSequence(modelData.id, "")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        footer: DialogButtonBox {
+            Button {
+                text: "Valeurs par défaut"
+                DialogButtonBox.buttonRole: DialogButtonBox.ResetRole
+                onClicked: shortcuts.resetDefaults()
+            }
+            Button {
+                text: "Fermer"
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: preferencesDialog.close()
+            }
+        }
     }
     Dialog {
         id: unsavedDialog; objectName: "unsavedDialog"; title: "Enregistrer vos modifications ?"; anchors.centerIn: parent; modal: true; width: 450

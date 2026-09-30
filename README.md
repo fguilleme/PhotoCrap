@@ -99,7 +99,9 @@ ctest --preset release
 4. Pour un recadrage, tracer une zone puis cliquer **Recadrer**. Les réglages et les coups de pinceau respectent la sélection ; la désélectionner pour agir sur toute l’image.
 5. Enregistrer en `.pcr` pour conserver les calques, puis exporter une image pour la partager.
 
-Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, D dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image, + 1 affiche 100 %. Ctrl/Cmd + molette zoome. Le menu affiche les autres combinaisons.
+Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, D dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image, + 1 affiche 100 %. Ctrl/Cmd + molette zoome.
+
+Tous les raccourcis se consultent et se modifient dans **Édition → Réglages… → Raccourcis clavier**. Une combinaison vide désactive une commande, les doublons sont refusés et le bouton **Valeurs par défaut** restaure le jeu initial. Les personnalisations sont conservées entre les lancements. Les raccourcis d’outils et d’édition d’image sont suspendus pendant la saisie dans un champ texte ou l’affichage d’une boîte de dialogue.
 
 ## Architecture
 
@@ -107,7 +109,7 @@ Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G re
 |---|---|
 | `src/Document.h`, `src/Document.cpp` | Calques, pixels, sélection, composition, outils, historique, fichiers |
 | `src/CanvasItem.*` | Affichage Qt Quick du composite C++ et du damier de transparence |
-| `src/main.cpp` | Démarrage, exposition du document à QML et fournisseur de miniatures |
+| `src/main.cpp`, `src/ShortcutManager.*` | Démarrage, exposition à QML, miniatures et registre persistant des raccourcis |
 | `qml/Main.qml` | Fenêtre, menus, dialogues, raccourcis, canevas et panneaux |
 | `qml/IconButton.qml`, `qml/PanelTitle.qml` | Composants visuels communs |
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h` | Tests Qt Test du moteur et des interactions QML |

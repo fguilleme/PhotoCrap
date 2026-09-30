@@ -28,6 +28,14 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     textField->forceActiveFocus();
     QTest::keyClick(window,Qt::Key_B);
     if(!require(document.tool()=="text","typing B does not switch tools")) return false;
+    auto preferences=window->findChild<QObject*>("preferencesDialog");
+    if(!require(preferences,"preferences dialog exists")) return false;
+    QMetaObject::invokeMethod(preferences,"open");
+    QTest::qWait(150);
+    if(!require(preferences->property("visible").toBool(),"keyboard settings dialog opens")) return false;
+    auto shortcutList=window->findChild<QObject*>("shortcutList");
+    if(!require(shortcutList && shortcutList->property("count").toInt()==33,"keyboard settings list is populated")) return false;
+    QMetaObject::invokeMethod(preferences,"close");
     QMetaObject::invokeMethod(window,"guard",Q_ARG(QVariant,QVariant("new")));
     QTest::qWait(200);
     auto guard=window->findChild<QObject*>("unsavedDialog");

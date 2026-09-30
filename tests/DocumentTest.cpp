@@ -4,10 +4,25 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include "Document.h"
+#include "ShortcutManager.h"
 
 class DocumentTest : public QObject {
     Q_OBJECT
 private slots:
+    void shortcutsAreValidatedAndResettable() {
+        ShortcutManager shortcuts(nullptr, false);
+        QCOMPARE(shortcuts.entries().size(), 33);
+        QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
+        QVERIFY(shortcuts.setSequence("toolBrush", "P"));
+        QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
+        QVERIFY(!shortcuts.setSequence("toolMove", "P"));
+        QCOMPARE(shortcuts.sequence("toolMove"), QString("V"));
+        QVERIFY(shortcuts.setSequence("toolBrush", ""));
+        QVERIFY(shortcuts.sequence("toolBrush").isEmpty());
+        shortcuts.resetDefaults();
+        QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
+        QVERIFY(!shortcuts.setSequence("missing", "Q"));
+    }
     void brushUndoRedoAndCleanState() {
         Document d; QVERIFY(d.newDocument(64,64,true)); QVERIFY(!d.modified());
         d.setColor(Qt::red); d.setBrushSize(8); d.beginStroke(16,16); d.continueStroke(40,16); d.endStroke();

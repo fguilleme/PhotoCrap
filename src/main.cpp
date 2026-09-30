@@ -7,6 +7,7 @@
 #include <QTimer>
 #include "CanvasItem.h"
 #include "Document.h"
+#include "ShortcutManager.h"
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/UiSmoke.h"
 #endif
@@ -33,6 +34,7 @@ int main(int argc,char *argv[]) {
     qmlRegisterType<CanvasItem>("PhotoCrap.Native",1,0,"ImageCanvas");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native",1,0,"ImageDocument","Provided by the application");
     Document document;
+    ShortcutManager shortcutManager;
     const auto args=app.arguments();
     const bool smoke=args.contains("--smoke-test");
     int qmlWarnings=0;
@@ -40,6 +42,7 @@ int main(int argc,char *argv[]) {
     QObject::connect(&engine,&QQmlApplicationEngine::warnings,&app,[&](const QList<QQmlError> &warnings){qmlWarnings+=int(warnings.size());});
     engine.addImageProvider("layers",new ThumbnailProvider(&document));
     engine.rootContext()->setContextProperty("editor",&document);
+    engine.rootContext()->setContextProperty("shortcuts",&shortcutManager);
     QObject::connect(&engine,&QQmlApplicationEngine::objectCreationFailed,&app,[]{QCoreApplication::exit(1);},Qt::QueuedConnection);
     engine.loadFromModule("PhotoCrap","Main");
     if(engine.rootObjects().isEmpty()) return 1;

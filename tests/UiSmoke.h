@@ -33,9 +33,17 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     if(!require(document.tool()=="text","typing B does not switch tools")) return false;
     auto preferences=window->findChild<QObject*>("preferencesDialog");
     if(!require(preferences,"preferences dialog exists")) return false;
+    QMetaObject::invokeMethod(window,"setInterfaceLanguage",Q_ARG(QVariant,QVariant("en")));QTest::qWait(100);
+    if(!require(window->property("interfaceLanguage").toString()=="en"&&window->property("newActionText").toString()=="New…","English interface loads immediately")) return false;
+    QMetaObject::invokeMethod(window,"setInterfaceLanguage",Q_ARG(QVariant,QVariant("fr")));QTest::qWait(100);
+    if(!require(window->property("newActionText").toString()==QString::fromUtf8("Nouveau…"),"French interface restores immediately")) return false;
     QMetaObject::invokeMethod(preferences,"open");
     QTest::qWait(150);
     if(!require(preferences->property("visible").toBool(),"keyboard settings dialog opens")) return false;
+    window->setProperty("preferencesPage",1);QTest::qWait(50);
+    auto languageCombo=window->findChild<QObject*>("languageCombo");
+    if(!require(languageCombo&&languageCombo->property("count").toInt()==2,"interface settings list French and English")) return false;
+    window->setProperty("preferencesPage",0);
     auto shortcutList=window->findChild<QObject*>("shortcutList");
     if(!require(shortcutList && shortcutList->property("count").toInt()==33,"keyboard settings list is populated")) return false;
     QMetaObject::invokeMethod(preferences,"close");

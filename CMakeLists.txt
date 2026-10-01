@@ -3,7 +3,7 @@ project(PhotoCrap VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent LinguistTools)
 qt_standard_project_setup(REQUIRES 6.5)
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
@@ -21,6 +21,7 @@ qt_add_executable(PhotoCrap
     src/main.cpp
     src/CanvasItem.cpp src/CanvasItem.h
     src/ShortcutManager.cpp src/ShortcutManager.h
+    src/LanguageManager.cpp src/LanguageManager.h
 )
 # Homebrew exposes QML plugins through relative symlinks. Scan the real module
 # directory so Qt's deploy step copies binaries, not links into the Cellar.
@@ -37,6 +38,10 @@ qt_add_qml_module(PhotoCrap
     URI PhotoCrap VERSION 1.0
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES qml/Main.qml qml/IconButton.qml qml/PanelTitle.qml qml/ContextMenuItem.qml qml/DarkSlider.qml
+)
+qt_add_translations(PhotoCrap
+    TS_FILES translations/PhotoCrap_en.ts
+    RESOURCE_PREFIX "/i18n"
 )
 target_link_libraries(PhotoCrap PRIVATE photocrap_core Qt6::Quick Qt6::Qml Qt6::QuickControls2)
 set_target_properties(PhotoCrap PROPERTIES

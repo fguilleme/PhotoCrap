@@ -20,12 +20,13 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 - Réglages du calque actif : luminosité, contraste, saturation, noir et blanc, négatif, sépia, flou et netteté. Les sélections limitent leur zone d’application.
 - Redimensionnement, rotation à 90°, symétries, zoom, déplacement du canevas, règles et aperçu de navigation.
 - Historique annuler/rétablir avec suivi de l’état enregistré. Protection à l’ouverture, à la création et à la fermeture d’un document modifié.
+- Interface disponible en français et en anglais, sélectionnable à chaud dans **Réglages → Interface**. Le choix est conservé et les catalogues Qt permettent d’ajouter d’autres langues.
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
 
 ## Compilation
 
-Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2 et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
+Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
 
 ### macOS
 

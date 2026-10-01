@@ -7,6 +7,7 @@
 #include <QTimer>
 #include "CanvasItem.h"
 #include "Document.h"
+#include "LanguageManager.h"
 #include "ShortcutManager.h"
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/UiSmoke.h"
@@ -34,18 +35,21 @@ int main(int argc,char *argv[]) {
     QGuiApplication app(argc,argv);
     app.setApplicationName("PhotoCrap"); app.setOrganizationName("PhotoCrap"); app.setApplicationVersion("0.1.0");
     QQuickStyle::setStyle("Basic");
-    qmlRegisterType<CanvasItem>("PhotoCrap.Native",1,0,"ImageCanvas");
-    qmlRegisterUncreatableType<Document>("PhotoCrap.Native",1,0,"ImageDocument","Provided by the application");
-    Document document;
-    ShortcutManager shortcutManager;
     const auto args=app.arguments();
     const bool smoke=args.contains("--smoke-test");
+    qmlRegisterType<CanvasItem>("PhotoCrap.Native",1,0,"ImageCanvas");
+    qmlRegisterUncreatableType<Document>("PhotoCrap.Native",1,0,"ImageDocument","Provided by the application");
+    LanguageManager languageManager(nullptr,!smoke);
+    Document document;
+    ShortcutManager shortcutManager;
     int qmlWarnings=0;
     QQmlApplicationEngine engine;
     QObject::connect(&engine,&QQmlApplicationEngine::warnings,&app,[&](const QList<QQmlError> &warnings){qmlWarnings+=int(warnings.size());});
     engine.addImageProvider("layers",new ThumbnailProvider(&document));
     engine.rootContext()->setContextProperty("editor",&document);
+    engine.rootContext()->setContextProperty("languages",&languageManager);
     engine.rootContext()->setContextProperty("shortcuts",&shortcutManager);
+    QObject::connect(&languageManager,&LanguageManager::languageChanged,&engine,[&]{engine.retranslate();emit shortcutManager.shortcutsChanged();});
     QObject::connect(&engine,&QQmlApplicationEngine::objectCreationFailed,&app,[]{QCoreApplication::exit(1);},Qt::QueuedConnection);
     engine.loadFromModule("PhotoCrap","Main");
     if(engine.rootObjects().isEmpty()) return 1;

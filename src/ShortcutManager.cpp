@@ -1,10 +1,42 @@
 #include "ShortcutManager.h"
 
 #include <QGuiApplication>
+#include <QHash>
 #include <QKeySequence>
 #include <QSettings>
 
 namespace {
+const char *translatedShortcutText(const QString &source) {
+    static const QHash<QString,const char*> texts{
+        {"Fichier",QT_TRANSLATE_NOOP("ShortcutManager","Fichier")},{"Édition",QT_TRANSLATE_NOOP("ShortcutManager","Édition")},
+        {"Sélection",QT_TRANSLATE_NOOP("ShortcutManager","Sélection")},{"Calques",QT_TRANSLATE_NOOP("ShortcutManager","Calques")},
+        {"Affichage",QT_TRANSLATE_NOOP("ShortcutManager","Affichage")},{"Outils",QT_TRANSLATE_NOOP("ShortcutManager","Outils")},
+        {"Nouveau document",QT_TRANSLATE_NOOP("ShortcutManager","Nouveau document")},{"Ouvrir",QT_TRANSLATE_NOOP("ShortcutManager","Ouvrir")},
+        {"Importer comme calque",QT_TRANSLATE_NOOP("ShortcutManager","Importer comme calque")},{"Enregistrer",QT_TRANSLATE_NOOP("ShortcutManager","Enregistrer")},
+        {"Enregistrer sous",QT_TRANSLATE_NOOP("ShortcutManager","Enregistrer sous")},{"Exporter l’image",QT_TRANSLATE_NOOP("ShortcutManager","Exporter l’image")},
+        {"Annuler",QT_TRANSLATE_NOOP("ShortcutManager","Annuler")},{"Rétablir",QT_TRANSLATE_NOOP("ShortcutManager","Rétablir")},
+        {"Copier l’image visible",QT_TRANSLATE_NOOP("ShortcutManager","Copier l’image visible")},{"Coller comme calque",QT_TRANSLATE_NOOP("ShortcutManager","Coller comme calque")},
+        {"Ouvrir les réglages",QT_TRANSLATE_NOOP("ShortcutManager","Ouvrir les réglages")},{"Tout sélectionner",QT_TRANSLATE_NOOP("ShortcutManager","Tout sélectionner")},
+        {"Désélectionner",QT_TRANSLATE_NOOP("ShortcutManager","Désélectionner")},{"Effacer les pixels",QT_TRANSLATE_NOOP("ShortcutManager","Effacer les pixels")},
+        {"Nouveau calque",QT_TRANSLATE_NOOP("ShortcutManager","Nouveau calque")},{"Dupliquer le calque",QT_TRANSLATE_NOOP("ShortcutManager","Dupliquer le calque")},
+        {"Adapter à la fenêtre",QT_TRANSLATE_NOOP("ShortcutManager","Adapter à la fenêtre")},{"Taille réelle",QT_TRANSLATE_NOOP("ShortcutManager","Taille réelle")},
+        {"Réduire la taille du pinceau",QT_TRANSLATE_NOOP("ShortcutManager","Réduire la taille du pinceau")},{"Augmenter la taille du pinceau",QT_TRANSLATE_NOOP("ShortcutManager","Augmenter la taille du pinceau")},
+        {"Déplacement",QT_TRANSLATE_NOOP("ShortcutManager","Déplacement")},{"Sélection rectangulaire",QT_TRANSLATE_NOOP("ShortcutManager","Sélection rectangulaire")},
+        {"Recadrage",QT_TRANSLATE_NOOP("ShortcutManager","Recadrage")},{"Pinceau",QT_TRANSLATE_NOOP("ShortcutManager","Pinceau")},
+        {"Gomme",QT_TRANSLATE_NOOP("ShortcutManager","Gomme")},{"Remplissage contigu",QT_TRANSLATE_NOOP("ShortcutManager","Remplissage contigu")},
+        {"Dégradé",QT_TRANSLATE_NOOP("ShortcutManager","Dégradé")},{"Pipette",QT_TRANSLATE_NOOP("ShortcutManager","Pipette")},
+        {"Texte rasterisé",QT_TRANSLATE_NOOP("ShortcutManager","Texte rasterisé")},{"Rectangle",QT_TRANSLATE_NOOP("ShortcutManager","Rectangle")},
+        {"Ellipse",QT_TRANSLATE_NOOP("ShortcutManager","Ellipse")},{"Ligne",QT_TRANSLATE_NOOP("ShortcutManager","Ligne")},
+        {"Navigation",QT_TRANSLATE_NOOP("ShortcutManager","Navigation")}
+    };
+    return texts.value(source,nullptr);
+}
+
+QString translated(const QString &source) {
+    const char *text=translatedShortcutText(source);
+    return text?QCoreApplication::translate("ShortcutManager",text):source;
+}
+
 QString standard(QKeySequence::StandardKey key) {
     const auto bindings = QKeySequence::keyBindings(key);
     return bindings.isEmpty() ? QString{} : bindings.first().toString(QKeySequence::PortableText);
@@ -112,7 +144,7 @@ QVariantList ShortcutManager::entries() const {
     result.reserve(m_entries.size());
     for (const auto &entry : m_entries) {
         result.append(QVariantMap{
-            {"id", entry.id}, {"category", entry.category}, {"label", entry.label},
+            {"id", entry.id}, {"category", translated(entry.category)}, {"label", translated(entry.label)},
             {"sequence", entry.sequence}, {"displaySequence", displaySequence(entry.id)},
             {"defaultSequence", entry.defaultSequence}
         });
@@ -123,17 +155,17 @@ QVariantList ShortcutManager::entries() const {
 bool ShortcutManager::setSequence(const QString &id, const QString &value) {
     const int index = indexOf(id);
     if (index < 0) {
-        emit errorOccurred(QStringLiteral("Commande de raccourci inconnue."));
+        emit errorOccurred(tr("Commande de raccourci inconnue."));
         return false;
     }
     const QString candidate = normalized(value);
     if (!value.trimmed().isEmpty() && candidate.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Raccourci invalide. Exemple : Ctrl+Shift+E."));
+        emit errorOccurred(tr("Raccourci invalide. Exemple : Ctrl+Shift+E."));
         return false;
     }
     for (int i = 0; i < m_entries.size(); ++i) {
         if (i != index && !candidate.isEmpty() && m_entries[i].sequence == candidate) {
-            emit errorOccurred(QStringLiteral("« %1 » utilise déjà ce raccourci.").arg(m_entries[i].label));
+            emit errorOccurred(tr("« %1 » utilise déjà ce raccourci.").arg(translated(m_entries[i].label)));
             return false;
         }
     }

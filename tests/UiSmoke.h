@@ -31,6 +31,16 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     textField->forceActiveFocus();
     QTest::keyClick(window,Qt::Key_B);
     if(!require(document.tool()=="text","typing B does not switch tools")) return false;
+    area->forceActiveFocus();
+    document.setColor(Qt::red);document.setSecondaryColor(Qt::blue);document.setBrushHardness(.5);
+    QTest::keyClick(window,Qt::Key_D);QTest::qWait(20);
+    if(!require(document.color()==Qt::black&&document.secondaryColor()==Qt::white,"D restores default colors")) return false;
+    QTest::keyClick(window,Qt::Key_X);QTest::qWait(20);
+    if(!require(document.color()==Qt::white&&document.secondaryColor()==Qt::black,"X swaps foreground and background colors")) return false;
+    QTest::keyClick(window,Qt::Key_BracketLeft,Qt::ShiftModifier);QTest::qWait(20);
+    if(!require(qAbs(document.brushHardness()-.4)<.001,"Shift+[ decreases brush hardness")) return false;
+    QTest::keyClick(window,Qt::Key_BracketRight,Qt::ShiftModifier);QTest::qWait(20);
+    if(!require(qAbs(document.brushHardness()-.5)<.001,"Shift+] increases brush hardness")) return false;
     auto preferences=window->findChild<QObject*>("preferencesDialog");
     if(!require(preferences,"preferences dialog exists")) return false;
     QMetaObject::invokeMethod(window,"setInterfaceLanguage",Q_ARG(QVariant,QVariant("en")));QTest::qWait(100);
@@ -45,7 +55,7 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     if(!require(languageCombo&&languageCombo->property("count").toInt()==2,"interface settings list French and English")) return false;
     window->setProperty("preferencesPage",0);
     auto shortcutList=window->findChild<QObject*>("shortcutList");
-    if(!require(shortcutList && shortcutList->property("count").toInt()==33,"keyboard settings list is populated")) return false;
+    if(!require(shortcutList && shortcutList->property("count").toInt()==37,"keyboard settings list is populated")) return false;
     QMetaObject::invokeMethod(preferences,"close");
     auto brushSettings=window->findChild<QObject*>("brushSettingsDialog");
     if(!require(brushSettings,"brush settings dialog exists")) return false;

@@ -146,6 +146,8 @@ public:
     Q_INVOKABLE void continueStroke(qreal x, qreal y);
     Q_INVOKABLE void endStroke();
     Q_INVOKABLE void cancelStroke();
+    Q_INVOKABLE void resetColors();
+    Q_INVOKABLE void swapColors();
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     Q_INVOKABLE void selectAll();

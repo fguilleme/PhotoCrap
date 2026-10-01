@@ -1283,10 +1283,6 @@
       <translation>Adjustments</translation>
     </message>
     <message>
-      <source>Réglages</source>
-      <translation>Settings</translation>
-    </message>
-    <message>
       <location filename="../qml/Main.qml" line="278" />
       <source>Luminosité…</source>
       <translation>Brightness…</translation>
@@ -2162,6 +2158,26 @@ Independent software, not affiliated with Adobe.</translation>
     </message>
     <message>
       <location filename="../src/ShortcutManager.cpp" line="24" />
+      <source>Réduire la dureté du pinceau</source>
+      <translation>Decrease Brush Hardness</translation>
+    </message>
+    <message>
+      <location filename="../src/ShortcutManager.cpp" line="24" />
+      <source>Augmenter la dureté du pinceau</source>
+      <translation>Increase Brush Hardness</translation>
+    </message>
+    <message>
+      <location filename="../src/ShortcutManager.cpp" line="25" />
+      <source>Couleurs par défaut</source>
+      <translation>Default Colors</translation>
+    </message>
+    <message>
+      <location filename="../src/ShortcutManager.cpp" line="25" />
+      <source>Échanger les couleurs</source>
+      <translation>Swap Colors</translation>
+    </message>
+    <message>
+      <location filename="../src/ShortcutManager.cpp" line="26" />
       <source>Déplacement</source>
       <translation>Move</translation>
     </message>

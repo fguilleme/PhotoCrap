@@ -492,6 +492,13 @@ void Document::setTool(const QString &value) {
 }
 void Document::setColor(const QColor &value) { if(value.isValid()) {m_color=value; emit settingsChanged();} }
 void Document::setSecondaryColor(const QColor &value) { if(value.isValid()) {m_secondary=value; emit settingsChanged();} }
+void Document::resetColors() {
+    if(m_color==Qt::black && m_secondary==Qt::white) return;
+    m_color=Qt::black;m_secondary=Qt::white;emit settingsChanged();
+}
+void Document::swapColors() {
+    qSwap(m_color,m_secondary);emit settingsChanged();
+}
 void Document::setBrushSize(qreal value) { if(std::isfinite(value)) {m_brushSize=qBound(1.,value,500.); emit settingsChanged();} }
 void Document::setBrushOpacity(qreal value) { if(std::isfinite(value)) {m_brushOpacity=qBound(0.,value,1.); emit settingsChanged();} }
 void Document::setBrushHardness(qreal value) {if(std::isfinite(value)){m_brushHardness=qBound(0.,value,1.);emit settingsChanged();}}

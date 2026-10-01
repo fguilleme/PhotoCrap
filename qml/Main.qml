@@ -180,6 +180,10 @@ ApplicationWindow {
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSmaller")); onActivated: editor.brushSize = editor.brushSize-5 }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushLarger")); onActivated: editor.brushSize = editor.brushSize+5 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSofter")); onActivated: editor.brushHardness = editor.brushHardness-0.1 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushHarder")); onActivated: editor.brushHardness = editor.brushHardness+0.1 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("defaultColors")); onActivated: editor.resetColors() }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("swapColors")); onActivated: editor.swapColors() }
 
     menuBar: MenuBar {
         background: Rectangle { color: "#22272e" }
@@ -537,7 +541,7 @@ ApplicationWindow {
                             validator: RegularExpressionValidator { regularExpression: /#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?/ }
                             onEditingFinished: if(acceptableInput) editor.color=text
                         }
-                        IconButton { glyph: "⇄"; hint: qsTr("Échanger les couleurs"); onClicked: { const c=editor.color; editor.color=editor.secondaryColor; editor.secondaryColor=c } }
+                        IconButton { glyph: "⇄"; hint: qsTr("Échanger les couleurs"); onClicked: editor.swapColors() }
                     }
                     Row {
                         spacing: 7

@@ -11,8 +11,13 @@ class DocumentTest : public QObject {
 private slots:
     void shortcutsAreValidatedAndResettable() {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 33);
+        QCOMPARE(shortcuts.entries().size(), 37);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
+        QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
+        QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
+        QCOMPARE(shortcuts.sequence("brushSofter"), QString("Shift+["));
+        QCOMPARE(shortcuts.sequence("brushHarder"), QString("Shift+]"));
+        QCOMPARE(shortcuts.sequence("toolGradient"), QString("Shift+G"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -22,6 +27,11 @@ private slots:
         shortcuts.resetDefaults();
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QVERIFY(!shortcuts.setSequence("missing", "Q"));
+    }
+    void foregroundAndBackgroundColorsCanResetAndSwap() {
+        Document d;d.setColor(Qt::red);d.setSecondaryColor(Qt::blue);
+        d.resetColors();QCOMPARE(d.color(),QColor(Qt::black));QCOMPARE(d.secondaryColor(),QColor(Qt::white));
+        d.swapColors();QCOMPARE(d.color(),QColor(Qt::white));QCOMPARE(d.secondaryColor(),QColor(Qt::black));
     }
     void brushUndoRedoAndCleanState() {
         Document d; QVERIFY(d.newDocument(64,64,true)); QVERIFY(!d.modified());

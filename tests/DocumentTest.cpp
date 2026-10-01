@@ -184,11 +184,14 @@ private slots:
         QVERIFY(qAbs(d.composite().pixelColor(12,12).red()-original.pixelColor(12,12).red())<=1);
         const QImage initialLow=d.layerImage(1);
         const int before=d.historyIndex();
+        const int thumbnailBefore=d.thumbnailRevision();
         d.beginLayerPreview();
         d.previewLayerParameter("radius",9);
+        QCOMPARE(d.thumbnailRevision(),thumbnailBefore);
         QVERIFY(d.layerImage(1)!=initialLow);
         QCOMPARE(d.historyIndex(),before);
         d.finishLayerPreview("Rayon des fréquences");
+        QVERIFY(d.thumbnailRevision()>thumbnailBefore);
         QCOMPARE(d.historyIndex(),before+1);
         d.undo();
         QVERIFY(qAbs(d.composite().pixelColor(12,12).red()-original.pixelColor(12,12).red())<=1);

@@ -3,15 +3,19 @@ project(PhotoCrap VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent)
 qt_standard_project_setup(REQUIRES 6.5)
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
 
 qt_add_library(photocrap_core STATIC src/Document.cpp src/Document.h)
-target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui)
+target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Concurrent)
 target_include_directories(photocrap_core PUBLIC src)
+if(APPLE)
+    target_compile_definitions(photocrap_core PRIVATE PHOTOCRAP_USE_ACCELERATE)
+    target_link_libraries(photocrap_core PRIVATE "-framework Accelerate")
+endif()
 
 qt_add_executable(PhotoCrap
     src/main.cpp

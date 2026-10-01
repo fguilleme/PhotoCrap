@@ -40,6 +40,7 @@ class Document : public QObject {
     Q_PROPERTY(QVariantList layers READ layers NOTIFY layersChanged)
     Q_PROPERTY(int activeLayer READ activeLayer WRITE setActiveLayer NOTIFY layersChanged)
     Q_PROPERTY(int revision READ revision NOTIFY imageChanged)
+    Q_PROPERTY(int thumbnailRevision READ thumbnailRevision NOTIFY thumbnailsChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY settingsChanged)
     Q_PROPERTY(QColor secondaryColor READ secondaryColor WRITE setSecondaryColor NOTIFY settingsChanged)
@@ -72,6 +73,7 @@ public:
     QVariantList layers() const;
     int activeLayer() const { return m_active; }
     int revision() const { return m_revision; }
+    int thumbnailRevision() const { return m_thumbnailRevision; }
     QString tool() const { return m_tool; }
     QColor color() const { return m_color; }
     QColor secondaryColor() const { return m_secondary; }
@@ -160,6 +162,7 @@ signals:
     void documentChanged();
     void layersChanged();
     void imageChanged();
+    void thumbnailsChanged();
     void settingsChanged();
     void selectionChanged();
     void historyChanged();
@@ -184,6 +187,7 @@ private:
     QVector<Snapshot> m_undo, m_redo;
     quint64 m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int m_revision = 0;
+    int m_thumbnailRevision = 0;
     mutable QImage m_composite;
     mutable bool m_cacheDirty = true;
     mutable bool m_fullCompositeDirty = true;
@@ -192,6 +196,7 @@ private:
     bool m_editingMask = false;
     bool m_previewingLayer = false;
     bool m_layerPreviewChanged = false;
+    bool m_frequencyPreviewDraft = false;
     QPointF m_anchor, m_last;
     QPointF m_smoothedLast;
     qreal m_distanceToNextDab = 0;

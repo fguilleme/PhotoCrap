@@ -571,14 +571,14 @@ ApplicationWindow {
                                 IconButton { glyph: modelData.visible?"◉":"○"; implicitWidth: 24; hint: "Visibilité du calque"; onClicked: editor.setLayerVisible(modelData.layerIndex,!modelData.visible) }
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
-                                    Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.revision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
                                     MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(false) } }
                                 }
                                 Rectangle {
                                     visible: modelData.hasMask
                                     width: visible?34:0; height: 36; color: "#182027"; radius: 3
                                     border.width: modelData.editingMask?2:1; border.color: modelData.editingMask?"#c5f2cf":"#69757f"
-                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasMask?"image://layers/mask/"+modelData.layerIndex+"/"+editor.revision:""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasMask?"image://layers/mask/"+modelData.layerIndex+"/"+editor.thumbnailRevision:""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
                                     Label { anchors.centerIn: parent; visible: !modelData.maskEnabled; text: "×"; color: "#ef6b6b"; font.pixelSize: 34; font.bold: true }
                                     MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(true); layerPropertiesDialog.open() } }
                                 }

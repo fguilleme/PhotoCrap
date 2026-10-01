@@ -11,10 +11,16 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QThreadPool>
+#include <QtConcurrent>
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <numeric>
+#ifdef PHOTOCRAP_USE_ACCELERATE
+#include <Accelerate/Accelerate.h>
+#endif
 
 namespace {
 constexpr qint64 MaxPixels = 32LL * 1024 * 1024;
@@ -86,13 +92,13 @@ void Document::edit(const QString &label, const std::function<void()> &operation
 }
 void Document::changed(bool metadata) {
     m_cacheDirty = true;if(metadata)m_fullCompositeDirty=true;++m_revision;
-    if (metadata) emit layersChanged();
+    if (metadata) {++m_thumbnailRevision;emit thumbnailsChanged();emit layersChanged();}
     emit imageChanged();
 }
 void Document::resetHistory(bool clean) {
     m_undo.clear(); m_redo.clear(); m_stateId = m_nextId++;
     m_savedId = clean ? m_stateId : 0;
-    m_selection = {}; m_drawing = false; m_editingMask = false; m_previewingLayer = false;
+    m_selection = {}; m_drawing = false; m_editingMask = false; m_previewingLayer = false; m_frequencyPreviewDraft = false;
     m_beforeStroke = {}; m_beforeLayerPreview = {}; m_strokeBase={};m_strokeCoverage={};m_strokeBounds={};m_frequencyCache.clear();
     m_fullCompositeDirty=true;m_dirtyRegion={};
     changed(); emit documentChanged(); emit selectionChanged(); emit historyChanged();
@@ -133,9 +139,14 @@ QImage Document::applyMask(const QImage &source,const QImage &mask,qreal density
 }
 QImage Document::blendImages(const QImage &base,const QImage &source,int mode,qreal opacity) {
     if(source.isNull())return base;
+    opacity=qBound(0.,opacity,1.);mode=qBound(0,mode,26);
+    if(mode==0) {
+        QImage background=base.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QPainter painter(&background);painter.setOpacity(opacity);painter.drawImage(0,0,source);painter.end();
+        background.setColorSpace(QColorSpace::SRgb);return background;
+    }
     QImage background=base.convertToFormat(QImage::Format_ARGB32);
     const QImage foreground=source.convertToFormat(QImage::Format_ARGB32);
-    opacity=qBound(0.,opacity,1.);mode=qBound(0,mode,26);
     auto channel=[](double b,double s,int m) {
         auto burn=[](double baseValue,double blendValue){return blendValue<=0?0.:1.-qMin(1.,(1.-baseValue)/blendValue);};
         auto dodge=[](double baseValue,double blendValue){return blendValue>=1?1.:qMin(1.,baseValue/(1.-blendValue));};
@@ -191,43 +202,68 @@ QImage Document::blurImage(const QImage &source,int radius) {
     if(source.isNull() || radius<=0) return source;
     radius=qBound(1,radius,100); const int w=source.width(),h=source.height(),window=radius*2+1;
     const QImage input=source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+#ifdef PHOTOCRAP_USE_ACCELERATE
+    QImage accelerated=blank(source.size());
+    vImage_Buffer sourceBuffer{const_cast<uchar*>(input.constBits()),vImagePixelCount(h),vImagePixelCount(w),size_t(input.bytesPerLine())};
+    vImage_Buffer destinationBuffer{accelerated.bits(),vImagePixelCount(h),vImagePixelCount(w),size_t(accelerated.bytesPerLine())};
+    const vImage_Error error=vImageBoxConvolve_ARGB8888(&sourceBuffer,&destinationBuffer,nullptr,0,0,
+        uint32_t(window),uint32_t(window),nullptr,kvImageEdgeExtend);
+    if(error==kvImageNoError)return accelerated;
+#endif
     QImage horizontal=blank(source.size()),result=blank(source.size());
     auto pass=[&](const QImage &src,QImage &dst,bool vertical) {
         const int major=vertical?w:h,minor=vertical?h:w;
-        for(int a=0;a<major;++a) {
+        const int jobs=qMin(major,qMax(1,QThreadPool::globalInstance()->maxThreadCount()*2));
+        QVector<int> blocks(jobs);std::iota(blocks.begin(),blocks.end(),0);
+        QtConcurrent::blockingMap(blocks,[&](int block){
+          const int first=major*block/jobs,last=major*(block+1)/jobs;
+          for(int a=first;a<last;++a) {
             qint64 r=0,g=0,b=0,alpha=0;
-            auto sample=[&](int pos,int sign){const int p=qBound(0,pos,minor-1); const QRgb c=src.pixel(vertical?a:p,vertical?p:a);
+            auto sample=[&](int pos,int sign){const int p=qBound(0,pos,minor-1);
+                const auto row=reinterpret_cast<const QRgb*>(src.constScanLine(vertical?p:a));const QRgb c=row[vertical?a:p];
                 r+=sign*qRed(c);g+=sign*qGreen(c);b+=sign*qBlue(c);alpha+=sign*qAlpha(c);};
             for(int k=-radius;k<=radius;++k) sample(k,1);
             for(int n=0;n<minor;++n) {
-                dst.setPixel(vertical?a:n,vertical?n:a,qRgba(int(r/window),int(g/window),int(b/window),int(alpha/window)));
+                auto row=reinterpret_cast<QRgb*>(dst.scanLine(vertical?n:a));row[vertical?a:n]=qRgba(int(r/window),int(g/window),int(b/window),int(alpha/window));
                 sample(n-radius,-1);sample(n+radius+1,1);
             }
-        }
+          }
+        });
     };
     pass(input,horizontal,false);pass(horizontal,result,true);return result;
 }
 QImage Document::frequencyImage(const Layer &layer) const {
     if(layer.source.isNull()) return {};
     const int radius=qBound(1,layer.parameters.value("radius",8).toInt(),100);
-    const QString cacheBase=QString::number(layer.source.cacheKey())+QLatin1Char('/')+QString::number(radius);
+    QImage source=layer.source.convertToFormat(QImage::Format_ARGB32);
+    qreal previewScale=1.;
+    if(m_frequencyPreviewDraft && qMax(source.width(),source.height())>960) {
+        previewScale=960./qreal(qMax(source.width(),source.height()));
+        source=source.scaled(qMax(1,qRound(source.width()*previewScale)),qMax(1,qRound(source.height()*previewScale)),Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+    }
+    const QString cacheBase=QString::number(layer.source.cacheKey())+QLatin1Char('/')+QString::number(radius)
+        +(previewScale<1?QStringLiteral("/draft/")+QString::number(source.width()):QStringLiteral("/full"));
     const QString lowKey=QStringLiteral("low/")+cacheBase;
-    const QImage source=layer.source.convertToFormat(QImage::Format_ARGB32);
     QImage low=m_frequencyCache.value(lowKey);
     if(low.isNull()) {
         if(m_frequencyCache.size()>12)m_frequencyCache.clear();
-        low=blurImage(source,radius).convertToFormat(QImage::Format_ARGB32);m_frequencyCache.insert(lowKey,low);
+        low=blurImage(source,qMax(1,qRound(radius*previewScale))).convertToFormat(QImage::Format_ARGB32);
+        if(previewScale<1)low=low.scaled(layer.source.size(),Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+        m_frequencyCache.insert(lowKey,low);
     }
     if(layer.kind==QStringLiteral("frequencyLow")) return low;
     const QString highKey=QStringLiteral("high/")+cacheBase;
     if(m_frequencyCache.contains(highKey))return m_frequencyCache.value(highKey);
-    QImage result(source.size(),QImage::Format_ARGB32);
-    for(int y=0;y<source.height();++y) for(int x=0;x<source.width();++x) {
-        const QColor s=source.pixelColor(x,y),l=low.pixelColor(x,y);
-        result.setPixelColor(x,y,QColor(qBound(0,qRound((s.red()-l.red()+255)/2.),255),
-            qBound(0,qRound((s.green()-l.green()+255)/2.),255),
-            qBound(0,qRound((s.blue()-l.blue()+255)/2.),255),s.alpha()));
-    }
+    const QImage fullSource=layer.source.convertToFormat(QImage::Format_ARGB32);
+    QImage result(fullSource.size(),QImage::Format_ARGB32);
+    QVector<int> rows(fullSource.height());std::iota(rows.begin(),rows.end(),0);
+    QtConcurrent::blockingMap(rows,[&](int y){
+        const auto s=reinterpret_cast<const QRgb*>(fullSource.constScanLine(y));
+        const auto l=reinterpret_cast<const QRgb*>(low.constScanLine(y));
+        auto out=reinterpret_cast<QRgb*>(result.scanLine(y));
+        for(int x=0;x<fullSource.width();++x)out[x]=qRgba((qRed(s[x])-qRed(l[x])+256)/2,
+            (qGreen(s[x])-qGreen(l[x])+256)/2,(qBlue(s[x])-qBlue(l[x])+256)/2,qAlpha(s[x]));
+    });
     result=result.convertToFormat(QImage::Format_ARGB32_Premultiplied);m_frequencyCache.insert(highKey,result);return result;
 }
 QImage Document::adjustedImage(const QImage &source,const QString &type,const QVariantMap &p) {
@@ -297,7 +333,19 @@ const QImage &Document::composite() const {
     const QRect region=(m_fullCompositeDirty||m_composite.size()!=m_size?documentRect:m_dirtyRegion.intersected(documentRect));
     if(region.isEmpty()){m_cacheDirty=false;return m_composite;}
     QImage regionComposite=blank(region.size());
-    for (const auto &layer : m_layers) if (layer.visible) {
+    for (int layerIndex=0;layerIndex<m_layers.size();++layerIndex) {
+        const auto &layer=m_layers[layerIndex];if(!layer.visible)continue;
+        // An untouched low/high pair reconstructs its source independently of
+        // the radius. Collapsing it avoids two full-image filters per slider tick.
+        if(layer.kind==QStringLiteral("frequencyLow") && layerIndex+1<m_layers.size()) {
+            const auto &high=m_layers[layerIndex+1];const QString pairId=layer.parameters.value("pairId").toString();
+            const bool plainMasks=(!layer.maskEnabled||layer.mask.isNull())&&(!high.maskEnabled||high.mask.isNull());
+            if(high.visible&&high.kind==QStringLiteral("frequencyHigh")&&!pairId.isEmpty()
+                &&high.parameters.value("pairId").toString()==pairId&&layer.source.cacheKey()==high.source.cacheKey()
+                &&qFuzzyCompare(layer.opacity,1.)&&qFuzzyCompare(high.opacity,1.)&&layer.blend==0&&high.blend==16&&plainMasks) {
+                regionComposite=blendImages(regionComposite,layer.source.copy(region),0,1.);++layerIndex;continue;
+            }
+        }
         QImage rendered;
         if (layer.kind == QStringLiteral("adjustment"))
             rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
@@ -603,7 +651,7 @@ void Document::addFrequencySeparation(qreal radius) {
 }
 void Document::beginLayerPreview() {
     if(m_previewingLayer||m_active<0||m_active>=m_layers.size())return;
-    endStroke();m_beforeLayerPreview=snapshot(QStringLiteral("Aperçu"));m_previewingLayer=true;m_layerPreviewChanged=false;
+    endStroke();m_beforeLayerPreview=snapshot(QStringLiteral("Aperçu"));m_previewingLayer=true;m_layerPreviewChanged=false;m_frequencyPreviewDraft=false;
 }
 void Document::previewLayerParameter(const QString &key,const QVariant &value) {
     if(m_active<0||m_active>=m_layers.size()||key.isEmpty())return;
@@ -611,16 +659,19 @@ void Document::previewLayerParameter(const QString &key,const QVariant &value) {
     if(m_layers[m_active].parameters.value(key)==value)return;
     const QString pairId=m_layers[m_active].parameters.value("pairId").toString();
     if(key=="radius"&&!pairId.isEmpty()) {
+        m_frequencyPreviewDraft=true;m_frequencyCache.clear();
         for(auto &layer:m_layers)if(layer.parameters.value("pairId").toString()==pairId)layer.parameters.insert(key,value);
     } else m_layers[m_active].parameters.insert(key,value);
-    m_layerPreviewChanged=true;changed();
+    // The property panel already owns the live slider value. Avoid rebuilding
+    // the layer model and its thumbnails for every pointer event.
+    m_layerPreviewChanged=true;m_fullCompositeDirty=true;changed(false);
 }
 void Document::finishLayerPreview(const QString &label) {
-    if(!m_previewingLayer)return;m_previewingLayer=false;
+    if(!m_previewingLayer)return;m_previewingLayer=false;m_frequencyPreviewDraft=false;
     if(m_layerPreviewChanged)commit(m_beforeLayerPreview,label);m_beforeLayerPreview={};m_layerPreviewChanged=false;
 }
 void Document::cancelLayerPreview() {
-    if(!m_previewingLayer)return;const bool changedPreview=m_layerPreviewChanged;m_previewingLayer=false;m_layerPreviewChanged=false;
+    if(!m_previewingLayer)return;const bool changedPreview=m_layerPreviewChanged;m_previewingLayer=false;m_layerPreviewChanged=false;m_frequencyPreviewDraft=false;
     if(changedPreview)restore(m_beforeLayerPreview);m_beforeLayerPreview={};
 }
 
@@ -763,6 +814,7 @@ void Document::endStroke() {
             emit selectionChanged();
         }
         commit(m_beforeStroke,toolLabel(m_tool),m_tool!="brush"&&m_tool!="eraser");
+        if(m_tool=="brush"||m_tool=="eraser") {++m_thumbnailRevision;emit thumbnailsChanged();}
     }
     m_beforeStroke={};m_strokeBase={};m_strokeCoverage={};m_strokeBounds={};
 }
@@ -886,24 +938,8 @@ void Document::applyFilter(const QString &filter,qreal amount) {
         QImage result=original.convertToFormat(QImage::Format_ARGB32);
         const QRect area=hasSelection()?m_selection:result.rect();
         if(filter=="blur" || filter=="sharpen") {
-            // Separable box blur on premultiplied pixels avoids dark alpha fringes.
             const int radius=filter=="sharpen"?1:qBound(1,int(amount),30);
-            QImage horizontal=blank(m_size), blurred=blank(m_size);
-            auto pass=[&](const QImage &src,QImage &dst,bool vertical){
-                const int major=vertical?width():height(), minor=vertical?height():width(), window=radius*2+1;
-                for(int a=0;a<major;++a) {
-                    qint64 r=0,g=0,b=0,alpha=0;
-                    auto sample=[&](int pos,int sign){const int p=qBound(0,pos,minor-1);
-                        QRgb c=src.pixel(vertical?a:p,vertical?p:a);
-                        r+=sign*qRed(c); g+=sign*qGreen(c); b+=sign*qBlue(c); alpha+=sign*qAlpha(c);};
-                    for(int k=-radius;k<=radius;++k) sample(k,1);
-                    for(int n=0;n<minor;++n) {
-                        dst.setPixel(vertical?a:n,vertical?n:a,qRgba(int(r/window),int(g/window),int(b/window),int(alpha/window)));
-                        sample(n-radius,-1); sample(n+radius+1,1);
-                    }
-                }
-            };
-            pass(original,horizontal,false); pass(horizontal,blurred,true);
+            const QImage blurred=blurImage(original,radius);
             if(filter=="blur") {
                 result=original; QPainter p(&result); p.setCompositionMode(QPainter::CompositionMode_Source);
                 p.setClipRect(area); p.drawImage(0,0,blurred); p.end();

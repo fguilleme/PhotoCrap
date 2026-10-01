@@ -35,6 +35,7 @@ ApplicationWindow {
     property bool importing: false
     property bool changingSecondary: false
     property bool layerContextMenuVisible: layerContextMenu.visible
+    property real parameterSliderWidth: 0
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
@@ -56,7 +57,14 @@ ApplicationWindow {
         posterize: [{key:"levels",label:"Niveaux",from:2,to:32,step:1}],
         threshold: [{key:"level",label:"Seuil",from:0,to:255,step:1}],
         gradientMap: [],
-        selectiveColor: [{key:"cyanRed",label:"Cyan ↔ Rouge",from:-100,to:100,step:1},{key:"magentaGreen",label:"Magenta ↔ Vert",from:-100,to:100,step:1},{key:"yellowBlue",label:"Jaune ↔ Bleu",from:-100,to:100,step:1},{key:"black",label:"Noir",from:-100,to:100,step:1}]
+        selectiveColor: [{key:"cyanRed",label:"Cyan ↔ Rouge",from:-100,to:100,step:1},{key:"magentaGreen",label:"Magenta ↔ Vert",from:-100,to:100,step:1},{key:"yellowBlue",label:"Jaune ↔ Bleu",from:-100,to:100,step:1},{key:"black",label:"Noir",from:-100,to:100,step:1}],
+        gaussianBlur: [{key:"radius",label:"Rayon",from:0.1,to:100,step:0.5}],
+        motionBlur: [{key:"distance",label:"Distance",from:1,to:200,step:1},{key:"angle",label:"Angle",from:-180,to:180,step:1}],
+        boxBlur: [{key:"radius",label:"Rayon",from:1,to:100,step:1}],
+        unsharpMask: [{key:"amount",label:"Gain (%)",from:0,to:300,step:1},{key:"radius",label:"Rayon",from:0.5,to:20,step:0.5},{key:"threshold",label:"Seuil",from:0,to:255,step:1}],
+        highPass: [{key:"radius",label:"Rayon",from:0.5,to:100,step:0.5}],
+        mosaic: [{key:"cellSize",label:"Taille des cellules",from:2,to:200,step:1}],
+        noise: [{key:"amount",label:"Quantité (%)",from:0,to:100,step:1}]
     })
     property var tools: [
         {name:"move", icon:"↖", label:"Déplacement", shortcut:"toolMove"},
@@ -227,6 +235,19 @@ ApplicationWindow {
                 MenuItem { text: "Seuil"; onTriggered: addAdjustmentLayer("threshold") }
                 MenuItem { text: "Courbe de transfert de dégradé"; onTriggered: addAdjustmentLayer("gradientMap") }
                 MenuItem { text: "Correction sélective"; onTriggered: addAdjustmentLayer("selectiveColor") }
+                MenuSeparator {}
+                Menu {
+                    title: "Filtres"
+                    MenuItem { text: "Flou gaussien…"; onTriggered: addAdjustmentLayer("gaussianBlur") }
+                    MenuItem { text: "Flou directionnel…"; onTriggered: addAdjustmentLayer("motionBlur") }
+                    MenuItem { text: "Flou de boîte…"; onTriggered: addAdjustmentLayer("boxBlur") }
+                    MenuSeparator {}
+                    MenuItem { text: "Netteté optimisée…"; onTriggered: addAdjustmentLayer("unsharpMask") }
+                    MenuItem { text: "Passe-haut…"; onTriggered: addAdjustmentLayer("highPass") }
+                    MenuSeparator {}
+                    MenuItem { text: "Mosaïque…"; onTriggered: addAdjustmentLayer("mosaic") }
+                    MenuItem { text: "Ajout de bruit…"; onTriggered: addAdjustmentLayer("noise") }
+                }
             }
             MenuItem { text: "Séparation de fréquences…"; onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
             MenuSeparator {}
@@ -257,8 +278,20 @@ ApplicationWindow {
             MenuItem { text: "Noir et blanc"; onTriggered: editor.applyFilter("grayscale") }
             MenuItem { text: "Négatif"; onTriggered: editor.applyFilter("invert") }
             MenuItem { text: "Sépia"; onTriggered: editor.applyFilter("sepia") }
-            MenuItem { text: "Flou…"; onTriggered: adjust("blur","Rayon du flou",5) }
             MenuItem { text: "Renforcer la netteté"; onTriggered: editor.applyFilter("sharpen") }
+            MenuSeparator {}
+            Menu {
+                title: "Filtres"
+                MenuItem { text: "Flou gaussien…"; onTriggered: addAdjustmentLayer("gaussianBlur") }
+                MenuItem { text: "Flou directionnel…"; onTriggered: addAdjustmentLayer("motionBlur") }
+                MenuItem { text: "Flou de boîte…"; onTriggered: addAdjustmentLayer("boxBlur") }
+                MenuSeparator {}
+                MenuItem { text: "Netteté optimisée…"; onTriggered: addAdjustmentLayer("unsharpMask") }
+                MenuItem { text: "Passe-haut…"; onTriggered: addAdjustmentLayer("highPass") }
+                MenuSeparator {}
+                MenuItem { text: "Mosaïque…"; onTriggered: addAdjustmentLayer("mosaic") }
+                MenuItem { text: "Ajout de bruit…"; onTriggered: addAdjustmentLayer("noise") }
+            }
         }
         Menu {
             title: "Affichage"
@@ -534,7 +567,7 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Label { text: "Opacité"; color: "#8e9baa"; font.pixelSize: 11 }
-                        Slider {
+                        DarkSlider {
                             id: layerOpacity; Layout.fillWidth: true; from: 0; to: 1
                             value: window.activeInfo.opacity
                             onPressedChanged: if(!pressed) editor.setLayerOpacity(editor.activeLayer,value)
@@ -653,6 +686,17 @@ ApplicationWindow {
         MenuItem { text: "Seuil"; onTriggered: addAdjustmentLayer("threshold") }
         MenuItem { text: "Transfert de dégradé"; onTriggered: addAdjustmentLayer("gradientMap") }
         MenuItem { text: "Correction sélective"; onTriggered: addAdjustmentLayer("selectiveColor") }
+        MenuSeparator {}
+        Menu {
+            title: "Filtres"
+            MenuItem { text: "Flou gaussien…"; onTriggered: addAdjustmentLayer("gaussianBlur") }
+            MenuItem { text: "Flou directionnel…"; onTriggered: addAdjustmentLayer("motionBlur") }
+            MenuItem { text: "Flou de boîte…"; onTriggered: addAdjustmentLayer("boxBlur") }
+            MenuItem { text: "Netteté optimisée…"; onTriggered: addAdjustmentLayer("unsharpMask") }
+            MenuItem { text: "Passe-haut…"; onTriggered: addAdjustmentLayer("highPass") }
+            MenuItem { text: "Mosaïque…"; onTriggered: addAdjustmentLayer("mosaic") }
+            MenuItem { text: "Ajout de bruit…"; onTriggered: addAdjustmentLayer("noise") }
+        }
     }
 
     Menu {
@@ -745,9 +789,11 @@ ApplicationWindow {
             anchors.fill: parent; spacing: 16
             Label { text: "Appliquer au calque actif"; color: "#9cabb7" }
             RowLayout {
-                Slider { id: adjustmentSlider; Layout.fillWidth: true; from: window.adjustment==="blur"?1:-100; to: window.adjustment==="blur"?30:100; stepSize: 1 }
-                Label { text: Math.round(adjustmentSlider.value); Layout.preferredWidth: 35 }
+                Layout.fillWidth: true
+                Label { text: window.adjustmentTitle; color: "#c4cdd5"; Layout.fillWidth: true }
+                Label { text: Math.round(adjustmentSlider.value); color: "#aeb9c3"; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
             }
+            DarkSlider { id: adjustmentSlider; Layout.fillWidth: true; from: window.adjustment==="blur"?1:-100; to: window.adjustment==="blur"?30:100; stepSize: 1 }
             Label { text: "La sélection limite la zone traitée.\nL’opération peut être annulée."; color: "#8996a4" }
         }
         onApplied: { editor.applyFilter(window.adjustment,adjustmentSlider.value); close() }
@@ -794,9 +840,11 @@ ApplicationWindow {
                 ComboBox { Layout.fillWidth: true; model: window.blendModeNames; currentIndex: editor.brushBlend; onActivated: editor.brushBlend=currentIndex }
             }
             ScrollView {
+                id: brushSettingsScroll
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                contentWidth: availableWidth
                 ColumnLayout {
-                    width: parent.width; spacing: 9
+                    width: brushSettingsScroll.availableWidth; spacing: 9
                     Repeater {
                         model: [
                             {key:"brushSize",label:"Taille",from:1,to:500,scale:1,suffix:" px"},
@@ -816,7 +864,7 @@ ApplicationWindow {
                                 Label { text: modelData.label; color: "#c4cdd5"; Layout.fillWidth: true }
                                 Label { text: Math.round(brushSettingSlider.value)+modelData.suffix; color: "#91a0ad"; Layout.preferredWidth: 64; horizontalAlignment: Text.AlignRight }
                             }
-                            Slider {
+                            DarkSlider {
                                 id: brushSettingSlider
                                 Layout.fillWidth: true; from: modelData.from; to: modelData.to; stepSize: 1
                                 value: Number(editor[modelData.key])*modelData.scale
@@ -856,10 +904,12 @@ ApplicationWindow {
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: "#3a444d" }
             ScrollView {
+                id: layerPropertiesScroll
                 Layout.fillWidth: true; Layout.fillHeight: true
                 clip: true
+                contentWidth: availableWidth
                 ColumnLayout {
-                    width: parent.width; spacing: 11
+                    width: layerPropertiesScroll.availableWidth; spacing: 11
                     Repeater {
                         model: activeInfo.editingMask ? [
                             {key:"_maskDensity",label:"Densité (%)",from:0,to:100,step:1},
@@ -875,9 +925,11 @@ ApplicationWindow {
                                 Label { text: modelData.label; color: "#c4cdd5"; Layout.fillWidth: true }
                                 Label { text: Number(parameterSlider.value).toFixed(modelData.step<1?2:0); color: "#91a0ad"; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
-                            Slider {
+                            DarkSlider {
                                 id: parameterSlider
+                                objectName: "parameterSlider"
                                 Layout.fillWidth: true
+                                onWidthChanged: window.parameterSliderWidth=width
                                 from: modelData.from; to: modelData.to; stepSize: modelData.step
                                 value: activeInfo.parameters[modelData.key] === undefined ? 0 : Number(activeInfo.parameters[modelData.key])
                                 onPressedChanged: {

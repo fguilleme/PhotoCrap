@@ -15,7 +15,7 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 - Sélection rectangulaire, déplacement d’un calque ou des pixels sélectionnés, effacement, copie fusionnée et recadrage.
 - Calques : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas. Les masques de fusion peuvent être créés en blanc ou en noir, peints, inversés, activés et désactivés.
 - Les 27 modes de fusion RVB décrits par Adobe, classés dans l’ordre de Photoshop : modes normaux, obscurcissement, éclaircissement, contraste, comparaison et composantes TSL.
-- Seize calques de réglage non destructifs : luminosité/contraste, niveaux, courbes, exposition, vibrance, teinte/saturation, balance des couleurs, noir et blanc, filtre photo, mélangeur de couches, recherche de couleurs, négatif, isohélie, seuil, transfert de dégradé et correction sélective. Chaque réglage reçoit automatiquement un masque blanc ou un masque dérivé de la sélection active.
+- Vingt-trois calques de réglage non destructifs : les seize réglages colorimétriques, plus flou gaussien, flou directionnel, flou de boîte, netteté optimisée, passe-haut, mosaïque et ajout de bruit. Chaque réglage reçoit automatiquement un masque blanc ou un masque dérivé de la sélection active.
 - Séparation de fréquences conforme à la structure décrite par Adobe : un calque de basses fréquences flouté et un calque de hautes fréquences lié, placé en mode Lumière linéaire. Le rayon commun est recalculé pendant le déplacement du curseur.
 - Réglages du calque actif : luminosité, contraste, saturation, noir et blanc, négatif, sépia, flou et netteté. Les sélections limitent leur zone d’application.
 - Redimensionnement, rotation à 90°, symétries, zoom, déplacement du canevas, règles et aperçu de navigation.
@@ -25,7 +25,7 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 
 ## Compilation
 
-Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Qml, Quick, QuickControls2 et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le code évite les API propres à un système ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
+Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2 et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
 
 ### macOS
 
@@ -133,7 +133,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 Sous Linux, utiliser `./build/PhotoCrap`. Le workflow GitHub est préparé pour les trois systèmes ; sa présence ne constitue pas une validation de builds qui n’ont pas encore été exécutés.
 
-Limites connues : un seul document à la fois ; rendu raster sur CPU ; opérations synchrones pouvant ralentir les grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, outils de réparation, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; opérations synchrones pouvant ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, outils de réparation, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références
 

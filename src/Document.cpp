@@ -40,6 +40,11 @@ QString toolLabel(const QString &tool) {
         {"ellipse","Ellipse"},{"line","Ligne"},{"gradient","Dégradé"},{"text","Texte"}};
     return labels.value(tool, tool);
 }
+bool requiresFullComposite(const Layer &layer) {
+    static const QStringList filters{QStringLiteral("gaussianBlur"),QStringLiteral("motionBlur"),QStringLiteral("boxBlur"),
+        QStringLiteral("unsharpMask"),QStringLiteral("highPass"),QStringLiteral("mosaic"),QStringLiteral("noise")};
+    return layer.visible&&layer.kind==QStringLiteral("adjustment")&&filters.contains(layer.adjustmentType);
+}
 }
 
 Document::Document(QObject *parent) : QObject(parent) { newDocument(1280, 800); }
@@ -232,6 +237,82 @@ QImage Document::blurImage(const QImage &source,int radius) {
     };
     pass(input,horizontal,false);pass(horizontal,result,true);return result;
 }
+QImage Document::gaussianBlurImage(const QImage &source,qreal radius) {
+    if(source.isNull()||radius<=0)return source;
+    // Three box convolutions closely approximate a Gaussian while retaining
+    // the platform accelerated O(n) implementation of each pass.
+    const int boxRadius=qBound(1,qRound(radius),100);
+    QImage result=source;
+    for(int pass=0;pass<3;++pass)result=blurImage(result,boxRadius);
+    return result;
+}
+QImage Document::motionBlurImage(const QImage &source,qreal distance,qreal angle) {
+    if(source.isNull()||distance<=0)return source;
+    const QImage input=source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage result(input.size(),QImage::Format_ARGB32_Premultiplied);result.setColorSpace(QColorSpace::SRgb);
+    distance=qBound(0.,distance,200.);angle=qDegreesToRadians(angle);
+    const int samples=qBound(3,qRound(distance/4.)*2+1,33),half=samples/2;
+    const qreal dx=std::cos(angle)*distance/qMax(1,samples-1),dy=std::sin(angle)*distance/qMax(1,samples-1);
+    QVector<int> rows(input.height());std::iota(rows.begin(),rows.end(),0);
+    QtConcurrent::blockingMap(rows,[&](int y){
+        auto output=reinterpret_cast<QRgb*>(result.scanLine(y));
+        for(int x=0;x<input.width();++x) {
+            int a=0,r=0,g=0,b=0;
+            for(int sample=-half;sample<=half;++sample) {
+                const int sx=qBound(0,qRound(x+sample*dx),input.width()-1);
+                const int sy=qBound(0,qRound(y+sample*dy),input.height()-1);
+                const auto row=reinterpret_cast<const QRgb*>(input.constScanLine(sy));const QRgb pixel=row[sx];
+                a+=qAlpha(pixel);r+=qRed(pixel);g+=qGreen(pixel);b+=qBlue(pixel);
+            }
+            output[x]=qRgba(r/samples,g/samples,b/samples,a/samples);
+        }
+    });
+    return result;
+}
+QImage Document::unsharpMaskImage(const QImage &source,qreal radius,qreal amount,int threshold) {
+    if(source.isNull()||amount<=0)return source;
+    const QImage input=source.convertToFormat(QImage::Format_ARGB32);
+    const QImage smooth=gaussianBlurImage(source,qMax(.1,radius)).convertToFormat(QImage::Format_ARGB32);
+    QImage result(input.size(),QImage::Format_ARGB32);const qreal gain=qBound(0.,amount,300.)/100.;threshold=qBound(0,threshold,255);
+    QVector<int> rows(input.height());std::iota(rows.begin(),rows.end(),0);
+    QtConcurrent::blockingMap(rows,[&](int y){
+        const auto src=reinterpret_cast<const QRgb*>(input.constScanLine(y));const auto blur=reinterpret_cast<const QRgb*>(smooth.constScanLine(y));
+        auto dst=reinterpret_cast<QRgb*>(result.scanLine(y));
+        for(int x=0;x<input.width();++x) {
+            auto sharpen=[&](int value,int soft){const int delta=value-soft;return qBound(0,value+(qAbs(delta)>=threshold?qRound(delta*gain):0),255);};
+            dst[x]=qRgba(sharpen(qRed(src[x]),qRed(blur[x])),sharpen(qGreen(src[x]),qGreen(blur[x])),
+                sharpen(qBlue(src[x]),qBlue(blur[x])),qAlpha(src[x]));
+        }
+    });
+    result.setColorSpace(QColorSpace::SRgb);return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+QImage Document::highPassImage(const QImage &source,qreal radius) {
+    if(source.isNull())return source;
+    const QImage input=source.convertToFormat(QImage::Format_ARGB32),smooth=gaussianBlurImage(source,qMax(.1,radius)).convertToFormat(QImage::Format_ARGB32);
+    QImage result(input.size(),QImage::Format_ARGB32);QVector<int> rows(input.height());std::iota(rows.begin(),rows.end(),0);
+    QtConcurrent::blockingMap(rows,[&](int y){
+        const auto src=reinterpret_cast<const QRgb*>(input.constScanLine(y));const auto blur=reinterpret_cast<const QRgb*>(smooth.constScanLine(y));
+        auto dst=reinterpret_cast<QRgb*>(result.scanLine(y));
+        for(int x=0;x<input.width();++x)dst[x]=qRgba(qBound(0,qRed(src[x])-qRed(blur[x])+128,255),
+            qBound(0,qGreen(src[x])-qGreen(blur[x])+128,255),qBound(0,qBlue(src[x])-qBlue(blur[x])+128,255),qAlpha(src[x]));
+    });
+    result.setColorSpace(QColorSpace::SRgb);return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+QImage Document::mosaicImage(const QImage &source,int cellSize) {
+    if(source.isNull()||cellSize<=1)return source;
+    cellSize=qBound(2,cellSize,200);const QSize reduced(qMax(1,(source.width()+cellSize-1)/cellSize),qMax(1,(source.height()+cellSize-1)/cellSize));
+    return source.scaled(reduced,Qt::IgnoreAspectRatio,Qt::FastTransformation).scaled(source.size(),Qt::IgnoreAspectRatio,Qt::FastTransformation);
+}
+QImage Document::noiseImage(const QImage &source,qreal amount) {
+    if(source.isNull()||amount<=0)return source;
+    QImage result=source.convertToFormat(QImage::Format_ARGB32);const int amplitude=qRound(qBound(0.,amount,100.)*1.275);
+    QVector<int> rows(result.height());std::iota(rows.begin(),rows.end(),0);
+    QtConcurrent::blockingMap(rows,[&](int y){auto row=reinterpret_cast<QRgb*>(result.scanLine(y));
+        for(int x=0;x<result.width();++x){const QRgb pixel=row[x];quint32 hash=quint32(x)*0x9e3779b1u^quint32(y)*0x85ebca6bu;
+            auto delta=[&](){hash^=hash<<13;hash^=hash>>17;hash^=hash<<5;return int(hash%quint32(amplitude*2+1))-amplitude;};
+            row[x]=qRgba(qBound(0,qRed(pixel)+delta(),255),qBound(0,qGreen(pixel)+delta(),255),qBound(0,qBlue(pixel)+delta(),255),qAlpha(pixel));}}
+    );result.setColorSpace(QColorSpace::SRgb);return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
 QImage Document::frequencyImage(const Layer &layer) const {
     if(layer.source.isNull()) return {};
     const int radius=qBound(1,layer.parameters.value("radius",8).toInt(),100);
@@ -268,6 +349,13 @@ QImage Document::frequencyImage(const Layer &layer) const {
 }
 QImage Document::adjustedImage(const QImage &source,const QString &type,const QVariantMap &p) {
     if(source.isNull()) return source;
+    if(type=="gaussianBlur")return gaussianBlurImage(source,p.value("radius",8.).toDouble());
+    if(type=="motionBlur")return motionBlurImage(source,p.value("distance",20.).toDouble(),p.value("angle",0.).toDouble());
+    if(type=="boxBlur")return blurImage(source,qRound(p.value("radius",8.).toDouble()));
+    if(type=="unsharpMask")return unsharpMaskImage(source,p.value("radius",2.).toDouble(),p.value("amount",100.).toDouble(),p.value("threshold",0).toInt());
+    if(type=="highPass")return highPassImage(source,p.value("radius",4.).toDouble());
+    if(type=="mosaic")return mosaicImage(source,p.value("cellSize",12).toInt());
+    if(type=="noise")return noiseImage(source,p.value("amount",8.).toDouble());
     QImage result=source.convertToFormat(QImage::Format_ARGB32);
     auto value=[&](const char *key,double fallback){return p.value(QLatin1String(key),fallback).toDouble();};
     auto clamp=[](double v){return qBound(0,qRound(v),255);};
@@ -330,7 +418,8 @@ QImage Document::adjustedImage(const QImage &source,const QString &type,const QV
 const QImage &Document::composite() const {
     if (!m_cacheDirty) return m_composite;
     const QRect documentRect(QPoint{},m_size);
-    const QRect region=(m_fullCompositeDirty||m_composite.size()!=m_size?documentRect:m_dirtyRegion.intersected(documentRect));
+    const bool fullEffect=std::any_of(m_layers.cbegin(),m_layers.cend(),requiresFullComposite);
+    const QRect region=(m_fullCompositeDirty||fullEffect||m_composite.size()!=m_size?documentRect:m_dirtyRegion.intersected(documentRect));
     if(region.isEmpty()){m_cacheDirty=false;return m_composite;}
     QImage regionComposite=blank(region.size());
     for (int layerIndex=0;layerIndex<m_layers.size();++layerIndex) {
@@ -347,8 +436,21 @@ const QImage &Document::composite() const {
             }
         }
         QImage rendered;
-        if (layer.kind == QStringLiteral("adjustment"))
-            rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
+        if (layer.kind == QStringLiteral("adjustment")) {
+            static const QStringList scalableFilters{QStringLiteral("gaussianBlur"),QStringLiteral("motionBlur"),QStringLiteral("boxBlur"),
+                QStringLiteral("unsharpMask"),QStringLiteral("highPass"),QStringLiteral("mosaic")};
+            const bool draft=m_previewingLayer&&layerIndex==m_active&&scalableFilters.contains(layer.adjustmentType)
+                &&qMax(regionComposite.width(),regionComposite.height())>960;
+            if(draft) {
+                const qreal scale=960./qreal(qMax(regionComposite.width(),regionComposite.height()));
+                const QSize draftSize(qMax(1,qRound(regionComposite.width()*scale)),qMax(1,qRound(regionComposite.height()*scale)));
+                QVariantMap parameters=layer.parameters;
+                for(const auto &key:{QStringLiteral("radius"),QStringLiteral("distance"),QStringLiteral("cellSize")})
+                    if(parameters.contains(key))parameters.insert(key,qMax(1.,parameters.value(key).toDouble()*scale));
+                rendered=adjustedImage(regionComposite.scaled(draftSize,Qt::IgnoreAspectRatio,Qt::SmoothTransformation),layer.adjustmentType,parameters)
+                    .scaled(regionComposite.size(),Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+            } else rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
+        }
         else if (layer.kind.startsWith(QStringLiteral("frequency")))
             rendered = frequencyImage(layer).copy(region);
         else
@@ -611,7 +713,9 @@ void Document::addAdjustmentLayer(const QString &type) {
         {"colorBalance","Balance des couleurs"},{"blackWhite","Noir et blanc"},{"photoFilter","Filtre photo"},
         {"channelMixer","Mélangeur de couches"},{"colorLookup","Recherche de couleurs"},{"invert","Négatif"},
         {"posterize","Isohélie"},{"threshold","Seuil"},{"gradientMap","Courbe de transfert de dégradé"},
-        {"selectiveColor","Correction sélective"}};
+        {"selectiveColor","Correction sélective"},{"gaussianBlur","Flou gaussien"},{"motionBlur","Flou directionnel"},
+        {"boxBlur","Flou de boîte"},{"unsharpMask","Netteté optimisée"},{"highPass","Passe-haut"},
+        {"mosaic","Mosaïque"},{"noise","Ajout de bruit"}};
     if(!names.contains(type) || !validSize(width(),height(),int(m_layers.size())+1)) return;
     QVariantMap params;
     if(type=="brightnessContrast")params={{"brightness",0},{"contrast",0}};
@@ -628,6 +732,12 @@ void Document::addAdjustmentLayer(const QString &type) {
     else if(type=="posterize")params={{"levels",4}};
     else if(type=="threshold")params={{"level",128}};
     else if(type=="gradientMap")params={{"shadowColor","#101828"},{"highlightColor","#f5d9a8"}};
+    else if(type=="gaussianBlur"||type=="boxBlur")params={{"radius",8.}};
+    else if(type=="motionBlur")params={{"distance",20.},{"angle",0.}};
+    else if(type=="unsharpMask")params={{"amount",100.},{"radius",2.},{"threshold",0}};
+    else if(type=="highPass")params={{"radius",4.}};
+    else if(type=="mosaic")params={{"cellSize",12}};
+    else if(type=="noise")params={{"amount",8.}};
     edit(QStringLiteral("Nouveau calque de réglage"),[&]{
         Layer layer;layer.name=names.value(type);layer.kind="adjustment";layer.adjustmentType=type;layer.parameters=params;
         layer.mask=QImage(m_size,QImage::Format_Grayscale8);layer.mask.fill(hasSelection()?0:255);

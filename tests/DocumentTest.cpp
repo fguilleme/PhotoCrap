@@ -165,7 +165,8 @@ private slots:
     void everyAdjustmentTypeProducesAComposite() {
         const QStringList types={"brightnessContrast","levels","curves","exposure","vibrance",
             "hueSaturation","colorBalance","blackWhite","photoFilter","channelMixer","colorLookup",
-            "invert","posterize","threshold","gradientMap","selectiveColor"};
+            "invert","posterize","threshold","gradientMap","selectiveColor","gaussianBlur","motionBlur",
+            "boxBlur","unsharpMask","highPass","mosaic","noise"};
         Document d; QVERIFY(d.newDocument(4,4));
         for(const auto &type:types) {
             const int count=d.layers().size();
@@ -173,6 +174,19 @@ private slots:
             QCOMPARE(d.layers().size(),count+1);
             QVERIFY(!d.composite().isNull());
             d.undo();
+        }
+    }
+    void filterLayersAreNonDestructiveAndEditable() {
+        Document d;QVERIFY(d.newDocument(64,64));d.setColor(Qt::black);d.setBrushSize(9);d.beginStroke(32,32);d.endStroke();
+        const QImage original=d.composite();
+        const QStringList filters={"gaussianBlur","motionBlur","boxBlur","unsharpMask","highPass","mosaic","noise"};
+        for(const auto &filter:filters) {
+            d.addAdjustmentLayer(filter);QCOMPARE(d.layers().size(),2);
+            const QImage filtered=d.composite();QVERIFY2(filtered!=original,qPrintable(filter+" should alter the image"));
+            const int historyBefore=d.historyIndex();d.beginLayerPreview();
+            const QString parameter=filter=="motionBlur"?QStringLiteral("angle"):filter=="mosaic"?QStringLiteral("cellSize"):filter=="noise"?QStringLiteral("amount"):QStringLiteral("radius");
+            d.previewLayerParameter(parameter,filter=="motionBlur"?45:16);d.finishLayerPreview(QStringLiteral("Modifier le filtre"));
+            QCOMPARE(d.historyIndex(),historyBefore+1);d.undo();d.undo();QCOMPARE(d.composite(),original);
         }
     }
     void frequencySeparationHasRealtimePreview() {

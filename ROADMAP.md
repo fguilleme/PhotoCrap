@@ -20,7 +20,7 @@ La version 0.1 livre les fondations raster. Cette feuille de route distingue les
 
 - Moteur de brosses avec pression, inclinaison, texture, espacement, dureté et stabilisation.
 - Tampon de duplication, correcteur, pièces, fluidité et outils de retouche locale.
-- Courbes, niveaux, balance des couleurs, histogramme et filtres accélérés.
+- Histogrammes, réduction du bruit avancée et davantage de filtres accélérés par le GPU.
 - Développement RAW via une bibliothèque dédiée, optique et réduction du bruit.
 
 ## 4. Interopérabilité et couleur

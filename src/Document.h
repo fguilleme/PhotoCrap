@@ -226,6 +226,12 @@ private:
     static QImage applyMask(const QImage &source, const QImage &mask, qreal density = 1, qreal feather = 0);
     static QImage blendImages(const QImage &base, const QImage &source, int mode, qreal opacity);
     static QImage blurImage(const QImage &source, int radius);
+    static QImage gaussianBlurImage(const QImage &source, qreal radius);
+    static QImage motionBlurImage(const QImage &source, qreal distance, qreal angle);
+    static QImage unsharpMaskImage(const QImage &source, qreal radius, qreal amount, int threshold);
+    static QImage highPassImage(const QImage &source, qreal radius);
+    static QImage mosaicImage(const QImage &source, int cellSize);
+    static QImage noiseImage(const QImage &source, qreal amount);
     static QImage adjustedImage(const QImage &source, const QString &type, const QVariantMap &parameters);
     QImage frequencyImage(const Layer &layer) const;
 };

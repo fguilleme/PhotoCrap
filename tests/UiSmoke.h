@@ -62,6 +62,7 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     QMetaObject::invokeMethod(layerProperties,"open");
     QTest::qWait(150);
     if(!require(layerProperties->property("visible").toBool(),"adjustment properties dialog opens")) return false;
+    if(!require(window->property("parameterSliderWidth").toReal()>layerProperties->property("width").toReal()*.75,"adjustment slider fills dialog width")) return false;
     QMetaObject::invokeMethod(layerProperties,"close");
     document.createDemo(); document.setTool("brush");
     QTest::qWait(200);

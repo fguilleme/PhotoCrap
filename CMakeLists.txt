@@ -22,6 +22,7 @@ qt_add_executable(PhotoCrap
     src/CanvasItem.cpp src/CanvasItem.h
     src/ShortcutManager.cpp src/ShortcutManager.h
     src/LanguageManager.cpp src/LanguageManager.h
+    src/RecentFilesManager.cpp src/RecentFilesManager.h
 )
 # Homebrew exposes QML plugins through relative symlinks. Scan the real module
 # directory so Qt's deploy step copies binaries, not links into the Cellar.
@@ -67,6 +68,7 @@ if(BUILD_TESTING)
     qt_add_executable(photocrap_tests
         tests/DocumentTest.cpp
         src/ShortcutManager.cpp src/ShortcutManager.h
+        src/RecentFilesManager.cpp src/RecentFilesManager.h
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)

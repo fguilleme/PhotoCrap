@@ -8,6 +8,7 @@
 #include "CanvasItem.h"
 #include "Document.h"
 #include "LanguageManager.h"
+#include "RecentFilesManager.h"
 #include "ShortcutManager.h"
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/UiSmoke.h"
@@ -40,6 +41,7 @@ int main(int argc,char *argv[]) {
     qmlRegisterType<CanvasItem>("PhotoCrap.Native",1,0,"ImageCanvas");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native",1,0,"ImageDocument","Provided by the application");
     LanguageManager languageManager(nullptr,!smoke);
+    RecentFilesManager recentFilesManager(nullptr,!smoke);
     Document document;
     ShortcutManager shortcutManager;
     int qmlWarnings=0;
@@ -48,18 +50,22 @@ int main(int argc,char *argv[]) {
     engine.addImageProvider("layers",new ThumbnailProvider(&document));
     engine.rootContext()->setContextProperty("editor",&document);
     engine.rootContext()->setContextProperty("languages",&languageManager);
+    engine.rootContext()->setContextProperty("recentFiles",&recentFilesManager);
     engine.rootContext()->setContextProperty("shortcuts",&shortcutManager);
     QObject::connect(&languageManager,&LanguageManager::languageChanged,&engine,[&]{engine.retranslate();emit shortcutManager.shortcutsChanged();});
     QObject::connect(&engine,&QQmlApplicationEngine::objectCreationFailed,&app,[]{QCoreApplication::exit(1);},Qt::QueuedConnection);
     engine.loadFromModule("PhotoCrap","Main");
     if(engine.rootObjects().isEmpty()) return 1;
     if(args.contains("--demo") || smoke) document.createDemo();
-    else if(args.size()>1 && !args[1].startsWith("--")) document.openFile(QUrl::fromLocalFile(args[1]));
+    else if(args.size()>1 && !args[1].startsWith("--")) {
+        const QUrl url=QUrl::fromLocalFile(args[1]);
+        if(document.openFile(url)) recentFilesManager.add(url);
+    }
     if(smoke) {
         QTimer::singleShot(1200,&app,[&]{
             auto window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
-            if(!window || !runUiSmoke(window,document)) { app.exit(3); return; }
+            if(!window || !runUiSmoke(window,document,recentFilesManager)) { app.exit(3); return; }
 #endif
             const auto frame=window?window->grabWindow():QImage{};
             const int index=args.indexOf("--screenshot");

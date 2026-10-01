@@ -24,6 +24,7 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 - Interface disponible en français et en anglais, sélectionnable à chaud dans **Réglages → Interface**. Le choix est conservé et les catalogues Qt permettent d’ajouter d’autres langues.
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
+- Une liste persistante des dix fichiers récemment ouverts ou enregistrés est disponible dans **Fichier → Ouvrir les fichiers récents** ; les fichiers disparus sont retirés automatiquement.
 
 ## Compilation
 

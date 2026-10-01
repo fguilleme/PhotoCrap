@@ -933,6 +933,16 @@
       <translation>Open…</translation>
     </message>
     <message>
+      <location filename="../qml/Main.qml" line="228" />
+      <source>Ouvrir les fichiers récents</source>
+      <translation>Open Recent Files</translation>
+    </message>
+    <message>
+      <location filename="../qml/Main.qml" line="242" />
+      <source>Effacer la liste des fichiers récents</source>
+      <translation>Clear Recent Files</translation>
+    </message>
+    <message>
       <location filename="../qml/Main.qml" line="155" />
       <source>Enregistrer le projet</source>
       <translation>Save Project</translation>

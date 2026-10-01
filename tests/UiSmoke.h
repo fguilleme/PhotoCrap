@@ -1,12 +1,15 @@
 #pragma once
 #include <QtTest>
+#include <QFile>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QTemporaryDir>
 #include "Document.h"
+#include "RecentFilesManager.h"
 
 // Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
 // Compiled only with BUILD_TESTING; production builds need no Qt Test runtime.
-inline bool runUiSmoke(QQuickWindow *window,Document &document) {
+inline bool runUiSmoke(QQuickWindow *window,Document &document,RecentFilesManager &recentFiles) {
     auto require=[](bool ok,const char *message){if(!ok) qWarning("UI check failed: %s",message); return ok;};
     auto area=window->findChild<QQuickItem*>("drawingArea");
     if(!require(area,"drawing area exists")) return false;
@@ -15,6 +18,21 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     if(!require(viewport&&artboard,"viewport and artboard exist")) return false;
     document.newDocument(300,200,true);
     QTest::qWait(100);
+    QTemporaryDir recentDir;
+    if(!require(recentDir.isValid(),"temporary recent-files directory exists")) return false;
+    QFile recentFile(recentDir.filePath("A very long recent project filename that must preserve both ends of its complete path in the menu.pcr"));
+    if(!require(recentFile.open(QIODevice::WriteOnly),"temporary recent file can be created")) return false;
+    recentFile.write("test");recentFile.close();recentFiles.add(QUrl::fromLocalFile(recentFile.fileName()));QTest::qWait(30);
+    auto recentItem=window->findChild<QObject*>("recentFileItem");
+    auto recentLabel=window->findChild<QObject*>("recentFilePathLabel");
+    auto recentMenu=window->findChild<QObject*>("recentFilesMenu");
+    const QString recentText=recentItem?recentItem->property("text").toString():QString();
+    if(!require(window->property("recentFileCount").toInt()==1&&recentMenu&&recentLabel&&recentText.contains(QChar(0x2026))&&recentText.size()==36&&recentLabel->property("text").toString()==recentText,"recent-files menu renders a compact path with both ends preserved")) return false;
+    QMetaObject::invokeMethod(recentMenu,"open");QTest::qWait(50);
+    if(!require(recentMenu->property("width").toReal()<=300.5,"recent-files menu stays compact for long paths")) return false;
+    QMetaObject::invokeMethod(recentMenu,"close");
+    recentFiles.clear();QTest::qWait(20);
+    if(!require(window->property("recentFileCount").toInt()==0,"recent-files list can be cleared")) return false;
     const QPointF wheelLocal(viewport->width()*.43,viewport->height()*.39);
     const QPoint wheelScene=viewport->mapToScene(wheelLocal).toPoint();
     const qreal oldZoom=window->property("zoom").toReal();

@@ -30,6 +30,7 @@ ApplicationWindow {
     property real zoom: 0.6
     property string status: qsTr("Prêt à créer")
     property string pendingAction: ""
+    property url pendingRecentFile: ""
     property bool allowClose: false
     property bool resumeAfterSave: false
     property bool importing: false
@@ -40,6 +41,7 @@ ApplicationWindow {
     property int preferencesPage: 0
     property string interfaceLanguage: languages.language
     property string newActionText: newAction.text
+    property int recentFileCount: recentFiles.entries.length
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
@@ -120,6 +122,7 @@ ApplicationWindow {
         if (action === "new") newDialog.open()
         else if (action === "open") { importing = false; openDialog.open() }
         else if (action === "demo") { editor.createDemo(); fitCanvas() }
+        else if (action === "recent") openRecentFile(pendingRecentFile)
         else if (action === "close") { allowClose = true; close() }
     }
     function guard(action) {
@@ -128,11 +131,27 @@ ApplicationWindow {
         if (editor.modified) unsavedDialog.open()
         else perform(action)
     }
+    function guardRecent(url) {
+        pendingRecentFile=url
+        guard("recent")
+    }
+    function openRecentFile(url) {
+        if(editor.openFile(url)) recentFiles.add(url)
+        else recentFiles.remove(url)
+    }
+    function compactRecentPath(path) {
+        const limit=36
+        if(path.length<=limit) return path
+        return path.substring(0,16)+"…"+path.substring(path.length-19)
+    }
     function save(asNew) {
         if (!asNew && editor.projectUrl.toString().length) {
-            if (editor.saveProject(editor.projectUrl) && resumeAfterSave) {
-                resumeAfterSave = false
-                perform(pendingAction)
+            if (editor.saveProject(editor.projectUrl)) {
+                recentFiles.add(editor.projectUrl)
+                if(resumeAfterSave) {
+                    resumeAfterSave = false
+                    perform(pendingAction)
+                }
             }
         } else saveDialog.open()
     }
@@ -208,6 +227,42 @@ ApplicationWindow {
             title: qsTr("Fichier")
             MenuItem { action: newAction }
             MenuItem { action: openAction }
+            Menu {
+                id: recentFilesMenu
+                objectName: "recentFilesMenu"
+                title: qsTr("Ouvrir les fichiers récents")
+                implicitWidth: 300
+                width: implicitWidth
+                enabled: recentFiles.entries.length>0
+                onAboutToShow: recentFiles.refresh()
+                Instantiator {
+                    model: recentFiles.entries
+                    delegate: MenuItem {
+                        id: recentFileEntry
+                        required property var modelData
+                        objectName: "recentFileItem"
+                        implicitWidth: 300
+                        width: recentFilesMenu.width
+                        text: window.compactRecentPath(modelData.path)
+                        contentItem: Label {
+                            objectName: "recentFilePathLabel"
+                            text: recentFileEntry.text
+                            color: recentFileEntry.highlighted ? "#ffffff" : "#dbe1e8"
+                            font: recentFileEntry.font
+                            verticalAlignment: Text.AlignVCenter
+                            maximumLineCount: 1
+                        }
+                        ToolTip.visible: hovered
+                        ToolTip.text: modelData.path
+                        ToolTip.delay: 500
+                        onTriggered: window.guardRecent(modelData.url)
+                    }
+                    onObjectAdded: function(index, object) { recentFilesMenu.insertItem(index,object) }
+                    onObjectRemoved: function(index, object) { recentFilesMenu.removeItem(object) }
+                }
+                MenuSeparator { visible: recentFiles.entries.length>0 }
+                MenuItem { text: qsTr("Effacer la liste des fichiers récents"); enabled: recentFiles.entries.length>0; onTriggered: recentFiles.clear() }
+            }
             MenuItem { action: importAction }
             MenuSeparator {}
             MenuItem { action: saveAction }
@@ -808,13 +863,19 @@ ApplicationWindow {
     FileDialog {
         id: openDialog; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
         nameFilters: window.importing ? [qsTr("Images (*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff)"),qsTr("Tous les fichiers (*)")] : [qsTr("Images et projets (*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff)"),qsTr("Tous les fichiers (*)")]
-        onAccepted: { if(window.importing) editor.importLayer(selectedFile); else editor.openFile(selectedFile) }
+        onAccepted: {
+            if(window.importing) editor.importLayer(selectedFile)
+            else if(editor.openFile(selectedFile)) recentFiles.add(selectedFile)
+        }
     }
     FileDialog {
         id: saveDialog; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("Projet PhotoCrap (*.pcr)")]; defaultSuffix: "pcr"
         onAccepted: {
-            if(editor.saveProject(selectedFile) && window.resumeAfterSave) { window.resumeAfterSave=false; window.perform(window.pendingAction) }
+            if(editor.saveProject(selectedFile)) {
+                recentFiles.add(editor.projectUrl)
+                if(window.resumeAfterSave) { window.resumeAfterSave=false; window.perform(window.pendingAction) }
+            }
         }
         onRejected: window.resumeAfterSave=false
     }

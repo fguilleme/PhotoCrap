@@ -1,14 +1,47 @@
 #include <QtTest>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
 #include <QTemporaryDir>
 #include "Document.h"
+#include "RecentFilesManager.h"
 #include "ShortcutManager.h"
 
 class DocumentTest : public QObject {
     Q_OBJECT
 private slots:
+    void recentFilesAreOrderedDeduplicatedLimitedAndPruned() {
+        QTemporaryDir dir;QVERIFY(dir.isValid());
+        RecentFilesManager recent(nullptr,false);
+        QList<QUrl> urls;
+        for(int i=0;i<12;++i) {
+            const QString path=dir.filePath(QString("image-%1.png").arg(i));
+            QFile file(path);QVERIFY(file.open(QIODevice::WriteOnly));file.write("x");file.close();
+            urls.append(QUrl::fromLocalFile(path));recent.add(urls.last());
+        }
+        QCOMPARE(recent.entries().size(),10);
+        QCOMPARE(recent.entries().first().toMap().value("url").toUrl().toLocalFile(),QFileInfo(urls.last().toLocalFile()).canonicalFilePath());
+        recent.add(urls[5]);QCOMPARE(recent.entries().size(),10);
+        QCOMPARE(recent.entries().first().toMap().value("url").toUrl().toLocalFile(),QFileInfo(urls[5].toLocalFile()).canonicalFilePath());
+        QFile::remove(urls[5].toLocalFile());recent.refresh();
+        QCOMPARE(recent.entries().size(),9);
+        recent.remove(urls[10]);QCOMPARE(recent.entries().size(),8);
+        recent.clear();QVERIFY(recent.entries().isEmpty());
+        recent.add(QUrl::fromLocalFile(dir.filePath("missing.png")));QVERIFY(recent.entries().isEmpty());
+    }
+    void recentFilesPersistAcrossSessions() {
+        QTemporaryDir dir;QVERIFY(dir.isValid());
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,dir.path());
+        QCoreApplication::setOrganizationName("PhotoCrapTests");
+        QCoreApplication::setApplicationName("RecentFilesTest");
+        const QString path=dir.filePath("saved.pcr");
+        QFile file(path);QVERIFY(file.open(QIODevice::WriteOnly));file.write("project");file.close();
+        {RecentFilesManager recent(nullptr,true);recent.clear();recent.add(QUrl::fromLocalFile(path));QCOMPARE(recent.entries().size(),1);}
+        {RecentFilesManager restored(nullptr,true);QCOMPARE(restored.entries().size(),1);QCOMPARE(restored.entries().first().toMap().value("name").toString(),QString("saved.pcr"));restored.clear();}
+    }
     void shortcutsAreValidatedAndResettable() {
         ShortcutManager shortcuts(nullptr, false);
         QCOMPARE(shortcuts.entries().size(), 37);

@@ -11,8 +11,8 @@ La version 0.1 livre les fondations raster. Cette feuille de route distingue les
 
 ## 2. Édition non destructive
 
-- Masques raster et vectoriels avec édition indépendante des pixels.
-- Calques de réglage, groupes, effets de calque et masques d’écrêtage.
+- Masques vectoriels, groupes, effets de calque et masques d’écrêtage. Les masques raster sont disponibles.
+- Précision colorimétrique avancée et histogrammes pour les calques de réglage déjà disponibles.
 - Objets dynamiques, transformation libre, perspective et texte éditable.
 - Sélections polygonales, lasso, baguette, contour progressif et amélioration des contours.
 

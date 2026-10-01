@@ -5,16 +5,29 @@
 #include <QRect>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QPainter>
+#include <QHash>
 #include <functional>
 
 struct Layer {
+    Layer() = default;
+    Layer(const QString &layerName, const QImage &layerImage, bool layerVisible = true,
+          bool layerLocked = false, qreal layerOpacity = 1, int layerBlend = 0)
+        : name(layerName), image(layerImage), visible(layerVisible), locked(layerLocked),
+          opacity(layerOpacity), blend(layerBlend) {}
     QString name;
     QImage image;
     bool visible = true;
     bool locked = false;
     qreal opacity = 1;
     int blend = 0;
+    QString kind = QStringLiteral("pixel");
+    QString adjustmentType;
+    QVariantMap parameters;
+    QImage mask;
+    bool maskEnabled = true;
+    QImage source;
 };
 
 class Document : public QObject {
@@ -32,6 +45,13 @@ class Document : public QObject {
     Q_PROPERTY(QColor secondaryColor READ secondaryColor WRITE setSecondaryColor NOTIFY settingsChanged)
     Q_PROPERTY(qreal brushSize READ brushSize WRITE setBrushSize NOTIFY settingsChanged)
     Q_PROPERTY(qreal brushOpacity READ brushOpacity WRITE setBrushOpacity NOTIFY settingsChanged)
+    Q_PROPERTY(qreal brushHardness READ brushHardness WRITE setBrushHardness NOTIFY settingsChanged)
+    Q_PROPERTY(qreal brushFlow READ brushFlow WRITE setBrushFlow NOTIFY settingsChanged)
+    Q_PROPERTY(qreal brushSpacing READ brushSpacing WRITE setBrushSpacing NOTIFY settingsChanged)
+    Q_PROPERTY(qreal brushAngle READ brushAngle WRITE setBrushAngle NOTIFY settingsChanged)
+    Q_PROPERTY(qreal brushRoundness READ brushRoundness WRITE setBrushRoundness NOTIFY settingsChanged)
+    Q_PROPERTY(qreal brushSmoothing READ brushSmoothing WRITE setBrushSmoothing NOTIFY settingsChanged)
+    Q_PROPERTY(int brushBlend READ brushBlend WRITE setBrushBlend NOTIFY settingsChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY settingsChanged)
     Q_PROPERTY(int textSize READ textSize WRITE setTextSize NOTIFY settingsChanged)
     Q_PROPERTY(bool filledShapes READ filledShapes WRITE setFilledShapes NOTIFY settingsChanged)
@@ -41,6 +61,7 @@ class Document : public QObject {
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
     Q_PROPERTY(int historyIndex READ historyIndex NOTIFY historyChanged)
+    Q_PROPERTY(bool editingMask READ editingMask NOTIFY layersChanged)
 public:
     explicit Document(QObject *parent = nullptr);
     int width() const { return m_size.width(); }
@@ -56,6 +77,13 @@ public:
     QColor secondaryColor() const { return m_secondary; }
     qreal brushSize() const { return m_brushSize; }
     qreal brushOpacity() const { return m_brushOpacity; }
+    qreal brushHardness() const { return m_brushHardness; }
+    qreal brushFlow() const { return m_brushFlow; }
+    qreal brushSpacing() const { return m_brushSpacing; }
+    qreal brushAngle() const { return m_brushAngle; }
+    qreal brushRoundness() const { return m_brushRoundness; }
+    qreal brushSmoothing() const { return m_brushSmoothing; }
+    int brushBlend() const { return m_brushBlend; }
     QString text() const { return m_text; }
     int textSize() const { return m_textSize; }
     bool filledShapes() const { return m_filledShapes; }
@@ -65,14 +93,23 @@ public:
     bool canRedo() const { return !m_redo.isEmpty(); }
     QStringList history() const;
     int historyIndex() const { return int(m_undo.size()); }
+    bool editingMask() const { return m_editingMask; }
     const QImage &composite() const;
     QImage layerImage(int index) const;
+    QImage maskImage(int index) const;
     void setActiveLayer(int index);
     void setTool(const QString &value);
     void setColor(const QColor &value);
     void setSecondaryColor(const QColor &value);
     void setBrushSize(qreal value);
     void setBrushOpacity(qreal value);
+    void setBrushHardness(qreal value);
+    void setBrushFlow(qreal value);
+    void setBrushSpacing(qreal value);
+    void setBrushAngle(qreal value);
+    void setBrushRoundness(qreal value);
+    void setBrushSmoothing(qreal value);
+    void setBrushBlend(int value);
     void setText(const QString &value);
     void setTextSize(int value);
     void setFilledShapes(bool value);
@@ -92,6 +129,17 @@ public:
     Q_INVOKABLE void setLayerLocked(int index, bool locked);
     Q_INVOKABLE void setLayerOpacity(int index, qreal opacity);
     Q_INVOKABLE void setLayerBlend(int index, int blend);
+    Q_INVOKABLE void addLayerMask(bool revealAll = true);
+    Q_INVOKABLE void removeLayerMask();
+    Q_INVOKABLE void invertLayerMask();
+    Q_INVOKABLE void setMaskEnabled(bool enabled);
+    Q_INVOKABLE void setEditingMask(bool enabled);
+    Q_INVOKABLE void addAdjustmentLayer(const QString &type);
+    Q_INVOKABLE void addFrequencySeparation(qreal radius = 8);
+    Q_INVOKABLE void beginLayerPreview();
+    Q_INVOKABLE void previewLayerParameter(const QString &key, const QVariant &value);
+    Q_INVOKABLE void finishLayerPreview(const QString &label = QStringLiteral("Modifier les propriétés du calque"));
+    Q_INVOKABLE void cancelLayerPreview();
     Q_INVOKABLE void beginStroke(qreal x, qreal y);
     Q_INVOKABLE void continueStroke(qreal x, qreal y);
     Q_INVOKABLE void endStroke();
@@ -118,7 +166,7 @@ signals:
     void errorOccurred(const QString &message);
     void statusMessage(const QString &message);
 private:
-    struct Snapshot { QVector<Layer> layers; QSize size; int active; QRect selection; quint64 id; QString label; };
+    struct Snapshot { QVector<Layer> layers; QSize size; int active; QRect selection; bool editingMask; quint64 id; QString label; };
     QSize m_size{1280, 800};
     QVector<Layer> m_layers;
     int m_active = 0;
@@ -126,7 +174,9 @@ private:
     QUrl m_projectUrl;
     QString m_tool = QStringLiteral("brush");
     QColor m_color{"#b1f5cb"}, m_secondary{"#293b50"};
-    qreal m_brushSize = 24, m_brushOpacity = 1;
+    qreal m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
+    qreal m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
+    int m_brushBlend = 0;
     QString m_text = QStringLiteral("Votre texte");
     int m_textSize = 64;
     bool m_filledShapes = true;
@@ -136,12 +186,23 @@ private:
     int m_revision = 0;
     mutable QImage m_composite;
     mutable bool m_cacheDirty = true;
+    mutable bool m_fullCompositeDirty = true;
+    mutable QRect m_dirtyRegion;
     bool m_drawing = false, m_strokeChanged = false;
+    bool m_editingMask = false;
+    bool m_previewingLayer = false;
+    bool m_layerPreviewChanged = false;
     QPointF m_anchor, m_last;
+    QPointF m_smoothedLast;
+    qreal m_distanceToNextDab = 0;
+    QImage m_strokeBase, m_strokeCoverage;
+    QRectF m_strokeBounds;
+    mutable QHash<QString,QImage> m_frequencyCache;
     Snapshot m_beforeStroke;
+    Snapshot m_beforeLayerPreview;
     Snapshot snapshot(const QString &label) const;
     void restore(const Snapshot &state);
-    void commit(const Snapshot &before, const QString &label);
+    void commit(const Snapshot &before, const QString &label, bool invalidateFull = true);
     void trimHistory();
     void changed(bool metadata = true);
     void resetHistory(bool clean);
@@ -150,9 +211,16 @@ private:
     bool fail(const QString &message);
     void edit(const QString &label, const std::function<void()> &operation);
     void paintSegment(const QPointF &from, const QPointF &to);
+    void stampBrush(const QPointF &point);
+    void renderBrushStroke();
     void renderShape(const QPointF &to);
     void floodFill(QPoint point);
+    QImage *paintTarget();
     QImage readImage(const QString &path);
     bool loadProject(const QString &path);
-    static QPainter::CompositionMode blendMode(int mode);
+    static QImage applyMask(const QImage &source, const QImage &mask, qreal density = 1, qreal feather = 0);
+    static QImage blendImages(const QImage &base, const QImage &source, int mode, qreal opacity);
+    static QImage blurImage(const QImage &source, int radius);
+    static QImage adjustedImage(const QImage &source, const QString &type, const QVariantMap &parameters);
+    QImage frequencyImage(const Layer &layer) const;
 };

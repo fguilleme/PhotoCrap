@@ -10,10 +10,13 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 
 - Documents RVB 8 bits sRGB, fond blanc ou transparent, dimensions personnalisées et préréglages.
 - Import d’images, ouverture de projets, import centré comme calque et collage du presse-papiers.
-- Pinceau rond, gomme, pipette, remplissage contigu, dégradé à deux couleurs, rectangle, ellipse, ligne et texte rasterisé.
+- Pinceau rond et gomme à empreintes : taille, dureté, opacité, débit cumulatif, espacement, angle, arrondi et lissage. Le contour de pointe suit le pointeur et un aperçu de trait est affiché dans **Affichage → Paramètres de pinceau…**.
+- Pipette, remplissage contigu, dégradé à deux couleurs, rectangle, ellipse, ligne et texte rasterisé.
 - Sélection rectangulaire, déplacement d’un calque ou des pixels sélectionnés, effacement, copie fusionnée et recadrage.
-- Calques : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas.
-- Sept modes de fusion : Normal, Produit, Écran, Incrustation, Obscurcir, Éclaircir, Différence.
+- Calques : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas. Les masques de fusion peuvent être créés en blanc ou en noir, peints, inversés, activés et désactivés.
+- Les 27 modes de fusion RVB décrits par Adobe, classés dans l’ordre de Photoshop : modes normaux, obscurcissement, éclaircissement, contraste, comparaison et composantes TSL.
+- Seize calques de réglage non destructifs : luminosité/contraste, niveaux, courbes, exposition, vibrance, teinte/saturation, balance des couleurs, noir et blanc, filtre photo, mélangeur de couches, recherche de couleurs, négatif, isohélie, seuil, transfert de dégradé et correction sélective. Chaque réglage reçoit automatiquement un masque blanc ou un masque dérivé de la sélection active.
+- Séparation de fréquences conforme à la structure décrite par Adobe : un calque de basses fréquences flouté et un calque de hautes fréquences lié, placé en mode Lumière linéaire. Le rayon commun est recalculé pendant le déplacement du curseur.
 - Réglages du calque actif : luminosité, contraste, saturation, noir et blanc, négatif, sépia, flou et netteté. Les sélections limitent leur zone d’application.
 - Redimensionnement, rotation à 90°, symétries, zoom, déplacement du canevas, règles et aperçu de navigation.
 - Historique annuler/rétablir avec suivi de l’état enregistré. Protection à l’ouverture, à la création et à la fermeture d’un document modifié.
@@ -94,12 +97,12 @@ ctest --preset release
 ## Utilisation
 
 1. Créer un document, ouvrir une image ou charger la démonstration.
-2. Sélectionner le calque dans la liste à droite ; double-cliquer son nom pour le renommer.
+2. Sélectionner le calque dans la liste à droite ; double-cliquer son nom pour le renommer ou faire un clic droit pour accéder aux commandes du calque et de son masque. Le bouton **◐** ajoute ou sélectionne son masque. Le bouton **ƒ** ouvre les paramètres d’un réglage ou d’une séparation de fréquences.
 3. Choisir un outil à gauche et dessiner sur le canevas. Le texte se règle dans la barre sous le canevas ; chaque clic le rasterise dans le calque actif.
 4. Pour un recadrage, tracer une zone puis cliquer **Recadrer**. Les réglages et les coups de pinceau respectent la sélection ; la désélectionner pour agir sur toute l’image.
 5. Enregistrer en `.pcr` pour conserver les calques, puis exporter une image pour la partager.
 
-Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, D dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image, + 1 affiche 100 %. Ctrl/Cmd + molette zoome.
+Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, D dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image, + 1 affiche 100 %. La molette zoome directement dans le canevas.
 
 Tous les raccourcis se consultent et se modifient dans **Édition → Réglages… → Raccourcis clavier**. Une combinaison vide désactive une commande, les doublons sont refusés et le bouton **Valeurs par défaut** restaure le jeu initial. Les personnalisations sont conservées entre les lancements. Les raccourcis d’outils et d’édition d’image sont suspendus pendant la saisie dans un champ texte ou l’affichage d’une boîte de dialogue.
 
@@ -115,9 +118,9 @@ Tous les raccourcis se consultent et se modifient dans **Édition → Réglages�
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h` | Tests Qt Test du moteur et des interactions QML |
 | `.github/workflows/build.yml` | Compilation, tests et installation sur trois systèmes |
 
-Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied`. Le composite est mis en cache et invalidé à chaque édition. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images retenues, avec au moins une annulation conservée même si elle dépasse ce budget.
+Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied`. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images retenues, avec au moins une annulation conservée même si elle dépasse ce budget.
 
-Le `.pcr` est un document JSON versionné contenant les métadonnées et un PNG en base64 par calque. Il conserve le rendu et les propriétés des calques, pas l’historique ni la sélection. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
+Le `.pcr` est un document JSON versionné. Sa version 3 conserve les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle reste compatible en lecture avec les versions 1 et 2. L’historique et la sélection ne sont pas enregistrés. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
 ## Validation et limites
 
@@ -130,10 +133,16 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 Sous Linux, utiliser `./build/PhotoCrap`. Le workflow GitHub est préparé pour les trois systèmes ; sa présence ne constitue pas une validation de builds qui n’ont pas encore été exécutés.
 
-Limites connues : un seul document à la fois ; rendu raster sur CPU ; opérations synchrones pouvant ralentir les grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques, objets dynamiques, tracés Bézier, outils de réparation, pression de stylet ou IA. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; rendu raster sur CPU ; opérations synchrones pouvant ralentir les grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, outils de réparation, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références
 
+- [Adobe — Ajout et modification des masques de fusion](https://helpx.adobe.com/photoshop/desktop/create-masks/layer-masks/add-layer-masks.html)
+- [Adobe — Présentation des calques de réglage et de remplissage](https://helpx.adobe.com/photoshop/desktop/create-manage-layers/color-adjustment-fill-layers/adjustment-and-fill-layers-overview.html)
+- [Adobe — Description des modes de fusion](https://helpx.adobe.com/photoshop/desktop/repair-retouch/adjust-light-tone/blending-mode-descriptions.html)
+- [Adobe — Retouche par séparation de fréquences](https://www.adobe.com/products/photoshop/frequency-separation.html)
+- [Adobe — Outil Pinceau](https://helpx.adobe.com/photoshop/using/tool-techniques/brush-tool.html)
+- [Adobe — Panneau Paramètres de pinceau](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/brushes-presets/display-brush-panel-brush-options.html)
 - [Intégration CMake/QML de Qt](https://doc.qt.io/qt-6/qtqml-cmake-integration.html)
 - [Déploiement des applications QML](https://doc.qt.io/qt-6/qt-generate-deploy-qml-app-script.html)
 - [Composition avec QPainter](https://doc.qt.io/qt-6/qpainter.html)

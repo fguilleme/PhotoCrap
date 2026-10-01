@@ -32,7 +32,7 @@ endif()
 qt_add_qml_module(PhotoCrap
     URI PhotoCrap VERSION 1.0
     IMPORT_PATH ${photocrap_qml_import_paths}
-    QML_FILES qml/Main.qml qml/IconButton.qml qml/PanelTitle.qml
+    QML_FILES qml/Main.qml qml/IconButton.qml qml/PanelTitle.qml qml/ContextMenuItem.qml
 )
 target_link_libraries(PhotoCrap PRIVATE photocrap_core Qt6::Quick Qt6::Qml Qt6::QuickControls2)
 set_target_properties(PhotoCrap PROPERTIES

@@ -16,7 +16,10 @@ class ThumbnailProvider : public QQuickImageProvider {
 public:
     explicit ThumbnailProvider(Document *document):QQuickImageProvider(Image),m_document(document) {}
     QImage requestImage(const QString &id,QSize *size,const QSize &requested) override {
-        QImage image=id.startsWith("composite")?m_document->composite():m_document->layerImage(id.section('/',0,0).toInt());
+        QImage image;
+        if(id.startsWith("composite")) image=m_document->composite();
+        else if(id.startsWith("mask/")) image=m_document->maskImage(id.section('/',1,1).toInt());
+        else image=m_document->layerImage(id.section('/',0,0).toInt());
         // A removed delegate can finish requesting its thumbnail while the
         // layer list is being reset. Serve a transparent placeholder for it.
         if(image.isNull()) {image=QImage(1,1,QImage::Format_ARGB32_Premultiplied); image.fill(Qt::transparent);}

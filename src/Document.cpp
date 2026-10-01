@@ -14,6 +14,7 @@
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace {
 constexpr qint64 MaxPixels = 32LL * 1024 * 1024;
@@ -47,14 +48,16 @@ bool Document::validSize(int w, int h, int count) {
 bool Document::editable() {
     if (m_active < 0 || m_active >= m_layers.size()) return false;
     if (m_layers[m_active].locked) return fail(QStringLiteral("Ce calque est verrouillé."));
+    if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask)
+        return fail(QStringLiteral("Sélectionnez le masque de ce calque pour peindre dessus."));
     return true;
 }
 Document::Snapshot Document::snapshot(const QString &label) const {
-    return {m_layers, m_size, m_active, m_selection, m_stateId, label};
+    return {m_layers, m_size, m_active, m_selection, m_editingMask, m_stateId, label};
 }
 void Document::restore(const Snapshot &state) {
     m_layers = state.layers; m_size = state.size; m_active = state.active;
-    m_selection = state.selection; m_stateId = state.id;
+    m_selection = state.selection; m_editingMask = state.editingMask; m_stateId = state.id;
     changed(); emit documentChanged(); emit selectionChanged(); emit historyChanged();
 }
 void Document::trimHistory() {
@@ -64,31 +67,34 @@ void Document::trimHistory() {
         QSet<qint64> seen;
         qint64 bytes = 0;
         for (const auto &state : m_undo) for (const auto &layer : state.layers) {
-            if (!seen.contains(layer.image.cacheKey())) {
-                seen.insert(layer.image.cacheKey()); bytes += layer.image.sizeInBytes();
-            }
+            for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
+                if (!image->isNull() && !seen.contains(image->cacheKey())) {
+                    seen.insert(image->cacheKey()); bytes += image->sizeInBytes();
+                }
         }
         if (m_undo.size() <= 40 && bytes <= 256LL*1024*1024) break;
         m_undo.removeFirst();
     }
 }
-void Document::commit(const Snapshot &before, const QString &label) {
+void Document::commit(const Snapshot &before, const QString &label,bool invalidateFull) {
     Snapshot state = before; state.label = label;
     m_undo.append(state); m_redo.clear(); m_stateId = m_nextId++;
-    trimHistory(); changed(); emit historyChanged();
+    trimHistory(); changed(invalidateFull); emit historyChanged();
 }
 void Document::edit(const QString &label, const std::function<void()> &operation) {
     endStroke(); auto before = snapshot(label); operation(); commit(before, label);
 }
 void Document::changed(bool metadata) {
-    m_cacheDirty = true; ++m_revision;
+    m_cacheDirty = true;if(metadata)m_fullCompositeDirty=true;++m_revision;
     if (metadata) emit layersChanged();
     emit imageChanged();
 }
 void Document::resetHistory(bool clean) {
     m_undo.clear(); m_redo.clear(); m_stateId = m_nextId++;
     m_savedId = clean ? m_stateId : 0;
-    m_selection = {}; m_drawing = false; m_beforeStroke = {};
+    m_selection = {}; m_drawing = false; m_editingMask = false; m_previewingLayer = false;
+    m_beforeStroke = {}; m_beforeLayerPreview = {}; m_strokeBase={};m_strokeCoverage={};m_strokeBounds={};m_frequencyCache.clear();
+    m_fullCompositeDirty=true;m_dirtyRegion={};
     changed(); emit documentChanged(); emit selectionChanged(); emit historyChanged();
 }
 QVariantList Document::layers() const {
@@ -97,7 +103,10 @@ QVariantList Document::layers() const {
     for (int i = int(m_layers.size())-1; i >= 0; --i) {
         const auto &l = m_layers[i];
         result.append(QVariantMap{{"layerIndex",i},{"name",l.name},{"visible",l.visible},
-            {"locked",l.locked},{"opacity",l.opacity},{"blend",l.blend}});
+            {"locked",l.locked},{"opacity",l.opacity},{"blend",l.blend},
+            {"kind",l.kind},{"adjustmentType",l.adjustmentType},{"parameters",l.parameters},
+            {"hasMask",!l.mask.isNull()},{"maskEnabled",l.maskEnabled},
+            {"editingMask",m_editingMask && i==m_active}});
     }
     return result;
 }
@@ -107,29 +116,224 @@ QStringList Document::history() const {
     for (auto it = m_redo.crbegin(); it != m_redo.crend(); ++it) result.append(it->label);
     return result;
 }
-QPainter::CompositionMode Document::blendMode(int mode) {
-    static const QPainter::CompositionMode modes[] = {QPainter::CompositionMode_SourceOver,
-        QPainter::CompositionMode_Multiply, QPainter::CompositionMode_Screen,
-        QPainter::CompositionMode_Overlay, QPainter::CompositionMode_Darken,
-        QPainter::CompositionMode_Lighten, QPainter::CompositionMode_Difference};
-    return modes[qBound(0,mode,6)];
+QImage Document::applyMask(const QImage &source,const QImage &mask,qreal density,qreal feather) {
+    if(source.isNull() || mask.isNull()) return source;
+    QImage result=source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    density=qBound(0.,density,1.);feather=qBound(0.,feather,100.);
+    const QImage coverage=(feather>=.5?blurImage(mask,qRound(feather)):mask).convertToFormat(QImage::Format_Grayscale8);
+    const int h=qMin(result.height(),coverage.height()), w=qMin(result.width(),coverage.width());
+    for(int y=0;y<h;++y) {
+        auto pixels=reinterpret_cast<QRgb*>(result.scanLine(y)); const uchar *m=coverage.constScanLine(y);
+        for(int x=0;x<w;++x) {
+            const int a=qRound(255-(255-m[x])*density);
+            pixels[x]=qRgba(qRed(pixels[x])*a/255,qGreen(pixels[x])*a/255,qBlue(pixels[x])*a/255,qAlpha(pixels[x])*a/255);
+        }
+    }
+    return result;
+}
+QImage Document::blendImages(const QImage &base,const QImage &source,int mode,qreal opacity) {
+    if(source.isNull())return base;
+    QImage background=base.convertToFormat(QImage::Format_ARGB32);
+    const QImage foreground=source.convertToFormat(QImage::Format_ARGB32);
+    opacity=qBound(0.,opacity,1.);mode=qBound(0,mode,26);
+    auto channel=[](double b,double s,int m) {
+        auto burn=[](double baseValue,double blendValue){return blendValue<=0?0.:1.-qMin(1.,(1.-baseValue)/blendValue);};
+        auto dodge=[](double baseValue,double blendValue){return blendValue>=1?1.:qMin(1.,baseValue/(1.-blendValue));};
+        switch(m) {
+        case 2:return qMin(b,s); case 3:return b*s; case 4:return burn(b,s);
+        case 5:return qMax(0.,b+s-1.); case 7:return qMax(b,s); case 8:return b+s-b*s;
+        case 9:return dodge(b,s); case 10:return qMin(1.,b+s);
+        case 12:return b<=.5?2*b*s:1-2*(1-b)*(1-s);
+        case 13:return s<=.5?b-(1-2*s)*b*(1-b):b+(2*s-1)*(b<=.25?((16*b-12)*b+4)*b:std::sqrt(b)-b);
+        case 14:return s<=.5?2*b*s:1-2*(1-b)*(1-s);
+        case 15:return s<=.5?burn(b,2*s):dodge(b,2*s-1);
+        case 16:return qBound(0.,b+2*s-1.,1.);
+        case 17:return s<=.5?qMin(b,2*s):qMax(b,2*s-1);
+        case 18:return (s<=.5?burn(b,2*s):dodge(b,2*s-1))<.5?0.:1.;
+        case 19:return std::abs(b-s); case 20:return b+s-2*b*s;
+        case 21:return qMax(0.,b-s); case 22:return s<=0?1.:qMin(1.,b/s);
+        default:return s;
+        }
+    };
+    for(int y=0;y<background.height();++y) for(int x=0;x<background.width();++x) {
+        const QColor bc=background.pixelColor(x,y),sc=foreground.pixelColor(x,y);
+        double ab=bc.alphaF(),as=sc.alphaF()*opacity;
+        if(mode==1) {
+            const quint32 hash=quint32(x*73856093u)^quint32(y*19349663u);
+            as=(hash&0xffffu)<quint32(as*65535.)?1.:0.;
+        }
+        if(as<=0)continue;
+        QColor blended=sc;
+        if(mode==6 || mode==11) {
+            const int baseTotal=bc.red()+bc.green()+bc.blue(),sourceTotal=sc.red()+sc.green()+sc.blue();
+            blended=(mode==6 ? sourceTotal<baseTotal : sourceTotal>baseTotal)?sc:bc;
+        } else if(mode>=23) {
+            float bh,bs,bl,ba,sh,ss,sl,sa;bc.getHslF(&bh,&bs,&bl,&ba);sc.getHslF(&sh,&ss,&sl,&sa);
+            if(bh<0)bh=0;if(sh<0)sh=0;
+            if(mode==23)blended.setHslF(sh,bs,bl);
+            else if(mode==24)blended.setHslF(bh,ss,bl);
+            else if(mode==25)blended.setHslF(sh,ss,bl);
+            else blended.setHslF(bh,bs,sl);
+        } else if(mode>=2) {
+            blended=QColor::fromRgbF(channel(bc.redF(),sc.redF(),mode),channel(bc.greenF(),sc.greenF(),mode),channel(bc.blueF(),sc.blueF(),mode));
+        }
+        const double ao=as+ab*(1-as);
+        auto compose=[&](double b,double s,double mix){return ao<=0?0.:((1-as)*ab*b+(1-ab)*as*s+ab*as*mix)/ao;};
+        background.setPixelColor(x,y,QColor::fromRgbF(
+            qBound(0.,compose(bc.redF(),sc.redF(),blended.redF()),1.),
+            qBound(0.,compose(bc.greenF(),sc.greenF(),blended.greenF()),1.),
+            qBound(0.,compose(bc.blueF(),sc.blueF(),blended.blueF()),1.),qBound(0.,ao,1.)));
+    }
+    background.setColorSpace(QColorSpace::SRgb);
+    return background.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+QImage Document::blurImage(const QImage &source,int radius) {
+    if(source.isNull() || radius<=0) return source;
+    radius=qBound(1,radius,100); const int w=source.width(),h=source.height(),window=radius*2+1;
+    const QImage input=source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage horizontal=blank(source.size()),result=blank(source.size());
+    auto pass=[&](const QImage &src,QImage &dst,bool vertical) {
+        const int major=vertical?w:h,minor=vertical?h:w;
+        for(int a=0;a<major;++a) {
+            qint64 r=0,g=0,b=0,alpha=0;
+            auto sample=[&](int pos,int sign){const int p=qBound(0,pos,minor-1); const QRgb c=src.pixel(vertical?a:p,vertical?p:a);
+                r+=sign*qRed(c);g+=sign*qGreen(c);b+=sign*qBlue(c);alpha+=sign*qAlpha(c);};
+            for(int k=-radius;k<=radius;++k) sample(k,1);
+            for(int n=0;n<minor;++n) {
+                dst.setPixel(vertical?a:n,vertical?n:a,qRgba(int(r/window),int(g/window),int(b/window),int(alpha/window)));
+                sample(n-radius,-1);sample(n+radius+1,1);
+            }
+        }
+    };
+    pass(input,horizontal,false);pass(horizontal,result,true);return result;
+}
+QImage Document::frequencyImage(const Layer &layer) const {
+    if(layer.source.isNull()) return {};
+    const int radius=qBound(1,layer.parameters.value("radius",8).toInt(),100);
+    const QString cacheBase=QString::number(layer.source.cacheKey())+QLatin1Char('/')+QString::number(radius);
+    const QString lowKey=QStringLiteral("low/")+cacheBase;
+    const QImage source=layer.source.convertToFormat(QImage::Format_ARGB32);
+    QImage low=m_frequencyCache.value(lowKey);
+    if(low.isNull()) {
+        if(m_frequencyCache.size()>12)m_frequencyCache.clear();
+        low=blurImage(source,radius).convertToFormat(QImage::Format_ARGB32);m_frequencyCache.insert(lowKey,low);
+    }
+    if(layer.kind==QStringLiteral("frequencyLow")) return low;
+    const QString highKey=QStringLiteral("high/")+cacheBase;
+    if(m_frequencyCache.contains(highKey))return m_frequencyCache.value(highKey);
+    QImage result(source.size(),QImage::Format_ARGB32);
+    for(int y=0;y<source.height();++y) for(int x=0;x<source.width();++x) {
+        const QColor s=source.pixelColor(x,y),l=low.pixelColor(x,y);
+        result.setPixelColor(x,y,QColor(qBound(0,qRound((s.red()-l.red()+255)/2.),255),
+            qBound(0,qRound((s.green()-l.green()+255)/2.),255),
+            qBound(0,qRound((s.blue()-l.blue()+255)/2.),255),s.alpha()));
+    }
+    result=result.convertToFormat(QImage::Format_ARGB32_Premultiplied);m_frequencyCache.insert(highKey,result);return result;
+}
+QImage Document::adjustedImage(const QImage &source,const QString &type,const QVariantMap &p) {
+    if(source.isNull()) return source;
+    QImage result=source.convertToFormat(QImage::Format_ARGB32);
+    auto value=[&](const char *key,double fallback){return p.value(QLatin1String(key),fallback).toDouble();};
+    auto clamp=[](double v){return qBound(0,qRound(v),255);};
+    const QColor shadowColor(p.value("shadowColor",QStringLiteral("#101828")).toString());
+    const QColor highlightColor(p.value("highlightColor",QStringLiteral("#f5d9a8")).toString());
+    for(int y=0;y<result.height();++y) for(int x=0;x<result.width();++x) {
+        QColor c=result.pixelColor(x,y); double r=c.red(),g=c.green(),b=c.blue(); const int alpha=c.alpha();
+        const double lum=.2126*r+.7152*g+.0722*b;
+        if(type=="brightnessContrast") {
+            const double brightness=value("brightness",0)*2.55, contrast=value("contrast",0);
+            const double f=std::pow((100+contrast)/100,2); r=(r-128)*f+128+brightness;g=(g-128)*f+128+brightness;b=(b-128)*f+128+brightness;
+        } else if(type=="levels") {
+            const double inB=value("inputBlack",0),inW=qMax(inB+1.,value("inputWhite",255)),gamma=qMax(.1,value("gamma",1));
+            const double outB=value("outputBlack",0),outW=value("outputWhite",255);
+            auto level=[&](double v){return outB+std::pow(qBound(0.,(v-inB)/(inW-inB),1.),1/gamma)*(outW-outB);};r=level(r);g=level(g);b=level(b);
+        } else if(type=="curves") {
+            const double t=lum/255., shadows=value("shadows",0),mid=value("midtones",0),high=value("highlights",0);
+            const double delta=shadows*std::pow(1-t,2)+mid*4*t*(1-t)+high*t*t;r+=delta;g+=delta;b+=delta;
+        } else if(type=="exposure") {
+            const double exposure=std::pow(2.,value("exposure",0)),offset=value("offset",0)*255,gamma=qMax(.1,value("gamma",1));
+            auto expose=[&](double v){return std::pow(qMax(0.,v*exposure+offset)/255.,1/gamma)*255.;};r=expose(r);g=expose(g);b=expose(b);
+        } else if(type=="vibrance") {
+            const double mx=qMax(r,qMax(g,b)),mn=qMin(r,qMin(g,b)),sat=(mx-mn)/255.;
+            const double factor=1+value("saturation",0)/100.+value("vibrance",0)/100.*(1-sat);
+            r=lum+(r-lum)*factor;g=lum+(g-lum)*factor;b=lum+(b-lum)*factor;
+        } else if(type=="hueSaturation") {
+            float h,s,l,a;c.getHslF(&h,&s,&l,&a);h=std::fmod(h+value("hue",0)/360.+1.,1.);
+            s=qBound(0.,s*(1+value("saturation",0)/100.),1.);l=qBound(0.,l+value("lightness",0)/100.,1.);c.setHslF(h,s,l,a);r=c.red();g=c.green();b=c.blue();
+        } else if(type=="colorBalance") {
+            r+=value("cyanRed",0)*2.55;g+=value("magentaGreen",0)*2.55;b+=value("yellowBlue",0)*2.55;
+        } else if(type=="blackWhite") {
+            const double total=qMax(1.,value("reds",40)+value("greens",40)+value("blues",20));
+            const double gray=(r*value("reds",40)+g*value("greens",40)+b*value("blues",20))/total;r=g=b=gray;
+        } else if(type=="photoFilter") {
+            QColor filter;filter.setHslF(std::fmod(value("hue",35)/360.+1.,1.),.8,.55);
+            const double d=qBound(0.,value("density",25)/100.,1.);r=r*(1-d)+filter.red()*d;g=g*(1-d)+filter.green()*d;b=b*(1-d)+filter.blue()*d;
+        } else if(type=="channelMixer") {
+            const double nr=r*value("redRed",100)/100.+g*value("redGreen",0)/100.+b*value("redBlue",0)/100.;
+            const double ng=r*value("greenRed",0)/100.+g*value("greenGreen",100)/100.+b*value("greenBlue",0)/100.;
+            const double nb=r*value("blueRed",0)/100.+g*value("blueGreen",0)/100.+b*value("blueBlue",100)/100.;r=nr;g=ng;b=nb;
+        } else if(type=="colorLookup") {
+            const int preset=p.value("preset",0).toInt();
+            if(preset==0){r=r*1.05+8;g=g*.98;b=b*.88;}else if(preset==1){r=r*1.08;g=g*1.01;b=b*.92+8;}
+            else if(preset==2){r=r*.9;g=g*1.02;b=b*1.12;}else {r=128+(r-128)*.82;g=128+(g-128)*.82;b=128+(b-128)*.82;}
+        } else if(type=="invert") {r=255-r;g=255-g;b=255-b;
+        } else if(type=="posterize") {
+            const int levels=qBound(2,p.value("levels",4).toInt(),32);const double step=255./(levels-1);r=qRound(r/step)*step;g=qRound(g/step)*step;b=qRound(b/step)*step;
+        } else if(type=="threshold") {r=g=b=lum>=value("level",128)?255:0;
+        } else if(type=="gradientMap") {
+            const double t=lum/255.;r=shadowColor.red()*(1-t)+highlightColor.red()*t;g=shadowColor.green()*(1-t)+highlightColor.green()*t;b=shadowColor.blue()*(1-t)+highlightColor.blue()*t;
+        } else if(type=="selectiveColor") {
+            const double strength=(qMax(r,qMax(g,b))-qMin(r,qMin(g,b)))/255.;
+            r+=value("cyanRed",0)*2.55*strength;g+=value("magentaGreen",0)*2.55*strength;b+=value("yellowBlue",0)*2.55*strength;
+            const double black=value("black",0)*2.55;r-=black;g-=black;b-=black;
+        }
+        result.setPixelColor(x,y,QColor(clamp(r),clamp(g),clamp(b),alpha));
+    }
+    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 const QImage &Document::composite() const {
     if (!m_cacheDirty) return m_composite;
-    m_composite = blank(m_size);
-    QPainter painter(&m_composite);
+    const QRect documentRect(QPoint{},m_size);
+    const QRect region=(m_fullCompositeDirty||m_composite.size()!=m_size?documentRect:m_dirtyRegion.intersected(documentRect));
+    if(region.isEmpty()){m_cacheDirty=false;return m_composite;}
+    QImage regionComposite=blank(region.size());
     for (const auto &layer : m_layers) if (layer.visible) {
-        painter.setOpacity(layer.opacity); painter.setCompositionMode(blendMode(layer.blend));
-        painter.drawImage(0,0,layer.image);
+        QImage rendered;
+        if (layer.kind == QStringLiteral("adjustment"))
+            rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
+        else if (layer.kind.startsWith(QStringLiteral("frequency")))
+            rendered = frequencyImage(layer).copy(region);
+        else
+            rendered = layer.image.copy(region);
+        if (layer.maskEnabled && !layer.mask.isNull()) {
+            const qreal density=layer.parameters.value("_maskDensity",100.).toDouble()/100.;
+            const qreal feather=layer.parameters.value("_maskFeather",0.).toDouble();
+            const QImage maskRegion=(feather>=.5?blurImage(layer.mask,qRound(feather)):layer.mask).copy(region);
+            rendered=applyMask(rendered,maskRegion,density,0);
+        }
+        regionComposite=blendImages(regionComposite,rendered,layer.blend,layer.opacity);
     }
-    painter.end(); m_cacheDirty = false; return m_composite;
+    if(region==documentRect)m_composite=regionComposite;
+    else {QPainter painter(&m_composite);painter.setCompositionMode(QPainter::CompositionMode_Source);painter.drawImage(region.topLeft(),regionComposite);}
+    m_cacheDirty=false;m_fullCompositeDirty=false;m_dirtyRegion={};return m_composite;
 }
 QImage Document::layerImage(int index) const {
-    return index >= 0 && index < m_layers.size() ? m_layers[index].image : QImage{};
+    if (index < 0 || index >= m_layers.size()) return {};
+    const auto &layer=m_layers[index];
+    if(layer.kind.startsWith(QStringLiteral("frequency"))) return frequencyImage(layer);
+    if(layer.kind==QStringLiteral("adjustment")) {
+        QImage icon(96,72,QImage::Format_ARGB32_Premultiplied); icon.fill(QColor("#232b32"));
+        QPainter p(&icon); QLinearGradient g(0,72,96,0); g.setColorAt(0,QColor("#273845")); g.setColorAt(1,QColor("#c5f2cf"));
+        p.fillRect(icon.rect().adjusted(8,8,-8,-8),g); p.setPen(QColor("#ffffff")); p.drawText(icon.rect(),Qt::AlignCenter,QStringLiteral("A")); return icon;
+    }
+    return layer.image;
+}
+QImage Document::maskImage(int index) const {
+    return index >= 0 && index < m_layers.size() ? m_layers[index].mask : QImage{};
 }
 void Document::setActiveLayer(int index) {
     if (index < 0 || index >= m_layers.size() || m_active == index) return;
-    endStroke(); m_active = index; emit layersChanged();
+    endStroke(); cancelLayerPreview(); m_active = index; m_editingMask = false; emit layersChanged();
 }
 void Document::setTool(const QString &value) {
     static const QStringList tools{"brush","eraser","fill","picker","move","rectangle","ellipse","line","gradient","select","crop","text","hand"};
@@ -140,6 +344,13 @@ void Document::setColor(const QColor &value) { if(value.isValid()) {m_color=valu
 void Document::setSecondaryColor(const QColor &value) { if(value.isValid()) {m_secondary=value; emit settingsChanged();} }
 void Document::setBrushSize(qreal value) { if(std::isfinite(value)) {m_brushSize=qBound(1.,value,500.); emit settingsChanged();} }
 void Document::setBrushOpacity(qreal value) { if(std::isfinite(value)) {m_brushOpacity=qBound(0.,value,1.); emit settingsChanged();} }
+void Document::setBrushHardness(qreal value) {if(std::isfinite(value)){m_brushHardness=qBound(0.,value,1.);emit settingsChanged();}}
+void Document::setBrushFlow(qreal value) {if(std::isfinite(value)){m_brushFlow=qBound(.01,value,1.);emit settingsChanged();}}
+void Document::setBrushSpacing(qreal value) {if(std::isfinite(value)){m_brushSpacing=qBound(.01,value,10.);emit settingsChanged();}}
+void Document::setBrushAngle(qreal value) {if(std::isfinite(value)){m_brushAngle=std::fmod(value,360.);emit settingsChanged();}}
+void Document::setBrushRoundness(qreal value) {if(std::isfinite(value)){m_brushRoundness=qBound(.01,value,1.);emit settingsChanged();}}
+void Document::setBrushSmoothing(qreal value) {if(std::isfinite(value)){m_brushSmoothing=qBound(0.,value,1.);emit settingsChanged();}}
+void Document::setBrushBlend(int value) {if(value>=0&&value<=26&&m_brushBlend!=value){m_brushBlend=value;emit settingsChanged();}}
 void Document::setText(const QString &value) { m_text=value.left(4096); emit settingsChanged(); }
 void Document::setTextSize(int value) { m_textSize=qBound(6,value,512); emit settingsChanged(); }
 void Document::setFilledShapes(bool value) { m_filledShapes=value; emit settingsChanged(); }
@@ -187,12 +398,17 @@ bool Document::saveProject(const QUrl &url) {
     if(!path.endsWith(".pcr",Qt::CaseInsensitive)) path+=".pcr";
     QJsonArray layers;
     for(const auto &layer:m_layers) {
-        QByteArray bytes; QBuffer buffer(&bytes); buffer.open(QIODevice::WriteOnly);
-        if(!layer.image.save(&buffer,"PNG")) return fail(QStringLiteral("Impossible d’encoder le calque."));
+        auto encode=[&](const QImage &image)->QString {if(image.isNull())return {};QByteArray bytes;QBuffer buffer(&bytes);buffer.open(QIODevice::WriteOnly);
+            return image.save(&buffer,"PNG")?QString::fromLatin1(bytes.toBase64()):QString{};};
+        const QString png=encode(layer.image),mask=encode(layer.mask),source=encode(layer.source);
+        if((!layer.image.isNull()&&png.isEmpty())||(!layer.mask.isNull()&&mask.isEmpty())||(!layer.source.isNull()&&source.isEmpty()))
+            return fail(QStringLiteral("Impossible d’encoder les données du calque."));
         layers.append(QJsonObject{{"name",layer.name},{"visible",layer.visible},{"locked",layer.locked},
-            {"opacity",layer.opacity},{"blend",layer.blend},{"png",QString::fromLatin1(bytes.toBase64())}});
+            {"opacity",layer.opacity},{"blend",layer.blend},{"kind",layer.kind},{"adjustmentType",layer.adjustmentType},
+            {"parameters",QJsonObject::fromVariantMap(layer.parameters)},{"png",png},{"mask",mask},
+            {"maskEnabled",layer.maskEnabled},{"source",source}});
     }
-    QJsonObject root{{"format","PhotoCrap"},{"version",1},{"width",width()},{"height",height()},
+    QJsonObject root{{"format","PhotoCrap"},{"version",3},{"width",width()},{"height",height()},
         {"activeLayer",m_active},{"layers",layers}};
     const QByteArray data=QJsonDocument(root).toJson(QJsonDocument::Compact);
     if(data.size()>MaxProjectBytes) return fail(QStringLiteral("Le projet dépasse 256 Mio. Réduisez ses dimensions ou ses calques."));
@@ -208,7 +424,8 @@ bool Document::loadProject(const QString &path) {
     QJsonParseError error;
     const auto json=QJsonDocument::fromJson(file.readAll(),&error);
     const auto root=json.object();
-    if(error.error!=QJsonParseError::NoError || root["format"]!="PhotoCrap" || root["version"].toInt()!=1)
+    const int version=root["version"].toInt();
+    if(error.error!=QJsonParseError::NoError || root["format"]!="PhotoCrap" || (version<1||version>3))
         return fail(QStringLiteral("Projet PhotoCrap invalide ou version non prise en charge."));
     const int w=root["width"].toInt(), h=root["height"].toInt();
     const auto array=root["layers"].toArray();
@@ -216,18 +433,28 @@ bool Document::loadProject(const QString &path) {
     QVector<Layer> layers;
     for(const auto &value:array) {
         auto object=value.toObject();
-        QByteArray png=QByteArray::fromBase64(object["png"].toString().toLatin1(),QByteArray::AbortOnBase64DecodingErrors);
-        QBuffer buffer(&png); buffer.open(QIODevice::ReadOnly);
-        QImageReader reader(&buffer,"PNG");
-        if(reader.size()!=QSize(w,h)) return fail(QStringLiteral("Dimensions de calque incohérentes."));
-        auto image=reader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
-        if(image.isNull()) return fail(QStringLiteral("Calque corrompu."));
-        image.setColorSpace(QColorSpace::SRgb);
+        auto decode=[&](const QString &encoded,QImage::Format format)->QImage {if(encoded.isEmpty())return {};QByteArray bytes=QByteArray::fromBase64(encoded.toLatin1(),QByteArray::AbortOnBase64DecodingErrors);
+            QBuffer buffer(&bytes);buffer.open(QIODevice::ReadOnly);QImageReader reader(&buffer,"PNG");
+            if(reader.size()!=QSize(w,h))return {};return reader.read().convertToFormat(format);};
+        const QString kind=version==1?QStringLiteral("pixel"):object["kind"].toString("pixel");
+        if(kind!="pixel"&&kind!="adjustment"&&kind!="frequency"&&kind!="frequencyLow"&&kind!="frequencyHigh")return fail(QStringLiteral("Type de calque inconnu."));
+        auto image=decode(object["png"].toString(),QImage::Format_ARGB32_Premultiplied);
+        auto mask=decode(object["mask"].toString(),QImage::Format_Grayscale8);
+        auto source=decode(object["source"].toString(),QImage::Format_ARGB32_Premultiplied);
+        if((kind=="pixel"&&image.isNull())||(kind.startsWith("frequency")&&source.isNull())||(!object["mask"].toString().isEmpty()&&mask.isNull()))
+            return fail(QStringLiteral("Calque corrompu ou dimensions incohérentes."));
+        if(!image.isNull())image.setColorSpace(QColorSpace::SRgb);if(!source.isNull())source.setColorSpace(QColorSpace::SRgb);
         const double opacity=object["opacity"].toDouble(-1);
-        const int blend=object["blend"].toInt(-1);
-        if(opacity<0 || opacity>1 || blend<0 || blend>6) return fail(QStringLiteral("Propriétés de calque invalides."));
-        layers.append({object["name"].toString().left(256),image,object["visible"].toBool(true),
-            object["locked"].toBool(),opacity,blend});
+        int blend=object["blend"].toInt(-1);
+        static const int legacyV1[]={0,3,8,12,2,7,19};
+        static const int legacyV2[]={0,3,8,12,2,7,19,13,14,9,4,20,10};
+        if(version==1 && blend>=0 && blend<7)blend=legacyV1[blend];
+        else if(version==2 && blend>=0 && blend<13)blend=legacyV2[blend];
+        if(opacity<0 || opacity>1 || blend<0 || blend>26) return fail(QStringLiteral("Propriétés de calque invalides."));
+        Layer layer{object["name"].toString().left(256),image,object["visible"].toBool(true),object["locked"].toBool(),opacity,blend};
+        layer.kind=kind;layer.adjustmentType=object["adjustmentType"].toString();layer.parameters=object["parameters"].toObject().toVariantMap();
+        layer.mask=mask;layer.maskEnabled=object["maskEnabled"].toBool(true);layer.source=source;layers.append(layer);
+        if(version==2 && kind=="frequency") {layers.last().kind="pixel";layers.last().image=source;layers.last().source={};layers.last().parameters={};}
     }
     // Only replace the current document after validating every layer.
     m_layers=layers; m_size={w,h}; m_active=qBound(0,root["activeLayer"].toInt(),int(layers.size())-1);
@@ -260,17 +487,19 @@ void Document::duplicateLayer() {
     edit(QStringLiteral("Dupliquer le calque"),[&]{auto layer=m_layers[m_active]; layer.name+=" — copie"; m_layers.insert(++m_active,layer);});
 }
 void Document::removeLayer() {
-    if(!editable() || m_layers.size()==1) return;
-    edit(QStringLiteral("Supprimer le calque"),[&]{m_layers.removeAt(m_active); m_active=qMin(m_active,int(m_layers.size())-1);});
+    if(m_active<0 || m_active>=m_layers.size() || m_layers[m_active].locked || m_layers.size()==1) return;
+    edit(QStringLiteral("Supprimer le calque"),[&]{m_layers.removeAt(m_active); m_active=qMin(m_active,int(m_layers.size())-1);m_editingMask=false;});
 }
 void Document::moveLayer(int direction) {
     const int to=m_active+(direction>0?1:-1); if(to<0 || to>=m_layers.size()) return;
     edit(QStringLiteral("Réordonner le calque"),[&]{m_layers.swapItemsAt(m_active,to); m_active=to;});
 }
 void Document::mergeDown() {
-    if(!editable() || m_active<1) return;
+    if(m_active<1 || m_active>=m_layers.size()) return;
     const auto &lower=m_layers[m_active-1]; const auto &upper=m_layers[m_active];
-    if(lower.locked || !lower.visible || !upper.visible || lower.blend!=0 || upper.blend!=0)
+    if(lower.locked || upper.locked || lower.kind!="pixel" || upper.kind!="pixel" ||
+       (lower.maskEnabled&&!lower.mask.isNull()) || (upper.maskEnabled&&!upper.mask.isNull()) ||
+       !lower.visible || !upper.visible || lower.blend!=0 || upper.blend!=0)
         {fail(QStringLiteral("La fusion nécessite deux calques visibles en mode Normal, non verrouillés.")); return;}
     edit(QStringLiteral("Fusionner vers le bas"),[&]{
         auto &bottom=m_layers[m_active-1]; const auto &top=m_layers[m_active];
@@ -298,8 +527,101 @@ void Document::setLayerOpacity(int i,qreal opacity) {
     edit(QStringLiteral("Opacité du calque"),[&]{m_layers[i].opacity=opacity;});
 }
 void Document::setLayerBlend(int i,int blend) {
-    if(i<0 || i>=m_layers.size() || blend<0 || blend>6 || m_layers[i].blend==blend) return;
+    if(i<0 || i>=m_layers.size() || blend<0 || blend>26 || m_layers[i].blend==blend) return;
     edit(QStringLiteral("Mode de fusion"),[&]{m_layers[i].blend=blend;});
+}
+void Document::addLayerMask(bool revealAll) {
+    if(m_active<0 || m_active>=m_layers.size()) return;
+    if(!m_layers[m_active].mask.isNull()) {m_editingMask=true;emit layersChanged();return;}
+    edit(QStringLiteral("Ajouter un masque de fusion"),[&]{
+        QImage mask(m_size,QImage::Format_Grayscale8);mask.fill(hasSelection()?(revealAll?0:255):(revealAll?255:0));
+        if(hasSelection()) {QPainter painter(&mask);painter.fillRect(m_selection,revealAll?Qt::white:Qt::black);}
+        m_layers[m_active].mask=mask;m_layers[m_active].maskEnabled=true;
+        m_layers[m_active].parameters.insert("_maskDensity",100.);m_layers[m_active].parameters.insert("_maskFeather",0.);m_editingMask=true;
+    });
+}
+void Document::removeLayerMask() {
+    if(m_active<0 || m_active>=m_layers.size() || m_layers[m_active].mask.isNull()) return;
+    edit(QStringLiteral("Supprimer le masque de fusion"),[&]{m_layers[m_active].mask={};m_editingMask=false;});
+}
+void Document::invertLayerMask() {
+    if(m_active<0 || m_active>=m_layers.size() || m_layers[m_active].mask.isNull()) return;
+    edit(QStringLiteral("Inverser le masque de fusion"),[&]{m_layers[m_active].mask.invertPixels();});
+}
+void Document::setMaskEnabled(bool enabled) {
+    if(m_active<0 || m_active>=m_layers.size() || m_layers[m_active].mask.isNull() || m_layers[m_active].maskEnabled==enabled) return;
+    edit(QStringLiteral("Activer le masque de fusion"),[&]{m_layers[m_active].maskEnabled=enabled;});
+}
+void Document::setEditingMask(bool enabled) {
+    if(m_active<0 || m_active>=m_layers.size()) return;
+    enabled=enabled&&!m_layers[m_active].mask.isNull();
+    if(m_editingMask==enabled)return;endStroke();m_editingMask=enabled;emit layersChanged();
+}
+void Document::addAdjustmentLayer(const QString &type) {
+    static const QMap<QString,QString> names{{"brightnessContrast","Luminosité / Contraste"},{"levels","Niveaux"},
+        {"curves","Courbes"},{"exposure","Exposition"},{"vibrance","Vibrance"},{"hueSaturation","Teinte / Saturation"},
+        {"colorBalance","Balance des couleurs"},{"blackWhite","Noir et blanc"},{"photoFilter","Filtre photo"},
+        {"channelMixer","Mélangeur de couches"},{"colorLookup","Recherche de couleurs"},{"invert","Négatif"},
+        {"posterize","Isohélie"},{"threshold","Seuil"},{"gradientMap","Courbe de transfert de dégradé"},
+        {"selectiveColor","Correction sélective"}};
+    if(!names.contains(type) || !validSize(width(),height(),int(m_layers.size())+1)) return;
+    QVariantMap params;
+    if(type=="brightnessContrast")params={{"brightness",0},{"contrast",0}};
+    else if(type=="levels")params={{"inputBlack",0},{"inputWhite",255},{"gamma",1.},{"outputBlack",0},{"outputWhite",255}};
+    else if(type=="curves")params={{"shadows",0},{"midtones",0},{"highlights",0}};
+    else if(type=="exposure")params={{"exposure",0.},{"offset",0.},{"gamma",1.}};
+    else if(type=="vibrance")params={{"vibrance",0},{"saturation",0}};
+    else if(type=="hueSaturation")params={{"hue",0},{"saturation",0},{"lightness",0}};
+    else if(type=="colorBalance"||type=="selectiveColor")params={{"cyanRed",0},{"magentaGreen",0},{"yellowBlue",0},{"black",0}};
+    else if(type=="blackWhite")params={{"reds",40},{"greens",40},{"blues",20}};
+    else if(type=="photoFilter")params={{"hue",35},{"density",25}};
+    else if(type=="channelMixer")params={{"redRed",100},{"redGreen",0},{"redBlue",0},{"greenRed",0},{"greenGreen",100},{"greenBlue",0},{"blueRed",0},{"blueGreen",0},{"blueBlue",100}};
+    else if(type=="colorLookup")params={{"preset",0}};
+    else if(type=="posterize")params={{"levels",4}};
+    else if(type=="threshold")params={{"level",128}};
+    else if(type=="gradientMap")params={{"shadowColor","#101828"},{"highlightColor","#f5d9a8"}};
+    edit(QStringLiteral("Nouveau calque de réglage"),[&]{
+        Layer layer;layer.name=names.value(type);layer.kind="adjustment";layer.adjustmentType=type;layer.parameters=params;
+        layer.mask=QImage(m_size,QImage::Format_Grayscale8);layer.mask.fill(hasSelection()?0:255);
+        layer.parameters.insert("_maskDensity",100.);layer.parameters.insert("_maskFeather",0.);
+        if(hasSelection()){QPainter painter(&layer.mask);painter.fillRect(m_selection,Qt::white);}
+        m_layers.insert(++m_active,layer);m_editingMask=false;
+    });
+}
+void Document::addFrequencySeparation(qreal radius) {
+    if(!std::isfinite(radius)||!validSize(width(),height(),int(m_layers.size())+2))return;
+    QImage source=m_layers[m_active].kind=="pixel"?m_layers[m_active].image:composite();
+    if(m_layers[m_active].kind=="pixel"&&m_layers[m_active].maskEnabled&&!m_layers[m_active].mask.isNull())source=applyMask(source,m_layers[m_active].mask,
+        m_layers[m_active].parameters.value("_maskDensity",100.).toDouble()/100.,m_layers[m_active].parameters.value("_maskFeather",0.).toDouble());
+    const QString pairId=QString::number(m_nextId);
+    edit(QStringLiteral("Séparation de fréquences"),[&]{
+        const QVariantMap parameters{{"radius",qBound(1.,radius,100.)},{"pairId",pairId}};
+        Layer low;low.name=QStringLiteral("Basses fréquences");low.kind="frequencyLow";low.source=source;low.parameters=parameters;
+        Layer high;high.name=QStringLiteral("Hautes fréquences");high.kind="frequencyHigh";high.source=source;high.parameters=parameters;high.blend=16;
+        m_layers.insert(++m_active,low);m_layers.insert(++m_active,high);m_editingMask=false;
+    });
+}
+void Document::beginLayerPreview() {
+    if(m_previewingLayer||m_active<0||m_active>=m_layers.size())return;
+    endStroke();m_beforeLayerPreview=snapshot(QStringLiteral("Aperçu"));m_previewingLayer=true;m_layerPreviewChanged=false;
+}
+void Document::previewLayerParameter(const QString &key,const QVariant &value) {
+    if(m_active<0||m_active>=m_layers.size()||key.isEmpty())return;
+    if(!m_previewingLayer)beginLayerPreview();
+    if(m_layers[m_active].parameters.value(key)==value)return;
+    const QString pairId=m_layers[m_active].parameters.value("pairId").toString();
+    if(key=="radius"&&!pairId.isEmpty()) {
+        for(auto &layer:m_layers)if(layer.parameters.value("pairId").toString()==pairId)layer.parameters.insert(key,value);
+    } else m_layers[m_active].parameters.insert(key,value);
+    m_layerPreviewChanged=true;changed();
+}
+void Document::finishLayerPreview(const QString &label) {
+    if(!m_previewingLayer)return;m_previewingLayer=false;
+    if(m_layerPreviewChanged)commit(m_beforeLayerPreview,label);m_beforeLayerPreview={};m_layerPreviewChanged=false;
+}
+void Document::cancelLayerPreview() {
+    if(!m_previewingLayer)return;const bool changedPreview=m_layerPreviewChanged;m_previewingLayer=false;m_layerPreviewChanged=false;
+    if(changedPreview)restore(m_beforeLayerPreview);m_beforeLayerPreview={};
 }
 
 void Document::beginStroke(qreal x,qreal y) {
@@ -309,8 +631,16 @@ void Document::beginStroke(qreal x,qreal y) {
     if(m_tool=="picker") { if(composite().rect().contains(QPoint(int(x),int(y)))) setColor(composite().pixelColor(int(x),int(y))); return; }
     if(m_tool=="select" || m_tool=="crop") {m_drawing=true; m_selection={}; emit selectionChanged(); return;}
     if(!editable()) return;
+    if(m_editingMask && m_tool!="brush" && m_tool!="eraser" && m_tool!="fill") {
+        fail(QStringLiteral("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));return;
+    }
     m_beforeStroke=snapshot(toolLabel(m_tool)); m_drawing=true; m_strokeChanged=false;
-    if(m_tool=="brush" || m_tool=="eraser") paintSegment(m_anchor,m_anchor);
+    if(m_tool=="brush" || m_tool=="eraser") {
+        QImage *target=paintTarget();if(!target){m_drawing=false;return;}
+        m_strokeBase=*target;m_strokeCoverage=blank(m_size);m_strokeBounds={};m_smoothedLast=m_anchor;
+        m_distanceToNextDab=qMax(1.,m_brushSize*m_brushSpacing);
+        paintSegment(m_anchor,m_anchor);
+    }
     else if(m_tool=="fill") {floodFill(QPoint(int(x),int(y))); endStroke();}
     else if(m_tool=="text") {
         if(!m_text.isEmpty()) {
@@ -324,15 +654,61 @@ void Document::beginStroke(qreal x,qreal y) {
     }
 }
 void Document::paintSegment(const QPointF &from,const QPointF &to) {
-    QPainter painter(&m_layers[m_active].image); painter.setRenderHint(QPainter::Antialiasing);
-    if(hasSelection()) painter.setClipRect(m_selection);
-    painter.setOpacity(m_brushOpacity);
-    if(m_tool=="eraser") painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
-    QColor ink=m_tool=="eraser"?QColor(Qt::black):m_color;
-    painter.setPen(QPen(ink,m_brushSize,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
-    if(from==to) {painter.setPen(Qt::NoPen); painter.setBrush(ink); painter.drawEllipse(to,m_brushSize/2,m_brushSize/2);}
-    else painter.drawLine(from,to);
-    painter.end(); m_strokeChanged=true; changed(false);
+    Q_UNUSED(from)
+    if(m_strokeCoverage.isNull())return;
+    m_strokeBounds={};
+    if(m_anchor==to && !m_strokeChanged) stampBrush(to);
+    else {
+        const qreal response=1.-m_brushSmoothing*.85;
+        const QPointF target=m_smoothedLast+(to-m_smoothedLast)*response;
+        QPointF cursor=m_smoothedLast; qreal distance=QLineF(cursor,target).length();
+        const qreal step=qMax(1.,m_brushSize*m_brushSpacing);
+        while(distance>=m_distanceToNextDab && distance>0) {
+            const QPointF direction=(target-cursor)/distance;
+            cursor+=direction*m_distanceToNextDab;stampBrush(cursor);
+            distance=QLineF(cursor,target).length();m_distanceToNextDab=step;
+        }
+        m_distanceToNextDab-=distance;m_smoothedLast=target;
+    }
+    renderBrushStroke();m_strokeChanged=true;changed(false);
+}
+void Document::stampBrush(const QPointF &point) {
+    QPainter painter(&m_strokeCoverage);painter.setRenderHint(QPainter::Antialiasing);
+    painter.translate(point);painter.rotate(m_brushAngle);painter.scale(1.,m_brushRoundness);
+    const qreal radius=m_brushSize/2.;const QColor paint(255,255,255,qRound(m_brushFlow*255));
+    if(m_brushHardness>=.999) painter.setBrush(paint);
+    else {
+        QRadialGradient gradient(QPointF{},radius);
+        gradient.setColorAt(qBound(0.,m_brushHardness,.999),paint);
+        gradient.setColorAt(1.,QColor(255,255,255,0));painter.setBrush(gradient);
+    }
+    painter.setPen(Qt::NoPen);painter.drawEllipse(QPointF{},radius,radius);painter.end();
+    const QRectF dabBounds(point.x()-radius-2,point.y()-radius-2,radius*2+4,radius*2+4);
+    m_strokeBounds=m_strokeBounds.isEmpty()?dabBounds:m_strokeBounds.united(dabBounds);
+}
+void Document::renderBrushStroke() {
+    QImage *target=paintTarget();if(!target||m_strokeBase.isNull())return;
+    QRect region=m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{},m_size));
+    if(hasSelection())region=region.intersected(m_selection);if(region.isEmpty())return;
+    if(!m_fullCompositeDirty)m_dirtyRegion=m_dirtyRegion.isEmpty()?region:m_dirtyRegion.united(region);
+    QImage overlay=blank(region.size());
+    const QColor ink=m_editingMask?(m_tool=="eraser"?QColor(Qt::white):QColor(Qt::black)):m_color;
+    overlay.fill(ink);QPainter maskPainter(&overlay);maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    maskPainter.drawImage(0,0,m_strokeCoverage.copy(region));maskPainter.end();
+    QImage canvas=m_strokeBase.copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if(m_tool=="brush"&&!m_editingMask) {
+        canvas=blendImages(canvas,overlay,m_brushBlend,m_brushOpacity);
+    } else {
+        QPainter painter(&canvas);painter.setOpacity(m_brushOpacity);
+        if(m_tool=="eraser"&&!m_editingMask)painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+        painter.drawImage(0,0,overlay);painter.end();
+    }
+    if(m_editingMask) {
+        const QImage gray=canvas.convertToFormat(QImage::Format_Grayscale8);
+        for(int y=0;y<region.height();++y)memcpy(target->scanLine(region.y()+y)+region.x(),gray.constScanLine(y),size_t(region.width()));
+    } else {
+        QPainter output(target);output.setCompositionMode(QPainter::CompositionMode_Source);output.drawImage(region.topLeft(),canvas);
+    }
 }
 void Document::renderShape(const QPointF &to) {
     m_layers[m_active].image=m_beforeStroke.layers[m_active].image;
@@ -362,7 +738,7 @@ void Document::renderShape(const QPointF &to) {
             painter.fillRect(QRect(QPoint{},m_size),gradient);
         }
     }
-    m_strokeChanged=true; changed(false);
+    m_strokeChanged=true;m_fullCompositeDirty=true;changed(false);
 }
 void Document::continueStroke(qreal x,qreal y) {
     if(!m_drawing || !std::isfinite(x) || !std::isfinite(y)) return;
@@ -376,6 +752,9 @@ void Document::continueStroke(qreal x,qreal y) {
 }
 void Document::endStroke() {
     if(!m_drawing) return;
+    if((m_tool=="brush"||m_tool=="eraser")&&QLineF(m_smoothedLast,m_last).length()>.01) {
+        const qreal smoothing=m_brushSmoothing;m_brushSmoothing=0;paintSegment(m_smoothedLast,m_last);m_brushSmoothing=smoothing;
+    }
     m_drawing=false;
     if(m_tool=="select" || m_tool=="crop") return;
     if(m_strokeChanged) {
@@ -383,29 +762,29 @@ void Document::endStroke() {
             m_selection=m_selection.translated((m_last-m_anchor).toPoint()).intersected(QRect(QPoint{},m_size));
             emit selectionChanged();
         }
-        commit(m_beforeStroke,toolLabel(m_tool));
+        commit(m_beforeStroke,toolLabel(m_tool),m_tool!="brush"&&m_tool!="eraser");
     }
-    m_beforeStroke={};
+    m_beforeStroke={};m_strokeBase={};m_strokeCoverage={};m_strokeBounds={};
 }
 void Document::cancelStroke() {
     if(!m_drawing) return;
     m_drawing=false;
     if(m_tool=="select" || m_tool=="crop") deselect(); else restore(m_beforeStroke);
-    m_beforeStroke={};
+    m_beforeStroke={};m_strokeBase={};m_strokeCoverage={};m_strokeBounds={};
 }
 void Document::floodFill(QPoint point) {
-    auto &image=m_layers[m_active].image;
+    QImage *paintImage=paintTarget();if(!paintImage)return;auto &image=*paintImage;
     const QRect bounds=hasSelection()?m_selection:image.rect();
     if(!bounds.contains(point)) return;
-    const QRgb target=image.pixel(point);
-    QImage solid(1,1,QImage::Format_ARGB32_Premultiplied); solid.fill(m_color);
+    const QRgb targetColor=image.pixel(point);
+    QImage solid(1,1,QImage::Format_ARGB32_Premultiplied); solid.fill(m_editingMask?QColor(Qt::black):m_color);
     const QRgb replacement=solid.pixel(0,0);
-    if(target==replacement && qFuzzyCompare(m_brushOpacity,1.)) return;
+    if(targetColor==replacement && qFuzzyCompare(m_brushOpacity,1.)) return;
     // Scanline flood fill: visited pixels are kept separate so semi-transparent
     // replacement colors cannot cause pixels to be queued repeatedly.
     QImage mask(image.size(),QImage::Format_Grayscale8); mask.fill(0);
     QVector<QPoint> stack{point};
-    auto matches=[&](int x,int y){return !mask.constScanLine(y)[x] && image.pixel(x,y)==target;};
+    auto matches=[&](int x,int y){return !mask.constScanLine(y)[x] && image.pixel(x,y)==targetColor;};
     while(!stack.isEmpty()) {
         auto seed=stack.takeLast(); if(!matches(seed.x(),seed.y())) continue;
         int left=seed.x(),right=seed.x();
@@ -427,6 +806,12 @@ void Document::floodFill(QPoint point) {
     QPainter painter(&image); painter.setOpacity(m_brushOpacity); painter.drawImage(0,0,overlay);
     painter.end(); m_strokeChanged=true;
 }
+QImage *Document::paintTarget() {
+    if(m_active<0||m_active>=m_layers.size())return nullptr;
+    if(m_editingMask&&!m_layers[m_active].mask.isNull())return &m_layers[m_active].mask;
+    if(m_layers[m_active].kind=="pixel")return &m_layers[m_active].image;
+    return nullptr;
+}
 
 void Document::undo() {
     endStroke(); if(m_undo.isEmpty()) return;
@@ -440,8 +825,9 @@ void Document::selectAll() {endStroke(); m_selection=QRect(QPoint{},m_size); emi
 void Document::deselect() {endStroke(); m_selection={}; emit selectionChanged();}
 void Document::clearSelected() {
     if(!editable()) return;
-    edit(QStringLiteral("Effacer"),[&]{QPainter p(&m_layers[m_active].image); p.setCompositionMode(QPainter::CompositionMode_Clear);
-        p.fillRect(hasSelection()?m_selection:QRect(QPoint{},m_size),Qt::transparent);});
+    edit(QStringLiteral("Effacer"),[&]{QImage *target=paintTarget();if(!target)return;QPainter p(target);
+        if(m_editingMask)p.fillRect(hasSelection()?m_selection:QRect(QPoint{},m_size),Qt::black);
+        else {p.setCompositionMode(QPainter::CompositionMode_Clear);p.fillRect(hasSelection()?m_selection:QRect(QPoint{},m_size),Qt::transparent);}});
 }
 void Document::copy() {
     endStroke(); QGuiApplication::clipboard()->setImage(hasSelection()?composite().copy(m_selection):composite());
@@ -457,27 +843,35 @@ void Document::paste() {
 }
 void Document::cropToSelection() {
     if(!hasSelection()) return;
-    edit(QStringLiteral("Recadrer"),[&]{for(auto &layer:m_layers) layer.image=layer.image.copy(m_selection);
+    edit(QStringLiteral("Recadrer"),[&]{for(auto &layer:m_layers) {
+        if(!layer.image.isNull())layer.image=layer.image.copy(m_selection);
+        if(!layer.mask.isNull())layer.mask=layer.mask.copy(m_selection);
+        if(!layer.source.isNull())layer.source=layer.source.copy(m_selection);
+    }
         m_size=m_selection.size(); m_selection={};});
     emit documentChanged(); emit selectionChanged();
 }
 void Document::resizeImage(int w,int h) {
     if(!validSize(w,h,int(m_layers.size())) || m_size==QSize(w,h)) return;
-    edit(QStringLiteral("Redimensionner l’image"),[&]{for(auto &layer:m_layers)
-        layer.image=layer.image.scaled(w,h,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+    edit(QStringLiteral("Redimensionner l’image"),[&]{for(auto &layer:m_layers) {
+        if(!layer.image.isNull())layer.image=layer.image.scaled(w,h,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+        if(!layer.mask.isNull())layer.mask=layer.mask.scaled(w,h,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+        if(!layer.source.isNull())layer.source=layer.source.scaled(w,h,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+    }
         m_size={w,h}; m_selection={};}); emit documentChanged(); emit selectionChanged();
 }
 void Document::transformImage(const QString &operation) {
     if(operation!="rotateLeft" && operation!="rotateRight" && operation!="flipH" && operation!="flipV") return;
     edit(QStringLiteral("Transformer l’image"),[&]{for(auto &layer:m_layers) {
+        auto transform=[&](QImage &image){if(image.isNull())return;
         if(operation=="flipH" || operation=="flipV") {
 #if QT_VERSION >= QT_VERSION_CHECK(6,9,0)
-            layer.image=layer.image.flipped(operation=="flipH"?Qt::Horizontal:Qt::Vertical);
+            image=image.flipped(operation=="flipH"?Qt::Horizontal:Qt::Vertical);
 #else
-            layer.image=layer.image.mirrored(operation=="flipH",operation=="flipV");
+            image=image.mirrored(operation=="flipH",operation=="flipV");
 #endif
-        }
-        else layer.image=layer.image.transformed(QTransform().rotate(operation=="rotateRight"?90:-90));
+        } else image=image.transformed(QTransform().rotate(operation=="rotateRight"?90:-90));};
+        transform(layer.image);transform(layer.mask);transform(layer.source);
     }
     if(operation.startsWith("rotate")) m_size.transpose(); m_selection={};});
     emit documentChanged(); emit selectionChanged();
@@ -485,6 +879,7 @@ void Document::transformImage(const QString &operation) {
 void Document::applyFilter(const QString &filter,qreal amount) {
     static const QStringList supported{"grayscale","invert","sepia","brightness","contrast","saturation","blur","sharpen"};
     if(!supported.contains(filter) || !std::isfinite(amount) || !editable()) return;
+    if(m_editingMask || m_layers[m_active].kind!="pixel") {fail(QStringLiteral("Ce filtre destructif nécessite un calque de pixels."));return;}
     amount=qBound(-100.,amount,100.);
     edit(QStringLiteral("Filtre : %1").arg(filter),[&]{
         const QImage original=m_layers[m_active].image;

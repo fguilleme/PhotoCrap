@@ -22,6 +22,9 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     document.undo();
     if(!require(document.composite().pixelColor(100,100).alpha()==0,"gesture undoes")) return false;
     document.redo();
+    QMetaObject::invokeMethod(window,"openLayerContextMenu");QTest::qWait(100);
+    if(!require(window->property("layerContextMenuVisible").toBool(),"layer context menu opens")) return false;
+    QMetaObject::invokeMethod(window,"closeLayerContextMenu");
     document.setTool("text");
     auto textField=window->findChild<QQuickItem*>("textField");
     if(!require(textField,"text field exists")) return false;
@@ -36,6 +39,11 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     auto shortcutList=window->findChild<QObject*>("shortcutList");
     if(!require(shortcutList && shortcutList->property("count").toInt()==33,"keyboard settings list is populated")) return false;
     QMetaObject::invokeMethod(preferences,"close");
+    auto brushSettings=window->findChild<QObject*>("brushSettingsDialog");
+    if(!require(brushSettings,"brush settings dialog exists")) return false;
+    QMetaObject::invokeMethod(brushSettings,"open");QTest::qWait(100);
+    if(!require(brushSettings->property("visible").toBool(),"brush settings dialog opens")) return false;
+    QMetaObject::invokeMethod(brushSettings,"close");
     QMetaObject::invokeMethod(window,"guard",Q_ARG(QVariant,QVariant("new")));
     QTest::qWait(200);
     auto guard=window->findChild<QObject*>("unsavedDialog");
@@ -48,6 +56,13 @@ inline bool runUiSmoke(QQuickWindow *window,Document &document) {
     auto dialog=window->findChild<QObject*>("newDialog");
     if(!require(dialog && dialog->property("visible").toBool() && dialog->property("height").toReal()>200,"new document dialog has content")) return false;
     QMetaObject::invokeMethod(dialog,"reject");
+    document.addAdjustmentLayer("brightnessContrast");
+    auto layerProperties=window->findChild<QObject*>("layerPropertiesDialog");
+    if(!require(layerProperties,"layer properties dialog exists")) return false;
+    QMetaObject::invokeMethod(layerProperties,"open");
+    QTest::qWait(150);
+    if(!require(layerProperties->property("visible").toBool(),"adjustment properties dialog opens")) return false;
+    QMetaObject::invokeMethod(layerProperties,"close");
     document.createDemo(); document.setTool("brush");
     QTest::qWait(200);
     qInfo("UI interaction checks passed");

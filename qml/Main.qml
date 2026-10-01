@@ -34,10 +34,30 @@ ApplicationWindow {
     property bool resumeAfterSave: false
     property bool importing: false
     property bool changingSecondary: false
+    property bool layerContextMenuVisible: layerContextMenu.visible
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: "Luminosité"
+    property var blendModeNames: ["Normal","Fondu","Obscurcir","Produit","Densité couleur +","Densité linéaire +","Couleur plus foncée","Éclaircir","Écran","Densité couleur −","Densité linéaire − (Ajout)","Couleur plus claire","Incrustation","Lumière tamisée","Lumière crue","Lumière vive","Lumière linéaire","Lumière ponctuelle","Mélange maximal","Différence","Exclusion","Soustraction","Division","Teinte","Saturation","Couleur","Luminosité"]
+    property var adjustmentDefinitions: ({
+        brightnessContrast: [{key:"brightness",label:"Luminosité",from:-100,to:100,step:1},{key:"contrast",label:"Contraste",from:-100,to:100,step:1}],
+        levels: [{key:"inputBlack",label:"Point noir d’entrée",from:0,to:254,step:1},{key:"inputWhite",label:"Point blanc d’entrée",from:1,to:255,step:1},{key:"gamma",label:"Gamma",from:0.1,to:3,step:0.05},{key:"outputBlack",label:"Noir de sortie",from:0,to:255,step:1},{key:"outputWhite",label:"Blanc de sortie",from:0,to:255,step:1}],
+        curves: [{key:"shadows",label:"Ombres",from:-100,to:100,step:1},{key:"midtones",label:"Tons moyens",from:-100,to:100,step:1},{key:"highlights",label:"Hautes lumières",from:-100,to:100,step:1}],
+        exposure: [{key:"exposure",label:"Exposition",from:-5,to:5,step:0.1},{key:"offset",label:"Décalage",from:-0.5,to:0.5,step:0.01},{key:"gamma",label:"Gamma",from:0.1,to:3,step:0.05}],
+        vibrance: [{key:"vibrance",label:"Vibrance",from:-100,to:100,step:1},{key:"saturation",label:"Saturation",from:-100,to:100,step:1}],
+        hueSaturation: [{key:"hue",label:"Teinte",from:-180,to:180,step:1},{key:"saturation",label:"Saturation",from:-100,to:100,step:1},{key:"lightness",label:"Luminosité",from:-100,to:100,step:1}],
+        colorBalance: [{key:"cyanRed",label:"Cyan ↔ Rouge",from:-100,to:100,step:1},{key:"magentaGreen",label:"Magenta ↔ Vert",from:-100,to:100,step:1},{key:"yellowBlue",label:"Jaune ↔ Bleu",from:-100,to:100,step:1}],
+        blackWhite: [{key:"reds",label:"Rouges",from:0,to:100,step:1},{key:"greens",label:"Verts",from:0,to:100,step:1},{key:"blues",label:"Bleus",from:0,to:100,step:1}],
+        photoFilter: [{key:"hue",label:"Teinte du filtre",from:0,to:360,step:1},{key:"density",label:"Densité",from:0,to:100,step:1}],
+        channelMixer: [{key:"redRed",label:"Rouge · R",from:-200,to:200,step:1},{key:"redGreen",label:"Rouge · V",from:-200,to:200,step:1},{key:"redBlue",label:"Rouge · B",from:-200,to:200,step:1},{key:"greenRed",label:"Vert · R",from:-200,to:200,step:1},{key:"greenGreen",label:"Vert · V",from:-200,to:200,step:1},{key:"greenBlue",label:"Vert · B",from:-200,to:200,step:1},{key:"blueRed",label:"Bleu · R",from:-200,to:200,step:1},{key:"blueGreen",label:"Bleu · V",from:-200,to:200,step:1},{key:"blueBlue",label:"Bleu · B",from:-200,to:200,step:1}],
+        colorLookup: [{key:"preset",label:"Style (0 chaud, 1 cinéma, 2 froid, 3 mat)",from:0,to:3,step:1}],
+        invert: [],
+        posterize: [{key:"levels",label:"Niveaux",from:2,to:32,step:1}],
+        threshold: [{key:"level",label:"Seuil",from:0,to:255,step:1}],
+        gradientMap: [],
+        selectiveColor: [{key:"cyanRed",label:"Cyan ↔ Rouge",from:-100,to:100,step:1},{key:"magentaGreen",label:"Magenta ↔ Vert",from:-100,to:100,step:1},{key:"yellowBlue",label:"Jaune ↔ Bleu",from:-100,to:100,step:1},{key:"black",label:"Noir",from:-100,to:100,step:1}]
+    })
     property var tools: [
         {name:"move", icon:"↖", label:"Déplacement", shortcut:"toolMove"},
         {name:"select", icon:"⬚", label:"Sélection rectangulaire", shortcut:"toolSelect"},
@@ -56,7 +76,7 @@ ApplicationWindow {
     property var activeInfo: {
         const list = editor.layers
         for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) return list[i]
-        return {name:"", opacity:1, blend:0, locked:false}
+        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true}
     }
     property string toolName: {
         for (let i=0; i<tools.length; ++i) if (tools[i].name === editor.tool) return tools[i].label
@@ -92,6 +112,16 @@ ApplicationWindow {
         adjustment = kind; adjustmentTitle = label; adjustmentSlider.value = initial
         adjustmentDialog.open()
     }
+    function addAdjustmentLayer(type) {
+        editor.addAdjustmentLayer(type)
+        layerPropertiesDialog.open()
+    }
+    function previewLayerValue(key, value, finalValue) {
+        if (layerPreview.checked || finalValue) editor.previewLayerParameter(key, value)
+        if (finalValue) editor.finishLayerPreview("Modifier " + activeInfo.name)
+    }
+    function openLayerContextMenu() { layerContextMenu.popup() }
+    function closeLayerContextMenu() { layerContextMenu.close() }
     onClosing: function(event) {
         if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
     }
@@ -179,7 +209,37 @@ ApplicationWindow {
             title: "Calque"
             MenuItem { action: addAction }
             MenuItem { action: duplicateAction }
+            Menu {
+                title: "Nouveau calque de réglage"
+                MenuItem { text: "Luminosité / Contraste"; onTriggered: addAdjustmentLayer("brightnessContrast") }
+                MenuItem { text: "Niveaux"; onTriggered: addAdjustmentLayer("levels") }
+                MenuItem { text: "Courbes"; onTriggered: addAdjustmentLayer("curves") }
+                MenuItem { text: "Exposition"; onTriggered: addAdjustmentLayer("exposure") }
+                MenuItem { text: "Vibrance"; onTriggered: addAdjustmentLayer("vibrance") }
+                MenuItem { text: "Teinte / Saturation"; onTriggered: addAdjustmentLayer("hueSaturation") }
+                MenuItem { text: "Balance des couleurs"; onTriggered: addAdjustmentLayer("colorBalance") }
+                MenuItem { text: "Noir et blanc"; onTriggered: addAdjustmentLayer("blackWhite") }
+                MenuItem { text: "Filtre photo"; onTriggered: addAdjustmentLayer("photoFilter") }
+                MenuItem { text: "Mélangeur de couches"; onTriggered: addAdjustmentLayer("channelMixer") }
+                MenuItem { text: "Recherche de couleurs"; onTriggered: addAdjustmentLayer("colorLookup") }
+                MenuItem { text: "Négatif"; onTriggered: addAdjustmentLayer("invert") }
+                MenuItem { text: "Isohélie"; onTriggered: addAdjustmentLayer("posterize") }
+                MenuItem { text: "Seuil"; onTriggered: addAdjustmentLayer("threshold") }
+                MenuItem { text: "Courbe de transfert de dégradé"; onTriggered: addAdjustmentLayer("gradientMap") }
+                MenuItem { text: "Correction sélective"; onTriggered: addAdjustmentLayer("selectiveColor") }
+            }
+            MenuItem { text: "Séparation de fréquences…"; onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
+            MenuSeparator {}
+            Menu {
+                title: "Masque de fusion"
+                MenuItem { text: "Tout faire apparaître"; enabled: !activeInfo.hasMask; onTriggered: editor.addLayerMask(true) }
+                MenuItem { text: "Tout masquer"; enabled: !activeInfo.hasMask; onTriggered: editor.addLayerMask(false) }
+                MenuItem { text: activeInfo.maskEnabled ? "Désactiver le masque" : "Activer le masque"; enabled: activeInfo.hasMask; onTriggered: editor.setMaskEnabled(!activeInfo.maskEnabled) }
+                MenuItem { text: "Inverser le masque"; enabled: activeInfo.hasMask; onTriggered: editor.invertLayerMask() }
+                MenuItem { text: "Supprimer le masque"; enabled: activeInfo.hasMask; onTriggered: editor.removeLayerMask() }
+            }
             MenuItem { text: "Renommer…"; onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
+            MenuItem { text: "Propriétés…"; enabled: activeInfo.kind!=="pixel"; onTriggered: layerPropertiesDialog.open() }
             MenuItem { text: "Fusionner vers le bas"; enabled: editor.activeLayer>0; onTriggered: editor.mergeDown() }
             MenuItem { text: "Supprimer le calque"; enabled: editor.layers.length>1; onTriggered: editor.removeLayer() }
         }
@@ -202,6 +262,8 @@ ApplicationWindow {
         }
         Menu {
             title: "Affichage"
+            MenuItem { text: "Paramètres de pinceau…"; onTriggered: brushSettingsDialog.open() }
+            MenuSeparator {}
             MenuItem { text: "Adapter à la fenêtre"; onTriggered: fitCanvas() }
             MenuItem { text: "Taille réelle · 100 %"; onTriggered: setZoom(1) }
             MenuItem { text: "Zoom avant"; onTriggered: setZoom(zoom*1.25) }
@@ -236,6 +298,9 @@ ApplicationWindow {
                 SpinBox { from: 1; to: 500; value: Math.round(editor.brushSize); editable: true; implicitWidth: 124; onValueModified: editor.brushSize=value }
                 Label { text: "Opacité"; color: "#87929e"; Layout.leftMargin: 8 }
                 SpinBox { from: 1; to: 100; value: Math.round(editor.brushOpacity*100); editable: true; implicitWidth: 124; onValueModified: editor.brushOpacity=value/100 }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: "Débit"; color: "#87929e"; Layout.leftMargin: 4 }
+                SpinBox { visible: editor.tool==="brush" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); editable: true; implicitWidth: 105; onValueModified: editor.brushFlow=value/100 }
+                Button { visible: editor.tool==="brush" || editor.tool==="eraser"; text: "Pinceau…"; onClicked: brushSettingsDialog.open() }
                 CheckBox { text: "Remplir"; checked: editor.filledShapes; visible: editor.tool==="rectangle" || editor.tool==="ellipse"; onToggled: editor.filledShapes=checked }
                 Button { text: "Recadrer"; visible: editor.tool==="crop"; enabled: editor.hasSelection; onClicked: editor.cropToSelection() }
                 Item { Layout.fillWidth: true }
@@ -356,23 +421,36 @@ ApplicationWindow {
                                 hoverEnabled: true
                                 enabled: editor.tool!=="hand"
                                 preventStealing: true
-                                cursorShape: editor.tool==="move" ? Qt.SizeAllCursor : Qt.CrossCursor
+                                cursorShape: editor.tool==="move" ? Qt.SizeAllCursor : (editor.tool==="brush" || editor.tool==="eraser") ? Qt.BlankCursor : Qt.CrossCursor
                                 onPressed: function(mouse) { workspace.forceActiveFocus(); editor.beginStroke(mouse.x/zoom,mouse.y/zoom) }
                                 onPositionChanged: function(mouse) {
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
+                                    brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
                                     if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
                                 }
                                 onReleased: editor.endStroke()
                                 onCanceled: editor.cancelStroke()
                                 onWheel: function(wheel) {
-                                    if(wheel.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) {
-                                        setZoom(zoom*(wheel.angleDelta.y>0?1.1:1/1.1)); wheel.accepted=true
-                                    } else {
-                                        viewport.contentY = Math.max(0, Math.min(viewport.contentHeight-viewport.height,viewport.contentY-wheel.angleDelta.y/2))
-                                        viewport.contentX = Math.max(0, Math.min(viewport.contentWidth-viewport.width,viewport.contentX-wheel.angleDelta.x/2))
-                                        wheel.accepted=true
-                                    }
+                                    setZoom(zoom*(wheel.angleDelta.y>0?1.1:1/1.1));wheel.accepted=true
                                 }
+                            }
+                            Canvas {
+                                id: brushCursor
+                                property real pointerX: 0
+                                property real pointerY: 0
+                                visible: drawingArea.containsMouse && (editor.tool==="brush" || editor.tool==="eraser")
+                                enabled: false; z: 5
+                                width: Math.max(8,editor.brushSize*zoom+8); height: width
+                                x: pointerX-width/2; y: pointerY-height/2
+                                onPaint: {
+                                    const c=getContext("2d");c.reset();c.clearRect(0,0,width,height);c.translate(width/2,height/2)
+                                    c.rotate(editor.brushAngle*Math.PI/180);c.scale(1,editor.brushRoundness)
+                                    const radius=editor.brushSize*zoom/2;c.beginPath();c.arc(0,0,radius,0,Math.PI*2)
+                                    c.lineWidth=2/editor.brushRoundness;c.strokeStyle="rgba(0,0,0,.75)";c.stroke()
+                                    c.lineWidth=1/editor.brushRoundness;c.strokeStyle="rgba(255,255,255,.95)";c.stroke()
+                                }
+                                Connections { target: editor; function onSettingsChanged() { brushCursor.requestPaint() } }
+                                Connections { target: window; function onZoomChanged() { brushCursor.requestPaint() } }
                             }
                         }
                     }
@@ -445,7 +523,12 @@ ApplicationWindow {
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        ComboBox { Layout.fillWidth: true; model: ["Normal","Produit","Écran","Incrustation","Obscurcir","Éclaircir","Différence"]; currentIndex: window.activeInfo.blend; onActivated: editor.setLayerBlend(editor.activeLayer,currentIndex) }
+                        ComboBox {
+                            Layout.fillWidth: true
+                            model: window.blendModeNames
+                            currentIndex: window.activeInfo.blend
+                            onActivated: editor.setLayerBlend(editor.activeLayer,currentIndex)
+                        }
                         IconButton { glyph: activeInfo.locked?"▣":"▢"; selected: activeInfo.locked; hint: "Verrouiller / déverrouiller"; onClicked: editor.setLayerLocked(editor.activeLayer,!activeInfo.locked) }
                     }
                     RowLayout {
@@ -464,14 +547,24 @@ ApplicationWindow {
                         clip: true; spacing: 5; model: editor.layers
                         ScrollBar.vertical: ScrollBar {}
                         delegate: Rectangle {
+                            objectName: "layerDelegate"
                             required property var modelData
-                            width: layerList.width; height: 57; radius: 5
+                            width: layerList.width; height: 64; radius: 5
                             color: modelData.layerIndex===editor.activeLayer ? "#35443e" : "#292f38"
                             border.color: modelData.layerIndex===editor.activeLayer ? "#567563" : "#343c46"
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: editor.activeLayer=modelData.layerIndex
-                                onDoubleClicked: { editor.activeLayer=modelData.layerIndex; layerName.text=modelData.name; renameDialog.open() }
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: function(mouse) {
+                                    editor.activeLayer=modelData.layerIndex
+                                    if(mouse.button===Qt.RightButton) window.openLayerContextMenu()
+                                }
+                                onDoubleClicked: function(mouse) {
+                                    if(mouse.button!==Qt.LeftButton) return
+                                    editor.activeLayer=modelData.layerIndex
+                                    if(modelData.kind!=="pixel") layerPropertiesDialog.open()
+                                    else { layerName.text=modelData.name; renameDialog.open() }
+                                }
                             }
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 6; spacing: 7
@@ -479,19 +572,30 @@ ApplicationWindow {
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
                                     Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.revision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
+                                    MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(false) } }
+                                }
+                                Rectangle {
+                                    visible: modelData.hasMask
+                                    width: visible?34:0; height: 36; color: "#182027"; radius: 3
+                                    border.width: modelData.editingMask?2:1; border.color: modelData.editingMask?"#c5f2cf":"#69757f"
+                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasMask?"image://layers/mask/"+modelData.layerIndex+"/"+editor.revision:""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Label { anchors.centerIn: parent; visible: !modelData.maskEnabled; text: "×"; color: "#ef6b6b"; font.pixelSize: 34; font.bold: true }
+                                    MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(true); layerPropertiesDialog.open() } }
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
                                     Label { text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11 }
-                                    Label { text: modelData.locked?"Verrouillé":"Calque de pixels"; color: "#80928c"; font.pixelSize: 9 }
+                                    Label { text: modelData.locked?"Verrouillé":modelData.editingMask?"Masque actif":modelData.kind==="adjustment"?"Calque de réglage":modelData.kind.indexOf("frequency")===0?"Séparation dynamique":"Calque de pixels"; color: modelData.editingMask?"#bce8c8":"#80928c"; font.pixelSize: 9 }
                                 }
                             }
                         }
                     }
                     RowLayout {
                         Layout.fillWidth: true; spacing: 4
-                        IconButton { glyph: "+"; hint: "Nouveau calque"; onClicked: editor.addLayer() }
+                        IconButton { glyph: "+"; hint: "Nouveau calque ou réglage"; onClicked: createLayerMenu.popup() }
                         IconButton { glyph: "⧉"; hint: "Dupliquer le calque"; onClicked: editor.duplicateLayer() }
+                        IconButton { glyph: "◐"; hint: activeInfo.hasMask?"Sélectionner le masque":"Ajouter un masque de fusion"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
+                        IconButton { glyph: "ƒ"; hint: "Propriétés du calque"; enabled: activeInfo.kind!=="pixel" || activeInfo.editingMask; onClicked: layerPropertiesDialog.open() }
                         IconButton { glyph: "↑"; hint: "Monter le calque"; enabled: editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
                         IconButton { glyph: "↓"; hint: "Descendre le calque"; enabled: editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
                         Item { Layout.fillWidth: true }
@@ -526,6 +630,54 @@ ApplicationWindow {
                 Label { text: ""+editor.width+" × "+editor.height+" px   ·   "+editor.layers.length+" calques   ·   PhotoCrap 0.1"; color: "#73818f"; font.pixelSize: 10 }
             }
         }
+    }
+
+    Menu {
+        id: createLayerMenu
+        MenuItem { text: "Calque de pixels"; onTriggered: editor.addLayer() }
+        MenuItem { text: "Séparation de fréquences…"; onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
+        MenuSeparator {}
+        MenuItem { text: "Luminosité / Contraste"; onTriggered: addAdjustmentLayer("brightnessContrast") }
+        MenuItem { text: "Niveaux"; onTriggered: addAdjustmentLayer("levels") }
+        MenuItem { text: "Courbes"; onTriggered: addAdjustmentLayer("curves") }
+        MenuItem { text: "Exposition"; onTriggered: addAdjustmentLayer("exposure") }
+        MenuItem { text: "Vibrance"; onTriggered: addAdjustmentLayer("vibrance") }
+        MenuItem { text: "Teinte / Saturation"; onTriggered: addAdjustmentLayer("hueSaturation") }
+        MenuItem { text: "Balance des couleurs"; onTriggered: addAdjustmentLayer("colorBalance") }
+        MenuItem { text: "Noir et blanc"; onTriggered: addAdjustmentLayer("blackWhite") }
+        MenuItem { text: "Filtre photo"; onTriggered: addAdjustmentLayer("photoFilter") }
+        MenuItem { text: "Mélangeur de couches"; onTriggered: addAdjustmentLayer("channelMixer") }
+        MenuItem { text: "Recherche de couleurs"; onTriggered: addAdjustmentLayer("colorLookup") }
+        MenuItem { text: "Négatif"; onTriggered: addAdjustmentLayer("invert") }
+        MenuItem { text: "Isohélie"; onTriggered: addAdjustmentLayer("posterize") }
+        MenuItem { text: "Seuil"; onTriggered: addAdjustmentLayer("threshold") }
+        MenuItem { text: "Transfert de dégradé"; onTriggered: addAdjustmentLayer("gradientMap") }
+        MenuItem { text: "Correction sélective"; onTriggered: addAdjustmentLayer("selectiveColor") }
+    }
+
+    Menu {
+        id: layerContextMenu
+        objectName: "layerContextMenu"
+        ContextMenuItem { text: "Dupliquer le calque"; onTriggered: editor.duplicateLayer() }
+        ContextMenuItem { text: "Renommer…"; onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
+        ContextMenuItem { text: "Supprimer le calque"; enabled: editor.layers.length>1 && !activeInfo.locked; onTriggered: editor.removeLayer() }
+        MenuSeparator {}
+        ContextMenuItem { text: "Créer un masque d’écrêtage"; enabled: false }
+        ContextMenuItem { text: "Grouper les calques sélectionnés"; enabled: false }
+        ContextMenuItem { text: "Sortir du groupe"; enabled: false }
+        ContextMenuItem { text: "Fusionner avec le calque inférieur"; enabled: editor.activeLayer>0 && activeInfo.kind==="pixel" && !activeInfo.locked; onTriggered: editor.mergeDown() }
+        MenuSeparator {}
+        Menu {
+            title: "Ajouter un masque"
+            enabled: !activeInfo.hasMask
+            ContextMenuItem { text: editor.hasSelection ? "Faire apparaître la sélection" : "Tout faire apparaître"; onTriggered: editor.addLayerMask(true) }
+            ContextMenuItem { text: editor.hasSelection ? "Masquer la sélection" : "Tout masquer"; onTriggered: editor.addLayerMask(false) }
+        }
+        ContextMenuItem { text: activeInfo.maskEnabled ? "Désactiver le masque" : "Activer le masque"; enabled: activeInfo.hasMask; onTriggered: editor.setMaskEnabled(!activeInfo.maskEnabled) }
+        ContextMenuItem { text: "Supprimer le masque"; enabled: activeInfo.hasMask; onTriggered: editor.removeLayerMask() }
+        ContextMenuItem { text: "Dissocier le masque"; enabled: false }
+        MenuSeparator {}
+        ContextMenuItem { text: activeInfo.visible ? "Masquer le calque" : "Afficher le calque"; onTriggered: editor.setLayerVisible(editor.activeLayer,!activeInfo.visible) }
     }
 
     FileDialog {
@@ -599,6 +751,180 @@ ApplicationWindow {
             Label { text: "La sélection limite la zone traitée.\nL’opération peut être annulée."; color: "#8996a4" }
         }
         onApplied: { editor.applyFilter(window.adjustment,adjustmentSlider.value); close() }
+    }
+    Dialog {
+        id: brushSettingsDialog
+        objectName: "brushSettingsDialog"
+        title: "Paramètres de pinceau"
+        x: Math.max(20,window.width-width-310)
+        y: 95
+        width: 440
+        height: Math.min(650,window.height-130)
+        modal: false
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        onOpened: brushPreview.requestPaint()
+
+        contentItem: ColumnLayout {
+            spacing: 10
+            Label { text: "Forme de la pointe"; color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
+            Canvas {
+                id: brushPreview
+                Layout.fillWidth: true; Layout.preferredHeight: 105
+                onPaint: {
+                    const c=getContext("2d");c.reset();c.fillStyle="#151a20";c.fillRect(0,0,width,height)
+                    const radius=Math.min(editor.brushSize/2,38);const spacing=Math.max(1,editor.brushSize*editor.brushSpacing)
+                    c.globalAlpha=editor.brushOpacity
+                    for(let x=28;x<width-20;x+=spacing) {
+                        c.save();c.translate(x,height/2);c.rotate(editor.brushAngle*Math.PI/180);c.scale(1,editor.brushRoundness)
+                        const g=c.createRadialGradient(0,0,0,0,0,radius)
+                        g.addColorStop(0,"rgba(190,236,203,"+editor.brushFlow+")")
+                        g.addColorStop(Math.min(.999,editor.brushHardness),"rgba(190,236,203,"+editor.brushFlow+")")
+                        g.addColorStop(1,"rgba(190,236,203,0)");c.fillStyle=g;c.beginPath();c.arc(0,0,radius,0,Math.PI*2);c.fill();c.restore()
+                    }
+                }
+                Connections { target: editor; function onSettingsChanged() { brushPreview.requestPaint() } }
+            }
+            Label {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#91a0ad"
+                text: "L’opacité plafonne un passage. Le débit détermine la quantité déposée par chaque empreinte et s’accumule lorsque les empreintes se chevauchent."
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: "Mode"; color: "#c4cdd5" }
+                ComboBox { Layout.fillWidth: true; model: window.blendModeNames; currentIndex: editor.brushBlend; onActivated: editor.brushBlend=currentIndex }
+            }
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                ColumnLayout {
+                    width: parent.width; spacing: 9
+                    Repeater {
+                        model: [
+                            {key:"brushSize",label:"Taille",from:1,to:500,scale:1,suffix:" px"},
+                            {key:"brushHardness",label:"Dureté du contour",from:0,to:100,scale:100,suffix:" %"},
+                            {key:"brushOpacity",label:"Opacité",from:1,to:100,scale:100,suffix:" %"},
+                            {key:"brushFlow",label:"Débit",from:1,to:100,scale:100,suffix:" %"},
+                            {key:"brushSpacing",label:"Espacement",from:1,to:1000,scale:100,suffix:" %"},
+                            {key:"brushAngle",label:"Angle",from:-180,to:180,scale:1,suffix:"°"},
+                            {key:"brushRoundness",label:"Arrondi",from:1,to:100,scale:100,suffix:" %"},
+                            {key:"brushSmoothing",label:"Lissage",from:0,to:100,scale:100,suffix:" %"}
+                        ]
+                        delegate: ColumnLayout {
+                            required property var modelData
+                            Layout.fillWidth: true; spacing: 2
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label { text: modelData.label; color: "#c4cdd5"; Layout.fillWidth: true }
+                                Label { text: Math.round(brushSettingSlider.value)+modelData.suffix; color: "#91a0ad"; Layout.preferredWidth: 64; horizontalAlignment: Text.AlignRight }
+                            }
+                            Slider {
+                                id: brushSettingSlider
+                                Layout.fillWidth: true; from: modelData.from; to: modelData.to; stepSize: 1
+                                value: Number(editor[modelData.key])*modelData.scale
+                                onMoved: editor[modelData.key]=value/modelData.scale
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        footer: DialogButtonBox { Button { text: "Fermer"; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: brushSettingsDialog.close() } }
+    }
+    Dialog {
+        id: layerPropertiesDialog
+        objectName: "layerPropertiesDialog"
+        title: "Propriétés · " + activeInfo.name
+        x: Math.max(20, window.width-width-310)
+        y: 105
+        width: 430
+        height: Math.min(610, window.height-150)
+        modal: false
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        onClosed: editor.cancelLayerPreview()
+
+        contentItem: ColumnLayout {
+            spacing: 12
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: activeInfo.editingMask?"Masque de fusion":activeInfo.kind.indexOf("frequency")===0?"Séparation de fréquences":"Calque de réglage"; color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
+                Item { Layout.fillWidth: true }
+                CheckBox { id: layerPreview; text: "Aperçu"; checked: true }
+            }
+            Label {
+                Layout.fillWidth: true
+                text: activeInfo.editingMask ? "Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords." : activeInfo.kind.indexOf("frequency")===0 ? "Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement." : "Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous."
+                color: "#91a0ad"; wrapMode: Text.WordWrap
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#3a444d" }
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                clip: true
+                ColumnLayout {
+                    width: parent.width; spacing: 11
+                    Repeater {
+                        model: activeInfo.editingMask ? [
+                            {key:"_maskDensity",label:"Densité (%)",from:0,to:100,step:1},
+                            {key:"_maskFeather",label:"Contour progressif",from:0,to:100,step:0.5}
+                        ] : activeInfo.kind.indexOf("frequency")===0 ? [
+                            {key:"radius",label:"Rayon du flou gaussien",from:1,to:100,step:1}
+                        ] : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
+                        delegate: ColumnLayout {
+                            required property var modelData
+                            Layout.fillWidth: true; spacing: 3
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label { text: modelData.label; color: "#c4cdd5"; Layout.fillWidth: true }
+                                Label { text: Number(parameterSlider.value).toFixed(modelData.step<1?2:0); color: "#91a0ad"; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
+                            }
+                            Slider {
+                                id: parameterSlider
+                                Layout.fillWidth: true
+                                from: modelData.from; to: modelData.to; stepSize: modelData.step
+                                value: activeInfo.parameters[modelData.key] === undefined ? 0 : Number(activeInfo.parameters[modelData.key])
+                                onPressedChanged: {
+                                    if(pressed) editor.beginLayerPreview()
+                                    else window.previewLayerValue(modelData.key,value,true)
+                                }
+                                onMoved: if(layerPreview.checked) editor.previewLayerParameter(modelData.key,value)
+                            }
+                        }
+                    }
+                    ColumnLayout {
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType==="gradientMap"
+                        Layout.fillWidth: true
+                        Label { text: "Couleurs du dégradé"; color: "#c4cdd5" }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            TextField {
+                                Layout.fillWidth: true; text: activeInfo.parameters.shadowColor || "#101828"; placeholderText: "Ombres"
+                                onEditingFinished: { editor.beginLayerPreview(); editor.previewLayerParameter("shadowColor",text); editor.finishLayerPreview("Couleur des ombres") }
+                            }
+                            TextField {
+                                Layout.fillWidth: true; text: activeInfo.parameters.highlightColor || "#f5d9a8"; placeholderText: "Lumières"
+                                onEditingFinished: { editor.beginLayerPreview(); editor.previewLayerParameter("highlightColor",text); editor.finishLayerPreview("Couleur des lumières") }
+                            }
+                        }
+                    }
+                    Label {
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType==="invert"
+                        Layout.fillWidth: true
+                        text: "Ce calque inverse automatiquement les couleurs. Son intensité se règle avec l’opacité du calque."
+                        color: "#91a0ad"; wrapMode: Text.WordWrap
+                    }
+                    RowLayout {
+                        visible: activeInfo.editingMask
+                        Layout.fillWidth: true
+                        Button { text: "Inverser"; onClicked: editor.invertLayerMask() }
+                        Button { text: activeInfo.maskEnabled?"Désactiver":"Activer"; onClicked: editor.setMaskEnabled(!activeInfo.maskEnabled) }
+                        Item { Layout.fillWidth: true }
+                        Button { text: "Supprimer"; onClicked: { editor.removeLayerMask(); layerPropertiesDialog.close() } }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+            }
+        }
+        footer: DialogButtonBox {
+            Button { text: "Fermer"; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: layerPropertiesDialog.close() }
+        }
     }
     Dialog {
         id: preferencesDialog

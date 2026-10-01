@@ -31,6 +31,32 @@ private slots:
         d.redo(); QCOMPARE(d.composite().pixelColor(25,16),QColor(Qt::red));
         d.undo(); d.setColor(Qt::blue); d.beginStroke(10,10); d.endStroke(); QVERIFY(!d.canRedo());
     }
+    void brushHardnessFlowOpacityAndSpacingFollowDabs() {
+        Document soft; QVERIFY(soft.newDocument(64,64,true)); soft.setColor(Qt::black);soft.setBrushSize(20);
+        soft.setBrushHardness(0);soft.beginStroke(32,32);soft.endStroke();
+        QVERIFY(soft.composite().pixelColor(32,32).alpha()>225);
+        const int softEdge=soft.composite().pixelColor(40,32).alpha();QVERIFY(softEdge>0&&softEdge<180);
+
+        Document flow; QVERIFY(flow.newDocument(64,64,true));flow.setColor(Qt::black);flow.setBrushSize(20);flow.setBrushFlow(.25);
+        flow.beginStroke(32,32);flow.endStroke();const int oneDab=flow.composite().pixelColor(32,32).alpha();
+        QVERIFY(oneDab>=60&&oneDab<=70);
+        flow.undo();flow.setBrushSpacing(.01);flow.setBrushSmoothing(0);flow.beginStroke(30,32);flow.continueStroke(34,32);flow.endStroke();
+        QVERIFY(flow.composite().pixelColor(32,32).alpha()>oneDab);
+
+        Document capped;QVERIFY(capped.newDocument(64,64,true));capped.setColor(Qt::black);capped.setBrushSize(20);
+        capped.setBrushOpacity(.5);capped.setBrushFlow(1);capped.setBrushSpacing(.01);capped.setBrushSmoothing(0);
+        capped.beginStroke(30,32);capped.continueStroke(34,32);capped.endStroke();
+        const int cappedAlpha=capped.composite().pixelColor(32,32).alpha();QVERIFY(cappedAlpha>=125&&cappedAlpha<=130);
+
+        Document spaced;QVERIFY(spaced.newDocument(64,32,true));spaced.setColor(Qt::black);spaced.setBrushSize(10);
+        spaced.setBrushSpacing(2);spaced.setBrushSmoothing(0);spaced.beginStroke(10,16);spaced.continueStroke(50,16);spaced.endStroke();
+        QCOMPARE(spaced.composite().pixelColor(20,16).alpha(),0);
+        QCOMPARE(spaced.composite().pixelColor(30,16).alpha(),255);
+
+        Document mode;QVERIFY(mode.newDocument(32,32));mode.setTool("fill");mode.setColor(Qt::green);mode.beginStroke(0,0);
+        mode.setTool("brush");mode.setColor(Qt::red);mode.setBrushSize(12);mode.setBrushBlend(3);mode.beginStroke(16,16);mode.endStroke();
+        const QColor multiplied=mode.composite().pixelColor(16,16);QVERIFY(multiplied.red()<5&&multiplied.green()<5&&multiplied.blue()<5);
+    }
     void layerOpacityVisibilityAndOrder() {
         Document d; d.newDocument(16,16); d.addLayer(); d.setTool("fill"); d.setColor(Qt::red);
         d.beginStroke(0,0); QCOMPARE(d.composite().pixelColor(8,8),QColor(Qt::red));
@@ -96,6 +122,124 @@ private slots:
         d.resizeImage(20,30); QCOMPARE(d.width(),20); QCOMPARE(d.height(),30);
         QImage before=d.composite(); d.mergeDown(); QCOMPARE(d.layers().size(),1); QCOMPARE(d.composite(),before);
         d.undo(); QCOMPARE(d.layers().size(),2);
+    }
+    void layerMasksCanBePaintedAndToggled() {
+        Document d; QVERIFY(d.newDocument(32,32));
+        d.addLayerMask(false);
+        QVERIFY(d.editingMask());
+        QCOMPARE(d.composite().pixelColor(16,16).alpha(),0);
+        d.invertLayerMask();
+        QCOMPARE(d.composite().pixelColor(16,16),QColor(Qt::white));
+        d.setTool("brush"); d.setBrushSize(8); d.beginStroke(16,16); d.endStroke();
+        QCOMPARE(d.maskImage(0).pixelColor(16,16).red(),0);
+        QCOMPARE(d.composite().pixelColor(16,16).alpha(),0);
+        d.beginLayerPreview(); d.previewLayerParameter("_maskDensity",0); QCOMPARE(d.composite().pixelColor(16,16),QColor(Qt::white)); d.cancelLayerPreview();
+        QCOMPARE(d.composite().pixelColor(16,16).alpha(),0);
+        d.setMaskEnabled(false);
+        QCOMPARE(d.composite().pixelColor(16,16),QColor(Qt::white));
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(16,16).alpha(),0);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(16,16),QColor(Qt::white));
+    }
+    void adjustmentLayersRenderAndPreviewAsOneEdit() {
+        Document d; QVERIFY(d.newDocument(12,12));
+        d.addAdjustmentLayer("invert");
+        QCOMPARE(d.layers().size(),2);
+        QVERIFY(!d.maskImage(1).isNull());
+        QCOMPARE(d.composite().pixelColor(4,4),QColor(Qt::black));
+        d.undo(); QCOMPARE(d.layers().size(),1);
+
+        d.addAdjustmentLayer("brightnessContrast");
+        const int before=d.historyIndex();
+        d.beginLayerPreview();
+        d.previewLayerParameter("brightness",-20);
+        d.previewLayerParameter("brightness",-40);
+        QCOMPARE(d.historyIndex(),before);
+        QVERIFY(d.composite().pixelColor(4,4).red()<200);
+        d.finishLayerPreview("Luminosité");
+        QCOMPARE(d.historyIndex(),before+1);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(4,4),QColor(Qt::white));
+    }
+    void everyAdjustmentTypeProducesAComposite() {
+        const QStringList types={"brightnessContrast","levels","curves","exposure","vibrance",
+            "hueSaturation","colorBalance","blackWhite","photoFilter","channelMixer","colorLookup",
+            "invert","posterize","threshold","gradientMap","selectiveColor"};
+        Document d; QVERIFY(d.newDocument(4,4));
+        for(const auto &type:types) {
+            const int count=d.layers().size();
+            d.addAdjustmentLayer(type);
+            QCOMPARE(d.layers().size(),count+1);
+            QVERIFY(!d.composite().isNull());
+            d.undo();
+        }
+    }
+    void frequencySeparationHasRealtimePreview() {
+        Document d; QVERIFY(d.newDocument(24,24));
+        d.setColor(Qt::black); d.setBrushSize(3); d.beginStroke(12,12); d.endStroke();
+        const QImage original=d.composite();
+        d.addFrequencySeparation(4);
+        QCOMPARE(d.layers().size(),3);
+        QVERIFY(qAbs(d.composite().pixelColor(12,12).red()-original.pixelColor(12,12).red())<=1);
+        const QImage initialLow=d.layerImage(1);
+        const int before=d.historyIndex();
+        d.beginLayerPreview();
+        d.previewLayerParameter("radius",9);
+        QVERIFY(d.layerImage(1)!=initialLow);
+        QCOMPARE(d.historyIndex(),before);
+        d.finishLayerPreview("Rayon des fréquences");
+        QCOMPARE(d.historyIndex(),before+1);
+        d.undo();
+        QVERIFY(qAbs(d.composite().pixelColor(12,12).red()-original.pixelColor(12,12).red())<=1);
+    }
+    void highFrequencyMaskUsesRegionalCompositeWithoutChangingResult() {
+        QTemporaryDir dir;QVERIFY(dir.isValid());Document d;QVERIFY(d.newDocument(128,128));
+        d.setColor(Qt::black);d.setBrushSize(12);d.beginStroke(64,64);d.endStroke();
+        d.addFrequencySeparation(6);d.addLayerMask(true);d.setTool("brush");d.setBrushSize(18);
+        (void)d.composite();
+        d.beginStroke(48,64);d.continueStroke(80,64);(void)d.composite();d.endStroke();
+        const QImage regional=d.composite();const auto url=QUrl::fromLocalFile(dir.filePath("regional.pcr"));QVERIFY(d.saveProject(url));
+        Document loaded;QVERIFY(loaded.openFile(url));const QImage rebuilt=loaded.composite();
+        int different=0,maxDelta=0;QRect differenceBounds;
+        for(int y=0;y<regional.height();++y)for(int x=0;x<regional.width();++x){const QColor a=regional.pixelColor(x,y),b=rebuilt.pixelColor(x,y);
+            const int delta=qMax(qAbs(a.red()-b.red()),qMax(qAbs(a.green()-b.green()),qAbs(a.blue()-b.blue())));
+            if(delta){++different;maxDelta=qMax(maxDelta,delta);differenceBounds=differenceBounds.united(QRect(x,y,1,1));}}
+        QVERIFY2(maxDelta<=1,qPrintable(QString("%1 pixels differ, max %2, bounds %3,%4 %5x%6").arg(different).arg(maxDelta).arg(differenceBounds.x()).arg(differenceBounds.y()).arg(differenceBounds.width()).arg(differenceBounds.height())));
+    }
+    void selectionDefinesAdjustmentMaskLikePhotoshop() {
+        Document d; QVERIFY(d.newDocument(20,20));
+        d.setTool("select"); d.beginStroke(5,5); d.continueStroke(14,14); d.endStroke();
+        d.addAdjustmentLayer("invert");
+        QCOMPARE(d.maskImage(1).pixelColor(8,8).red(),255);
+        QCOMPARE(d.maskImage(1).pixelColor(1,1).red(),0);
+        QCOMPARE(d.composite().pixelColor(8,8),QColor(Qt::black));
+        QCOMPARE(d.composite().pixelColor(1,1),QColor(Qt::white));
+    }
+    void allPhotoshopBlendModesAreSelectable() {
+        Document d; QVERIFY(d.newDocument(4,4)); d.addLayer();
+        for(int mode=0;mode<=26;++mode) {
+            d.setLayerBlend(1,mode);
+            const auto layers=d.layers();
+            QCOMPARE(layers.first().toMap().value("blend").toInt(),mode);
+            QVERIFY(!d.composite().isNull());
+        }
+    }
+    void advancedLayersSurviveProjectRoundTrip() {
+        QTemporaryDir dir; QVERIFY(dir.isValid());
+        Document d; QVERIFY(d.newDocument(20,16));
+        d.addLayerMask(true); d.setEditingMask(false);
+        d.addAdjustmentLayer("posterize");
+        d.beginLayerPreview(); d.previewLayerParameter("levels",6); d.finishLayerPreview();
+        d.addFrequencySeparation(5);
+        d.setLayerBlend(d.activeLayer(),8);
+        const QImage expected=d.composite();
+        const auto url=QUrl::fromLocalFile(dir.filePath("advanced.pcr"));
+        QVERIFY(d.saveProject(url));
+        Document loaded; QVERIFY(loaded.openFile(url));
+        QCOMPARE(loaded.layers(),d.layers());
+        QCOMPARE(loaded.composite(),expected);
+        QVERIFY(!loaded.maskImage(0).isNull());
     }
     void moveSelectionAndCancel() {
         Document d; d.newDocument(32,32,true); d.setColor(Qt::red); d.setBrushSize(4); d.beginStroke(6,6); d.endStroke();

@@ -1,6 +1,8 @@
 # PhotoCrap
 
-Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont indépendants d’Adobe.
+**Français** | [English](README.en.md)
+
+Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
 La version 0.1 est une première application fonctionnelle, **pas une reproduction complète de Photoshop**. Les fonctions disponibles et les limites sont détaillées ci-dessous ; les développements nécessaires à une parité plus large sont dans [ROADMAP.md](ROADMAP.md).
 
@@ -15,13 +17,15 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 - Navigation façon Photoshop : `Ctrl/⌘ + molette` zoome autour du pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace librement la toile.
 - Sélection rectangulaire, déplacement d’un calque ou des pixels sélectionnés, effacement, copie fusionnée et recadrage.
 - Calques : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas. Les masques de fusion peuvent être créés en blanc ou en noir, peints, inversés, activés et désactivés.
-- Les 27 modes de fusion RVB décrits par Adobe, classés dans l’ordre de Photoshop : modes normaux, obscurcissement, éclaircissement, contraste, comparaison et composantes TSL.
-- Vingt-trois calques de réglage non destructifs : les seize réglages colorimétriques, plus flou gaussien, flou directionnel, flou de boîte, netteté optimisée, passe-haut, mosaïque et ajout de bruit. Chaque réglage reçoit automatiquement un masque blanc ou un masque dérivé de la sélection active.
-- Séparation de fréquences conforme à la structure décrite par Adobe : un calque de basses fréquences flouté et un calque de hautes fréquences lié, placé en mode Lumière linéaire. Le rayon commun est recalculé pendant le déplacement du curseur.
+- Menu contextuel des calques avec duplication, renommage, suppression, fusion, masques et visibilité. Les commandes qui ne s’appliquent pas au calque actif sont affichées désactivées.
+- Les 27 modes de fusion RVB classés par familles : normal, obscurcissement, éclaircissement, contraste, comparaison et composantes TSL.
+- Vingt-trois calques de réglage non destructifs : luminosité/contraste, niveaux, courbes, exposition, vibrance, teinte/saturation, balance des couleurs, noir et blanc, filtre photo, mélangeur de couches, recherche de couleurs, négatif, isohélie, seuil, transfert de dégradé, correction sélective, flou gaussien, flou directionnel, flou de boîte, netteté optimisée, passe-haut, mosaïque et ajout de bruit. Chaque réglage reçoit automatiquement un masque blanc ou un masque dérivé de la sélection active.
+- Séparation de fréquences dynamique : un calque de basses fréquences flouté et un calque de hautes fréquences lié, placé en mode Lumière linéaire. Le rayon commun est recalculé pendant le déplacement du curseur ; la prévisualisation réduite et le cache évitent de recalculer inutilement le flou.
 - Réglages du calque actif : luminosité, contraste, saturation, noir et blanc, négatif, sépia, flou et netteté. Les sélections limitent leur zone d’application.
+- Dialogues de réglage avec prévisualisation automatique, curseurs pleine largeur adaptés au thème sombre et valeurs modifiables en temps réel.
 - Redimensionnement, rotation à 90°, symétries, zoom, déplacement du canevas, règles et aperçu de navigation.
 - Historique annuler/rétablir avec suivi de l’état enregistré. Protection à l’ouverture, à la création et à la fermeture d’un document modifié.
-- Interface disponible en français et en anglais, sélectionnable à chaud dans **Réglages → Interface**. Le choix est conservé et les catalogues Qt permettent d’ajouter d’autres langues.
+- Fenêtre **Réglages** avec sections **Raccourcis clavier** et **Interface**. Les raccourcis sont modifiables, validés et persistants ; l’interface française ou anglaise peut être appliquée à chaud et le choix est conservé.
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
 - Une liste persistante des dix fichiers récemment ouverts ou enregistrés est disponible dans **Fichier → Ouvrir les fichiers récents** ; les fichiers disparus sont retirés automatiquement.
@@ -105,7 +109,7 @@ ctest --preset release
 4. Pour un recadrage, tracer une zone puis cliquer **Recadrer**. Les réglages et les coups de pinceau respectent la sélection ; la désélectionner pour agir sur toute l’image.
 5. Enregistrer en `.pcr` pour conserver les calques, puis exporter une image pour la partager.
 
-Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, D dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image, + 1 affiche 100 %. La molette zoome directement dans le canevas.
+Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, Maj+G dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau et `Maj+[` / `Maj+]` sa dureté. `D` rétablit les couleurs noir/blanc et `X` les échange. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image et + 1 affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace librement la toile.
 
 Tous les raccourcis se consultent et se modifient dans **Édition → Réglages… → Raccourcis clavier**. Une combinaison vide désactive une commande, les doublons sont refusés et le bouton **Valeurs par défaut** restaure le jeu initial. Les personnalisations sont conservées entre les lancements. Les raccourcis d’outils et d’édition d’image sont suspendus pendant la saisie dans un champ texte ou l’affichage d’une boîte de dialogue.
 
@@ -115,7 +119,7 @@ Tous les raccourcis se consultent et se modifient dans **Édition → Réglages�
 |---|---|
 | `src/Document.h`, `src/Document.cpp` | Calques, pixels, sélection, composition, outils, historique, fichiers |
 | `src/CanvasItem.*` | Affichage Qt Quick du composite C++ et du damier de transparence |
-| `src/main.cpp`, `src/ShortcutManager.*` | Démarrage, exposition à QML, miniatures et registre persistant des raccourcis |
+| `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*` | Démarrage, exposition à QML, miniatures, langues, fichiers récents et registre persistant des raccourcis |
 | `qml/Main.qml` | Fenêtre, menus, dialogues, raccourcis, canevas et panneaux |
 | `qml/IconButton.qml`, `qml/PanelTitle.qml` | Composants visuels communs |
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h` | Tests Qt Test du moteur et des interactions QML |
@@ -138,14 +142,8 @@ Sous Linux, utiliser `./build/PhotoCrap`. Le workflow GitHub est préparé pour 
 
 Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; opérations synchrones pouvant ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, outils de réparation, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
-## Références
+## Références techniques
 
-- [Adobe — Ajout et modification des masques de fusion](https://helpx.adobe.com/photoshop/desktop/create-masks/layer-masks/add-layer-masks.html)
-- [Adobe — Présentation des calques de réglage et de remplissage](https://helpx.adobe.com/photoshop/desktop/create-manage-layers/color-adjustment-fill-layers/adjustment-and-fill-layers-overview.html)
-- [Adobe — Description des modes de fusion](https://helpx.adobe.com/photoshop/desktop/repair-retouch/adjust-light-tone/blending-mode-descriptions.html)
-- [Adobe — Retouche par séparation de fréquences](https://www.adobe.com/products/photoshop/frequency-separation.html)
-- [Adobe — Outil Pinceau](https://helpx.adobe.com/photoshop/using/tool-techniques/brush-tool.html)
-- [Adobe — Panneau Paramètres de pinceau](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/brushes-presets/display-brush-panel-brush-options.html)
 - [Intégration CMake/QML de Qt](https://doc.qt.io/qt-6/qtqml-cmake-integration.html)
 - [Déploiement des applications QML](https://doc.qt.io/qt-6/qt-generate-deploy-qml-app-script.html)
 - [Composition avec QPainter](https://doc.qt.io/qt-6/qpainter.html)

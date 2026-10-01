@@ -34,6 +34,7 @@ ApplicationWindow {
     property bool resumeAfterSave: false
     property bool importing: false
     property bool changingSecondary: false
+    property bool spacePressed: false
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
     property int preferencesPage: 0
@@ -95,10 +96,26 @@ ApplicationWindow {
     }
     function fitCanvas() {
         zoom = Math.max(0.02, Math.min(1, (viewport.width-110)/editor.width, (viewport.height-110)/editor.height))
-        viewport.contentX = 0
-        viewport.contentY = 0
+        centerCanvas()
     }
     function setZoom(value) { zoom = Math.max(0.02, Math.min(4, value)) }
+    function centerCanvas() {
+        viewport.contentX = Math.max(0, (viewport.contentWidth-viewport.width)/2)
+        viewport.contentY = Math.max(0, (viewport.contentHeight-viewport.height)/2)
+    }
+    function clampScroll(value, extent) { return Math.max(0, Math.min(value, Math.max(0, extent))) }
+    function panCanvas(dx, dy) {
+        viewport.contentX = clampScroll(viewport.contentX+dx, viewport.contentWidth-viewport.width)
+        viewport.contentY = clampScroll(viewport.contentY+dy, viewport.contentHeight-viewport.height)
+    }
+    function zoomAt(value, pointerX, pointerY) {
+        const oldZoom=zoom
+        const documentX=(viewport.contentX+pointerX-artboard.x)/oldZoom
+        const documentY=(viewport.contentY+pointerY-artboard.y)/oldZoom
+        setZoom(value)
+        viewport.contentX=clampScroll(artboard.x+documentX*zoom-pointerX,viewport.contentWidth-viewport.width)
+        viewport.contentY=clampScroll(artboard.y+documentY*zoom-pointerY,viewport.contentHeight-viewport.height)
+    }
     function perform(action) {
         if (action === "new") newDialog.open()
         else if (action === "open") { importing = false; openDialog.open() }
@@ -401,6 +418,17 @@ ApplicationWindow {
                 Item {
                     id: workspace
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
+                    Keys.priority: Keys.BeforeItem
+                    Keys.onPressed: function(event) {
+                        if(event.key===Qt.Key_Space && !event.isAutoRepeat && !window.editingText && !window.modalOpen) {
+                            window.spacePressed=true;event.accepted=true
+                        }
+                    }
+                    Keys.onReleased: function(event) {
+                        if(event.key===Qt.Key_Space && !event.isAutoRepeat) {
+                            window.spacePressed=false;event.accepted=true
+                        }
+                    }
                     Rectangle { anchors.fill: parent; color: "#171c22" }
                     // Rulers follow the document's zoom and scroll position.
                     Canvas {
@@ -429,11 +457,12 @@ ApplicationWindow {
                     Connections { target: editor; function onDocumentChanged() { horizontalRuler.requestPaint(); verticalRuler.requestPaint() } }
                     Flickable {
                         id: viewport
+                        objectName: "viewport"
                         anchors.fill: parent; anchors.leftMargin: 24; anchors.topMargin: 24
                         clip: true; boundsBehavior: Flickable.StopAtBounds
-                        contentWidth: Math.max(width,artboard.width+110)
-                        contentHeight: Math.max(height,artboard.height+110)
-                        interactive: editor.tool==="hand"
+                        contentWidth: artboard.width+width
+                        contentHeight: artboard.height+height
+                        interactive: false
                         onContentXChanged: horizontalRuler.requestPaint()
                         onContentYChanged: verticalRuler.requestPaint()
                         onWidthChanged: horizontalRuler.requestPaint()
@@ -442,6 +471,7 @@ ApplicationWindow {
                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                         Item {
                             id: artboard
+                            objectName: "artboard"
                             x: (viewport.contentWidth-width)/2; y: (viewport.contentHeight-height)/2
                             width: editor.width*zoom; height: editor.height*zoom
                             onXChanged: horizontalRuler.requestPaint()
@@ -471,9 +501,6 @@ ApplicationWindow {
                                 }
                                 onReleased: editor.endStroke()
                                 onCanceled: editor.cancelStroke()
-                                onWheel: function(wheel) {
-                                    setZoom(zoom*(wheel.angleDelta.y>0?1.1:1/1.1));wheel.accepted=true
-                                }
                             }
                             Canvas {
                                 id: brushCursor
@@ -493,6 +520,52 @@ ApplicationWindow {
                                 Connections { target: editor; function onSettingsChanged() { brushCursor.requestPaint() } }
                                 Connections { target: window; function onZoomChanged() { brushCursor.requestPaint() } }
                             }
+                        }
+                    }
+                    MouseArea {
+                        id: wheelArea
+                        anchors.fill: viewport
+                        z: 20
+                        acceptedButtons: Qt.NoButton
+                        onWheel: function(wheel) {
+                            const pixelY=wheel.pixelDelta.y
+                            const pixelX=wheel.pixelDelta.x
+                            const vertical=pixelY!==0 ? pixelY : wheel.angleDelta.y/2
+                            const horizontal=pixelX!==0 ? pixelX : wheel.angleDelta.x/2
+                            const primaryModifier=wheel.modifiers&(Qt.ControlModifier|Qt.MetaModifier)
+                            if(primaryModifier) {
+                                const steps=wheel.angleDelta.y!==0 ? wheel.angleDelta.y/120 : vertical/40
+                                zoomAt(zoom*Math.pow(1.15,steps),wheel.x,wheel.y)
+                            } else if(wheel.modifiers&Qt.ShiftModifier) {
+                                panCanvas(-(vertical!==0?vertical:horizontal),0)
+                            } else {
+                                panCanvas(-horizontal,-vertical)
+                            }
+                            wheel.accepted=true
+                        }
+                    }
+                    MouseArea {
+                        id: panArea
+                        objectName: "panArea"
+                        anchors.fill: viewport
+                        z: 21
+                        enabled: window.spacePressed || editor.tool==="hand"
+                        hoverEnabled: enabled
+                        preventStealing: true
+                        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        property real pressX: 0
+                        property real pressY: 0
+                        property real initialContentX: 0
+                        property real initialContentY: 0
+                        onPressed: function(mouse) {
+                            workspace.forceActiveFocus()
+                            pressX=mouse.x;pressY=mouse.y
+                            initialContentX=viewport.contentX;initialContentY=viewport.contentY
+                        }
+                        onPositionChanged: function(mouse) {
+                            if(!pressed) return
+                            viewport.contentX=clampScroll(initialContentX-(mouse.x-pressX),viewport.contentWidth-viewport.width)
+                            viewport.contentY=clampScroll(initialContentY-(mouse.y-pressY),viewport.contentHeight-viewport.height)
                         }
                     }
                 }

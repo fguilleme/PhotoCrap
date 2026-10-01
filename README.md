@@ -12,6 +12,7 @@ La version 0.1 est une première application fonctionnelle, **pas une reproducti
 - Import d’images, ouverture de projets, import centré comme calque et collage du presse-papiers.
 - Pinceau rond et gomme à empreintes : taille, dureté, opacité, débit cumulatif, espacement, angle, arrondi et lissage. Le contour de pointe suit le pointeur et un aperçu de trait est affiché dans **Affichage → Paramètres de pinceau…**. Les raccourcis suivent Photoshop pour la taille (`[`/`]`), la dureté (`Maj+[`/`Maj+]`) et les couleurs avant/arrière-plan (`D`/`X`).
 - Pipette, remplissage contigu, dégradé à deux couleurs, rectangle, ellipse, ligne et texte rasterisé.
+- Navigation façon Photoshop : `Ctrl/⌘ + molette` zoome autour du pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace librement la toile.
 - Sélection rectangulaire, déplacement d’un calque ou des pixels sélectionnés, effacement, copie fusionnée et recadrage.
 - Calques : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas. Les masques de fusion peuvent être créés en blanc ou en noir, peints, inversés, activés et désactivés.
 - Les 27 modes de fusion RVB décrits par Adobe, classés dans l’ordre de Photoshop : modes normaux, obscurcissement, éclaircissement, contraste, comparaison et composantes TSL.

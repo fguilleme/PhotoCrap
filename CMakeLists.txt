@@ -192,5 +192,27 @@ qt_generate_deploy_qml_app_script(TARGET PhotoCrap OUTPUT_SCRIPT deploy_script N
 install(SCRIPT ${deploy_script})
 set(CPACK_PACKAGE_NAME "PhotoCrap")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_VENDOR "PhotoCrap")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Cross-platform Qt 6 image editor")
+set(CPACK_PACKAGE_FILE_NAME
+    "PhotoCrap-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_PACKAGE_CHECKSUM SHA256)
+if(APPLE)
+    # Produces a drag-and-drop DMG containing the fully deployed .app bundle.
+    set(CPACK_GENERATOR "DragNDrop")
+elseif(WIN32)
+    # Publish both a conventional NSIS installer and a portable ZIP. Both
+    # contain PhotoCrap.exe, Qt DLLs, plugins and QML imports.
+    set(CPACK_GENERATOR "NSIS;ZIP")
+    set(CPACK_NSIS_DISPLAY_NAME "PhotoCrap")
+    set(CPACK_NSIS_PACKAGE_NAME "PhotoCrap")
+    set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_MODIFY_PATH OFF)
+    set(CPACK_PACKAGE_EXECUTABLES "PhotoCrap" "PhotoCrap")
+    set(CPACK_CREATE_DESKTOP_LINKS "PhotoCrap")
+else()
+    # Portable Linux tree with Qt libraries and plugins beside the executable.
+    set(CPACK_GENERATOR "TGZ")
+endif()
 include(CPack)

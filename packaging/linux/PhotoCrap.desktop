@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=PhotoCrap
+Comment=Layer-based image editor
+Exec=PhotoCrap
+Icon=PhotoCrap
+Categories=Graphics;RasterGraphics;Photography;
+Terminal=false
+StartupNotify=true
+MimeType=image/png;image/jpeg;image/webp;image/bmp;

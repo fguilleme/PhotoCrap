@@ -75,7 +75,7 @@ ctest --test-dir build --output-on-failure
 
 Adjust `CMAKE_PREFIX_PATH` to the actual kit path. Distribution packages can also be used when they provide Qt ≥ 6.5 and the matching QML imports. Note that [Ubuntu 24.04 provides Qt 6.4.2](https://packages.ubuntu.com/noble/qt6-base-dev), which is too old for this project; use the Qt kit listed above on that distribution.
 
-An installation through `cmake --install build --prefix dist` uses Qt’s CMake deployment support. The result depends on the kit and the distribution’s system libraries. No universal AppImage is provided.
+An installation through `cmake --install build --prefix dist` uses Qt’s CMake deployment support. The GitHub workflow places that tree in an **x86_64 AppImage** whose launcher configures the bundled libraries, plugins, and QML imports. After `chmod +x`, the AppImage runs without a local Qt installation.
 
 ### Windows
 
@@ -89,7 +89,9 @@ cmake --install build --config Release --prefix dist
 .\dist\bin\PhotoCrap.exe
 ```
 
-The installation step bundles the Qt libraries, plugins, and QML imports. A MinGW kit must be paired with its corresponding MinGW compiler rather than the Visual Studio generator.
+The installation step bundles the Qt libraries, plugins, and QML imports. The workflow publishes two standalone variants: an NSIS `.exe` installer with shortcuts and uninstall support, and a portable ZIP to extract and run. A MinGW kit must be paired with its corresponding MinGW compiler rather than the Visual Studio generator.
+
+Each successful GitHub run publishes a standalone macOS DMG, a Linux AppImage, and both the Windows installer and portable ZIP. CI refuses to publish them when Qt Core, the platform plugin, or the Qt Quick QML modules are missing. Developer ID signing, macOS notarization, and Windows Authenticode signing require certificates and are not configured yet.
 
 ### Qt Creator and presets
 

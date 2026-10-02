@@ -75,7 +75,7 @@ ctest --test-dir build --output-on-failure
 
 Adapter `CMAKE_PREFIX_PATH` au chemin réel du kit. Les paquets Qt peuvent également être utilisés sur une distribution fournissant Qt ≥ 6.5 et les imports QML correspondants. Attention : [Ubuntu 24.04 fournit Qt 6.4.2](https://packages.ubuntu.com/noble/qt6-base-dev), insuffisant pour ce projet ; utiliser le kit Qt indiqué ci-dessus sur cette distribution.
 
-Une installation via `cmake --install build --prefix dist` utilise le déploiement CMake de Qt ; le résultat dépend du kit et des bibliothèques système de la distribution. Aucun AppImage universel n’est fourni.
+Une installation via `cmake --install build --prefix dist` utilise le déploiement CMake de Qt. Le workflow GitHub place ce résultat dans une **AppImage x86_64** avec un lanceur qui configure les bibliothèques, plugins et imports QML embarqués. L’AppImage s’exécute directement après `chmod +x`, sans installation locale de Qt.
 
 ### Windows
 
@@ -89,7 +89,9 @@ cmake --install build --config Release --prefix dist
 .\dist\bin\PhotoCrap.exe
 ```
 
-L’étape d’installation embarque les bibliothèques Qt, les plugins et les imports QML. Un kit MinGW doit être associé au compilateur MinGW correspondant, pas au générateur Visual Studio.
+L’étape d’installation embarque les bibliothèques Qt, les plugins et les imports QML. Le workflow publie deux variantes autonomes : un installateur NSIS `.exe` avec raccourcis et désinstallation, et un ZIP portable à décompresser. Un kit MinGW doit être associé au compilateur MinGW correspondant, pas au générateur Visual Studio.
+
+Pour chaque exécution réussie, les artefacts GitHub contiennent un DMG autonome pour macOS, une AppImage pour Linux, ainsi que l’installateur et le ZIP portable pour Windows. La CI refuse de les publier si Qt Core, le plugin de plateforme ou les modules QML Qt Quick sont absents. La signature Developer ID, la notarisation macOS et la signature Authenticode Windows nécessitent des certificats et ne sont pas encore configurées.
 
 ### Qt Creator et presets
 

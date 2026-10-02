@@ -12,7 +12,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04, windows-2022]
+        # Build the AppImage on the oldest runner so its glibc requirement is
+        # compatible with newer mainstream Linux distributions.
+        os: [macos-14, ubuntu-22.04, windows-2022]
     steps:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
@@ -26,11 +28,48 @@ jobs:
         run: cmake --build build --config Release --parallel 3
       - name: Test engine and QML
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Deploy Qt dependencies
+      - name: Configure production package
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+      - name: Build production application
+        run: cmake --build build --config Release --parallel 3
+      - name: Deploy application and Qt runtime
         run: cmake --install build --config Release --prefix "${{ github.workspace }}/dist"
-      - name: Upload application
+      - name: Verify standalone deployment
+        run: cmake -DDEPLOY_ROOT="${{ github.workspace }}/dist" -DDEPLOY_PLATFORM="${{ runner.os }}" -P cmake/VerifyDeployment.cmake
+      - name: Install Windows installer tooling
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress --yes
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Create macOS or Windows package
+        if: runner.os != 'Linux'
+        run: cpack --config build/CPackConfig.cmake -C Release -B "${{ github.workspace }}/packages"
+      - name: Create Linux AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p AppDir/usr packages
+          cp -a dist/. AppDir/usr/
+          install -m 755 packaging/linux/AppRun AppDir/AppRun
+          install -m 644 packaging/linux/PhotoCrap.desktop AppDir/PhotoCrap.desktop
+          install -m 644 packaging/linux/PhotoCrap.svg AppDir/PhotoCrap.svg
+          curl --fail --location --retry 3 \
+            --output appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run \
+            AppDir packages/PhotoCrap-0.1.0-Linux-x86_64.AppImage
+          sha256sum packages/PhotoCrap-0.1.0-Linux-x86_64.AppImage \
+            > packages/PhotoCrap-0.1.0-Linux-x86_64.AppImage.sha256
+      - name: Upload standalone package
         uses: actions/upload-artifact@v4
         with:
           name: PhotoCrap-${{ matrix.os }}
-          path: dist/
+          path: |
+            packages/*.dmg
+            packages/*.exe
+            packages/*.zip
+            packages/*.AppImage
+            packages/*.sha256
           if-no-files-found: error

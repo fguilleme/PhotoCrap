@@ -9,9 +9,9 @@ LanguageManager::LanguageManager(QObject *_parent, bool _persist)
 {
     const QString saved =
         _persist ? QSettings()
-                      .value(QStringLiteral("interface/language"), QStringLiteral("fr"))
-                      .toString()
-                : QStringLiteral("fr");
+                       .value(QStringLiteral("interface/language"), QStringLiteral("fr"))
+                       .toString()
+                 : QStringLiteral("fr");
     install(saved == QStringLiteral("en") ? saved : QStringLiteral("fr"));
 }
 

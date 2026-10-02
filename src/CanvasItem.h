@@ -8,13 +8,13 @@ class CanvasItem : public QQuickPaintedItem
     Q_OBJECT
     Q_PROPERTY(Document *document READ document WRITE setDocument NOTIFY documentChanged)
 public:
-    explicit CanvasItem(QQuickItem *parent = nullptr);
+    explicit CanvasItem(QQuickItem *_parent = nullptr);
     Document *document() const
     {
         return m_document;
     }
-    void setDocument(Document *document);
-    void paint(QPainter *painter) override;
+    void setDocument(Document *_document);
+    void paint(QPainter *_painter) override;
 signals:
     void documentChanged();
 

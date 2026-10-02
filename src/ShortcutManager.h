@@ -10,7 +10,7 @@ class ShortcutManager final : public QObject
     Q_PROPERTY(int revision READ revision NOTIFY shortcutsChanged)
 
 public:
-    explicit ShortcutManager(QObject *parent = nullptr, bool persist = true);
+    explicit ShortcutManager(QObject *_parent = nullptr, bool _persist = true);
 
     QVariantList entries() const;
     int          revision() const
@@ -18,14 +18,14 @@ public:
         return m_revision;
     }
 
-    Q_INVOKABLE QString sequence(const QString &id) const;
-    Q_INVOKABLE QString displaySequence(const QString &id) const;
-    Q_INVOKABLE bool    setSequence(const QString &id, const QString &sequence);
+    Q_INVOKABLE QString sequence(const QString &_id) const;
+    Q_INVOKABLE QString displaySequence(const QString &_id) const;
+    Q_INVOKABLE bool    setSequence(const QString &_id, const QString &_sequence);
     Q_INVOKABLE void    resetDefaults();
 
 signals:
     void shortcutsChanged();
-    void errorOccurred(const QString &message);
+    void errorOccurred(const QString &_message);
 
 private:
     struct Entry {
@@ -40,9 +40,9 @@ private:
     bool           m_persist  = true;
     int            m_revision = 0;
 
-    int            indexOf(const QString &id) const;
-    static QString normalized(const QString &sequence);
+    int            indexOf(const QString &_id) const;
+    static QString normalized(const QString &_sequence);
     void           load();
-    void           save(const Entry &entry);
+    void           save(const Entry &_entry);
     void           notifyChanged();
 };

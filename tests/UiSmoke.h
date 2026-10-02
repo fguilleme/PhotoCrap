@@ -9,21 +9,21 @@
 
 // Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
 // Compiled only with BUILD_TESTING; production builds need no Qt Test runtime.
-inline bool runUiSmoke(QQuickWindow *window, Document &document, RecentFilesManager &recentFiles)
+inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesManager &_recentFiles)
 {
-    auto require = [](bool ok, const char *message) {
-        if (!ok)
-            qWarning("UI check failed: %s", message);
-        return ok;
+    auto require = [](bool _ok, const char *_message) {
+        if (!_ok)
+            qWarning("UI check failed: %s", _message);
+        return _ok;
     };
-    auto area = window->findChild<QQuickItem *>("drawingArea");
+    auto area = _window->findChild<QQuickItem *>("drawingArea");
     if (!require(area, "drawing area exists"))
         return false;
-    auto viewport = window->findChild<QQuickItem *>("viewport");
-    auto artboard = window->findChild<QQuickItem *>("artboard");
+    auto viewport = _window->findChild<QQuickItem *>("viewport");
+    auto artboard = _window->findChild<QQuickItem *>("artboard");
     if (!require(viewport && artboard, "viewport and artboard exist"))
         return false;
-    document.newDocument(300, 200, true);
+    _document.newDocument(300, 200, true);
     QTest::qWait(100);
     QTemporaryDir recentDir;
     if (!require(recentDir.isValid(), "temporary recent-files directory exists"))
@@ -34,13 +34,13 @@ inline bool runUiSmoke(QQuickWindow *window, Document &document, RecentFilesMana
         return false;
     recentFile.write("test");
     recentFile.close();
-    recentFiles.add(QUrl::fromLocalFile(recentFile.fileName()));
+    _recentFiles.add(QUrl::fromLocalFile(recentFile.fileName()));
     QTest::qWait(30);
-    auto          recentItem  = window->findChild<QObject *>("recentFileItem");
-    auto          recentLabel = window->findChild<QObject *>("recentFilePathLabel");
-    auto          recentMenu  = window->findChild<QObject *>("recentFilesMenu");
+    auto          recentItem  = _window->findChild<QObject *>("recentFileItem");
+    auto          recentLabel = _window->findChild<QObject *>("recentFilePathLabel");
+    auto          recentMenu  = _window->findChild<QObject *>("recentFilesMenu");
     const QString recentText  = recentItem ? recentItem->property("text").toString() : QString();
-    if (!require(window->property("recentFileCount").toInt() == 1 && recentMenu && recentLabel &&
+    if (!require(_window->property("recentFileCount").toInt() == 1 && recentMenu && recentLabel &&
                      recentText.contains(QChar(0x2026)) && recentText.size() == 36 &&
                      recentLabel->property("text").toString() == recentText,
                  "recent-files menu renders a compact path with both ends preserved"))
@@ -51,20 +51,20 @@ inline bool runUiSmoke(QQuickWindow *window, Document &document, RecentFilesMana
                  "recent-files menu stays compact for long paths"))
         return false;
     QMetaObject::invokeMethod(recentMenu, "close");
-    recentFiles.clear();
+    _recentFiles.clear();
     QTest::qWait(20);
-    if (!require(window->property("recentFileCount").toInt() == 0,
+    if (!require(_window->property("recentFileCount").toInt() == 0,
                  "recent-files list can be cleared"))
         return false;
     const QPointF wheelLocal(viewport->width() * .43, viewport->height() * .39);
     const QPoint  wheelScene = viewport->mapToScene(wheelLocal).toPoint();
-    const qreal   oldZoom    = window->property("zoom").toReal();
+    const qreal   oldZoom    = _window->property("zoom").toReal();
     const qreal   documentX =
         (viewport->property("contentX").toReal() + wheelLocal.x() - artboard->x()) / oldZoom;
     const qreal documentY =
         (viewport->property("contentY").toReal() + wheelLocal.y() - artboard->y()) / oldZoom;
-    QTest::wheelEvent(window, wheelScene, QPoint(0, 120), QPoint(), Qt::ControlModifier);
-    const qreal newZoom = window->property("zoom").toReal();
+    QTest::wheelEvent(_window, wheelScene, QPoint(0, 120), QPoint(), Qt::ControlModifier);
+    const qreal newZoom = _window->property("zoom").toReal();
     const qreal zoomedDocumentX =
         (viewport->property("contentX").toReal() + wheelLocal.x() - artboard->x()) / newZoom;
     const qreal zoomedDocumentY =
@@ -74,114 +74,114 @@ inline bool runUiSmoke(QQuickWindow *window, Document &document, RecentFilesMana
                  "Ctrl+wheel zooms around the pointer"))
         return false;
     const qreal beforeVertical = viewport->property("contentY").toReal();
-    QTest::wheelEvent(window, wheelScene, QPoint(0, -120));
+    QTest::wheelEvent(_window, wheelScene, QPoint(0, -120));
     if (!require(viewport->property("contentY").toReal() > beforeVertical, "wheel pans vertically"))
         return false;
     const qreal beforeHorizontal = viewport->property("contentX").toReal();
     const qreal stableVertical   = viewport->property("contentY").toReal();
-    QTest::wheelEvent(window, wheelScene, QPoint(0, -120), QPoint(), Qt::ShiftModifier);
+    QTest::wheelEvent(_window, wheelScene, QPoint(0, -120), QPoint(), Qt::ShiftModifier);
     if (!require(viewport->property("contentX").toReal() > beforeHorizontal &&
                      qAbs(viewport->property("contentY").toReal() - stableVertical) < .01,
                  "Shift+wheel pans horizontally"))
         return false;
     viewport->forceActiveFocus();
-    QTest::keyPress(window, Qt::Key_Space);
+    QTest::keyPress(_window, Qt::Key_Space);
     QTest::qWait(20);
-    const qreal beforeFreePanX = viewport->property("contentX").toReal(),
-                beforeFreePanY = viewport->property("contentY").toReal();
+    const qreal  beforeFreePanX = viewport->property("contentX").toReal(),
+                 beforeFreePanY = viewport->property("contentY").toReal();
     const QPoint panStart =
         viewport->mapToScene(QPointF(viewport->width() / 2, viewport->height() / 2)).toPoint();
-    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, panStart);
-    QTest::mouseMove(window, panStart - QPoint(30, 25), 20);
-    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, panStart - QPoint(30, 25));
-    QTest::keyRelease(window, Qt::Key_Space);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, panStart);
+    QTest::mouseMove(_window, panStart - QPoint(30, 25), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, panStart - QPoint(30, 25));
+    QTest::keyRelease(_window, Qt::Key_Space);
     QTest::qWait(20);
     if (!require(viewport->property("contentX").toReal() > beforeFreePanX &&
                      viewport->property("contentY").toReal() > beforeFreePanY,
                  "Space+drag pans freely"))
         return false;
-    document.setColor(Qt::red);
-    document.setBrushSize(16);
-    document.setTool("brush");
+    _document.setColor(Qt::red);
+    _document.setBrushSize(16);
+    _document.setTool("brush");
     QPoint start = area->mapToScene(QPointF(area->width() / 3, area->height() / 2)).toPoint();
     QPoint end   = area->mapToScene(QPointF(area->width() * 2 / 3, area->height() / 2)).toPoint();
-    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
-    QTest::mouseMove(window, end, 20);
-    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
-    if (!require(document.canUndo() && document.composite().pixelColor(100, 100).red() > 200 &&
-                     document.composite().pixelColor(100, 100).alpha() > 0,
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(_window, end, 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
+    if (!require(_document.canUndo() && _document.composite().pixelColor(100, 100).red() > 200 &&
+                     _document.composite().pixelColor(100, 100).alpha() > 0,
                  "pointer paints document"))
         return false;
-    document.undo();
-    if (!require(document.composite().pixelColor(100, 100).alpha() == 0, "gesture undoes"))
+    _document.undo();
+    if (!require(_document.composite().pixelColor(100, 100).alpha() == 0, "gesture undoes"))
         return false;
-    document.redo();
-    QMetaObject::invokeMethod(window, "openLayerContextMenu");
+    _document.redo();
+    QMetaObject::invokeMethod(_window, "openLayerContextMenu");
     QTest::qWait(100);
-    if (!require(window->property("layerContextMenuVisible").toBool(), "layer context menu opens"))
+    if (!require(_window->property("layerContextMenuVisible").toBool(), "layer context menu opens"))
         return false;
-    QMetaObject::invokeMethod(window, "closeLayerContextMenu");
-    document.setTool("text");
-    auto textField = window->findChild<QQuickItem *>("textField");
+    QMetaObject::invokeMethod(_window, "closeLayerContextMenu");
+    _document.setTool("text");
+    auto textField = _window->findChild<QQuickItem *>("textField");
     if (!require(textField, "text field exists"))
         return false;
     textField->forceActiveFocus();
-    QTest::keyClick(window, Qt::Key_B);
-    if (!require(document.tool() == "text", "typing B does not switch tools"))
+    QTest::keyClick(_window, Qt::Key_B);
+    if (!require(_document.tool() == "text", "typing B does not switch tools"))
         return false;
     area->forceActiveFocus();
-    document.setColor(Qt::red);
-    document.setSecondaryColor(Qt::blue);
-    document.setBrushHardness(.5);
-    QTest::keyClick(window, Qt::Key_D);
+    _document.setColor(Qt::red);
+    _document.setSecondaryColor(Qt::blue);
+    _document.setBrushHardness(.5);
+    QTest::keyClick(_window, Qt::Key_D);
     QTest::qWait(20);
-    if (!require(document.color() == Qt::black && document.secondaryColor() == Qt::white,
+    if (!require(_document.color() == Qt::black && _document.secondaryColor() == Qt::white,
                  "D restores default colors"))
         return false;
-    QTest::keyClick(window, Qt::Key_X);
+    QTest::keyClick(_window, Qt::Key_X);
     QTest::qWait(20);
-    if (!require(document.color() == Qt::white && document.secondaryColor() == Qt::black,
+    if (!require(_document.color() == Qt::white && _document.secondaryColor() == Qt::black,
                  "X swaps foreground and background colors"))
         return false;
-    QTest::keyClick(window, Qt::Key_BracketLeft, Qt::ShiftModifier);
+    QTest::keyClick(_window, Qt::Key_BracketLeft, Qt::ShiftModifier);
     QTest::qWait(20);
-    if (!require(qAbs(document.brushHardness() - .4) < .001, "Shift+[ decreases brush hardness"))
+    if (!require(qAbs(_document.brushHardness() - .4) < .001, "Shift+[ decreases brush hardness"))
         return false;
-    QTest::keyClick(window, Qt::Key_BracketRight, Qt::ShiftModifier);
+    QTest::keyClick(_window, Qt::Key_BracketRight, Qt::ShiftModifier);
     QTest::qWait(20);
-    if (!require(qAbs(document.brushHardness() - .5) < .001, "Shift+] increases brush hardness"))
+    if (!require(qAbs(_document.brushHardness() - .5) < .001, "Shift+] increases brush hardness"))
         return false;
-    auto preferences = window->findChild<QObject *>("preferencesDialog");
+    auto preferences = _window->findChild<QObject *>("preferencesDialog");
     if (!require(preferences, "preferences dialog exists"))
         return false;
-    QMetaObject::invokeMethod(window, "setInterfaceLanguage", Q_ARG(QVariant, QVariant("en")));
+    QMetaObject::invokeMethod(_window, "setInterfaceLanguage", Q_ARG(QVariant, QVariant("en")));
     QTest::qWait(100);
-    if (!require(window->property("interfaceLanguage").toString() == "en" &&
-                     window->property("newActionText").toString() == "New…",
+    if (!require(_window->property("interfaceLanguage").toString() == "en" &&
+                     _window->property("newActionText").toString() == "New…",
                  "English interface loads immediately"))
         return false;
-    QMetaObject::invokeMethod(window, "setInterfaceLanguage", Q_ARG(QVariant, QVariant("fr")));
+    QMetaObject::invokeMethod(_window, "setInterfaceLanguage", Q_ARG(QVariant, QVariant("fr")));
     QTest::qWait(100);
-    if (!require(window->property("newActionText").toString() == QString::fromUtf8("Nouveau…"),
+    if (!require(_window->property("newActionText").toString() == QString::fromUtf8("Nouveau…"),
                  "French interface restores immediately"))
         return false;
     QMetaObject::invokeMethod(preferences, "open");
     QTest::qWait(150);
     if (!require(preferences->property("visible").toBool(), "keyboard settings dialog opens"))
         return false;
-    window->setProperty("preferencesPage", 1);
+    _window->setProperty("preferencesPage", 1);
     QTest::qWait(50);
-    auto languageCombo = window->findChild<QObject *>("languageCombo");
+    auto languageCombo = _window->findChild<QObject *>("languageCombo");
     if (!require(languageCombo && languageCombo->property("count").toInt() == 2,
                  "interface settings list French and English"))
         return false;
-    window->setProperty("preferencesPage", 0);
-    auto shortcutList = window->findChild<QObject *>("shortcutList");
+    _window->setProperty("preferencesPage", 0);
+    auto shortcutList = _window->findChild<QObject *>("shortcutList");
     if (!require(shortcutList && shortcutList->property("count").toInt() == 37,
                  "keyboard settings list is populated"))
         return false;
     QMetaObject::invokeMethod(preferences, "close");
-    auto brushSettings = window->findChild<QObject *>("brushSettingsDialog");
+    auto brushSettings = _window->findChild<QObject *>("brushSettingsDialog");
     if (!require(brushSettings, "brush settings dialog exists"))
         return false;
     QMetaObject::invokeMethod(brushSettings, "open");
@@ -189,24 +189,24 @@ inline bool runUiSmoke(QQuickWindow *window, Document &document, RecentFilesMana
     if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))
         return false;
     QMetaObject::invokeMethod(brushSettings, "close");
-    QMetaObject::invokeMethod(window, "guard", Q_ARG(QVariant, QVariant("new")));
+    QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
     QTest::qWait(200);
-    auto guard = window->findChild<QObject *>("unsavedDialog");
+    auto guard = _window->findChild<QObject *>("unsavedDialog");
     if (!require(guard && guard->property("visible").toBool(), "unsaved changes are guarded"))
         return false;
     QMetaObject::invokeMethod(guard, "close");
     QTest::qWait(150);
-    document.newDocument(300, 200, true);
-    QMetaObject::invokeMethod(window, "guard", Q_ARG(QVariant, QVariant("new")));
+    _document.newDocument(300, 200, true);
+    QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
     QTest::qWait(150);
-    auto dialog = window->findChild<QObject *>("newDialog");
+    auto dialog = _window->findChild<QObject *>("newDialog");
     if (!require(dialog && dialog->property("visible").toBool() &&
                      dialog->property("height").toReal() > 200,
                  "new document dialog has content"))
         return false;
     QMetaObject::invokeMethod(dialog, "reject");
-    document.addAdjustmentLayer("brightnessContrast");
-    auto layerProperties = window->findChild<QObject *>("layerPropertiesDialog");
+    _document.addAdjustmentLayer("brightnessContrast");
+    auto layerProperties = _window->findChild<QObject *>("layerPropertiesDialog");
     if (!require(layerProperties, "layer properties dialog exists"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "open");
@@ -214,13 +214,13 @@ inline bool runUiSmoke(QQuickWindow *window, Document &document, RecentFilesMana
     if (!require(layerProperties->property("visible").toBool(),
                  "adjustment properties dialog opens"))
         return false;
-    if (!require(window->property("parameterSliderWidth").toReal() >
+    if (!require(_window->property("parameterSliderWidth").toReal() >
                      layerProperties->property("width").toReal() * .75,
                  "adjustment slider fills dialog width"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
-    document.createDemo();
-    document.setTool("brush");
+    _document.createDemo();
+    _document.setTool("brush");
     QTest::qWait(200);
     qInfo("UI interaction checks passed");
     return true;

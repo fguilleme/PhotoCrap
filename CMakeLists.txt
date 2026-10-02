@@ -9,6 +9,10 @@ include(CTest)
 set(PHOTOCRAP_CXX_SOURCES
     src/CanvasItem.cpp
     src/Document.cpp
+    src/DocumentCompositor.cpp
+    src/DocumentEditing.cpp
+    src/DocumentFilters.cpp
+    src/DocumentTools.cpp
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
     src/ShortcutManager.cpp
@@ -18,6 +22,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
     src/Document.h
+    src/ImageUtils.h
     src/LanguageManager.h
     src/RecentFilesManager.h
     src/ShortcutManager.h
@@ -46,13 +51,32 @@ endif()
 find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
 if(CLANG_TIDY_EXECUTABLE AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
     set(PHOTOCRAP_TIDY_SOURCES ${PHOTOCRAP_CXX_SOURCES})
+    set(PHOTOCRAP_TIDY_ARGUMENTS
+        -p=${CMAKE_CURRENT_BINARY_DIR}
+        --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+    )
+    if(APPLE)
+        execute_process(
+            COMMAND xcrun --show-sdk-path
+            OUTPUT_VARIABLE PHOTOCRAP_MACOS_SDK
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(EXISTS "${PHOTOCRAP_MACOS_SDK}/usr/include/c++/v1")
+            list(APPEND PHOTOCRAP_TIDY_ARGUMENTS
+                --extra-arg-before=-isystem
+                --extra-arg-before=${PHOTOCRAP_MACOS_SDK}/usr/include/c++/v1
+                --extra-arg-before=-isysroot
+                --extra-arg-before=${PHOTOCRAP_MACOS_SDK}
+            )
+        endif()
+    endif()
     if(BUILD_TESTING)
         list(APPEND PHOTOCRAP_TIDY_SOURCES tests/DocumentTest.cpp)
     endif()
     add_custom_target(clang-tidy
         COMMAND ${CLANG_TIDY_EXECUTABLE}
-            -p=${CMAKE_CURRENT_BINARY_DIR}
-            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            ${PHOTOCRAP_TIDY_ARGUMENTS}
             ${PHOTOCRAP_TIDY_SOURCES}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Running clang-tidy"
@@ -60,8 +84,7 @@ if(CLANG_TIDY_EXECUTABLE AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
     )
     add_custom_target(clang-tidy-fix
         COMMAND ${CLANG_TIDY_EXECUTABLE}
-            -p=${CMAKE_CURRENT_BINARY_DIR}
-            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            ${PHOTOCRAP_TIDY_ARGUMENTS}
             --fix
             ${PHOTOCRAP_TIDY_SOURCES}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -80,7 +103,15 @@ if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
 
-qt_add_library(photocrap_core STATIC src/Document.cpp src/Document.h)
+qt_add_library(photocrap_core STATIC
+    src/Document.cpp
+    src/Document.h
+    src/DocumentCompositor.cpp
+    src/DocumentEditing.cpp
+    src/DocumentFilters.cpp
+    src/DocumentTools.cpp
+    src/ImageUtils.h
+)
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Concurrent)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE)

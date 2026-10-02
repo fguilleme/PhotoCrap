@@ -32,6 +32,7 @@ struct Layer {
     bool        maskEnabled  = true;
     bool        clippingMask = false;
     QString     groupId;
+    bool        groupCollapsed = false;
     QImage      source;
 };
 
@@ -231,6 +232,7 @@ public:
     Q_INVOKABLE void mergeDown();
     Q_INVOKABLE void groupSelectedLayers();
     Q_INVOKABLE void ungroupActiveLayers();
+    Q_INVOKABLE void toggleGroupCollapsed(int _index);
     Q_INVOKABLE void renameLayer(int _index, const QString &_name);
     Q_INVOKABLE void setLayerVisible(int _index, bool _visible);
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);

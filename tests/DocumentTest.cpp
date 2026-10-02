@@ -284,12 +284,18 @@ private slots:
         d.undo();
         QCOMPARE(d.composite(), before);
 
+        d.toggleGroupCollapsed(d.activeLayer());
+        QCOMPARE(d.layers().size(), 2);
+        QCOMPARE(d.layers().first().toMap().value("kind").toString(), QString("group"));
         const auto url = QUrl::fromLocalFile(dir.filePath("grouped.pcr"));
         QVERIFY(d.saveProject(url));
         Document loaded;
         QVERIFY(loaded.openFile(url));
         QCOMPARE(loaded.layers().first().toMap().value("kind").toString(), QString("group"));
+        QCOMPARE(loaded.layers().size(), 2);
         QCOMPARE(loaded.composite(), before);
+        loaded.toggleGroupCollapsed(loaded.activeLayer());
+        QCOMPARE(loaded.layers().size(), 4);
         loaded.ungroupActiveLayers();
         QCOMPARE(loaded.layers().size(), 3);
         QVERIFY(!loaded.canUngroupActive());

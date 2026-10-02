@@ -1631,6 +1631,14 @@
       <translation>Layer Group</translation>
     </message>
     <message>
+      <source>Déplier le groupe</source>
+      <translation>Expand Group</translation>
+    </message>
+    <message>
+      <source>Replier le groupe</source>
+      <translation>Collapse Group</translation>
+    </message>
+    <message>
       <location filename="../qml/Main.qml" line="715" />
       <source>Sortir du groupe</source>
       <translation>Ungroup Layers</translation>

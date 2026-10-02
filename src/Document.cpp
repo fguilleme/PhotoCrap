@@ -169,10 +169,16 @@ void Document::resetHistory(bool _clean)
 }
 QVariantList Document::layers() const
 {
-    QVariantList result;
+    QVariantList  result;
+    QSet<QString> collapsedGroups;
+    for (const auto &layer : m_layers)
+        if (layer.kind == QStringLiteral("group") && layer.groupCollapsed)
+            collapsedGroups.insert(layer.groupId);
     // UI order is top to bottom, storage order is bottom to top.
     for (int i = int(m_layers.size()) - 1; i >= 0; --i) {
         const auto &l = m_layers[i];
+        if (l.kind != QStringLiteral("group") && collapsedGroups.contains(l.groupId))
+            continue;
         result.append(QVariantMap{{"layerIndex", i},
                                   {"name", l.name},
                                   {"visible", l.visible},
@@ -186,6 +192,7 @@ QVariantList Document::layers() const
                                   {"maskEnabled", l.maskEnabled},
                                   {"clippingMask", l.clippingMask},
                                   {"groupId", l.groupId},
+                                  {"groupCollapsed", l.groupCollapsed},
                                   {"selected", m_selectedLayers.contains(i)},
                                   {"editingMask", m_editingMask && i == m_active}});
     }
@@ -402,6 +409,7 @@ bool Document::saveProject(const QUrl &_url)
                                   {"maskEnabled", layer.maskEnabled},
                                   {"clippingMask", layer.clippingMask},
                                   {"groupId", layer.groupId},
+                                  {"groupCollapsed", layer.groupCollapsed},
                                   {"source", source}});
     }
     QJsonObject      root{{"format", "PhotoCrap"},   {"version", 5},
@@ -489,6 +497,7 @@ bool Document::loadProject(const QString &_path)
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
         layer.clippingMask   = object["clippingMask"].toBool(false);
         layer.groupId        = object["groupId"].toString().left(64);
+        layer.groupCollapsed = object["groupCollapsed"].toBool(false);
         layer.source         = source;
         layers.append(layer);
         if (version == 2 && kind == "frequency") {
@@ -689,6 +698,16 @@ void Document::ungroupActiveLayers()
         m_editingMask = false;
         selectOnly(m_active);
     });
+}
+void Document::toggleGroupCollapsed(int _index)
+{
+    if (_index < 0 || _index >= m_layers.size() || m_layers[_index].kind != QStringLiteral("group"))
+        return;
+    m_layers[_index].groupCollapsed = !m_layers[_index].groupCollapsed;
+    selectOnly(_index);
+    m_active      = _index;
+    m_editingMask = false;
+    emit layersChanged();
 }
 void Document::renameLayer(int _index, const QString &_name)
 {

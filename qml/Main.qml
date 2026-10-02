@@ -90,7 +90,7 @@ ApplicationWindow {
     property var activeInfo: {
         const list = editor.layers
         for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) return list[i]
-        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false, groupId:"", selected:false}
+        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false, groupId:"", groupCollapsed:false, selected:false}
     }
     property string toolName: {
         for (let i=0; i<tools.length; ++i) if (tools[i].name === editor.tool) return tools[i].label
@@ -766,6 +766,13 @@ ApplicationWindow {
                                 anchors.fill: parent; anchors.margins: 6
                                 anchors.leftMargin: modelData.groupId!=="" && modelData.kind!=="group" ? 24 : 6
                                 spacing: 7
+                                IconButton {
+                                    visible: modelData.kind==="group"
+                                    Layout.preferredWidth: visible ? 22 : 0
+                                    glyph: modelData.groupCollapsed ? "▸" : "▾"
+                                    hint: modelData.groupCollapsed ? qsTr("Déplier le groupe") : qsTr("Replier le groupe")
+                                    onClicked: editor.toggleGroupCollapsed(modelData.layerIndex)
+                                }
                                 IconButton { glyph: modelData.visible?"◉":"○"; implicitWidth: 24; hint: qsTr("Visibilité du calque"); onClicked: editor.setLayerVisible(modelData.layerIndex,!modelData.visible) }
                                 Label {
                                     visible: modelData.clippingMask

@@ -255,6 +255,46 @@ private slots:
         QVERIFY(loaded.layers().first().toMap().value("clippingMask").toBool());
         QCOMPARE(loaded.composite(), d.composite());
     }
+    void multipleLayerSelectionCreatesPersistentPassThroughGroup()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        Document d;
+        QVERIFY(d.newDocument(24, 24));
+        d.addLayer();
+        d.addLayer();
+        d.selectLayer(0);
+        d.selectLayer(2, true);
+        QCOMPARE(d.selectedLayerCount(), 2);
+        QVERIFY(d.canGroupSelected());
+        const QImage before = d.composite();
+
+        d.groupSelectedLayers();
+        QCOMPARE(d.layers().size(), 4);
+        QCOMPARE(d.layers().first().toMap().value("kind").toString(), QString("group"));
+        QVERIFY(d.canUngroupActive());
+        QCOMPARE(d.composite(), before);
+        const QString groupId = d.layers().first().toMap().value("groupId").toString();
+        QVERIFY(!groupId.isEmpty());
+        QCOMPARE(d.layers()[1].toMap().value("groupId").toString(), groupId);
+        QCOMPARE(d.layers()[2].toMap().value("groupId").toString(), groupId);
+
+        d.setLayerVisible(d.activeLayer(), false);
+        QCOMPARE(d.composite().pixelColor(0, 0).alpha(), 0);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+
+        const auto url = QUrl::fromLocalFile(dir.filePath("grouped.pcr"));
+        QVERIFY(d.saveProject(url));
+        Document loaded;
+        QVERIFY(loaded.openFile(url));
+        QCOMPARE(loaded.layers().first().toMap().value("kind").toString(), QString("group"));
+        QCOMPARE(loaded.composite(), before);
+        loaded.ungroupActiveLayers();
+        QCOMPARE(loaded.layers().size(), 3);
+        QVERIFY(!loaded.canUngroupActive());
+        QCOMPARE(loaded.composite(), before);
+    }
     void lockPreventsPixelChanges()
     {
         Document d;
@@ -583,6 +623,31 @@ private slots:
                                                .arg(differenceBounds.y())
                                                .arg(differenceBounds.width())
                                                .arg(differenceBounds.height())));
+    }
+    void blurAdjustmentUsesRegionalCompositeWithoutChangingResult()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        Document d;
+        QVERIFY(d.newDocument(256, 192, true));
+        d.setColor(Qt::black);
+        d.setBrushSize(24);
+        d.beginStroke(64, 96);
+        d.endStroke();
+        d.addAdjustmentLayer("gaussianBlur");
+        (void)d.composite();
+        d.setActiveLayer(0);
+        d.setColor(Qt::red);
+        d.setBrushSize(18);
+        d.beginStroke(176, 96);
+        d.endStroke();
+        const QImage regional = d.composite();
+
+        const auto url = QUrl::fromLocalFile(dir.filePath("regional-blur.pcr"));
+        QVERIFY(d.saveProject(url));
+        Document loaded;
+        QVERIFY(loaded.openFile(url));
+        QCOMPARE(loaded.composite(), regional);
     }
     void selectionDefinesAdjustmentMaskLikePhotoshop()
     {

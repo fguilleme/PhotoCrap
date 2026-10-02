@@ -13,12 +13,14 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QThreadPool>
+#include <QUuid>
 #include <QtConcurrent>
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <numeric>
+#include <utility>
 #ifdef PHOTOCRAP_USE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
@@ -58,22 +60,32 @@ bool Document::editable()
         return false;
     if (m_layers[m_active].locked)
         return fail(tr("Ce calque est verrouillé."));
+    if (!m_layers[m_active].groupId.isEmpty())
+        for (const auto &layer : std::as_const(m_layers))
+            if (layer.kind == QStringLiteral("group") &&
+                layer.groupId == m_layers[m_active].groupId && (layer.locked || !layer.visible))
+                return fail(layer.locked ? tr("Ce groupe est verrouillé.")
+                                         : tr("Ce groupe est masqué."));
     if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask)
         return fail(tr("Sélectionnez le masque de ce calque pour peindre dessus."));
     return true;
 }
 Document::Snapshot Document::snapshot(const QString &_label) const
 {
-    return {m_layers, m_size, m_active, m_selection, m_editingMask, m_stateId, _label};
+    return {m_layers,      m_size,           m_active,
+            m_selection,   m_selectedLayers, m_layerSelectionAnchor,
+            m_editingMask, m_stateId,        _label};
 }
 void Document::restore(const Snapshot &_state)
 {
-    m_layers      = _state.layers;
-    m_size        = _state.size;
-    m_active      = _state.active;
-    m_selection   = _state.selection;
-    m_editingMask = _state.editingMask;
-    m_stateId     = _state.id;
+    m_layers               = _state.layers;
+    m_size                 = _state.size;
+    m_active               = _state.active;
+    m_selection            = _state.selection;
+    m_selectedLayers       = _state.selectedLayers;
+    m_layerSelectionAnchor = _state.layerSelectionAnchor;
+    m_editingMask          = _state.editingMask;
+    m_stateId              = _state.id;
     changed();
     emit documentChanged();
     emit selectionChanged();
@@ -134,9 +146,10 @@ void Document::resetHistory(bool _clean)
 {
     m_undo.clear();
     m_redo.clear();
-    m_stateId               = m_nextId++;
-    m_savedId               = _clean ? m_stateId : 0;
-    m_selection             = {};
+    m_stateId   = m_nextId++;
+    m_savedId   = _clean ? m_stateId : 0;
+    m_selection = {};
+    selectOnly(m_active);
     m_drawing               = false;
     m_editingMask           = false;
     m_previewingLayer       = false;
@@ -172,6 +185,8 @@ QVariantList Document::layers() const
                                   {"hasMask", !l.mask.isNull()},
                                   {"maskEnabled", l.maskEnabled},
                                   {"clippingMask", l.clippingMask},
+                                  {"groupId", l.groupId},
+                                  {"selected", m_selectedLayers.contains(i)},
                                   {"editingMask", m_editingMask && i == m_active}});
     }
     return result;
@@ -190,6 +205,16 @@ QImage Document::layerImage(int _index) const
     if (_index < 0 || _index >= m_layers.size())
         return {};
     const auto &layer = m_layers[_index];
+    if (layer.kind == QStringLiteral("group")) {
+        QImage icon(96, 72, QImage::Format_ARGB32_Premultiplied);
+        icon.fill(QColor("#232b32"));
+        QPainter painter(&icon);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor("#c7a95a"));
+        painter.drawRoundedRect(QRect(14, 24, 68, 38), 5, 5);
+        painter.drawRoundedRect(QRect(18, 15, 30, 18), 4, 4);
+        return icon;
+    }
     if (layer.kind.startsWith(QStringLiteral("frequency")))
         return frequencyImage(layer);
     if (layer.kind == QStringLiteral("adjustment")) {
@@ -212,10 +237,60 @@ QImage Document::maskImage(int _index) const
 }
 void Document::setActiveLayer(int _index)
 {
-    if (_index < 0 || _index >= m_layers.size() || m_active == _index)
+    if (_index < 0 || _index >= m_layers.size())
         return;
     endStroke();
     cancelLayerPreview();
+    m_active      = _index;
+    m_editingMask = false;
+    selectOnly(_index);
+    emit layersChanged();
+}
+void Document::selectOnly(int _index)
+{
+    m_selectedLayers       = {_index};
+    m_layerSelectionAnchor = _index;
+}
+int Document::selectedLayerCount() const
+{
+    return m_selectedLayers.size();
+}
+bool Document::canGroupSelected() const
+{
+    if (m_selectedLayers.size() < 2)
+        return false;
+    return std::all_of(m_selectedLayers.cbegin(), m_selectedLayers.cend(), [&](int _index) {
+        return _index >= 0 && _index < m_layers.size() &&
+               m_layers[_index].kind != QStringLiteral("group") &&
+               m_layers[_index].groupId.isEmpty();
+    });
+}
+bool Document::canUngroupActive() const
+{
+    return m_active >= 0 && m_active < m_layers.size() &&
+           (m_layers[m_active].kind == QStringLiteral("group") ||
+            !m_layers[m_active].groupId.isEmpty());
+}
+void Document::selectLayer(int _index, bool _toggle, bool _range)
+{
+    if (_index < 0 || _index >= m_layers.size())
+        return;
+    endStroke();
+    cancelLayerPreview();
+    if (_range && m_layerSelectionAnchor >= 0 && m_layerSelectionAnchor < m_layers.size()) {
+        m_selectedLayers.clear();
+        const int first = qMin(_index, m_layerSelectionAnchor);
+        const int last  = qMax(_index, m_layerSelectionAnchor);
+        for (int i = first; i <= last; ++i)
+            m_selectedLayers.insert(i);
+    } else if (_toggle) {
+        if (m_selectedLayers.contains(_index) && m_selectedLayers.size() > 1)
+            m_selectedLayers.remove(_index);
+        else
+            m_selectedLayers.insert(_index);
+        m_layerSelectionAnchor = _index;
+    } else
+        selectOnly(_index);
     m_active      = _index;
     m_editingMask = false;
     emit layersChanged();
@@ -287,6 +362,7 @@ bool Document::importLayer(const QUrl &_url)
         painter.drawImage((width() - image.width()) / 2, (height() - image.height()) / 2, image);
         painter.end();
         m_layers.insert(++m_active, {QFileInfo(_url.toLocalFile()).completeBaseName(), target});
+        selectOnly(m_active);
     });
     return true;
 }
@@ -325,9 +401,10 @@ bool Document::saveProject(const QUrl &_url)
                                   {"mask", mask},
                                   {"maskEnabled", layer.maskEnabled},
                                   {"clippingMask", layer.clippingMask},
+                                  {"groupId", layer.groupId},
                                   {"source", source}});
     }
-    QJsonObject      root{{"format", "PhotoCrap"},   {"version", 4},
+    QJsonObject      root{{"format", "PhotoCrap"},   {"version", 5},
                           {"width", width()},        {"height", height()},
                           {"activeLayer", m_active}, {"layers", layers}};
     const QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Compact);
@@ -356,7 +433,7 @@ bool Document::loadProject(const QString &_path)
     const auto      root    = json.object();
     const int       version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 4))
+        (version < 1 || version > 5))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
@@ -379,7 +456,7 @@ bool Document::loadProject(const QString &_path)
         };
         const QString kind =
             version == 1 ? QStringLiteral("pixel") : object["kind"].toString("pixel");
-        if (kind != "pixel" && kind != "adjustment" && kind != "frequency" &&
+        if (kind != "pixel" && kind != "adjustment" && kind != "group" && kind != "frequency" &&
             kind != "frequencyLow" && kind != "frequencyHigh")
             return fail(tr("Type de calque inconnu."));
         auto image  = decode(object["png"].toString(), QImage::Format_ARGB32_Premultiplied);
@@ -411,6 +488,7 @@ bool Document::loadProject(const QString &_path)
         layer.mask           = mask;
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
         layer.clippingMask   = object["clippingMask"].toBool(false);
+        layer.groupId        = object["groupId"].toString().left(64);
         layer.source         = source;
         layers.append(layer);
         if (version == 2 && kind == "frequency") {
@@ -474,16 +552,21 @@ void Document::addLayer()
     edit(tr("Nouveau calque"), [&] {
         m_layers.insert(++m_active,
                         {tr("Calque %1").arg(m_layers.size() + 1), ImageUtils::blank(m_size)});
+        selectOnly(m_active);
     });
 }
 void Document::duplicateLayer()
 {
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind == QStringLiteral("group"))
+        return;
     if (!validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     edit(tr("Dupliquer le calque"), [&] {
         auto layer = m_layers[m_active];
         layer.name += tr(" — copie");
         m_layers.insert(++m_active, layer);
+        selectOnly(m_active);
     });
 }
 void Document::removeLayer()
@@ -492,19 +575,34 @@ void Document::removeLayer()
         m_layers.size() == 1)
         return;
     edit(tr("Supprimer le calque"), [&] {
-        m_layers.removeAt(m_active);
+        if (m_layers[m_active].kind == QStringLiteral("group")) {
+            const QString groupId = m_layers[m_active].groupId;
+            for (int i = m_layers.size() - 1; i >= 0; --i)
+                if (m_layers[i].groupId == groupId)
+                    m_layers.removeAt(i);
+        } else
+            m_layers.removeAt(m_active);
+        if (m_layers.isEmpty())
+            m_layers.append({tr("Calque 1"), ImageUtils::blank(m_size)});
         m_active      = qMin(m_active, int(m_layers.size()) - 1);
         m_editingMask = false;
+        selectOnly(m_active);
     });
 }
 void Document::moveLayer(int _direction)
 {
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind == QStringLiteral("group"))
+        return;
     const int to = m_active + (_direction > 0 ? 1 : -1);
     if (to < 0 || to >= m_layers.size())
+        return;
+    if (!m_layers[m_active].groupId.isEmpty() && m_layers[to].groupId != m_layers[m_active].groupId)
         return;
     edit(tr("Réordonner le calque"), [&] {
         m_layers.swapItemsAt(m_active, to);
         m_active = to;
+        selectOnly(m_active);
     });
 }
 void Document::mergeDown()
@@ -516,7 +614,7 @@ void Document::mergeDown()
     if (lower.locked || upper.locked || lower.kind != "pixel" || upper.kind != "pixel" ||
         (lower.maskEnabled && !lower.mask.isNull()) ||
         (upper.maskEnabled && !upper.mask.isNull()) || !lower.visible || !upper.visible ||
-        lower.blend != 0 || upper.blend != 0) {
+        lower.blend != 0 || upper.blend != 0 || lower.groupId != upper.groupId) {
         fail(tr("La fusion nécessite deux calques visibles en mode Normal, non verrouillés."));
         return;
     }
@@ -533,6 +631,63 @@ void Document::mergeDown()
         bottom.image   = image;
         bottom.opacity = 1;
         m_layers.removeAt(m_active--);
+        selectOnly(m_active);
+    });
+}
+void Document::groupSelectedLayers()
+{
+    if (!canGroupSelected() || !validSize(width(), height(), int(m_layers.size()) + 1))
+        return;
+    edit(tr("Grouper les calques"), [&] {
+        QList<int> indices = m_selectedLayers.values();
+        std::sort(indices.begin(), indices.end());
+        QVector<Layer> selected;
+        selected.reserve(indices.size());
+        for (const int index : std::as_const(indices))
+            selected.append(m_layers[index]);
+        for (auto it = indices.crbegin(); it != indices.crend(); ++it)
+            m_layers.removeAt(*it);
+
+        const QString groupId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        const int insertion = qBound(0, indices.last() - indices.size() + 1, int(m_layers.size()));
+        for (int i = 0; i < selected.size(); ++i) {
+            selected[i].groupId = groupId;
+            m_layers.insert(insertion + i, selected[i]);
+        }
+        const int groupCount =
+            int(std::count_if(m_layers.cbegin(), m_layers.cend(), [](const Layer &_layer) {
+                return _layer.kind == QStringLiteral("group");
+            }));
+        Layer group;
+        group.name    = tr("Groupe %1").arg(groupCount + 1);
+        group.kind    = QStringLiteral("group");
+        group.groupId = groupId;
+        m_active      = insertion + selected.size();
+        m_layers.insert(m_active, group);
+        m_editingMask = false;
+        selectOnly(m_active);
+    });
+}
+void Document::ungroupActiveLayers()
+{
+    if (!canUngroupActive())
+        return;
+    const QString groupId = m_layers[m_active].groupId;
+    edit(tr("Sortir du groupe"), [&] {
+        int header = -1;
+        for (int i = 0; i < m_layers.size(); ++i) {
+            if (m_layers[i].groupId != groupId)
+                continue;
+            if (m_layers[i].kind == QStringLiteral("group"))
+                header = i;
+            else
+                m_layers[i].groupId.clear();
+        }
+        if (header >= 0)
+            m_layers.removeAt(header);
+        m_active      = qBound(0, header - 1, int(m_layers.size()) - 1);
+        m_editingMask = false;
+        selectOnly(m_active);
     });
 }
 void Document::renameLayer(int _index, const QString &_name)
@@ -556,7 +711,8 @@ void Document::setLayerLocked(int _i, bool _locked)
 }
 void Document::setLayerOpacity(int _i, qreal _opacity)
 {
-    if (_i < 0 || _i >= m_layers.size() || !std::isfinite(_opacity))
+    if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
+        !std::isfinite(_opacity))
         return;
     _opacity = qBound(0., _opacity, 1.);
     if (qFuzzyCompare(m_layers[_i].opacity, _opacity))
@@ -565,14 +721,15 @@ void Document::setLayerOpacity(int _i, qreal _opacity)
 }
 void Document::setLayerBlend(int _i, int _blend)
 {
-    if (_i < 0 || _i >= m_layers.size() || _blend < 0 || _blend > 26 ||
-        m_layers[_i].blend == _blend)
+    if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
+        _blend < 0 || _blend > 26 || m_layers[_i].blend == _blend)
         return;
     edit(tr("Mode de fusion"), [&] { m_layers[_i].blend = _blend; });
 }
 void Document::setClippingMask(bool _enabled)
 {
     if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind == QStringLiteral("group") ||
         m_layers[m_active].clippingMask == _enabled || (_enabled && m_active == 0))
         return;
     edit(_enabled ? tr("Créer un masque d’écrêtage") : tr("Libérer le masque d’écrêtage"),
@@ -580,7 +737,8 @@ void Document::setClippingMask(bool _enabled)
 }
 void Document::addLayerMask(bool _revealAll)
 {
-    if (m_active < 0 || m_active >= m_layers.size())
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind == QStringLiteral("group"))
         return;
     if (!m_layers[m_active].mask.isNull()) {
         m_editingMask = true;
@@ -695,6 +853,7 @@ void Document::createDemo()
     m_layers.append({tr("Composition · typographie"), typography});
     m_layers.append({tr("Vos retouches"), ImageUtils::blank(m_size)});
     m_active = 3;
-    m_name   = tr("Exploration créative");
+    selectOnly(m_active);
+    m_name = tr("Exploration créative");
     resetHistory(false);
 }

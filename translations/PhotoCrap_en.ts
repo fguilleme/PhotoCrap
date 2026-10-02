@@ -472,6 +472,26 @@
       <source>Exploration créative</source>
       <translation>Creative Exploration</translation>
     </message>
+    <message>
+      <source>Ce groupe est verrouillé.</source>
+      <translation>This group is locked.</translation>
+    </message>
+    <message>
+      <source>Ce groupe est masqué.</source>
+      <translation>This group is hidden.</translation>
+    </message>
+    <message>
+      <source>Grouper les calques</source>
+      <translation>Group Layers</translation>
+    </message>
+    <message>
+      <source>Sortir du groupe</source>
+      <translation>Ungroup Layers</translation>
+    </message>
+    <message>
+      <source>Groupe %1</source>
+      <translation>Group %1</translation>
+    </message>
   </context>
   <context>
     <name>LanguageManager</name>
@@ -1605,6 +1625,10 @@
       <location filename="../qml/Main.qml" line="714" />
       <source>Grouper les calques sélectionnés</source>
       <translation>Group Selected Layers</translation>
+    </message>
+    <message>
+      <source>Groupe de calques</source>
+      <translation>Layer Group</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="715" />

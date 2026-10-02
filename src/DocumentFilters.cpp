@@ -658,6 +658,7 @@ void Document::addAdjustmentLayer(const QString &_type)
         }
         m_layers.insert(++m_active, layer);
         m_editingMask = false;
+        selectOnly(m_active);
     });
 }
 void Document::addFrequencySeparation(qreal _radius)
@@ -688,6 +689,7 @@ void Document::addFrequencySeparation(qreal _radius)
         m_layers.insert(++m_active, low);
         m_layers.insert(++m_active, high);
         m_editingMask = false;
+        selectOnly(m_active);
     });
 }
 void Document::beginLayerPreview()

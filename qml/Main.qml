@@ -90,7 +90,7 @@ ApplicationWindow {
     property var activeInfo: {
         const list = editor.layers
         for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) return list[i]
-        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false}
+        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false, groupId:"", selected:false}
     }
     property string toolName: {
         for (let i=0; i<tools.length; ++i) if (tools[i].name === editor.tool) return tools[i].label
@@ -712,6 +712,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         ComboBox {
                             Layout.fillWidth: true
+                            enabled: activeInfo.kind!=="group"
                             model: window.blendModeNames
                             currentIndex: window.activeInfo.blend
                             onActivated: editor.setLayerBlend(editor.activeLayer,currentIndex)
@@ -723,6 +724,7 @@ ApplicationWindow {
                         Label { text: qsTr("Opacité"); color: "#8e9baa"; font.pixelSize: 11 }
                         DarkSlider {
                             id: layerOpacity; Layout.fillWidth: true; from: 0; to: 1
+                            enabled: activeInfo.kind!=="group"
                             value: window.activeInfo.opacity
                             onPressedChanged: if(!pressed) editor.setLayerOpacity(editor.activeLayer,value)
                         }
@@ -737,24 +739,33 @@ ApplicationWindow {
                             objectName: "layerDelegate"
                             required property var modelData
                             width: layerList.width; height: 64; radius: 5
-                            color: modelData.layerIndex===editor.activeLayer ? "#35443e" : "#292f38"
-                            border.color: modelData.layerIndex===editor.activeLayer ? "#567563" : "#343c46"
+                            color: modelData.layerIndex===editor.activeLayer ? "#35443e" : modelData.selected ? "#303b48" : "#292f38"
+                            border.width: modelData.selected ? 2 : 1
+                            border.color: modelData.layerIndex===editor.activeLayer ? "#78a589" : modelData.selected ? "#66829b" : "#343c46"
                             MouseArea {
                                 anchors.fill: parent
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 onClicked: function(mouse) {
-                                    editor.activeLayer=modelData.layerIndex
+                                    if(mouse.button===Qt.RightButton) {
+                                        if(!modelData.selected) editor.selectLayer(modelData.layerIndex)
+                                    } else {
+                                        const toggle=Boolean(mouse.modifiers&(Qt.ControlModifier|Qt.MetaModifier))
+                                        const range=Boolean(mouse.modifiers&Qt.ShiftModifier)
+                                        editor.selectLayer(modelData.layerIndex,toggle,range)
+                                    }
                                     if(mouse.button===Qt.RightButton) window.openLayerContextMenu()
                                 }
                                 onDoubleClicked: function(mouse) {
                                     if(mouse.button!==Qt.LeftButton) return
-                                    editor.activeLayer=modelData.layerIndex
-                                    if(modelData.kind!=="pixel") layerPropertiesDialog.open()
+                                    editor.selectLayer(modelData.layerIndex)
+                                    if(modelData.kind!=="pixel" && modelData.kind!=="group") layerPropertiesDialog.open()
                                     else { layerName.text=modelData.name; renameDialog.open() }
                                 }
                             }
                             RowLayout {
-                                anchors.fill: parent; anchors.margins: 6; spacing: 7
+                                anchors.fill: parent; anchors.margins: 6
+                                anchors.leftMargin: modelData.groupId!=="" && modelData.kind!=="group" ? 24 : 6
+                                spacing: 7
                                 IconButton { glyph: modelData.visible?"◉":"○"; implicitWidth: 24; hint: qsTr("Visibilité du calque"); onClicked: editor.setLayerVisible(modelData.layerIndex,!modelData.visible) }
                                 Label {
                                     visible: modelData.clippingMask
@@ -783,7 +794,7 @@ ApplicationWindow {
                                     Label { text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11 }
                                     Label {
                                         text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
-                                              (modelData.locked?qsTr("Verrouillé"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
+                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
                                         color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
                                         font.pixelSize: 9
                                     }
@@ -794,11 +805,11 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true; spacing: 4
                         IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
-                        IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); onClicked: editor.duplicateLayer() }
-                        IconButton { glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
-                        IconButton { glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: activeInfo.kind!=="pixel" || activeInfo.editingMask; onClicked: layerPropertiesDialog.open() }
-                        IconButton { glyph: "↑"; hint: qsTr("Monter le calque"); enabled: editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
-                        IconButton { glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
+                        IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
+                        IconButton { glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
+                        IconButton { glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: activeInfo.kind!=="group" && (activeInfo.kind!=="pixel" || activeInfo.editingMask); onClicked: layerPropertiesDialog.open() }
+                        IconButton { glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
+                        IconButton { glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
                         Item { Layout.fillWidth: true }
                         IconButton { glyph: "×"; hint: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onClicked: editor.removeLayer() }
                     }
@@ -870,23 +881,23 @@ ApplicationWindow {
     DarkMenu {
         id: layerContextMenu
         objectName: "layerContextMenu"
-        ContextMenuItem { text: qsTr("Dupliquer le calque"); onTriggered: editor.duplicateLayer() }
+        ContextMenuItem { text: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onTriggered: editor.duplicateLayer() }
         ContextMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
         ContextMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1 && !activeInfo.locked; onTriggered: editor.removeLayer() }
         MenuSeparator {}
         ContextMenuItem {
             text: activeInfo.clippingMask ? qsTr("Libérer le masque d’écrêtage")
                                           : qsTr("Créer un masque d’écrêtage")
-            enabled: activeInfo.clippingMask || editor.activeLayer>0
+            enabled: activeInfo.kind!=="group" && (activeInfo.clippingMask || editor.activeLayer>0)
             onTriggered: editor.setClippingMask(!activeInfo.clippingMask)
         }
-        ContextMenuItem { text: qsTr("Grouper les calques sélectionnés"); enabled: false }
-        ContextMenuItem { text: qsTr("Sortir du groupe"); enabled: false }
+        ContextMenuItem { text: qsTr("Grouper les calques sélectionnés"); enabled: editor.canGroupSelected; onTriggered: editor.groupSelectedLayers() }
+        ContextMenuItem { text: qsTr("Sortir du groupe"); enabled: editor.canUngroupActive; onTriggered: editor.ungroupActiveLayers() }
         ContextMenuItem { text: qsTr("Fusionner avec le calque inférieur"); enabled: editor.activeLayer>0 && activeInfo.kind==="pixel" && !activeInfo.locked; onTriggered: editor.mergeDown() }
         MenuSeparator {}
         DarkMenu {
             title: qsTr("Ajouter un masque")
-            enabled: !activeInfo.hasMask
+            enabled: activeInfo.kind!=="group" && !activeInfo.hasMask
             ContextMenuItem { text: editor.hasSelection ? qsTr("Faire apparaître la sélection") : qsTr("Tout faire apparaître"); onTriggered: editor.addLayerMask(true) }
             ContextMenuItem { text: editor.hasSelection ? qsTr("Masquer la sélection") : qsTr("Tout masquer"); onTriggered: editor.addLayerMask(false) }
         }

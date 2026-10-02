@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QPainter>
 #include <QRect>
+#include <QSet>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
@@ -30,6 +31,7 @@ struct Layer {
     QImage      mask;
     bool        maskEnabled  = true;
     bool        clippingMask = false;
+    QString     groupId;
     QImage      source;
 };
 
@@ -43,6 +45,9 @@ class Document : public QObject
     Q_PROPERTY(bool modified READ modified NOTIFY historyChanged)
     Q_PROPERTY(QVariantList layers READ layers NOTIFY layersChanged)
     Q_PROPERTY(int activeLayer READ activeLayer WRITE setActiveLayer NOTIFY layersChanged)
+    Q_PROPERTY(int selectedLayerCount READ selectedLayerCount NOTIFY layersChanged)
+    Q_PROPERTY(bool canGroupSelected READ canGroupSelected NOTIFY layersChanged)
+    Q_PROPERTY(bool canUngroupActive READ canUngroupActive NOTIFY layersChanged)
     Q_PROPERTY(int revision READ revision NOTIFY imageChanged)
     Q_PROPERTY(int thumbnailRevision READ thumbnailRevision NOTIFY thumbnailsChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
@@ -97,7 +102,10 @@ public:
     {
         return m_active;
     }
-    int revision() const
+    int  selectedLayerCount() const;
+    bool canGroupSelected() const;
+    bool canUngroupActive() const;
+    int  revision() const
     {
         return m_revision;
     }
@@ -190,25 +198,26 @@ public:
     {
         return m_editingMask;
     }
-    const QImage &composite() const;
-    QImage        layerImage(int _index) const;
-    QImage        maskImage(int _index) const;
-    void          setActiveLayer(int _index);
-    void          setTool(const QString &_value);
-    void          setColor(const QColor &_value);
-    void          setSecondaryColor(const QColor &_value);
-    void          setBrushSize(qreal _value);
-    void          setBrushOpacity(qreal _value);
-    void          setBrushHardness(qreal _value);
-    void          setBrushFlow(qreal _value);
-    void          setBrushSpacing(qreal _value);
-    void          setBrushAngle(qreal _value);
-    void          setBrushRoundness(qreal _value);
-    void          setBrushSmoothing(qreal _value);
-    void          setBrushBlend(int _value);
-    void          setText(const QString &_value);
-    void          setTextSize(int _value);
-    void          setFilledShapes(bool _value);
+    const QImage    &composite() const;
+    QImage           layerImage(int _index) const;
+    QImage           maskImage(int _index) const;
+    void             setActiveLayer(int _index);
+    Q_INVOKABLE void selectLayer(int _index, bool _toggle = false, bool _range = false);
+    void             setTool(const QString &_value);
+    void             setColor(const QColor &_value);
+    void             setSecondaryColor(const QColor &_value);
+    void             setBrushSize(qreal _value);
+    void             setBrushOpacity(qreal _value);
+    void             setBrushHardness(qreal _value);
+    void             setBrushFlow(qreal _value);
+    void             setBrushSpacing(qreal _value);
+    void             setBrushAngle(qreal _value);
+    void             setBrushRoundness(qreal _value);
+    void             setBrushSmoothing(qreal _value);
+    void             setBrushBlend(int _value);
+    void             setText(const QString &_value);
+    void             setTextSize(int _value);
+    void             setFilledShapes(bool _value);
 
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false);
     Q_INVOKABLE bool openFile(const QUrl &_url);
@@ -220,6 +229,8 @@ public:
     Q_INVOKABLE void removeLayer();
     Q_INVOKABLE void moveLayer(int _direction);
     Q_INVOKABLE void mergeDown();
+    Q_INVOKABLE void groupSelectedLayers();
+    Q_INVOKABLE void ungroupActiveLayers();
     Q_INVOKABLE void renameLayer(int _index, const QString &_name);
     Q_INVOKABLE void setLayerVisible(int _index, bool _visible);
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);
@@ -273,6 +284,8 @@ private:
         QSize          size;
         int            active;
         QRect          selection;
+        QSet<int>      selectedLayers;
+        int            layerSelectionAnchor;
         bool           editingMask;
         quint64        id;
         QString        label;
@@ -280,7 +293,9 @@ private:
     QSize          m_size{1280, 800};
     QVector<Layer> m_layers;
     int            m_active = 0;
-    QString        m_name   = QStringLiteral("Sans titre");
+    QSet<int>      m_selectedLayers{0};
+    int            m_layerSelectionAnchor = 0;
+    QString        m_name                 = QStringLiteral("Sans titre");
     QUrl           m_projectUrl;
     QString        m_tool = QStringLiteral("brush");
     QColor         m_color{Qt::black}, m_secondary{Qt::white};
@@ -316,6 +331,7 @@ private:
     void                           restore(const Snapshot &_state);
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true);
     void    trimHistory();
+    void    selectOnly(int _index);
     void    changed(bool _metadata = true);
     void    resetHistory(bool _clean);
     bool    validSize(int _width, int _height, int _layerCount = 1);

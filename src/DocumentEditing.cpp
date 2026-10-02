@@ -75,6 +75,7 @@ void Document::paste()
         p.drawImage((width() - source.width()) / 2, (height() - source.height()) / 2, source);
         p.end();
         m_layers.insert(++m_active, {tr("Image collée"), image});
+        selectOnly(m_active);
     });
 }
 void Document::cropToSelection()

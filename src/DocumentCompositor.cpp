@@ -4,17 +4,41 @@
 #include <QColorSpace>
 #include <QPainter>
 #include <QStringList>
+#include <QtMath>
+#include <numeric>
 
 namespace
 {
 bool requiresFullComposite(const Layer &_layer)
 {
-    static const QStringList filters{QStringLiteral("gaussianBlur"), QStringLiteral("motionBlur"),
-                                     QStringLiteral("boxBlur"),      QStringLiteral("unsharpMask"),
-                                     QStringLiteral("highPass"),     QStringLiteral("mosaic"),
-                                     QStringLiteral("noise")};
+    // These filters currently depend on absolute image coordinates. The blur
+    // family is local and can be recomputed from a padded dirty rectangle.
+    static const QStringList filters{QStringLiteral("mosaic"), QStringLiteral("noise")};
     return _layer.visible && _layer.kind == QStringLiteral("adjustment") &&
            filters.contains(_layer.adjustmentType);
+}
+
+int effectMargin(const Layer &_layer)
+{
+    if (!_layer.visible || _layer.kind != QStringLiteral("adjustment"))
+        return 0;
+    const auto radius = [&] {
+        return qBound(0, qCeil(_layer.parameters.value("radius").toDouble()), 100);
+    };
+    if (_layer.adjustmentType == QStringLiteral("gaussianBlur") ||
+        _layer.adjustmentType == QStringLiteral("unsharpMask") ||
+        _layer.adjustmentType == QStringLiteral("highPass"))
+        return radius() * 3;
+    if (_layer.adjustmentType == QStringLiteral("boxBlur"))
+        return radius();
+    if (_layer.adjustmentType == QStringLiteral("motionBlur"))
+        return qBound(0, qCeil(_layer.parameters.value("distance").toDouble() / 2.) + 2, 102);
+    return 0;
+}
+
+QRect expanded(const QRect &_region, int _margin, const QRect &_bounds)
+{
+    return _region.adjusted(-_margin, -_margin, _margin, _margin).intersected(_bounds);
 }
 
 QImage alphaCoverage(const QImage &_source, qreal _opacity)
@@ -40,19 +64,38 @@ const QImage &Document::composite() const
         return m_composite;
     const QRect documentRect(QPoint{}, m_size);
     const bool  fullEffect = std::any_of(m_layers.cbegin(), m_layers.cend(), requiresFullComposite);
-    const QRect region     = (m_fullCompositeDirty || fullEffect || m_composite.size() != m_size
-                                  ? documentRect
-                                  : m_dirtyRegion.intersected(documentRect));
-    if (region.isEmpty()) {
+    const bool  fullRender = m_fullCompositeDirty || fullEffect || m_composite.size() != m_size;
+    const QRect dirtyRegion = fullRender ? documentRect : m_dirtyRegion.intersected(documentRect);
+    if (dirtyRegion.isEmpty()) {
         m_cacheDirty = false;
         return m_composite;
     }
-    QImage regionComposite = ImageUtils::blank(region.size());
-    QImage clippingBase;
-    qreal  clippingBaseOpacity = 1.;
+    const int totalMargin =
+        std::accumulate(m_layers.cbegin(), m_layers.cend(), 0,
+                        [](int _sum, const Layer &_layer) { return _sum + effectMargin(_layer); });
+    // The first expansion is the area whose pixels can change. The second is
+    // a halo that supplies neighbouring pixels to the filters. Only the first
+    // rectangle is copied back into the cached full-size composite.
+    const QRect outputRegion =
+        fullRender ? documentRect : expanded(dirtyRegion, totalMargin, documentRect);
+    const QRect workRegion =
+        fullRender ? documentRect : expanded(outputRegion, totalMargin, documentRect);
+    QImage               regionComposite = ImageUtils::blank(workRegion.size());
+    QImage               clippingBase;
+    qreal                clippingBaseOpacity = 1.;
+    QHash<QString, bool> groupVisibility;
+    for (const auto &layer : m_layers)
+        if (layer.kind == QStringLiteral("group"))
+            groupVisibility.insert(layer.groupId, layer.visible);
     for (int layerIndex = 0; layerIndex < m_layers.size(); ++layerIndex) {
         const auto &layer = m_layers[layerIndex];
-        if (!layer.visible) {
+        if (layer.kind == QStringLiteral("group")) {
+            clippingBase = {};
+            continue;
+        }
+        const bool groupVisible =
+            layer.groupId.isEmpty() || groupVisibility.value(layer.groupId, true);
+        if (!layer.visible || !groupVisible) {
             if (!layer.clippingMask)
                 clippingBase = {};
             continue;
@@ -72,7 +115,8 @@ const QImage &Document::composite() const
                 layer.source.cacheKey() == high.source.cacheKey() &&
                 qFuzzyCompare(layer.opacity, 1.) && qFuzzyCompare(high.opacity, 1.) &&
                 layer.blend == 0 && high.blend == 16 && plainMasks) {
-                regionComposite = blendImages(regionComposite, layer.source.copy(region), 0, 1.);
+                regionComposite =
+                    blendImages(regionComposite, layer.source.copy(workRegion), 0, 1.);
                 ++layerIndex;
                 continue;
             }
@@ -104,14 +148,15 @@ const QImage &Document::composite() const
             } else
                 rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
         } else if (layer.kind.startsWith(QStringLiteral("frequency")))
-            rendered = frequencyImage(layer).copy(region);
+            rendered = frequencyImage(layer).copy(workRegion);
         else
-            rendered = layer.image.copy(region);
+            rendered = layer.image.copy(workRegion);
         if (layer.maskEnabled && !layer.mask.isNull()) {
             const qreal  density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal  feather = layer.parameters.value("_maskFeather", 0.).toDouble();
             const QImage maskRegion =
-                (feather >= .5 ? blurImage(layer.mask, qRound(feather)) : layer.mask).copy(region);
+                (feather >= .5 ? blurImage(layer.mask, qRound(feather)) : layer.mask)
+                    .copy(workRegion);
             rendered = applyMask(rendered, maskRegion, density, 0);
         }
         if (layer.clippingMask) {
@@ -124,12 +169,13 @@ const QImage &Document::composite() const
         }
         regionComposite = blendImages(regionComposite, rendered, layer.blend, layer.opacity);
     }
-    if (region == documentRect)
+    if (outputRegion == documentRect)
         m_composite = regionComposite;
     else {
         QPainter painter(&m_composite);
         painter.setCompositionMode(QPainter::CompositionMode_Source);
-        painter.drawImage(region.topLeft(), regionComposite);
+        const QRect sourceRect(outputRegion.topLeft() - workRegion.topLeft(), outputRegion.size());
+        painter.drawImage(outputRegion.topLeft(), regionComposite, sourceRect);
     }
     m_cacheDirty         = false;
     m_fullCompositeDirty = false;

@@ -5,6 +5,7 @@ Menu {
     id: control
 
     padding: 5
+    delegate: DarkMenuItem { }
     palette.window: "#20252c"
     palette.windowText: "#dbe1e8"
     palette.base: "#20252c"

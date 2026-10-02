@@ -178,7 +178,7 @@ ApplicationWindow {
         target: editor
         function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
         function onStatusMessage(message) { window.status = message; statusTimer.restart() }
-        function onDocumentChanged() { Qt.callLater(window.fitCanvas) }
+        function onCanvasSizeChanged() { Qt.callLater(window.fitCanvas) }
     }
     Connections {
         target: shortcuts

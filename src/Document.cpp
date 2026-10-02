@@ -78,6 +78,7 @@ Document::Snapshot Document::snapshot(const QString &_label) const
 }
 void Document::restore(const Snapshot &_state)
 {
+    const bool sizeChanged = m_size != _state.size;
     m_layers               = _state.layers;
     m_size                 = _state.size;
     m_active               = _state.active;
@@ -87,6 +88,8 @@ void Document::restore(const Snapshot &_state)
     m_editingMask          = _state.editingMask;
     m_stateId              = _state.id;
     changed();
+    if (sizeChanged)
+        emit canvasSizeChanged();
     emit documentChanged();
     emit selectionChanged();
     emit historyChanged();
@@ -128,6 +131,8 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
     auto before = snapshot(_label);
     _operation();
     commit(before, _label);
+    if (before.size != m_size)
+        emit canvasSizeChanged();
 }
 void Document::changed(bool _metadata)
 {
@@ -163,6 +168,7 @@ void Document::resetHistory(bool _clean)
     m_fullCompositeDirty = true;
     m_dirtyRegion        = {};
     changed();
+    emit canvasSizeChanged();
     emit documentChanged();
     emit selectionChanged();
     emit historyChanged();

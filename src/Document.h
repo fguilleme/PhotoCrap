@@ -39,8 +39,8 @@ struct Layer {
 class Document : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(int width READ width NOTIFY documentChanged)
-    Q_PROPERTY(int height READ height NOTIFY documentChanged)
+    Q_PROPERTY(int width READ width NOTIFY canvasSizeChanged)
+    Q_PROPERTY(int height READ height NOTIFY canvasSizeChanged)
     Q_PROPERTY(QString name READ name NOTIFY documentChanged)
     Q_PROPERTY(QUrl projectUrl READ projectUrl NOTIFY documentChanged)
     Q_PROPERTY(bool modified READ modified NOTIFY historyChanged)
@@ -270,6 +270,7 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void canvasSizeChanged();
     void documentChanged();
     void layersChanged();
     void imageChanged();

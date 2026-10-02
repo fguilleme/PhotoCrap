@@ -117,12 +117,16 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, start);
     QTest::mouseMove(_window, end, 20);
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
+    const qreal drawingZoom = _window->property("zoom").toReal();
     if (!require(_document.canUndo() && _document.composite().pixelColor(100, 100).red() > 200 &&
                      _document.composite().pixelColor(100, 100).alpha() > 0,
                  "pointer paints document"))
         return false;
     _document.undo();
-    if (!require(_document.composite().pixelColor(100, 100).alpha() == 0, "gesture undoes"))
+    QTest::qWait(30);
+    if (!require(_document.composite().pixelColor(100, 100).alpha() == 0 &&
+                     qAbs(_window->property("zoom").toReal() - drawingZoom) < .001,
+                 "gesture undoes without changing zoom"))
         return false;
     _document.redo();
     QMetaObject::invokeMethod(_window, "openLayerContextMenu");

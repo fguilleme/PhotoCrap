@@ -95,6 +95,8 @@ private slots:
     void foregroundAndBackgroundColorsCanResetAndSwap()
     {
         Document d;
+        QCOMPARE(d.color(), QColor(Qt::black));
+        QCOMPARE(d.secondaryColor(), QColor(Qt::white));
         d.setColor(Qt::red);
         d.setSecondaryColor(Qt::blue);
         d.resetColors();

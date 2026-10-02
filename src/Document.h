@@ -281,7 +281,7 @@ private:
     QString        m_name   = QStringLiteral("Sans titre");
     QUrl           m_projectUrl;
     QString        m_tool = QStringLiteral("brush");
-    QColor         m_color{"#b1f5cb"}, m_secondary{"#293b50"};
+    QColor         m_color{Qt::black}, m_secondary{Qt::white};
     qreal          m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
     qreal   m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
     int     m_brushBlend   = 0;

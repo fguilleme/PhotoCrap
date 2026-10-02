@@ -23,6 +23,16 @@ if(DEPLOY_PLATFORM STREQUAL "macOS")
     require_deployed_file("the application executable" "PhotoCrap.app/Contents/MacOS/PhotoCrap")
     require_deployed_file("Qt Core" "PhotoCrap.app/Contents/Frameworks/QtCore.framework/*/QtCore")
     require_deployed_file("the Cocoa platform plugin" "PhotoCrap.app/Contents/PlugIns/platforms/libqcocoa.dylib")
+    execute_process(
+        COMMAND /usr/bin/codesign --verify --deep --strict --verbose=2
+                "${DEPLOY_ROOT}/PhotoCrap.app"
+        RESULT_VARIABLE codesign_result
+        ERROR_VARIABLE codesign_error
+    )
+    if(NOT codesign_result EQUAL 0)
+        message(FATAL_ERROR "The macOS application signature is invalid: ${codesign_error}")
+    endif()
+    message(STATUS "The macOS application signature is valid")
 elseif(DEPLOY_PLATFORM STREQUAL "Windows")
     require_deployed_file("the application executable" "*/PhotoCrap.exe" "PhotoCrap.exe")
     require_deployed_file("Qt Core" "*/Qt6Core.dll" "Qt6Core.dll")

@@ -190,6 +190,23 @@ include(GNUInstallDirs)
 install(TARGETS PhotoCrap BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 qt_generate_deploy_qml_app_script(TARGET PhotoCrap OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
 install(SCRIPT ${deploy_script})
+if(APPLE)
+    # Qt's deployment step adds frameworks, plugins and QML resources after
+    # the executable has received its linker signature. Seal the completed
+    # bundle so macOS does not terminate it with CODESIGNING/Invalid Page.
+    install(CODE [=[
+        set(photocrap_app "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/PhotoCrap.app")
+        execute_process(
+            COMMAND /usr/bin/codesign --force --deep --sign - "${photocrap_app}"
+            RESULT_VARIABLE photocrap_codesign_result
+            ERROR_VARIABLE photocrap_codesign_error
+        )
+        if(NOT photocrap_codesign_result EQUAL 0)
+            message(FATAL_ERROR
+                "Failed to seal ${photocrap_app}: ${photocrap_codesign_error}")
+        endif()
+    ]=])
+endif()
 set(CPACK_PACKAGE_NAME "PhotoCrap")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_VENDOR "PhotoCrap")

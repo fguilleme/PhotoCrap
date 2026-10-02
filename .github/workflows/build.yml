@@ -45,6 +45,16 @@ jobs:
       - name: Create macOS or Windows package
         if: runner.os != 'Linux'
         run: cpack --config build/CPackConfig.cmake -C Release -B "${{ github.workspace }}/packages"
+      - name: Verify packaged macOS application signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg_path="$(find packages -maxdepth 1 -name '*.dmg' -print -quit)"
+          test -n "$dmg_path"
+          mount_point="$(mktemp -d)"
+          hdiutil attach "$dmg_path" -nobrowse -readonly -mountpoint "$mount_point"
+          trap 'hdiutil detach "$mount_point"' EXIT
+          codesign --verify --deep --strict --verbose=2 "$mount_point/PhotoCrap.app"
       - name: Create Linux AppImage
         if: runner.os == 'Linux'
         shell: bash

@@ -60,8 +60,8 @@ jobs:
           chmod +x appimagetool-x86_64.AppImage
           ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run \
             AppDir packages/PhotoCrap-0.1.0-Linux-x86_64.AppImage
-          sha256sum packages/PhotoCrap-0.1.0-Linux-x86_64.AppImage \
-            > packages/PhotoCrap-0.1.0-Linux-x86_64.AppImage.sha256
+      - name: Create package checksums
+        run: cmake -DPACKAGE_DIR="${{ github.workspace }}/packages" -P cmake/GenerateChecksums.cmake
       - name: Upload standalone package
         uses: actions/upload-artifact@v4
         with:
@@ -73,3 +73,28 @@ jobs:
             packages/*.AppImage
             packages/*.sha256
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all platform packages
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/*.dmg
+            release-assets/*.exe
+            release-assets/*.zip
+            release-assets/*.AppImage
+            release-assets/*.sha256

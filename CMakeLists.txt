@@ -4,6 +4,76 @@ project(PhotoCrap VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(CTest)
+
+set(PHOTOCRAP_CXX_SOURCES
+    src/CanvasItem.cpp
+    src/Document.cpp
+    src/LanguageManager.cpp
+    src/RecentFilesManager.cpp
+    src/ShortcutManager.cpp
+    src/main.cpp
+)
+set(PHOTOCRAP_FORMAT_SOURCES
+    ${PHOTOCRAP_CXX_SOURCES}
+    src/CanvasItem.h
+    src/Document.h
+    src/LanguageManager.h
+    src/RecentFilesManager.h
+    src/ShortcutManager.h
+    tests/DocumentTest.cpp
+    tests/UiSmoke.h
+)
+
+find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+if(CLANG_FORMAT_EXECUTABLE)
+    add_custom_target(clang-format
+        COMMAND ${CLANG_FORMAT_EXECUTABLE} -i ${PHOTOCRAP_FORMAT_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Formatting C++ sources"
+        VERBATIM
+    )
+    add_custom_target(clang-format-check
+        COMMAND ${CLANG_FORMAT_EXECUTABLE} --dry-run --Werror ${PHOTOCRAP_FORMAT_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Checking C++ source formatting"
+        VERBATIM
+    )
+else()
+    message(STATUS "clang-format not found; formatting targets are disabled")
+endif()
+
+find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
+if(CLANG_TIDY_EXECUTABLE AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+    set(PHOTOCRAP_TIDY_SOURCES ${PHOTOCRAP_CXX_SOURCES})
+    if(BUILD_TESTING)
+        list(APPEND PHOTOCRAP_TIDY_SOURCES tests/DocumentTest.cpp)
+    endif()
+    add_custom_target(clang-tidy
+        COMMAND ${CLANG_TIDY_EXECUTABLE}
+            -p=${CMAKE_CURRENT_BINARY_DIR}
+            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            ${PHOTOCRAP_TIDY_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running clang-tidy"
+        VERBATIM
+    )
+    add_custom_target(clang-tidy-fix
+        COMMAND ${CLANG_TIDY_EXECUTABLE}
+            -p=${CMAKE_CURRENT_BINARY_DIR}
+            --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy
+            --fix
+            ${PHOTOCRAP_TIDY_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Applying safe clang-tidy fixes"
+        VERBATIM
+    )
+elseif(CLANG_TIDY_EXECUTABLE)
+    message(STATUS "clang-tidy target requires a Ninja or Makefiles generator")
+else()
+    message(STATUS "clang-tidy not found; lint target is disabled")
+endif()
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent LinguistTools)
 qt_standard_project_setup(REQUIRES 6.5)
 if(QT_KNOWN_POLICY_QTP0004)
@@ -61,7 +131,6 @@ else()
     target_compile_options(photocrap_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     target_sources(PhotoCrap PRIVATE tests/UiSmoke.h)

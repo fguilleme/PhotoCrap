@@ -223,6 +223,16 @@
       <translation>Blend Mode</translation>
     </message>
     <message>
+      <location filename="../src/Document.cpp" line="578" />
+      <source>Créer un masque d’écrêtage</source>
+      <translation>Create Clipping Mask</translation>
+    </message>
+    <message>
+      <location filename="../src/Document.cpp" line="578" />
+      <source>Libérer le masque d’écrêtage</source>
+      <translation>Release Clipping Mask</translation>
+    </message>
+    <message>
       <location filename="../src/Document.cpp" line="686" />
       <source>Ajouter un masque de fusion</source>
       <translation>Add Layer Mask</translation>
@@ -1580,6 +1590,16 @@
       <location filename="../qml/Main.qml" line="713" />
       <source>Créer un masque d’écrêtage</source>
       <translation>Create Clipping Mask</translation>
+    </message>
+    <message>
+      <location filename="../qml/Main.qml" line="785" />
+      <source>Écrêté · </source>
+      <translation>Clipped · </translation>
+    </message>
+    <message>
+      <location filename="../qml/Main.qml" line="878" />
+      <source>Libérer le masque d’écrêtage</source>
+      <translation>Release Clipping Mask</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="714" />

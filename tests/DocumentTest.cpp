@@ -220,6 +220,41 @@ private slots:
         d.undo();
         QCOMPARE(d.activeLayer(), 1);
     }
+    void clippingMasksRestrictRenderingAndPersist()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32, true));
+        d.setColor(Qt::black);
+        d.setBrushSize(12);
+        d.beginStroke(8, 16);
+        d.endStroke();
+        QVERIFY(d.composite().pixelColor(8, 16).alpha() > 0);
+        QCOMPARE(d.composite().pixelColor(28, 16).alpha(), 0);
+
+        d.addLayer();
+        d.setTool("fill");
+        d.setColor(Qt::red);
+        d.beginStroke(0, 0);
+        QCOMPARE(d.composite().pixelColor(28, 16), QColor(Qt::red));
+
+        d.setClippingMask(true);
+        QVERIFY(d.layers().first().toMap().value("clippingMask").toBool());
+        QCOMPARE(d.composite().pixelColor(8, 16), QColor(Qt::red));
+        QCOMPARE(d.composite().pixelColor(28, 16).alpha(), 0);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(28, 16), QColor(Qt::red));
+        d.redo();
+        QCOMPARE(d.composite().pixelColor(28, 16).alpha(), 0);
+
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QUrl url = QUrl::fromLocalFile(dir.filePath("clipping-mask.pcr"));
+        QVERIFY(d.saveProject(url));
+        Document loaded;
+        QVERIFY(loaded.openFile(url));
+        QVERIFY(loaded.layers().first().toMap().value("clippingMask").toBool());
+        QCOMPARE(loaded.composite(), d.composite());
+    }
     void lockPreventsPixelChanges()
     {
         Document d;

@@ -28,7 +28,8 @@ struct Layer {
     QString     adjustmentType;
     QVariantMap parameters;
     QImage      mask;
-    bool        maskEnabled = true;
+    bool        maskEnabled  = true;
+    bool        clippingMask = false;
     QImage      source;
 };
 
@@ -224,6 +225,7 @@ public:
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);
     Q_INVOKABLE void setLayerOpacity(int _index, qreal _opacity);
     Q_INVOKABLE void setLayerBlend(int _index, int _blend);
+    Q_INVOKABLE void setClippingMask(bool _enabled);
     Q_INVOKABLE void addLayerMask(bool _revealAll = true);
     Q_INVOKABLE void removeLayerMask();
     Q_INVOKABLE void invertLayerMask();

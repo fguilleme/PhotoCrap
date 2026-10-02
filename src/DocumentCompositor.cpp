@@ -16,6 +16,22 @@ bool requiresFullComposite(const Layer &_layer)
     return _layer.visible && _layer.kind == QStringLiteral("adjustment") &&
            filters.contains(_layer.adjustmentType);
 }
+
+QImage alphaCoverage(const QImage &_source, qreal _opacity)
+{
+    if (_source.isNull())
+        return {};
+    const QImage source = _source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage       coverage(source.size(), QImage::Format_Grayscale8);
+    const qreal  opacity = qBound(0., _opacity, 1.);
+    for (int y = 0; y < source.height(); ++y) {
+        const auto *pixels = reinterpret_cast<const QRgb *>(source.constScanLine(y));
+        auto       *mask   = coverage.scanLine(y);
+        for (int x = 0; x < source.width(); ++x)
+            mask[x] = uchar(qRound(qAlpha(pixels[x]) * opacity));
+    }
+    return coverage;
+}
 } // namespace
 
 const QImage &Document::composite() const
@@ -32,10 +48,15 @@ const QImage &Document::composite() const
         return m_composite;
     }
     QImage regionComposite = ImageUtils::blank(region.size());
+    QImage clippingBase;
+    qreal  clippingBaseOpacity = 1.;
     for (int layerIndex = 0; layerIndex < m_layers.size(); ++layerIndex) {
         const auto &layer = m_layers[layerIndex];
-        if (!layer.visible)
+        if (!layer.visible) {
+            if (!layer.clippingMask)
+                clippingBase = {};
             continue;
+        }
         // An untouched low/high pair reconstructs its source independently of
         // the radius. Collapsing it avoids two full-image filters per slider tick.
         if (layer.kind == QStringLiteral("frequencyLow") && layerIndex + 1 < m_layers.size()) {
@@ -43,7 +64,10 @@ const QImage &Document::composite() const
             const QString pairId     = layer.parameters.value("pairId").toString();
             const bool    plainMasks = (!layer.maskEnabled || layer.mask.isNull()) &&
                                        (!high.maskEnabled || high.mask.isNull());
-            if (high.visible && high.kind == QStringLiteral("frequencyHigh") && !pairId.isEmpty() &&
+            const bool    followedByClipping =
+                layerIndex + 2 < m_layers.size() && m_layers[layerIndex + 2].clippingMask;
+            if (!layer.clippingMask && !high.clippingMask && !followedByClipping && high.visible &&
+                high.kind == QStringLiteral("frequencyHigh") && !pairId.isEmpty() &&
                 high.parameters.value("pairId").toString() == pairId &&
                 layer.source.cacheKey() == high.source.cacheKey() &&
                 qFuzzyCompare(layer.opacity, 1.) && qFuzzyCompare(high.opacity, 1.) &&
@@ -89,6 +113,14 @@ const QImage &Document::composite() const
             const QImage maskRegion =
                 (feather >= .5 ? blurImage(layer.mask, qRound(feather)) : layer.mask).copy(region);
             rendered = applyMask(rendered, maskRegion, density, 0);
+        }
+        if (layer.clippingMask) {
+            if (clippingBase.isNull())
+                continue;
+            rendered = applyMask(rendered, alphaCoverage(clippingBase, clippingBaseOpacity));
+        } else {
+            clippingBase        = rendered;
+            clippingBaseOpacity = layer.opacity;
         }
         regionComposite = blendImages(regionComposite, rendered, layer.blend, layer.opacity);
     }

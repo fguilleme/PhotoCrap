@@ -90,7 +90,7 @@ ApplicationWindow {
     property var activeInfo: {
         const list = editor.layers
         for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) return list[i]
-        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true}
+        return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false}
     }
     property string toolName: {
         for (let i=0; i<tools.length; ++i) if (tools[i].name === editor.tool) return tools[i].label
@@ -756,6 +756,15 @@ ApplicationWindow {
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 6; spacing: 7
                                 IconButton { glyph: modelData.visible?"◉":"○"; implicitWidth: 24; hint: qsTr("Visibilité du calque"); onClicked: editor.setLayerVisible(modelData.layerIndex,!modelData.visible) }
+                                Label {
+                                    visible: modelData.clippingMask
+                                    Layout.preferredWidth: visible ? 14 : 0
+                                    text: "↳"
+                                    color: "#a7d7b5"
+                                    font.pixelSize: 17
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
                                     Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
@@ -772,7 +781,12 @@ ApplicationWindow {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
                                     Label { text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11 }
-                                    Label { text: modelData.locked?qsTr("Verrouillé"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"); color: modelData.editingMask?"#bce8c8":"#80928c"; font.pixelSize: 9 }
+                                    Label {
+                                        text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
+                                              (modelData.locked?qsTr("Verrouillé"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
+                                        color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
+                                        font.pixelSize: 9
+                                    }
                                 }
                             }
                         }
@@ -860,7 +874,12 @@ ApplicationWindow {
         ContextMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
         ContextMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1 && !activeInfo.locked; onTriggered: editor.removeLayer() }
         MenuSeparator {}
-        ContextMenuItem { text: qsTr("Créer un masque d’écrêtage"); enabled: false }
+        ContextMenuItem {
+            text: activeInfo.clippingMask ? qsTr("Libérer le masque d’écrêtage")
+                                          : qsTr("Créer un masque d’écrêtage")
+            enabled: activeInfo.clippingMask || editor.activeLayer>0
+            onTriggered: editor.setClippingMask(!activeInfo.clippingMask)
+        }
         ContextMenuItem { text: qsTr("Grouper les calques sélectionnés"); enabled: false }
         ContextMenuItem { text: qsTr("Sortir du groupe"); enabled: false }
         ContextMenuItem { text: qsTr("Fusionner avec le calque inférieur"); enabled: editor.activeLayer>0 && activeInfo.kind==="pixel" && !activeInfo.locked; onTriggered: editor.mergeDown() }

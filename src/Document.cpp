@@ -171,6 +171,7 @@ QVariantList Document::layers() const
                                   {"parameters", l.parameters},
                                   {"hasMask", !l.mask.isNull()},
                                   {"maskEnabled", l.maskEnabled},
+                                  {"clippingMask", l.clippingMask},
                                   {"editingMask", m_editingMask && i == m_active}});
     }
     return result;
@@ -323,9 +324,10 @@ bool Document::saveProject(const QUrl &_url)
                                   {"png", png},
                                   {"mask", mask},
                                   {"maskEnabled", layer.maskEnabled},
+                                  {"clippingMask", layer.clippingMask},
                                   {"source", source}});
     }
-    QJsonObject      root{{"format", "PhotoCrap"},   {"version", 3},
+    QJsonObject      root{{"format", "PhotoCrap"},   {"version", 4},
                           {"width", width()},        {"height", height()},
                           {"activeLayer", m_active}, {"layers", layers}};
     const QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Compact);
@@ -354,7 +356,7 @@ bool Document::loadProject(const QString &_path)
     const auto      root    = json.object();
     const int       version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 3))
+        (version < 1 || version > 4))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
@@ -408,6 +410,7 @@ bool Document::loadProject(const QString &_path)
         layer.parameters     = object["parameters"].toObject().toVariantMap();
         layer.mask           = mask;
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
+        layer.clippingMask   = object["clippingMask"].toBool(false);
         layer.source         = source;
         layers.append(layer);
         if (version == 2 && kind == "frequency") {
@@ -566,6 +569,14 @@ void Document::setLayerBlend(int _i, int _blend)
         m_layers[_i].blend == _blend)
         return;
     edit(tr("Mode de fusion"), [&] { m_layers[_i].blend = _blend; });
+}
+void Document::setClippingMask(bool _enabled)
+{
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].clippingMask == _enabled || (_enabled && m_active == 0))
+        return;
+    edit(_enabled ? tr("Créer un masque d’écrêtage") : tr("Libérer le masque d’écrêtage"),
+         [&] { m_layers[m_active].clippingMask = _enabled; });
 }
 void Document::addLayerMask(bool _revealAll)
 {

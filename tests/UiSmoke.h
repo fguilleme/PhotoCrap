@@ -19,6 +19,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto area = _window->findChild<QQuickItem *>("drawingArea");
     if (!require(area, "drawing area exists"))
         return false;
+    auto panArea = _window->findChild<QQuickItem *>("panArea");
+    if (!require(panArea, "pan area exists"))
+        return false;
     auto viewport = _window->findChild<QQuickItem *>("viewport");
     auto artboard = _window->findChild<QQuickItem *>("artboard");
     if (!require(viewport && artboard, "viewport and artboard exist"))
@@ -105,6 +108,12 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.setTool("brush");
     QPoint start = area->mapToScene(QPointF(area->width() / 3, area->height() / 2)).toPoint();
     QPoint end   = area->mapToScene(QPointF(area->width() * 2 / 3, area->height() / 2)).toPoint();
+    QTest::mouseMove(_window, start);
+    QTest::qWait(20);
+    if (!require(area->property("containsMouse").toBool() &&
+                     panArea->property("cursorShape").toInt() == Qt::BlankCursor,
+                 "brush cursor is not covered by the pan hand"))
+        return false;
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, start);
     QTest::mouseMove(_window, end, 20);
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);

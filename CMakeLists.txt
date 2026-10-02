@@ -37,6 +37,7 @@ if(APPLE)
 endif()
 qt_add_qml_module(PhotoCrap
     URI PhotoCrap VERSION 1.0
+    OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qml/PhotoCrap"
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES qml/Main.qml qml/IconButton.qml qml/PanelTitle.qml qml/ContextMenuItem.qml qml/DarkSlider.qml
 )

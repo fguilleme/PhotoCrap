@@ -27,7 +27,7 @@ jobs:
       - name: Test engine and QML
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Deploy Qt dependencies
-        run: cmake --install build --config Release --prefix dist
+        run: cmake --install build --config Release --prefix "${{ github.workspace }}/dist"
       - name: Upload application
         uses: actions/upload-artifact@v4
         with:

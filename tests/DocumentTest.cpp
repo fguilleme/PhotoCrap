@@ -114,6 +114,20 @@ private slots:
         QCOMPARE(d.color(), QColor(Qt::white));
         QCOMPARE(d.secondaryColor(), QColor(Qt::black));
     }
+    void pixelLayersFillWithForegroundAndBackgroundColors()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16, true));
+        d.setColor(QColor("#c02030"));
+        d.setSecondaryColor(QColor("#3040c0"));
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(8, 8), QColor("#c02030"));
+        d.fillWithColor(false);
+        QCOMPARE(d.composite().pixelColor(8, 8), QColor("#3040c0"));
+        d.clearSelected();
+        d.fillWithColor(true, true);
+        QCOMPARE(d.composite().pixelColor(8, 8).alpha(), 0);
+    }
     void brushUndoRedoAndCleanState()
     {
         Document d;
@@ -583,11 +597,12 @@ private slots:
     void everyAdjustmentTypeProducesAComposite()
     {
         const QStringList types = {
-            "light",       "color",        "brightnessContrast", "levels",       "curves",
-            "exposure",    "vibrance",     "hueSaturation",      "colorBalance", "blackWhite",
-            "photoFilter", "channelMixer", "colorLookup",        "invert",       "posterize",
-            "threshold",   "gradientMap",  "selectiveColor",     "gaussianBlur", "motionBlur",
-            "boxBlur",     "unsharpMask",  "highPass",           "mosaic",       "noise"};
+            "light",      "color",       "solidColor",   "brightnessContrast", "levels",
+            "curves",     "exposure",    "vibrance",     "hueSaturation",      "colorBalance",
+            "blackWhite", "photoFilter", "channelMixer", "colorLookup",        "invert",
+            "posterize",  "threshold",   "gradientMap",  "selectiveColor",     "gaussianBlur",
+            "motionBlur", "boxBlur",     "unsharpMask",  "highPass",           "mosaic",
+            "noise"};
         Document d;
         QVERIFY(d.newDocument(4, 4));
         for (const auto &type : types) {

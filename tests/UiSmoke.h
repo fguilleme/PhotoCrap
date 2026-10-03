@@ -397,6 +397,19 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(!layerProperties->property("opened").toBool(),
                  "a second enter activates the default dialog action"))
         return false;
+    _document.addAdjustmentLayer("solidColor");
+    QTest::qWait(100);
+    auto propertiesButton = _window->findChild<QObject *>("layerPropertiesButton");
+    if (!require(propertiesButton && propertiesButton->property("enabled").toBool(),
+                 "solid color fill enables layer properties"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto solidColorPicker = _window->findChild<QObject *>("solidColorPickerButton");
+    if (!require(solidColorPicker && solidColorPicker->property("visible").toBool(),
+                 "solid color fill exposes its color picker"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

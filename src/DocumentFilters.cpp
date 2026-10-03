@@ -459,6 +459,12 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
 {
     if (_source.isNull())
         return _source;
+    if (_type == "solidColor") {
+        QImage result(_source.size(), QImage::Format_ARGB32_Premultiplied);
+        result.fill(QColor(_p.value("color", QStringLiteral("#000000")).toString()));
+        result.setColorSpace(QColorSpace::SRgb);
+        return result;
+    }
     if (_type == "curves")
         return PhotoCrap::Filters::applyCurves(_source, _p);
     if (_type == "levels")
@@ -473,6 +479,32 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyColor(_source, _p);
     if (_type == "light")
         return PhotoCrap::Filters::applyLight(_source, _p);
+    if (_type == "colorBalance") {
+        const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
+        QImage       result(input.size(), QImage::Format_ARGB32);
+        const int    redShift   = qRound(_p.value("cyanRed").toDouble() * 2.55);
+        const int    greenShift = qRound(_p.value("magentaGreen").toDouble() * 2.55);
+        const int    blueShift  = qRound(_p.value("yellowBlue").toDouble() * 2.55);
+        const int    jobCount =
+            qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
+        QVector<int> jobs(jobCount);
+        std::iota(jobs.begin(), jobs.end(), 0);
+        ImageUtils::blockingMap(jobs, [&](int _job) {
+            for (int y = input.height() * _job / jobCount;
+                 y < input.height() * (_job + 1) / jobCount; ++y) {
+                const auto *source = reinterpret_cast<const QRgb *>(input.constScanLine(y));
+                auto       *output = reinterpret_cast<QRgb *>(result.scanLine(y));
+                for (int x = 0; x < input.width(); ++x) {
+                    const QRgb pixel = source[x];
+                    output[x] = qRgba(qBound(0, qRed(pixel) + redShift, 255),
+                                      qBound(0, qGreen(pixel) + greenShift, 255),
+                                      qBound(0, qBlue(pixel) + blueShift, 255), qAlpha(pixel));
+                }
+            }
+        });
+        result.setColorSpace(QColorSpace::SRgb);
+        return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    }
     if (_type == "gaussianBlur")
         return gaussianBlurImage(_source, _p.value("radius", 8.).toDouble());
     if (_type == "motionBlur")
@@ -539,10 +571,6 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     r = c.red();
                     g = c.green();
                     b = c.blue();
-                } else if (_type == "colorBalance") {
-                    r += value("cyanRed", 0) * 2.55;
-                    g += value("magentaGreen", 0) * 2.55;
-                    b += value("yellowBlue", 0) * 2.55;
                 } else if (_type == "photoFilter") {
                     QColor filter;
                     filter.setHslF(std::fmod(value("hue", 35) / 360. + 1., 1.), .8, .55);
@@ -615,6 +643,7 @@ void Document::addAdjustmentLayer(const QString &_type)
 {
     const QMap<QString, QString> names{{"light", tr("Lumière")},
                                        {"color", tr("Couleur")},
+                                       {"solidColor", tr("Couleur unie")},
                                        {"brightnessContrast", tr("Luminosité / Contraste")},
                                        {"levels", tr("Niveaux")},
                                        {"curves", tr("Courbes")},
@@ -641,7 +670,9 @@ void Document::addAdjustmentLayer(const QString &_type)
     if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     QVariantMap params;
-    if (_type == "color")
+    if (_type == "solidColor")
+        params = {{"color", QStringLiteral("#000000")}};
+    else if (_type == "color")
         params = {{"temperature", 0}, {"tint", 0}, {"vibrance", 0}, {"saturation", 0}};
     else if (_type == "light")
         params = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
@@ -966,7 +997,9 @@ void Document::resetAdjustmentLayer()
 
     const QString type = m_layers[m_active].adjustmentType;
     QVariantMap   parameters;
-    if (type == QStringLiteral("color"))
+    if (type == QStringLiteral("solidColor"))
+        parameters = {{"color", QStringLiteral("#000000")}};
+    else if (type == QStringLiteral("color"))
         parameters = {{"temperature", 0}, {"tint", 0}, {"vibrance", 0}, {"saturation", 0}};
     else if (type == QStringLiteral("light"))
         parameters = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},

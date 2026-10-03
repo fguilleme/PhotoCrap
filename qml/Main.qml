@@ -35,6 +35,7 @@ ApplicationWindow {
     property bool resumeAfterSave: false
     property bool importing: false
     property bool changingSecondary: false
+    property bool changingSolidColor: false
     property bool spacePressed: false
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
@@ -248,6 +249,10 @@ ApplicationWindow {
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushHarder")); onActivated: editor.brushHardness = editor.brushHardness+0.1 }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("defaultColors")); onActivated: editor.resetColors() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("swapColors")); onActivated: editor.swapColors() }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Delete" : "Alt+Backspace"; onActivated: editor.fillWithColor(true, false) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Meta+Delete" : "Ctrl+Backspace"; onActivated: editor.fillWithColor(false, false) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Shift+Delete" : "Alt+Shift+Backspace"; onActivated: editor.fillWithColor(true, true) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Meta+Shift+Delete" : "Ctrl+Shift+Backspace"; onActivated: editor.fillWithColor(false, true) }
 
     menuBar: MenuBar {
         background: Rectangle { color: "#22272e" }
@@ -342,6 +347,7 @@ ApplicationWindow {
             DarkMenuItem { action: duplicateAction }
             DarkMenu {
                 title: qsTr("Nouveau calque de réglage")
+                DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
                 DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
                 DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
                 DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
@@ -974,7 +980,7 @@ ApplicationWindow {
                         IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
                         IconButton { glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
-                        IconButton { glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: activeInfo.kind!=="group" && (activeInfo.kind!=="pixel" || activeInfo.editingMask); onClicked: layerPropertiesDialog.open() }
+                        IconButton { objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: activeInfo.kind!=="group" && (activeInfo.kind!=="pixel" || activeInfo.editingMask); onClicked: layerPropertiesDialog.open() }
                         IconButton { glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
                         IconButton { glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
                         Item { Layout.fillWidth: true }
@@ -1016,6 +1022,7 @@ ApplicationWindow {
         DarkMenuItem { text: qsTr("Calque de pixels"); onTriggered: editor.addLayer() }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
         MenuSeparator {}
+        DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
         DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
         DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
         DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
@@ -1098,7 +1105,22 @@ ApplicationWindow {
         defaultSuffix: selectedNameFilter.index===1?"jpg":selectedNameFilter.index===2?"bmp":selectedNameFilter.index===3?"webp":"png"
         onAccepted: editor.exportImage(selectedFile)
     }
-    ColorDialog { id: colorDialog; title: qsTr("Choisir une couleur"); onAccepted: { if(changingSecondary) editor.secondaryColor=selectedColor; else editor.color=selectedColor } }
+    ColorDialog {
+        id: colorDialog
+        title: qsTr("Choisir une couleur")
+        onAccepted: {
+            if (changingSolidColor) {
+                editor.beginLayerPreview()
+                editor.previewLayerParameter("color", selectedColor.toString())
+                editor.finishLayerPreview(qsTr("Modifier la couleur du calque"))
+                changingSolidColor = false
+            } else if (changingSecondary)
+                editor.secondaryColor=selectedColor
+            else
+                editor.color=selectedColor
+        }
+        onRejected: changingSolidColor = false
+    }
     Dialog {
         id: newDialog; objectName: "newDialog"; title: qsTr("Nouveau document"); anchors.centerIn: parent; modal: true; width: 410
         ColumnLayout {
@@ -1351,7 +1373,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -1373,6 +1395,26 @@ ApplicationWindow {
                                     else window.previewLayerValue(modelData.key,value,true)
                                 }
                                 onMoved: window.queueLayerPreview(modelData.key,value)
+                            }
+                        }
+                    }
+                    RowLayout {
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "solidColor"
+                        Layout.fillWidth: true
+                        spacing: 12
+                        Rectangle {
+                            width: 52; height: 40; radius: 5
+                            color: activeInfo.parameters.color || "#000000"
+                            border.width: 1; border.color: "#84909a"
+                        }
+                        Label { text: qsTr("Couleur du remplissage"); color: "#d5dbe0"; Layout.fillWidth: true }
+                        DialogActionButton {
+                            objectName: "solidColorPickerButton"
+                            text: qsTr("Choisir…")
+                            onClicked: {
+                                changingSolidColor = true
+                                colorDialog.selectedColor = activeInfo.parameters.color || "#000000"
+                                colorDialog.open()
                             }
                         }
                     }
@@ -1414,6 +1456,15 @@ ApplicationWindow {
                         parameters: activeInfo.parameters
                         pickerMode: window.colorPickerMode
                         onPickerSelected: function(mode) { window.colorPickerMode = mode }
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) { if (layerPreview.checked) window.queueLayerPreview(key,value) }
+                        onCommitted: function(key,value) { window.previewLayerValue(key,value,true) }
+                    }
+                    ColorBalanceEditor {
+                        objectName: "colorBalanceEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "colorBalance"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
                         onEditStarted: editor.beginLayerPreview()
                         onPreviewed: function(key,value) { if (layerPreview.checked) window.queueLayerPreview(key,value) }
                         onCommitted: function(key,value) { window.previewLayerValue(key,value,true) }

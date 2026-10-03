@@ -277,6 +277,7 @@ public:
     Q_INVOKABLE void   selectAll();
     Q_INVOKABLE void   deselect();
     Q_INVOKABLE void   clearSelected();
+    Q_INVOKABLE void   fillWithColor(bool _foreground, bool _preserveTransparency = false);
     Q_INVOKABLE void   copy();
     Q_INVOKABLE void   paste();
     Q_INVOKABLE void   cropToSelection();

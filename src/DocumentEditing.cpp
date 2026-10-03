@@ -53,6 +53,25 @@ void Document::clearSelected()
         }
     });
 }
+void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
+{
+    if (!editable())
+        return;
+    const QColor color = _foreground ? m_color : m_secondary;
+    edit(_foreground ? tr("Remplir avec la couleur de premier plan")
+                     : tr("Remplir avec la couleur d’arrière-plan"),
+         [&] {
+             QImage *target = paintTarget();
+             if (!target)
+                 return;
+             QPainter painter(target);
+             if (_preserveTransparency && !m_editingMask)
+                 painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+             painter.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size),
+                              m_editingMask ? QColor::fromRgb(color.red(), color.red(), color.red())
+                                            : color);
+         });
+}
 void Document::copy()
 {
     endStroke();

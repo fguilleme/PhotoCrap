@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 project(PhotoCrap VERSION 0.1.0 LANGUAGES CXX)
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
@@ -32,6 +35,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/CurvesFilter.h
     src/filters/LevelsFilter.h
     src/LanguageManager.h
+    src/MacApplicationMenu.h
+    src/MacApplicationMenu.mm
     src/RecentFilesManager.h
     src/ShortcutManager.h
     tests/DocumentTest.cpp
@@ -142,6 +147,12 @@ qt_add_executable(PhotoCrap
     src/LanguageManager.cpp src/LanguageManager.h
     src/RecentFilesManager.cpp src/RecentFilesManager.h
 )
+if(APPLE)
+    target_sources(PhotoCrap PRIVATE
+        src/MacApplicationMenu.h
+        src/MacApplicationMenu.mm
+    )
+endif()
 # Homebrew exposes QML plugins through relative symlinks. Scan the real module
 # directory so Qt's deploy step copies binaries, not links into the Cellar.
 set(photocrap_qml_import_paths "")

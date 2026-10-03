@@ -1392,8 +1392,8 @@
     </message>
     <message>
       <location filename="../qml/Main.qml" line="302" />
-      <source>Paramètres de pinceau…</source>
-      <translation>Brush Settings…</translation>
+      <source>Options du pinceau…</source>
+      <translation>Brush Options…</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="304" />

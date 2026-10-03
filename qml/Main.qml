@@ -194,6 +194,7 @@ ApplicationWindow {
     function openLayerContextMenu() { layerContextMenu.popup() }
     function closeLayerContextMenu() { layerContextMenu.close() }
     function setInterfaceLanguage(code) { languages.language=code }
+    function openPreferences() { preferencesDialog.open() }
     onClosing: function(event) {
         if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
     }
@@ -226,7 +227,7 @@ ApplicationWindow {
     Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.clearSelected() }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
     Action { id: duplicateAction; text: qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
-    Action { id: preferencesAction; text: qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: preferencesDialog.open() }
+    Action { id: preferencesAction; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
     Instantiator {
         model: window.tools
         delegate: Shortcut {
@@ -415,7 +416,7 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Affichage")
-            DarkMenuItem { text: qsTr("Paramètres de pinceau…"); onTriggered: brushSettingsDialog.open() }
+            DarkMenuItem { text: qsTr("Options du pinceau…"); onTriggered: brushSettingsDialog.open() }
             MenuSeparator {}
             DarkMenuItem { text: qsTr("Adapter à la fenêtre"); onTriggered: fitCanvas() }
             DarkMenuItem { text: qsTr("Taille réelle · 100 %"); onTriggered: setZoom(1) }

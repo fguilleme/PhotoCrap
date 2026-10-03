@@ -185,9 +185,12 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_window->property("newActionText").toString() == QString::fromUtf8("Nouveau…"),
                  "French interface restores immediately"))
         return false;
-    QMetaObject::invokeMethod(preferences, "open");
+    QMetaObject::invokeMethod(_window, "openPreferences");
     QTest::qWait(150);
-    if (!require(preferences->property("visible").toBool(), "keyboard settings dialog opens"))
+    auto brushSettings = _window->findChild<QObject *>("brushSettingsDialog");
+    if (!require(preferences->property("visible").toBool() && brushSettings &&
+                     !brushSettings->property("visible").toBool(),
+                 "application preferences open without brush settings"))
         return false;
     _window->setProperty("preferencesPage", 1);
     QTest::qWait(50);
@@ -201,9 +204,6 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "keyboard settings list is populated"))
         return false;
     QMetaObject::invokeMethod(preferences, "close");
-    auto brushSettings = _window->findChild<QObject *>("brushSettingsDialog");
-    if (!require(brushSettings, "brush settings dialog exists"))
-        return false;
     QMetaObject::invokeMethod(brushSettings, "open");
     QTest::qWait(100);
     if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))

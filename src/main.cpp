@@ -10,6 +10,9 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTimer>
+#ifdef Q_OS_MACOS
+#include "MacApplicationMenu.h"
+#endif
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/UiSmoke.h"
 #endif
@@ -75,6 +78,10 @@ int main(int argc, char *argv[])
     QObject::connect(&languageManager, &LanguageManager::languageChanged, &engine, [&] {
         engine.retranslate();
         emit shortcutManager.shortcutsChanged();
+#ifdef Q_OS_MACOS
+        if (!engine.rootObjects().isEmpty())
+            scheduleMacPreferencesHandler(engine.rootObjects().constFirst());
+#endif
     });
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
@@ -82,6 +89,9 @@ int main(int argc, char *argv[])
     engine.loadFromModule("PhotoCrap", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
+#ifdef Q_OS_MACOS
+    scheduleMacPreferencesHandler(engine.rootObjects().constFirst());
+#endif
     if (args.contains("--demo") || smoke)
         document.createDemo();
     else if (args.size() > 1 && !args[1].startsWith("--")) {

@@ -1390,7 +1390,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter" || activeInfo.adjustmentType==="channelMixer") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -1546,6 +1546,27 @@ ApplicationWindow {
                             changingPhotoFilterColor = true
                             colorDialog.selectedColor = activeInfo.parameters.color || "#ec8a00"
                             colorDialog.open()
+                        }
+                    }
+                    ChannelMixerEditor {
+                        objectName: "channelMixerEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "channelMixer"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if (layerPreview.checked)
+                                window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
+                        }
+                        onPresetRequested: function(values) {
+                            window.cancelLayerPreviewQueue()
+                            editor.beginLayerPreview()
+                            for (const key in values)
+                                editor.previewLayerParameter(key, values[key])
+                            editor.finishLayerPreview(qsTr("Appliquer un style de mélangeur de couches"))
                         }
                     }
                     LevelsEditor {

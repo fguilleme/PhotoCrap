@@ -18,6 +18,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentTools.cpp
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
+    src/filters/ChannelMixerFilter.cpp
     src/filters/ColorFilter.cpp
     src/filters/CurvesFilter.cpp
     src/filters/GradientMapFilter.cpp
@@ -36,6 +37,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.h
     src/filters/BrightnessContrastFilter.h
+    src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.h
     src/filters/CurvesFilter.h
     src/filters/GradientMapFilter.h
@@ -136,6 +138,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/BlackWhiteFilter.h
     src/filters/BrightnessContrastFilter.cpp
     src/filters/BrightnessContrastFilter.h
+    src/filters/ChannelMixerFilter.cpp
+    src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.cpp
     src/filters/ColorFilter.h
     src/filters/CurvesFilter.cpp
@@ -199,6 +203,7 @@ qt_add_qml_module(PhotoCrap
         qml/ColorEditor.qml
         qml/ColorBalanceEditor.qml
         qml/BlackWhiteEditor.qml
+        qml/ChannelMixerEditor.qml
         qml/GradientMapEditor.qml
         qml/LightEditor.qml
         qml/LayerPropertiesActions.qml

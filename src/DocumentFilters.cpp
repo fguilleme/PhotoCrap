@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 #include "filters/BlackWhiteFilter.h"
 #include "filters/BrightnessContrastFilter.h"
+#include "filters/ChannelMixerFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
@@ -474,6 +475,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyBlackWhite(_source, _p);
     if (_type == "brightnessContrast")
         return PhotoCrap::Filters::applyBrightnessContrast(_source, _p);
+    if (_type == "channelMixer")
+        return PhotoCrap::Filters::applyChannelMixer(_source, _p);
     if (_type == "gradientMap")
         return PhotoCrap::Filters::applyGradientMap(_source, _p);
     if (_type == "color")
@@ -574,19 +577,6 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     r = c.red();
                     g = c.green();
                     b = c.blue();
-                } else if (_type == "channelMixer") {
-                    const double nr = r * value("redRed", 100) / 100. +
-                                      g * value("redGreen", 0) / 100. +
-                                      b * value("redBlue", 0) / 100.;
-                    const double ng = r * value("greenRed", 0) / 100. +
-                                      g * value("greenGreen", 100) / 100. +
-                                      b * value("greenBlue", 0) / 100.;
-                    const double nb = r * value("blueRed", 0) / 100. +
-                                      g * value("blueGreen", 0) / 100. +
-                                      b * value("blueBlue", 100) / 100.;
-                    r               = nr;
-                    g               = ng;
-                    b               = nb;
                 } else if (_type == "colorLookup") {
                     const int preset = _p.value("preset", 0).toInt();
                     if (preset == 0) {
@@ -704,9 +694,12 @@ void Document::addAdjustmentLayer(const QString &_type)
                   {"density", 25},
                   {"preserveLuminosity", true}};
     else if (_type == "channelMixer")
-        params = {{"redRed", 100}, {"redGreen", 0},     {"redBlue", 0},
-                  {"greenRed", 0}, {"greenGreen", 100}, {"greenBlue", 0},
-                  {"blueRed", 0},  {"blueGreen", 0},    {"blueBlue", 100}};
+        params = {{"redRed", 100},       {"redGreen", 0},      {"redBlue", 0},
+                  {"greenRed", 0},       {"greenGreen", 100},  {"greenBlue", 0},
+                  {"blueRed", 0},        {"blueGreen", 0},     {"blueBlue", 100},
+                  {"redConstant", 0},    {"greenConstant", 0}, {"blueConstant", 0},
+                  {"monochrome", false}, {"monoRed", 40},      {"monoGreen", 40},
+                  {"monoBlue", 20},      {"monoConstant", 0}};
     else if (_type == "colorLookup")
         params = {{"preset", 0}};
     else if (_type == "posterize")
@@ -1104,9 +1097,12 @@ void Document::resetAdjustmentLayer()
                       {"density", 25},
                       {"preserveLuminosity", true}};
     else if (type == QStringLiteral("channelMixer"))
-        parameters = {{"redRed", 100}, {"redGreen", 0},     {"redBlue", 0},
-                      {"greenRed", 0}, {"greenGreen", 100}, {"greenBlue", 0},
-                      {"blueRed", 0},  {"blueGreen", 0},    {"blueBlue", 100}};
+        parameters = {{"redRed", 100},       {"redGreen", 0},      {"redBlue", 0},
+                      {"greenRed", 0},       {"greenGreen", 100},  {"greenBlue", 0},
+                      {"blueRed", 0},        {"blueGreen", 0},     {"blueBlue", 100},
+                      {"redConstant", 0},    {"greenConstant", 0}, {"blueConstant", 0},
+                      {"monochrome", false}, {"monoRed", 40},      {"monoGreen", 40},
+                      {"monoBlue", 20},      {"monoConstant", 0}};
     else if (type == QStringLiteral("colorLookup"))
         parameters = {{"preset", 0}};
     else if (type == QStringLiteral("posterize"))

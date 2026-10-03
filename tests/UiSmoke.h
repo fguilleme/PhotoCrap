@@ -437,6 +437,20 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "photo filter exposes presets, custom color, density, and luminosity control"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("channelMixer");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto channelMixerEditor = _window->findChild<QObject *>("channelMixerEditor");
+    auto channelMixerPreset = _window->findChild<QObject *>("channelMixerPreset");
+    auto channelMixerOutput = _window->findChild<QObject *>("channelMixerOutput");
+    auto channelMixerTotal  = _window->findChild<QObject *>("channelMixerTotal");
+    auto channelMixerMono   = _window->findChild<QObject *>("channelMixerMonochrome");
+    if (!require(channelMixerEditor && channelMixerEditor->property("visible").toBool() &&
+                     channelMixerPreset && channelMixerOutput && channelMixerTotal &&
+                     channelMixerMono,
+                 "channel mixer exposes presets, output channels, total, and monochrome mode"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

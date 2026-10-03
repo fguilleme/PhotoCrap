@@ -802,6 +802,34 @@ private slots:
         QVERIFY(filtered.red() > source.red());
         QVERIFY(filtered.blue() < source.blue());
     }
+    void channelMixerSupportsOutputChannelsConstantsAndMonochrome()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.setColor(QColor(80, 140, 210));
+        d.setTool("fill");
+        d.beginStroke(16, 16);
+        d.endStroke();
+        d.addAdjustmentLayer("channelMixer");
+        QCOMPARE(d.composite().pixelColor(16, 16), QColor(80, 140, 210));
+
+        d.beginLayerPreview();
+        d.previewLayerParameter("redRed", 0);
+        d.previewLayerParameter("redGreen", 100);
+        QCOMPARE(d.composite().pixelColor(16, 16).red(), 140);
+        d.cancelLayerPreview();
+
+        d.beginLayerPreview();
+        d.previewLayerParameter("monochrome", true);
+        d.previewLayerParameter("monoRed", 0);
+        d.previewLayerParameter("monoGreen", 100);
+        d.previewLayerParameter("monoBlue", 0);
+        const QColor monochrome = d.composite().pixelColor(16, 16);
+        QCOMPARE(monochrome, QColor(140, 140, 140));
+        d.previewLayerParameter("monoConstant", 10);
+        QCOMPARE(d.composite().pixelColor(16, 16).red(), 166);
+        d.cancelLayerPreview();
+    }
     void blendModeHoverUsesDraftAndCommitsOnlyTheChosenMode()
     {
         Document d;

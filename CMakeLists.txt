@@ -212,7 +212,13 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
-    set_tests_properties(document qml_smoke PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+    set_tests_properties(document qml_smoke PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+    )
+    # The engine suite includes multiple independent full-resolution async
+    # deadlines; its aggregate timeout must be greater than their sum.
+    set_tests_properties(document PROPERTIES TIMEOUT 180)
+    set_tests_properties(qml_smoke PROPERTIES TIMEOUT 60)
 endif()
 
 include(GNUInstallDirs)

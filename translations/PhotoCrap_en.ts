@@ -238,6 +238,14 @@
       <translation>Layer Visibility</translation>
     </message>
     <message>
+      <source>Isoler le calque</source>
+      <translation>Isolate Layer</translation>
+    </message>
+    <message>
+      <source>Restaurer la visibilité des calques</source>
+      <translation>Restore Layer Visibility</translation>
+    </message>
+    <message>
       <location filename="../src/Document.cpp" line="672" />
       <source>Verrouillage du calque</source>
       <translation>Layer Lock</translation>
@@ -1557,6 +1565,10 @@
       <location filename="../qml/Main.qml" line="608" />
       <source>Visibilité du calque</source>
       <translation>Layer Visibility</translation>
+    </message>
+    <message>
+      <source>Visibilité du calque — Alt-clic pour isoler</source>
+      <translation>Layer visibility — Alt-click to isolate</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="619" />

@@ -123,7 +123,9 @@ void Document::restore(const Snapshot &_state)
     m_selectedLayers       = _state.selectedLayers;
     m_layerSelectionAnchor = _state.layerSelectionAnchor;
     m_editingMask          = _state.editingMask;
-    m_stateId              = _state.id;
+    m_visibilityBeforeIsolation.clear();
+    m_isolatedLayer = -1;
+    m_stateId       = _state.id;
     changed();
     if (sizeChanged)
         emit canvasSizeChanged();
@@ -803,7 +805,47 @@ void Document::setLayerVisible(int _i, bool _visible)
 {
     if (_i < 0 || _i >= m_layers.size() || m_layers[_i].visible == _visible)
         return;
+    m_visibilityBeforeIsolation.clear();
+    m_isolatedLayer = -1;
     edit(tr("Visibilité du calque"), [&] { m_layers[_i].visible = _visible; });
+}
+void Document::toggleLayerIsolation(int _i)
+{
+    if (_i < 0 || _i >= m_layers.size())
+        return;
+    if (m_isolatedLayer == _i && m_visibilityBeforeIsolation.size() == m_layers.size()) {
+        const QVector<bool> previousVisibility = m_visibilityBeforeIsolation;
+        edit(tr("Restaurer la visibilité des calques"), [&] {
+            for (int index = 0; index < m_layers.size(); ++index)
+                m_layers[index].visible = previousVisibility[index];
+        });
+        m_visibilityBeforeIsolation.clear();
+        m_isolatedLayer = -1;
+        return;
+    }
+
+    QVector<bool> previousVisibility;
+    previousVisibility.reserve(m_layers.size());
+    for (const Layer &layer : std::as_const(m_layers))
+        previousVisibility.append(layer.visible);
+    const QString targetGroup   = m_layers[_i].groupId;
+    const bool    targetIsGroup = m_layers[_i].kind == QStringLiteral("group");
+    const QString targetGroupId = targetIsGroup ? m_layers[_i].groupId : QString{};
+    edit(tr("Isoler le calque"), [&] {
+        for (int index = 0; index < m_layers.size(); ++index) {
+            Layer &layer = m_layers[index];
+            if (targetIsGroup)
+                layer.visible = index == _i || (layer.groupId == targetGroupId &&
+                                                layer.kind != QStringLiteral("group") &&
+                                                previousVisibility[index]);
+            else
+                layer.visible =
+                    index == _i || (layer.kind == QStringLiteral("group") &&
+                                    !targetGroup.isEmpty() && layer.groupId == targetGroup);
+        }
+    });
+    m_visibilityBeforeIsolation = previousVisibility;
+    m_isolatedLayer             = _i;
 }
 void Document::setLayerLocked(int _i, bool _locked)
 {

@@ -823,7 +823,30 @@ ApplicationWindow {
                                     hint: modelData.groupCollapsed ? qsTr("Déplier le groupe") : qsTr("Replier le groupe")
                                     onClicked: editor.toggleGroupCollapsed(modelData.layerIndex)
                                 }
-                                IconButton { glyph: modelData.visible?"◉":"○"; implicitWidth: 24; hint: qsTr("Visibilité du calque"); onClicked: editor.setLayerVisible(modelData.layerIndex,!modelData.visible) }
+                                Item {
+                                    Layout.preferredWidth: 24
+                                    Layout.fillHeight: true
+                                    Label {
+                                        anchors.centerIn: parent
+                                        text: modelData.visible ? "◉" : "○"
+                                        color: visibilityMouse.containsMouse ? "#ffffff" : "#c0c7d0"
+                                        font.pixelSize: 19
+                                    }
+                                    MouseArea {
+                                        id: visibilityMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: function(mouse) {
+                                            if(mouse.modifiers & Qt.AltModifier)
+                                                editor.toggleLayerIsolation(modelData.layerIndex)
+                                            else
+                                                editor.setLayerVisible(modelData.layerIndex,!modelData.visible)
+                                        }
+                                    }
+                                    ToolTip.visible: visibilityMouse.containsMouse
+                                    ToolTip.text: qsTr("Visibilité du calque — Alt-clic pour isoler")
+                                    ToolTip.delay: 500
+                                }
                                 Label {
                                     visible: modelData.clippingMask
                                     Layout.preferredWidth: visible ? 14 : 0

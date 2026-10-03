@@ -221,6 +221,26 @@ private slots:
         d.undo();
         QCOMPARE(d.activeLayer(), 1);
     }
+    void altClickIsolationRestoresPreviousLayerVisibility()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16));
+        d.addLayer();
+        d.addLayer();
+        d.setLayerVisible(1, false);
+        d.toggleLayerIsolation(2);
+        for (const QVariant &entry : d.layers()) {
+            const QVariantMap layer = entry.toMap();
+            QCOMPARE(layer.value("visible").toBool(), layer.value("layerIndex").toInt() == 2);
+        }
+
+        d.toggleLayerIsolation(2);
+        for (const QVariant &entry : d.layers()) {
+            const QVariantMap layer = entry.toMap();
+            const int         index = layer.value("layerIndex").toInt();
+            QCOMPARE(layer.value("visible").toBool(), index != 1);
+        }
+    }
     void clippingMasksRestrictRenderingAndPersist()
     {
         Document d;

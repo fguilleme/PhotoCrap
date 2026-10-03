@@ -241,6 +241,7 @@ public:
     Q_INVOKABLE void toggleGroupCollapsed(int _index);
     Q_INVOKABLE void renameLayer(int _index, const QString &_name);
     Q_INVOKABLE void setLayerVisible(int _index, bool _visible);
+    Q_INVOKABLE void toggleLayerIsolation(int _index);
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);
     Q_INVOKABLE void setLayerOpacity(int _index, qreal _opacity);
     Q_INVOKABLE void setLayerBlend(int _index, int _blend);
@@ -305,7 +306,9 @@ private:
     int            m_active = 0;
     QSet<int>      m_selectedLayers{0};
     int            m_layerSelectionAnchor = 0;
-    QString        m_name                 = QStringLiteral("Sans titre");
+    QVector<bool>  m_visibilityBeforeIsolation;
+    int            m_isolatedLayer = -1;
+    QString        m_name          = QStringLiteral("Sans titre");
     QUrl           m_projectUrl;
     QString        m_tool = QStringLiteral("brush");
     QColor         m_color{Qt::black}, m_secondary{Qt::white};

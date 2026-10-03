@@ -697,7 +697,10 @@ void Document::addAdjustmentLayer(const QString &_type)
     else if (_type == "colorBalance" || _type == "selectiveColor")
         params = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
     else if (_type == "blackWhite")
-        params = {{"reds", 40}, {"greens", 40}, {"blues", 20}};
+        params = {{"reds", 40},           {"yellows", 60},
+                  {"greens", 40},         {"cyans", 60},
+                  {"blues", 20},          {"magentas", 80},
+                  {"tintEnabled", false}, {"tintColor", QStringLiteral("#d6aa78")}};
     else if (_type == "photoFilter")
         params = {{"hue", 35}, {"density", 25}};
     else if (_type == "channelMixer")
@@ -989,6 +992,63 @@ QColor Document::sampleCompositeColor(int _x, int _y) const
                                   qBound(0, _y, m_size.height() - 1));
 }
 
+QVariantList Document::autoBlackWhiteValues() const
+{
+    const QVariantList defaults{40, 60, 40, 60, 20, 80};
+    if (m_active < 0 || m_active >= m_layers.size())
+        return defaults;
+    QVector<Layer> layers    = m_layers;
+    layers[m_active].visible = false;
+    const QSize  target      = m_size.scaled(QSize(640, 640), Qt::KeepAspectRatio);
+    const QImage source      = renderPreviewSnapshot(std::move(layers), m_size, target, true)
+                                   .convertToFormat(QImage::Format_ARGB32);
+    if (source.isNull())
+        return defaults;
+
+    std::array<double, 6> luminanceSum{};
+    std::array<double, 6> weights{};
+    double                globalSum    = 0.;
+    double                globalWeight = 0.;
+    for (int y = 0; y < source.height(); ++y) {
+        const auto *row = reinterpret_cast<const QRgb *>(source.constScanLine(y));
+        for (int x = 0; x < source.width(); ++x) {
+            const QRgb pixel = row[x];
+            const int  red = qRed(pixel), green = qGreen(pixel), blue = qBlue(pixel);
+            const int  maximum = qMax(red, qMax(green, blue));
+            const int  minimum = qMin(red, qMin(green, blue));
+            const int  chroma  = maximum - minimum;
+            if (chroma < 6)
+                continue;
+            double hue = 0.;
+            if (maximum == red)
+                hue = std::fmod((green - blue) / double(chroma) + 6., 6.);
+            else if (maximum == green)
+                hue = (blue - red) / double(chroma) + 2.;
+            else
+                hue = (red - green) / double(chroma) + 4.;
+            const int    sector    = qBound(0, int(std::floor(hue + .5)) % 6, 5);
+            const double weight    = chroma / 255.;
+            const double luminance = .2126 * red + .7152 * green + .0722 * blue;
+            luminanceSum[size_t(sector)] += luminance * weight;
+            weights[size_t(sector)] += weight;
+            globalSum += luminance * weight;
+            globalWeight += weight;
+        }
+    }
+    if (globalWeight <= 0.)
+        return defaults;
+    const double globalMean = globalSum / globalWeight;
+    QVariantList result;
+    for (int index = 0; index < 6; ++index) {
+        const double familyMean = weights[size_t(index)] > 0.
+                                      ? luminanceSum[size_t(index)] / weights[size_t(index)]
+                                      : globalMean;
+        result.append(
+            qBound(-200, defaults[index].toInt() + qRound((globalMean - familyMean) * .45), 300));
+    }
+    return result;
+}
+
 void Document::resetAdjustmentLayer()
 {
     if (m_active < 0 || m_active >= m_layers.size() ||
@@ -1027,7 +1087,10 @@ void Document::resetAdjustmentLayer()
     else if (type == QStringLiteral("colorBalance") || type == QStringLiteral("selectiveColor"))
         parameters = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
     else if (type == QStringLiteral("blackWhite"))
-        parameters = {{"reds", 40}, {"greens", 40}, {"blues", 20}};
+        parameters = {{"reds", 40},           {"yellows", 60},
+                      {"greens", 40},         {"cyans", 60},
+                      {"blues", 20},          {"magentas", 80},
+                      {"tintEnabled", false}, {"tintColor", QStringLiteral("#d6aa78")}};
     else if (type == QStringLiteral("photoFilter"))
         parameters = {{"hue", 35}, {"density", 25}};
     else if (type == QStringLiteral("channelMixer"))

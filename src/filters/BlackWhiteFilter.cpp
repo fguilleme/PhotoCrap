@@ -1,10 +1,13 @@
 #include "BlackWhiteFilter.h"
 #include "ImageUtils.h"
 
+#include <QColor>
 #include <QColorSpace>
 #include <QThreadPool>
 #include <QVector>
 #include <QtConcurrent>
+#include <array>
+#include <cmath>
 #include <numeric>
 
 namespace PhotoCrap::Filters
@@ -13,11 +16,26 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
 {
     if (_source.isNull())
         return _source;
-    const int    redWeight   = _parameters.value("reds", 40).toInt();
-    const int    greenWeight = _parameters.value("greens", 40).toInt();
-    const int    blueWeight  = _parameters.value("blues", 20).toInt();
-    const int    total       = qMax(1, redWeight + greenWeight + blueWeight);
-    const QImage input       = _source.convertToFormat(QImage::Format_ARGB32);
+    const std::array<double, 6> values{
+        _parameters.value("reds", 40).toDouble(),   _parameters.value("yellows", 60).toDouble(),
+        _parameters.value("greens", 40).toDouble(), _parameters.value("cyans", 60).toDouble(),
+        _parameters.value("blues", 20).toDouble(),  _parameters.value("magentas", 80).toDouble()};
+    const std::array<double, 6> defaults{40., 60., 40., 60., 20., 80.};
+    const bool                  tintEnabled = _parameters.value("tintEnabled", false).toBool();
+    QColor tint(_parameters.value("tintColor", QStringLiteral("#d6aa78")).toString());
+    if (!tint.isValid())
+        tint = QColor(QStringLiteral("#d6aa78"));
+    std::array<QRgb, 256> tintLookup{};
+    if (tintEnabled) {
+        float hue = 0., saturation = 0., lightness = 0., alpha = 0.;
+        tint.getHslF(&hue, &saturation, &lightness, &alpha);
+        for (int level = 0; level < 256; ++level) {
+            QColor mapped;
+            mapped.setHslF(hue, saturation, level / 255., 1.);
+            tintLookup[size_t(level)] = mapped.rgba();
+        }
+    }
+    const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
     QImage       result(input.size(), QImage::Format_ARGB32);
 
     const int jobCount =
@@ -32,12 +50,33 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
             auto       *output = reinterpret_cast<QRgb *>(result.scanLine(y));
             for (int x = 0; x < input.width(); ++x) {
                 const QRgb pixel = source[x];
-                const int  gray  = qBound(0,
-                                          (qRed(pixel) * redWeight + qGreen(pixel) * greenWeight +
-                                           qBlue(pixel) * blueWeight) /
-                                              total,
-                                          255);
-                output[x]        = qRgba(gray, gray, gray, qAlpha(pixel));
+                const int  red = qRed(pixel), green = qGreen(pixel), blue = qBlue(pixel);
+                const int  maximum = qMax(red, qMax(green, blue));
+                const int  minimum = qMin(red, qMin(green, blue));
+                const int  chroma  = maximum - minimum;
+                double     hue     = 0.;
+                if (chroma > 0) {
+                    if (maximum == red)
+                        hue = std::fmod((green - blue) / double(chroma) + 6., 6.);
+                    else if (maximum == green)
+                        hue = (blue - red) / double(chroma) + 2.;
+                    else
+                        hue = (red - green) / double(chroma) + 4.;
+                }
+                const int    first    = int(std::floor(hue)) % 6;
+                const int    second   = (first + 1) % 6;
+                const double fraction = hue - std::floor(hue);
+                const double adjustment =
+                    ((values[size_t(first)] - defaults[size_t(first)]) * (1. - fraction) +
+                     (values[size_t(second)] - defaults[size_t(second)]) * fraction) /
+                    100.;
+                const double luminance = .2126 * red + .7152 * green + .0722 * blue;
+                const int    gray      = qBound(0, qRound(luminance + adjustment * chroma), 255);
+                if (tintEnabled) {
+                    const QRgb mapped = tintLookup[size_t(gray)];
+                    output[x] = qRgba(qRed(mapped), qGreen(mapped), qBlue(mapped), qAlpha(pixel));
+                } else
+                    output[x] = qRgba(gray, gray, gray, qAlpha(pixel));
             }
         }
     });

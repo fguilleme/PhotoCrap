@@ -410,6 +410,19 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "solid color fill exposes its color picker"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("blackWhite");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto blackWhiteEditor = _window->findChild<QObject *>("blackWhiteEditor");
+    auto blackWhitePreset = _window->findChild<QObject *>("blackWhitePreset");
+    auto blackWhiteAuto   = _window->findChild<QObject *>("blackWhiteAutoButton");
+    auto blackWhiteTint   = _window->findChild<QObject *>("blackWhiteTintCheck");
+    if (!require(blackWhiteEditor && blackWhiteEditor->property("visible").toBool() &&
+                     blackWhiteEditor->property("controlCount").toInt() == 6 && blackWhitePreset &&
+                     blackWhiteAuto && blackWhiteTint,
+                 "black-and-white adjustment exposes presets, auto, tint, and six families"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

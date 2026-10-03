@@ -194,6 +194,7 @@ qt_add_qml_module(PhotoCrap
         qml/CurvesEditor.qml
         qml/ColorEditor.qml
         qml/ColorBalanceEditor.qml
+        qml/BlackWhiteEditor.qml
         qml/GradientMapEditor.qml
         qml/LightEditor.qml
         qml/LayerPropertiesActions.qml

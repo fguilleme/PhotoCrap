@@ -698,6 +698,40 @@ private slots:
                                 .arg(brightnessElapsedMilliseconds)));
         d.cancelLayerPreview();
     }
+    void blackWhiteUsesSixColorFamiliesAutoAndTint()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.setColor(QColor(220, 80, 35));
+        d.setTool("fill");
+        d.beginStroke(16, 16);
+        d.endStroke();
+        d.addAdjustmentLayer("blackWhite");
+
+        const QVariantMap parameters = d.layers().first().toMap().value("parameters").toMap();
+        QCOMPARE(parameters.value("reds").toInt(), 40);
+        QCOMPARE(parameters.value("yellows").toInt(), 60);
+        QCOMPARE(parameters.value("greens").toInt(), 40);
+        QCOMPARE(parameters.value("cyans").toInt(), 60);
+        QCOMPARE(parameters.value("blues").toInt(), 20);
+        QCOMPARE(parameters.value("magentas").toInt(), 80);
+        QVERIFY(!parameters.value("tintEnabled").toBool());
+
+        const QVariantList automatic = d.autoBlackWhiteValues();
+        QCOMPARE(automatic.size(), 6);
+        for (const QVariant &value : automatic)
+            QVERIFY(value.toInt() >= -200 && value.toInt() <= 300);
+
+        d.beginLayerPreview();
+        d.previewLayerParameter("tintEnabled", true);
+        d.previewLayerParameter("tintColor", QColor("#c05030"));
+        const QColor tinted = d.composite().pixelColor(16, 16);
+        QVERIFY(tinted.red() != tinted.green() || tinted.green() != tinted.blue());
+        d.cancelLayerPreview();
+        const QColor neutral = d.composite().pixelColor(16, 16);
+        QCOMPARE(neutral.red(), neutral.green());
+        QCOMPARE(neutral.green(), neutral.blue());
+    }
     void asynchronousPreviewKeepsOnlyTheLatestRequestedValue()
     {
         Document d;

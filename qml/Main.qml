@@ -36,6 +36,7 @@ ApplicationWindow {
     property bool importing: false
     property bool changingSecondary: false
     property bool changingSolidColor: false
+    property bool changingBlackWhiteTint: false
     property bool spacePressed: false
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
@@ -1109,7 +1110,12 @@ ApplicationWindow {
         id: colorDialog
         title: qsTr("Choisir une couleur")
         onAccepted: {
-            if (changingSolidColor) {
+            if (changingBlackWhiteTint) {
+                editor.beginLayerPreview()
+                editor.previewLayerParameter("tintColor", selectedColor.toString())
+                editor.finishLayerPreview(qsTr("Modifier la teinte noir et blanc"))
+                changingBlackWhiteTint = false
+            } else if (changingSolidColor) {
                 editor.beginLayerPreview()
                 editor.previewLayerParameter("color", selectedColor.toString())
                 editor.finishLayerPreview(qsTr("Modifier la couleur du calque"))
@@ -1119,7 +1125,10 @@ ApplicationWindow {
             else
                 editor.color=selectedColor
         }
-        onRejected: changingSolidColor = false
+        onRejected: {
+            changingSolidColor = false
+            changingBlackWhiteTint = false
+        }
     }
     Dialog {
         id: newDialog; objectName: "newDialog"; title: qsTr("Nouveau document"); anchors.centerIn: parent; modal: true; width: 410
@@ -1373,7 +1382,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -1468,6 +1477,41 @@ ApplicationWindow {
                         onEditStarted: editor.beginLayerPreview()
                         onPreviewed: function(key,value) { if (layerPreview.checked) window.queueLayerPreview(key,value) }
                         onCommitted: function(key,value) { window.previewLayerValue(key,value,true) }
+                    }
+                    BlackWhiteEditor {
+                        objectName: "blackWhiteEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "blackWhite"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) { if (layerPreview.checked) window.queueLayerPreview(key,value) }
+                        onCommitted: function(key,value) { window.previewLayerValue(key,value,true) }
+                        onPresetRequested: function(values) {
+                            window.cancelLayerPreviewQueue()
+                            editor.beginLayerPreview()
+                            const keys = ["reds","yellows","greens","cyans","blues","magentas"]
+                            for (let i=0; i<keys.length; ++i)
+                                editor.previewLayerParameter(keys[i], values[i])
+                            editor.finishLayerPreview(qsTr("Appliquer un style noir et blanc"))
+                        }
+                        onAutoRequested: {
+                            const values = editor.autoBlackWhiteValues()
+                            editor.beginLayerPreview()
+                            const keys = ["reds","yellows","greens","cyans","blues","magentas"]
+                            for (let i=0; i<keys.length; ++i)
+                                editor.previewLayerParameter(keys[i], values[i])
+                            editor.finishLayerPreview(qsTr("Réglage automatique noir et blanc"))
+                        }
+                        onTintToggled: function(enabled) {
+                            editor.beginLayerPreview()
+                            editor.previewLayerParameter("tintEnabled", enabled)
+                            editor.finishLayerPreview(qsTr("Modifier la teinte noir et blanc"))
+                        }
+                        onTintColorRequested: {
+                            changingBlackWhiteTint = true
+                            colorDialog.selectedColor = activeInfo.parameters.tintColor || "#d6aa78"
+                            colorDialog.open()
+                        }
                     }
                     LevelsEditor {
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="levels"

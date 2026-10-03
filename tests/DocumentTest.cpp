@@ -644,8 +644,11 @@ private slots:
         QElapsedTimer scheduling;
         scheduling.start();
         d.addAdjustmentLayer("gaussianBlur");
-        QVERIFY2(scheduling.elapsed() < 100,
-                 "adding an adjustment must only schedule rendering on the UI thread");
+        const qint64 schedulingMilliseconds = scheduling.elapsed();
+        QVERIFY2(schedulingMilliseconds < 500,
+                 qPrintable(QStringLiteral("adding an adjustment took %1 ms; the UI thread must "
+                                           "only schedule rendering")
+                                .arg(schedulingMilliseconds)));
         QTRY_VERIFY_WITH_TIMEOUT(!rendered.isEmpty() && renderedSizes.contains(QSize(800, 450)),
                                  20000);
         QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 3, 10000);

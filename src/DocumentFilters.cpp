@@ -925,6 +925,45 @@ void Document::cancelLayerPropertiesSession()
     restore(before);
 }
 
+QColor Document::sampleCurvePoint(const QString &_mode, int _x, int _y)
+{
+    static const QSet<QString> modes{QStringLiteral("black"), QStringLiteral("gray"),
+                                     QStringLiteral("white")};
+    if (!modes.contains(_mode) || m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].adjustmentType != QStringLiteral("curves") || m_size.isEmpty())
+        return {};
+    const QColor sampled = composite().pixelColor(qBound(0, _x, m_size.width() - 1),
+                                                  qBound(0, _y, m_size.height() - 1));
+    beginLayerPreview();
+    previewLayerParameter(_mode + QStringLiteral("Sample"),
+                          QVariantList{sampled.red(), sampled.green(), sampled.blue()});
+    finishLayerPreview(tr("Échantillonner le point de la courbe"));
+    return sampled;
+}
+
+QColor Document::sampleCompositeColor(int _x, int _y) const
+{
+    if (m_size.isEmpty())
+        return {};
+    return composite().pixelColor(qBound(0, _x, m_size.width() - 1),
+                                  qBound(0, _y, m_size.height() - 1));
+}
+
+void Document::resetCurveAdjustment()
+{
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].adjustmentType != QStringLiteral("curves"))
+        return;
+    beginLayerPreview();
+    previewLayerParameter(
+        QStringLiteral("points"),
+        QVariantList{QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 255}, {"y", 255}}});
+    for (const QString &key : {QStringLiteral("blackSample"), QStringLiteral("graySample"),
+                               QStringLiteral("whiteSample")})
+        previewLayerParameter(key, QVariantList{});
+    finishLayerPreview(tr("Réinitialiser les courbes"));
+}
+
 void Document::applyFilter(const QString &_filter, qreal _amount)
 {
     static const QStringList supported{"grayscale", "invert",     "sepia", "brightness",

@@ -43,6 +43,7 @@ ApplicationWindow {
     property string newActionText: newAction.text
     property int recentFileCount: recentFiles.entries.length
     property bool layerPreviewPending: false
+    property string curvePickerMode: ""
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
@@ -605,6 +606,88 @@ ApplicationWindow {
                                 }
                                 onReleased: editor.endStroke()
                                 onCanceled: editor.cancelStroke()
+                            }
+                            MouseArea {
+                                id: curvePickerArea
+                                objectName: "curvePickerArea"
+                                property real pointerX: 0
+                                property real pointerY: 0
+                                anchors.fill: parent
+                                z: 6
+                                enabled: window.curvePickerMode.length > 0 && layerPropertiesDialog.opened
+                                hoverEnabled: enabled
+                                cursorShape: Qt.BlankCursor
+                                onPositionChanged: function(mouse) {
+                                    pointerX = mouse.x
+                                    pointerY = mouse.y
+                                }
+                                onClicked: function(mouse) {
+                                    const documentX = Math.floor(mouse.x/zoom)
+                                    const documentY = Math.floor(mouse.y/zoom)
+                                    if (window.curvePickerMode === "color")
+                                        curvesEditorControl.addColorSample(
+                                            editor.sampleCompositeColor(documentX,documentY))
+                                    else
+                                        editor.sampleCurvePoint(window.curvePickerMode,
+                                                                documentX,documentY)
+                                }
+                            }
+                            Canvas {
+                                id: curvePickerCursor
+                                objectName: "curvePickerCursor"
+                                width: 34
+                                height: 34
+                                x: curvePickerArea.pointerX - 3
+                                y: curvePickerArea.pointerY - 30
+                                z: 7
+                                enabled: false
+                                visible: curvePickerArea.enabled && curvePickerArea.containsMouse
+                                onPaint: {
+                                    const c = getContext("2d")
+                                    c.reset()
+                                    c.clearRect(0,0,width,height)
+                                    c.lineCap = "round"
+                                    c.lineJoin = "round"
+                                    c.beginPath()
+                                    c.moveTo(3,30)
+                                    c.lineTo(9,24)
+                                    c.lineTo(7,22)
+                                    c.lineTo(19,10)
+                                    c.lineTo(23,14)
+                                    c.lineTo(11,26)
+                                    c.lineTo(9,24)
+                                    c.strokeStyle = "rgba(0,0,0,.9)"
+                                    c.lineWidth = 5
+                                    c.stroke()
+                                    c.strokeStyle = "#f5f7f9"
+                                    c.lineWidth = 2
+                                    c.stroke()
+                                    c.beginPath()
+                                    c.moveTo(18,9)
+                                    c.lineTo(23,4)
+                                    c.lineTo(30,11)
+                                    c.lineTo(25,16)
+                                    c.closePath()
+                                    c.fillStyle = "#dce4ea"
+                                    c.fill()
+                                    c.strokeStyle = "#101419"
+                                    c.lineWidth = 2
+                                    c.stroke()
+                                    c.beginPath()
+                                    c.arc(28,27,5,0,Math.PI*2)
+                                    c.fillStyle = window.curvePickerMode === "black" ? "#08090a"
+                                                : window.curvePickerMode === "gray" ? "#8d969f"
+                                                : window.curvePickerMode === "white" ? "#ffffff"
+                                                : "#5fca8a"
+                                    c.fill()
+                                    c.strokeStyle = window.curvePickerMode === "white" ? "#20252b" : "#ffffff"
+                                    c.lineWidth = 1.5
+                                    c.stroke()
+                                }
+                                Connections {
+                                    target: window
+                                    function onCurvePickerModeChanged() { curvePickerCursor.requestPaint() }
+                                }
                             }
                             Canvas {
                                 id: brushCursor
@@ -1232,6 +1315,7 @@ ApplicationWindow {
             editor.beginLayerPropertiesSession()
         }
         onClosed: {
+            window.curvePickerMode = ""
             window.cancelLayerPreviewQueue()
             editor.cancelLayerPreview()
             if (keepChanges)
@@ -1293,10 +1377,13 @@ ApplicationWindow {
                         }
                     }
                     CurvesEditor {
+                        id: curvesEditorControl
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="curves"
                         Layout.fillWidth: true
                         histogram: (editor.revision, editor.histogram())
                         sourcePoints: activeInfo.parameters.points || [{"x":0,"y":0},{"x":255,"y":255}]
+                        pickerMode: window.curvePickerMode
+                        onPickerSelected: function(mode) { window.curvePickerMode = mode }
                         onEditStarted: editor.beginLayerPreview()
                         onPreviewed: function(points) {
                             if(layerPreview.checked) window.queueLayerPreview("points",points)
@@ -1352,24 +1439,39 @@ ApplicationWindow {
                 }
             }
         }
-        footer: DialogButtonBox {
-            alignment: Qt.AlignRight
-            DialogActionButton {
-                objectName: "layerPropertiesCancelButton"
-                text: qsTr("Annuler")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-                onClicked: layerPropertiesDialog.reject()
-            }
-            DialogActionButton {
-                objectName: "layerPropertiesCloseButton"
-                text: qsTr("Fermer")
-                defaultButton: true
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: {
-                    window.flushLayerPreview()
-                    editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
-                    layerPropertiesDialog.keepChanges = true
-                    layerPropertiesDialog.accept()
+        footer: Item {
+            implicitHeight: 48
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                spacing: 8
+                DialogActionButton {
+                    objectName: "curveResetButton"
+                    visible: !activeInfo.editingMask && activeInfo.adjustmentType === "curves"
+                    text: qsTr("Réinitialiser")
+                    Accessible.name: qsTr("Réinitialiser toutes les courbes")
+                    onClicked: {
+                        window.curvePickerMode = ""
+                        editor.resetCurveAdjustment()
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                DialogActionButton {
+                    objectName: "layerPropertiesCancelButton"
+                    text: qsTr("Annuler")
+                    onClicked: layerPropertiesDialog.reject()
+                }
+                DialogActionButton {
+                    objectName: "layerPropertiesCloseButton"
+                    text: qsTr("Fermer")
+                    defaultButton: true
+                    onClicked: {
+                        window.flushLayerPreview()
+                        editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
+                        layerPropertiesDialog.keepChanges = true
+                        layerPropertiesDialog.accept()
+                    }
                 }
             }
         }

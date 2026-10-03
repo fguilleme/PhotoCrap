@@ -324,6 +324,18 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      !levelsEditor->isVisible(),
                  "curves adjustment uses its dedicated editor"))
         return false;
+    auto curveResetButton  = _window->findChild<QObject *>("curveResetButton");
+    auto curveColorPicker  = _window->findChild<QObject *>("curveColorPicker");
+    auto curveBlackPicker  = _window->findChild<QObject *>("curveBlackPicker");
+    auto curveGrayPicker   = _window->findChild<QObject *>("curveGrayPicker");
+    auto curveWhitePicker  = _window->findChild<QObject *>("curveWhitePicker");
+    auto curvePickerArea   = _window->findChild<QObject *>("curvePickerArea");
+    auto curvePickerCursor = _window->findChild<QObject *>("curvePickerCursor");
+    if (!require(curveResetButton && curveColorPicker && curveBlackPicker && curveGrayPicker &&
+                     curveWhitePicker && curvePickerArea && curvePickerCursor &&
+                     curvePickerArea->property("cursorShape").toInt() == int(Qt::BlankCursor),
+                 "curves exposes color, black, gray, and white image eyedroppers"))
+        return false;
     auto curvesRoot = _window->findChild<QQuickItem *>("curvesEditorRoot");
     if (!require(curvesRoot, "curves editor root exists"))
         return false;

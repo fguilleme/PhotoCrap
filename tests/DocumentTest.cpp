@@ -604,6 +604,35 @@ private slots:
         d.cancelLayerPreview();
         QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::white));
     }
+    void curveEyedroppersSampleColorsAndNeutralizeGray()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16));
+        const QColor cast(72, 128, 184);
+        d.setColor(cast);
+        d.setTool("fill");
+        d.beginStroke(8, 8);
+        d.endStroke();
+        d.addAdjustmentLayer("curves");
+
+        QCOMPARE(d.sampleCompositeColor(8, 8), cast);
+        QCOMPARE(d.sampleCurvePoint("gray", 8, 8), cast);
+        const QColor neutral = d.composite().pixelColor(8, 8);
+        QVERIFY(qAbs(neutral.red() - neutral.green()) <= 1);
+        QVERIFY(qAbs(neutral.green() - neutral.blue()) <= 1);
+        d.undo();
+
+        QCOMPARE(d.sampleCurvePoint("black", 8, 8), cast);
+        QCOMPARE(d.composite().pixelColor(8, 8), QColor(Qt::black));
+        d.undo();
+
+        QCOMPARE(d.sampleCurvePoint("white", 8, 8), cast);
+        QCOMPARE(d.composite().pixelColor(8, 8), QColor(Qt::white));
+        d.resetCurveAdjustment();
+        QCOMPARE(d.composite().pixelColor(8, 8), cast);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(8, 8), QColor(Qt::white));
+    }
     void pointAdjustmentPreviewsRemainInteractiveAtUhd()
     {
         Document d;

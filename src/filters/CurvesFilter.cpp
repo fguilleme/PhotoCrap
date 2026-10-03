@@ -88,14 +88,36 @@ std::array<int, 256> curveTable(const QVariantMap &_parameters)
     }
     return table;
 }
+
+QVariantList channelPoints(const QVariantMap &_parameters, int _channel)
+{
+    QVariantList result{QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 255}, {"y", 255}}};
+    const auto   appendSample = [&](const QString &_key, int _output) {
+        const QVariantList sample = _parameters.value(_key).toList();
+        if (sample.size() == 3)
+            result.append(QVariantMap{{"x", sample[_channel].toInt()}, {"y", _output}});
+    };
+    appendSample(QStringLiteral("blackSample"), 0);
+    const QVariantList gray = _parameters.value(QStringLiteral("graySample")).toList();
+    if (gray.size() == 3) {
+        const int neutral =
+            qRound(.2126 * gray[0].toInt() + .7152 * gray[1].toInt() + .0722 * gray[2].toInt());
+        result.append(QVariantMap{{"x", gray[_channel].toInt()}, {"y", neutral}});
+    }
+    appendSample(QStringLiteral("whiteSample"), 255);
+    return result;
+}
 } // namespace
 
 QImage applyCurves(const QImage &_source, const QVariantMap &_parameters)
 {
     if (_source.isNull())
         return _source;
-    const auto   table = curveTable(_parameters);
-    const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
+    const auto   table      = curveTable(_parameters);
+    const auto   redTable   = curveTable({{"points", channelPoints(_parameters, 0)}});
+    const auto   greenTable = curveTable({{"points", channelPoints(_parameters, 1)}});
+    const auto   blueTable  = curveTable({{"points", channelPoints(_parameters, 2)}});
+    const QImage input      = _source.convertToFormat(QImage::Format_ARGB32);
     QImage       result(input.size(), QImage::Format_ARGB32);
     const int    jobCount =
         qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
@@ -107,9 +129,12 @@ QImage applyCurves(const QImage &_source, const QVariantMap &_parameters)
         for (int y = firstRow; y < lastRow; ++y) {
             const auto source = reinterpret_cast<const QRgb *>(input.constScanLine(y));
             auto       output = reinterpret_cast<QRgb *>(result.scanLine(y));
-            for (int x = 0; x < input.width(); ++x)
-                output[x] = qRgba(table[qRed(source[x])], table[qGreen(source[x])],
-                                  table[qBlue(source[x])], qAlpha(source[x]));
+            for (int x = 0; x < input.width(); ++x) {
+                const int red = table[qRed(source[x])], green = table[qGreen(source[x])],
+                          blue = table[qBlue(source[x])];
+                output[x] =
+                    qRgba(redTable[red], greenTable[green], blueTable[blue], qAlpha(source[x]));
+            }
         }
     });
     result.setColorSpace(QColorSpace::SRgb);

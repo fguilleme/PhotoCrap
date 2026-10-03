@@ -10,9 +10,11 @@ ColumnLayout {
     property var points: []
     property int activePoint: -1
     property bool dragging: false
+    property string pickerMode: ""
     signal editStarted()
     signal previewed(var points)
     signal committed(var points)
+    signal pickerSelected(string mode)
     spacing: 6
 
     function copyPoints(value) {
@@ -26,6 +28,20 @@ ColumnLayout {
     }
     function sync() { if(!dragging) { points=copyPoints(sourcePoints); curveCanvas.requestPaint() } }
     function emittedPoints() { return copyPoints(points) }
+    function addColorSample(color) {
+        const input=Math.max(0,Math.min(255,Math.round((.2126*color.r+.7152*color.g+.0722*color.b)*255)))
+        const output=curveValue(input)
+        editStarted()
+        let nearest=-1
+        for(let i=0;i<points.length;i++) if(Math.abs(points[i].x-input)<2) nearest=i
+        if(nearest>=0) points[nearest]={x:input,y:output}
+        else points.push({x:input,y:output})
+        points.sort((a,b)=>a.x-b.x)
+        activePoint=points.findIndex(point=>Math.abs(point.x-input)<.5)
+        points=points.slice()
+        committed(emittedPoints())
+        curveCanvas.requestPaint()
+    }
     function curveValue(input) {
         if(points.length<2)return input
         const delta=[],slopes=[]
@@ -53,7 +69,40 @@ ColumnLayout {
     onHistogramChanged: curveCanvas.requestPaint()
     Component.onCompleted: sync()
 
-    Label { text: qsTr("RVB composite"); color: "#c4cdd5" }
+    RowLayout {
+        Layout.fillWidth: true
+        Label { text: qsTr("RVB composite"); color: "#c4cdd5"; Layout.fillWidth: true }
+        Label { text: qsTr("Pipettes"); color: "#7f8b96"; font.pixelSize: 10 }
+        ToolButton {
+            objectName: "curveColorPicker"
+            text: "◉"; checkable: true; checked: root.pickerMode === "color"
+            Accessible.name: qsTr("Échantillonner une couleur dans la courbe")
+            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            onClicked: root.pickerSelected(checked ? "color" : "")
+        }
+        ToolButton {
+            objectName: "curveBlackPicker"
+            text: "●"; checkable: true; checked: root.pickerMode === "black"
+            Accessible.name: qsTr("Définir le point noir")
+            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            onClicked: root.pickerSelected(checked ? "black" : "")
+        }
+        ToolButton {
+            objectName: "curveGrayPicker"
+            text: "●"; checkable: true; checked: root.pickerMode === "gray"
+            palette.buttonText: "#9ca5ad"
+            Accessible.name: qsTr("Neutraliser un gris")
+            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            onClicked: root.pickerSelected(checked ? "gray" : "")
+        }
+        ToolButton {
+            objectName: "curveWhitePicker"
+            text: "○"; checkable: true; checked: root.pickerMode === "white"
+            Accessible.name: qsTr("Définir le point blanc")
+            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            onClicked: root.pickerSelected(checked ? "white" : "")
+        }
+    }
     Canvas {
         id: curveCanvas
         objectName: "curvesEditor"

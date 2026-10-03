@@ -103,6 +103,7 @@ public:
     }
     QVariantList             layers() const;
     Q_INVOKABLE QVariantList histogram() const;
+    Q_INVOKABLE QVariantMap  colorHistogram() const;
     int                      activeLayer() const
     {
         return m_active;

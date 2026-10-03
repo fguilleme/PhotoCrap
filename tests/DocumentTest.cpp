@@ -639,6 +639,28 @@ private slots:
         d.cancelLayerPreview();
         QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::white));
     }
+    void colorHistogramSeparatesRgbChannels()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.setColor(Qt::red);
+        d.setTool("fill");
+        d.beginStroke(16, 16);
+        d.endStroke();
+        const QVariantMap  histogram = d.colorHistogram();
+        const QVariantList red       = histogram.value("red").toList();
+        const QVariantList green     = histogram.value("green").toList();
+        const QVariantList blue      = histogram.value("blue").toList();
+        const QVariantList luminance = histogram.value("luminance").toList();
+        QCOMPARE(red.size(), 256);
+        QCOMPARE(green.size(), 256);
+        QCOMPARE(blue.size(), 256);
+        QCOMPARE(luminance.size(), 256);
+        QCOMPARE(red.at(255).toDouble(), 1.);
+        QCOMPARE(green.at(0).toDouble(), 1.);
+        QCOMPARE(blue.at(0).toDouble(), 1.);
+        QVERIFY(luminance.at(54).toDouble() > 0.9);
+    }
     void curveEyedroppersSampleColorsAndNeutralizeGray()
     {
         Document d;

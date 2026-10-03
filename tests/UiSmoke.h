@@ -28,6 +28,18 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _document.newDocument(300, 200, true);
     QTest::qWait(100);
+    auto histogramTab      = _window->findChild<QObject *>("histogramTab");
+    auto navigatorTab      = _window->findChild<QObject *>("navigatorTab");
+    auto histogramCanvas   = _window->findChild<QObject *>("colorHistogramCanvas");
+    auto collapseInspector = _window->findChild<QObject *>("inspectorCollapseButton");
+    if (!require(histogramTab && navigatorTab && histogramCanvas && collapseInspector,
+                 "histogram and navigator share a collapsible tab panel"))
+        return false;
+    QMetaObject::invokeMethod(collapseInspector, "clicked");
+    if (!require(_window->property("inspectorCollapsed").toBool(),
+                 "histogram and navigator panel collapses"))
+        return false;
+    QMetaObject::invokeMethod(collapseInspector, "clicked");
     QTemporaryDir recentDir;
     if (!require(recentDir.isValid(), "temporary recent-files directory exists"))
         return false;

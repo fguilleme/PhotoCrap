@@ -48,6 +48,8 @@ ApplicationWindow {
     property bool layerPreviewPending: false
     property string curvePickerMode: ""
     property string colorPickerMode: ""
+    property int inspectorTab: 0
+    property bool inspectorCollapsed: false
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
@@ -788,12 +790,115 @@ ApplicationWindow {
                 Layout.preferredWidth: 280; Layout.fillHeight: true; color: "#242a32"
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 15; spacing: 8
-                    PanelTitle { visible: window.height>=800; text: qsTr("NAVIGATEUR") }
-                    Rectangle {
-                        visible: window.height>=800; Layout.fillWidth: true; height: 90; color: "#181e25"; radius: 5
-                        Image { anchors.fill: parent; anchors.margins: 8; source: "image://layers/composite/"+editor.revision; sourceSize.width: 240; sourceSize.height: 105; fillMode: Image.PreserveAspectFit; cache: false }
+                    RowLayout {
+                        visible: window.height >= 800
+                        Layout.fillWidth: true; spacing: 3
+                        TabButton {
+                            objectName: "histogramTab"
+                            text: qsTr("HISTOGRAMME")
+                            checked: window.inspectorTab === 0
+                            onClicked: window.inspectorTab = 0
+                            Layout.fillWidth: true
+                            background: Rectangle {
+                                radius: 4
+                                color: parent.checked ? "#465463" : "#2b333c"
+                                border.width: 1
+                                border.color: parent.checked ? "#74879a" : "#46515c"
+                            }
+                            contentItem: Label {
+                                text: parent.text
+                                color: parent.checked ? "#ffffff" : "#b8c2cc"
+                                font.pixelSize: 10; font.bold: parent.checked
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        TabButton {
+                            objectName: "navigatorTab"
+                            text: qsTr("NAVIGATEUR")
+                            checked: window.inspectorTab === 1
+                            onClicked: window.inspectorTab = 1
+                            Layout.fillWidth: true
+                            background: Rectangle {
+                                radius: 4
+                                color: parent.checked ? "#465463" : "#2b333c"
+                                border.width: 1
+                                border.color: parent.checked ? "#74879a" : "#46515c"
+                            }
+                            contentItem: Label {
+                                text: parent.text
+                                color: parent.checked ? "#ffffff" : "#b8c2cc"
+                                font.pixelSize: 10; font.bold: parent.checked
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        IconButton {
+                            objectName: "inspectorCollapseButton"
+                            glyph: window.inspectorCollapsed ? "▸" : "▾"
+                            hint: window.inspectorCollapsed ? qsTr("Déplier le panneau") : qsTr("Replier le panneau")
+                            onClicked: window.inspectorCollapsed = !window.inspectorCollapsed
+                        }
+                    }
+                    StackLayout {
+                        visible: window.height >= 800 && !window.inspectorCollapsed
+                        Layout.fillWidth: true; Layout.preferredHeight: visible ? 118 : 0
+                        currentIndex: window.inspectorTab
+                        Rectangle {
+                            color: "#181e25"; radius: 5
+                            property var histogramData: (editor.revision, editor.colorHistogram())
+                            onHistogramDataChanged: histogramCanvas.requestPaint()
+                            Canvas {
+                                id: histogramCanvas
+                                objectName: "colorHistogramCanvas"
+                                anchors.fill: parent; anchors.margins: 8
+                                onPaint: {
+                                    const context = getContext("2d")
+                                    context.reset()
+                                    context.fillStyle = "#14191f"
+                                    context.fillRect(0, 0, width, height)
+                                    const data = parent.histogramData
+                                    function channel(values, color) {
+                                        if (!values || values.length !== 256) return
+                                        context.beginPath()
+                                        context.moveTo(0, height)
+                                        for (let i = 0; i < 256; ++i)
+                                            context.lineTo(i * width / 255, height - values[i] * (height - 4))
+                                        context.lineTo(width, height)
+                                        context.closePath()
+                                        context.fillStyle = color
+                                        context.fill()
+                                    }
+                                    channel(data.red, "rgba(245,63,69,.48)")
+                                    channel(data.green, "rgba(55,220,95,.43)")
+                                    channel(data.blue, "rgba(64,112,255,.48)")
+                                    context.strokeStyle = "rgba(235,239,242,.7)"
+                                    context.lineWidth = 1
+                                    const luminance = data.luminance
+                                    if (luminance && luminance.length === 256) {
+                                        context.beginPath()
+                                        for (let i = 0; i < 256; ++i) {
+                                            const x = i * width / 255
+                                            const y = height - luminance[i] * (height - 4)
+                                            if (i === 0) context.moveTo(x, y); else context.lineTo(x, y)
+                                        }
+                                        context.stroke()
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            color: "#181e25"; radius: 5
+                            Image {
+                                anchors.fill: parent; anchors.margins: 8
+                                source: "image://layers/composite/"+editor.revision
+                                sourceSize.width: 240; sourceSize.height: 105
+                                fillMode: Image.PreserveAspectFit; cache: false
+                            }
+                        }
                     }
                     RowLayout {
+                        visible: window.height >= 800 && !window.inspectorCollapsed
                         Layout.fillWidth: true
                         Label { text: editor.width+" × "+editor.height+" px"; color: "#9ba7b5"; font.pixelSize: 11 }
                         Item { Layout.fillWidth: true }

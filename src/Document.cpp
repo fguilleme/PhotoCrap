@@ -285,6 +285,43 @@ QVariantList Document::histogram() const
         result.append(maximum == 0 ? 0. : double(count) / double(maximum));
     return result;
 }
+QVariantMap Document::colorHistogram() const
+{
+    const QImage image = displayComposite().convertToFormat(QImage::Format_ARGB32);
+    std::array<QVector<quint64>, 4> bins;
+    for (auto &channel : bins)
+        channel.fill(0, 256);
+    const qint64 pixels  = qint64(image.width()) * image.height();
+    const int    stride  = qMax(1, int(std::sqrt(double(pixels) / 65536.)));
+    quint64      maximum = 0;
+    for (int y = 0; y < image.height(); y += stride) {
+        const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); x += stride) {
+            const QRgb pixel     = row[x];
+            const auto alpha     = quint64(qAlpha(pixel));
+            const int  luminance = qBound(
+                0, qRound(.2126 * qRed(pixel) + .7152 * qGreen(pixel) + .0722 * qBlue(pixel)), 255);
+            bins[0][qRed(pixel)] += alpha;
+            bins[1][qGreen(pixel)] += alpha;
+            bins[2][qBlue(pixel)] += alpha;
+            bins[3][luminance] += alpha;
+            maximum = qMax(maximum, qMax(bins[3][luminance],
+                                         qMax(bins[0][qRed(pixel)], qMax(bins[1][qGreen(pixel)],
+                                                                         bins[2][qBlue(pixel)]))));
+        }
+    }
+    const auto normalized = [&](const QVector<quint64> &_bins) {
+        QVariantList values;
+        values.reserve(256);
+        for (const quint64 count : _bins)
+            values.append(maximum == 0 ? 0. : double(count) / double(maximum));
+        return values;
+    };
+    return {{QStringLiteral("red"), normalized(bins[0])},
+            {QStringLiteral("green"), normalized(bins[1])},
+            {QStringLiteral("blue"), normalized(bins[2])},
+            {QStringLiteral("luminance"), normalized(bins[3])}};
+}
 QStringList Document::history() const
 {
     QStringList result{tr("État initial")};

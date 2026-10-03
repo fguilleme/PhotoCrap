@@ -3,6 +3,7 @@
 #include "filters/BlackWhiteFilter.h"
 #include "filters/BrightnessContrastFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 
 #include <QCache>
@@ -464,6 +465,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyBlackWhite(_source, _p);
     if (_type == "brightnessContrast")
         return PhotoCrap::Filters::applyBrightnessContrast(_source, _p);
+    if (_type == "gradientMap")
+        return PhotoCrap::Filters::applyGradientMap(_source, _p);
     if (_type == "gaussianBlur")
         return gaussianBlurImage(_source, _p.value("radius", 8.).toDouble());
     if (_type == "motionBlur")
@@ -486,10 +489,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
     auto         value = [&](const char *_key, double _fallback) {
         return _p.value(QLatin1String(_key), _fallback).toDouble();
     };
-    auto         clamp = [](double _v) { return qBound(0, qRound(_v), 255); };
-    const QColor shadowColor(_p.value("shadowColor", QStringLiteral("#101828")).toString());
-    const QColor highlightColor(_p.value("highlightColor", QStringLiteral("#f5d9a8")).toString());
-    const int    jobCount =
+    auto      clamp = [](double _v) { return qBound(0, qRound(_v), 255); };
+    const int jobCount =
         qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
     QVector<int> jobs(jobCount);
     std::iota(jobs.begin(), jobs.end(), 0);
@@ -587,11 +588,6 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     b                   = qRound(b / step) * step;
                 } else if (_type == "threshold") {
                     r = g = b = lum >= value("level", 128) ? 255 : 0;
-                } else if (_type == "gradientMap") {
-                    const double t = lum / 255.;
-                    r              = shadowColor.red() * (1 - t) + highlightColor.red() * t;
-                    g              = shadowColor.green() * (1 - t) + highlightColor.green() * t;
-                    b              = shadowColor.blue() * (1 - t) + highlightColor.blue() * t;
                 } else if (_type == "selectiveColor") {
                     const double strength = (qMax(r, qMax(g, b)) - qMin(r, qMin(g, b))) / 255.;
                     r += value("cyanRed", 0) * 2.55 * strength;

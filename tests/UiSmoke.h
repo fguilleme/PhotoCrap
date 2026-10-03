@@ -361,6 +361,17 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "levels adjustment uses its dedicated editor"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("gradientMap");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto gradientMapEditor  = _window->findChild<QObject *>("gradientMapEditor");
+    auto gradientMapWheel   = _window->findChild<QObject *>("gradientMapWheel");
+    auto gradientBrightness = _window->findChild<QObject *>("gradientMapBrightness");
+    if (!require(gradientMapEditor && gradientMapEditor->property("visible").toBool() &&
+                     gradientMapWheel && gradientBrightness,
+                 "gradient map uses its color wheel and brightness editor"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

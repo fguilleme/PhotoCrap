@@ -19,6 +19,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
     src/filters/CurvesFilter.cpp
+    src/filters/GradientMapFilter.cpp
     src/filters/LevelsFilter.cpp
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
@@ -33,6 +34,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/BlackWhiteFilter.h
     src/filters/BrightnessContrastFilter.h
     src/filters/CurvesFilter.h
+    src/filters/GradientMapFilter.h
     src/filters/LevelsFilter.h
     src/LanguageManager.h
     src/MacApplicationMenu.h
@@ -130,6 +132,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/BrightnessContrastFilter.h
     src/filters/CurvesFilter.cpp
     src/filters/CurvesFilter.h
+    src/filters/GradientMapFilter.cpp
+    src/filters/GradientMapFilter.h
     src/filters/LevelsFilter.cpp
     src/filters/LevelsFilter.h
 )
@@ -179,6 +183,7 @@ qt_add_qml_module(PhotoCrap
         qml/DarkSlider.qml
         qml/DarkSpinBox.qml
         qml/CurvesEditor.qml
+        qml/GradientMapEditor.qml
         qml/LevelsEditor.qml
 )
 qt_add_translations(PhotoCrap

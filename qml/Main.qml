@@ -1405,20 +1405,18 @@ ApplicationWindow {
                             window.previewLayerValue(key,value,true)
                         }
                     }
-                    ColumnLayout {
+                    GradientMapEditor {
+                        objectName: "gradientMapEditor"
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="gradientMap"
                         Layout.fillWidth: true
-                        Label { text: qsTr("Couleurs du dégradé"); color: "#c4cdd5" }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            TextField {
-                                Layout.fillWidth: true; text: activeInfo.parameters.shadowColor || "#101828"; placeholderText: qsTr("Ombres")
-                                onEditingFinished: { editor.beginLayerPreview(); editor.previewLayerParameter("shadowColor",text); editor.finishLayerPreview("Couleur des ombres") }
-                            }
-                            TextField {
-                                Layout.fillWidth: true; text: activeInfo.parameters.highlightColor || "#f5d9a8"; placeholderText: qsTr("Lumières")
-                                onEditingFinished: { editor.beginLayerPreview(); editor.previewLayerParameter("highlightColor",text); editor.finishLayerPreview("Couleur des lumières") }
-                            }
+                        shadowColor: activeInfo.parameters.shadowColor || "#101828"
+                        highlightColor: activeInfo.parameters.highlightColor || "#f5d9a8"
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if(layerPreview.checked)window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
                         }
                     }
                     Label {

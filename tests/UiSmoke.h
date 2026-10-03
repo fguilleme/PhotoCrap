@@ -246,7 +246,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                               Q_ARG(QVariant, QVariant(20)));
     QMetaObject::invokeMethod(_window, "queueLayerPreview", Q_ARG(QVariant, QVariant("brightness")),
                               Q_ARG(QVariant, QVariant(30)));
-    QTest::qWait(80);
+    // Drive the coalescing boundary explicitly. Waiting for a short QML timer
+    // makes this assertion depend on runner load rather than application state.
+    QMetaObject::invokeMethod(_window, "flushLayerPreview");
     const QVariantMap previewLayer = _document.layers().first().toMap();
     if (!require(previewLayer.value("parameters").toMap().value("brightness").toInt() == 30 &&
                      _document.historyIndex() == previewHistory,

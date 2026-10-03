@@ -264,6 +264,7 @@ public:
     Q_INVOKABLE void   cancelLayerPropertiesSession();
     Q_INVOKABLE QColor sampleCurvePoint(const QString &_mode, int _x, int _y);
     Q_INVOKABLE QColor sampleCompositeColor(int _x, int _y) const;
+    Q_INVOKABLE void   resetAdjustmentLayer();
     Q_INVOKABLE void   resetCurveAdjustment();
     Q_INVOKABLE void   beginStroke(qreal _x, qreal _y);
     Q_INVOKABLE void   continueStroke(qreal _x, qreal _y);

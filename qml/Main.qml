@@ -341,10 +341,9 @@ ApplicationWindow {
             DarkMenuItem { action: duplicateAction }
             DarkMenu {
                 title: qsTr("Nouveau calque de réglage")
-                DarkMenuItem { text: qsTr("Luminosité / Contraste"); onTriggered: addAdjustmentLayer("brightnessContrast") }
+                DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
                 DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
                 DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
-                DarkMenuItem { text: qsTr("Exposition"); onTriggered: addAdjustmentLayer("exposure") }
                 DarkMenuItem { text: qsTr("Vibrance"); onTriggered: addAdjustmentLayer("vibrance") }
                 DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
                 DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
@@ -1015,10 +1014,9 @@ ApplicationWindow {
         DarkMenuItem { text: qsTr("Calque de pixels"); onTriggered: editor.addLayer() }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
         MenuSeparator {}
-        DarkMenuItem { text: qsTr("Luminosité / Contraste"); onTriggered: addAdjustmentLayer("brightnessContrast") }
+        DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
         DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
         DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
-        DarkMenuItem { text: qsTr("Exposition"); onTriggered: addAdjustmentLayer("exposure") }
         DarkMenuItem { text: qsTr("Vibrance"); onTriggered: addAdjustmentLayer("vibrance") }
         DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
         DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
@@ -1351,7 +1349,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -1390,6 +1388,20 @@ ApplicationWindow {
                         }
                         onCommitted: function(points) {
                             window.previewLayerValue("points",points,true)
+                        }
+                    }
+                    LightEditor {
+                        objectName: "lightEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "light"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if (layerPreview.checked)
+                                window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
                         }
                     }
                     LevelsEditor {
@@ -1444,14 +1456,26 @@ ApplicationWindow {
                 anchors.leftMargin: 12
                 anchors.rightMargin: 12
                 spacing: 8
-                DialogActionButton {
-                    objectName: "curveResetButton"
-                    visible: !activeInfo.editingMask && activeInfo.adjustmentType === "curves"
-                    text: qsTr("Réinitialiser")
-                    Accessible.name: qsTr("Réinitialiser toutes les courbes")
-                    onClicked: {
+                LayerPropertiesActions {
+                    objectName: "layerPropertiesActions"
+                    visible: !activeInfo.editingMask && activeInfo.kind === "adjustment"
+                    layerVisible: activeInfo.visible
+                    clippingMask: activeInfo.clippingMask
+                    canClip: activeInfo.clippingMask || editor.activeLayer > 0
+                    canDelete: editor.layers.length > 1 && !activeInfo.locked
+                    onVisibilityToggled: editor.setLayerVisible(editor.activeLayer,
+                                                                 !activeInfo.visible)
+                    onClippingToggled: editor.setClippingMask(!activeInfo.clippingMask)
+                    onResetRequested: {
                         window.curvePickerMode = ""
-                        editor.resetCurveAdjustment()
+                        window.cancelLayerPreviewQueue()
+                        editor.cancelLayerPreview()
+                        editor.resetAdjustmentLayer()
+                    }
+                    onDeleteRequested: {
+                        layerPropertiesDialog.keepChanges = true
+                        editor.removeLayer()
+                        layerPropertiesDialog.accept()
                     }
                 }
                 Item { Layout.fillWidth: true }

@@ -5,6 +5,7 @@
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
+#include "filters/LightFilter.h"
 
 #include <QCache>
 #include <QColorSpace>
@@ -467,6 +468,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyBrightnessContrast(_source, _p);
     if (_type == "gradientMap")
         return PhotoCrap::Filters::applyGradientMap(_source, _p);
+    if (_type == "light")
+        return PhotoCrap::Filters::applyLight(_source, _p);
     if (_type == "gaussianBlur")
         return gaussianBlurImage(_source, _p.value("radius", 8.).toDouble());
     if (_type == "motionBlur")
@@ -607,7 +610,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
 }
 void Document::addAdjustmentLayer(const QString &_type)
 {
-    const QMap<QString, QString> names{{"brightnessContrast", tr("Luminosité / Contraste")},
+    const QMap<QString, QString> names{{"light", tr("Lumière")},
+                                       {"brightnessContrast", tr("Luminosité / Contraste")},
                                        {"levels", tr("Niveaux")},
                                        {"curves", tr("Courbes")},
                                        {"exposure", tr("Exposition")},
@@ -633,7 +637,10 @@ void Document::addAdjustmentLayer(const QString &_type)
     if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     QVariantMap params;
-    if (_type == "brightnessContrast")
+    if (_type == "light")
+        params = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
+                  {"shadows", 0},   {"whites", 0},   {"blacks", 0}};
+    else if (_type == "brightnessContrast")
         params = {{"brightness", 0}, {"contrast", 0}};
     else if (_type == "levels")
         params = {{"inputBlack", 0},
@@ -943,6 +950,82 @@ QColor Document::sampleCompositeColor(int _x, int _y) const
         return {};
     return composite().pixelColor(qBound(0, _x, m_size.width() - 1),
                                   qBound(0, _y, m_size.height() - 1));
+}
+
+void Document::resetAdjustmentLayer()
+{
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind != QStringLiteral("adjustment"))
+        return;
+
+    const QString type = m_layers[m_active].adjustmentType;
+    QVariantMap   parameters;
+    if (type == QStringLiteral("light"))
+        parameters = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
+                      {"shadows", 0},   {"whites", 0},   {"blacks", 0}};
+    else if (type == QStringLiteral("brightnessContrast"))
+        parameters = {{"brightness", 0}, {"contrast", 0}};
+    else if (type == QStringLiteral("levels"))
+        parameters = {{"inputBlack", 0},
+                      {"inputWhite", 255},
+                      {"gamma", 1.},
+                      {"outputBlack", 0},
+                      {"outputWhite", 255}};
+    else if (type == QStringLiteral("curves"))
+        parameters = {{"points", QVariantList{QVariantMap{{"x", 0}, {"y", 0}},
+                                              QVariantMap{{"x", 255}, {"y", 255}}}},
+                      {"blackSample", QVariantList{}},
+                      {"graySample", QVariantList{}},
+                      {"whiteSample", QVariantList{}}};
+    else if (type == QStringLiteral("exposure"))
+        parameters = {{"exposure", 0.}, {"offset", 0.}, {"gamma", 1.}};
+    else if (type == QStringLiteral("vibrance"))
+        parameters = {{"vibrance", 0}, {"saturation", 0}};
+    else if (type == QStringLiteral("hueSaturation"))
+        parameters = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
+    else if (type == QStringLiteral("colorBalance") || type == QStringLiteral("selectiveColor"))
+        parameters = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
+    else if (type == QStringLiteral("blackWhite"))
+        parameters = {{"reds", 40}, {"greens", 40}, {"blues", 20}};
+    else if (type == QStringLiteral("photoFilter"))
+        parameters = {{"hue", 35}, {"density", 25}};
+    else if (type == QStringLiteral("channelMixer"))
+        parameters = {{"redRed", 100}, {"redGreen", 0},     {"redBlue", 0},
+                      {"greenRed", 0}, {"greenGreen", 100}, {"greenBlue", 0},
+                      {"blueRed", 0},  {"blueGreen", 0},    {"blueBlue", 100}};
+    else if (type == QStringLiteral("colorLookup"))
+        parameters = {{"preset", 0}};
+    else if (type == QStringLiteral("posterize"))
+        parameters = {{"levels", 4}};
+    else if (type == QStringLiteral("threshold"))
+        parameters = {{"level", 128}};
+    else if (type == QStringLiteral("gradientMap"))
+        parameters = {{"shadowColor", "#101828"}, {"highlightColor", "#f5d9a8"}};
+    else if (type == QStringLiteral("gaussianBlur") || type == QStringLiteral("boxBlur"))
+        parameters = {{"radius", 8.}};
+    else if (type == QStringLiteral("motionBlur"))
+        parameters = {{"distance", 20.}, {"angle", 0.}};
+    else if (type == QStringLiteral("unsharpMask"))
+        parameters = {{"amount", 100.}, {"radius", 2.}, {"threshold", 0}};
+    else if (type == QStringLiteral("highPass"))
+        parameters = {{"radius", 4.}};
+    else if (type == QStringLiteral("mosaic"))
+        parameters = {{"cellSize", 12}};
+    else if (type == QStringLiteral("noise"))
+        parameters = {{"amount", 8.}};
+
+    parameters.insert(QStringLiteral("_maskDensity"),
+                      m_layers[m_active].parameters.value(QStringLiteral("_maskDensity"), 100.));
+    parameters.insert(QStringLiteral("_maskFeather"),
+                      m_layers[m_active].parameters.value(QStringLiteral("_maskFeather"), 0.));
+    beginLayerPreview();
+    m_layers[m_active].parameters = parameters;
+    m_layerPreviewChanged         = true;
+    m_fullCompositeDirty          = true;
+    m_cacheDirty                  = true;
+    requestPreviewRender(true, true);
+    emit layersChanged();
+    finishLayerPreview(tr("Réinitialiser le réglage"));
 }
 
 void Document::resetCurveAdjustment()

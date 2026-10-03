@@ -324,17 +324,19 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      !levelsEditor->isVisible(),
                  "curves adjustment uses its dedicated editor"))
         return false;
-    auto curveResetButton  = _window->findChild<QObject *>("curveResetButton");
+    auto propertiesActions = _window->findChild<QObject *>("layerPropertiesActions");
+    auto resetButton       = _window->findChild<QObject *>("layerPropertiesResetButton");
     auto curveColorPicker  = _window->findChild<QObject *>("curveColorPicker");
     auto curveBlackPicker  = _window->findChild<QObject *>("curveBlackPicker");
     auto curveGrayPicker   = _window->findChild<QObject *>("curveGrayPicker");
     auto curveWhitePicker  = _window->findChild<QObject *>("curveWhitePicker");
     auto curvePickerArea   = _window->findChild<QObject *>("curvePickerArea");
     auto curvePickerCursor = _window->findChild<QObject *>("curvePickerCursor");
-    if (!require(curveResetButton && curveColorPicker && curveBlackPicker && curveGrayPicker &&
+    if (!require(propertiesActions && propertiesActions->property("visible").toBool() &&
+                     resetButton && curveColorPicker && curveBlackPicker && curveGrayPicker &&
                      curveWhitePicker && curvePickerArea && curvePickerCursor &&
                      curvePickerArea->property("cursorShape").toInt() == int(Qt::BlankCursor),
-                 "curves exposes color, black, gray, and white image eyedroppers"))
+                 "adjustment properties expose shared actions and curve eyedroppers"))
         return false;
     auto curvesRoot = _window->findChild<QQuickItem *>("curvesEditorRoot");
     if (!require(curvesRoot, "curves editor root exists"))
@@ -372,6 +374,29 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "gradient map uses its color wheel and brightness editor"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("light");
+    QTest::qWait(100);
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto lightEditor = _window->findChild<QObject *>("lightEditor");
+    if (!require(lightEditor && lightEditor->property("visible").toBool() &&
+                     lightEditor->property("controlCount").toInt() == 6,
+                 "light adjustment exposes six dedicated sliders and numeric fields"))
+        return false;
+    auto exposureField = qvariant_cast<QObject *>(lightEditor->property("exposureField"));
+    if (!require(exposureField, "light adjustment exposes its editable exposure field"))
+        return false;
+    QMetaObject::invokeMethod(exposureField, "forceActiveFocus");
+    QTest::keyClick(_window, Qt::Key_Return);
+    QTest::qWait(50);
+    if (!require(layerProperties->property("opened").toBool(),
+                 "enter validates a light value without closing layer properties"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Return);
+    QTest::qWait(50);
+    if (!require(!layerProperties->property("opened").toBool(),
+                 "a second enter activates the default dialog action"))
+        return false;
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

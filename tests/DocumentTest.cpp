@@ -560,14 +560,34 @@ private slots:
         QVERIFY(d.composite().pixelColor(4, 4).red() < 220);
         QCOMPARE(d.historyIndex(), historyBefore + 1);
     }
+    void sharedAdjustmentResetRestoresDefaultsAndIsUndoable()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.addAdjustmentLayer("light");
+        d.beginLayerPreview();
+        d.previewLayerParameter("exposure", -2.);
+        d.finishLayerPreview("Exposition");
+        QVERIFY(d.composite().pixelColor(4, 4).red() < 100);
+
+        d.resetAdjustmentLayer();
+        const QVariantMap parameters = d.layers().first().toMap().value("parameters").toMap();
+        QCOMPARE(parameters.value("exposure").toDouble(), 0.);
+        QCOMPARE(parameters.value("contrast").toInt(), 0);
+        QCOMPARE(parameters.value("_maskDensity").toDouble(), 100.);
+        QCOMPARE(d.composite().pixelColor(4, 4), QColor(Qt::white));
+
+        d.undo();
+        QVERIFY(d.composite().pixelColor(4, 4).red() < 100);
+    }
     void everyAdjustmentTypeProducesAComposite()
     {
         const QStringList types = {
-            "brightnessContrast", "levels",       "curves",     "exposure",    "vibrance",
-            "hueSaturation",      "colorBalance", "blackWhite", "photoFilter", "channelMixer",
-            "colorLookup",        "invert",       "posterize",  "threshold",   "gradientMap",
-            "selectiveColor",     "gaussianBlur", "motionBlur", "boxBlur",     "unsharpMask",
-            "highPass",           "mosaic",       "noise"};
+            "light",        "brightnessContrast", "levels",       "curves",     "exposure",
+            "vibrance",     "hueSaturation",      "colorBalance", "blackWhite", "photoFilter",
+            "channelMixer", "colorLookup",        "invert",       "posterize",  "threshold",
+            "gradientMap",  "selectiveColor",     "gaussianBlur", "motionBlur", "boxBlur",
+            "unsharpMask",  "highPass",           "mosaic",       "noise"};
         Document d;
         QVERIFY(d.newDocument(4, 4));
         for (const auto &type : types) {

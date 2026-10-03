@@ -18,6 +18,14 @@ Button {
     Accessible.name: text
     Accessible.role: Accessible.Button
 
+    function editableFieldHasFocus() {
+        const window = control.Window.window
+        if (!window)
+            return false
+        const item = window.activeFocusItem
+        return item instanceof TextInput || item instanceof TextEdit
+    }
+
     Keys.onSpacePressed: function(event) {
         if (control.activeFocus && control.enabled) {
             control.clicked()
@@ -27,6 +35,19 @@ Button {
 
     Shortcut {
         enabled: control.defaultButton && control.visible && control.enabled
+                 && control.editableFieldHasFocus()
+        sequences: [StandardKey.InsertParagraphSeparator]
+        context: Qt.WindowShortcut
+        onActivated: {
+            const window = control.Window.window
+            if (window && window.activeFocusItem)
+                window.activeFocusItem.focus = false
+        }
+    }
+
+    Shortcut {
+        enabled: control.defaultButton && control.visible && control.enabled
+                 && !control.editableFieldHasFocus()
         sequences: [StandardKey.InsertParagraphSeparator]
         context: Qt.WindowShortcut
         onActivated: control.clicked()

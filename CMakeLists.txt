@@ -20,6 +20,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/BrightnessContrastFilter.cpp
     src/filters/CurvesFilter.cpp
     src/filters/GradientMapFilter.cpp
+    src/filters/LightFilter.cpp
     src/filters/LevelsFilter.cpp
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
@@ -35,6 +36,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/BrightnessContrastFilter.h
     src/filters/CurvesFilter.h
     src/filters/GradientMapFilter.h
+    src/filters/LightFilter.h
     src/filters/LevelsFilter.h
     src/LanguageManager.h
     src/MacApplicationMenu.h
@@ -134,6 +136,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/CurvesFilter.h
     src/filters/GradientMapFilter.cpp
     src/filters/GradientMapFilter.h
+    src/filters/LightFilter.cpp
+    src/filters/LightFilter.h
     src/filters/LevelsFilter.cpp
     src/filters/LevelsFilter.h
 )
@@ -177,6 +181,7 @@ qt_add_qml_module(PhotoCrap
         qml/DialogActionButton.qml
         qml/IconButton.qml
         qml/PanelTitle.qml
+        qml/TrashIcon.qml
         qml/ContextMenuItem.qml
         qml/DarkMenu.qml
         qml/DarkMenuItem.qml
@@ -184,6 +189,8 @@ qt_add_qml_module(PhotoCrap
         qml/DarkSpinBox.qml
         qml/CurvesEditor.qml
         qml/GradientMapEditor.qml
+        qml/LightEditor.qml
+        qml/LayerPropertiesActions.qml
         qml/LevelsEditor.qml
 )
 qt_add_translations(PhotoCrap

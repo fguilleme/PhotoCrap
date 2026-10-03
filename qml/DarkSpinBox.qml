@@ -13,25 +13,43 @@ SpinBox {
     editable: true
 
     textFromValue: function(value, locale) {
-        return Number(value).toLocaleString(locale, "f", 0) + control.suffix
+        return Number(value).toLocaleString(locale, "f", 0)
     }
     valueFromText: function(text, locale) {
-        const number = text.replace(control.suffix, "").trim()
-        return Number.fromLocaleString(locale, number)
+        return Number.fromLocaleString(locale, text.trim())
     }
 
-    contentItem: TextInput {
+    contentItem: Item {
         z: 2
-        text: control.displayText
-        color: "#edf2f6"
-        selectionColor: "#2866c8"
-        selectedTextColor: "#ffffff"
-        font: control.font
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        readOnly: !control.editable
-        validator: control.validator
-        inputMethodHints: Qt.ImhFormattedNumbersOnly
+        implicitWidth: valueInput.implicitWidth + suffixLabel.implicitWidth + 6
+        implicitHeight: Math.max(valueInput.implicitHeight, suffixLabel.implicitHeight)
+
+        TextInput {
+            id: valueInput
+            anchors.fill: parent
+            rightPadding: suffixLabel.visible ? suffixLabel.width + 6 : 0
+            text: control.displayText
+            color: "#edf2f6"
+            selectionColor: "#2866c8"
+            selectedTextColor: "#ffffff"
+            font: control.font
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            readOnly: !control.editable
+            validator: control.validator
+            inputMethodHints: Qt.ImhFormattedNumbersOnly
+            selectByMouse: true
+        }
+
+        Text {
+            id: suffixLabel
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            visible: control.suffix.length > 0
+            text: control.suffix.trim()
+            color: "#9ba7b2"
+            font: control.font
+        }
     }
 
     down.indicator: Rectangle {

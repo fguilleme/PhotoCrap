@@ -448,11 +448,13 @@ ApplicationWindow {
                 Rectangle { Layout.leftMargin: 10; width: 1; height: 28; color: "#3a414a" }
                 Label { visible: window.width>=1250; text: window.toolName; color: "#c8d0d9"; Layout.preferredWidth: 152 }
                 Label { text: qsTr("Taille"); color: "#87929e" }
-                DarkSpinBox { from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 124; onValueModified: editor.brushSize=value }
+                DarkSpinBox { from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
                 Label { text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
-                DarkSpinBox { from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 124; onValueModified: editor.brushOpacity=value/100 }
+                DarkSpinBox { from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
                 Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 105; onValueModified: editor.brushFlow=value/100 }
+                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
                 Button { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Pinceau…"); onClicked: brushSettingsDialog.open() }
                 CheckBox { text: qsTr("Remplir"); checked: editor.filledShapes; visible: editor.tool==="rectangle" || editor.tool==="ellipse"; onToggled: editor.filledShapes=checked }
                 Button { text: qsTr("Recadrer"); visible: editor.tool==="crop"; enabled: editor.hasSelection; onClicked: editor.cropToSelection() }

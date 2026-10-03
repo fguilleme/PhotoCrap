@@ -1901,6 +1901,10 @@ The operation can be undone.</translation>
       <translation>Hardness</translation>
     </message>
     <message>
+      <source>Dureté</source>
+      <translation>Hardness</translation>
+    </message>
+    <message>
       <location filename="../qml/Main.qml" line="858" />
       <source>Espacement</source>
       <translation>Spacing</translation>

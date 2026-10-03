@@ -143,9 +143,16 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_document.tool() == "text", "typing B does not switch tools"))
         return false;
     area->forceActiveFocus();
+    _document.setTool("brush");
     _document.setColor(Qt::red);
     _document.setSecondaryColor(Qt::blue);
     _document.setBrushHardness(.5);
+    auto topHardness = _window->findChild<QObject *>("brushHardnessTop");
+    if (!require(topHardness && topHardness->property("visible").toBool() &&
+                     topHardness->property("displayText").toString() == QStringLiteral("50") &&
+                     topHardness->property("suffix").toString().contains(QLatin1Char('%')),
+                 "brush hardness is available and its editable text excludes the percent sign"))
+        return false;
     QTest::keyClick(_window, Qt::Key_D);
     QTest::qWait(20);
     if (!require(_document.color() == Qt::black && _document.secondaryColor() == Qt::white,

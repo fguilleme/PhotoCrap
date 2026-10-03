@@ -889,6 +889,42 @@ void Document::cancelLayerPreview()
     m_beforeLayerPreviewComposite = {};
 }
 
+void Document::beginLayerPropertiesSession()
+{
+    if (m_layerPropertiesSession)
+        return;
+    cancelLayerPreview();
+    m_beforeLayerProperties     = snapshot(tr("Modifier les propriétés du calque"));
+    m_undoBeforeLayerProperties = m_undo;
+    m_redoBeforeLayerProperties = m_redo;
+    m_layerPropertiesSession    = true;
+}
+
+void Document::acceptLayerPropertiesSession()
+{
+    if (!m_layerPropertiesSession)
+        return;
+    m_layerPropertiesSession = false;
+    m_beforeLayerProperties  = {};
+    m_undoBeforeLayerProperties.clear();
+    m_redoBeforeLayerProperties.clear();
+}
+
+void Document::cancelLayerPropertiesSession()
+{
+    if (!m_layerPropertiesSession)
+        return;
+    cancelLayerPreview();
+    const Snapshot before    = m_beforeLayerProperties;
+    m_undo                   = m_undoBeforeLayerProperties;
+    m_redo                   = m_redoBeforeLayerProperties;
+    m_layerPropertiesSession = false;
+    m_beforeLayerProperties  = {};
+    m_undoBeforeLayerProperties.clear();
+    m_redoBeforeLayerProperties.clear();
+    restore(before);
+}
+
 void Document::applyFilter(const QString &_filter, qreal _amount)
 {
     static const QStringList supported{"grayscale", "invert",     "sepia", "brightness",

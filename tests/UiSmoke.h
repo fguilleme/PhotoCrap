@@ -208,6 +208,10 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::qWait(100);
     if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))
         return false;
+    auto brushCancel = _window->findChild<QObject *>("brushSettingsCancelButton");
+    auto brushOk     = _window->findChild<QObject *>("brushSettingsOkButton");
+    if (!require(brushCancel && brushOk, "brush settings provides Cancel and OK actions"))
+        return false;
     auto brushOptionsButton = _window->findChild<QObject *>("brushOptionsButton");
     auto brushHardnessTop   = _window->findChild<QObject *>("brushHardnessTop");
     if (!require(brushOptionsButton && brushHardnessTop &&
@@ -215,7 +219,22 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                           brushHardnessTop->property("height").toReal()) < .5,
                  "toolbar buttons and numeric controls share one height"))
         return false;
-    QMetaObject::invokeMethod(brushSettings, "close");
+    const qreal originalBrushSize = _document.brushSize();
+    _document.setBrushSize(originalBrushSize + 12);
+    QMetaObject::invokeMethod(brushSettings, "reject");
+    QTest::qWait(80);
+    if (!require(qAbs(_document.brushSize() - originalBrushSize) < .001,
+                 "Cancel restores brush settings from before the dialog opened"))
+        return false;
+    QMetaObject::invokeMethod(brushSettings, "open");
+    QTest::qWait(80);
+    _document.setBrushSize(originalBrushSize + 8);
+    brushSettings->setProperty("keepSettings", true);
+    QMetaObject::invokeMethod(brushSettings, "accept");
+    QTest::qWait(80);
+    if (!require(qAbs(_document.brushSize() - originalBrushSize - 8) < .001,
+                 "OK keeps the edited brush settings"))
+        return false;
     QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
     QTest::qWait(200);
     auto guard = _window->findChild<QObject *>("unsavedDialog");
@@ -262,6 +281,11 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(layerProperties->property("visible").toBool(),
                  "adjustment properties dialog opens"))
         return false;
+    auto layerPropertiesCancel = _window->findChild<QObject *>("layerPropertiesCancelButton");
+    auto layerPropertiesClose  = _window->findChild<QObject *>("layerPropertiesCloseButton");
+    if (!require(layerPropertiesCancel && layerPropertiesClose,
+                 "layer properties provides Cancel and Close actions"))
+        return false;
     if (!require(_window->property("parameterSliderWidth").toReal() >
                      layerProperties->property("width").toReal() * .75,
                  "adjustment slider fills dialog width"))
@@ -287,7 +311,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_document.historyIndex() == previewHistory + 1,
                  "releasing a slider commits one undo step"))
         return false;
-    QMetaObject::invokeMethod(layerProperties, "close");
+    layerProperties->setProperty("keepChanges", true);
+    QMetaObject::invokeMethod(layerProperties, "accept");
     _document.undo();
     _document.undo();
     _document.addAdjustmentLayer("curves");

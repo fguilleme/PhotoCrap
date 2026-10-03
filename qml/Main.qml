@@ -1086,6 +1086,8 @@ ApplicationWindow {
     Dialog {
         id: brushSettingsDialog
         objectName: "brushSettingsDialog"
+        property var initialSettings: ({})
+        property bool keepSettings: false
         title: qsTr("Paramètres de pinceau")
         x: Math.max(20,window.width-width-310)
         y: 95
@@ -1093,7 +1095,41 @@ ApplicationWindow {
         height: Math.min(650,window.height-130)
         modal: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        onOpened: brushPreview.requestPaint()
+        function captureSettings() {
+            initialSettings = {
+                brushSize: editor.brushSize,
+                brushHardness: editor.brushHardness,
+                brushOpacity: editor.brushOpacity,
+                brushFlow: editor.brushFlow,
+                brushSpacing: editor.brushSpacing,
+                brushAngle: editor.brushAngle,
+                brushRoundness: editor.brushRoundness,
+                brushSmoothing: editor.brushSmoothing,
+                brushBlend: editor.brushBlend
+            }
+        }
+        function restoreSettings() {
+            if (!initialSettings || initialSettings.brushSize === undefined)
+                return
+            editor.brushSize = initialSettings.brushSize
+            editor.brushHardness = initialSettings.brushHardness
+            editor.brushOpacity = initialSettings.brushOpacity
+            editor.brushFlow = initialSettings.brushFlow
+            editor.brushSpacing = initialSettings.brushSpacing
+            editor.brushAngle = initialSettings.brushAngle
+            editor.brushRoundness = initialSettings.brushRoundness
+            editor.brushSmoothing = initialSettings.brushSmoothing
+            editor.brushBlend = initialSettings.brushBlend
+        }
+        onOpened: {
+            keepSettings = false
+            captureSettings()
+            brushPreview.requestPaint()
+        }
+        onClosed: {
+            if (!keepSettings)
+                restoreSettings()
+        }
 
         contentItem: ColumnLayout {
             spacing: 10
@@ -1160,11 +1196,30 @@ ApplicationWindow {
                 }
             }
         }
-        footer: DialogButtonBox { DialogActionButton { text: qsTr("Fermer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: brushSettingsDialog.close() } }
+        footer: DialogButtonBox {
+            alignment: Qt.AlignRight
+            DialogActionButton {
+                objectName: "brushSettingsCancelButton"
+                text: qsTr("Annuler")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: brushSettingsDialog.reject()
+            }
+            DialogActionButton {
+                objectName: "brushSettingsOkButton"
+                text: qsTr("OK")
+                defaultButton: true
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    brushSettingsDialog.keepSettings = true
+                    brushSettingsDialog.accept()
+                }
+            }
+        }
     }
     Dialog {
         id: layerPropertiesDialog
         objectName: "layerPropertiesDialog"
+        property bool keepChanges: false
         title: qsTr("Propriétés · ") + activeInfo.name
         x: Math.max(20, window.width-width-310)
         y: 105
@@ -1172,7 +1227,18 @@ ApplicationWindow {
         height: Math.min(610, window.height-150)
         modal: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        onClosed: { window.cancelLayerPreviewQueue(); editor.cancelLayerPreview() }
+        onOpened: {
+            keepChanges = false
+            editor.beginLayerPropertiesSession()
+        }
+        onClosed: {
+            window.cancelLayerPreviewQueue()
+            editor.cancelLayerPreview()
+            if (keepChanges)
+                editor.acceptLayerPropertiesSession()
+            else
+                editor.cancelLayerPropertiesSession()
+        }
 
         contentItem: ColumnLayout {
             spacing: 12
@@ -1287,7 +1353,25 @@ ApplicationWindow {
             }
         }
         footer: DialogButtonBox {
-            DialogActionButton { text: qsTr("Fermer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: layerPropertiesDialog.close() }
+            alignment: Qt.AlignRight
+            DialogActionButton {
+                objectName: "layerPropertiesCancelButton"
+                text: qsTr("Annuler")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: layerPropertiesDialog.reject()
+            }
+            DialogActionButton {
+                objectName: "layerPropertiesCloseButton"
+                text: qsTr("Fermer")
+                defaultButton: true
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    window.flushLayerPreview()
+                    editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
+                    layerPropertiesDialog.keepChanges = true
+                    layerPropertiesDialog.accept()
+                }
+            }
         }
     }
     Dialog {

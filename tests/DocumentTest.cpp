@@ -536,6 +536,30 @@ private slots:
         d.undo();
         QCOMPARE(d.composite().pixelColor(4, 4), QColor(Qt::white));
     }
+    void layerPropertiesSessionCanCancelOrKeepSeveralEdits()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.addAdjustmentLayer("brightnessContrast");
+        const int historyBefore = d.historyIndex();
+
+        d.beginLayerPropertiesSession();
+        d.beginLayerPreview();
+        d.previewLayerParameter("brightness", -60);
+        d.finishLayerPreview("Luminosité");
+        QVERIFY(d.composite().pixelColor(4, 4).red() < 150);
+        d.cancelLayerPropertiesSession();
+        QCOMPARE(d.composite().pixelColor(4, 4), QColor(Qt::white));
+        QCOMPARE(d.historyIndex(), historyBefore);
+
+        d.beginLayerPropertiesSession();
+        d.beginLayerPreview();
+        d.previewLayerParameter("brightness", -30);
+        d.finishLayerPreview("Luminosité");
+        d.acceptLayerPropertiesSession();
+        QVERIFY(d.composite().pixelColor(4, 4).red() < 220);
+        QCOMPARE(d.historyIndex(), historyBefore + 1);
+    }
     void everyAdjustmentTypeProducesAComposite()
     {
         const QStringList types = {

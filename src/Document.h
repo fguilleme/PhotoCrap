@@ -259,6 +259,9 @@ public:
     Q_INVOKABLE void
     finishLayerPreview(const QString &_label = QStringLiteral("Modifier les propriétés du calque"));
     Q_INVOKABLE void cancelLayerPreview();
+    Q_INVOKABLE void beginLayerPropertiesSession();
+    Q_INVOKABLE void acceptLayerPropertiesSession();
+    Q_INVOKABLE void cancelLayerPropertiesSession();
     Q_INVOKABLE void beginStroke(qreal _x, qreal _y);
     Q_INVOKABLE void continueStroke(qreal _x, qreal _y);
     Q_INVOKABLE void endStroke();
@@ -357,6 +360,10 @@ private:
     Snapshot                       m_beforeStroke;
     Snapshot                       m_beforeLayerPreview;
     QImage                         m_beforeLayerPreviewComposite;
+    bool                           m_layerPropertiesSession = false;
+    Snapshot                       m_beforeLayerProperties;
+    QVector<Snapshot>              m_undoBeforeLayerProperties;
+    QVector<Snapshot>              m_redoBeforeLayerProperties;
     Snapshot                       snapshot(const QString &_label) const;
     void                           restore(const Snapshot &_state);
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true);

@@ -244,6 +244,7 @@ public:
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);
     Q_INVOKABLE void setLayerOpacity(int _index, qreal _opacity);
     Q_INVOKABLE void setLayerBlend(int _index, int _blend);
+    Q_INVOKABLE void previewLayerBlend(int _index, int _blend);
     Q_INVOKABLE void setClippingMask(bool _enabled);
     Q_INVOKABLE void addLayerMask(bool _revealAll = true);
     Q_INVOKABLE void removeLayerMask();
@@ -352,6 +353,7 @@ private:
     mutable QMutex                 m_previewImageMutex;
     Snapshot                       m_beforeStroke;
     Snapshot                       m_beforeLayerPreview;
+    QImage                         m_beforeLayerPreviewComposite;
     Snapshot                       snapshot(const QString &_label) const;
     void                           restore(const Snapshot &_state);
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true);

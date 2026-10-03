@@ -143,26 +143,40 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
             return _s;
         }
     };
-    for (int y = 0; y < background.height(); ++y)
+    QVector<int> rows(background.height());
+    std::iota(rows.begin(), rows.end(), 0);
+    QtConcurrent::blockingMap(rows, [&](int _y) {
+        auto       *destination = reinterpret_cast<QRgb *>(background.scanLine(_y));
+        const auto *source      = reinterpret_cast<const QRgb *>(foreground.constScanLine(_y));
         for (int x = 0; x < background.width(); ++x) {
-            const QColor bc = background.pixelColor(x, y), sc = foreground.pixelColor(x, y);
-            double       ab = bc.alphaF(), as = sc.alphaF() * _opacity;
+            const QRgb   bc = destination[x], sc = source[x];
+            const double br = qRed(bc) / 255., bg = qGreen(bc) / 255., bb = qBlue(bc) / 255.;
+            const double sr = qRed(sc) / 255., sg = qGreen(sc) / 255., sb = qBlue(sc) / 255.;
+            const double ab = qAlpha(bc) / 255.;
+            double       as = qAlpha(sc) / 255. * _opacity;
             if (_mode == 1) {
-                const quint32 hash = quint32(x * 73856093u) ^ quint32(y * 19349663u);
+                const quint32 hash = quint32(x * 73856093u) ^ quint32(_y * 19349663u);
                 as                 = (hash & 0xffffu) < quint32(as * 65535.) ? 1. : 0.;
             }
             if (as <= 0)
                 continue;
-            QColor blended = sc;
+            double mixedRed = sr, mixedGreen = sg, mixedBlue = sb;
             if (_mode == 6 || _mode == 11) {
-                const int baseTotal   = bc.red() + bc.green() + bc.blue(),
-                          sourceTotal = sc.red() + sc.green() + sc.blue();
-                blended =
-                    (_mode == 6 ? sourceTotal < baseTotal : sourceTotal > baseTotal) ? sc : bc;
+                const int  baseTotal   = qRed(bc) + qGreen(bc) + qBlue(bc);
+                const int  sourceTotal = qRed(sc) + qGreen(sc) + qBlue(sc);
+                const bool useSource =
+                    _mode == 6 ? sourceTotal < baseTotal : sourceTotal > baseTotal;
+                if (!useSource) {
+                    mixedRed   = br;
+                    mixedGreen = bg;
+                    mixedBlue  = bb;
+                }
             } else if (_mode >= 23) {
-                float bh, bs, bl, ba, sh, ss, sl, sa;
-                bc.getHslF(&bh, &bs, &bl, &ba);
-                sc.getHslF(&sh, &ss, &sl, &sa);
+                float        bh, bs, bl, ba, sh, ss, sl, sa;
+                QColor       blended   = QColor::fromRgba(sc);
+                const QColor baseColor = QColor::fromRgba(bc);
+                baseColor.getHslF(&bh, &bs, &bl, &ba);
+                blended.getHslF(&sh, &ss, &sl, &sa);
                 if (bh < 0)
                     bh = 0;
                 if (sh < 0)
@@ -175,24 +189,25 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
                     blended.setHslF(sh, ss, bl);
                 else
                     blended.setHslF(bh, bs, sl);
+                mixedRed   = blended.redF();
+                mixedGreen = blended.greenF();
+                mixedBlue  = blended.blueF();
             } else if (_mode >= 2) {
-                blended = QColor::fromRgbF(channel(bc.redF(), sc.redF(), _mode),
-                                           channel(bc.greenF(), sc.greenF(), _mode),
-                                           channel(bc.blueF(), sc.blueF(), _mode));
+                mixedRed   = channel(br, sr, _mode);
+                mixedGreen = channel(bg, sg, _mode);
+                mixedBlue  = channel(bb, sb, _mode);
             }
             const double ao      = as + ab * (1 - as);
             auto         compose = [&](double _b, double _s, double _mix) {
                 return ao <= 0 ? 0.
                                : ((1 - as) * ab * _b + (1 - ab) * as * _s + ab * as * _mix) / ao;
             };
-            background.setPixelColor(
-                x, y,
-                QColor::fromRgbF(
-                    qBound(0., compose(bc.redF(), sc.redF(), blended.redF()), 1.),
-                    qBound(0., compose(bc.greenF(), sc.greenF(), blended.greenF()), 1.),
-                    qBound(0., compose(bc.blueF(), sc.blueF(), blended.blueF()), 1.),
-                    qBound(0., ao, 1.)));
+            destination[x] = qRgba(qRound(qBound(0., compose(br, sr, mixedRed), 1.) * 255.),
+                                   qRound(qBound(0., compose(bg, sg, mixedGreen), 1.) * 255.),
+                                   qRound(qBound(0., compose(bb, sb, mixedBlue), 1.) * 255.),
+                                   qRound(qBound(0., ao, 1.) * 255.));
         }
+    });
     background.setColorSpace(QColorSpace::SRgb);
     return background.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
@@ -728,10 +743,11 @@ void Document::beginLayerPreview()
         return;
     endStroke();
     (void)composite();
-    m_beforeLayerPreview    = snapshot(tr("Aperçu"));
-    m_previewingLayer       = true;
-    m_layerPreviewChanged   = false;
-    m_frequencyPreviewDraft = false;
+    m_beforeLayerPreviewComposite = m_composite;
+    m_beforeLayerPreview          = snapshot(tr("Aperçu"));
+    m_previewingLayer             = true;
+    m_layerPreviewChanged         = false;
+    m_frequencyPreviewDraft       = false;
 }
 void Document::previewLayerParameter(const QString &_key, const QVariant &_value)
 {
@@ -767,11 +783,21 @@ void Document::finishLayerPreview(const QString &_label)
     m_previewingLayer       = false;
     m_frequencyPreviewDraft = false;
     if (m_layerPreviewChanged) {
+        QImage screenPreview;
+        {
+            QMutexLocker locker(&m_previewImageMutex);
+            screenPreview = m_previewComposite;
+        }
         commit(m_beforeLayerPreview, _label);
+        {
+            QMutexLocker locker(&m_previewImageMutex);
+            m_previewComposite = screenPreview;
+        }
         requestPreviewRender(false);
     }
-    m_beforeLayerPreview  = {};
-    m_layerPreviewChanged = false;
+    m_beforeLayerPreview          = {};
+    m_beforeLayerPreviewComposite = {};
+    m_layerPreviewChanged         = false;
 }
 
 void Document::requestPreviewRender(bool _draft, bool _refine)
@@ -852,9 +878,15 @@ void Document::cancelLayerPreview()
     m_previewingLayer         = false;
     m_layerPreviewChanged     = false;
     m_frequencyPreviewDraft   = false;
-    if (changedPreview)
+    if (changedPreview) {
         restore(m_beforeLayerPreview);
-    m_beforeLayerPreview = {};
+        m_composite          = m_beforeLayerPreviewComposite;
+        m_cacheDirty         = false;
+        m_fullCompositeDirty = false;
+        m_dirtyRegion        = {};
+    }
+    m_beforeLayerPreview          = {};
+    m_beforeLayerPreviewComposite = {};
 }
 
 void Document::applyFilter(const QString &_filter, qreal _amount)

@@ -742,11 +742,30 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         ComboBox {
+                            id: layerBlendMode
+                            objectName: "layerBlendMode"
+                            property bool previewActive: false
                             Layout.fillWidth: true
                             enabled: activeInfo.kind!=="group"
                             model: window.blendModeNames
                             currentIndex: window.activeInfo.blend
-                            onActivated: editor.setLayerBlend(editor.activeLayer,currentIndex)
+                            popup.onOpened: {
+                                previewActive = true
+                                editor.beginLayerPreview()
+                            }
+                            onHighlightedIndexChanged: {
+                                if(previewActive && popup.visible && highlightedIndex>=0)
+                                    editor.previewLayerBlend(editor.activeLayer,highlightedIndex)
+                            }
+                            onActivated: {
+                                editor.previewLayerBlend(editor.activeLayer,currentIndex)
+                                editor.finishLayerPreview(qsTr("Mode de fusion"))
+                                previewActive = false
+                            }
+                            popup.onClosed: {
+                                if(previewActive) editor.cancelLayerPreview()
+                                previewActive = false
+                            }
                         }
                         IconButton { glyph: activeInfo.locked?"▣":"▢"; selected: activeInfo.locked; hint: qsTr("Verrouiller / déverrouiller"); onClicked: editor.setLayerLocked(editor.activeLayer,!activeInfo.locked) }
                     }

@@ -828,6 +828,21 @@ void Document::setLayerBlend(int _i, int _blend)
         return;
     edit(tr("Mode de fusion"), [&] { m_layers[_i].blend = _blend; });
 }
+void Document::previewLayerBlend(int _i, int _blend)
+{
+    if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
+        _blend < 0 || _blend > 26)
+        return;
+    if (!m_previewingLayer)
+        beginLayerPreview();
+    if (m_layers[_i].blend == _blend)
+        return;
+    m_layers[_i].blend    = _blend;
+    m_layerPreviewChanged = true;
+    m_fullCompositeDirty  = true;
+    m_cacheDirty          = true;
+    requestPreviewRender(true);
+}
 void Document::setClippingMask(bool _enabled)
 {
     if (m_active < 0 || m_active >= m_layers.size() ||

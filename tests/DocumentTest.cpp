@@ -625,6 +625,30 @@ private slots:
         QCOMPARE(d.composite().size(), QSize(1920, 1080));
         QCOMPARE(d.displayComposite().size(), QSize(800, 450));
     }
+    void blendModeHoverUsesDraftAndCommitsOnlyTheChosenMode()
+    {
+        Document d;
+        QVERIFY(d.newDocument(1920, 1080));
+        d.setPreviewSize(800, 450);
+        d.addLayer();
+        const int historyBefore = d.historyIndex();
+        d.beginLayerPreview();
+        d.previewLayerBlend(d.activeLayer(), 3);
+        d.previewLayerBlend(d.activeLayer(), 12);
+        QCOMPARE(d.historyIndex(), historyBefore);
+        QTRY_COMPARE_WITH_TIMEOUT(d.displayComposite().size(), QSize(800, 450), 5000);
+        d.finishLayerPreview("Mode de fusion");
+        QCOMPARE(d.historyIndex(), historyBefore + 1);
+        QCOMPARE(d.layers().first().toMap().value("blend").toInt(), 12);
+        d.undo();
+        QCOMPARE(d.layers().first().toMap().value("blend").toInt(), 0);
+
+        d.beginLayerPreview();
+        d.previewLayerBlend(d.activeLayer(), 8);
+        d.cancelLayerPreview();
+        QCOMPARE(d.layers().first().toMap().value("blend").toInt(), 0);
+        QCOMPARE(d.historyIndex(), historyBefore);
+    }
     void filterLayersAreNonDestructiveAndEditable()
     {
         Document d;

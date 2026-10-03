@@ -36,6 +36,22 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "histogram and navigator share a collapsible tab panel"))
         return false;
     QMetaObject::invokeMethod(collapseInspector, "clicked");
+    auto layersTab   = _window->findChild<QObject *>("layersTab");
+    auto channelsTab = _window->findChild<QObject *>("channelsTab");
+    auto channelList = _window->findChild<QObject *>("channelList");
+    if (!require(layersTab && channelsTab && channelList,
+                 "layers and color channels share a tab panel"))
+        return false;
+    QMetaObject::invokeMethod(channelsTab, "clicked");
+    if (!require(_window->property("layerPanelTab").toInt() == 1 &&
+                     channelList->property("visible").toBool(),
+                 "channels tab displays the RGB channel list"))
+        return false;
+    _document.setDisplayChannel(2);
+    if (!require(_document.displayChannel() == 2, "green channel can be displayed on canvas"))
+        return false;
+    _document.setDisplayChannel(0);
+    QMetaObject::invokeMethod(layersTab, "clicked");
     if (!require(_window->property("inspectorCollapsed").toBool(),
                  "histogram and navigator panel collapses"))
         return false;

@@ -54,6 +54,8 @@ class Document : public QObject
     Q_PROPERTY(bool canUngroupActive READ canUngroupActive NOTIFY layersChanged)
     Q_PROPERTY(int revision READ revision NOTIFY imageChanged)
     Q_PROPERTY(int thumbnailRevision READ thumbnailRevision NOTIFY thumbnailsChanged)
+    Q_PROPERTY(
+        int displayChannel READ displayChannel WRITE setDisplayChannel NOTIFY displayChannelChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY settingsChanged)
     Q_PROPERTY(
@@ -118,6 +120,10 @@ public:
     int thumbnailRevision() const
     {
         return m_thumbnailRevision;
+    }
+    int displayChannel() const
+    {
+        return m_displayChannel;
     }
     QString tool() const
     {
@@ -209,6 +215,7 @@ public:
     QImage           layerImage(int _index) const;
     QImage           maskImage(int _index) const;
     void             setActiveLayer(int _index);
+    void             setDisplayChannel(int _channel);
     Q_INVOKABLE void selectLayer(int _index, bool _toggle = false, bool _range = false);
     void             setTool(const QString &_value);
     void             setColor(const QColor &_value);
@@ -293,6 +300,7 @@ signals:
     void layersChanged();
     void imageChanged();
     void thumbnailsChanged();
+    void displayChannelChanged();
     void settingsChanged();
     void selectionChanged();
     void historyChanged();
@@ -333,6 +341,10 @@ private:
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int                            m_revision          = 0;
     int                            m_thumbnailRevision = 0;
+    int                            m_displayChannel    = 0;
+    mutable QImage                 m_channelDisplayCache;
+    mutable qint64                 m_channelDisplaySourceKey  = 0;
+    mutable int                    m_channelDisplayCacheIndex = 0;
     mutable QImage                 m_composite;
     mutable bool                   m_cacheDirty         = true;
     mutable bool                   m_fullCompositeDirty = true;

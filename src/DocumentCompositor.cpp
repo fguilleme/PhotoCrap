@@ -185,12 +185,36 @@ const QImage &Document::composite() const
 
 QImage Document::displayComposite() const
 {
+    QImage displayed;
     {
         QMutexLocker locker(&m_previewImageMutex);
         if (!m_previewComposite.isNull())
-            return m_previewComposite;
-        if (m_previewRenderActive.load())
-            return m_composite;
+            displayed = m_previewComposite;
+        else if (m_previewRenderActive.load())
+            displayed = m_composite;
     }
-    return composite();
+    if (displayed.isNull())
+        displayed = composite();
+    if (m_displayChannel == 0 || displayed.isNull())
+        return displayed;
+    if (m_channelDisplaySourceKey == displayed.cacheKey() &&
+        m_channelDisplayCacheIndex == m_displayChannel && !m_channelDisplayCache.isNull())
+        return m_channelDisplayCache;
+
+    const QImage input = displayed.convertToFormat(QImage::Format_ARGB32);
+    QImage       result(input.size(), QImage::Format_ARGB32_Premultiplied);
+    const int    shift = m_displayChannel == 1 ? 16 : m_displayChannel == 2 ? 8 : 0;
+    for (int y = 0; y < input.height(); ++y) {
+        const auto *source = reinterpret_cast<const QRgb *>(input.constScanLine(y));
+        auto       *output = reinterpret_cast<QRgb *>(result.scanLine(y));
+        for (int x = 0; x < input.width(); ++x) {
+            const int value = (source[x] >> shift) & 0xff;
+            output[x]       = qRgba(value, value, value, qAlpha(source[x]));
+        }
+    }
+    result.setColorSpace(displayed.colorSpace());
+    m_channelDisplaySourceKey  = displayed.cacheKey();
+    m_channelDisplayCacheIndex = m_displayChannel;
+    m_channelDisplayCache      = result;
+    return result;
 }

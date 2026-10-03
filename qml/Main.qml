@@ -50,6 +50,7 @@ ApplicationWindow {
     property string colorPickerMode: ""
     property int inspectorTab: 0
     property bool inspectorCollapsed: false
+    property int layerPanelTab: 0
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
@@ -935,11 +936,42 @@ ApplicationWindow {
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#363e47"; Layout.topMargin: 3 }
                     RowLayout {
                         Layout.fillWidth: true
-                        PanelTitle { text: qsTr("CALQUES") }
-                        Item { Layout.fillWidth: true }
-                        Label { text: editor.layers.length; color: "#71808d"; font.pixelSize: 10 }
+                        TabButton {
+                            objectName: "layersTab"
+                            text: qsTr("CALQUES")
+                            checked: window.layerPanelTab === 0
+                            onClicked: window.layerPanelTab = 0
+                            Layout.fillWidth: true
+                            background: Rectangle {
+                                radius: 4; color: parent.checked ? "#465463" : "#2b333c"
+                                border.width: 1; border.color: parent.checked ? "#74879a" : "#46515c"
+                            }
+                            contentItem: Label {
+                                text: parent.text; color: parent.checked ? "#ffffff" : "#b8c2cc"
+                                font.pixelSize: 10; font.bold: parent.checked
+                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        TabButton {
+                            objectName: "channelsTab"
+                            text: qsTr("COUCHES")
+                            checked: window.layerPanelTab === 1
+                            onClicked: window.layerPanelTab = 1
+                            Layout.fillWidth: true
+                            background: Rectangle {
+                                radius: 4; color: parent.checked ? "#465463" : "#2b333c"
+                                border.width: 1; border.color: parent.checked ? "#74879a" : "#46515c"
+                            }
+                            contentItem: Label {
+                                text: parent.text; color: parent.checked ? "#ffffff" : "#b8c2cc"
+                                font.pixelSize: 10; font.bold: parent.checked
+                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        Label { visible: window.layerPanelTab === 0; text: editor.layers.length; color: "#71808d"; font.pixelSize: 10 }
                     }
                     RowLayout {
+                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true
                         ComboBox {
                             id: layerBlendMode
@@ -970,6 +1002,7 @@ ApplicationWindow {
                         IconButton { glyph: activeInfo.locked?"▣":"▢"; selected: activeInfo.locked; hint: qsTr("Verrouiller / déverrouiller"); onClicked: editor.setLayerLocked(editor.activeLayer,!activeInfo.locked) }
                     }
                     RowLayout {
+                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true
                         Label { text: qsTr("Opacité"); color: "#8e9baa"; font.pixelSize: 11 }
                         DarkSlider {
@@ -982,6 +1015,7 @@ ApplicationWindow {
                     }
                     ListView {
                         id: layerList
+                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
                         clip: true; spacing: 5; model: editor.layers
                         ScrollBar.vertical: ScrollBar {}
@@ -1082,7 +1116,55 @@ ApplicationWindow {
                             }
                         }
                     }
+                    ListView {
+                        id: channelList
+                        objectName: "channelList"
+                        visible: window.layerPanelTab === 1
+                        Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
+                        clip: true; spacing: 5
+                        model: [
+                            {name:qsTr("RVB"), description:qsTr("Couleur composite"), color:"#d9dde1"},
+                            {name:qsTr("Rouge"), description:qsTr("Canal rouge"), color:"#d84b45"},
+                            {name:qsTr("Vert"), description:qsTr("Canal vert"), color:"#42ad61"},
+                            {name:qsTr("Bleu"), description:qsTr("Canal bleu"), color:"#4879d5"}
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
+                            width: channelList.width; height: 54; radius: 5
+                            color: editor.displayChannel === index ? "#35443e" : "#292f38"
+                            border.width: editor.displayChannel === index ? 2 : 1
+                            border.color: editor.displayChannel === index ? "#78a589" : "#3c4650"
+                            RowLayout {
+                                anchors.fill: parent; anchors.margins: 7; spacing: 10
+                                Label {
+                                    text: editor.displayChannel === index ? "◉" : "○"
+                                    color: editor.displayChannel === index ? "#d8f1df" : "#87939e"
+                                    font.pixelSize: 18
+                                }
+                                Rectangle {
+                                    width: 38; height: 34; radius: 4; color: "#171c22"
+                                    border.width: 1; border.color: "#56616c"
+                                    Rectangle {
+                                        anchors.centerIn: parent; width: 23; height: 23; radius: index === 0 ? 12 : 4
+                                        color: modelData.color
+                                        border.width: 1; border.color: "#eef2f5"
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: 2
+                                    Label { text: modelData.name; color: "#d6e0db"; font.pixelSize: 11 }
+                                    Label { text: modelData.description; color: "#80928c"; font.pixelSize: 9 }
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: editor.displayChannel = index
+                            }
+                        }
+                    }
                     RowLayout {
+                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true; spacing: 4
                         IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }

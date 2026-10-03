@@ -661,6 +661,27 @@ private slots:
         QCOMPARE(blue.at(0).toDouble(), 1.);
         QVERIFY(luminance.at(54).toDouble() > 0.9);
     }
+    void displayChannelsAreNonDestructive()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16));
+        d.setColor(QColor(20, 100, 220));
+        d.setTool("fill");
+        d.beginStroke(8, 8);
+        d.endStroke();
+        const QImage composite = d.composite();
+
+        d.setDisplayChannel(1);
+        QCOMPARE(d.displayComposite().pixelColor(8, 8), QColor(20, 20, 20));
+        d.setDisplayChannel(2);
+        QCOMPARE(d.displayComposite().pixelColor(8, 8), QColor(100, 100, 100));
+        d.setDisplayChannel(3);
+        QCOMPARE(d.displayComposite().pixelColor(8, 8), QColor(220, 220, 220));
+        QCOMPARE(d.composite(), composite);
+        QCOMPARE(d.historyIndex(), 1);
+        d.setDisplayChannel(0);
+        QCOMPARE(d.displayComposite().pixelColor(8, 8), QColor(20, 100, 220));
+    }
     void curveEyedroppersSampleColorsAndNeutralizeGray()
     {
         Document d;

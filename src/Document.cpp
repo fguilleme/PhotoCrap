@@ -377,6 +377,17 @@ void Document::setActiveLayer(int _index)
     selectOnly(_index);
     emit layersChanged();
 }
+void Document::setDisplayChannel(int _channel)
+{
+    _channel = qBound(0, _channel, 3);
+    if (m_displayChannel == _channel)
+        return;
+    m_displayChannel          = _channel;
+    m_channelDisplayCache     = {};
+    m_channelDisplaySourceKey = 0;
+    emit displayChannelChanged();
+    emit imageChanged();
+}
 void Document::selectOnly(int _index)
 {
     m_selectedLayers       = {_index};

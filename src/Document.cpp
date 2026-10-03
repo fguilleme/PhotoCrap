@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QThreadPool>
+#include <QTimer>
 #include <QUuid>
 #include <QtConcurrent>
 #include <QtMath>
@@ -39,6 +40,42 @@ QString          localPath(const QUrl &_url)
 
 Document::Document(QObject *_parent) : QObject(_parent)
 {
+    connect(&m_previewRenderWatcher, &QFutureWatcher<QImage>::finished, this, [this] {
+        const QImage result  = m_previewRenderWatcher.result();
+        const bool   current = m_runningPreviewGeneration == m_previewRequestGeneration;
+        if (current && !result.isNull()) {
+            QImage screenResult = result;
+            if (!m_runningPreviewDraft && m_runningPreviewTargetSize.isValid()) {
+                const QSize target = m_runningPreviewTargetSize.boundedTo(result.size());
+                if (target != result.size())
+                    screenResult =
+                        result.scaled(target, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+                screenResult = screenResult.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            }
+            {
+                QMutexLocker locker(&m_previewImageMutex);
+                if (m_runningPreviewDraft)
+                    m_previewComposite = result;
+                else {
+                    m_composite        = result;
+                    m_previewComposite = screenResult;
+                }
+            }
+            if (!m_runningPreviewDraft) {
+                m_cacheDirty         = false;
+                m_fullCompositeDirty = false;
+                m_dirtyRegion        = {};
+            }
+            ++m_revision;
+            emit imageChanged();
+        }
+        if (m_previewRenderPending)
+            QTimer::singleShot(0, this, &Document::startPendingPreviewRender);
+        else if (current && m_runningPreviewDraft && m_runningPreviewRefine)
+            requestPreviewRender(false);
+        else
+            m_previewRenderActive.store(false);
+    });
     newDocument(1280, 800);
 }
 bool Document::fail(const QString &_message)
@@ -136,6 +173,13 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata)
 {
+    ++m_previewRequestGeneration;
+    m_previewRenderPending = false;
+    m_previewRenderActive.store(false);
+    {
+        QMutexLocker locker(&m_previewImageMutex);
+        m_previewComposite = {};
+    }
     m_cacheDirty = true;
     if (_metadata)
         m_fullCompositeDirty = true;
@@ -146,6 +190,16 @@ void Document::changed(bool _metadata)
         emit layersChanged();
     }
     emit imageChanged();
+}
+
+void Document::setPreviewSize(int _width, int _height)
+{
+    if (_width < 1 || _height < 1)
+        return;
+    QSize target(_width, _height);
+    if (target.width() > 1280 || target.height() > 1280)
+        target.scale(1280, 1280, Qt::KeepAspectRatio);
+    m_previewTargetSize = target;
 }
 void Document::resetHistory(bool _clean)
 {
@@ -202,6 +256,29 @@ QVariantList Document::layers() const
                                   {"selected", m_selectedLayers.contains(i)},
                                   {"editingMask", m_editingMask && i == m_active}});
     }
+    return result;
+}
+QVariantList Document::histogram() const
+{
+    const QImage     image = composite().convertToFormat(QImage::Format_ARGB32);
+    QVector<quint64> bins(256, 0);
+    const qint64     pixels  = qint64(image.width()) * image.height();
+    const int        stride  = qMax(1, int(std::sqrt(double(pixels) / 262144.)));
+    quint64          maximum = 0;
+    for (int y = 0; y < image.height(); y += stride) {
+        const auto row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); x += stride) {
+            const QRgb pixel     = row[x];
+            const int  luminance = qBound(
+                0, qRound(.2126 * qRed(pixel) + .7152 * qGreen(pixel) + .0722 * qBlue(pixel)), 255);
+            bins[luminance] += quint64(qAlpha(pixel));
+            maximum = qMax(maximum, bins[luminance]);
+        }
+    }
+    QVariantList result;
+    result.reserve(256);
+    for (const quint64 count : std::as_const(bins))
+        result.append(maximum == 0 ? 0. : double(count) / double(maximum));
     return result;
 }
 QStringList Document::history() const

@@ -1,6 +1,36 @@
 <?xml version='1.0' encoding='utf-8'?>
 <TS version="2.1" language="en_US" sourcelanguage="fr_FR">
   <context>
+    <name>CurvesEditor</name>
+    <message>
+      <source>RVB composite</source>
+      <translation>RGB composite</translation>
+    </message>
+    <message>
+      <source>Ombres</source>
+      <translation>Shadows</translation>
+    </message>
+    <message>
+      <source>Clic : ajouter · clic droit : supprimer</source>
+      <translation>Click: add · right-click: remove</translation>
+    </message>
+    <message>
+      <source>Hautes lumières</source>
+      <translation>Highlights</translation>
+    </message>
+  </context>
+  <context>
+    <name>LevelsEditor</name>
+    <message>
+      <source>Niveaux d’entrée</source>
+      <translation>Input Levels</translation>
+    </message>
+    <message>
+      <source>Niveaux de sortie</source>
+      <translation>Output Levels</translation>
+    </message>
+  </context>
+  <context>
     <name>Document</name>
     <message>
       <location filename="../src/Document.cpp" line="38" />

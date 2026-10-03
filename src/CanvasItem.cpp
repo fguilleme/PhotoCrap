@@ -33,5 +33,5 @@ void CanvasItem::paint(QPainter *_painter)
     }();
     _painter->fillRect(boundingRect(), QBrush(checker));
     _painter->setRenderHint(QPainter::SmoothPixmapTransform, width() < m_document->width());
-    _painter->drawImage(boundingRect(), m_document->composite());
+    _painter->drawImage(boundingRect(), m_document->displayComposite());
 }

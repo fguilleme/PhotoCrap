@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -525,6 +526,104 @@ private slots:
             QVERIFY(!d.composite().isNull());
             d.undo();
         }
+    }
+    void curvesAndLevelsUseDedicatedParametersAndHistogram()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        const QVariantList histogram = d.histogram();
+        QCOMPARE(histogram.size(), 256);
+        QCOMPARE(histogram.at(255).toDouble(), 1.);
+        QCOMPARE(histogram.at(0).toDouble(), 0.);
+
+        d.addAdjustmentLayer("curves");
+        d.beginLayerPreview();
+        d.previewLayerParameter("points", QVariantList{QVariantMap{{"x", 0}, {"y", 0}},
+                                                       QVariantMap{{"x", 255}, {"y", 0}}});
+        QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::black));
+        d.cancelLayerPreview();
+        QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::white));
+        d.undo();
+
+        d.addAdjustmentLayer("levels");
+        d.beginLayerPreview();
+        d.previewLayerParameter("outputWhite", 96);
+        const QColor limited = d.composite().pixelColor(16, 16);
+        QVERIFY(limited.red() >= 95 && limited.red() <= 97);
+        d.cancelLayerPreview();
+        QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::white));
+    }
+    void pointAdjustmentPreviewsRemainInteractiveAtUhd()
+    {
+        Document d;
+        QVERIFY(d.newDocument(3840, 2160));
+        d.addAdjustmentLayer("blackWhite");
+        d.beginLayerPreview();
+        QElapsedTimer timer;
+        timer.start();
+        d.previewLayerParameter("reds", 65);
+        const QImage first               = d.composite();
+        const qint64 elapsedMilliseconds = timer.elapsed();
+        QVERIFY(!first.isNull());
+        QVERIFY2(
+            elapsedMilliseconds < 2000,
+            qPrintable(QString("UHD black-and-white preview took %1 ms").arg(elapsedMilliseconds)));
+        d.cancelLayerPreview();
+        d.undo();
+
+        d.addAdjustmentLayer("brightnessContrast");
+        d.beginLayerPreview();
+        timer.restart();
+        d.previewLayerParameter("brightness", 25);
+        const QImage second                        = d.composite();
+        const qint64 brightnessElapsedMilliseconds = timer.elapsed();
+        QVERIFY(!second.isNull());
+        QVERIFY2(brightnessElapsedMilliseconds < 2000,
+                 qPrintable(QString("UHD brightness/contrast preview took %1 ms")
+                                .arg(brightnessElapsedMilliseconds)));
+        d.cancelLayerPreview();
+    }
+    void asynchronousPreviewKeepsOnlyTheLatestRequestedValue()
+    {
+        Document d;
+        QVERIFY(d.newDocument(1920, 1080));
+        d.addAdjustmentLayer("brightnessContrast");
+        d.beginLayerPreview();
+        QSignalSpy    rendered(&d, &Document::imageChanged);
+        QElapsedTimer scheduling;
+        scheduling.start();
+        d.previewLayerParameter("brightness", -10);
+        d.previewLayerParameter("brightness", -40);
+        d.previewLayerParameter("brightness", -20);
+        QVERIFY2(scheduling.elapsed() < 100, "preview requests must not render on the UI thread");
+        QTRY_VERIFY_WITH_TIMEOUT(!rendered.isEmpty(), 5000);
+        const QImage latestPreview = d.displayComposite();
+        const QColor latest =
+            latestPreview.pixelColor(latestPreview.width() / 2, latestPreview.height() / 2);
+        QVERIFY(latest.red() >= 203 && latest.red() <= 205);
+        QCOMPARE(d.historyIndex(), 1);
+        d.cancelLayerPreview();
+    }
+    void addingAnAdjustmentShowsAScreenProxyBeforeTheFullRender()
+    {
+        Document d;
+        QVERIFY(d.newDocument(1920, 1080));
+        d.setPreviewSize(800, 450);
+        (void)d.composite();
+        QSignalSpy     rendered(&d, &Document::imageChanged);
+        QVector<QSize> renderedSizes;
+        connect(&d, &Document::imageChanged, &d,
+                [&] { renderedSizes.append(d.displayComposite().size()); });
+        QElapsedTimer scheduling;
+        scheduling.start();
+        d.addAdjustmentLayer("gaussianBlur");
+        QVERIFY2(scheduling.elapsed() < 100,
+                 "adding an adjustment must only schedule rendering on the UI thread");
+        QTRY_VERIFY_WITH_TIMEOUT(!rendered.isEmpty() && renderedSizes.contains(QSize(800, 450)),
+                                 20000);
+        QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 3, 10000);
+        QCOMPARE(d.composite().size(), QSize(1920, 1080));
+        QCOMPARE(d.displayComposite().size(), QSize(800, 450));
     }
     void filterLayersAreNonDestructiveAndEditable()
     {

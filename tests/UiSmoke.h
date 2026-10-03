@@ -231,6 +231,61 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      layerProperties->property("width").toReal() * .75,
                  "adjustment slider fills dialog width"))
         return false;
+    const int previewHistory = _document.historyIndex();
+    _document.beginLayerPreview();
+    QMetaObject::invokeMethod(_window, "queueLayerPreview", Q_ARG(QVariant, QVariant("brightness")),
+                              Q_ARG(QVariant, QVariant(10)));
+    QMetaObject::invokeMethod(_window, "queueLayerPreview", Q_ARG(QVariant, QVariant("brightness")),
+                              Q_ARG(QVariant, QVariant(20)));
+    QMetaObject::invokeMethod(_window, "queueLayerPreview", Q_ARG(QVariant, QVariant("brightness")),
+                              Q_ARG(QVariant, QVariant(30)));
+    QTest::qWait(80);
+    const QVariantMap previewLayer = _document.layers().first().toMap();
+    if (!require(previewLayer.value("parameters").toMap().value("brightness").toInt() == 30 &&
+                     _document.historyIndex() == previewHistory,
+                 "rapid slider updates keep only the newest preview without adding undo steps"))
+        return false;
+    QMetaObject::invokeMethod(_window, "previewLayerValue", Q_ARG(QVariant, QVariant("brightness")),
+                              Q_ARG(QVariant, QVariant(35)), Q_ARG(QVariant, QVariant(true)));
+    if (!require(_document.historyIndex() == previewHistory + 1,
+                 "releasing a slider commits one undo step"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
+    _document.undo();
+    _document.undo();
+    _document.addAdjustmentLayer("curves");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto curvesEditor = _window->findChild<QQuickItem *>("curvesEditor");
+    auto levelsEditor = _window->findChild<QQuickItem *>("levelsEditor");
+    if (!require(curvesEditor && curvesEditor->isVisible() && levelsEditor &&
+                     !levelsEditor->isVisible(),
+                 "curves adjustment uses its dedicated editor"))
+        return false;
+    auto curvesRoot = _window->findChild<QQuickItem *>("curvesEditorRoot");
+    if (!require(curvesRoot, "curves editor root exists"))
+        return false;
+    const QPoint curveStart =
+        curvesEditor->mapToScene(QPointF(curvesEditor->width() / 2, curvesEditor->height() / 2))
+            .toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, curveStart);
+    QTest::mouseMove(_window, curveStart + QPoint(24, -18), 20);
+    QTest::qWait(80);
+    QTest::mouseMove(_window, curveStart + QPoint(52, -36), 20);
+    QTest::qWait(80);
+    if (!require(curvesRoot->property("dragging").toBool(),
+                 "curves keeps pointer capture while previews finish"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, curveStart + QPoint(52, -36));
+    QTest::qWait(100);
+    QMetaObject::invokeMethod(layerProperties, "close");
+    _document.undo();
+    _document.addAdjustmentLayer("levels");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    if (!require(levelsEditor->isVisible() && !curvesEditor->isVisible(),
+                 "levels adjustment uses its dedicated editor"))
+        return false;
     QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");

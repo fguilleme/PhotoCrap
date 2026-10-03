@@ -13,6 +13,10 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentEditing.cpp
     src/DocumentFilters.cpp
     src/DocumentTools.cpp
+    src/filters/BlackWhiteFilter.cpp
+    src/filters/BrightnessContrastFilter.cpp
+    src/filters/CurvesFilter.cpp
+    src/filters/LevelsFilter.cpp
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
     src/ShortcutManager.cpp
@@ -23,6 +27,10 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/CanvasItem.h
     src/Document.h
     src/ImageUtils.h
+    src/filters/BlackWhiteFilter.h
+    src/filters/BrightnessContrastFilter.h
+    src/filters/CurvesFilter.h
+    src/filters/LevelsFilter.h
     src/LanguageManager.h
     src/RecentFilesManager.h
     src/ShortcutManager.h
@@ -111,8 +119,16 @@ qt_add_library(photocrap_core STATIC
     src/DocumentFilters.cpp
     src/DocumentTools.cpp
     src/ImageUtils.h
+    src/filters/BlackWhiteFilter.cpp
+    src/filters/BlackWhiteFilter.h
+    src/filters/BrightnessContrastFilter.cpp
+    src/filters/BrightnessContrastFilter.h
+    src/filters/CurvesFilter.cpp
+    src/filters/CurvesFilter.h
+    src/filters/LevelsFilter.cpp
+    src/filters/LevelsFilter.h
 )
-target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Concurrent)
+target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE)
     target_compile_definitions(photocrap_core PRIVATE PHOTOCRAP_USE_ACCELERATE)
@@ -150,6 +166,8 @@ qt_add_qml_module(PhotoCrap
         qml/DarkMenuItem.qml
         qml/DarkSlider.qml
         qml/DarkSpinBox.qml
+        qml/CurvesEditor.qml
+        qml/LevelsEditor.qml
 )
 qt_add_translations(PhotoCrap
     TS_FILES translations/PhotoCrap_en.ts

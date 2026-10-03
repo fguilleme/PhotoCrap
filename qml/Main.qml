@@ -42,6 +42,9 @@ ApplicationWindow {
     property string interfaceLanguage: languages.language
     property string newActionText: newAction.text
     property int recentFileCount: recentFiles.entries.length
+    property bool layerPreviewPending: false
+    property string pendingLayerPreviewKey: ""
+    property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
@@ -163,9 +166,30 @@ ApplicationWindow {
         editor.addAdjustmentLayer(type)
         layerPropertiesDialog.open()
     }
+    function queueLayerPreview(key, value) {
+        if(!layerPreview.checked)return
+        pendingLayerPreviewKey = key
+        pendingLayerPreviewValue = value
+        layerPreviewPending = true
+        if(!layerPreviewTimer.running)layerPreviewTimer.start()
+    }
+    function flushLayerPreview() {
+        if(!layerPreviewPending)return
+        const key = pendingLayerPreviewKey
+        const value = pendingLayerPreviewValue
+        layerPreviewPending = false
+        if(layerPreview.checked)editor.previewLayerParameter(key,value)
+    }
+    function cancelLayerPreviewQueue() {
+        layerPreviewTimer.stop()
+        layerPreviewPending = false
+    }
     function previewLayerValue(key, value, finalValue) {
-        if (layerPreview.checked || finalValue) editor.previewLayerParameter(key, value)
-        if (finalValue) editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
+        if(finalValue) {
+            cancelLayerPreviewQueue()
+            editor.previewLayerParameter(key,value)
+            editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
+        } else if(layerPreview.checked) queueLayerPreview(key,value)
     }
     function openLayerContextMenu() { layerContextMenu.popup() }
     function closeLayerContextMenu() { layerContextMenu.close() }
@@ -185,6 +209,7 @@ ApplicationWindow {
         function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
     }
     Timer { id: statusTimer; interval: 5000; onTriggered: window.status = qsTr("Prêt à créer") }
+    Timer { id: layerPreviewTimer; interval: 16; onTriggered: window.flushLayerPreview() }
 
     Action { id: newAction; text: qsTr("Nouveau…"); shortcut: (shortcuts.revision, shortcuts.sequence("new")); enabled: !window.modalOpen; onTriggered: guard("new") }
     Action { id: openAction; text: qsTr("Ouvrir…"); shortcut: (shortcuts.revision, shortcuts.sequence("open")); enabled: !window.modalOpen; onTriggered: guard("open") }
@@ -547,7 +572,13 @@ ApplicationWindow {
                             onXChanged: horizontalRuler.requestPaint()
                             onYChanged: verticalRuler.requestPaint()
                             Rectangle { x: 5; y: 9; width: parent.width; height: parent.height; color: "#0c1015"; opacity: 0.6 }
-                            ImageCanvas { anchors.fill: parent; document: editor }
+                            ImageCanvas {
+                                anchors.fill: parent
+                                document: editor
+                                Component.onCompleted: editor.setPreviewSize(Math.round(width), Math.round(height))
+                                onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
+                                onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
+                            }
                             Rectangle {
                                 visible: editor.hasSelection
                                 x: editor.selection.x*zoom; y: editor.selection.y*zoom
@@ -1084,7 +1115,7 @@ ApplicationWindow {
         height: Math.min(610, window.height-150)
         modal: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        onClosed: editor.cancelLayerPreview()
+        onClosed: { window.cancelLayerPreviewQueue(); editor.cancelLayerPreview() }
 
         contentItem: ColumnLayout {
             spacing: 12
@@ -1113,7 +1144,8 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels") ? []
+                          : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
                             Layout.fillWidth: true; spacing: 3
@@ -1133,8 +1165,34 @@ ApplicationWindow {
                                     if(pressed) editor.beginLayerPreview()
                                     else window.previewLayerValue(modelData.key,value,true)
                                 }
-                                onMoved: if(layerPreview.checked) editor.previewLayerParameter(modelData.key,value)
+                                onMoved: window.queueLayerPreview(modelData.key,value)
                             }
+                        }
+                    }
+                    CurvesEditor {
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType==="curves"
+                        Layout.fillWidth: true
+                        histogram: (editor.revision, editor.histogram())
+                        sourcePoints: activeInfo.parameters.points || [{"x":0,"y":0},{"x":255,"y":255}]
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(points) {
+                            if(layerPreview.checked) window.queueLayerPreview("points",points)
+                        }
+                        onCommitted: function(points) {
+                            window.previewLayerValue("points",points,true)
+                        }
+                    }
+                    LevelsEditor {
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType==="levels"
+                        Layout.fillWidth: true
+                        histogram: (editor.revision, editor.histogram())
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if(layerPreview.checked) window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
                         }
                     }
                     ColumnLayout {

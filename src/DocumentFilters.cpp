@@ -1,7 +1,14 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "filters/BlackWhiteFilter.h"
+#include "filters/BrightnessContrastFilter.h"
+#include "filters/CurvesFilter.h"
+#include "filters/LevelsFilter.h"
 
+#include <QCache>
 #include <QColorSpace>
+#include <QJSValue>
+#include <QMutexLocker>
 #include <QRandomGenerator>
 #include <QThreadPool>
 #include <QtConcurrent>
@@ -13,6 +20,36 @@
 #ifdef PHOTOCRAP_USE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
+
+namespace
+{
+QImage cachedScreenProxy(const QImage &_source, const QSize &_size, QImage::Format _format)
+{
+    if (_source.isNull() || !_size.isValid())
+        return {};
+    const QString                  key = QStringLiteral("%1:%2x%3:%4")
+                                             .arg(_source.cacheKey())
+                                             .arg(_size.width())
+                                             .arg(_size.height())
+                                             .arg(int(_format));
+    static QMutex                  cacheMutex;
+    static QCache<QString, QImage> cache(128 * 1024); // Cost is expressed in KiB.
+    {
+        QMutexLocker locker(&cacheMutex);
+        if (const QImage *cached = cache.object(key))
+            return *cached;
+    }
+    QImage    proxy = _source.scaled(_size, Qt::IgnoreAspectRatio, Qt::FastTransformation)
+                          .convertToFormat(_format);
+    const int cost =
+        qMax(1, int(qMin<qsizetype>(proxy.sizeInBytes() / 1024, std::numeric_limits<int>::max())));
+    {
+        QMutexLocker locker(&cacheMutex);
+        cache.insert(key, new QImage(proxy), cost);
+    }
+    return proxy;
+}
+} // namespace
 
 QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _density,
                            qreal _feather)
@@ -404,6 +441,14 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
 {
     if (_source.isNull())
         return _source;
+    if (_type == "curves")
+        return PhotoCrap::Filters::applyCurves(_source, _p);
+    if (_type == "levels")
+        return PhotoCrap::Filters::applyLevels(_source, _p);
+    if (_type == "blackWhite")
+        return PhotoCrap::Filters::applyBlackWhite(_source, _p);
+    if (_type == "brightnessContrast")
+        return PhotoCrap::Filters::applyBrightnessContrast(_source, _p);
     if (_type == "gaussianBlur")
         return gaussianBlurImage(_source, _p.value("radius", 8.).toDouble());
     if (_type == "motionBlur")
@@ -421,151 +466,132 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return mosaicImage(_source, _p.value("cellSize", 12).toInt());
     if (_type == "noise")
         return noiseImage(_source, _p.value("amount", 8.).toDouble());
-    QImage result = _source.convertToFormat(QImage::Format_ARGB32);
-    auto   value  = [&](const char *_key, double _fallback) {
+    const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
+    QImage       result(input.size(), QImage::Format_ARGB32);
+    auto         value = [&](const char *_key, double _fallback) {
         return _p.value(QLatin1String(_key), _fallback).toDouble();
     };
     auto         clamp = [](double _v) { return qBound(0, qRound(_v), 255); };
     const QColor shadowColor(_p.value("shadowColor", QStringLiteral("#101828")).toString());
     const QColor highlightColor(_p.value("highlightColor", QStringLiteral("#f5d9a8")).toString());
-    for (int y = 0; y < result.height(); ++y)
-        for (int x = 0; x < result.width(); ++x) {
-            QColor       c = result.pixelColor(x, y);
-            double       r = c.red(), g = c.green(), b = c.blue();
-            const int    alpha = c.alpha();
-            const double lum   = .2126 * r + .7152 * g + .0722 * b;
-            if (_type == "brightnessContrast") {
-                const double brightness = value("brightness", 0) * 2.55,
-                             contrast   = value("contrast", 0);
-                const double f          = std::pow((100 + contrast) / 100, 2);
-                r                       = (r - 128) * f + 128 + brightness;
-                g                       = (g - 128) * f + 128 + brightness;
-                b                       = (b - 128) * f + 128 + brightness;
-            } else if (_type == "levels") {
-                const double inB   = value("inputBlack", 0),
-                             inW   = qMax(inB + 1., value("inputWhite", 255)),
-                             gamma = qMax(.1, value("gamma", 1));
-                const double outB = value("outputBlack", 0), outW = value("outputWhite", 255);
-                auto         level = [&](double _v) {
-                    return outB + std::pow(qBound(0., (_v - inB) / (inW - inB), 1.), 1 / gamma) *
-                                      (outW - outB);
-                };
-                r = level(r);
-                g = level(g);
-                b = level(b);
-            } else if (_type == "curves") {
-                const double t = lum / 255., shadows = value("shadows", 0),
-                             mid = value("midtones", 0), high = value("highlights", 0);
-                const double delta =
-                    shadows * std::pow(1 - t, 2) + mid * 4 * t * (1 - t) + high * t * t;
-                r += delta;
-                g += delta;
-                b += delta;
-            } else if (_type == "exposure") {
-                const double exposure = std::pow(2., value("exposure", 0)),
-                             offset = value("offset", 0) * 255, gamma = qMax(.1, value("gamma", 1));
-                auto         expose = [&](double _v) {
-                    return std::pow(qMax(0., _v * exposure + offset) / 255., 1 / gamma) * 255.;
-                };
-                r = expose(r);
-                g = expose(g);
-                b = expose(b);
-            } else if (_type == "vibrance") {
-                const double mx = qMax(r, qMax(g, b)), mn = qMin(r, qMin(g, b)),
-                             sat = (mx - mn) / 255.;
-                const double factor =
-                    1 + value("saturation", 0) / 100. + value("vibrance", 0) / 100. * (1 - sat);
-                r = lum + (r - lum) * factor;
-                g = lum + (g - lum) * factor;
-                b = lum + (b - lum) * factor;
-            } else if (_type == "hueSaturation") {
-                float h, s, l, a;
-                c.getHslF(&h, &s, &l, &a);
-                h = std::fmod(h + value("hue", 0) / 360. + 1., 1.);
-                s = qBound(0., s * (1 + value("saturation", 0) / 100.), 1.);
-                l = qBound(0., l + value("lightness", 0) / 100., 1.);
-                c.setHslF(h, s, l, a);
-                r = c.red();
-                g = c.green();
-                b = c.blue();
-            } else if (_type == "colorBalance") {
-                r += value("cyanRed", 0) * 2.55;
-                g += value("magentaGreen", 0) * 2.55;
-                b += value("yellowBlue", 0) * 2.55;
-            } else if (_type == "blackWhite") {
-                const double total =
-                    qMax(1., value("reds", 40) + value("greens", 40) + value("blues", 20));
-                const double gray =
-                    (r * value("reds", 40) + g * value("greens", 40) + b * value("blues", 20)) /
-                    total;
-                r = g = b = gray;
-            } else if (_type == "photoFilter") {
-                QColor filter;
-                filter.setHslF(std::fmod(value("hue", 35) / 360. + 1., 1.), .8, .55);
-                const double d = qBound(0., value("density", 25) / 100., 1.);
-                r              = r * (1 - d) + filter.red() * d;
-                g              = g * (1 - d) + filter.green() * d;
-                b              = b * (1 - d) + filter.blue() * d;
-            } else if (_type == "channelMixer") {
-                const double nr = r * value("redRed", 100) / 100. +
-                                  g * value("redGreen", 0) / 100. + b * value("redBlue", 0) / 100.;
-                const double ng = r * value("greenRed", 0) / 100. +
-                                  g * value("greenGreen", 100) / 100. +
-                                  b * value("greenBlue", 0) / 100.;
-                const double nb = r * value("blueRed", 0) / 100. +
-                                  g * value("blueGreen", 0) / 100. +
-                                  b * value("blueBlue", 100) / 100.;
-                r               = nr;
-                g               = ng;
-                b               = nb;
-            } else if (_type == "colorLookup") {
-                const int preset = _p.value("preset", 0).toInt();
-                if (preset == 0) {
-                    r = r * 1.05 + 8;
-                    g = g * .98;
-                    b = b * .88;
-                } else if (preset == 1) {
-                    r = r * 1.08;
-                    g = g * 1.01;
-                    b = b * .92 + 8;
-                } else if (preset == 2) {
-                    r = r * .9;
-                    g = g * 1.02;
-                    b = b * 1.12;
-                } else {
-                    r = 128 + (r - 128) * .82;
-                    g = 128 + (g - 128) * .82;
-                    b = 128 + (b - 128) * .82;
+    const int    jobCount =
+        qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
+    QVector<int> jobs(jobCount);
+    std::iota(jobs.begin(), jobs.end(), 0);
+    QtConcurrent::blockingMap(jobs, [&](int _job) {
+        const int firstRow = input.height() * _job / jobCount;
+        const int lastRow  = input.height() * (_job + 1) / jobCount;
+        for (int y = firstRow; y < lastRow; ++y) {
+            const auto *source = reinterpret_cast<const QRgb *>(input.constScanLine(y));
+            auto       *output = reinterpret_cast<QRgb *>(result.scanLine(y));
+            for (int x = 0; x < input.width(); ++x) {
+                QColor       c = QColor::fromRgba(source[x]);
+                double       r = c.red(), g = c.green(), b = c.blue();
+                const int    alpha = c.alpha();
+                const double lum   = .2126 * r + .7152 * g + .0722 * b;
+                if (_type == "exposure") {
+                    const double exposure = std::pow(2., value("exposure", 0)),
+                                 offset   = value("offset", 0) * 255,
+                                 gamma    = qMax(.1, value("gamma", 1));
+                    auto         expose   = [&](double _v) {
+                        return std::pow(qMax(0., _v * exposure + offset) / 255., 1 / gamma) * 255.;
+                    };
+                    r = expose(r);
+                    g = expose(g);
+                    b = expose(b);
+                } else if (_type == "vibrance") {
+                    const double mx = qMax(r, qMax(g, b)), mn = qMin(r, qMin(g, b)),
+                                 sat = (mx - mn) / 255.;
+                    const double factor =
+                        1 + value("saturation", 0) / 100. + value("vibrance", 0) / 100. * (1 - sat);
+                    r = lum + (r - lum) * factor;
+                    g = lum + (g - lum) * factor;
+                    b = lum + (b - lum) * factor;
+                } else if (_type == "hueSaturation") {
+                    float h, s, l, a;
+                    c.getHslF(&h, &s, &l, &a);
+                    h = std::fmod(h + value("hue", 0) / 360. + 1., 1.);
+                    s = qBound(0., s * (1 + value("saturation", 0) / 100.), 1.);
+                    l = qBound(0., l + value("lightness", 0) / 100., 1.);
+                    c.setHslF(h, s, l, a);
+                    r = c.red();
+                    g = c.green();
+                    b = c.blue();
+                } else if (_type == "colorBalance") {
+                    r += value("cyanRed", 0) * 2.55;
+                    g += value("magentaGreen", 0) * 2.55;
+                    b += value("yellowBlue", 0) * 2.55;
+                } else if (_type == "photoFilter") {
+                    QColor filter;
+                    filter.setHslF(std::fmod(value("hue", 35) / 360. + 1., 1.), .8, .55);
+                    const double d = qBound(0., value("density", 25) / 100., 1.);
+                    r              = r * (1 - d) + filter.red() * d;
+                    g              = g * (1 - d) + filter.green() * d;
+                    b              = b * (1 - d) + filter.blue() * d;
+                } else if (_type == "channelMixer") {
+                    const double nr = r * value("redRed", 100) / 100. +
+                                      g * value("redGreen", 0) / 100. +
+                                      b * value("redBlue", 0) / 100.;
+                    const double ng = r * value("greenRed", 0) / 100. +
+                                      g * value("greenGreen", 100) / 100. +
+                                      b * value("greenBlue", 0) / 100.;
+                    const double nb = r * value("blueRed", 0) / 100. +
+                                      g * value("blueGreen", 0) / 100. +
+                                      b * value("blueBlue", 100) / 100.;
+                    r               = nr;
+                    g               = ng;
+                    b               = nb;
+                } else if (_type == "colorLookup") {
+                    const int preset = _p.value("preset", 0).toInt();
+                    if (preset == 0) {
+                        r = r * 1.05 + 8;
+                        g = g * .98;
+                        b = b * .88;
+                    } else if (preset == 1) {
+                        r = r * 1.08;
+                        g = g * 1.01;
+                        b = b * .92 + 8;
+                    } else if (preset == 2) {
+                        r = r * .9;
+                        g = g * 1.02;
+                        b = b * 1.12;
+                    } else {
+                        r = 128 + (r - 128) * .82;
+                        g = 128 + (g - 128) * .82;
+                        b = 128 + (b - 128) * .82;
+                    }
+                } else if (_type == "invert") {
+                    r = 255 - r;
+                    g = 255 - g;
+                    b = 255 - b;
+                } else if (_type == "posterize") {
+                    const int    levels = qBound(2, _p.value("levels", 4).toInt(), 32);
+                    const double step   = 255. / (levels - 1);
+                    r                   = qRound(r / step) * step;
+                    g                   = qRound(g / step) * step;
+                    b                   = qRound(b / step) * step;
+                } else if (_type == "threshold") {
+                    r = g = b = lum >= value("level", 128) ? 255 : 0;
+                } else if (_type == "gradientMap") {
+                    const double t = lum / 255.;
+                    r              = shadowColor.red() * (1 - t) + highlightColor.red() * t;
+                    g              = shadowColor.green() * (1 - t) + highlightColor.green() * t;
+                    b              = shadowColor.blue() * (1 - t) + highlightColor.blue() * t;
+                } else if (_type == "selectiveColor") {
+                    const double strength = (qMax(r, qMax(g, b)) - qMin(r, qMin(g, b))) / 255.;
+                    r += value("cyanRed", 0) * 2.55 * strength;
+                    g += value("magentaGreen", 0) * 2.55 * strength;
+                    b += value("yellowBlue", 0) * 2.55 * strength;
+                    const double black = value("black", 0) * 2.55;
+                    r -= black;
+                    g -= black;
+                    b -= black;
                 }
-            } else if (_type == "invert") {
-                r = 255 - r;
-                g = 255 - g;
-                b = 255 - b;
-            } else if (_type == "posterize") {
-                const int    levels = qBound(2, _p.value("levels", 4).toInt(), 32);
-                const double step   = 255. / (levels - 1);
-                r                   = qRound(r / step) * step;
-                g                   = qRound(g / step) * step;
-                b                   = qRound(b / step) * step;
-            } else if (_type == "threshold") {
-                r = g = b = lum >= value("level", 128) ? 255 : 0;
-            } else if (_type == "gradientMap") {
-                const double t = lum / 255.;
-                r              = shadowColor.red() * (1 - t) + highlightColor.red() * t;
-                g              = shadowColor.green() * (1 - t) + highlightColor.green() * t;
-                b              = shadowColor.blue() * (1 - t) + highlightColor.blue() * t;
-            } else if (_type == "selectiveColor") {
-                const double strength = (qMax(r, qMax(g, b)) - qMin(r, qMin(g, b))) / 255.;
-                r += value("cyanRed", 0) * 2.55 * strength;
-                g += value("magentaGreen", 0) * 2.55 * strength;
-                b += value("yellowBlue", 0) * 2.55 * strength;
-                const double black = value("black", 0) * 2.55;
-                r -= black;
-                g -= black;
-                b -= black;
+                output[x] = qRgba(clamp(r), clamp(g), clamp(b), alpha);
             }
-            result.setPixelColor(x, y, QColor(clamp(r), clamp(g), clamp(b), alpha));
         }
+    });
+    result.setColorSpace(QColorSpace::SRgb);
     return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 void Document::addAdjustmentLayer(const QString &_type)
@@ -605,7 +631,8 @@ void Document::addAdjustmentLayer(const QString &_type)
                   {"outputBlack", 0},
                   {"outputWhite", 255}};
     else if (_type == "curves")
-        params = {{"shadows", 0}, {"midtones", 0}, {"highlights", 0}};
+        params = {{"points", QVariantList{QVariantMap{{"x", 0}, {"y", 0}},
+                                          QVariantMap{{"x", 255}, {"y", 255}}}}};
     else if (_type == "exposure")
         params = {{"exposure", 0.}, {"offset", 0.}, {"gamma", 1.}};
     else if (_type == "vibrance")
@@ -660,6 +687,9 @@ void Document::addAdjustmentLayer(const QString &_type)
         m_editingMask = false;
         selectOnly(m_active);
     });
+    // Present a screen-sized result first, then refine the document pixels in
+    // the background. Adding a costly filter must never block the QML thread.
+    requestPreviewRender(true, true);
 }
 void Document::addFrequencySeparation(qreal _radius)
 {
@@ -697,6 +727,7 @@ void Document::beginLayerPreview()
     if (m_previewingLayer || m_active < 0 || m_active >= m_layers.size())
         return;
     endStroke();
+    (void)composite();
     m_beforeLayerPreview    = snapshot(tr("Aperçu"));
     m_previewingLayer       = true;
     m_layerPreviewChanged   = false;
@@ -708,7 +739,10 @@ void Document::previewLayerParameter(const QString &_key, const QVariant &_value
         return;
     if (!m_previewingLayer)
         beginLayerPreview();
-    if (m_layers[m_active].parameters.value(_key) == _value)
+    const QVariant value = _value.metaType() == QMetaType::fromType<QJSValue>()
+                               ? _value.value<QJSValue>().toVariant(QJSValue::ConvertJSObjects)
+                               : _value;
+    if (m_layers[m_active].parameters.value(_key) == value)
         return;
     const QString pairId = m_layers[m_active].parameters.value("pairId").toString();
     if (_key == "radius" && !pairId.isEmpty()) {
@@ -716,14 +750,15 @@ void Document::previewLayerParameter(const QString &_key, const QVariant &_value
         m_frequencyCache.clear();
         for (auto &layer : m_layers)
             if (layer.parameters.value("pairId").toString() == pairId)
-                layer.parameters.insert(_key, _value);
+                layer.parameters.insert(_key, value);
     } else
-        m_layers[m_active].parameters.insert(_key, _value);
+        m_layers[m_active].parameters.insert(_key, value);
     // The property panel already owns the live slider value. Avoid rebuilding
     // the layer model and its thumbnails for every pointer event.
     m_layerPreviewChanged = true;
     m_fullCompositeDirty  = true;
-    changed(false);
+    m_cacheDirty          = true;
+    requestPreviewRender(true);
 }
 void Document::finishLayerPreview(const QString &_label)
 {
@@ -731,10 +766,83 @@ void Document::finishLayerPreview(const QString &_label)
         return;
     m_previewingLayer       = false;
     m_frequencyPreviewDraft = false;
-    if (m_layerPreviewChanged)
+    if (m_layerPreviewChanged) {
         commit(m_beforeLayerPreview, _label);
+        requestPreviewRender(false);
+    }
     m_beforeLayerPreview  = {};
     m_layerPreviewChanged = false;
+}
+
+void Document::requestPreviewRender(bool _draft, bool _refine)
+{
+    m_pendingPreviewLayers     = m_layers;
+    m_pendingPreviewSize       = m_size;
+    m_pendingPreviewTargetSize = m_previewTargetSize;
+    m_pendingPreviewDraft      = _draft;
+    m_pendingPreviewRefine     = _refine;
+    m_previewRenderPending     = true;
+    m_previewRenderActive.store(true);
+    ++m_previewRequestGeneration;
+    if (!m_previewRenderWatcher.isRunning())
+        startPendingPreviewRender();
+}
+
+void Document::startPendingPreviewRender()
+{
+    if (!m_previewRenderPending || m_previewRenderWatcher.isRunning())
+        return;
+    QVector<Layer> layers      = std::move(m_pendingPreviewLayers);
+    const QSize    size        = m_pendingPreviewSize;
+    const QSize    targetSize  = m_pendingPreviewTargetSize;
+    const bool     draft       = m_pendingPreviewDraft;
+    const bool     refine      = m_pendingPreviewRefine;
+    m_previewRenderPending     = false;
+    m_runningPreviewGeneration = m_previewRequestGeneration;
+    m_runningPreviewDraft      = draft;
+    m_runningPreviewRefine     = refine;
+    m_runningPreviewTargetSize = targetSize;
+    m_previewRenderWatcher.setFuture(
+        QtConcurrent::run([layers = std::move(layers), size, targetSize, draft]() mutable {
+            return renderPreviewSnapshot(std::move(layers), size, targetSize, draft);
+        }));
+}
+
+QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
+                                       const QSize &_targetSize, bool _draft)
+{
+    QSize renderSize = _size;
+    if (_draft) {
+        if (_targetSize.isValid())
+            renderSize = _targetSize.boundedTo(_size);
+        else if (qMax(_size.width(), _size.height()) > 960)
+            renderSize.scale(960, 960, Qt::KeepAspectRatio);
+    }
+    if (renderSize != _size) {
+        const qreal scale = qreal(renderSize.width()) / qMax(1, _size.width());
+        for (Layer &layer : _layers) {
+            if (!layer.image.isNull())
+                layer.image =
+                    cachedScreenProxy(layer.image, renderSize, QImage::Format_ARGB32_Premultiplied);
+            if (!layer.mask.isNull())
+                layer.mask = cachedScreenProxy(layer.mask, renderSize, QImage::Format_Grayscale8);
+            if (!layer.source.isNull())
+                layer.source = cachedScreenProxy(layer.source, renderSize,
+                                                 QImage::Format_ARGB32_Premultiplied);
+            for (const QString &key :
+                 {QStringLiteral("radius"), QStringLiteral("distance"), QStringLiteral("cellSize")})
+                if (layer.parameters.contains(key))
+                    layer.parameters.insert(
+                        key, qMax(1., layer.parameters.value(key).toDouble() * scale));
+        }
+    }
+    Document renderer;
+    renderer.m_layers             = std::move(_layers);
+    renderer.m_size               = renderSize;
+    renderer.m_cacheDirty         = true;
+    renderer.m_fullCompositeDirty = true;
+    renderer.m_dirtyRegion        = {};
+    return renderer.composite().copy();
 }
 void Document::cancelLayerPreview()
 {

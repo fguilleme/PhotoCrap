@@ -182,3 +182,15 @@ const QImage &Document::composite() const
     m_dirtyRegion        = {};
     return m_composite;
 }
+
+QImage Document::displayComposite() const
+{
+    {
+        QMutexLocker locker(&m_previewImageMutex);
+        if (!m_previewComposite.isNull())
+            return m_previewComposite;
+        if (m_previewRenderActive.load())
+            return m_composite;
+    }
+    return composite();
+}

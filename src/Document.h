@@ -1,7 +1,9 @@
 #pragma once
 #include <QColor>
+#include <QFutureWatcher>
 #include <QHash>
 #include <QImage>
+#include <QMutex>
 #include <QObject>
 #include <QPainter>
 #include <QRect>
@@ -9,6 +11,7 @@
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
+#include <atomic>
 #include <functional>
 
 struct Layer {
@@ -98,8 +101,9 @@ public:
     {
         return m_stateId != m_savedId;
     }
-    QVariantList layers() const;
-    int          activeLayer() const
+    QVariantList             layers() const;
+    Q_INVOKABLE QVariantList histogram() const;
+    int                      activeLayer() const
     {
         return m_active;
     }
@@ -200,6 +204,7 @@ public:
         return m_editingMask;
     }
     const QImage    &composite() const;
+    QImage           displayComposite() const;
     QImage           layerImage(int _index) const;
     QImage           maskImage(int _index) const;
     void             setActiveLayer(int _index);
@@ -221,6 +226,7 @@ public:
     void             setFilledShapes(bool _value);
 
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false);
+    Q_INVOKABLE void setPreviewSize(int _width, int _height);
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
     Q_INVOKABLE bool saveProject(const QUrl &_url);
@@ -328,6 +334,22 @@ private:
     QImage                         m_strokeBase, m_strokeCoverage;
     QRectF                         m_strokeBounds;
     mutable QHash<QString, QImage> m_frequencyCache;
+    QFutureWatcher<QImage>         m_previewRenderWatcher;
+    QVector<Layer>                 m_pendingPreviewLayers;
+    QSize                          m_pendingPreviewSize;
+    QSize                          m_pendingPreviewTargetSize;
+    QSize                          m_previewTargetSize;
+    QImage                         m_previewComposite;
+    bool                           m_pendingPreviewDraft  = false;
+    bool                           m_pendingPreviewRefine = false;
+    bool                           m_runningPreviewDraft  = false;
+    bool                           m_runningPreviewRefine = false;
+    QSize                          m_runningPreviewTargetSize;
+    quint64                        m_previewRequestGeneration = 0;
+    quint64                        m_runningPreviewGeneration = 0;
+    bool                           m_previewRenderPending     = false;
+    std::atomic_bool               m_previewRenderActive{false};
+    mutable QMutex                 m_previewImageMutex;
     Snapshot                       m_beforeStroke;
     Snapshot                       m_beforeLayerPreview;
     Snapshot                       snapshot(const QString &_label) const;
@@ -364,4 +386,8 @@ private:
     static QImage adjustedImage(const QImage &_source, const QString &_type,
                                 const QVariantMap &_parameters);
     QImage        frequencyImage(const Layer &_layer) const;
+    void          requestPreviewRender(bool _draft, bool _refine = false);
+    void          startPendingPreviewRender();
+    static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
+                                        const QSize &_targetSize, bool _draft);
 };

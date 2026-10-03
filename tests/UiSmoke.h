@@ -208,6 +208,13 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::qWait(100);
     if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))
         return false;
+    auto brushOptionsButton = _window->findChild<QObject *>("brushOptionsButton");
+    auto brushHardnessTop   = _window->findChild<QObject *>("brushHardnessTop");
+    if (!require(brushOptionsButton && brushHardnessTop &&
+                     qAbs(brushOptionsButton->property("height").toReal() -
+                          brushHardnessTop->property("height").toReal()) < .5,
+                 "toolbar buttons and numeric controls share one height"))
+        return false;
     QMetaObject::invokeMethod(brushSettings, "close");
     QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
     QTest::qWait(200);
@@ -224,7 +231,28 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      dialog->property("height").toReal() > 200,
                  "new document dialog has content"))
         return false;
-    QMetaObject::invokeMethod(dialog, "reject");
+    auto newCancel = _window->findChild<QObject *>("newDialogCancelButton");
+    auto newOk     = _window->findChild<QObject *>("newDialogOkButton");
+    if (!require(newCancel && newOk &&
+                     newCancel->property("focusPolicy").toInt() == int(Qt::StrongFocus) &&
+                     newOk->property("defaultButton").toBool(),
+                 "dialog actions expose keyboard focus and a default button"))
+        return false;
+    QMetaObject::invokeMethod(newCancel, "forceActiveFocus");
+    QTest::keyClick(_window, Qt::Key_Space);
+    QTest::qWait(80);
+    if (!require(!dialog->property("visible").toBool(),
+                 "Space activates the focused dialog button"))
+        return false;
+    QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
+    QTest::qWait(80);
+    QMetaObject::invokeMethod(newCancel, "forceActiveFocus");
+    QTest::keyClick(_window, Qt::Key_Return);
+    QTest::qWait(100);
+    if (!require(!dialog->property("visible").toBool() && _document.width() == 1280 &&
+                     _document.height() == 800,
+                 "Return activates the default dialog button"))
+        return false;
     _document.addAdjustmentLayer("brightnessContrast");
     auto layerProperties = _window->findChild<QObject *>("layerPropertiesDialog");
     if (!require(layerProperties, "layer properties dialog exists"))

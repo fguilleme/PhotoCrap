@@ -456,14 +456,14 @@ ApplicationWindow {
                 DarkSpinBox { from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
                 Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
                 DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
-                Button { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Pinceau…"); onClicked: brushSettingsDialog.open() }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox { text: qsTr("Remplir"); checked: editor.filledShapes; visible: editor.tool==="rectangle" || editor.tool==="ellipse"; onToggled: editor.filledShapes=checked }
-                Button { text: qsTr("Recadrer"); visible: editor.tool==="crop"; enabled: editor.hasSelection; onClicked: editor.cropToSelection() }
+                Button { text: qsTr("Recadrer"); visible: editor.tool==="crop"; enabled: editor.hasSelection; implicitHeight: 32; onClicked: editor.cropToSelection() }
                 Item { Layout.fillWidth: true }
                 IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
                 IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
                 Button {
-                    text: qsTr("Exporter ↗"); implicitWidth: 116
+                    text: qsTr("Exporter ↗"); implicitWidth: 116; implicitHeight: 32
                     background: Rectangle { color: parent.down ? "#94caa4" : "#beeccb"; radius: 5 }
                     contentItem: Text { text: parent.text; color: "#203b2c"; font.pixelSize: 12; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     onClicked: exportDialog.open()
@@ -1019,7 +1019,6 @@ ApplicationWindow {
     ColorDialog { id: colorDialog; title: qsTr("Choisir une couleur"); onAccepted: { if(changingSecondary) editor.secondaryColor=selectedColor; else editor.color=selectedColor } }
     Dialog {
         id: newDialog; objectName: "newDialog"; title: qsTr("Nouveau document"); anchors.centerIn: parent; modal: true; width: 410
-        standardButtons: Dialog.Ok | Dialog.Cancel
         ColumnLayout {
             anchors.fill: parent; spacing: 16
             Label { text: qsTr("Une page blanche pour votre prochaine idée."); color: "#a5b2c0" }
@@ -1035,29 +1034,38 @@ ApplicationWindow {
             CheckBox { id: transparent; text: qsTr("Arrière-plan transparent") }
             Label { text: qsTr("RVB · 8 bits · sRGB"); color: "#8794a2" }
         }
+        footer: DialogButtonBox {
+            DialogActionButton { objectName: "newDialogCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: newDialog.reject() }
+            DialogActionButton { objectName: "newDialogOkButton"; text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: newDialog.accept() }
+        }
         onAccepted: editor.newDocument(newWidth.value,newHeight.value,transparent.checked)
     }
     Dialog {
         id: resizeDialog; title: qsTr("Dimensions de l’image"); anchors.centerIn: parent; modal: true; width: 370
-        standardButtons: Dialog.Ok | Dialog.Cancel
         ColumnLayout {
             anchors.fill: parent; spacing: 16
             RowLayout { Label { text: qsTr("Largeur"); Layout.preferredWidth: 100 } DarkSpinBox { id: resizeWidth; from: 1; to: 16384; suffix: " px" } }
             RowLayout { Label { text: qsTr("Hauteur"); Layout.preferredWidth: 100 } DarkSpinBox { id: resizeHeight; from: 1; to: 16384; suffix: " px" } }
             Label { text: qsTr("Tous les calques sont rééchantillonnés.\nLes proportions sont libres."); color: "#9eabb7" }
         }
+        footer: DialogButtonBox {
+            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: resizeDialog.reject() }
+            DialogActionButton { text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: resizeDialog.accept() }
+        }
         onAccepted: editor.resizeImage(resizeWidth.value,resizeHeight.value)
     }
     Dialog {
         id: renameDialog; title: qsTr("Renommer le calque"); anchors.centerIn: parent; modal: true; width: 350
-        standardButtons: Dialog.Ok | Dialog.Cancel
         TextField { id: layerName; width: parent.width; maximumLength: 256; selectByMouse: true; onAccepted: renameDialog.accept() }
+        footer: DialogButtonBox {
+            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: renameDialog.reject() }
+            DialogActionButton { text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: renameDialog.accept() }
+        }
         onOpened: { layerName.forceActiveFocus(); layerName.selectAll() }
         onAccepted: editor.renameLayer(editor.activeLayer,layerName.text)
     }
     Dialog {
         id: adjustmentDialog; title: window.adjustmentTitle; anchors.centerIn: parent; modal: true; width: 390
-        standardButtons: Dialog.Apply | Dialog.Cancel
         ColumnLayout {
             anchors.fill: parent; spacing: 16
             Label { text: qsTr("Appliquer au calque actif"); color: "#9cabb7" }
@@ -1068,6 +1076,10 @@ ApplicationWindow {
             }
             DarkSlider { id: adjustmentSlider; Layout.fillWidth: true; from: window.adjustment==="blur"?1:-100; to: window.adjustment==="blur"?30:100; stepSize: 1 }
             Label { text: qsTr("La sélection limite la zone traitée.\nL’opération peut être annulée."); color: "#8996a4" }
+        }
+        footer: DialogButtonBox {
+            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: adjustmentDialog.reject() }
+            DialogActionButton { text: qsTr("Appliquer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.ApplyRole; onClicked: adjustmentDialog.apply() }
         }
         onApplied: { editor.applyFilter(window.adjustment,adjustmentSlider.value); close() }
     }
@@ -1148,7 +1160,7 @@ ApplicationWindow {
                 }
             }
         }
-        footer: DialogButtonBox { Button { text: qsTr("Fermer"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: brushSettingsDialog.close() } }
+        footer: DialogButtonBox { DialogActionButton { text: qsTr("Fermer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: brushSettingsDialog.close() } }
     }
     Dialog {
         id: layerPropertiesDialog
@@ -1275,7 +1287,7 @@ ApplicationWindow {
             }
         }
         footer: DialogButtonBox {
-            Button { text: qsTr("Fermer"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: layerPropertiesDialog.close() }
+            DialogActionButton { text: qsTr("Fermer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: layerPropertiesDialog.close() }
         }
     }
     Dialog {
@@ -1462,13 +1474,14 @@ ApplicationWindow {
         }
 
         footer: DialogButtonBox {
-            Button {
+            DialogActionButton {
                 text: qsTr("Valeurs par défaut")
                 DialogButtonBox.buttonRole: DialogButtonBox.ResetRole
                 onClicked: shortcuts.resetDefaults()
             }
-            Button {
+            DialogActionButton {
                 text: qsTr("Fermer")
+                defaultButton: true
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
                 onClicked: preferencesDialog.close()
             }
@@ -1479,21 +1492,22 @@ ApplicationWindow {
         closePolicy: Popup.NoAutoClose
         Label { width: parent.width; text: qsTr("Le document « %1 » contient des modifications non enregistrées.").arg(editor.name); wrapMode: Text.WordWrap }
         footer: DialogButtonBox {
-            Button { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: unsavedDialog.close() }
-            Button { text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }
-            Button { text: qsTr("Enregistrer"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
+            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: unsavedDialog.close() }
+            DialogActionButton { text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }
+            DialogActionButton { text: qsTr("Enregistrer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
         }
     }
     Dialog {
         id: errorDialog; title: qsTr("Impossible de terminer l’opération"); anchors.centerIn: parent; modal: true; width: 460
-        standardButtons: Dialog.Ok
         Label { id: errorLabel; width: parent.width; wrapMode: Text.WordWrap }
+        footer: DialogButtonBox { DialogActionButton { text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: errorDialog.accept() } }
     }
     Dialog {
-        id: aboutDialog; title: qsTr("PhotoCrap 0.1"); anchors.centerIn: parent; modal: true; width: 480; standardButtons: Dialog.Ok
+        id: aboutDialog; title: qsTr("PhotoCrap 0.1"); anchors.centerIn: parent; modal: true; width: 480
         Label {
             width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.4
             text: qsTr("Un atelier de création d’images en C++ et Qt Quick.\n\nCalques, dessin, sélection, transformations et retouche, sur macOS, Linux et Windows.\n\nCette première version utilise des calques raster en sRGB 8 bits. Elle ne lit pas les PSD et n’inclut pas les objets dynamiques, les masques de calque, le RAW ou les fonctions IA.\n\nLogiciel indépendant, sans affiliation avec Adobe.")
         }
+        footer: DialogButtonBox { DialogActionButton { text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: aboutDialog.accept() } }
     }
 }

@@ -170,6 +170,7 @@ qt_add_qml_module(PhotoCrap
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES
         qml/Main.qml
+        qml/DialogActionButton.qml
         qml/IconButton.qml
         qml/PanelTitle.qml
         qml/ContextMenuItem.qml

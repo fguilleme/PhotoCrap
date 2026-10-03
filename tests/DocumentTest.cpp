@@ -583,11 +583,11 @@ private slots:
     void everyAdjustmentTypeProducesAComposite()
     {
         const QStringList types = {
-            "light",        "brightnessContrast", "levels",       "curves",     "exposure",
-            "vibrance",     "hueSaturation",      "colorBalance", "blackWhite", "photoFilter",
-            "channelMixer", "colorLookup",        "invert",       "posterize",  "threshold",
-            "gradientMap",  "selectiveColor",     "gaussianBlur", "motionBlur", "boxBlur",
-            "unsharpMask",  "highPass",           "mosaic",       "noise"};
+            "light",       "color",        "brightnessContrast", "levels",       "curves",
+            "exposure",    "vibrance",     "hueSaturation",      "colorBalance", "blackWhite",
+            "photoFilter", "channelMixer", "colorLookup",        "invert",       "posterize",
+            "threshold",   "gradientMap",  "selectiveColor",     "gaussianBlur", "motionBlur",
+            "boxBlur",     "unsharpMask",  "highPass",           "mosaic",       "noise"};
         Document d;
         QVERIFY(d.newDocument(4, 4));
         for (const auto &type : types) {

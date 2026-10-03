@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 #include "filters/BlackWhiteFilter.h"
 #include "filters/BrightnessContrastFilter.h"
+#include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
@@ -468,6 +469,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyBrightnessContrast(_source, _p);
     if (_type == "gradientMap")
         return PhotoCrap::Filters::applyGradientMap(_source, _p);
+    if (_type == "color")
+        return PhotoCrap::Filters::applyColor(_source, _p);
     if (_type == "light")
         return PhotoCrap::Filters::applyLight(_source, _p);
     if (_type == "gaussianBlur")
@@ -611,6 +614,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
 void Document::addAdjustmentLayer(const QString &_type)
 {
     const QMap<QString, QString> names{{"light", tr("Lumière")},
+                                       {"color", tr("Couleur")},
                                        {"brightnessContrast", tr("Luminosité / Contraste")},
                                        {"levels", tr("Niveaux")},
                                        {"curves", tr("Courbes")},
@@ -637,7 +641,9 @@ void Document::addAdjustmentLayer(const QString &_type)
     if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     QVariantMap params;
-    if (_type == "light")
+    if (_type == "color")
+        params = {{"temperature", 0}, {"tint", 0}, {"vibrance", 0}, {"saturation", 0}};
+    else if (_type == "light")
         params = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
                   {"shadows", 0},   {"whites", 0},   {"blacks", 0}};
     else if (_type == "brightnessContrast")
@@ -960,7 +966,9 @@ void Document::resetAdjustmentLayer()
 
     const QString type = m_layers[m_active].adjustmentType;
     QVariantMap   parameters;
-    if (type == QStringLiteral("light"))
+    if (type == QStringLiteral("color"))
+        parameters = {{"temperature", 0}, {"tint", 0}, {"vibrance", 0}, {"saturation", 0}};
+    else if (type == QStringLiteral("light"))
         parameters = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
                       {"shadows", 0},   {"whites", 0},   {"blacks", 0}};
     else if (type == QStringLiteral("brightnessContrast"))

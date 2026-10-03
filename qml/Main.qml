@@ -44,6 +44,7 @@ ApplicationWindow {
     property int recentFileCount: recentFiles.entries.length
     property bool layerPreviewPending: false
     property string curvePickerMode: ""
+    property string colorPickerMode: ""
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
@@ -344,8 +345,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
                 DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
                 DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
-                DarkMenuItem { text: qsTr("Vibrance"); onTriggered: addAdjustmentLayer("vibrance") }
-                DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
+                DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
                 DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
                 DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
                 DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
@@ -613,7 +613,7 @@ ApplicationWindow {
                                 property real pointerY: 0
                                 anchors.fill: parent
                                 z: 6
-                                enabled: window.curvePickerMode.length > 0 && layerPropertiesDialog.opened
+                                enabled: (window.curvePickerMode.length > 0 || window.colorPickerMode.length > 0) && layerPropertiesDialog.opened
                                 hoverEnabled: enabled
                                 cursorShape: Qt.BlankCursor
                                 onPositionChanged: function(mouse) {
@@ -623,7 +623,9 @@ ApplicationWindow {
                                 onClicked: function(mouse) {
                                     const documentX = Math.floor(mouse.x/zoom)
                                     const documentY = Math.floor(mouse.y/zoom)
-                                    if (window.curvePickerMode === "color")
+                                    if (window.colorPickerMode === "whiteBalance")
+                                        colorEditorControl.applyWhiteBalance(editor.sampleCompositeColor(documentX,documentY))
+                                    else if (window.curvePickerMode === "color")
                                         curvesEditorControl.addColorSample(
                                             editor.sampleCompositeColor(documentX,documentY))
                                     else
@@ -1017,8 +1019,7 @@ ApplicationWindow {
         DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
         DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
         DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
-        DarkMenuItem { text: qsTr("Vibrance"); onTriggered: addAdjustmentLayer("vibrance") }
-        DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
+        DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
         DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
         DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
         DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
@@ -1314,6 +1315,7 @@ ApplicationWindow {
         }
         onClosed: {
             window.curvePickerMode = ""
+            window.colorPickerMode = ""
             window.cancelLayerPreviewQueue()
             editor.cancelLayerPreview()
             if (keepChanges)
@@ -1349,7 +1351,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -1403,6 +1405,18 @@ ApplicationWindow {
                         onCommitted: function(key,value) {
                             window.previewLayerValue(key,value,true)
                         }
+                    }
+                    ColorEditor {
+                        id: colorEditorControl
+                        objectName: "colorEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "color"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        pickerMode: window.colorPickerMode
+                        onPickerSelected: function(mode) { window.colorPickerMode = mode }
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) { if (layerPreview.checked) window.queueLayerPreview(key,value) }
+                        onCommitted: function(key,value) { window.previewLayerValue(key,value,true) }
                     }
                     LevelsEditor {
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="levels"
@@ -1468,6 +1482,7 @@ ApplicationWindow {
                     onClippingToggled: editor.setClippingMask(!activeInfo.clippingMask)
                     onResetRequested: {
                         window.curvePickerMode = ""
+                        window.colorPickerMode = ""
                         window.cancelLayerPreviewQueue()
                         editor.cancelLayerPreview()
                         editor.resetAdjustmentLayer()

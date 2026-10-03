@@ -153,7 +153,8 @@ void Document::trimHistory()
         m_undo.removeFirst();
     }
 }
-void Document::commit(const Snapshot &_before, const QString &_label, bool _invalidateFull)
+void Document::commit(const Snapshot &_before, const QString &_label, bool _invalidateFull,
+                      bool _notifyImage)
 {
     Snapshot state = _before;
     state.label    = _label;
@@ -161,7 +162,7 @@ void Document::commit(const Snapshot &_before, const QString &_label, bool _inva
     m_redo.clear();
     m_stateId = m_nextId++;
     trimHistory();
-    changed(_invalidateFull);
+    changed(_invalidateFull, _notifyImage);
     emit historyChanged();
 }
 void Document::edit(const QString &_label, const std::function<void()> &_operation)
@@ -173,7 +174,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
     if (before.size != m_size)
         emit canvasSizeChanged();
 }
-void Document::changed(bool _metadata)
+void Document::changed(bool _metadata, bool _notifyImage)
 {
     ++m_previewRequestGeneration;
     m_previewRenderPending = false;
@@ -191,7 +192,8 @@ void Document::changed(bool _metadata)
         emit thumbnailsChanged();
         emit layersChanged();
     }
-    emit imageChanged();
+    if (_notifyImage)
+        emit imageChanged();
 }
 
 void Document::setPreviewSize(int _width, int _height)

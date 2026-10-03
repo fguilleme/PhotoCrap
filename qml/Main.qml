@@ -37,6 +37,7 @@ ApplicationWindow {
     property bool changingSecondary: false
     property bool changingSolidColor: false
     property bool changingBlackWhiteTint: false
+    property bool changingPhotoFilterColor: false
     property bool spacePressed: false
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
@@ -1110,7 +1111,13 @@ ApplicationWindow {
         id: colorDialog
         title: qsTr("Choisir une couleur")
         onAccepted: {
-            if (changingBlackWhiteTint) {
+            if (changingPhotoFilterColor) {
+                editor.beginLayerPreview()
+                editor.previewLayerParameter("color", selectedColor.toString())
+                editor.previewLayerParameter("useCustomColor", true)
+                editor.finishLayerPreview(qsTr("Modifier la couleur du filtre photo"))
+                changingPhotoFilterColor = false
+            } else if (changingBlackWhiteTint) {
                 editor.beginLayerPreview()
                 editor.previewLayerParameter("tintColor", selectedColor.toString())
                 editor.finishLayerPreview(qsTr("Modifier la teinte noir et blanc"))
@@ -1128,6 +1135,7 @@ ApplicationWindow {
         onRejected: {
             changingSolidColor = false
             changingBlackWhiteTint = false
+            changingPhotoFilterColor = false
         }
     }
     Dialog {
@@ -1382,7 +1390,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -1510,6 +1518,33 @@ ApplicationWindow {
                         onTintColorRequested: {
                             changingBlackWhiteTint = true
                             colorDialog.selectedColor = activeInfo.parameters.tintColor || "#d6aa78"
+                            colorDialog.open()
+                        }
+                    }
+                    PhotoFilterEditor {
+                        objectName: "photoFilterEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "photoFilter"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if (layerPreview.checked)
+                                window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
+                        }
+                        onPresetRequested: function(index,color) {
+                            window.cancelLayerPreviewQueue()
+                            editor.beginLayerPreview()
+                            editor.previewLayerParameter("preset", index)
+                            editor.previewLayerParameter("color", color)
+                            editor.previewLayerParameter("useCustomColor", false)
+                            editor.finishLayerPreview(qsTr("Modifier le filtre photo"))
+                        }
+                        onColorRequested: {
+                            changingPhotoFilterColor = true
+                            colorDialog.selectedColor = activeInfo.parameters.color || "#ec8a00"
                             colorDialog.open()
                         }
                     }

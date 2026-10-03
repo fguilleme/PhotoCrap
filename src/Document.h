@@ -372,10 +372,11 @@ private:
     QVector<Snapshot>              m_redoBeforeLayerProperties;
     Snapshot                       snapshot(const QString &_label) const;
     void                           restore(const Snapshot &_state);
-    void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true);
+    void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
+                   bool _notifyImage = true);
     void    trimHistory();
     void    selectOnly(int _index);
-    void    changed(bool _metadata = true);
+    void    changed(bool _metadata = true, bool _notifyImage = true);
     void    resetHistory(bool _clean);
     bool    validSize(int _width, int _height, int _layerCount = 1);
     bool    editable();

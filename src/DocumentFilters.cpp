@@ -7,6 +7,7 @@
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
+#include "filters/PhotoFilterFilter.h"
 
 #include <QCache>
 #include <QColorSpace>
@@ -479,6 +480,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyColor(_source, _p);
     if (_type == "light")
         return PhotoCrap::Filters::applyLight(_source, _p);
+    if (_type == "photoFilter")
+        return PhotoCrap::Filters::applyPhotoFilter(_source, _p);
     if (_type == "colorBalance") {
         const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
         QImage       result(input.size(), QImage::Format_ARGB32);
@@ -571,13 +574,6 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     r = c.red();
                     g = c.green();
                     b = c.blue();
-                } else if (_type == "photoFilter") {
-                    QColor filter;
-                    filter.setHslF(std::fmod(value("hue", 35) / 360. + 1., 1.), .8, .55);
-                    const double d = qBound(0., value("density", 25) / 100., 1.);
-                    r              = r * (1 - d) + filter.red() * d;
-                    g              = g * (1 - d) + filter.green() * d;
-                    b              = b * (1 - d) + filter.blue() * d;
                 } else if (_type == "channelMixer") {
                     const double nr = r * value("redRed", 100) / 100. +
                                       g * value("redGreen", 0) / 100. +
@@ -702,7 +698,11 @@ void Document::addAdjustmentLayer(const QString &_type)
                   {"blues", 20},          {"magentas", 80},
                   {"tintEnabled", false}, {"tintColor", QStringLiteral("#d6aa78")}};
     else if (_type == "photoFilter")
-        params = {{"hue", 35}, {"density", 25}};
+        params = {{"preset", 0},
+                  {"color", QStringLiteral("#ec8a00")},
+                  {"useCustomColor", false},
+                  {"density", 25},
+                  {"preserveLuminosity", true}};
     else if (_type == "channelMixer")
         params = {{"redRed", 100}, {"redGreen", 0},     {"redBlue", 0},
                   {"greenRed", 0}, {"greenGreen", 100}, {"greenBlue", 0},
@@ -727,7 +727,9 @@ void Document::addAdjustmentLayer(const QString &_type)
         params = {{"cellSize", 12}};
     else if (_type == "noise")
         params = {{"amount", 8.}};
-    edit(tr("Nouveau calque de réglage"), [&] {
+    endStroke();
+    const auto before = snapshot(tr("Nouveau calque de réglage"));
+    {
         Layer layer;
         layer.name           = names.value(_type);
         layer.kind           = "adjustment";
@@ -744,10 +746,14 @@ void Document::addAdjustmentLayer(const QString &_type)
         m_layers.insert(++m_active, layer);
         m_editingMask = false;
         selectOnly(m_active);
-    });
+    }
+    // Publish the new layer metadata without prompting the canvas to compose
+    // the full document synchronously on the UI thread.
+    commit(before, tr("Nouveau calque de réglage"), true, false);
     // Present a screen-sized result first, then refine the document pixels in
     // the background. Adding a costly filter must never block the QML thread.
     requestPreviewRender(true, true);
+    emit imageChanged();
 }
 void Document::addFrequencySeparation(qreal _radius)
 {
@@ -1092,7 +1098,11 @@ void Document::resetAdjustmentLayer()
                       {"blues", 20},          {"magentas", 80},
                       {"tintEnabled", false}, {"tintColor", QStringLiteral("#d6aa78")}};
     else if (type == QStringLiteral("photoFilter"))
-        parameters = {{"hue", 35}, {"density", 25}};
+        parameters = {{"preset", 0},
+                      {"color", QStringLiteral("#ec8a00")},
+                      {"useCustomColor", false},
+                      {"density", 25},
+                      {"preserveLuminosity", true}};
     else if (type == QStringLiteral("channelMixer"))
         parameters = {{"redRed", 100}, {"redGreen", 0},     {"redBlue", 0},
                       {"greenRed", 0}, {"greenGreen", 100}, {"greenBlue", 0},

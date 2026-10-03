@@ -423,6 +423,20 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "black-and-white adjustment exposes presets, auto, tint, and six families"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("photoFilter");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto photoFilterEditor  = _window->findChild<QObject *>("photoFilterEditor");
+    auto photoFilterPreset  = _window->findChild<QObject *>("photoFilterPreset");
+    auto photoFilterColor   = _window->findChild<QObject *>("photoFilterColorRadio");
+    auto photoFilterDensity = _window->findChild<QObject *>("photoFilterDensity");
+    auto preserveLuminosity = _window->findChild<QObject *>("photoFilterPreserveLuminosity");
+    if (!require(photoFilterEditor && photoFilterEditor->property("visible").toBool() &&
+                     photoFilterPreset && photoFilterColor && photoFilterDensity &&
+                     preserveLuminosity,
+                 "photo filter exposes presets, custom color, density, and luminosity control"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

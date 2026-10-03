@@ -756,7 +756,7 @@ private slots:
     void addingAnAdjustmentShowsAScreenProxyBeforeTheFullRender()
     {
         Document d;
-        QVERIFY(d.newDocument(1920, 1080));
+        QVERIFY(d.newDocument(3840, 2160));
         d.setPreviewSize(800, 450);
         (void)d.composite();
         QSignalSpy     rendered(&d, &Document::imageChanged);
@@ -774,8 +774,33 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!rendered.isEmpty() && renderedSizes.contains(QSize(800, 450)),
                                  20000);
         QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 3, 10000);
-        QCOMPARE(d.composite().size(), QSize(1920, 1080));
+        QCOMPARE(d.composite().size(), QSize(3840, 2160));
         QCOMPARE(d.displayComposite().size(), QSize(800, 450));
+    }
+    void photoFilterPresetsPreserveLuminosity()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.setColor(QColor(110, 130, 150));
+        d.setTool("fill");
+        d.beginStroke(16, 16);
+        d.endStroke();
+        const QColor source = d.composite().pixelColor(16, 16);
+        d.addAdjustmentLayer("photoFilter");
+        const QVariantMap parameters = d.layers().first().toMap().value("parameters").toMap();
+        QCOMPARE(parameters.value("preset").toInt(), 0);
+        QCOMPARE(parameters.value("color").toString(), QString("#ec8a00"));
+        QCOMPARE(parameters.value("density").toInt(), 25);
+        QVERIFY(parameters.value("preserveLuminosity").toBool());
+
+        QTRY_VERIFY_WITH_TIMEOUT(d.displayComposite().size() == QSize(32, 32), 5000);
+        const QColor filtered  = d.composite().pixelColor(16, 16);
+        const auto   luminance = [](const QColor &_color) {
+            return .2126 * _color.red() + .7152 * _color.green() + .0722 * _color.blue();
+        };
+        QVERIFY(qAbs(luminance(filtered) - luminance(source)) < 2.);
+        QVERIFY(filtered.red() > source.red());
+        QVERIFY(filtered.blue() < source.blue());
     }
     void blendModeHoverUsesDraftAndCommitsOnlyTheChosenMode()
     {

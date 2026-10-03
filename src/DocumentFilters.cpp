@@ -145,7 +145,7 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
     };
     QVector<int> rows(background.height());
     std::iota(rows.begin(), rows.end(), 0);
-    QtConcurrent::blockingMap(rows, [&](int _y) {
+    ImageUtils::blockingMap(rows, [&](int _y) {
         auto       *destination = reinterpret_cast<QRgb *>(background.scanLine(_y));
         const auto *source      = reinterpret_cast<const QRgb *>(foreground.constScanLine(_y));
         for (int x = 0; x < background.width(); ++x) {
@@ -237,7 +237,7 @@ QImage Document::blurImage(const QImage &_source, int _radius)
         const int jobs = qMin(major, qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
         QVector<int> blocks(jobs);
         std::iota(blocks.begin(), blocks.end(), 0);
-        QtConcurrent::blockingMap(blocks, [&](int _block) {
+        ImageUtils::blockingMap(blocks, [&](int _block) {
             const int first = major * _block / jobs, last = major * (_block + 1) / jobs;
             for (int a = first; a < last; ++a) {
                 qint64 r = 0, g = 0, b = 0, alpha = 0;
@@ -293,7 +293,7 @@ QImage Document::motionBlurImage(const QImage &_source, qreal _distance, qreal _
                  dy = std::sin(_angle) * _distance / qMax(1, samples - 1);
     QVector<int> rows(input.height());
     std::iota(rows.begin(), rows.end(), 0);
-    QtConcurrent::blockingMap(rows, [&](int _y) {
+    ImageUtils::blockingMap(rows, [&](int _y) {
         auto output = reinterpret_cast<QRgb *>(result.scanLine(_y));
         for (int x = 0; x < input.width(); ++x) {
             int a = 0, r = 0, g = 0, b = 0;
@@ -325,7 +325,7 @@ QImage Document::unsharpMaskImage(const QImage &_source, qreal _radius, qreal _a
     _threshold       = qBound(0, _threshold, 255);
     QVector<int> rows(input.height());
     std::iota(rows.begin(), rows.end(), 0);
-    QtConcurrent::blockingMap(rows, [&](int _y) {
+    ImageUtils::blockingMap(rows, [&](int _y) {
         const auto src  = reinterpret_cast<const QRgb *>(input.constScanLine(_y));
         const auto blur = reinterpret_cast<const QRgb *>(smooth.constScanLine(_y));
         auto       dst  = reinterpret_cast<QRgb *>(result.scanLine(_y));
@@ -353,7 +353,7 @@ QImage Document::highPassImage(const QImage &_source, qreal _radius)
     QImage       result(input.size(), QImage::Format_ARGB32);
     QVector<int> rows(input.height());
     std::iota(rows.begin(), rows.end(), 0);
-    QtConcurrent::blockingMap(rows, [&](int _y) {
+    ImageUtils::blockingMap(rows, [&](int _y) {
         const auto src  = reinterpret_cast<const QRgb *>(input.constScanLine(_y));
         const auto blur = reinterpret_cast<const QRgb *>(smooth.constScanLine(_y));
         auto       dst  = reinterpret_cast<QRgb *>(result.scanLine(_y));
@@ -383,7 +383,7 @@ QImage Document::noiseImage(const QImage &_source, qreal _amount)
     const int    amplitude = qRound(qBound(0., _amount, 100.) * 1.275);
     QVector<int> rows(result.height());
     std::iota(rows.begin(), rows.end(), 0);
-    QtConcurrent::blockingMap(rows, [&](int _y) {
+    ImageUtils::blockingMap(rows, [&](int _y) {
         auto row = reinterpret_cast<QRgb *>(result.scanLine(_y));
         for (int x = 0; x < result.width(); ++x) {
             const QRgb pixel = row[x];
@@ -439,7 +439,7 @@ QImage Document::frequencyImage(const Layer &_layer) const
     QImage       result(fullSource.size(), QImage::Format_ARGB32);
     QVector<int> rows(fullSource.height());
     std::iota(rows.begin(), rows.end(), 0);
-    QtConcurrent::blockingMap(rows, [&](int _y) {
+    ImageUtils::blockingMap(rows, [&](int _y) {
         const auto s   = reinterpret_cast<const QRgb *>(fullSource.constScanLine(_y));
         const auto l   = reinterpret_cast<const QRgb *>(low.constScanLine(_y));
         auto       out = reinterpret_cast<QRgb *>(result.scanLine(_y));
@@ -493,7 +493,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
     QVector<int> jobs(jobCount);
     std::iota(jobs.begin(), jobs.end(), 0);
-    QtConcurrent::blockingMap(jobs, [&](int _job) {
+    ImageUtils::blockingMap(jobs, [&](int _job) {
         const int firstRow = input.height() * _job / jobCount;
         const int lastRow  = input.height() * (_job + 1) / jobCount;
         for (int y = firstRow; y < lastRow; ++y) {

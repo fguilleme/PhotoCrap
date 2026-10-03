@@ -8,12 +8,19 @@
 #include <QJsonObject>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QThreadPool>
 #include <QtTest>
 
 class DocumentTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void initTestCase()
+    {
+        // Match the smallest GitHub runners and catch nested global-pool waits.
+        QThreadPool::globalInstance()->setMaxThreadCount(2);
+    }
+
     void recentFilesAreOrderedDeduplicatedLimitedAndPruned()
     {
         QTemporaryDir dir;

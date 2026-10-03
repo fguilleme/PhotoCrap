@@ -1,4 +1,5 @@
 #include "BrightnessContrastFilter.h"
+#include "ImageUtils.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -23,7 +24,7 @@ QImage applyBrightnessContrast(const QImage &_source, const QVariantMap &_parame
         qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
     QVector<int> jobs(jobCount);
     std::iota(jobs.begin(), jobs.end(), 0);
-    QtConcurrent::blockingMap(jobs, [&](int _job) {
+    ImageUtils::blockingMap(jobs, [&](int _job) {
         const int firstRow = input.height() * _job / jobCount;
         const int lastRow  = input.height() * (_job + 1) / jobCount;
         for (int y = firstRow; y < lastRow; ++y) {

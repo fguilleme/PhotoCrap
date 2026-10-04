@@ -67,10 +67,25 @@ void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
              QPainter painter(target);
              if (_preserveTransparency && !m_editingMask)
                  painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+             const int maskValue = qGray(color.rgb());
              painter.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size),
-                              m_editingMask ? QColor::fromRgb(color.red(), color.red(), color.red())
+                              m_editingMask ? QColor::fromRgb(maskValue, maskValue, maskValue)
                                             : color);
          });
+}
+void Document::fillMaskWithColor(const QColor &_color)
+{
+    if (!m_editingMask || !_color.isValid() || !editable())
+        return;
+    edit(tr("Remplir le masque avec une couleur"), [&] {
+        QImage *target = paintTarget();
+        if (!target)
+            return;
+        const int value = qGray(_color.rgb());
+        QPainter  painter(target);
+        painter.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size),
+                         QColor::fromRgb(value, value, value));
+    });
 }
 void Document::copy()
 {

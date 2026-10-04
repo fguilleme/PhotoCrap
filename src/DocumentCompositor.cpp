@@ -185,6 +185,12 @@ const QImage &Document::composite() const
 
 QImage Document::displayComposite() const
 {
+    if (m_maskOnlyView && m_active >= 0 && m_active < m_layers.size() &&
+        !m_layers[m_active].mask.isNull()) {
+        QImage mask = m_layers[m_active].mask.convertToFormat(QImage::Format_RGB32);
+        mask.setColorSpace(QColorSpace::SRgb);
+        return mask;
+    }
     QImage displayed;
     {
         QMutexLocker locker(&m_previewImageMutex);

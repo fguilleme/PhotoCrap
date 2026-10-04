@@ -176,6 +176,9 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    if (m_maskOnlyView &&
+        (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull()))
+        m_maskOnlyView = false;
     ++m_previewRequestGeneration;
     m_previewRenderPending = false;
     m_previewRenderActive.store(false);
@@ -372,6 +375,8 @@ void Document::setActiveLayer(int _index)
         return;
     endStroke();
     cancelLayerPreview();
+    if (m_active != _index)
+        m_maskOnlyView = false;
     m_active      = _index;
     m_editingMask = false;
     selectOnly(_index);
@@ -380,11 +385,31 @@ void Document::setActiveLayer(int _index)
 void Document::setDisplayChannel(int _channel)
 {
     _channel = qBound(0, _channel, 3);
-    if (m_displayChannel == _channel)
+    if (m_displayChannel == _channel && !m_maskOnlyView)
         return;
     m_displayChannel          = _channel;
+    m_maskOnlyView            = false;
     m_channelDisplayCache     = {};
     m_channelDisplaySourceKey = 0;
+    emit displayChannelChanged();
+    emit imageChanged();
+}
+void Document::toggleMaskOnlyView(int _index)
+{
+    if (_index < 0 || _index >= m_layers.size() || m_layers[_index].mask.isNull())
+        return;
+    const bool disable = m_maskOnlyView && m_active == _index;
+    if (m_active != _index)
+        setActiveLayer(_index);
+    m_maskOnlyView = !disable;
+    emit displayChannelChanged();
+    emit imageChanged();
+}
+void Document::showCompositeView()
+{
+    if (!m_maskOnlyView)
+        return;
+    m_maskOnlyView = false;
     emit displayChannelChanged();
     emit imageChanged();
 }
@@ -966,6 +991,26 @@ void Document::addLayerMask(bool _revealAll)
         m_layers[m_active].parameters.insert("_maskDensity", 100.);
         m_layers[m_active].parameters.insert("_maskFeather", 0.);
         m_editingMask = true;
+    });
+}
+void Document::copyLayerMask(int _sourceIndex, int _targetIndex)
+{
+    if (_sourceIndex < 0 || _sourceIndex >= m_layers.size() || _targetIndex < 0 ||
+        _targetIndex >= m_layers.size() || _sourceIndex == _targetIndex ||
+        m_layers[_sourceIndex].mask.isNull() ||
+        m_layers[_targetIndex].kind == QStringLiteral("group") || m_layers[_targetIndex].locked)
+        return;
+    edit(tr("Copier le masque de fusion"), [&] {
+        const auto &source                = m_layers[_sourceIndex];
+        auto       &target                = m_layers[_targetIndex];
+        target.mask                       = source.mask;
+        target.maskEnabled                = source.maskEnabled;
+        target.parameters["_maskDensity"] = source.parameters.value("_maskDensity", 100.);
+        target.parameters["_maskFeather"] = source.parameters.value("_maskFeather", 0.);
+        m_active                          = _targetIndex;
+        m_editingMask                     = true;
+        m_maskOnlyView                    = false;
+        selectOnly(m_active);
     });
 }
 void Document::removeLayerMask()

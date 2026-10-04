@@ -682,6 +682,70 @@ private slots:
         d.setDisplayChannel(0);
         QCOMPARE(d.displayComposite().pixelColor(8, 8), QColor(20, 100, 220));
     }
+    void masksCanBeViewedAndFilledWithShortcutsWithoutChangingColors()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16));
+        d.addLayerMask(false);
+        d.setColor(QColor("#cc6633"));
+        d.setSecondaryColor(QColor("#336699"));
+
+        d.fillWithColor(false);
+        const int backgroundGray = qGray(QColor("#336699").rgb());
+        QCOMPARE(d.maskImage(0).pixelColor(8, 8).red(), backgroundGray);
+
+        d.fillMaskWithColor(QColor("#90c030"));
+        const int selectedGray = qGray(QColor("#90c030").rgb());
+        QCOMPARE(d.maskImage(0).pixelColor(8, 8).red(), selectedGray);
+        QCOMPARE(d.color(), QColor("#cc6633"));
+        QCOMPARE(d.secondaryColor(), QColor("#336699"));
+
+        d.fillMaskWithColor(Qt::black);
+        d.setColor(Qt::white);
+        d.setTool("brush");
+        d.setBrushSize(6);
+        d.beginStroke(8, 8);
+        d.endStroke();
+        QCOMPARE(d.maskImage(0).pixelColor(8, 8).red(), 255);
+
+        const QImage composite = d.composite();
+        d.toggleMaskOnlyView(0);
+        QCOMPARE(d.maskOnlyLayer(), 0);
+        QCOMPARE(d.displayComposite().pixelColor(8, 8), QColor(Qt::white));
+        QCOMPARE(d.displayComposite().pixelColor(1, 1), QColor(Qt::black));
+        QCOMPARE(d.composite(), composite);
+        d.toggleMaskOnlyView(0);
+        QCOMPARE(d.maskOnlyLayer(), -1);
+        QCOMPARE(d.displayComposite(), composite);
+    }
+    void layerMasksCanBeCopiedOntoAnotherLayerWithUndo()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16, true));
+        d.addLayerMask(false);
+        d.setColor(Qt::white);
+        d.setTool("brush");
+        d.setBrushSize(6);
+        d.beginStroke(8, 8);
+        d.endStroke();
+        const QImage sourceMask = d.maskImage(0);
+
+        d.addLayer();
+        QCOMPARE(d.activeLayer(), 1);
+        d.copyLayerMask(0, 1);
+        QCOMPARE(d.maskImage(1), sourceMask);
+        QVERIFY(d.editingMask());
+        QCOMPARE(d.history().last(), QString("Copier le masque de fusion"));
+
+        d.setColor(Qt::black);
+        d.beginStroke(8, 8);
+        d.endStroke();
+        QVERIFY(d.maskImage(1) != d.maskImage(0));
+        d.undo();
+        QCOMPARE(d.maskImage(1), sourceMask);
+        d.undo();
+        QVERIFY(d.maskImage(1).isNull());
+    }
     void curveEyedroppersSampleColorsAndNeutralizeGray()
     {
         Document d;

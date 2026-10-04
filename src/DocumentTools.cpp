@@ -26,6 +26,11 @@ QString toolLabel(const QString &_tool)
     return labels.contains(_tool) ? QCoreApplication::translate("Document", labels.value(_tool))
                                   : _tool;
 }
+QColor maskColor(const QColor &_color)
+{
+    const int value = qGray(_color.rgb());
+    return QColor(value, value, value);
+}
 } // namespace
 
 void Document::setTool(const QString &_value)
@@ -273,7 +278,7 @@ void Document::renderBrushStroke()
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
     QImage       overlay = ImageUtils::blank(region.size());
     const QColor ink =
-        m_editingMask ? (m_tool == "eraser" ? QColor(Qt::white) : QColor(Qt::black)) : m_color;
+        m_editingMask ? maskColor(m_tool == "eraser" ? m_secondary : m_color) : m_color;
     overlay.fill(ink);
     QPainter maskPainter(&overlay);
     maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
@@ -416,7 +421,7 @@ void Document::floodFill(QPoint _point)
         return;
     const QRgb targetColor = image.pixel(_point);
     QImage     solid(1, 1, QImage::Format_ARGB32_Premultiplied);
-    solid.fill(m_editingMask ? QColor(Qt::black) : m_color);
+    solid.fill(m_editingMask ? maskColor(m_color) : m_color);
     const QRgb replacement = solid.pixel(0, 0);
     if (targetColor == replacement && qFuzzyCompare(m_brushOpacity, 1.))
         return;

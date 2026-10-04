@@ -56,6 +56,7 @@ class Document : public QObject
     Q_PROPERTY(int thumbnailRevision READ thumbnailRevision NOTIFY thumbnailsChanged)
     Q_PROPERTY(
         int displayChannel READ displayChannel WRITE setDisplayChannel NOTIFY displayChannelChanged)
+    Q_PROPERTY(int maskOnlyLayer READ maskOnlyLayer NOTIFY displayChannelChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY settingsChanged)
     Q_PROPERTY(
@@ -210,12 +211,18 @@ public:
     {
         return m_editingMask;
     }
+    int maskOnlyLayer() const
+    {
+        return m_maskOnlyView ? m_active : -1;
+    }
     const QImage    &composite() const;
     QImage           displayComposite() const;
     QImage           layerImage(int _index) const;
     QImage           maskImage(int _index) const;
     void             setActiveLayer(int _index);
     void             setDisplayChannel(int _channel);
+    Q_INVOKABLE void toggleMaskOnlyView(int _index);
+    Q_INVOKABLE void showCompositeView();
     Q_INVOKABLE void selectLayer(int _index, bool _toggle = false, bool _range = false);
     void             setTool(const QString &_value);
     void             setColor(const QColor &_value);
@@ -256,6 +263,7 @@ public:
     Q_INVOKABLE void previewLayerBlend(int _index, int _blend);
     Q_INVOKABLE void setClippingMask(bool _enabled);
     Q_INVOKABLE void addLayerMask(bool _revealAll = true);
+    Q_INVOKABLE void copyLayerMask(int _sourceIndex, int _targetIndex);
     Q_INVOKABLE void removeLayerMask();
     Q_INVOKABLE void invertLayerMask();
     Q_INVOKABLE void setMaskEnabled(bool _enabled);
@@ -287,6 +295,7 @@ public:
     Q_INVOKABLE void         deselect();
     Q_INVOKABLE void         clearSelected();
     Q_INVOKABLE void         fillWithColor(bool _foreground, bool _preserveTransparency = false);
+    Q_INVOKABLE void         fillMaskWithColor(const QColor &_color);
     Q_INVOKABLE void         copy();
     Q_INVOKABLE void         paste();
     Q_INVOKABLE void         cropToSelection();
@@ -342,6 +351,7 @@ private:
     int                            m_revision          = 0;
     int                            m_thumbnailRevision = 0;
     int                            m_displayChannel    = 0;
+    bool                           m_maskOnlyView      = false;
     mutable QImage                 m_channelDisplayCache;
     mutable qint64                 m_channelDisplaySourceKey  = 0;
     mutable int                    m_channelDisplayCacheIndex = 0;

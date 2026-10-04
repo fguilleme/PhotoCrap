@@ -38,6 +38,7 @@ ApplicationWindow {
     property bool changingSolidColor: false
     property bool changingBlackWhiteTint: false
     property bool changingPhotoFilterColor: false
+    property bool fillingMaskColor: false
     property bool spacePressed: false
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
@@ -425,6 +426,16 @@ ApplicationWindow {
         viewport.contentX=clampScroll(artboard.x+documentX*zoom-pointerX,viewport.contentWidth-viewport.width)
         viewport.contentY=clampScroll(artboard.y+documentY*zoom-pointerY,viewport.contentHeight-viewport.height)
     }
+    function activateMaskThumbnail(layerIndex, modifiers) {
+        editor.activeLayer = layerIndex
+        editor.setEditingMask(true)
+        if (modifiers & Qt.AltModifier)
+            editor.toggleMaskOnlyView(layerIndex)
+        else {
+            editor.showCompositeView()
+            layerPropertiesDialog.open()
+        }
+    }
     function perform(action) {
         if (action === "new") newDialog.open()
         else if (action === "open") { importing = false; openDialog.open() }
@@ -562,7 +573,21 @@ ApplicationWindow {
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("defaultColors")); onActivated: editor.resetColors() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("swapColors")); onActivated: editor.swapColors() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Delete" : "Alt+Backspace"; onActivated: editor.fillWithColor(true, false) }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Meta+Delete" : "Ctrl+Backspace"; onActivated: editor.fillWithColor(false, false) }
+    Shortcut { objectName: "backgroundFillShortcut"; enabled: !window.editingText && !window.modalOpen; sequences: Qt.platform.os === "osx" ? ["Meta+Backspace", "Meta+Delete"] : ["Ctrl+Backspace"]; onActivated: editor.fillWithColor(false, false) }
+    Shortcut {
+        objectName: "maskColorFillShortcut"
+        enabled: editor.editingMask && !window.editingText && !window.modalOpen
+        sequences: Qt.platform.os === "osx" ? ["Shift+Backspace", "Shift+Delete"] : ["Shift+Backspace"]
+        onActivated: {
+            fillingMaskColor = true
+            changingSecondary = false
+            changingSolidColor = false
+            changingBlackWhiteTint = false
+            changingPhotoFilterColor = false
+            colorDialog.selectedColor = editor.color
+            colorDialog.open()
+        }
+    }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Shift+Delete" : "Alt+Shift+Backspace"; onActivated: editor.fillWithColor(true, true) }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Meta+Shift+Delete" : "Ctrl+Shift+Backspace"; onActivated: editor.fillWithColor(false, true) }
 
@@ -710,27 +735,22 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Réglages","image adjustments")
-            DarkMenuItem { text: qsTr("Luminosité…"); onTriggered: adjust("brightness",qsTr("Luminosité"),0) }
-            DarkMenuItem { text: qsTr("Contraste…"); onTriggered: adjust("contrast",qsTr("Contraste"),0) }
-            DarkMenuItem { text: qsTr("Saturation…"); onTriggered: adjust("saturation",qsTr("Saturation"),0) }
+            DarkMenuItem { objectName: "settingsLightMenuItem"; text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
+            DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
+            DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
+            DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
+            DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
             MenuSeparator {}
-            DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: editor.applyFilter("grayscale") }
-            DarkMenuItem { text: qsTr("Négatif"); onTriggered: editor.applyFilter("invert") }
-            DarkMenuItem { text: qsTr("Sépia"); onTriggered: editor.applyFilter("sepia") }
-            DarkMenuItem { text: qsTr("Renforcer la netteté"); onTriggered: editor.applyFilter("sharpen") }
+            DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
+            DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
+            DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }
+            DarkMenuItem { text: qsTr("Recherche de couleurs"); onTriggered: addAdjustmentLayer("colorLookup") }
             MenuSeparator {}
-            DarkMenu {
-                title: qsTr("Filtres")
-                DarkMenuItem { text: qsTr("Flou gaussien…"); onTriggered: addAdjustmentLayer("gaussianBlur") }
-                DarkMenuItem { text: qsTr("Flou directionnel…"); onTriggered: addAdjustmentLayer("motionBlur") }
-                DarkMenuItem { text: qsTr("Flou de boîte…"); onTriggered: addAdjustmentLayer("boxBlur") }
-                MenuSeparator {}
-                DarkMenuItem { text: qsTr("Netteté optimisée…"); onTriggered: addAdjustmentLayer("unsharpMask") }
-                DarkMenuItem { text: qsTr("Passe-haut…"); onTriggered: addAdjustmentLayer("highPass") }
-                MenuSeparator {}
-                DarkMenuItem { text: qsTr("Mosaïque…"); onTriggered: addAdjustmentLayer("mosaic") }
-                DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: addAdjustmentLayer("noise") }
-            }
+            DarkMenuItem { text: qsTr("Négatif"); onTriggered: addAdjustmentLayer("invert") }
+            DarkMenuItem { text: qsTr("Isohélie"); onTriggered: addAdjustmentLayer("posterize") }
+            DarkMenuItem { text: qsTr("Seuil"); onTriggered: addAdjustmentLayer("threshold") }
+            DarkMenuItem { text: qsTr("Transfert de dégradé"); onTriggered: addAdjustmentLayer("gradientMap") }
+            DarkMenuItem { text: qsTr("Correction sélective"); onTriggered: addAdjustmentLayer("selectiveColor") }
         }
         DarkMenu {
             title: qsTr("Affichage")
@@ -1397,12 +1417,37 @@ ApplicationWindow {
                         clip: true; spacing: 5; model: editor.layers
                         ScrollBar.vertical: ScrollBar {}
                         delegate: Rectangle {
+                            id: layerDelegate
                             objectName: "layerDelegate"
                             required property var modelData
                             width: layerList.width; height: 64; radius: 5
                             color: modelData.layerIndex===editor.activeLayer ? "#35443e" : modelData.selected ? "#303b48" : "#292f38"
                             border.width: modelData.selected ? 2 : 1
                             border.color: modelData.layerIndex===editor.activeLayer ? "#78a589" : modelData.selected ? "#66829b" : "#343c46"
+                            DropArea {
+                                id: maskDropArea
+                                anchors.fill: parent
+                                z: 8
+                                keys: ["photocrap-layer-mask"]
+                                property bool validDrop: containsDrag && drag.source &&
+                                                         drag.source.sourceLayerIndex !== modelData.layerIndex &&
+                                                         modelData.kind !== "group" && !modelData.locked
+                                onDropped: function(drop) {
+                                    if (!validDrop)
+                                        return
+                                    editor.copyLayerMask(drop.source.sourceLayerIndex,
+                                                         modelData.layerIndex)
+                                    drop.acceptProposedAction()
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: maskDropArea.validDrop
+                                    color: "#235f4438"
+                                    border.width: 3
+                                    border.color: "#c5f2cf"
+                                    radius: 5
+                                }
+                            }
                             MouseArea {
                                 anchors.fill: parent
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -1470,15 +1515,61 @@ ApplicationWindow {
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
                                     Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
-                                    MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(false) } }
+                                    MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(false); editor.showCompositeView() } }
                                 }
                                 Rectangle {
+                                    id: maskThumbnail
                                     visible: modelData.hasMask
                                     width: visible?34:0; height: 36; color: "#182027"; radius: 3
                                     border.width: modelData.editingMask?2:1; border.color: modelData.editingMask?"#c5f2cf":"#69757f"
                                     Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasMask?"image://layers/mask/"+modelData.layerIndex+"/"+editor.thumbnailRevision:""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
                                     Label { anchors.centerIn: parent; visible: !modelData.maskEnabled; text: qsTr("×"); color: "#ef6b6b"; font.pixelSize: 34; font.bold: true }
-                                    MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(true); layerPropertiesDialog.open() } }
+                                    MouseArea {
+                                        id: maskDrag
+                                        objectName: "maskThumbnailMouse"
+                                        anchors.fill: parent
+                                        drag.target: maskDragProxy
+                                        drag.threshold: 6
+                                        onClicked: function(mouse) {
+                                            window.activateMaskThumbnail(modelData.layerIndex,
+                                                                         mouse.modifiers)
+                                        }
+                                        onReleased: {
+                                            maskDragProxy.Drag.drop()
+                                            maskDragProxy.x = 0
+                                            maskDragProxy.y = 0
+                                        }
+                                    }
+                                    Item {
+                                        id: maskDragProxy
+                                        property int sourceLayerIndex: modelData.layerIndex
+                                        x: 0; y: 0; width: maskThumbnail.width; height: maskThumbnail.height
+                                        z: 20
+                                        visible: Drag.active
+                                        Drag.active: maskDrag.drag.active
+                                        Drag.keys: ["photocrap-layer-mask"]
+                                        Drag.source: maskDragProxy
+                                        Drag.hotSpot.x: width / 2
+                                        Drag.hotSpot.y: height / 2
+                                        Drag.supportedActions: Qt.CopyAction
+                                        Drag.proposedAction: Qt.CopyAction
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            color: "#263039"
+                                            border.width: 2
+                                            border.color: "#c5f2cf"
+                                            radius: 3
+                                            opacity: .94
+                                            Image {
+                                                anchors.fill: parent
+                                                anchors.margins: 2
+                                                source: "image://layers/mask/" + modelData.layerIndex +
+                                                        "/" + editor.thumbnailRevision
+                                                fillMode: Image.PreserveAspectFit
+                                                cache: false
+                                            }
+                                        }
+                                    }
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
@@ -1725,9 +1816,13 @@ ApplicationWindow {
     }
     ColorDialog {
         id: colorDialog
+        objectName: "colorDialog"
         title: qsTr("Choisir une couleur")
         onAccepted: {
-            if (changingPhotoFilterColor) {
+            if (fillingMaskColor) {
+                editor.fillMaskWithColor(selectedColor)
+                fillingMaskColor = false
+            } else if (changingPhotoFilterColor) {
                 editor.beginLayerPreview()
                 editor.previewLayerParameter("color", selectedColor.toString())
                 editor.previewLayerParameter("useCustomColor", true)
@@ -1749,6 +1844,7 @@ ApplicationWindow {
                 editor.color=selectedColor
         }
         onRejected: {
+            fillingMaskColor = false
             changingSolidColor = false
             changingBlackWhiteTint = false
             changingPhotoFilterColor = false

@@ -130,6 +130,41 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_document.displayChannel() == 2, "green channel can be displayed on canvas"))
         return false;
     _document.setDisplayChannel(0);
+    _document.addLayerMask(false);
+    QTest::qWait(30);
+    QMetaObject::invokeMethod(_window, "activateMaskThumbnail", Q_ARG(QVariant, 0),
+                              Q_ARG(QVariant, int(Qt::AltModifier)));
+    QTest::qWait(30);
+    if (!require(_document.maskOnlyLayer() == _document.activeLayer(),
+                 "Alt-clicking a mask thumbnail displays the mask alone"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateMaskThumbnail", Q_ARG(QVariant, 0),
+                              Q_ARG(QVariant, int(Qt::AltModifier)));
+    QTest::qWait(30);
+    if (!require(_document.maskOnlyLayer() == -1, "a second Alt-click restores the composite view"))
+        return false;
+    auto backgroundFill = _window->findChild<QObject *>("backgroundFillShortcut");
+    if (!require(backgroundFill, "background fill shortcut exists"))
+        return false;
+    _document.setSecondaryColor(Qt::white);
+    QMetaObject::invokeMethod(backgroundFill, "activated");
+    if (!require(_document.maskImage(_document.activeLayer()).pixelColor(10, 10).red() == 255,
+                 "background fill shortcut fills the selected mask"))
+        return false;
+    auto maskColorFill = _window->findChild<QObject *>("maskColorFillShortcut");
+    auto colorDialog   = _window->findChild<QObject *>("colorDialog");
+    if (!require(maskColorFill && colorDialog, "mask color fill opens the shared color picker"))
+        return false;
+    QMetaObject::invokeMethod(maskColorFill, "activated");
+    QTest::qWait(30);
+    if (!require(colorDialog->property("visible").toBool(),
+                 "Shift-Backspace opens a color picker for the selected mask"))
+        return false;
+    QMetaObject::invokeMethod(colorDialog, "reject");
+    QTest::qWait(30);
+    _document.setEditingMask(false);
+    _window->requestActivate();
+    QTest::qWait(20);
     QTemporaryDir recentDir;
     if (!require(recentDir.isValid(), "temporary recent-files directory exists"))
         return false;
@@ -374,10 +409,24 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      _document.height() == 800,
                  "Return activates the default dialog button"))
         return false;
-    _document.addAdjustmentLayer("brightnessContrast");
     auto layerProperties = _window->findChild<QObject *>("layerPropertiesDialog");
     if (!require(layerProperties, "layer properties dialog exists"))
         return false;
+    auto      settingsLight              = _window->findChild<QObject *>("settingsLightMenuItem");
+    const int layersBeforeSettingsAction = _document.layers().size();
+    if (!require(settingsLight, "Settings menu exposes working adjustment actions"))
+        return false;
+    QMetaObject::invokeMethod(settingsLight, "triggered");
+    QTest::qWait(120);
+    if (!require(_document.layers().size() == layersBeforeSettingsAction + 1 &&
+                     _document.layers().first().toMap().value("kind").toString() == "adjustment" &&
+                     layerProperties->property("visible").toBool(),
+                 "Settings menu creates an adjustment layer and opens its properties"))
+        return false;
+    layerProperties->setProperty("keepChanges", true);
+    QMetaObject::invokeMethod(layerProperties, "accept");
+    _document.removeLayer();
+    _document.addAdjustmentLayer("brightnessContrast");
     QMetaObject::invokeMethod(layerProperties, "open");
     QTest::qWait(150);
     if (!require(layerProperties->property("visible").toBool(),

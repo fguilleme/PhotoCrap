@@ -637,6 +637,17 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "posterize exposes a tone ramp, level slider, and quick values"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("threshold");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto thresholdEditor    = _window->findChild<QObject *>("thresholdEditor");
+    auto thresholdHistogram = _window->findChild<QObject *>("thresholdHistogram");
+    auto thresholdValue     = _window->findChild<QObject *>("thresholdValue");
+    if (!require(thresholdEditor && thresholdEditor->property("visible").toBool() &&
+                     thresholdHistogram && thresholdValue,
+                 "threshold exposes an interactive histogram and numeric cutoff"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

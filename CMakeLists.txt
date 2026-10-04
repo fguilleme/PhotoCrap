@@ -28,6 +28,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/PhotoFilterFilter.cpp
     src/filters/PosterizeFilter.cpp
     src/filters/SelectiveColorFilter.cpp
+    src/filters/ThresholdFilter.cpp
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
     src/ShortcutManager.cpp
@@ -51,6 +52,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/PhotoFilterFilter.h
     src/filters/PosterizeFilter.h
     src/filters/SelectiveColorFilter.h
+    src/filters/ThresholdFilter.h
     src/LanguageManager.h
     src/MacApplicationMenu.h
     src/MacApplicationMenu.mm
@@ -166,6 +168,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/PosterizeFilter.h
     src/filters/SelectiveColorFilter.cpp
     src/filters/SelectiveColorFilter.h
+    src/filters/ThresholdFilter.cpp
+    src/filters/ThresholdFilter.h
 )
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent)
 target_include_directories(photocrap_core PUBLIC src)
@@ -228,6 +232,7 @@ qt_add_qml_module(PhotoCrap
         qml/PhotoFilterEditor.qml
         qml/PosterizeEditor.qml
         qml/SelectiveColorEditor.qml
+        qml/ThresholdEditor.qml
 )
 qt_add_translations(PhotoCrap
     TS_FILES translations/PhotoCrap_en.ts

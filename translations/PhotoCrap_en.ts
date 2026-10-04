@@ -33,6 +33,16 @@
     <message><source>Valeurs rapides</source><translation>Quick values</translation></message>
   </context>
   <context>
+    <name>ThresholdEditor</name>
+    <message>
+      <source>Les tons sous le seuil deviennent noirs ; les autres deviennent blancs.</source>
+      <translation>Tones below the threshold become black; the others become white.</translation>
+    </message>
+    <message><source>Noir</source><translation>Black</translation></message>
+    <message><source>Seuil</source><translation>Threshold</translation></message>
+    <message><source>Blanc</source><translation>White</translation></message>
+  </context>
+  <context>
     <name>ColorLookupEditor</name>
     <message>
       <source>Ambre doux</source>

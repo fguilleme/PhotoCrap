@@ -3,6 +3,7 @@
 #include "ShortcutManager.h"
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
+#include "filters/ThresholdFilter.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -681,6 +682,19 @@ private slots:
         QCOMPARE(result.pixelColor(0, 0), QColor(0, 85, 170));
         QCOMPARE(result.pixelColor(1, 0), QColor(0, 170, 255));
         QCOMPARE(result.pixelColor(2, 0), QColor(255, 255, 255));
+    }
+    void thresholdSeparatesDarkAndLightTones()
+    {
+        QImage source(3, 1, QImage::Format_ARGB32_Premultiplied);
+        source.setPixelColor(0, 0, QColor(30, 30, 30));
+        source.setPixelColor(1, 0, QColor(127, 127, 127));
+        source.setPixelColor(2, 0, QColor(220, 220, 220));
+
+        const QImage result =
+            PhotoCrap::Filters::applyThreshold(source, QVariantMap{{"level", 128}});
+        QCOMPARE(result.pixelColor(0, 0), QColor(Qt::black));
+        QCOMPARE(result.pixelColor(1, 0), QColor(Qt::black));
+        QCOMPARE(result.pixelColor(2, 0), QColor(Qt::white));
     }
     void curvesAndLevelsUseDedicatedParametersAndHistogram()
     {

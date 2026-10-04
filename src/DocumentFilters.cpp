@@ -12,6 +12,7 @@
 #include "filters/PhotoFilterFilter.h"
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
+#include "filters/ThresholdFilter.h"
 
 #include <QCache>
 #include <QColorSpace>
@@ -494,6 +495,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyPosterize(_source, _p);
     if (_type == "selectiveColor")
         return PhotoCrap::Filters::applySelectiveColor(_source, _p);
+    if (_type == "threshold")
+        return PhotoCrap::Filters::applyThreshold(_source, _p);
     if (_type == "colorBalance") {
         const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
         QImage       result(input.size(), QImage::Format_ARGB32);
@@ -590,8 +593,6 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     r = 255 - r;
                     g = 255 - g;
                     b = 255 - b;
-                } else if (_type == "threshold") {
-                    r = g = b = lum >= value("level", 128) ? 255 : 0;
                 }
                 output[x] = qRgba(clamp(r), clamp(g), clamp(b), alpha);
             }

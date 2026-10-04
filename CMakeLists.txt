@@ -20,6 +20,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/BrightnessContrastFilter.cpp
     src/filters/ChannelMixerFilter.cpp
     src/filters/ColorFilter.cpp
+    src/filters/ColorLookupFilter.cpp
     src/filters/CurvesFilter.cpp
     src/filters/GradientMapFilter.cpp
     src/filters/LightFilter.cpp
@@ -40,6 +41,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.h
+    src/filters/ColorLookupFilter.h
     src/filters/CurvesFilter.h
     src/filters/GradientMapFilter.h
     src/filters/LightFilter.h
@@ -144,6 +146,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.cpp
     src/filters/ColorFilter.h
+    src/filters/ColorLookupFilter.cpp
+    src/filters/ColorLookupFilter.h
     src/filters/CurvesFilter.cpp
     src/filters/CurvesFilter.h
     src/filters/GradientMapFilter.cpp
@@ -205,6 +209,7 @@ qt_add_qml_module(PhotoCrap
         qml/DarkSpinBox.qml
         qml/CurvesEditor.qml
         qml/ColorEditor.qml
+        qml/ColorLookupEditor.qml
         qml/ColorBalanceEditor.qml
         qml/BlackWhiteEditor.qml
         qml/ChannelMixerEditor.qml

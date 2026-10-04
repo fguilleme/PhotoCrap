@@ -613,6 +613,35 @@ private slots:
             d.undo();
         }
     }
+    void colorLookupProvidesNamedStylesAndAdjustableStrength()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16, true));
+        const QColor sourceColor("#5276a4");
+        d.setColor(sourceColor);
+        d.setTool("fill");
+        d.beginStroke(8, 8);
+        d.endStroke();
+        const QImage source = d.composite();
+
+        d.addAdjustmentLayer("colorLookup");
+        const QVariantMap parameters = d.layers().first().toMap().value("parameters").toMap();
+        QCOMPARE(d.layers().first().toMap().value("name").toString(),
+                 QString("Style colorimétrique (LUT)"));
+        QCOMPARE(parameters.value("strength").toInt(), 100);
+        QVERIFY(!parameters.value("preserveLuminosity").toBool());
+        QVERIFY(d.composite() != source);
+
+        d.beginLayerPreview();
+        d.previewLayerParameter("strength", 0);
+        QCOMPARE(d.composite(), source);
+        d.previewLayerParameter("preset", 4);
+        d.previewLayerParameter("strength", 100);
+        const QImage tealAndOrange = d.composite();
+        QVERIFY(tealAndOrange != source);
+        d.finishLayerPreview("Modifier le style colorimétrique");
+        QCOMPARE(d.layers().first().toMap().value("parameters").toMap().value("preset").toInt(), 4);
+    }
     void curvesAndLevelsUseDedicatedParametersAndHistogram()
     {
         Document d;

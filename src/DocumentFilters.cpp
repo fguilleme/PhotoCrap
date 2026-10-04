@@ -4,6 +4,7 @@
 #include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorFilter.h"
+#include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
@@ -481,6 +482,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyGradientMap(_source, _p);
     if (_type == "color")
         return PhotoCrap::Filters::applyColor(_source, _p);
+    if (_type == "colorLookup")
+        return PhotoCrap::Filters::applyColorLookup(_source, _p);
     if (_type == "light")
         return PhotoCrap::Filters::applyLight(_source, _p);
     if (_type == "photoFilter")
@@ -577,25 +580,6 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     r = c.red();
                     g = c.green();
                     b = c.blue();
-                } else if (_type == "colorLookup") {
-                    const int preset = _p.value("preset", 0).toInt();
-                    if (preset == 0) {
-                        r = r * 1.05 + 8;
-                        g = g * .98;
-                        b = b * .88;
-                    } else if (preset == 1) {
-                        r = r * 1.08;
-                        g = g * 1.01;
-                        b = b * .92 + 8;
-                    } else if (preset == 2) {
-                        r = r * .9;
-                        g = g * 1.02;
-                        b = b * 1.12;
-                    } else {
-                        r = 128 + (r - 128) * .82;
-                        g = 128 + (g - 128) * .82;
-                        b = 128 + (b - 128) * .82;
-                    }
                 } else if (_type == "invert") {
                     r = 255 - r;
                     g = 255 - g;
@@ -640,7 +624,7 @@ void Document::addAdjustmentLayer(const QString &_type)
                                        {"blackWhite", tr("Noir et blanc")},
                                        {"photoFilter", tr("Filtre photo")},
                                        {"channelMixer", tr("Mélangeur de couches")},
-                                       {"colorLookup", tr("Recherche de couleurs")},
+                                       {"colorLookup", tr("Style colorimétrique (LUT)")},
                                        {"invert", tr("Négatif")},
                                        {"posterize", tr("Isohélie")},
                                        {"threshold", tr("Seuil")},
@@ -701,7 +685,7 @@ void Document::addAdjustmentLayer(const QString &_type)
                   {"monochrome", false}, {"monoRed", 40},      {"monoGreen", 40},
                   {"monoBlue", 20},      {"monoConstant", 0}};
     else if (_type == "colorLookup")
-        params = {{"preset", 0}};
+        params = {{"preset", 0}, {"strength", 100}, {"preserveLuminosity", false}};
     else if (_type == "posterize")
         params = {{"levels", 4}};
     else if (_type == "threshold")
@@ -1104,7 +1088,7 @@ void Document::resetAdjustmentLayer()
                       {"monochrome", false}, {"monoRed", 40},      {"monoGreen", 40},
                       {"monoBlue", 20},      {"monoConstant", 0}};
     else if (type == QStringLiteral("colorLookup"))
-        parameters = {{"preset", 0}};
+        parameters = {{"preset", 0}, {"strength", 100}, {"preserveLuminosity", false}};
     else if (type == QStringLiteral("posterize"))
         parameters = {{"levels", 4}};
     else if (type == QStringLiteral("threshold"))

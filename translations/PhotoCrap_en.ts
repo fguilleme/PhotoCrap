@@ -1,6 +1,45 @@
 <?xml version='1.0' encoding='utf-8'?>
 <TS version="2.1" language="en_US" sourcelanguage="fr_FR">
   <context>
+    <name>ColorLookupEditor</name>
+    <message>
+      <source>Ambre doux</source>
+      <translation>Soft Amber</translation>
+    </message>
+    <message>
+      <source>Cinéma chaud</source>
+      <translation>Warm Cinema</translation>
+    </message>
+    <message>
+      <source>Bleu arctique</source>
+      <translation>Arctic Blue</translation>
+    </message>
+    <message>
+      <source>Mat</source>
+      <translation>Matte</translation>
+    </message>
+    <message>
+      <source>Sarcelle et orange</source>
+      <translation>Teal and Orange</translation>
+    </message>
+    <message>
+      <source>Pellicule passée</source>
+      <translation>Faded Film</translation>
+    </message>
+    <message>
+      <source>Choisissez une ambiance colorimétrique, puis dosez son intensité.</source>
+      <translation>Choose a color look, then adjust its strength.</translation>
+    </message>
+    <message>
+      <source>Intensité</source>
+      <translation>Strength</translation>
+    </message>
+    <message>
+      <source>Préserver la luminosité</source>
+      <translation>Preserve Luminosity</translation>
+    </message>
+  </context>
+  <context>
     <name>CurvesEditor</name>
     <message>
       <source>RVB composite</source>
@@ -342,8 +381,8 @@
     </message>
     <message>
       <location filename="../src/Document.cpp" line="714" />
-      <source>Recherche de couleurs</source>
-      <translation>Color Lookup</translation>
+      <source>Style colorimétrique (LUT)</source>
+      <translation>Color Look (LUT)</translation>
     </message>
     <message>
       <location filename="../src/Document.cpp" line="714" />
@@ -551,6 +590,10 @@
   </context>
   <context>
     <name>Main</name>
+    <message>
+      <source>Modifier le style colorimétrique</source>
+      <translation>Adjust Color Look</translation>
+    </message>
     <message>
       <location filename="../qml/Main.qml" line="31" />
       <location filename="../qml/Main.qml" line="151" />
@@ -1196,8 +1239,8 @@
     <message>
       <location filename="../qml/Main.qml" line="236" />
       <location filename="../qml/Main.qml" line="687" />
-      <source>Recherche de couleurs</source>
-      <translation>Color Lookup</translation>
+      <source>Style colorimétrique (LUT)</source>
+      <translation>Color Look (LUT)</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="237" />

@@ -602,6 +602,17 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "channel mixer exposes presets, output channels, total, and monochrome mode"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("colorLookup");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto colorLookupEditor   = _window->findChild<QObject *>("colorLookupEditor");
+    auto colorLookupStrength = _window->findChild<QObject *>("colorLookupStrength");
+    auto colorLookupPreserve = _window->findChild<QObject *>("colorLookupPreserveLuminosity");
+    if (!require(colorLookupEditor && colorLookupEditor->property("visible").toBool() &&
+                     colorLookupStrength && colorLookupPreserve,
+                 "color lookup exposes named styles, strength, and luminosity control"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

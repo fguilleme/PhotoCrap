@@ -12,9 +12,13 @@ include(CTest)
 set(PHOTOCRAP_CXX_SOURCES
     src/CanvasItem.cpp
     src/Document.cpp
+    src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
     src/DocumentFilters.cpp
+    src/DocumentIO.cpp
+    src/DocumentLayers.cpp
+    src/DocumentPreview.cpp
     src/DocumentTools.cpp
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
@@ -139,9 +143,13 @@ endif()
 qt_add_library(photocrap_core STATIC
     src/Document.cpp
     src/Document.h
+    src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
     src/DocumentFilters.cpp
+    src/DocumentIO.cpp
+    src/DocumentLayers.cpp
+    src/DocumentPreview.cpp
     src/DocumentTools.cpp
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.cpp

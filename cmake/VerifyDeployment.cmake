@@ -21,6 +21,7 @@ endfunction()
 
 if(DEPLOY_PLATFORM STREQUAL "macOS")
     require_deployed_file("the application executable" "PhotoCrap.app/Contents/MacOS/PhotoCrap")
+    require_deployed_file("the application icon" "PhotoCrap.app/Contents/Resources/PhotoCrap.icns")
     require_deployed_file("Qt Core" "PhotoCrap.app/Contents/Frameworks/QtCore.framework/*/QtCore")
     require_deployed_file("the Cocoa platform plugin" "PhotoCrap.app/Contents/PlugIns/platforms/libqcocoa.dylib")
     execute_process(

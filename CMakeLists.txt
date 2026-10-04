@@ -190,7 +190,13 @@ if(APPLE)
     target_sources(PhotoCrap PRIVATE
         src/MacApplicationMenu.h
         src/MacApplicationMenu.mm
+        packaging/macos/PhotoCrap.icns
     )
+    set_source_files_properties(packaging/macos/PhotoCrap.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+elseif(WIN32)
+    target_sources(PhotoCrap PRIVATE packaging/windows/PhotoCrap.rc)
 endif()
 # Homebrew exposes QML plugins through relative symlinks. Scan the real module
 # directory so Qt's deploy step copies binaries, not links into the Cellar.
@@ -245,6 +251,7 @@ set_target_properties(PhotoCrap PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "PhotoCrap"
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+    MACOSX_BUNDLE_ICON_FILE "PhotoCrap.icns"
 )
 if(MSVC)
     target_compile_options(photocrap_core PRIVATE /W4 /utf-8)
@@ -312,6 +319,8 @@ elseif(WIN32)
     set(CPACK_GENERATOR "NSIS;ZIP")
     set(CPACK_NSIS_DISPLAY_NAME "PhotoCrap")
     set(CPACK_NSIS_PACKAGE_NAME "PhotoCrap")
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/PhotoCrap.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/PhotoCrap.ico")
     set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
     set(CPACK_NSIS_MODIFY_PATH OFF)

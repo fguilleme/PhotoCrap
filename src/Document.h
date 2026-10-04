@@ -75,6 +75,20 @@ class Document : public QObject
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY settingsChanged)
     Q_PROPERTY(int textSize READ textSize WRITE setTextSize NOTIFY settingsChanged)
     Q_PROPERTY(bool filledShapes READ filledShapes WRITE setFilledShapes NOTIFY settingsChanged)
+    Q_PROPERTY(
+        QColor shapeFillColor READ shapeFillColor WRITE setShapeFillColor NOTIFY settingsChanged)
+    Q_PROPERTY(QColor shapeStrokeColor READ shapeStrokeColor WRITE setShapeStrokeColor NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(bool shapeStrokeEnabled READ shapeStrokeEnabled WRITE setShapeStrokeEnabled NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(qreal shapeStrokeWidth READ shapeStrokeWidth WRITE setShapeStrokeWidth NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(
+        int shapeStrokeStyle READ shapeStrokeStyle WRITE setShapeStrokeStyle NOTIFY settingsChanged)
+    Q_PROPERTY(qreal shapeCornerRadius READ shapeCornerRadius WRITE setShapeCornerRadius NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(bool shapeAlignPixels READ shapeAlignPixels WRITE setShapeAlignPixels NOTIFY
+                   settingsChanged)
     Q_PROPERTY(QRect selection READ selection NOTIFY selectionChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
@@ -186,6 +200,34 @@ public:
     {
         return m_filledShapes;
     }
+    QColor shapeFillColor() const
+    {
+        return m_shapeFillColor.isValid() ? m_shapeFillColor : m_color;
+    }
+    QColor shapeStrokeColor() const
+    {
+        return m_shapeStrokeColor.isValid() ? m_shapeStrokeColor : m_color;
+    }
+    bool shapeStrokeEnabled() const
+    {
+        return m_shapeStrokeEnabled;
+    }
+    qreal shapeStrokeWidth() const
+    {
+        return m_shapeStrokeWidth;
+    }
+    int shapeStrokeStyle() const
+    {
+        return m_shapeStrokeStyle;
+    }
+    qreal shapeCornerRadius() const
+    {
+        return m_shapeCornerRadius;
+    }
+    bool shapeAlignPixels() const
+    {
+        return m_shapeAlignPixels;
+    }
     QRect selection() const
     {
         return m_selection;
@@ -239,6 +281,13 @@ public:
     void             setText(const QString &_value);
     void             setTextSize(int _value);
     void             setFilledShapes(bool _value);
+    void             setShapeFillColor(const QColor &_value);
+    void             setShapeStrokeColor(const QColor &_value);
+    void             setShapeStrokeEnabled(bool _value);
+    void             setShapeStrokeWidth(qreal _value);
+    void             setShapeStrokeStyle(int _value);
+    void             setShapeCornerRadius(qreal _value);
+    void             setShapeAlignPixels(bool _value);
 
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false);
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
@@ -345,6 +394,13 @@ private:
     QString m_text         = QStringLiteral("Votre texte");
     int     m_textSize     = 64;
     bool    m_filledShapes = true;
+    QColor  m_shapeFillColor;
+    QColor  m_shapeStrokeColor;
+    bool    m_shapeStrokeEnabled = true;
+    qreal   m_shapeStrokeWidth   = 1;
+    int     m_shapeStrokeStyle   = 0;
+    qreal   m_shapeCornerRadius  = 0;
+    bool    m_shapeAlignPixels   = true;
     QRect   m_selection;
     QVector<Snapshot>              m_undo, m_redo;
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;

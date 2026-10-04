@@ -118,13 +118,10 @@ ShortcutManager::ShortcutManager(QObject *_parent, bool _persist)
         {"toolCrop", "Outils", "Recadrage", "C", {}},
         {"toolBrush", "Outils", "Pinceau", "B", {}},
         {"toolEraser", "Outils", "Gomme", "E", {}},
-        {"toolFill", "Outils", "Remplissage contigu", "G", {}},
-        {"toolGradient", "Outils", "Dégradé", "Shift+G", {}},
+        {"toolFill", "Outils", "Dégradé et remplissage", "G", {}},
         {"toolPicker", "Outils", "Pipette", "I", {}},
         {"toolText", "Outils", "Texte rasterisé", "T", {}},
-        {"toolRectangle", "Outils", "Rectangle", "U", {}},
-        {"toolEllipse", "Outils", "Ellipse", "O", {}},
-        {"toolLine", "Outils", "Ligne", "L", {}},
+        {"toolRectangle", "Outils", "Formes", "U", {}},
         {"toolHand", "Outils", "Navigation", "H", {}}};
     for (auto &entry : m_entries)
         entry.sequence = entry.defaultSequence;

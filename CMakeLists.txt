@@ -269,6 +269,7 @@ if(BUILD_TESTING)
         tests/DocumentTest.cpp
         src/ShortcutManager.cpp src/ShortcutManager.h
         src/RecentFilesManager.cpp src/RecentFilesManager.h
+        src/WorkspaceSettings.cpp src/WorkspaceSettings.h
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)

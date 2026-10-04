@@ -146,7 +146,65 @@ void Document::setTextSize(int _value)
 }
 void Document::setFilledShapes(bool _value)
 {
+    if (m_filledShapes == _value)
+        return;
     m_filledShapes = _value;
+    emit settingsChanged();
+}
+void Document::setShapeFillColor(const QColor &_value)
+{
+    if (!_value.isValid() || (m_shapeFillColor.isValid() && m_shapeFillColor == _value))
+        return;
+    m_shapeFillColor = _value;
+    emit settingsChanged();
+}
+void Document::setShapeStrokeColor(const QColor &_value)
+{
+    if (!_value.isValid() || (m_shapeStrokeColor.isValid() && m_shapeStrokeColor == _value))
+        return;
+    m_shapeStrokeColor = _value;
+    emit settingsChanged();
+}
+void Document::setShapeStrokeEnabled(bool _value)
+{
+    if (m_shapeStrokeEnabled == _value)
+        return;
+    m_shapeStrokeEnabled = _value;
+    emit settingsChanged();
+}
+void Document::setShapeStrokeWidth(qreal _value)
+{
+    if (!std::isfinite(_value))
+        return;
+    const qreal width = qBound(0.5, _value, 500.);
+    if (qFuzzyCompare(m_shapeStrokeWidth, width))
+        return;
+    m_shapeStrokeWidth = width;
+    emit settingsChanged();
+}
+void Document::setShapeStrokeStyle(int _value)
+{
+    const int style = qBound(0, _value, 2);
+    if (m_shapeStrokeStyle == style)
+        return;
+    m_shapeStrokeStyle = style;
+    emit settingsChanged();
+}
+void Document::setShapeCornerRadius(qreal _value)
+{
+    if (!std::isfinite(_value))
+        return;
+    const qreal radius = qBound(0., _value, 500.);
+    if (qFuzzyCompare(m_shapeCornerRadius + 1., radius + 1.))
+        return;
+    m_shapeCornerRadius = radius;
+    emit settingsChanged();
+}
+void Document::setShapeAlignPixels(bool _value)
+{
+    if (m_shapeAlignPixels == _value)
+        return;
+    m_shapeAlignPixels = _value;
     emit settingsChanged();
 }
 
@@ -329,16 +387,35 @@ void Document::renderShape(const QPointF &_to)
         if (hasSelection())
             painter.setClipRect(m_selection);
         painter.setOpacity(m_brushOpacity);
-        painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.setBrush(m_filledShapes ? QBrush(m_color) : Qt::NoBrush);
-        const QRectF rect = QRectF(m_anchor, _to).normalized();
-        if (m_tool == "rectangle")
-            painter.drawRect(rect);
-        else if (m_tool == "ellipse")
+        if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "line") {
+            const auto penStyle = m_shapeStrokeStyle == 1   ? Qt::DashLine
+                                  : m_shapeStrokeStyle == 2 ? Qt::DotLine
+                                                            : Qt::SolidLine;
+            painter.setPen(m_shapeStrokeEnabled ? QPen(shapeStrokeColor(), m_shapeStrokeWidth,
+                                                       penStyle, Qt::SquareCap, Qt::MiterJoin)
+                                                : QPen(Qt::NoPen));
+            painter.setBrush(m_filledShapes ? QBrush(shapeFillColor()) : Qt::NoBrush);
+        } else
+            painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        QRectF rect = QRectF(m_anchor, _to).normalized();
+        if (m_shapeAlignPixels &&
+            (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "line"))
+            rect = QRectF(qRound(rect.left()), qRound(rect.top()), qRound(rect.width()),
+                          qRound(rect.height()));
+        if (m_tool == "rectangle") {
+            const qreal radius = qMin(m_shapeCornerRadius, qMin(rect.width(), rect.height()) / 2.);
+            painter.drawRoundedRect(rect, radius, radius);
+        } else if (m_tool == "ellipse")
             painter.drawEllipse(rect);
-        else if (m_tool == "line")
-            painter.drawLine(m_anchor, _to);
-        else if (m_tool == "gradient") {
+        else if (m_tool == "line") {
+            QPointF from = m_anchor;
+            QPointF to   = _to;
+            if (m_shapeAlignPixels) {
+                from = QPointF(qRound(from.x()), qRound(from.y()));
+                to   = QPointF(qRound(to.x()), qRound(to.y()));
+            }
+            painter.drawLine(from, to);
+        } else if (m_tool == "gradient") {
             QLinearGradient gradient(m_anchor, _to);
             gradient.setColorAt(0, m_color);
             gradient.setColorAt(1, m_secondary);

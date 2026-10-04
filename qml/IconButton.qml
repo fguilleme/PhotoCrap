@@ -6,6 +6,9 @@ Button {
     property string glyph: ""
     property string hint: ""
     property bool selected: false
+    property bool hasMenu: false
+    property string groupId: ""
+    signal contextRequested()
     implicitWidth: 38
     implicitHeight: 36
     hoverEnabled: true
@@ -22,6 +25,21 @@ Button {
         font.pixelSize: control.glyph.length ? 19 : 12
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+    }
+    Text {
+        visible: control.hasMenu
+        anchors.right: parent.right
+        anchors.rightMargin: 4
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 3
+        text: "◢"
+        color: control.selected ? "#c5f2cf" : "#89939e"
+        font.pixelSize: 7
+    }
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: control.contextRequested()
     }
     ToolTip.visible: hovered && hint.length > 0
     ToolTip.text: hint

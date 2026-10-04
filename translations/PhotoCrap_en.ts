@@ -2236,6 +2236,100 @@ Independent software, not affiliated with Adobe.</translation>
       <source>Historique</source>
       <translation>History</translation>
     </message>
+    <message><source>▦   Barre d’outils</source><translation>▦   Toolbar</translation></message>
+    <message><source>Barre d’outils</source><translation>Toolbar</translation></message>
+    <message>
+      <source>Choisissez les outils visibles et leur ordre. Les outils d’un même cadre partagent un emplacement et un raccourci ; un clic droit sur cet emplacement ouvre le groupe.</source>
+      <translation>Choose which tools are visible and their order. Tools in the same frame share one slot and shortcut; right-click the slot to open the group.</translation>
+    </message>
+    <message><source>Monter le groupe</source><translation>Move Group Up</translation></message>
+    <message><source>Descendre le groupe</source><translation>Move Group Down</translation></message>
+    <message><source>Afficher %1</source><translation>Show %1</translation></message>
+    <message><source>Monter l’outil</source><translation>Move Tool Up</translation></message>
+    <message><source>Descendre l’outil</source><translation>Move Tool Down</translation></message>
+
+    <message><source>Plan de travail</source><translation>Artboard</translation></message>
+    <message><source>Sélection elliptique</source><translation>Elliptical Marquee</translation></message>
+    <message><source>Rangée unique</source><translation>Single Row Marquee</translation></message>
+    <message><source>Colonne unique</source><translation>Single Column Marquee</translation></message>
+    <message><source>Pinceau de sélection</source><translation>Selection Brush</translation></message>
+    <message><source>Lasso</source><translation>Lasso</translation></message>
+    <message><source>Lasso polygonal</source><translation>Polygonal Lasso</translation></message>
+    <message><source>Lasso magnétique</source><translation>Magnetic Lasso</translation></message>
+    <message><source>Sélection d’objet</source><translation>Object Selection</translation></message>
+    <message><source>Sélection rapide</source><translation>Quick Selection</translation></message>
+    <message><source>Baguette magique</source><translation>Magic Wand</translation></message>
+    <message><source>Recadrage en perspective</source><translation>Perspective Crop</translation></message>
+    <message><source>Tranche</source><translation>Slice</translation></message>
+    <message><source>Sélection de tranche</source><translation>Slice Select</translation></message>
+    <message><source>Cadre</source><translation>Frame</translation></message>
+    <message><source>Échantillonnage de couleur</source><translation>Color Sampler</translation></message>
+    <message><source>Règle</source><translation>Ruler</translation></message>
+    <message><source>Annotation</source><translation>Note</translation></message>
+    <message><source>Comptage</source><translation>Count</translation></message>
+    <message><source>Correcteur localisé</source><translation>Spot Healing Brush</translation></message>
+    <message><source>Suppression</source><translation>Remove</translation></message>
+    <message><source>Correcteur</source><translation>Healing Brush</translation></message>
+    <message><source>Pièce</source><translation>Patch</translation></message>
+    <message><source>Déplacement basé sur le contenu</source><translation>Content-Aware Move</translation></message>
+    <message><source>Œil rouge</source><translation>Red Eye</translation></message>
+    <message><source>Crayon</source><translation>Pencil</translation></message>
+    <message><source>Remplacement de couleur</source><translation>Color Replacement</translation></message>
+    <message><source>Pinceau mélangeur</source><translation>Mixer Brush</translation></message>
+    <message><source>Tampon de duplication</source><translation>Clone Stamp</translation></message>
+    <message><source>Tampon de motif</source><translation>Pattern Stamp</translation></message>
+    <message><source>Forme d’historique</source><translation>History Brush</translation></message>
+    <message><source>Forme d’historique artistique</source><translation>Art History Brush</translation></message>
+    <message><source>Gomme d’arrière-plan</source><translation>Background Eraser</translation></message>
+    <message><source>Gomme magique</source><translation>Magic Eraser</translation></message>
+    <message><source>Flou</source><translation>Blur</translation></message>
+    <message><source>Netteté</source><translation>Sharpen</translation></message>
+    <message><source>Doigt</source><translation>Smudge</translation></message>
+    <message><source>Pinceau de réglage</source><translation>Adjustment Brush</translation></message>
+    <message><source>Densité −</source><translation>Dodge</translation></message>
+    <message><source>Densité +</source><translation>Burn</translation></message>
+    <message><source>Éponge</source><translation>Sponge</translation></message>
+    <message><source>Plume</source><translation>Pen</translation></message>
+    <message><source>Plume libre</source><translation>Freeform Pen</translation></message>
+    <message><source>Plume de courbure</source><translation>Curvature Pen</translation></message>
+    <message><source>Ajout de point d’ancrage</source><translation>Add Anchor Point</translation></message>
+    <message><source>Suppression de point d’ancrage</source><translation>Delete Anchor Point</translation></message>
+    <message><source>Conversion de point</source><translation>Convert Point</translation></message>
+    <message><source>Texte horizontal rasterisé</source><translation>Rasterized Horizontal Type</translation></message>
+    <message><source>Texte vertical</source><translation>Vertical Type</translation></message>
+    <message><source>Masque de texte vertical</source><translation>Vertical Type Mask</translation></message>
+    <message><source>Masque de texte horizontal</source><translation>Horizontal Type Mask</translation></message>
+    <message><source>Sélection de tracé</source><translation>Path Selection</translation></message>
+    <message><source>Sélection directe</source><translation>Direct Selection</translation></message>
+    <message><source>Triangle</source><translation>Triangle</translation></message>
+    <message><source>Polygone</source><translation>Polygon</translation></message>
+    <message><source>Étoile</source><translation>Star</translation></message>
+    <message><source>Forme personnalisée</source><translation>Custom Shape</translation></message>
+    <message><source>Main</source><translation>Hand</translation></message>
+    <message><source>Rotation de l’affichage</source><translation>Rotate View</translation></message>
+    <message><source>Zoom</source><translation>Zoom</translation></message>
+    <message><source>Sélections géométriques</source><translation>Marquee Selections</translation></message>
+    <message><source>Lassos</source><translation>Lassos</translation></message>
+    <message><source>Sélections intelligentes</source><translation>Smart Selections</translation></message>
+    <message><source>Recadrage et tranches</source><translation>Crop and Slices</translation></message>
+    <message><source>Mesure et annotation</source><translation>Measure and Annotate</translation></message>
+    <message><source>Correction</source><translation>Retouching</translation></message>
+    <message><source>Dessin</source><translation>Painting</translation></message>
+    <message><source>Tampons</source><translation>Stamps</translation></message>
+    <message><source>Gommes</source><translation>Erasers</translation></message>
+    <message><source>Retouche</source><translation>Blur and Sharpen</translation></message>
+    <message><source>Réglage local</source><translation>Local Adjustment</translation></message>
+    <message><source>Plumes</source><translation>Pen Tools</translation></message>
+    <message><source>Formes</source><translation>Shapes</translation></message>
+    <message><source>Pixels</source><translation>Pixels</translation></message>
+    <message><source>Fond</source><translation>Fill</translation></message>
+    <message><source>Couleur de remplissage</source><translation>Fill color</translation></message>
+    <message><source>Contour</source><translation>Stroke</translation></message>
+    <message><source>Couleur du contour</source><translation>Stroke color</translation></message>
+    <message><source>Trait plein</source><translation>Solid line</translation></message>
+    <message><source>Tirets</source><translation>Dashed</translation></message>
+    <message><source>Pointillés</source><translation>Dotted</translation></message>
+    <message><source>Aligner les pixels</source><translation>Align pixels</translation></message>
   </context>
   <context>
     <name>DockablePanel</name>
@@ -2442,6 +2536,8 @@ Independent software, not affiliated with Adobe.</translation>
       <source>Remplissage contigu</source>
       <translation>Contiguous Fill</translation>
     </message>
+    <message><source>Dégradé et remplissage</source><translation>Gradient and Fill</translation></message>
+    <message><source>Formes</source><translation>Shapes</translation></message>
     <message>
       <location filename="../src/ShortcutManager.cpp" line="27" />
       <source>Dégradé</source>

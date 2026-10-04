@@ -337,10 +337,60 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 37,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 34,
                  "keyboard settings list is populated"))
         return false;
+    _window->setProperty("preferencesPage", 2);
+    QTest::qWait(80);
+    auto toolSettingsList = _window->findChild<QObject *>("toolSettingsList");
+    if (!require(toolSettingsList && toolSettingsList->property("visible").toBool(),
+                 "toolbar settings page is available"))
+        return false;
     QMetaObject::invokeMethod(preferences, "close");
+    QTest::qWait(80);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
+                              Q_ARG(QVariant, "ellipse"));
+    QTest::qWait(40);
+    if (!require(_document.tool() == "ellipse", "a grouped tool can become active"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_U);
+    QTest::qWait(30);
+    if (!require(_document.tool() == "ellipse", "group shortcut restores its active tool"))
+        return false;
+    auto toolMenu = _window->findChild<QObject *>("toolGroupMenu");
+    if (!require(toolMenu, "grouped toolbar menu exists"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "shape"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(100);
+    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 3,
+                 "right click exposes the tools in a toolbar group"))
+        return false;
+    QMetaObject::invokeMethod(toolMenu, "close");
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
+                              Q_ARG(QVariant, "rectangle"));
+    QTest::qWait(60);
+    auto shapeFill        = _window->findChild<QObject *>("shapeFillEnabled");
+    auto shapeStroke      = _window->findChild<QObject *>("shapeStrokeEnabled");
+    auto shapeStrokeWidth = _window->findChild<QObject *>("shapeStrokeWidth");
+    auto shapeStrokeStyle = _window->findChild<QObject *>("shapeStrokeStyle");
+    auto shapeRadius      = _window->findChild<QObject *>("shapeCornerRadius");
+    if (!require(shapeFill && shapeStroke && shapeStrokeWidth && shapeStrokeStyle && shapeRadius &&
+                     shapeFill->property("visible").toBool() &&
+                     shapeStroke->property("visible").toBool() &&
+                     shapeRadius->property("visible").toBool(),
+                 "rectangle exposes fill, stroke, stroke style and corner controls"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
+                              Q_ARG(QVariant, "line"));
+    QTest::qWait(60);
+    if (!require(!shapeFill->property("visible").toBool() &&
+                     shapeStroke->property("visible").toBool() &&
+                     shapeStrokeWidth->property("visible").toBool() &&
+                     shapeStrokeStyle->property("visible").toBool() &&
+                     !shapeRadius->property("visible").toBool(),
+                 "line exposes its stroke controls without rectangle-only controls"))
+        return false;
     QMetaObject::invokeMethod(brushSettings, "open");
     QTest::qWait(100);
     if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))

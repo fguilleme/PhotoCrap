@@ -37,14 +37,14 @@ bool isPreferencesItem(NSMenuItem *_item)
            [title containsString:@"préférences"] || [title containsString:@"réglages"];
 }
 
-void installPreferencesHandler(QObject *_rootObject)
+bool installPreferencesHandler(QObject *_rootObject)
 {
     NSMenu *mainMenu = [NSApp mainMenu];
     if (!mainMenu || [mainMenu numberOfItems] < 1)
-        return;
+        return false;
     NSMenu *applicationMenu = [[mainMenu itemAtIndex:0] submenu];
     if (!applicationMenu)
-        return;
+        return false;
     for (NSMenuItem *item in [applicationMenu itemArray]) {
         if (!isPreferencesItem(item))
             continue;
@@ -52,12 +52,20 @@ void installPreferencesHandler(QObject *_rootObject)
         target.rootObject                  = _rootObject;
         [item setTarget:target];
         [item setAction:@selector(openPreferences:)];
-        return;
+        return true;
     }
+    return false;
 }
 } // namespace
 
 void scheduleMacPreferencesHandler(QObject *_rootObject)
 {
-    QTimer::singleShot(100, _rootObject, [_rootObject] { installPreferencesHandler(_rootObject); });
+    // Qt builds and may rebuild the native application menu asynchronously while
+    // the QML scene is loading. Re-apply the target across that startup window so
+    // its text-based role inference cannot reconnect Preferences to another item.
+    static constexpr int delays[]{0, 100, 300, 750, 1500, 3000, 5000};
+    for (const int delay : delays) {
+        QTimer::singleShot(delay, _rootObject,
+                           [_rootObject] { installPreferencesHandler(_rootObject); });
+    }
 }

@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
+#include "WorkspaceSettings.h"
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
@@ -86,13 +87,13 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 37);
+        QCOMPARE(shortcuts.entries().size(), 34);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
         QCOMPARE(shortcuts.sequence("brushSofter"), QString("Shift+["));
         QCOMPARE(shortcuts.sequence("brushHarder"), QString("Shift+]"));
-        QCOMPARE(shortcuts.sequence("toolGradient"), QString("Shift+G"));
+        QCOMPARE(shortcuts.sequence("toolFill"), QString("G"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -102,6 +103,40 @@ private slots:
         shortcuts.resetDefaults();
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QVERIFY(!shortcuts.setSequence("missing", "Q"));
+    }
+    void toolLayoutIsGroupedConfigurableAndPersistent()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, dir.path());
+        QCoreApplication::setOrganizationName("PhotoCrapTests");
+        QCoreApplication::setApplicationName("ToolLayoutTest");
+        QSettings().clear();
+
+        QVariantList customized;
+        {
+            WorkspaceSettings  settings;
+            const QVariantList defaults = settings.toolLayout();
+            QCOMPARE(defaults.size(), 22);
+            const QVariantMap paint = defaults[12].toMap();
+            QCOMPARE(paint.value("shortcut").toString(), QString("toolFill"));
+            QCOMPARE(paint.value("tools").toStringList(), QStringList({"gradient", "fill"}));
+            const QVariantMap shape = defaults[19].toMap();
+            QCOMPARE(shape.value("tools").toStringList(),
+                     QStringList({"rectangle", "ellipse", "triangle", "polygon", "star", "line",
+                                  "customShape"}));
+
+            customized = defaults;
+            customized.append(customized.takeFirst());
+            settings.saveToolLayout(customized);
+        }
+        {
+            WorkspaceSettings restored;
+            QCOMPARE(restored.toolLayout(), customized);
+            restored.resetToolLayout();
+            QCOMPARE(restored.toolLayout().first().toMap().value("id").toString(), QString("move"));
+        }
     }
     void foregroundAndBackgroundColorsCanResetAndSwap()
     {
@@ -458,6 +493,56 @@ private slots:
         d.beginStroke(20, 20);
         d.endStroke();
         QCOMPARE(d.composite().pixelColor(20, 20).alpha(), 0);
+    }
+    void rectangleUsesIndependentFillStrokeAndCorners()
+    {
+        Document d;
+        d.newDocument(64, 64, true);
+        d.setTool("rectangle");
+        d.setShapeFillColor(Qt::red);
+        d.setShapeStrokeColor(Qt::blue);
+        d.setShapeStrokeWidth(4);
+        d.setShapeCornerRadius(8);
+        d.setShapeStrokeStyle(1);
+        d.setShapeAlignPixels(true);
+        d.beginStroke(8.2, 8.2);
+        d.continueStroke(48.4, 48.4);
+        d.endStroke();
+
+        QCOMPARE(d.shapeFillColor(), QColor(Qt::red));
+        QCOMPARE(d.shapeStrokeColor(), QColor(Qt::blue));
+        QCOMPARE(d.shapeStrokeWidth(), 4.);
+        QCOMPARE(d.shapeCornerRadius(), 8.);
+        QCOMPARE(d.shapeStrokeStyle(), 1);
+        QCOMPARE(d.composite().pixelColor(28, 28), QColor(Qt::red));
+        QVERIFY(d.composite().pixelColor(8, 8).alpha() < 32);
+
+        d.setFilledShapes(false);
+        d.setShapeStrokeEnabled(false);
+        d.beginStroke(12, 12);
+        d.continueStroke(36, 36);
+        d.endStroke();
+        QVERIFY(!d.filledShapes());
+        QVERIFY(!d.shapeStrokeEnabled());
+    }
+    void lineUsesShapeStrokeOptions()
+    {
+        Document d;
+        d.newDocument(64, 64, true);
+        d.setTool("line");
+        d.setShapeStrokeEnabled(true);
+        d.setShapeStrokeColor(Qt::green);
+        d.setShapeStrokeWidth(3);
+        d.setShapeStrokeStyle(0);
+        d.setShapeAlignPixels(true);
+        d.beginStroke(5.3, 24.3);
+        d.continueStroke(54.4, 24.4);
+        d.endStroke();
+
+        const QColor center = d.composite().pixelColor(30, 24);
+        QVERIFY(center.green() > 180);
+        QVERIFY(center.red() < 80);
+        QCOMPARE(d.historyIndex(), 1);
     }
     void fillIsContiguousAndHandlesPartialAlpha()
     {

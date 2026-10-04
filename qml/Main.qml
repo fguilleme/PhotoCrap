@@ -80,10 +80,8 @@ ApplicationWindow {
         photoFilter: [{key:"hue",label:qsTr("Teinte du filtre"),from:0,to:360,step:1},{key:"density",label:qsTr("Densité"),from:0,to:100,step:1}],
         channelMixer: [{key:"redRed",label:qsTr("Rouge · R"),from:-200,to:200,step:1},{key:"redGreen",label:qsTr("Rouge · V"),from:-200,to:200,step:1},{key:"redBlue",label:qsTr("Rouge · B"),from:-200,to:200,step:1},{key:"greenRed",label:qsTr("Vert · R"),from:-200,to:200,step:1},{key:"greenGreen",label:qsTr("Vert · V"),from:-200,to:200,step:1},{key:"greenBlue",label:qsTr("Vert · B"),from:-200,to:200,step:1},{key:"blueRed",label:qsTr("Bleu · R"),from:-200,to:200,step:1},{key:"blueGreen",label:qsTr("Bleu · V"),from:-200,to:200,step:1},{key:"blueBlue",label:qsTr("Bleu · B"),from:-200,to:200,step:1}],
         invert: [],
-        posterize: [{key:"levels",label:qsTr("Niveaux"),from:2,to:32,step:1}],
         threshold: [{key:"level",label:qsTr("Seuil"),from:0,to:255,step:1}],
         gradientMap: [],
-        selectiveColor: [{key:"cyanRed",label:qsTr("Cyan ↔ Rouge"),from:-100,to:100,step:1},{key:"magentaGreen",label:qsTr("Magenta ↔ Vert"),from:-100,to:100,step:1},{key:"yellowBlue",label:qsTr("Jaune ↔ Bleu"),from:-100,to:100,step:1},{key:"black",label:qsTr("Noir"),from:-100,to:100,step:1}],
         gaussianBlur: [{key:"radius",label:qsTr("Rayon"),from:0.1,to:100,step:0.5}],
         motionBlur: [{key:"distance",label:qsTr("Distance"),from:1,to:200,step:1},{key:"angle",label:qsTr("Angle"),from:-180,to:180,step:1}],
         boxBlur: [{key:"radius",label:qsTr("Rayon"),from:1,to:100,step:1}],
@@ -2101,7 +2099,7 @@ ApplicationWindow {
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [
                             {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter" || activeInfo.adjustmentType==="channelMixer" || activeInfo.adjustmentType==="colorLookup") ? []
+                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter" || activeInfo.adjustmentType==="channelMixer" || activeInfo.adjustmentType==="colorLookup" || activeInfo.adjustmentType==="selectiveColor" || activeInfo.adjustmentType==="posterize") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -2298,6 +2296,34 @@ ApplicationWindow {
                             editor.beginLayerPreview()
                             editor.previewLayerParameter("preset", index)
                             editor.finishLayerPreview(qsTr("Modifier le style colorimétrique"))
+                        }
+                    }
+                    SelectiveColorEditor {
+                        objectName: "selectiveColorEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "selectiveColor"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if (layerPreview.checked)
+                                window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
+                        }
+                    }
+                    PosterizeEditor {
+                        objectName: "posterizeEditor"
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "posterize"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key,value) {
+                            if (layerPreview.checked)
+                                window.queueLayerPreview(key,value)
+                        }
+                        onCommitted: function(key,value) {
+                            window.previewLayerValue(key,value,true)
                         }
                     }
                     LevelsEditor {

@@ -1,6 +1,38 @@
 <?xml version='1.0' encoding='utf-8'?>
 <TS version="2.1" language="en_US" sourcelanguage="fr_FR">
   <context>
+    <name>SelectiveColorEditor</name>
+    <message><source>Rouges</source><translation>Reds</translation></message>
+    <message><source>Jaunes</source><translation>Yellows</translation></message>
+    <message><source>Verts</source><translation>Greens</translation></message>
+    <message><source>Cyans</source><translation>Cyans</translation></message>
+    <message><source>Bleus</source><translation>Blues</translation></message>
+    <message><source>Magentas</source><translation>Magentas</translation></message>
+    <message><source>Blancs</source><translation>Whites</translation></message>
+    <message><source>Neutres</source><translation>Neutrals</translation></message>
+    <message><source>Noirs</source><translation>Blacks</translation></message>
+    <message>
+      <source>Choisissez les couleurs de l’image à corriger.</source>
+      <translation>Choose the image colors to adjust.</translation>
+    </message>
+    <message><source>Cyan ↔ Rouge</source><translation>Cyan ↔ Red</translation></message>
+    <message><source>Magenta ↔ Vert</source><translation>Magenta ↔ Green</translation></message>
+    <message><source>Jaune ↔ Bleu</source><translation>Yellow ↔ Blue</translation></message>
+    <message><source>Blanc ↔ Noir</source><translation>White ↔ Black</translation></message>
+    <message><source>Méthode</source><translation>Method</translation></message>
+    <message><source>Relative</source><translation>Relative</translation></message>
+    <message><source>Absolue</source><translation>Absolute</translation></message>
+  </context>
+  <context>
+    <name>PosterizeEditor</name>
+    <message>
+      <source>Réduisez le nombre de tons pour créer des aplats plus francs.</source>
+      <translation>Reduce the number of tones to create bolder flat areas.</translation>
+    </message>
+    <message><source>Niveaux par canal</source><translation>Levels per channel</translation></message>
+    <message><source>Valeurs rapides</source><translation>Quick values</translation></message>
+  </context>
+  <context>
     <name>ColorLookupEditor</name>
     <message>
       <source>Ambre doux</source>

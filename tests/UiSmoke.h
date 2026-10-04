@@ -613,6 +613,30 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "color lookup exposes named styles, strength, and luminosity control"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("selectiveColor");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto selectiveColorEditor   = _window->findChild<QObject *>("selectiveColorEditor");
+    auto selectiveColorFamilies = _window->findChild<QObject *>("selectiveColorFamilyGrid");
+    auto selectiveColorRelative = _window->findChild<QObject *>("selectiveColorRelative");
+    auto selectiveColorAbsolute = _window->findChild<QObject *>("selectiveColorAbsolute");
+    if (!require(selectiveColorEditor && selectiveColorEditor->property("visible").toBool() &&
+                     selectiveColorFamilies && selectiveColorRelative && selectiveColorAbsolute,
+                 "selective color exposes nine families, four controls, and two methods"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
+    _document.addAdjustmentLayer("posterize");
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto posterizeEditor = _window->findChild<QObject *>("posterizeEditor");
+    auto posterizeRamp   = _window->findChild<QObject *>("posterizeToneRamp");
+    auto posterizeSlider = _window->findChild<QObject *>("posterizeLevelSlider");
+    auto posterizeQuick  = _window->findChild<QObject *>("posterizeQuickLevels");
+    if (!require(posterizeEditor && posterizeEditor->property("visible").toBool() &&
+                     posterizeRamp && posterizeSlider && posterizeQuick,
+                 "posterize exposes a tone ramp, level slider, and quick values"))
+        return false;
+    QMetaObject::invokeMethod(layerProperties, "close");
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

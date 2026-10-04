@@ -10,6 +10,8 @@
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
+#include "filters/PosterizeFilter.h"
+#include "filters/SelectiveColorFilter.h"
 
 #include <QCache>
 #include <QColorSpace>
@@ -488,6 +490,10 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         return PhotoCrap::Filters::applyLight(_source, _p);
     if (_type == "photoFilter")
         return PhotoCrap::Filters::applyPhotoFilter(_source, _p);
+    if (_type == "posterize")
+        return PhotoCrap::Filters::applyPosterize(_source, _p);
+    if (_type == "selectiveColor")
+        return PhotoCrap::Filters::applySelectiveColor(_source, _p);
     if (_type == "colorBalance") {
         const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
         QImage       result(input.size(), QImage::Format_ARGB32);
@@ -584,23 +590,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     r = 255 - r;
                     g = 255 - g;
                     b = 255 - b;
-                } else if (_type == "posterize") {
-                    const int    levels = qBound(2, _p.value("levels", 4).toInt(), 32);
-                    const double step   = 255. / (levels - 1);
-                    r                   = qRound(r / step) * step;
-                    g                   = qRound(g / step) * step;
-                    b                   = qRound(b / step) * step;
                 } else if (_type == "threshold") {
                     r = g = b = lum >= value("level", 128) ? 255 : 0;
-                } else if (_type == "selectiveColor") {
-                    const double strength = (qMax(r, qMax(g, b)) - qMin(r, qMin(g, b))) / 255.;
-                    r += value("cyanRed", 0) * 2.55 * strength;
-                    g += value("magentaGreen", 0) * 2.55 * strength;
-                    b += value("yellowBlue", 0) * 2.55 * strength;
-                    const double black = value("black", 0) * 2.55;
-                    r -= black;
-                    g -= black;
-                    b -= black;
                 }
                 output[x] = qRgba(clamp(r), clamp(g), clamp(b), alpha);
             }
@@ -664,8 +655,10 @@ void Document::addAdjustmentLayer(const QString &_type)
         params = {{"vibrance", 0}, {"saturation", 0}};
     else if (_type == "hueSaturation")
         params = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
-    else if (_type == "colorBalance" || _type == "selectiveColor")
+    else if (_type == "colorBalance")
         params = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
+    else if (_type == "selectiveColor")
+        params = PhotoCrap::Filters::defaultSelectiveColorParameters();
     else if (_type == "blackWhite")
         params = {{"reds", 40},           {"yellows", 60},
                   {"greens", 40},         {"cyans", 60},
@@ -768,8 +761,11 @@ void Document::beginLayerPreview()
     if (m_previewingLayer || m_active < 0 || m_active >= m_layers.size())
         return;
     endStroke();
-    (void)composite();
-    m_beforeLayerPreviewComposite = m_composite;
+    // Starting a drag must never force a full-resolution composition on the
+    // UI thread. Keep the cached image only when it already represents the
+    // current layers; otherwise cancelLayerPreview() will schedule a fresh
+    // asynchronous render of the restored snapshot.
+    m_beforeLayerPreviewComposite = m_cacheDirty ? QImage{} : m_composite;
     m_beforeLayerPreview          = snapshot(tr("Aperçu"));
     m_previewingLayer             = true;
     m_layerPreviewChanged         = false;
@@ -906,10 +902,13 @@ void Document::cancelLayerPreview()
     m_frequencyPreviewDraft   = false;
     if (changedPreview) {
         restore(m_beforeLayerPreview);
-        m_composite          = m_beforeLayerPreviewComposite;
-        m_cacheDirty         = false;
-        m_fullCompositeDirty = false;
-        m_dirtyRegion        = {};
+        if (!m_beforeLayerPreviewComposite.isNull()) {
+            m_composite          = m_beforeLayerPreviewComposite;
+            m_cacheDirty         = false;
+            m_fullCompositeDirty = false;
+            m_dirtyRegion        = {};
+        } else
+            requestPreviewRender(true, true);
     }
     m_beforeLayerPreview          = {};
     m_beforeLayerPreviewComposite = {};
@@ -1067,8 +1066,10 @@ void Document::resetAdjustmentLayer()
         parameters = {{"vibrance", 0}, {"saturation", 0}};
     else if (type == QStringLiteral("hueSaturation"))
         parameters = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
-    else if (type == QStringLiteral("colorBalance") || type == QStringLiteral("selectiveColor"))
+    else if (type == QStringLiteral("colorBalance"))
         parameters = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
+    else if (type == QStringLiteral("selectiveColor"))
+        parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
     else if (type == QStringLiteral("blackWhite"))
         parameters = {{"reds", 40},           {"yellows", 60},
                       {"greens", 40},         {"cyans", 60},

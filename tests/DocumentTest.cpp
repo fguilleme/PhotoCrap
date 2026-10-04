@@ -1,6 +1,8 @@
 #include "Document.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
+#include "filters/PosterizeFilter.h"
+#include "filters/SelectiveColorFilter.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -642,6 +644,44 @@ private slots:
         d.finishLayerPreview("Modifier le style colorimétrique");
         QCOMPARE(d.layers().first().toMap().value("parameters").toMap().value("preset").toInt(), 4);
     }
+    void selectiveColorTargetsNineFamiliesIndependently()
+    {
+        QImage source(2, 1, QImage::Format_ARGB32_Premultiplied);
+        source.setPixelColor(0, 0, QColor(190, 52, 38));
+        source.setPixelColor(1, 0, QColor(38, 72, 190));
+        QVariantMap  parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
+        const QImage unchanged  = PhotoCrap::Filters::applySelectiveColor(source, parameters);
+        QCOMPARE(unchanged.pixelColor(0, 0), source.pixelColor(0, 0));
+        QCOMPARE(unchanged.pixelColor(1, 0), source.pixelColor(1, 0));
+
+        parameters["relative"]    = false;
+        parameters["redsCyanRed"] = -60;
+        const QImage adjusted     = PhotoCrap::Filters::applySelectiveColor(source, parameters);
+        QVERIFY(adjusted.pixelColor(0, 0).red() < source.pixelColor(0, 0).red());
+        QCOMPARE(adjusted.pixelColor(1, 0), source.pixelColor(1, 0));
+
+        Document d;
+        QVERIFY(d.newDocument(8, 8));
+        d.addAdjustmentLayer("selectiveColor");
+        const QVariantMap layerParameters = d.layers().first().toMap().value("parameters").toMap();
+        QVERIFY(layerParameters.value("relative").toBool());
+        QCOMPARE(layerParameters.value("magentasBlack").toInt(), 0);
+        QCOMPARE(layerParameters.value("neutralsYellowBlue").toInt(), 0);
+        QCOMPARE(layerParameters.value("whitesCyanRed").toInt(), 0);
+    }
+    void posterizeUsesTheRequestedNumberOfLevels()
+    {
+        QImage source(3, 1, QImage::Format_ARGB32_Premultiplied);
+        source.setPixelColor(0, 0, QColor(0, 85, 170));
+        source.setPixelColor(1, 0, QColor(42, 128, 230));
+        source.setPixelColor(2, 0, QColor(255, 255, 255));
+
+        const QImage result =
+            PhotoCrap::Filters::applyPosterize(source, QVariantMap{{"levels", 4}});
+        QCOMPARE(result.pixelColor(0, 0), QColor(0, 85, 170));
+        QCOMPARE(result.pixelColor(1, 0), QColor(0, 170, 255));
+        QCOMPARE(result.pixelColor(2, 0), QColor(255, 255, 255));
+    }
     void curvesAndLevelsUseDedicatedParametersAndHistogram()
     {
         Document d;
@@ -912,6 +952,23 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 3, 10000);
         QCOMPARE(d.composite().size(), QSize(3840, 2160));
         QCOMPARE(d.displayComposite().size(), QSize(800, 450));
+    }
+    void beginningSelectiveColorPreviewDoesNotComposeOnTheUiThread()
+    {
+        Document d;
+        QVERIFY(d.newDocument(3840, 2160));
+        d.setPreviewSize(800, 450);
+        (void)d.composite();
+        d.addAdjustmentLayer("selectiveColor");
+
+        QElapsedTimer scheduling;
+        scheduling.start();
+        d.beginLayerPreview();
+        QVERIFY2(scheduling.elapsed() < 100,
+                 qPrintable(QStringLiteral("starting selective color preview took %1 ms")
+                                .arg(scheduling.elapsed())));
+        d.previewLayerParameter("redsCyanRed", -35);
+        d.cancelLayerPreview();
     }
     void photoFilterPresetsPreserveLuminosity()
     {

@@ -3,6 +3,7 @@
 #include "LanguageManager.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
+#include "WorkspaceSettings.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
     RecentFilesManager    recentFilesManager(nullptr, !smoke);
     Document              document;
     ShortcutManager       shortcutManager;
+    WorkspaceSettings     workspaceSettings(nullptr, !smoke);
     int                   qmlWarnings = 0;
     QQmlApplicationEngine engine;
     QObject::connect(
@@ -75,6 +77,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("languages", &languageManager);
     engine.rootContext()->setContextProperty("recentFiles", &recentFilesManager);
     engine.rootContext()->setContextProperty("shortcuts", &shortcutManager);
+    engine.rootContext()->setContextProperty("workspaceSettings", &workspaceSettings);
     QObject::connect(&languageManager, &LanguageManager::languageChanged, &engine, [&] {
         engine.retranslate();
         emit shortcutManager.shortcutsChanged();
@@ -103,7 +106,7 @@ int main(int argc, char *argv[])
         QTimer::singleShot(1200, &app, [&] {
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
-            if (!window || !runUiSmoke(window, document, recentFilesManager)) {
+            if (!window || !runUiSmoke(window, document, recentFilesManager, workspaceSettings)) {
                 app.exit(3);
                 return;
             }

@@ -2131,6 +2131,49 @@ This first version uses 8-bit sRGB raster layers. It does not read PSD files or 
 
 Independent software, not affiliated with Adobe.</translation>
     </message>
+    <message>
+      <source>Panneaux</source>
+      <translation>Panels</translation>
+    </message>
+    <message>
+      <source>Histogramme</source>
+      <translation>Histogram</translation>
+    </message>
+    <message>
+      <source>Navigateur</source>
+      <translation>Navigator</translation>
+    </message>
+    <message>
+      <source>Couches</source>
+      <translation>Channels</translation>
+    </message>
+    <message>
+      <source>Historique</source>
+      <translation>History</translation>
+    </message>
+  </context>
+  <context>
+    <name>DockablePanel</name>
+    <message>
+      <source>Déplier le panneau</source>
+      <translation>Expand Panel</translation>
+    </message>
+    <message>
+      <source>Replier le panneau</source>
+      <translation>Collapse Panel</translation>
+    </message>
+    <message>
+      <source>Sortir du groupe d’onglets</source>
+      <translation>Remove from Tab Group</translation>
+    </message>
+    <message>
+      <source>Ancrer le panneau</source>
+      <translation>Dock Panel</translation>
+    </message>
+    <message>
+      <source>Détacher le panneau</source>
+      <translation>Float Panel</translation>
+    </message>
   </context>
   <context>
     <name>ShortcutManager</name>

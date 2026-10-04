@@ -1,6 +1,7 @@
 #pragma once
 #include "Document.h"
 #include "RecentFilesManager.h"
+#include "WorkspaceSettings.h"
 #include <QFile>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -9,7 +10,8 @@
 
 // Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
 // Compiled only with BUILD_TESTING; production builds need no Qt Test runtime.
-inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesManager &_recentFiles)
+inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesManager &_recentFiles,
+                       WorkspaceSettings &_workspaceSettings)
 {
     auto require = [](bool _ok, const char *_message) {
         if (!_ok)
@@ -28,34 +30,106 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _document.newDocument(300, 200, true);
     QTest::qWait(100);
-    auto histogramTab      = _window->findChild<QObject *>("histogramTab");
-    auto navigatorTab      = _window->findChild<QObject *>("navigatorTab");
-    auto histogramCanvas   = _window->findChild<QObject *>("colorHistogramCanvas");
-    auto collapseInspector = _window->findChild<QObject *>("inspectorCollapseButton");
-    if (!require(histogramTab && navigatorTab && histogramCanvas && collapseInspector,
-                 "histogram and navigator share a collapsible tab panel"))
+    auto histogramPanel  = _window->findChild<QObject *>("histogramDockPanel");
+    auto navigatorPanel  = _window->findChild<QObject *>("navigatorDockPanel");
+    auto histogramCanvas = _window->findChild<QQuickItem *>("colorHistogramCanvas");
+    auto colorPanel      = _window->findChild<QObject *>("colorDockPanel");
+    auto layersPanel     = _window->findChild<QObject *>("layersDockPanel");
+    auto channelsPanel   = _window->findChild<QObject *>("channelsDockPanel");
+    auto historyPanel    = _window->findChild<QObject *>("historyDockPanel");
+    if (!require(histogramPanel && navigatorPanel && histogramCanvas && colorPanel && layersPanel &&
+                     channelsPanel && historyPanel,
+                 "dockable workspace panels exist"))
         return false;
-    QMetaObject::invokeMethod(collapseInspector, "clicked");
-    auto layersTab   = _window->findChild<QObject *>("layersTab");
-    auto channelsTab = _window->findChild<QObject *>("channelsTab");
+    histogramPanel->setProperty("collapsed", true);
+    if (!require(histogramPanel->property("collapsed").toBool(), "individual dock panel collapses"))
+        return false;
+    histogramPanel->setProperty("collapsed", false);
+    QMetaObject::invokeMethod(_window, "groupDockPanels", Q_ARG(QVariant, "navigator"),
+                              Q_ARG(QVariant, "histogram"));
+    QTest::qWait(20);
+    if (!require(navigatorPanel->property("visible").toBool() &&
+                     !histogramPanel->property("visible").toBool(),
+                 "dropping a panel header on another panel creates an active tab"))
+        return false;
+    QMetaObject::invokeMethod(_window, "selectDockPanel", Q_ARG(QVariant, "histogram"));
+    QTest::qWait(20);
+    if (!require(histogramPanel->property("visible").toBool() &&
+                     !navigatorPanel->property("visible").toBool(),
+                 "grouped dock tabs switch the visible panel"))
+        return false;
+    auto histogramUngroup = _window->findChild<QObject *>("histogramUngroupButton");
+    if (!require(histogramUngroup && histogramUngroup->property("visible").toBool(),
+                 "grouped tabs expose a visible ungroup command"))
+        return false;
+    QMetaObject::invokeMethod(histogramUngroup, "clicked");
+    QTest::qWait(20);
+    if (!require(histogramPanel->property("visible").toBool() &&
+                     navigatorPanel->property("visible").toBool(),
+                 "a grouped panel can return to the dock independently"))
+        return false;
+    QMetaObject::invokeMethod(_window, "moveDockPanelTo", Q_ARG(QVariant, "navigator"),
+                              Q_ARG(QVariant, ""), Q_ARG(QVariant, true), Q_ARG(QVariant, 1));
+    if (!require(navigatorPanel->property("dockColumn").toInt() == 1 &&
+                     _window->property("dockWidth").toReal() >= 560.0,
+                 "dragging horizontally creates a second visible panel column"))
+        return false;
+    QMetaObject::invokeMethod(_window, "moveDockPanelTo", Q_ARG(QVariant, "navigator"),
+                              Q_ARG(QVariant, "history"), Q_ARG(QVariant, true),
+                              Q_ARG(QVariant, 0));
+    if (!require(navigatorPanel->property("dockColumn").toInt() == 0,
+                 "second-column panel docks back into the first column"))
+        return false;
+    QMetaObject::invokeMethod(_window, "moveDockPanelTo", Q_ARG(QVariant, "color"),
+                              Q_ARG(QVariant, "histogram"), Q_ARG(QVariant, false),
+                              Q_ARG(QVariant, 0));
+    const QVariantList reordered = _window->property("dockPanelOrder").toList();
+    if (!require(!reordered.isEmpty() && reordered.first().toString() == "color" &&
+                     reordered.last().toString() == "navigator",
+                 "panels insert at the exact requested position in a dock column"))
+        return false;
+    auto layersHeader = _window->findChild<QQuickItem *>("layersDockHeader");
+    if (!require(layersHeader && layersHeader->property("preventStealing").toBool(),
+                 "the scrolling dock cannot steal an active panel drag"))
+        return false;
+    QMetaObject::invokeMethod(histogramPanel, "setPanelFloating", Q_ARG(QVariant, true));
+    QTest::qWait(30);
+    if (!require(histogramPanel->property("floating").toBool(), "dock panel enters floating state"))
+        return false;
+    if (!require(histogramCanvas->window() != _window,
+                 "dock panel content moves into a floating tool window"))
+        return false;
+    QMetaObject::invokeMethod(histogramPanel, "setPanelFloating", Q_ARG(QVariant, false));
+    QTest::qWait(30);
+    if (!require(histogramCanvas->window() == _window,
+                 "floating panel content docks back into the main window"))
+        return false;
+    _window->requestActivate();
+    QTest::qWait(20);
     auto channelList = _window->findChild<QObject *>("channelList");
-    if (!require(layersTab && channelsTab && channelList,
-                 "layers and color channels share a tab panel"))
+    if (!require(channelList && channelsPanel->property("visible").toBool(),
+                 "color channels use an independent visible dock panel"))
         return false;
-    QMetaObject::invokeMethod(channelsTab, "clicked");
-    if (!require(_window->property("layerPanelTab").toInt() == 1 &&
-                     channelList->property("visible").toBool(),
-                 "channels tab displays the RGB channel list"))
+    QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "channels"),
+                              Q_ARG(QVariant, false));
+    QTest::qWait(20);
+    if (!require(!channelsPanel->property("visible").toBool(),
+                 "the View menu can hide an individual workspace panel"))
         return false;
+    QMetaObject::invokeMethod(_window, "saveWorkspaceLayout");
+    const QVariantMap savedWorkspace = _workspaceSettings.layout();
+    if (!require(!savedWorkspace.isEmpty() &&
+                     !savedWorkspace.value("visibility").toMap().value("channels").toBool() &&
+                     savedWorkspace.value("order").toList().size() == 6,
+                 "panel visibility and organization are saved in application settings"))
+        return false;
+    QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "channels"),
+                              Q_ARG(QVariant, true));
+    QTest::qWait(20);
     _document.setDisplayChannel(2);
     if (!require(_document.displayChannel() == 2, "green channel can be displayed on canvas"))
         return false;
     _document.setDisplayChannel(0);
-    QMetaObject::invokeMethod(layersTab, "clicked");
-    if (!require(_window->property("inspectorCollapsed").toBool(),
-                 "histogram and navigator panel collapses"))
-        return false;
-    QMetaObject::invokeMethod(collapseInspector, "clicked");
     QTemporaryDir recentDir;
     if (!require(recentDir.isValid(), "temporary recent-files directory exists"))
         return false;

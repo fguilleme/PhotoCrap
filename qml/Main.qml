@@ -50,7 +50,16 @@ ApplicationWindow {
     property string colorPickerMode: ""
     property int inspectorTab: 0
     property bool inspectorCollapsed: false
-    property int layerPanelTab: 0
+    property real dockWidth: 300
+    readonly property var dockPanelIds: ["histogram", "navigator", "color", "layers", "channels", "history"]
+    property var dockPanelOrder: ["histogram", "navigator", "color", "layers", "channels", "history"]
+    property var dockPanelColumns: ({histogram: 0, navigator: 0, color: 0, layers: 0, channels: 0, history: 0})
+    property var dockPanelGroups: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history"})
+    property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history"})
+    property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, history: true})
+    property bool workspaceRestored: false
+    property string dockDropPanelId: ""
+    property string dockDropZone: ""
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
@@ -120,6 +129,293 @@ ApplicationWindow {
     function panCanvas(dx, dy) {
         viewport.contentX = clampScroll(viewport.contentX+dx, viewport.contentWidth-viewport.width)
         viewport.contentY = clampScroll(viewport.contentY+dy, viewport.contentHeight-viewport.height)
+    }
+    function dockPanelRow(panelId) {
+        const group = dockPanelGroup(panelId)
+        const column = dockPanelColumn(panelId)
+        const seen = ({})
+        let row = 0
+        for (let i = 0; i < dockPanelOrder.length; ++i) {
+            const candidate = dockPanelOrder[i]
+            if (dockPanelColumn(candidate) !== column) continue
+            const candidateGroup = dockPanelGroup(candidate)
+            if (candidateGroup === group) return row
+            if (!seen[candidateGroup]) { seen[candidateGroup] = true; ++row }
+        }
+        return row
+    }
+    function dockPanelColumn(panelId) {
+        return Number(dockPanelColumns[panelId] || 0)
+    }
+    function dockPanelGroup(panelId) {
+        return String(dockPanelGroups[panelId] || panelId)
+    }
+    function dockPanelTitle(panelId) {
+        if (panelId === "histogram") return qsTr("Histogramme")
+        if (panelId === "navigator") return qsTr("Navigateur")
+        if (panelId === "color") return qsTr("Couleur")
+        if (panelId === "layers") return qsTr("Calques")
+        if (panelId === "channels") return qsTr("Couches")
+        return qsTr("Historique")
+    }
+    function dockPanelVisible(panelId) {
+        return dockPanelVisibility[panelId] !== false
+    }
+    function dockPanelObject(panelId) {
+        if (panelId === "histogram") return histogramDock
+        if (panelId === "navigator") return navigatorDock
+        if (panelId === "color") return colorDock
+        if (panelId === "layers") return layersDock
+        if (panelId === "channels") return channelsDock
+        return historyDock
+    }
+    function dockGroupTabs(panelId) {
+        const group = dockPanelGroup(panelId)
+        const tabs = []
+        for (let i = 0; i < dockPanelOrder.length; ++i) {
+            const id = dockPanelOrder[i]
+            if (dockPanelGroup(id) === group) tabs.push({panelId:id, title:dockPanelTitle(id)})
+        }
+        return tabs
+    }
+    function activeDockPanel(panelId) {
+        const group = dockPanelGroup(panelId)
+        return String(dockGroupActive[group] || panelId)
+    }
+    function selectDockPanel(panelId) {
+        const group = dockPanelGroup(panelId)
+        const active = ({})
+        for (const key in dockGroupActive) active[key] = dockGroupActive[key]
+        active[group] = panelId
+        dockGroupActive = active
+    }
+    function ungroupDockPanel(panelId) {
+        const oldGroup = dockPanelGroup(panelId)
+        const remaining = []
+        for (let i = 0; i < dockPanelOrder.length; ++i) {
+            const id = dockPanelOrder[i]
+            if (id !== panelId && dockPanelGroup(id) === oldGroup) remaining.push(id)
+        }
+        const groups = ({})
+        for (const key in dockPanelGroups) groups[key] = dockPanelGroups[key]
+        groups[panelId] = panelId
+        if (oldGroup === panelId && remaining.length > 0) {
+            const remainingGroup = remaining[0]
+            for (let i = 0; i < remaining.length; ++i) groups[remaining[i]] = remainingGroup
+        }
+        dockPanelGroups = groups
+        const active = ({})
+        for (const key in dockGroupActive) active[key] = dockGroupActive[key]
+        active[panelId] = panelId
+        if (oldGroup === panelId && remaining.length > 0) {
+            const remainingGroup = remaining[0]
+            active[remainingGroup] = active[oldGroup] === panelId ? remainingGroup : active[oldGroup]
+        } else if (active[oldGroup] === panelId && remaining.length > 0) {
+            active[oldGroup] = remaining[0]
+        }
+        dockGroupActive = active
+    }
+    function groupDockPanels(sourceId, targetId) {
+        if (sourceId === targetId) return
+        const targetGroup = dockPanelGroup(targetId)
+        const columns = ({})
+        for (const key in dockPanelColumns) columns[key] = dockPanelColumns[key]
+        columns[sourceId] = dockPanelColumn(targetId)
+        dockPanelColumns = columns
+        const groups = ({})
+        for (const key in dockPanelGroups) groups[key] = dockPanelGroups[key]
+        groups[sourceId] = targetGroup
+        dockPanelGroups = groups
+        const active = ({})
+        for (const key in dockGroupActive) active[key] = dockGroupActive[key]
+        active[targetGroup] = sourceId
+        dockGroupActive = active
+    }
+    function dockPanelAt(globalX, globalY, sourceId) {
+        const panels = [histogramDock, navigatorDock, colorDock, layersDock, channelsDock, historyDock]
+        for (let i = 0; i < panels.length; ++i) {
+            const panel = panels[i]
+            if (panel.panelId === sourceId || panel.floating || !panel.visible) continue
+            const point = panel.mapFromGlobal(globalX, globalY)
+            if (point.x >= 0 && point.x <= panel.width && point.y >= 0 && point.y <= panel.height) {
+                let zone = "after"
+                if (point.y <= 16) zone = "before"
+                else if (point.y <= panel.headerHeight) zone = "tab"
+                else if (point.y >= panel.height - 16) zone = "after"
+                else if (point.y < panel.height / 2) zone = "before"
+                return {panelId:panel.panelId, zone:zone}
+            }
+        }
+        let nearest = null
+        let nearestDistance = Number.MAX_VALUE
+        for (let i = 0; i < panels.length; ++i) {
+            const panel = panels[i]
+            if (panel.panelId === sourceId || panel.floating || !panel.visible) continue
+            const topLeft = panel.mapToGlobal(0, 0)
+            if (globalX < topLeft.x || globalX > topLeft.x + panel.width) continue
+            const topDistance = Math.abs(globalY - topLeft.y)
+            const bottomDistance = Math.abs(globalY - topLeft.y - panel.height)
+            if (topDistance < nearestDistance) {
+                nearestDistance = topDistance
+                nearest = {panelId:panel.panelId, zone:"before"}
+            }
+            if (bottomDistance < nearestDistance) {
+                nearestDistance = bottomDistance
+                nearest = {panelId:panel.panelId, zone:"after"}
+            }
+        }
+        if (nearest !== null && nearestDistance <= 80) return nearest
+        return null
+    }
+    function updateDockDropIndicator(sourceId, globalX, globalY) {
+        const target = dockPanelAt(globalX, globalY, sourceId)
+        dockDropPanelId = target === null ? "" : target.panelId
+        dockDropZone = target === null ? "" : target.zone
+    }
+    function clearDockDropIndicator() {
+        dockDropPanelId = ""
+        dockDropZone = ""
+    }
+    function setDockPanelVisible(panelId, shown) {
+        const visibility = ({})
+        for (const key in dockPanelVisibility) visibility[key] = dockPanelVisibility[key]
+        visibility[panelId] = shown
+        dockPanelVisibility = visibility
+        if (shown) {
+            selectDockPanel(panelId)
+        } else {
+            const group = dockPanelGroup(panelId)
+            if (activeDockPanel(panelId) === panelId) {
+                for (let i = 0; i < dockPanelOrder.length; ++i) {
+                    const candidate = dockPanelOrder[i]
+                    if (candidate !== panelId && dockPanelGroup(candidate) === group &&
+                        dockPanelVisible(candidate)) {
+                        selectDockPanel(candidate)
+                        break
+                    }
+                }
+            }
+        }
+    }
+    function toggleDockPanel(panelId) {
+        setDockPanelVisible(panelId, !dockPanelVisible(panelId))
+    }
+    function workspacePanelState(panelId) {
+        const panel = dockPanelObject(panelId)
+        return {
+            collapsed: panel.collapsed,
+            dockedHeight: panel.dockedHeight,
+            floating: panel.floating,
+            floatingX: panel.floatingX,
+            floatingY: panel.floatingY,
+            floatingWidth: panel.floatingWidth,
+            floatingHeight: panel.floatingHeight
+        }
+    }
+    function saveWorkspaceLayout() {
+        if (!workspaceRestored) return
+        const panels = ({})
+        for (let i = 0; i < dockPanelIds.length; ++i) {
+            const id = dockPanelIds[i]
+            panels[id] = workspacePanelState(id)
+        }
+        workspaceSettings.saveLayout({
+            version: 1,
+            dockWidth: dockWidth,
+            order: dockPanelOrder,
+            columns: dockPanelColumns,
+            groups: dockPanelGroups,
+            active: dockGroupActive,
+            visibility: dockPanelVisibility,
+            panels: panels
+        })
+    }
+    function scheduleWorkspaceSave() {
+        if (workspaceRestored) workspaceSaveTimer.restart()
+    }
+    function restoreWorkspaceLayout() {
+        const saved = workspaceSettings.layout
+        if (saved && Number(saved.version) === 1) {
+            const savedOrder = saved.order || []
+            const order = []
+            for (let i = 0; i < savedOrder.length; ++i) {
+                const id = String(savedOrder[i])
+                if (dockPanelIds.indexOf(id) >= 0 && order.indexOf(id) < 0) order.push(id)
+            }
+            for (let i = 0; i < dockPanelIds.length; ++i)
+                if (order.indexOf(dockPanelIds[i]) < 0) order.push(dockPanelIds[i])
+            dockPanelOrder = order
+            const columns = ({})
+            const groups = ({})
+            const active = ({})
+            const visibility = ({})
+            for (let i = 0; i < dockPanelIds.length; ++i) {
+                const id = dockPanelIds[i]
+                columns[id] = saved.columns && saved.columns[id] === 1 ? 1 : 0
+                const savedGroup = saved.groups ? String(saved.groups[id] || id) : id
+                groups[id] = dockPanelIds.indexOf(savedGroup) >= 0 ? savedGroup : id
+                const savedActive = saved.active ? String(saved.active[savedGroup] || id) : id
+                active[groups[id]] = dockPanelIds.indexOf(savedActive) >= 0 ? savedActive : id
+                visibility[id] = !saved.visibility || saved.visibility[id] !== false
+            }
+            dockPanelColumns = columns
+            dockPanelGroups = groups
+            dockGroupActive = active
+            dockPanelVisibility = visibility
+            dockWidth = Math.max(230, Math.min(760, Number(saved.dockWidth || 300)))
+            const panelStates = saved.panels || ({})
+            for (let i = 0; i < dockPanelIds.length; ++i) {
+                const id = dockPanelIds[i]
+                const state = panelStates[id]
+                if (!state) continue
+                const panel = dockPanelObject(id)
+                panel.collapsed = Boolean(state.collapsed)
+                panel.dockedHeight = Math.max(panel.minimumContentHeight + panel.headerHeight,
+                                              Number(state.dockedHeight || panel.dockedHeight))
+                panel.floatingX = Number(state.floatingX || panel.floatingX)
+                panel.floatingY = Number(state.floatingY || panel.floatingY)
+                panel.floatingWidth = Math.max(230, Number(state.floatingWidth || panel.floatingWidth))
+                panel.floatingHeight = Math.max(110, Number(state.floatingHeight || panel.floatingHeight))
+            }
+            Qt.callLater(function() {
+                for (let i = 0; i < dockPanelIds.length; ++i) {
+                    const id = dockPanelIds[i]
+                    const state = panelStates[id]
+                    if (state && state.floating && dockPanelVisible(id))
+                        dockPanelObject(id).setPanelFloating(true)
+                }
+            })
+        }
+        workspaceRestored = true
+    }
+    function moveDockPanelTo(sourceId, targetId, after, column) {
+        if (dockGroupTabs(sourceId).length > 1) ungroupDockPanel(sourceId)
+        const next = dockPanelOrder.slice()
+        const from = next.indexOf(sourceId)
+        if (from >= 0) next.splice(from, 1)
+        let target = targetId.length > 0 ? next.indexOf(targetId) : next.length
+        if (target < 0) target = next.length
+        if (after && targetId.length > 0) ++target
+        next.splice(target, 0, sourceId)
+        dockPanelOrder = next
+        const columns = ({})
+        for (const key in dockPanelColumns) columns[key] = dockPanelColumns[key]
+        columns[sourceId] = column
+        dockPanelColumns = columns
+        if (column === 1) dockWidth = Math.max(dockWidth, 560)
+    }
+    function handleDockDrop(panelId, globalX, globalY, horizontalDelta, verticalDelta) {
+        const target = dockPanelAt(globalX, globalY, panelId)
+        if (target !== null && target.zone === "tab") { groupDockPanels(panelId, target.panelId); return }
+        if (target !== null) {
+            moveDockPanelTo(panelId, target.panelId, target.zone === "after",
+                            dockPanelColumn(target.panelId))
+            return
+        }
+        const dockPoint = dockArea.mapFromGlobal(globalX, globalY)
+        const column = dockWidth >= 500 && dockPoint.x > dockArea.width / 2 ? 1 : 0
+        const ids = dockPanelOrder.filter(function(id) { return id !== panelId && dockPanelColumn(id) === column })
+        moveDockPanelTo(panelId, ids.length > 0 ? ids[ids.length - 1] : "", true, column)
     }
     function zoomAt(value, pointerX, pointerY) {
         const oldZoom=zoom
@@ -204,9 +500,19 @@ ApplicationWindow {
     function setInterfaceLanguage(code) { languages.language=code }
     function openPreferences() { preferencesDialog.open() }
     onClosing: function(event) {
+        saveWorkspaceLayout()
         if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
     }
-    Component.onCompleted: Qt.callLater(fitCanvas)
+    onDockWidthChanged: scheduleWorkspaceSave()
+    onDockPanelOrderChanged: scheduleWorkspaceSave()
+    onDockPanelColumnsChanged: scheduleWorkspaceSave()
+    onDockPanelGroupsChanged: scheduleWorkspaceSave()
+    onDockGroupActiveChanged: scheduleWorkspaceSave()
+    onDockPanelVisibilityChanged: scheduleWorkspaceSave()
+    Component.onCompleted: {
+        restoreWorkspaceLayout()
+        Qt.callLater(fitCanvas)
+    }
     Connections {
         target: editor
         function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
@@ -219,6 +525,7 @@ ApplicationWindow {
     }
     Timer { id: statusTimer; interval: 5000; onTriggered: window.status = qsTr("Prêt à créer") }
     Timer { id: layerPreviewTimer; interval: 16; onTriggered: window.flushLayerPreview() }
+    Timer { id: workspaceSaveTimer; interval: 250; onTriggered: window.saveWorkspaceLayout() }
 
     Action { id: newAction; text: qsTr("Nouveau…"); shortcut: (shortcuts.revision, shortcuts.sequence("new")); enabled: !window.modalOpen; onTriggered: guard("new") }
     Action { id: openAction; text: qsTr("Ouvrir…"); shortcut: (shortcuts.revision, shortcuts.sequence("open")); enabled: !window.modalOpen; onTriggered: guard("open") }
@@ -427,6 +734,16 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Affichage")
+            DarkMenu {
+                title: qsTr("Panneaux")
+                DarkMenuItem { text: qsTr("Histogramme"); checkable: true; checked: window.dockPanelVisible("histogram"); onTriggered: window.toggleDockPanel("histogram") }
+                DarkMenuItem { text: qsTr("Navigateur"); checkable: true; checked: window.dockPanelVisible("navigator"); onTriggered: window.toggleDockPanel("navigator") }
+                DarkMenuItem { text: qsTr("Couleur"); checkable: true; checked: window.dockPanelVisible("color"); onTriggered: window.toggleDockPanel("color") }
+                DarkMenuItem { text: qsTr("Calques"); checkable: true; checked: window.dockPanelVisible("layers"); onTriggered: window.toggleDockPanel("layers") }
+                DarkMenuItem { text: qsTr("Couches"); checkable: true; checked: window.dockPanelVisible("channels"); onTriggered: window.toggleDockPanel("channels") }
+                DarkMenuItem { text: qsTr("Historique"); checkable: true; checked: window.dockPanelVisible("history"); onTriggered: window.toggleDockPanel("history") }
+            }
+            MenuSeparator {}
             DarkMenuItem { text: qsTr("Options du pinceau…"); onTriggered: brushSettingsDialog.open() }
             MenuSeparator {}
             DarkMenuItem { text: qsTr("Adapter à la fenêtre"); onTriggered: fitCanvas() }
@@ -788,64 +1105,75 @@ ApplicationWindow {
             }
             Rectangle { width: 1; Layout.fillHeight: true; color: "#10141a" }
             Rectangle {
-                Layout.preferredWidth: 280; Layout.fillHeight: true; color: "#242a32"
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 15; spacing: 8
-                    RowLayout {
-                        visible: window.height >= 800
-                        Layout.fillWidth: true; spacing: 3
-                        TabButton {
-                            objectName: "histogramTab"
-                            text: qsTr("HISTOGRAMME")
-                            checked: window.inspectorTab === 0
-                            onClicked: window.inspectorTab = 0
-                            Layout.fillWidth: true
-                            background: Rectangle {
-                                radius: 4
-                                color: parent.checked ? "#465463" : "#2b333c"
-                                border.width: 1
-                                border.color: parent.checked ? "#74879a" : "#46515c"
-                            }
-                            contentItem: Label {
-                                text: parent.text
-                                color: parent.checked ? "#ffffff" : "#b8c2cc"
-                                font.pixelSize: 10; font.bold: parent.checked
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                        TabButton {
-                            objectName: "navigatorTab"
-                            text: qsTr("NAVIGATEUR")
-                            checked: window.inspectorTab === 1
-                            onClicked: window.inspectorTab = 1
-                            Layout.fillWidth: true
-                            background: Rectangle {
-                                radius: 4
-                                color: parent.checked ? "#465463" : "#2b333c"
-                                border.width: 1
-                                border.color: parent.checked ? "#74879a" : "#46515c"
-                            }
-                            contentItem: Label {
-                                text: parent.text
-                                color: parent.checked ? "#ffffff" : "#b8c2cc"
-                                font.pixelSize: 10; font.bold: parent.checked
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                        IconButton {
-                            objectName: "inspectorCollapseButton"
-                            glyph: window.inspectorCollapsed ? "▸" : "▾"
-                            hint: window.inspectorCollapsed ? qsTr("Déplier le panneau") : qsTr("Replier le panneau")
-                            onClicked: window.inspectorCollapsed = !window.inspectorCollapsed
-                        }
+                id: dockArea
+                Layout.preferredWidth: window.dockWidth
+                Layout.minimumWidth: 230
+                Layout.maximumWidth: 760
+                Layout.fillHeight: true
+                color: "#20262e"
+
+                MouseArea {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 7
+                    z: 20
+                    cursorShape: Qt.SizeHorCursor
+                    property real pressX: 0
+                    property real initialWidth: 0
+                    onPressed: function(mouse) {
+                        pressX = mapToGlobal(mouse.x, mouse.y).x
+                        initialWidth = window.dockWidth
                     }
-                    StackLayout {
-                        visible: window.height >= 800 && !window.inspectorCollapsed
-                        Layout.fillWidth: true; Layout.preferredHeight: visible ? 118 : 0
-                        currentIndex: window.inspectorTab
-                        Rectangle {
+                    onPositionChanged: function(mouse) {
+                        if (!pressed) return
+                        const globalX = mapToGlobal(mouse.x, mouse.y).x
+                        window.dockWidth = Math.max(230, Math.min(760, initialWidth + pressX - globalX))
+                    }
+                }
+
+                Flickable {
+                    id: dockScroll
+                    anchors.fill: parent
+                    anchors.leftMargin: 7
+                    clip: true
+                    contentWidth: width
+                    contentHeight: dockGrid.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    GridLayout {
+                    id: dockGrid
+                    width: dockScroll.width
+                    columns: 2
+                    columnSpacing: 4
+                    rowSpacing: 4
+
+                    DockablePanel {
+                        id: histogramDock
+                        objectName: "histogramDockPanel"
+                        panelId: "histogram"
+                        title: qsTr("Histogramme")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 142
+                        minimumContentHeight: 70
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { Rectangle {
+                            anchors.fill: parent
                             color: "#181e25"; radius: 5
                             property var histogramData: (editor.revision, editor.colorHistogram())
                             onHistogramDataChanged: histogramCanvas.requestPaint()
@@ -887,8 +1215,39 @@ ApplicationWindow {
                                     }
                                 }
                             }
-                        }
+                        } }
+                    }
+
+                    DockablePanel {
+                        id: navigatorDock
+                        objectName: "navigatorDockPanel"
+                        panelId: "navigator"
+                        title: qsTr("Navigateur")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 155
+                        minimumContentHeight: 80
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 7
+                            spacing: 4
                         Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
                             color: "#181e25"; radius: 5
                             Image {
                                 anchors.fill: parent; anchors.margins: 8
@@ -897,7 +1256,6 @@ ApplicationWindow {
                                 fillMode: Image.PreserveAspectFit; cache: false
                             }
                         }
-                    }
                     RowLayout {
                         visible: window.height >= 800 && !window.inspectorCollapsed
                         Layout.fillWidth: true
@@ -905,8 +1263,36 @@ ApplicationWindow {
                         Item { Layout.fillWidth: true }
                         Label { text: qsTr("sRGB"); color: "#74828e"; font.pixelSize: 10 }
                     }
-                    Rectangle { Layout.fillWidth: true; height: 1; color: "#363e47" }
-                    PanelTitle { text: qsTr("COULEUR") }
+                        } }
+                    }
+
+                    DockablePanel {
+                        id: colorDock
+                        objectName: "colorDockPanel"
+                        panelId: "color"
+                        title: qsTr("Couleur")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 118
+                        minimumContentHeight: 65
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 7
+                            spacing: 5
                     RowLayout {
                         Layout.fillWidth: true
                         Rectangle {
@@ -933,45 +1319,38 @@ ApplicationWindow {
                             }
                         }
                     }
-                    Rectangle { Layout.fillWidth: true; height: 1; color: "#363e47"; Layout.topMargin: 3 }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        TabButton {
-                            objectName: "layersTab"
-                            text: qsTr("CALQUES")
-                            checked: window.layerPanelTab === 0
-                            onClicked: window.layerPanelTab = 0
-                            Layout.fillWidth: true
-                            background: Rectangle {
-                                radius: 4; color: parent.checked ? "#465463" : "#2b333c"
-                                border.width: 1; border.color: parent.checked ? "#74879a" : "#46515c"
-                            }
-                            contentItem: Label {
-                                text: parent.text; color: parent.checked ? "#ffffff" : "#b8c2cc"
-                                font.pixelSize: 10; font.bold: parent.checked
-                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                        TabButton {
-                            objectName: "channelsTab"
-                            text: qsTr("COUCHES")
-                            checked: window.layerPanelTab === 1
-                            onClicked: window.layerPanelTab = 1
-                            Layout.fillWidth: true
-                            background: Rectangle {
-                                radius: 4; color: parent.checked ? "#465463" : "#2b333c"
-                                border.width: 1; border.color: parent.checked ? "#74879a" : "#46515c"
-                            }
-                            contentItem: Label {
-                                text: parent.text; color: parent.checked ? "#ffffff" : "#b8c2cc"
-                                font.pixelSize: 10; font.bold: parent.checked
-                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                        Label { visible: window.layerPanelTab === 0; text: editor.layers.length; color: "#71808d"; font.pixelSize: 10 }
+                        } }
                     }
+
+                    DockablePanel {
+                        id: layersDock
+                        objectName: "layersDockPanel"
+                        panelId: "layers"
+                        title: qsTr("Calques")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 370
+                        minimumContentHeight: 170
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.minimumHeight: floating || collapsed ? implicitHeight : 210
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 7
+                            spacing: 5
                     RowLayout {
-                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true
                         ComboBox {
                             id: layerBlendMode
@@ -1002,7 +1381,6 @@ ApplicationWindow {
                         IconButton { glyph: activeInfo.locked?"▣":"▢"; selected: activeInfo.locked; hint: qsTr("Verrouiller / déverrouiller"); onClicked: editor.setLayerLocked(editor.activeLayer,!activeInfo.locked) }
                     }
                     RowLayout {
-                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true
                         Label { text: qsTr("Opacité"); color: "#8e9baa"; font.pixelSize: 11 }
                         DarkSlider {
@@ -1015,7 +1393,6 @@ ApplicationWindow {
                     }
                     ListView {
                         id: layerList
-                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
                         clip: true; spacing: 5; model: editor.layers
                         ScrollBar.vertical: ScrollBar {}
@@ -1116,55 +1493,7 @@ ApplicationWindow {
                             }
                         }
                     }
-                    ListView {
-                        id: channelList
-                        objectName: "channelList"
-                        visible: window.layerPanelTab === 1
-                        Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
-                        clip: true; spacing: 5
-                        model: [
-                            {name:qsTr("RVB"), description:qsTr("Couleur composite"), color:"#d9dde1"},
-                            {name:qsTr("Rouge"), description:qsTr("Canal rouge"), color:"#d84b45"},
-                            {name:qsTr("Vert"), description:qsTr("Canal vert"), color:"#42ad61"},
-                            {name:qsTr("Bleu"), description:qsTr("Canal bleu"), color:"#4879d5"}
-                        ]
-                        delegate: Rectangle {
-                            required property var modelData
-                            required property int index
-                            width: channelList.width; height: 54; radius: 5
-                            color: editor.displayChannel === index ? "#35443e" : "#292f38"
-                            border.width: editor.displayChannel === index ? 2 : 1
-                            border.color: editor.displayChannel === index ? "#78a589" : "#3c4650"
-                            RowLayout {
-                                anchors.fill: parent; anchors.margins: 7; spacing: 10
-                                Label {
-                                    text: editor.displayChannel === index ? "◉" : "○"
-                                    color: editor.displayChannel === index ? "#d8f1df" : "#87939e"
-                                    font.pixelSize: 18
-                                }
-                                Rectangle {
-                                    width: 38; height: 34; radius: 4; color: "#171c22"
-                                    border.width: 1; border.color: "#56616c"
-                                    Rectangle {
-                                        anchors.centerIn: parent; width: 23; height: 23; radius: index === 0 ? 12 : 4
-                                        color: modelData.color
-                                        border.width: 1; border.color: "#eef2f5"
-                                    }
-                                }
-                                ColumnLayout {
-                                    Layout.fillWidth: true; spacing: 2
-                                    Label { text: modelData.name; color: "#d6e0db"; font.pixelSize: 11 }
-                                    Label { text: modelData.description; color: "#80928c"; font.pixelSize: 9 }
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: editor.displayChannel = index
-                            }
-                        }
-                    }
                     RowLayout {
-                        visible: window.layerPanelTab === 0
                         Layout.fillWidth: true; spacing: 4
                         IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
@@ -1175,10 +1504,108 @@ ApplicationWindow {
                         Item { Layout.fillWidth: true }
                         IconButton { glyph: "×"; hint: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onClicked: editor.removeLayer() }
                     }
-                    Rectangle { Layout.fillWidth: true; height: 1; color: "#363e47" }
-                    PanelTitle { text: qsTr("HISTORIQUE") }
-                    ListView {
-                        Layout.fillWidth: true; Layout.preferredHeight: 65; clip: true
+                        } }
+                    }
+
+                    DockablePanel {
+                        id: channelsDock
+                        objectName: "channelsDockPanel"
+                        panelId: "channels"
+                        title: qsTr("Couches")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 260
+                        minimumContentHeight: 120
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { ListView {
+                            id: channelList
+                            objectName: "channelList"
+                            anchors.fill: parent
+                            anchors.margins: 7
+                            clip: true
+                            spacing: 5
+                            model: [
+                                {name:qsTr("RVB"), description:qsTr("Couleur composite"), color:"#d9dde1"},
+                                {name:qsTr("Rouge"), description:qsTr("Canal rouge"), color:"#d84b45"},
+                                {name:qsTr("Vert"), description:qsTr("Canal vert"), color:"#42ad61"},
+                                {name:qsTr("Bleu"), description:qsTr("Canal bleu"), color:"#4879d5"}
+                            ]
+                            ScrollBar.vertical: ScrollBar {}
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
+                                width: channelList.width; height: 54; radius: 5
+                                color: editor.displayChannel === index ? "#35443e" : "#292f38"
+                                border.width: editor.displayChannel === index ? 2 : 1
+                                border.color: editor.displayChannel === index ? "#78a589" : "#3c4650"
+                                RowLayout {
+                                    anchors.fill: parent; anchors.margins: 7; spacing: 10
+                                    Label {
+                                        text: editor.displayChannel === index ? "◉" : "○"
+                                        color: editor.displayChannel === index ? "#d8f1df" : "#87939e"
+                                        font.pixelSize: 18
+                                    }
+                                    Rectangle {
+                                        width: 38; height: 34; radius: 4; color: "#171c22"
+                                        border.width: 1; border.color: "#56616c"
+                                        Rectangle {
+                                            anchors.centerIn: parent; width: 23; height: 23; radius: index === 0 ? 12 : 4
+                                            color: modelData.color
+                                            border.width: 1; border.color: "#eef2f5"
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; spacing: 2
+                                        Label { text: modelData.name; color: "#d6e0db"; font.pixelSize: 11 }
+                                        Label { text: modelData.description; color: "#80928c"; font.pixelSize: 9 }
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: editor.displayChannel = index
+                                }
+                            }
+                        } }
+                    }
+
+                    DockablePanel {
+                        id: historyDock
+                        objectName: "historyDockPanel"
+                        panelId: "history"
+                        title: qsTr("Historique")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 118
+                        minimumContentHeight: 55
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { ListView {
+                        anchors.fill: parent; anchors.margins: 7; clip: true
                         model: editor.history; currentIndex: editor.historyIndex
                         onCurrentIndexChanged: positionViewAtIndex(currentIndex,ListView.Contain)
                         ScrollBar.vertical: ScrollBar {}
@@ -1190,7 +1617,9 @@ ApplicationWindow {
                             color: index===editor.historyIndex?"#beeccb":index>editor.historyIndex?"#65707b":"#9ba8b6"
                             font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
                         }
+                    } }
                     }
+                }
                 }
             }
         }

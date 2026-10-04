@@ -28,6 +28,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
     src/ShortcutManager.cpp
+    src/WorkspaceSettings.cpp
     src/main.cpp
 )
 set(PHOTOCRAP_FORMAT_SOURCES
@@ -49,6 +50,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/MacApplicationMenu.mm
     src/RecentFilesManager.h
     src/ShortcutManager.h
+    src/WorkspaceSettings.h
     tests/DocumentTest.cpp
     tests/UiSmoke.h
 )
@@ -166,6 +168,7 @@ qt_add_executable(PhotoCrap
     src/ShortcutManager.cpp src/ShortcutManager.h
     src/LanguageManager.cpp src/LanguageManager.h
     src/RecentFilesManager.cpp src/RecentFilesManager.h
+    src/WorkspaceSettings.cpp src/WorkspaceSettings.h
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
@@ -191,6 +194,7 @@ qt_add_qml_module(PhotoCrap
     QML_FILES
         qml/Main.qml
         qml/DialogActionButton.qml
+        qml/DockablePanel.qml
         qml/IconButton.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml

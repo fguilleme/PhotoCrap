@@ -18,6 +18,7 @@ MenuItem {
         Text {
             id: itemLabel
             anchors.left: parent.left
+            anchors.leftMargin: control.checkable ? 22 : 0
             anchors.right: shortcutLabel.visible ? shortcutLabel.left : parent.right
             anchors.rightMargin: parent.arrowPadding
             anchors.verticalCenter: parent.verticalCenter
@@ -27,6 +28,16 @@ MenuItem {
             font: control.font
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            visible: control.checkable && control.checked
+            text: "✓"
+            color: control.highlighted || control.down ? "#ffffff" : "#b9d6c2"
+            font.pixelSize: 15
+            font.bold: true
         }
 
         Text {

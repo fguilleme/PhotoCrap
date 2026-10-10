@@ -19,7 +19,11 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentIO.cpp
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
-    src/DocumentTools.cpp
+    src/tools/BrushTool.cpp
+    src/tools/FillTool.cpp
+    src/tools/ShapeTools.cpp
+    src/tools/ToolController.cpp
+    src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
     src/filters/ChannelMixerFilter.cpp
@@ -150,7 +154,11 @@ qt_add_library(photocrap_core STATIC
     src/DocumentIO.cpp
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
-    src/DocumentTools.cpp
+    src/tools/BrushTool.cpp
+    src/tools/FillTool.cpp
+    src/tools/ShapeTools.cpp
+    src/tools/ToolController.cpp
+    src/tools/ToolSettings.cpp
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h

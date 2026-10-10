@@ -43,6 +43,20 @@ ApplicationWindow {
     property bool changingPhotoFilterColor: false
     property bool fillingMaskColor: false
     property bool spacePressed: false
+    readonly property bool selectionToolActive: editor.tool === "select"
+                                                 || editor.tool === "ellipticalSelect"
+                                                 || editor.tool === "singleRowSelect"
+                                                 || editor.tool === "singleColumnSelect"
+                                                 || editor.tool === "lasso"
+                                                 || editor.tool === "polygonalLasso"
+    readonly property int canvasCursorShape: window.spacePressed || editor.tool === "hand"
+                                             ? Qt.OpenHandCursor
+                                             : editor.tool === "move"
+                                               ? Qt.SizeAllCursor
+                                               : window.selectionToolActive
+                                                 ? Qt.BlankCursor
+                                               : window.paintToolActive
+                                                 ? Qt.BlankCursor : Qt.CrossCursor
     readonly property bool closedShapeToolActive: editor.tool === "rectangle" || editor.tool === "ellipse"
                                                   || editor.tool === "triangle" || editor.tool === "polygon"
                                                   || editor.tool === "star"
@@ -116,8 +130,8 @@ ApplicationWindow {
         {name:"singleRowSelect", icon:"┄", label:qsTr("Rangée unique"), implemented:true},
         {name:"singleColumnSelect", icon:"┊", label:qsTr("Colonne unique"), implemented:true},
         {name:"selectionBrush", icon:"◌", label:qsTr("Pinceau de sélection"), implemented:false},
-        {name:"lasso", icon:"♧", label:qsTr("Lasso"), implemented:false},
-        {name:"polygonalLasso", icon:"⌁", label:qsTr("Lasso polygonal"), implemented:false},
+        {name:"lasso", icon:"♧", label:qsTr("Lasso"), implemented:true},
+        {name:"polygonalLasso", icon:"⌁", label:qsTr("Lasso polygonal"), implemented:true},
         {name:"magneticLasso", icon:"⌁", label:qsTr("Lasso magnétique"), implemented:false},
         {name:"objectSelection", icon:"▧", label:qsTr("Sélection d’objet"), implemented:false},
         {name:"quickSelection", icon:"◌", label:qsTr("Sélection rapide"), implemented:false},
@@ -279,6 +293,7 @@ ApplicationWindow {
             if (layout[i].id !== groupId) continue
             layout[i].active = toolName
             saveToolLayout(layout)
+            window.spacePressed = false
             editor.tool = toolName
             workspace.forceActiveFocus()
             return
@@ -287,13 +302,14 @@ ApplicationWindow {
     function selectActiveGroupTool(groupId) {
         const tool = activeToolForGroup(groupById(groupId))
         if (tool) {
+            window.spacePressed = false
             editor.tool = tool.name
             workspace.forceActiveFocus()
         }
     }
     function openToolGroupMenu(groupId, anchor) {
         const group = groupById(groupId)
-        if (groupTools(group, false, false).length < 2) return
+        if (groupTools(group, false, true).length < 2) return
         toolMenuGroupId = groupId
         if (anchor) toolGroupMenu.popup(anchor, 0, anchor.height)
         else toolGroupMenu.popup()
@@ -814,7 +830,7 @@ ApplicationWindow {
             onActivated: window.selectActiveGroupTool(modelData.id)
         }
     }
-    Shortcut { enabled: !window.modalOpen; sequence: "Escape"; onActivated: { editor.cancelStroke(); editor.deselect() } }
+    Shortcut { enabled: !window.modalOpen; sequence: "Escape"; onActivated: { editor.cancelStroke(); editor.cancelPolygonLasso(); editor.deselect() } }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomFit")); onActivated: fitCanvas() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("toolRotate")); onActivated: window.activateGroupTool("hand", "rotateView") }
@@ -1034,10 +1050,11 @@ ApplicationWindow {
         id: toolGroupMenu
         objectName: "toolGroupMenu"
         Instantiator {
-            model: (window.toolbarRevision, window.groupTools(window.groupById(window.toolMenuGroupId), false, false))
+            model: (window.toolbarRevision, window.groupTools(window.groupById(window.toolMenuGroupId), false, true))
             delegate: DarkMenuItem {
                 required property var modelData
-                text: modelData.label
+                text: modelData.label + (modelData.implemented ? "" : qsTr(" (NYI)"))
+                enabled: modelData.implemented
                 checkable: true
                 checked: window.groupById(window.toolMenuGroupId)
                          && window.groupById(window.toolMenuGroupId).active === modelData.name
@@ -1324,7 +1341,7 @@ ApplicationWindow {
                             toolName: displayedTool ? displayedTool.name : ""
                             hint: displayedTool ? displayedTool.label + " (" + window.toolGroupShortcut(modelData) + ")" : ""
                             selected: window.toolGroupContains(modelData, editor.tool)
-                            hasMenu: displayedTools.length > 1
+                            hasMenu: window.groupTools(modelData, false, true).length > 1
                             onClicked: window.selectActiveGroupTool(modelData.id)
                             onContextRequested: window.openToolGroupMenu(modelData.id, toolButton)
                         }
@@ -1357,6 +1374,18 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if (editor.polygonLassoActive && !event.isAutoRepeat
+                                && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete)) {
+                            editor.removeLastPolygonLassoPoint()
+                            event.accepted = true
+                            return
+                        }
+                        if (editor.polygonLassoActive && !event.isAutoRepeat
+                                && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                            editor.finishPolygonLasso()
+                            event.accepted = true
+                            return
+                        }
                         if(event.key===Qt.Key_Space && !event.isAutoRepeat && !window.editingText && !window.modalOpen) {
                             window.spacePressed=true;event.accepted=true
                         }
@@ -1409,6 +1438,23 @@ ApplicationWindow {
                         Item {
                             id: artboard
                             objectName: "artboard"
+                            property real selectionAntPhase: 0
+                            onSelectionAntPhaseChanged: {
+                                rectangularSelectionOverlay.requestPaint()
+                                ellipseSelectionOverlay.requestPaint()
+                                lassoSelectionOverlay.requestPaint()
+                            }
+                            function strokeSelectionPath(context) {
+                                context.lineWidth = 1.5
+                                context.setLineDash([5, 5])
+                                context.lineDashOffset = selectionAntPhase
+                                context.strokeStyle = "#111111"
+                                context.stroke()
+                                context.lineDashOffset = selectionAntPhase + 5
+                                context.strokeStyle = "#ffffff"
+                                context.stroke()
+                                context.setLineDash([])
+                            }
                             x: (viewport.contentWidth-width)/2; y: (viewport.contentHeight-height)/2
                             width: editor.width*zoom; height: editor.height*zoom
                             rotation: window.canvasRotation
@@ -1423,31 +1469,185 @@ ApplicationWindow {
                                 onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                             }
-                            Rectangle {
-                                visible: editor.hasSelection
-                                x: editor.selection.x*zoom; y: editor.selection.y*zoom
-                                width: editor.selection.width*zoom; height: editor.selection.height*zoom
-                                radius: editor.selectionShape === 1 ? Math.min(width,height)/2 : 0
-                                color: "#153fe0b0"; border.width: 1; border.color: "#ffffff"
-                                Rectangle { anchors.fill: parent; anchors.margins: 1; radius: parent.radius; color: "transparent"; border.width: 1; border.color: "#263a33" }
+                            NumberAnimation on selectionAntPhase {
+                                from: 0
+                                to: 10
+                                duration: 700
+                                loops: Animation.Infinite
+                                running: editor.hasSelection || editor.polygonLassoActive
+                            }
+                            Canvas {
+                                id: rectangularSelectionOverlay
+                                objectName: "rectangularSelectionOverlay"
+                                visible: editor.hasSelection && editor.selectionShape < 4
+                                         && editor.selectionShape !== 1
+                                x: editor.selection.x * zoom - 2
+                                y: editor.selection.y * zoom - 2
+                                width: editor.selection.width * zoom + 4
+                                height: editor.selection.height * zoom + 4
+                                z: 2
+                                enabled: false
+                                onPaint: {
+                                    const c = getContext("2d")
+                                    c.reset()
+                                    c.clearRect(0, 0, width, height)
+                                    if (width <= 4 || height <= 4) return
+                                    c.beginPath()
+                                    c.rect(2, 2, width - 4, height - 4)
+                                    artboard.strokeSelectionPath(c)
+                                }
+                                onWidthChanged: requestPaint()
+                                onHeightChanged: requestPaint()
+                                onVisibleChanged: if (visible) requestPaint()
+                                Connections {
+                                    target: editor
+                                    function onSelectionChanged() {
+                                        rectangularSelectionOverlay.requestPaint()
+                                    }
+                                }
+                            }
+                            Canvas {
+                                id: ellipseSelectionOverlay
+                                objectName: "ellipseSelectionOverlay"
+                                x: editor.selection.x * zoom - 2
+                                y: editor.selection.y * zoom - 2
+                                width: editor.selection.width * zoom + 4
+                                height: editor.selection.height * zoom + 4
+                                z: 2
+                                enabled: false
+                                visible: editor.hasSelection && editor.selectionShape === 1
+                                onPaint: {
+                                    const c = getContext("2d")
+                                    c.reset()
+                                    c.clearRect(0, 0, width, height)
+                                    if (width <= 4 || height <= 4) return
+                                    c.save()
+                                    c.translate(width / 2, height / 2)
+                                    c.scale((width - 4) / 2, (height - 4) / 2)
+                                    c.beginPath()
+                                    c.arc(0, 0, 1, 0, Math.PI * 2)
+                                    c.restore()
+                                    artboard.strokeSelectionPath(c)
+                                }
+                                onWidthChanged: requestPaint()
+                                onHeightChanged: requestPaint()
+                                onVisibleChanged: if (visible) requestPaint()
+                                Connections {
+                                    target: editor
+                                    function onSelectionChanged() {
+                                        ellipseSelectionOverlay.requestPaint()
+                                    }
+                                }
+                            }
+                            Canvas {
+                                id: lassoSelectionOverlay
+                                anchors.fill: parent
+                                z: 2
+                                enabled: false
+                                visible: editor.selectionShape >= 4 && editor.selectionPath.length > 0
+                                onPaint: {
+                                    const points = editor.selectionPath
+                                    const c = getContext("2d")
+                                    c.reset()
+                                    c.clearRect(0, 0, width, height)
+                                    if (!points || points.length < 1) return
+                                    c.beginPath()
+                                    c.moveTo(points[0].x * zoom, points[0].y * zoom)
+                                    for (let i = 1; i < points.length; ++i)
+                                        c.lineTo(points[i].x * zoom, points[i].y * zoom)
+                                    if (editor.polygonLassoActive && drawingArea.containsMouse)
+                                        c.lineTo(drawingArea.pointerX, drawingArea.pointerY)
+                                    if (editor.hasSelection) {
+                                        c.closePath()
+                                        artboard.strokeSelectionPath(c)
+                                    } else {
+                                        c.strokeStyle = "#f5f7f9"
+                                        c.lineWidth = 1
+                                        c.stroke()
+                                    }
+                                    if (editor.polygonLassoActive) {
+                                        for (let i = 0; i < points.length; ++i) {
+                                            c.beginPath()
+                                            c.arc(points[i].x * zoom, points[i].y * zoom, 3, 0,
+                                                  Math.PI * 2)
+                                            c.fillStyle = "#f5f7f9"
+                                            c.fill()
+                                            c.strokeStyle = "#172028"
+                                            c.lineWidth = 1
+                                            c.stroke()
+                                        }
+                                    }
+                                }
+                                Connections {
+                                    target: editor
+                                    function onSelectionChanged() { lassoSelectionOverlay.requestPaint() }
+                                }
+                                Connections {
+                                    target: window
+                                    function onZoomChanged() { lassoSelectionOverlay.requestPaint() }
+                                }
                             }
                             MouseArea {
                                 id: drawingArea
                                 objectName: "drawingArea"
+                                property real pointerX: 0
+                                property real pointerY: 0
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 enabled: editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
                                 preventStealing: true
-                                cursorShape: editor.tool==="move" ? Qt.SizeAllCursor : window.paintToolActive ? Qt.BlankCursor : Qt.CrossCursor
-                                onPressed: function(mouse) { workspace.forceActiveFocus(); editor.beginStroke(mouse.x/zoom,mouse.y/zoom) }
+                                cursorShape: window.canvasCursorShape
+                                onPressed: function(mouse) {
+                                    workspace.forceActiveFocus()
+                                    pointerX = mouse.x
+                                    pointerY = mouse.y
+                                    if (editor.tool === "polygonalLasso")
+                                        editor.addPolygonLassoPoint(mouse.x / zoom, mouse.y / zoom)
+                                    else
+                                        editor.beginStroke(mouse.x / zoom, mouse.y / zoom)
+                                }
                                 onPositionChanged: function(mouse) {
+                                    pointerX = mouse.x
+                                    pointerY = mouse.y
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
                                     brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
-                                    if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
+                                    if (editor.polygonLassoActive)
+                                        lassoSelectionOverlay.requestPaint()
+                                    else if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
                                 }
-                                onReleased: editor.endStroke()
-                                onCanceled: editor.cancelStroke()
+                                onReleased: {
+                                    if (editor.tool !== "polygonalLasso") editor.endStroke()
+                                }
+                                onDoubleClicked: {
+                                    if (editor.tool === "polygonalLasso") editor.finishPolygonLasso()
+                                }
+                                onCanceled: {
+                                    if (editor.tool !== "polygonalLasso") editor.cancelStroke()
+                                }
+                                WheelHandler {
+                                    id: wheelHandler
+                                    objectName: "wheelHandler"
+                                    target: null
+                                    onWheel: function(wheel) {
+                                        const viewportPoint = drawingArea.mapToItem(
+                                                    viewport, wheel.x, wheel.y)
+                                        const pixelY=wheel.pixelDelta.y
+                                        const pixelX=wheel.pixelDelta.x
+                                        const vertical=pixelY!==0 ? pixelY : wheel.angleDelta.y/2
+                                        const horizontal=pixelX!==0 ? pixelX : wheel.angleDelta.x/2
+                                        const primaryModifier=wheel.modifiers&(Qt.ControlModifier|Qt.MetaModifier)
+                                        if(primaryModifier) {
+                                            const steps=wheel.angleDelta.y!==0 ? wheel.angleDelta.y/120 : vertical/40
+                                            zoomAt(zoom*Math.pow(1.15,steps),viewportPoint.x,viewportPoint.y)
+                                        } else if(wheel.modifiers&Qt.ShiftModifier) {
+                                            panCanvas(-(vertical!==0?vertical:horizontal),0)
+                                        } else {
+                                            panCanvas(-horizontal,-vertical)
+                                        }
+                                        wheel.accepted=true
+                                    }
+                                }
                             }
                             Canvas {
                                 id: rulerOverlay
@@ -1623,6 +1823,35 @@ ApplicationWindow {
                                 Connections { target: editor; function onSettingsChanged() { brushCursor.requestPaint() } }
                                 Connections { target: window; function onZoomChanged() { brushCursor.requestPaint() } }
                             }
+                            Canvas {
+                                id: selectionCursor
+                                objectName: "selectionCursor"
+                                width: 25
+                                height: 25
+                                x: drawingArea.pointerX - width / 2
+                                y: drawingArea.pointerY - height / 2
+                                z: 8
+                                enabled: false
+                                visible: drawingArea.containsMouse && window.selectionToolActive
+                                onPaint: {
+                                    const c = getContext("2d")
+                                    c.reset()
+                                    c.clearRect(0, 0, width, height)
+                                    c.lineCap = "square"
+                                    c.beginPath()
+                                    c.moveTo(width / 2, 1)
+                                    c.lineTo(width / 2, height - 1)
+                                    c.moveTo(1, height / 2)
+                                    c.lineTo(width - 1, height / 2)
+                                    c.lineWidth = 3
+                                    c.strokeStyle = "rgba(0,0,0,.85)"
+                                    c.stroke()
+                                    c.lineWidth = 1
+                                    c.strokeStyle = "#ffffff"
+                                    c.stroke()
+                                }
+                                Component.onCompleted: requestPaint()
+                            }
                         }
                     }
                     MouseArea {
@@ -1683,28 +1912,6 @@ ApplicationWindow {
                         onDoubleClicked: window.canvasRotation=0
                     }
                     MouseArea {
-                        id: wheelArea
-                        anchors.fill: viewport
-                        z: 20
-                        acceptedButtons: Qt.NoButton
-                        onWheel: function(wheel) {
-                            const pixelY=wheel.pixelDelta.y
-                            const pixelX=wheel.pixelDelta.x
-                            const vertical=pixelY!==0 ? pixelY : wheel.angleDelta.y/2
-                            const horizontal=pixelX!==0 ? pixelX : wheel.angleDelta.x/2
-                            const primaryModifier=wheel.modifiers&(Qt.ControlModifier|Qt.MetaModifier)
-                            if(primaryModifier) {
-                                const steps=wheel.angleDelta.y!==0 ? wheel.angleDelta.y/120 : vertical/40
-                                zoomAt(zoom*Math.pow(1.15,steps),wheel.x,wheel.y)
-                            } else if(wheel.modifiers&Qt.ShiftModifier) {
-                                panCanvas(-(vertical!==0?vertical:horizontal),0)
-                            } else {
-                                panCanvas(-horizontal,-vertical)
-                            }
-                            wheel.accepted=true
-                        }
-                    }
-                    MouseArea {
                         id: panArea
                         objectName: "panArea"
                         anchors.fill: viewport
@@ -1712,10 +1919,8 @@ ApplicationWindow {
                         enabled: window.spacePressed || editor.tool==="hand"
                         hoverEnabled: enabled
                         preventStealing: true
-                        cursorShape: enabled
-                                     ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-                                     : (drawingArea.containsMouse ? drawingArea.cursorShape
-                                                                  : Qt.ArrowCursor)
+                        cursorShape: enabled && pressed ? Qt.ClosedHandCursor
+                                                       : window.canvasCursorShape
                         property real pressX: 0
                         property real pressY: 0
                         property real initialContentX: 0

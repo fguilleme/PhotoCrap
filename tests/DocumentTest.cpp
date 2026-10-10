@@ -87,7 +87,7 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 37);
+        QCOMPARE(shortcuts.entries().size(), 38);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
@@ -97,6 +97,7 @@ private slots:
         QCOMPARE(shortcuts.sequence("toolRotate"), QString("R"));
         QCOMPARE(shortcuts.sequence("toolZoom"), QString("Z"));
         QCOMPARE(shortcuts.sequence("toolDodge"), QString("O"));
+        QCOMPARE(shortcuts.sequence("toolLasso"), QString("L"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -271,6 +272,43 @@ private slots:
         d.fillWithColor(true);
         QCOMPARE(d.composite().pixelColor(20, 4), QColor(Qt::green));
         QCOMPARE(d.composite().pixelColor(19, 4).alpha(), 0);
+    }
+    void lassoSelectionsFollowFreehandAndPolygonalContours()
+    {
+        Document d;
+        QVERIFY(d.newDocument(36, 36, true));
+        d.setColor(Qt::red);
+        d.setTool("lasso");
+        d.beginStroke(4, 4);
+        d.continueStroke(31, 5);
+        d.continueStroke(18, 31);
+        d.endStroke();
+        QCOMPARE(d.selectionShape(), 4);
+        QVERIFY(d.hasSelection());
+        QVERIFY(d.selectionPath().size() >= 3);
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(18, 12), QColor(Qt::red));
+        QCOMPARE(d.composite().pixelColor(3, 31).alpha(), 0);
+
+        d.deselect();
+        d.setColor(Qt::blue);
+        d.setTool("polygonalLasso");
+        d.addPolygonLassoPoint(5, 5);
+        d.addPolygonLassoPoint(30, 5);
+        d.addPolygonLassoPoint(30, 30);
+        QVERIFY(d.polygonLassoActive());
+        QCOMPARE(d.selectionPath().size(), 3);
+        d.removeLastPolygonLassoPoint();
+        QCOMPARE(d.selectionPath().size(), 2);
+        d.addPolygonLassoPoint(30, 30);
+        d.addPolygonLassoPoint(5, 30);
+        d.finishPolygonLasso();
+        QVERIFY(!d.polygonLassoActive());
+        QCOMPARE(d.selectionShape(), 5);
+        QVERIFY(d.hasSelection());
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(18, 18), QColor(Qt::blue));
+        QCOMPARE(d.composite().pixelColor(2, 2).alpha(), 0);
     }
     void localRetouchToolsUseBrushCoverageAndRemainUndoable()
     {

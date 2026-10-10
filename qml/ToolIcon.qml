@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["lasso", "polygonalLasso", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,39 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "blur") {
+            if (root.toolName === "lasso") {
+                ctx.beginPath()
+                ctx.moveTo(6, 5)
+                ctx.bezierCurveTo(2.8, 7.4, 3.6, 13.5, 8.2, 15.2)
+                ctx.bezierCurveTo(12.8, 17, 19.8, 14.9, 20, 10.3)
+                ctx.bezierCurveTo(20.2, 6.8, 16.8, 4.6, 12.3, 4.4)
+                ctx.bezierCurveTo(9.5, 4.2, 7.3, 4.4, 6, 5)
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.moveTo(8.2, 15.2)
+                ctx.bezierCurveTo(10.8, 17.1, 10.4, 20.2, 7.8, 20.5)
+                ctx.bezierCurveTo(5.8, 20.7, 5.1, 18.8, 6.7, 18.1)
+                ctx.stroke()
+            } else if (root.toolName === "polygonalLasso") {
+                ctx.beginPath()
+                ctx.moveTo(4, 6)
+                ctx.lineTo(14, 3.5)
+                ctx.lineTo(20, 10)
+                ctx.lineTo(15, 16)
+                ctx.lineTo(7, 14)
+                ctx.closePath()
+                ctx.stroke()
+                const vertices = [[4,6],[14,3.5],[20,10],[15,16],[7,14]]
+                for (let i = 0; i < vertices.length; ++i) {
+                    ctx.beginPath()
+                    ctx.arc(vertices[i][0], vertices[i][1], 1.35, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+                ctx.beginPath()
+                ctx.moveTo(7, 14)
+                ctx.lineTo(5.5, 20)
+                ctx.stroke()
+            } else if (root.toolName === "blur") {
                 ctx.beginPath()
                 ctx.moveTo(12, 2.5)
                 ctx.bezierCurveTo(10.4, 5.7, 6.2, 9.7, 6.2, 14.1)

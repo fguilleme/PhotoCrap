@@ -15,6 +15,13 @@ bool isPaintStrokeTool(const QString &_tool)
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge";
 }
 
+bool isShapeStrokeTool(const QString &_tool)
+{
+    return _tool == "move" || _tool == "rectangle" || _tool == "ellipse" ||
+           _tool == "triangle" || _tool == "polygon" || _tool == "star" || _tool == "line" ||
+           _tool == "gradient";
+}
+
 QString toolLabel(const QString &_tool)
 {
     static const QMap<QString, const char *> labels{
@@ -27,6 +34,8 @@ QString toolLabel(const QString &_tool)
         {"ellipticalSelect", QT_TRANSLATE_NOOP("Document", "Sélection elliptique")},
         {"singleRowSelect", QT_TRANSLATE_NOOP("Document", "Rangée unique")},
         {"singleColumnSelect", QT_TRANSLATE_NOOP("Document", "Colonne unique")},
+        {"lasso", QT_TRANSLATE_NOOP("Document", "Lasso")},
+        {"polygonalLasso", QT_TRANSLATE_NOOP("Document", "Lasso polygonal")},
         {"rectangle", QT_TRANSLATE_NOOP("Document", "Rectangle")},
         {"ellipse", QT_TRANSLATE_NOOP("Document", "Ellipse")},
         {"triangle", QT_TRANSLATE_NOOP("Document", "Triangle")},
@@ -59,6 +68,10 @@ void Document::beginStroke(qreal _x, qreal _y)
             setColor(composite().pixelColor(int(_x), int(_y)));
         return;
     }
+    if (m_tool == "lasso") {
+        beginLasso(_x, _y);
+        return;
+    }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect" || m_tool == "crop") {
         m_drawing         = true;
@@ -68,6 +81,8 @@ void Document::beginStroke(qreal _x, qreal _y)
                             : m_tool == "singleRowSelect"    ? 2
                             : m_tool == "singleColumnSelect" ? 3
                                                              : 0;
+        m_selectionPath.clear();
+        m_polygonLassoActive = false;
         if (m_tool == "singleRowSelect") {
             const int y       = qBound(0, int(_y), height() - 1);
             m_selection       = QRect(0, y, width(), 1);
@@ -134,7 +149,9 @@ void Document::continueStroke(qreal _x, qreal _y)
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
-    if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "crop") {
+    if (m_tool == "lasso")
+        continueLasso(point.x(), point.y());
+    else if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "crop") {
         m_selection       = QRect(m_anchor.toPoint(), point.toPoint())
                                 .normalized()
                                 .intersected(QRect(QPoint{}, m_size));
@@ -143,8 +160,10 @@ void Document::continueStroke(qreal _x, qreal _y)
         emit selectionChanged();
     } else if (isPaintStrokeTool(m_tool))
         paintSegment(m_last, point);
-    else
+    else if (isShapeStrokeTool(m_tool))
         renderShape(point);
+    else
+        m_drawing = false;
     m_last = point;
 }
 void Document::endStroke()
@@ -158,15 +177,20 @@ void Document::endStroke()
         m_brushSmoothing = smoothing;
     }
     m_drawing = false;
+    if (m_tool == "lasso") {
+        finishLasso();
+        return;
+    }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect" || m_tool == "crop")
         return;
     if (m_strokeChanged) {
         if (m_tool == "move" && hasSelection()) {
-            m_selection       = m_selection.translated((m_last - m_anchor).toPoint())
-                                    .intersected(QRect(QPoint{}, m_size));
-            m_selectionRegion = m_selectionRegion.translated((m_last - m_anchor).toPoint()) &
-                                QRegion(QRect(QPoint{}, m_size));
+            const QPoint offset = (m_last - m_anchor).toPoint();
+            m_selection = m_selection.translated(offset).intersected(QRect(QPoint{}, m_size));
+            m_selectionRegion =
+                m_selectionRegion.translated(offset) & QRegion(QRect(QPoint{}, m_size));
+            m_selectionPath.translate(offset);
             emit selectionChanged();
         }
         commit(m_beforeStroke, toolLabel(m_tool), !isPaintStrokeTool(m_tool));
@@ -186,6 +210,10 @@ void Document::cancelStroke()
     if (!m_drawing)
         return;
     m_drawing = false;
+    if (m_tool == "lasso") {
+        deselect();
+        return;
+    }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect" || m_tool == "crop")
         deselect();

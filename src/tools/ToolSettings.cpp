@@ -22,6 +22,8 @@ void Document::setTool(const QString &_value)
                                    "ellipticalSelect",
                                    "singleRowSelect",
                                    "singleColumnSelect",
+                                   "lasso",
+                                   "polygonalLasso",
                                    "crop",
                                    "text",
                                    "hand",
@@ -36,7 +38,10 @@ void Document::setTool(const QString &_value)
                                    "ruler"};
     if (!tools.contains(_value))
         return;
-    endStroke();
+    if (m_polygonLassoActive)
+        cancelPolygonLasso();
+    else
+        endStroke();
     m_tool = _value;
     emit settingsChanged();
 }

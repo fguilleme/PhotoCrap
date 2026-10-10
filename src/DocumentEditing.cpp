@@ -30,6 +30,8 @@ void Document::selectAll()
     m_selection       = QRect(QPoint{}, m_size);
     m_selectionRegion = QRegion(m_selection);
     m_selectionShape  = 0;
+    m_selectionPath.clear();
+    m_polygonLassoActive = false;
     emit selectionChanged();
 }
 void Document::deselect()
@@ -38,6 +40,8 @@ void Document::deselect()
     m_selection       = {};
     m_selectionRegion = {};
     m_selectionShape  = 0;
+    m_selectionPath.clear();
+    m_polygonLassoActive = false;
     emit selectionChanged();
 }
 void Document::clearSelected()
@@ -145,6 +149,8 @@ void Document::cropToSelection()
         m_selection       = {};
         m_selectionRegion = {};
         m_selectionShape  = 0;
+        m_selectionPath.clear();
+        m_polygonLassoActive = false;
     });
     emit documentChanged();
     emit selectionChanged();
@@ -169,6 +175,8 @@ void Document::resizeImage(int _w, int _h)
         m_selection       = {};
         m_selectionRegion = {};
         m_selectionShape  = 0;
+        m_selectionPath.clear();
+        m_polygonLassoActive = false;
     });
     emit documentChanged();
     emit selectionChanged();
@@ -202,6 +210,8 @@ void Document::transformImage(const QString &_operation)
         m_selection       = {};
         m_selectionRegion = {};
         m_selectionShape  = 0;
+        m_selectionPath.clear();
+        m_polygonLassoActive = false;
     });
     emit documentChanged();
     emit selectionChanged();

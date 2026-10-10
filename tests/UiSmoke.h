@@ -24,6 +24,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto panArea = _window->findChild<QQuickItem *>("panArea");
     if (!require(panArea, "pan area exists"))
         return false;
+    auto wheelHandler = _window->findChild<QObject *>("wheelHandler");
+    if (!require(wheelHandler, "wheel handler exists"))
+        return false;
     auto viewport = _window->findChild<QQuickItem *>("viewport");
     auto artboard = _window->findChild<QQuickItem *>("artboard");
     if (!require(viewport && artboard, "viewport and artboard exist"))
@@ -337,7 +340,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 37,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 38,
                  "keyboard settings list is populated"))
         return false;
     _window->setProperty("preferencesPage", 2);
@@ -363,8 +366,33 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, QVariant()));
     QTest::qWait(100);
-    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 6,
-                 "right click exposes the tools in a toolbar group"))
+    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 7,
+                 "right click exposes implemented and NYI tools in a toolbar group"))
+        return false;
+    QMetaObject::invokeMethod(toolMenu, "close");
+    QTest::keyClick(_window, Qt::Key_L);
+    QTest::qWait(30);
+    if (!require(_document.tool() == "lasso", "L activates the current lasso-group tool"))
+        return false;
+    _window->setProperty("spacePressed", true);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "selection"),
+                              Q_ARG(QVariant, "select"));
+    QTest::mouseMove(_window,
+                     area->mapToScene(QPointF(area->width() / 2, area->height() / 2)).toPoint());
+    QTest::qWait(30);
+    auto selectionCursor = _window->findChild<QQuickItem *>("selectionCursor");
+    if (!require(!_window->property("spacePressed").toBool() &&
+                     !panArea->property("enabled").toBool() &&
+                     panArea->property("cursorShape").toInt() == int(Qt::BlankCursor) &&
+                     area->property("cursorShape").toInt() == int(Qt::BlankCursor) &&
+                     selectionCursor && selectionCursor->isVisible(),
+                 "choosing a selection tool leaves hand navigation and restores the crosshair"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "lasso"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(100);
+    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 4,
+                 "lasso menu lists its two tools and the two NYI entries"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),

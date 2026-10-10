@@ -32,7 +32,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
         group("move", "toolMove", "V", "move", {"move", "artboard"}),
         group("selection", "toolSelect", "M", "select",
               {"select", "ellipticalSelect", "singleRowSelect", "singleColumnSelect"}),
-        group("lasso", "", "L", "lasso",
+        group("lasso", "toolLasso", "L", "lasso",
               {"selectionBrush", "lasso", "polygonalLasso", "magneticLasso"}),
         group("smartSelection", "", "W", "objectSelection",
               {"objectSelection", "quickSelection", "magicWand"}),

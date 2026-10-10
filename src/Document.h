@@ -6,6 +6,7 @@
 #include <QMutex>
 #include <QObject>
 #include <QPainter>
+#include <QPolygonF>
 #include <QRect>
 #include <QRegion>
 #include <QSet>
@@ -103,6 +104,8 @@ class Document : public QObject
     Q_PROPERTY(QRect selection READ selection NOTIFY selectionChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
     Q_PROPERTY(int selectionShape READ selectionShape NOTIFY selectionChanged)
+    Q_PROPERTY(QVariantList selectionPath READ selectionPath NOTIFY selectionChanged)
+    Q_PROPERTY(bool polygonLassoActive READ polygonLassoActive NOTIFY selectionChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
@@ -280,6 +283,11 @@ public:
     {
         return m_selectionShape;
     }
+    QVariantList selectionPath() const;
+    bool         polygonLassoActive() const
+    {
+        return m_polygonLassoActive;
+    }
     bool canUndo() const
     {
         return !m_undo.isEmpty();
@@ -387,6 +395,10 @@ public:
     Q_INVOKABLE void         continueStroke(qreal _x, qreal _y);
     Q_INVOKABLE void         endStroke();
     Q_INVOKABLE void         cancelStroke();
+    Q_INVOKABLE void         addPolygonLassoPoint(qreal _x, qreal _y);
+    Q_INVOKABLE void         finishPolygonLasso();
+    Q_INVOKABLE void         removeLastPolygonLassoPoint();
+    Q_INVOKABLE void         cancelPolygonLasso();
     Q_INVOKABLE void         resetColors();
     Q_INVOKABLE void         swapColors();
     Q_INVOKABLE void         undo();
@@ -424,6 +436,7 @@ private:
         QRect          selection;
         QRegion        selectionRegion;
         int            selectionShape;
+        QPolygonF      selectionPath;
         QSet<int>      selectedLayers;
         int            layerSelectionAnchor;
         bool           editingMask;
@@ -442,28 +455,30 @@ private:
     QString        m_tool = QStringLiteral("brush");
     QColor         m_color{Qt::black}, m_secondary{Qt::white};
     qreal          m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
-    qreal   m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
-    int     m_brushBlend      = 0;
-    bool    m_pencilAutoErase = false;
-    qreal   m_toolStrength    = .5;
-    bool    m_spongeSaturate  = false;
-    int     m_retouchRange    = 1;
-    bool    m_protectTones    = true;
-    QString m_text            = QStringLiteral("Votre texte");
-    int     m_textSize        = 64;
-    bool    m_filledShapes    = true;
-    QColor  m_shapeFillColor;
-    QColor  m_shapeStrokeColor;
-    bool    m_shapeStrokeEnabled = true;
-    qreal   m_shapeStrokeWidth   = 1;
-    int     m_shapeStrokeStyle   = 0;
-    qreal   m_shapeCornerRadius  = 0;
-    bool    m_shapeAlignPixels   = true;
-    int     m_shapeSides         = 5;
-    qreal   m_shapeStarRatio     = .5;
-    QRect   m_selection;
-    QRegion m_selectionRegion;
-    int     m_selectionShape = 0;
+    qreal     m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
+    int       m_brushBlend      = 0;
+    bool      m_pencilAutoErase = false;
+    qreal     m_toolStrength    = .5;
+    bool      m_spongeSaturate  = false;
+    int       m_retouchRange    = 1;
+    bool      m_protectTones    = true;
+    QString   m_text            = QStringLiteral("Votre texte");
+    int       m_textSize        = 64;
+    bool      m_filledShapes    = true;
+    QColor    m_shapeFillColor;
+    QColor    m_shapeStrokeColor;
+    bool      m_shapeStrokeEnabled = true;
+    qreal     m_shapeStrokeWidth   = 1;
+    int       m_shapeStrokeStyle   = 0;
+    qreal     m_shapeCornerRadius  = 0;
+    bool      m_shapeAlignPixels   = true;
+    int       m_shapeSides         = 5;
+    qreal     m_shapeStarRatio     = .5;
+    QRect     m_selection;
+    QRegion   m_selectionRegion;
+    int       m_selectionShape = 0;
+    QPolygonF m_selectionPath;
+    bool      m_polygonLassoActive = false;
     QVector<Snapshot>              m_undo, m_redo;
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int                            m_revision          = 0;
@@ -517,6 +532,9 @@ private:
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
                    bool _notifyImage = true);
     void    trimHistory();
+    void    beginLasso(qreal _x, qreal _y);
+    void    continueLasso(qreal _x, qreal _y);
+    void    finishLasso();
     void    selectOnly(int _index);
     void    changed(bool _metadata = true, bool _notifyImage = true);
     void    resetHistory(bool _clean);

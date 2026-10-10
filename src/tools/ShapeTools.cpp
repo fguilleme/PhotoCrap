@@ -27,9 +27,16 @@ QPolygonF regularPolygon(const QRectF &_bounds, int _points, qreal _innerRatio =
 
 void Document::renderShape(const QPointF &_to)
 {
-    m_layers[m_active].image = m_beforeStroke.layers[m_active].image;
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        m_active >= m_beforeStroke.layers.size()) {
+        m_drawing       = false;
+        m_strokeChanged = false;
+        return;
+    }
+    const QImage sourceImage = m_beforeStroke.layers.at(m_active).image;
+    m_layers[m_active].image = sourceImage;
     if (m_tool == "move") {
-        const QImage source = m_beforeStroke.layers[m_active].image;
+        const QImage source = sourceImage;
         QImage       result = hasSelection() ? source : ImageUtils::blank(m_size);
         QPainter     painter(&result);
         const QPoint offset = (_to - m_anchor).toPoint();

@@ -95,6 +95,7 @@ Document::Snapshot Document::snapshot(const QString &_label) const
             m_selection,
             m_selectionRegion,
             m_selectionShape,
+            m_selectionPath,
             m_selectedLayers,
             m_layerSelectionAnchor,
             m_editingMask,
@@ -110,6 +111,8 @@ void Document::restore(const Snapshot &_state)
     m_selection            = _state.selection;
     m_selectionRegion      = _state.selectionRegion;
     m_selectionShape       = _state.selectionShape;
+    m_selectionPath        = _state.selectionPath;
+    m_polygonLassoActive   = false;
     m_selectedLayers       = _state.selectedLayers;
     m_layerSelectionAnchor = _state.layerSelectionAnchor;
     m_editingMask          = _state.editingMask;
@@ -207,6 +210,8 @@ void Document::resetHistory(bool _clean)
     m_selection       = {};
     m_selectionRegion = {};
     m_selectionShape  = 0;
+    m_selectionPath.clear();
+    m_polygonLassoActive = false;
     selectOnly(m_active);
     m_drawing               = false;
     m_editingMask           = false;

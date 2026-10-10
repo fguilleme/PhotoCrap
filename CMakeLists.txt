@@ -24,6 +24,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/ShapeTools.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
+    src/tools/SmartSelectionTools.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -161,6 +162,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/ShapeTools.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
+    src/tools/SmartSelectionTools.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/ImageUtils.h

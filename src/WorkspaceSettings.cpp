@@ -34,7 +34,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
               {"select", "ellipticalSelect", "singleRowSelect", "singleColumnSelect"}),
         group("lasso", "toolLasso", "L", "lasso",
               {"selectionBrush", "lasso", "polygonalLasso", "magneticLasso"}),
-        group("smartSelection", "", "W", "objectSelection",
+        group("smartSelection", "toolSmartSelection", "W", "quickSelection",
               {"objectSelection", "quickSelection", "magicWand"}),
         group("crop", "toolCrop", "C", "crop", {"crop", "perspectiveCrop", "slice", "sliceSelect"}),
         group("frame", "", "K", "frame", {"frame"}),

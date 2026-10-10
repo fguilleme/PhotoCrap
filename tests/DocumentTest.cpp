@@ -87,7 +87,7 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 38);
+        QCOMPARE(shortcuts.entries().size(), 39);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
@@ -98,6 +98,7 @@ private slots:
         QCOMPARE(shortcuts.sequence("toolZoom"), QString("Z"));
         QCOMPARE(shortcuts.sequence("toolDodge"), QString("O"));
         QCOMPARE(shortcuts.sequence("toolLasso"), QString("L"));
+        QCOMPARE(shortcuts.sequence("toolSmartSelection"), QString("W"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -272,6 +273,49 @@ private slots:
         d.fillWithColor(true);
         QCOMPARE(d.composite().pixelColor(20, 4), QColor(Qt::green));
         QCOMPARE(d.composite().pixelColor(19, 4).alpha(), 0);
+    }
+    void smartSelectionsFollowColorAndCombineLikePhotoshop()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 16, true));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setTool("select");
+        d.beginStroke(16, 0);
+        d.continueStroke(31, 15);
+        d.endStroke();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.deselect();
+
+        d.setTool("magicWand");
+        d.setSelectionTolerance(0);
+        d.setSelectionContiguous(true);
+        d.setSelectionMode(0);
+        d.beginStroke(4, 8);
+        d.setColor(Qt::green);
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::green));
+        QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::blue));
+
+        d.setSelectionMode(1);
+        d.beginStroke(24, 8);
+        d.setColor(Qt::yellow);
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::yellow));
+        QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
+
+        d.deselect();
+        d.setSelectionMode(0);
+        d.setTool("quickSelection");
+        d.setBrushSize(4);
+        d.beginStroke(4, 8);
+        d.continueStroke(8, 8);
+        d.endStroke();
+        d.setColor(Qt::cyan);
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
+        QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
     void lassoSelectionsFollowFreehandAndPolygonalContours()
     {

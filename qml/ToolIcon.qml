@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["lasso", "polygonalLasso", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -81,6 +81,44 @@ Item {
                 ctx.moveTo(7, 14)
                 ctx.lineTo(5.5, 20)
                 ctx.stroke()
+            } else if (root.toolName === "quickSelection") {
+                ctx.setLineDash([2.5, 2])
+                ctx.beginPath()
+                ctx.arc(9, 10, 6.2, -.4, Math.PI * 1.75)
+                ctx.stroke()
+                ctx.setLineDash([])
+                ctx.beginPath()
+                ctx.moveTo(13.5, 14.5)
+                ctx.lineTo(20.5, 21.5)
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.moveTo(17.3, 4.5)
+                ctx.lineTo(17.3, 10.5)
+                ctx.moveTo(14.3, 7.5)
+                ctx.lineTo(20.3, 7.5)
+                ctx.stroke()
+            } else if (root.toolName === "magicWand") {
+                ctx.beginPath()
+                ctx.moveTo(5, 20)
+                ctx.lineTo(17.3, 7.7)
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.moveTo(15, 3)
+                ctx.lineTo(15, 6)
+                ctx.moveTo(20, 5)
+                ctx.lineTo(18.2, 7.2)
+                ctx.moveTo(22, 11)
+                ctx.lineTo(19, 11)
+                ctx.moveTo(19.8, 16)
+                ctx.lineTo(17.6, 13.8)
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.moveTo(6.5, 18.5)
+                ctx.lineTo(8.5, 20.5)
+                ctx.lineTo(5.5, 22)
+                ctx.lineTo(4, 20.5)
+                ctx.closePath()
+                ctx.fill()
             } else if (root.toolName === "blur") {
                 ctx.beginPath()
                 ctx.moveTo(12, 2.5)

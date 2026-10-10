@@ -106,6 +106,15 @@ class Document : public QObject
     Q_PROPERTY(int selectionShape READ selectionShape NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList selectionPath READ selectionPath NOTIFY selectionChanged)
     Q_PROPERTY(bool polygonLassoActive READ polygonLassoActive NOTIFY selectionChanged)
+    Q_PROPERTY(int selectionMode READ selectionMode WRITE setSelectionMode NOTIFY settingsChanged)
+    Q_PROPERTY(int selectionTolerance READ selectionTolerance WRITE setSelectionTolerance NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(bool selectionContiguous READ selectionContiguous WRITE setSelectionContiguous NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(bool selectionSampleAllLayers READ selectionSampleAllLayers WRITE
+                   setSelectionSampleAllLayers NOTIFY settingsChanged)
+    Q_PROPERTY(bool selectionEnhanceEdge READ selectionEnhanceEdge WRITE setSelectionEnhanceEdge
+                   NOTIFY settingsChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
@@ -288,6 +297,30 @@ public:
     {
         return m_polygonLassoActive;
     }
+    int selectionMode() const
+    {
+        return m_selectionMode;
+    }
+    int selectionTolerance() const
+    {
+        return m_selectionTolerance;
+    }
+    bool selectionContiguous() const
+    {
+        return m_selectionContiguous;
+    }
+    bool selectionSampleAllLayers() const
+    {
+        return m_selectionSampleAllLayers;
+    }
+    bool selectionEnhanceEdge() const
+    {
+        return m_selectionEnhanceEdge;
+    }
+    const QRegion &selectionRegion() const
+    {
+        return m_selectionRegion;
+    }
     bool canUndo() const
     {
         return !m_undo.isEmpty();
@@ -347,6 +380,11 @@ public:
     void             setShapeAlignPixels(bool _value);
     void             setShapeSides(int _value);
     void             setShapeStarRatio(qreal _value);
+    void             setSelectionMode(int _value);
+    void             setSelectionTolerance(int _value);
+    void             setSelectionContiguous(bool _value);
+    void             setSelectionSampleAllLayers(bool _value);
+    void             setSelectionEnhanceEdge(bool _value);
 
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false);
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
@@ -478,7 +516,17 @@ private:
     QRegion   m_selectionRegion;
     int       m_selectionShape = 0;
     QPolygonF m_selectionPath;
-    bool      m_polygonLassoActive = false;
+    bool      m_polygonLassoActive       = false;
+    int       m_selectionMode            = 0;
+    int       m_selectionTolerance       = 32;
+    bool      m_selectionContiguous      = true;
+    bool      m_selectionSampleAllLayers = false;
+    bool      m_selectionEnhanceEdge     = true;
+    QRegion   m_selectionRegionBeforeStroke;
+    QRect     m_selectionBoundsBeforeStroke;
+    int       m_selectionShapeBeforeStroke = 0;
+    QPolygonF m_selectionPathBeforeStroke;
+    bool      m_quickSelectionFirstDab = false;
     QVector<Snapshot>              m_undo, m_redo;
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int                            m_revision          = 0;
@@ -535,6 +583,12 @@ private:
     void    beginLasso(qreal _x, qreal _y);
     void    continueLasso(qreal _x, qreal _y);
     void    finishLasso();
+    void    applyMagicWand(const QPoint &_point);
+    void    applySelectionCandidate(const QRegion &_candidate, bool _firstDab);
+    void    beginQuickSelection(const QPointF &_point);
+    void    continueQuickSelection(const QPointF &_point);
+    void    finishQuickSelection();
+    void    cancelQuickSelection();
     void    selectOnly(int _index);
     void    changed(bool _metadata = true, bool _notifyImage = true);
     void    resetHistory(bool _clean);

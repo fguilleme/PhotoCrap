@@ -17,9 +17,8 @@ bool isPaintStrokeTool(const QString &_tool)
 
 bool isShapeStrokeTool(const QString &_tool)
 {
-    return _tool == "move" || _tool == "rectangle" || _tool == "ellipse" ||
-           _tool == "triangle" || _tool == "polygon" || _tool == "star" || _tool == "line" ||
-           _tool == "gradient";
+    return _tool == "move" || _tool == "rectangle" || _tool == "ellipse" || _tool == "triangle" ||
+           _tool == "polygon" || _tool == "star" || _tool == "line" || _tool == "gradient";
 }
 
 QString toolLabel(const QString &_tool)
@@ -36,6 +35,8 @@ QString toolLabel(const QString &_tool)
         {"singleColumnSelect", QT_TRANSLATE_NOOP("Document", "Colonne unique")},
         {"lasso", QT_TRANSLATE_NOOP("Document", "Lasso")},
         {"polygonalLasso", QT_TRANSLATE_NOOP("Document", "Lasso polygonal")},
+        {"quickSelection", QT_TRANSLATE_NOOP("Document", "Sélection rapide")},
+        {"magicWand", QT_TRANSLATE_NOOP("Document", "Baguette magique")},
         {"rectangle", QT_TRANSLATE_NOOP("Document", "Rectangle")},
         {"ellipse", QT_TRANSLATE_NOOP("Document", "Ellipse")},
         {"triangle", QT_TRANSLATE_NOOP("Document", "Triangle")},
@@ -66,6 +67,14 @@ void Document::beginStroke(qreal _x, qreal _y)
     if (m_tool == "picker") {
         if (composite().rect().contains(QPoint(int(_x), int(_y))))
             setColor(composite().pixelColor(int(_x), int(_y)));
+        return;
+    }
+    if (m_tool == "magicWand") {
+        applyMagicWand(QPoint(qRound(_x), qRound(_y)));
+        return;
+    }
+    if (m_tool == "quickSelection") {
+        beginQuickSelection(m_anchor);
         return;
     }
     if (m_tool == "lasso") {
@@ -149,7 +158,13 @@ void Document::continueStroke(qreal _x, qreal _y)
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
-    if (m_tool == "lasso")
+    if (m_tool == "quickSelection") {
+        const qreal  step = qMax(2., m_brushSize * .5);
+        const QLineF line(m_last, point);
+        const int    count = qMax(1, qCeil(line.length() / step));
+        for (int i = 1; i <= count; ++i)
+            continueQuickSelection(line.pointAt(qreal(i) / count));
+    } else if (m_tool == "lasso")
         continueLasso(point.x(), point.y());
     else if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "crop") {
         m_selection       = QRect(m_anchor.toPoint(), point.toPoint())
@@ -177,6 +192,10 @@ void Document::endStroke()
         m_brushSmoothing = smoothing;
     }
     m_drawing = false;
+    if (m_tool == "quickSelection") {
+        finishQuickSelection();
+        return;
+    }
     if (m_tool == "lasso") {
         finishLasso();
         return;
@@ -210,6 +229,10 @@ void Document::cancelStroke()
     if (!m_drawing)
         return;
     m_drawing = false;
+    if (m_tool == "quickSelection") {
+        cancelQuickSelection();
+        return;
+    }
     if (m_tool == "lasso") {
         deselect();
         return;

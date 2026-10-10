@@ -49,13 +49,16 @@ ApplicationWindow {
                                                  || editor.tool === "singleColumnSelect"
                                                  || editor.tool === "lasso"
                                                  || editor.tool === "polygonalLasso"
+                                                 || editor.tool === "quickSelection"
+                                                 || editor.tool === "magicWand"
+    readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
+                                                     || editor.tool === "magicWand"
     readonly property int canvasCursorShape: window.spacePressed || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
-                                               : window.selectionToolActive
-                                                 ? Qt.BlankCursor
-                                               : window.paintToolActive
+                                             : window.paintToolActive
+                                                   || window.smartSelectionToolActive
                                                  ? Qt.BlankCursor : Qt.CrossCursor
     readonly property bool closedShapeToolActive: editor.tool === "rectangle" || editor.tool === "ellipse"
                                                   || editor.tool === "triangle" || editor.tool === "polygon"
@@ -134,8 +137,8 @@ ApplicationWindow {
         {name:"polygonalLasso", icon:"⌁", label:qsTr("Lasso polygonal"), implemented:true},
         {name:"magneticLasso", icon:"⌁", label:qsTr("Lasso magnétique"), implemented:false},
         {name:"objectSelection", icon:"▧", label:qsTr("Sélection d’objet"), implemented:false},
-        {name:"quickSelection", icon:"◌", label:qsTr("Sélection rapide"), implemented:false},
-        {name:"magicWand", icon:"✦", label:qsTr("Baguette magique"), implemented:false},
+        {name:"quickSelection", icon:"◌", label:qsTr("Sélection rapide"), implemented:true},
+        {name:"magicWand", icon:"✦", label:qsTr("Baguette magique"), implemented:true},
         {name:"crop", icon:"⌗", label:qsTr("Recadrage"), implemented:true},
         {name:"perspectiveCrop", icon:"⌗", label:qsTr("Recadrage en perspective"), implemented:false},
         {name:"slice", icon:"◢", label:qsTr("Tranche"), implemented:false},
@@ -1083,10 +1086,60 @@ ApplicationWindow {
                 }
                 Rectangle { Layout.leftMargin: 10; width: 1; height: 28; color: "#3a414a" }
                 Label { visible: window.width>=1250; text: window.toolName; color: "#c8d0d9"; Layout.preferredWidth: 152 }
-                Label { visible: window.paintToolActive; text: qsTr("Taille"); color: "#87929e" }
-                DarkSpinBox { visible: window.paintToolActive; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                RowLayout {
+                    visible: window.smartSelectionToolActive
+                    spacing: 1
+                    Repeater {
+                        model: [
+                            {glyph:"□", hint:qsTr("Nouvelle sélection")},
+                            {glyph:"+", hint:qsTr("Ajouter à la sélection")},
+                            {glyph:"−", hint:qsTr("Soustraire de la sélection")},
+                            {glyph:"∩", hint:qsTr("Intersection avec la sélection")}
+                        ]
+                        delegate: IconButton {
+                            required property var modelData
+                            required property int index
+                            implicitWidth: 30; implicitHeight: 30
+                            glyph: modelData.glyph
+                            hint: modelData.hint
+                            selected: editor.selectionMode === index
+                            onClicked: editor.selectionMode = index
+                        }
+                    }
+                }
+                Label { visible: window.paintToolActive || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
+                DarkSpinBox { visible: window.paintToolActive || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "selectionTolerance"
+                    visible: editor.tool === "magicWand"
+                    from: 0; to: 255; value: editor.selectionTolerance
+                    implicitWidth: 82
+                    onValueModified: editor.selectionTolerance = value
+                }
+                CheckBox {
+                    objectName: "selectionContiguous"
+                    visible: editor.tool === "magicWand"
+                    text: qsTr("Pixels contigus")
+                    checked: editor.selectionContiguous
+                    onToggled: editor.selectionContiguous = checked
+                }
+                CheckBox {
+                    objectName: "selectionSampleAllLayers"
+                    visible: window.smartSelectionToolActive
+                    text: qsTr("Tous les calques")
+                    checked: editor.selectionSampleAllLayers
+                    onToggled: editor.selectionSampleAllLayers = checked
+                }
+                CheckBox {
+                    objectName: "selectionEnhanceEdge"
+                    visible: editor.tool === "quickSelection"
+                    text: qsTr("Améliorer le contour")
+                    checked: editor.selectionEnhanceEdge
+                    onToggled: editor.selectionEnhanceEdge = checked
+                }
                 Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
                 DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
                 Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
@@ -1463,8 +1516,11 @@ ApplicationWindow {
                             onYChanged: verticalRuler.requestPaint()
                             Rectangle { x: 5; y: 9; width: parent.width; height: parent.height; color: "#0c1015"; opacity: 0.6 }
                             ImageCanvas {
+                                id: imageCanvas
+                                objectName: "imageCanvas"
                                 anchors.fill: parent
                                 document: editor
+                                selectionPhase: artboard.selectionAntPhase
                                 Component.onCompleted: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
@@ -1592,16 +1648,32 @@ ApplicationWindow {
                                 objectName: "drawingArea"
                                 property real pointerX: 0
                                 property real pointerY: 0
+                                property int selectionModeBeforeGesture: -1
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 enabled: editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape
+                                function syncSystemCursor() {
+                                    imageCanvas.setSystemCursor(window.canvasCursorShape,
+                                                                containsMouse && window.active
+                                                                && !window.modalOpen,
+                                                                editor.tool,
+                                                                editor.selectionMode)
+                                }
+                                onContainsMouseChanged: syncSystemCursor()
                                 onPressed: function(mouse) {
                                     workspace.forceActiveFocus()
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    if (window.smartSelectionToolActive) {
+                                        selectionModeBeforeGesture = editor.selectionMode
+                                        if (mouse.modifiers & Qt.ShiftModifier)
+                                            editor.selectionMode = 1
+                                        else if (mouse.modifiers & Qt.AltModifier)
+                                            editor.selectionMode = 2
+                                    }
                                     if (editor.tool === "polygonalLasso")
                                         editor.addPolygonLassoPoint(mouse.x / zoom, mouse.y / zoom)
                                     else
@@ -1618,12 +1690,20 @@ ApplicationWindow {
                                 }
                                 onReleased: {
                                     if (editor.tool !== "polygonalLasso") editor.endStroke()
+                                    if (selectionModeBeforeGesture >= 0) {
+                                        editor.selectionMode = selectionModeBeforeGesture
+                                        selectionModeBeforeGesture = -1
+                                    }
                                 }
                                 onDoubleClicked: {
                                     if (editor.tool === "polygonalLasso") editor.finishPolygonLasso()
                                 }
                                 onCanceled: {
                                     if (editor.tool !== "polygonalLasso") editor.cancelStroke()
+                                    if (selectionModeBeforeGesture >= 0) {
+                                        editor.selectionMode = selectionModeBeforeGesture
+                                        selectionModeBeforeGesture = -1
+                                    }
                                 }
                                 WheelHandler {
                                     id: wheelHandler
@@ -1648,6 +1728,16 @@ ApplicationWindow {
                                         wheel.accepted=true
                                     }
                                 }
+                            }
+                            Connections {
+                                target: window
+                                function onCanvasCursorShapeChanged() { drawingArea.syncSystemCursor() }
+                                function onModalOpenChanged() { drawingArea.syncSystemCursor() }
+                                function onActiveChanged() { drawingArea.syncSystemCursor() }
+                            }
+                            Connections {
+                                target: editor
+                                function onSettingsChanged() { drawingArea.syncSystemCursor() }
                             }
                             Canvas {
                                 id: rulerOverlay
@@ -1809,7 +1899,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && window.paintToolActive
+                                visible: drawingArea.containsMouse && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2
@@ -1819,38 +1909,18 @@ ApplicationWindow {
                                     const radius=editor.brushSize*zoom/2;c.beginPath();c.arc(0,0,radius,0,Math.PI*2)
                                     c.lineWidth=2/editor.brushRoundness;c.strokeStyle="rgba(0,0,0,.75)";c.stroke()
                                     c.lineWidth=1/editor.brushRoundness;c.strokeStyle="rgba(255,255,255,.95)";c.stroke()
+                                    if (editor.tool === "quickSelection") {
+                                        const sign = editor.selectionMode === 2 ? -1 : 1
+                                        const px = Math.min(width - 5, width / 2 + radius * .7)
+                                        const py = Math.max(5, height / 2 - radius * .7)
+                                        c.beginPath();c.moveTo(px-3,py);c.lineTo(px+3,py)
+                                        if(sign>0){c.moveTo(px,py-3);c.lineTo(px,py+3)}
+                                        c.lineWidth=3;c.strokeStyle="rgba(0,0,0,.85)";c.stroke()
+                                        c.lineWidth=1;c.strokeStyle="#ffffff";c.stroke()
+                                    }
                                 }
                                 Connections { target: editor; function onSettingsChanged() { brushCursor.requestPaint() } }
                                 Connections { target: window; function onZoomChanged() { brushCursor.requestPaint() } }
-                            }
-                            Canvas {
-                                id: selectionCursor
-                                objectName: "selectionCursor"
-                                width: 25
-                                height: 25
-                                x: drawingArea.pointerX - width / 2
-                                y: drawingArea.pointerY - height / 2
-                                z: 8
-                                enabled: false
-                                visible: drawingArea.containsMouse && window.selectionToolActive
-                                onPaint: {
-                                    const c = getContext("2d")
-                                    c.reset()
-                                    c.clearRect(0, 0, width, height)
-                                    c.lineCap = "square"
-                                    c.beginPath()
-                                    c.moveTo(width / 2, 1)
-                                    c.lineTo(width / 2, height - 1)
-                                    c.moveTo(1, height / 2)
-                                    c.lineTo(width - 1, height / 2)
-                                    c.lineWidth = 3
-                                    c.strokeStyle = "rgba(0,0,0,.85)"
-                                    c.stroke()
-                                    c.lineWidth = 1
-                                    c.strokeStyle = "#ffffff"
-                                    c.stroke()
-                                }
-                                Component.onCompleted: requestPaint()
                             }
                         }
                     }

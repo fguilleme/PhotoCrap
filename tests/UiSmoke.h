@@ -340,7 +340,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 38,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 39,
                  "keyboard settings list is populated"))
         return false;
     _window->setProperty("preferencesPage", 2);
@@ -380,13 +380,11 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::mouseMove(_window,
                      area->mapToScene(QPointF(area->width() / 2, area->height() / 2)).toPoint());
     QTest::qWait(30);
-    auto selectionCursor = _window->findChild<QQuickItem *>("selectionCursor");
-    if (!require(!_window->property("spacePressed").toBool() &&
-                     !panArea->property("enabled").toBool() &&
-                     panArea->property("cursorShape").toInt() == int(Qt::BlankCursor) &&
-                     area->property("cursorShape").toInt() == int(Qt::BlankCursor) &&
-                     selectionCursor && selectionCursor->isVisible(),
-                 "choosing a selection tool leaves hand navigation and restores the crosshair"))
+    if (!require(
+            !_window->property("spacePressed").toBool() && !panArea->property("enabled").toBool() &&
+                panArea->property("cursorShape").toInt() == int(Qt::CrossCursor) &&
+                area->property("cursorShape").toInt() == int(Qt::CrossCursor),
+            "choosing a selection tool leaves hand navigation and restores one native crosshair"))
         return false;
     QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "lasso"),
                               Q_ARG(QVariant, QVariant()));
@@ -395,6 +393,33 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "lasso menu lists its two tools and the two NYI entries"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");
+    QTest::keyClick(_window, Qt::Key_W);
+    QTest::qWait(30);
+    if (!require(_document.tool() == "quickSelection",
+                 "W activates the current smart-selection tool"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "smartSelection"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(100);
+    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 3,
+                 "smart-selection menu keeps object selection visible as NYI"))
+        return false;
+    QMetaObject::invokeMethod(toolMenu, "close");
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "smartSelection"),
+                              Q_ARG(QVariant, "magicWand"));
+    QTest::qWait(60);
+    auto imageCanvas              = _window->findChild<QObject *>("imageCanvas");
+    auto selectionTolerance       = _window->findChild<QObject *>("selectionTolerance");
+    auto selectionContiguous      = _window->findChild<QObject *>("selectionContiguous");
+    auto selectionSampleAllLayers = _window->findChild<QObject *>("selectionSampleAllLayers");
+    if (!require(imageCanvas && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor &&
+                     selectionTolerance && selectionContiguous && selectionSampleAllLayers &&
+                     selectionTolerance->property("visible").toBool() &&
+                     selectionContiguous->property("visible").toBool() &&
+                     selectionSampleAllLayers->property("visible").toBool(),
+                 "magic wand exposes tolerance, contiguous pixels and all-layer sampling"))
+        return false;
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

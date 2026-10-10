@@ -24,6 +24,8 @@ void Document::setTool(const QString &_value)
                                    "singleColumnSelect",
                                    "lasso",
                                    "polygonalLasso",
+                                   "quickSelection",
+                                   "magicWand",
                                    "crop",
                                    "text",
                                    "hand",
@@ -172,6 +174,43 @@ void Document::setProtectTones(bool _value)
     if (m_protectTones == _value)
         return;
     m_protectTones = _value;
+    emit settingsChanged();
+}
+void Document::setSelectionMode(int _value)
+{
+    const int mode = qBound(0, _value, 3);
+    if (m_selectionMode == mode)
+        return;
+    m_selectionMode = mode;
+    emit settingsChanged();
+}
+void Document::setSelectionTolerance(int _value)
+{
+    const int tolerance = qBound(0, _value, 255);
+    if (m_selectionTolerance == tolerance)
+        return;
+    m_selectionTolerance = tolerance;
+    emit settingsChanged();
+}
+void Document::setSelectionContiguous(bool _value)
+{
+    if (m_selectionContiguous == _value)
+        return;
+    m_selectionContiguous = _value;
+    emit settingsChanged();
+}
+void Document::setSelectionSampleAllLayers(bool _value)
+{
+    if (m_selectionSampleAllLayers == _value)
+        return;
+    m_selectionSampleAllLayers = _value;
+    emit settingsChanged();
+}
+void Document::setSelectionEnhanceEdge(bool _value)
+{
+    if (m_selectionEnhanceEdge == _value)
+        return;
+    m_selectionEnhanceEdge = _value;
     emit settingsChanged();
 }
 void Document::setText(const QString &_value)

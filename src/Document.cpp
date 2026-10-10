@@ -89,9 +89,17 @@ bool Document::editable()
 }
 Document::Snapshot Document::snapshot(const QString &_label) const
 {
-    return {m_layers,      m_size,           m_active,
-            m_selection,   m_selectedLayers, m_layerSelectionAnchor,
-            m_editingMask, m_stateId,        _label};
+    return {m_layers,
+            m_size,
+            m_active,
+            m_selection,
+            m_selectionRegion,
+            m_selectionShape,
+            m_selectedLayers,
+            m_layerSelectionAnchor,
+            m_editingMask,
+            m_stateId,
+            _label};
 }
 void Document::restore(const Snapshot &_state)
 {
@@ -100,6 +108,8 @@ void Document::restore(const Snapshot &_state)
     m_size                 = _state.size;
     m_active               = _state.active;
     m_selection            = _state.selection;
+    m_selectionRegion      = _state.selectionRegion;
+    m_selectionShape       = _state.selectionShape;
     m_selectedLayers       = _state.selectedLayers;
     m_layerSelectionAnchor = _state.layerSelectionAnchor;
     m_editingMask          = _state.editingMask;
@@ -192,9 +202,11 @@ void Document::resetHistory(bool _clean)
 {
     m_undo.clear();
     m_redo.clear();
-    m_stateId   = m_nextId++;
-    m_savedId   = _clean ? m_stateId : 0;
-    m_selection = {};
+    m_stateId         = m_nextId++;
+    m_savedId         = _clean ? m_stateId : 0;
+    m_selection       = {};
+    m_selectionRegion = {};
+    m_selectionShape  = 0;
     selectOnly(m_active);
     m_drawing               = false;
     m_editingMask           = false;

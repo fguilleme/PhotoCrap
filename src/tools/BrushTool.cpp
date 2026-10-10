@@ -45,13 +45,13 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 void Document::stampBrush(const QPointF &_point)
 {
     QPainter painter(&m_strokeCoverage);
-    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::Antialiasing, m_tool != "pencil");
     painter.translate(_point);
     painter.rotate(m_brushAngle);
     painter.scale(1., m_brushRoundness);
     const qreal  radius = m_brushSize / 2.;
     const QColor paint(255, 255, 255, qRound(m_brushFlow * 255));
-    if (m_brushHardness >= .999)
+    if (m_tool == "pencil" || m_brushHardness >= .999)
         painter.setBrush(paint);
     else {
         QRadialGradient gradient(QPointF{}, radius);
@@ -68,6 +68,11 @@ void Document::stampBrush(const QPointF &_point)
 }
 void Document::renderBrushStroke()
 {
+    if (m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" ||
+        m_tool == "sponge") {
+        renderRetouchStroke();
+        return;
+    }
     QImage *target = paintTarget();
     if (!target || m_strokeBase.isNull())
         return;
@@ -78,16 +83,19 @@ void Document::renderBrushStroke()
         return;
     if (!m_fullCompositeDirty)
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
-    QImage       overlay = ImageUtils::blank(region.size());
+    QImage       overlay     = ImageUtils::blank(region.size());
+    const QColor strokeColor = m_strokeInkColor.isValid() ? m_strokeInkColor : m_color;
     const QColor ink =
-        m_editingMask ? maskColor(m_tool == "eraser" ? m_secondary : m_color) : m_color;
-    overlay.fill(ink);
+        m_editingMask ? maskColor(m_tool == "eraser" ? m_secondary : strokeColor) : strokeColor;
     QPainter maskPainter(&overlay);
+    if (hasSelection())
+        maskPainter.setClipRegion(m_selectionRegion.translated(-region.topLeft()));
+    maskPainter.fillRect(overlay.rect(), ink);
     maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
     maskPainter.drawImage(0, 0, m_strokeCoverage.copy(region));
     maskPainter.end();
     QImage canvas = m_strokeBase.copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    if (m_tool == "brush" && !m_editingMask) {
+    if ((m_tool == "brush" || m_tool == "pencil") && !m_editingMask) {
         canvas = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
     } else {
         QPainter painter(&canvas);

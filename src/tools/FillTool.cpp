@@ -34,7 +34,8 @@ void Document::floodFill(QPoint _point)
     mask.fill(0);
     QVector<QPoint> stack{_point};
     auto            matches = [&](int _x, int _y) {
-        return !mask.constScanLine(_y)[_x] && image.pixel(_x, _y) == targetColor;
+        return (!hasSelection() || m_selectionRegion.contains(QPoint(_x, _y))) &&
+               !mask.constScanLine(_y)[_x] && image.pixel(_x, _y) == targetColor;
     };
     while (!stack.isEmpty()) {
         auto seed = stack.takeLast();

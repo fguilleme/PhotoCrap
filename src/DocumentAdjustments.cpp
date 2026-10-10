@@ -116,7 +116,8 @@ void Document::addAdjustmentLayer(const QString &_type)
         layer.parameters.insert("_maskFeather", 0.);
         if (hasSelection()) {
             QPainter painter(&layer.mask);
-            painter.fillRect(m_selection, Qt::white);
+            painter.setClipRegion(m_selectionRegion);
+            painter.fillRect(QRect(QPoint{}, m_size), Qt::white);
         }
         m_layers.insert(++m_active, layer);
         m_editingMask = false;
@@ -290,7 +291,10 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
                 result = original;
                 QPainter p(&result);
                 p.setCompositionMode(QPainter::CompositionMode_Source);
-                p.setClipRect(area);
+                if (hasSelection())
+                    p.setClipRegion(m_selectionRegion);
+                else
+                    p.setClipRect(area);
                 p.drawImage(0, 0, blurred);
                 p.end();
                 m_layers[m_active].image = result;
@@ -299,6 +303,8 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
             const QImage smooth = blurred.convertToFormat(QImage::Format_ARGB32);
             for (int y = area.top(); y <= area.bottom(); ++y)
                 for (int x = area.left(); x <= area.right(); ++x) {
+                    if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))
+                        continue;
                     const QColor c = result.pixelColor(x, y), b = smooth.pixelColor(x, y);
                     result.setPixelColor(x, y,
                                          QColor(qBound(0, 2 * c.red() - b.red(), 255),
@@ -310,6 +316,8 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
             for (int y = area.top(); y <= area.bottom(); ++y) {
                 auto row = reinterpret_cast<QRgb *>(result.scanLine(y));
                 for (int x = area.left(); x <= area.right(); ++x) {
+                    if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))
+                        continue;
                     QRgb         pixel = row[x];
                     double       r = qRed(pixel), g = qGreen(pixel), b = qBlue(pixel);
                     const double gray = .2126 * r + .7152 * g + .0722 * b;

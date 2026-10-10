@@ -50,7 +50,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
         group("paint", "toolFill", "G", "gradient", {"gradient", "fill"}),
         group("blur", "", "", "blur", {"blur", "sharpen", "smudge"}),
         group("adjustmentBrush", "", "", "adjustmentBrush", {"adjustmentBrush"}),
-        group("dodge", "", "O", "dodge", {"dodge", "burn", "sponge"}),
+        group("dodge", "toolDodge", "O", "dodge", {"dodge", "burn", "sponge"}),
         group("pen", "", "P", "pen",
               {"pen", "freeformPen", "curvaturePen", "addAnchor", "deleteAnchor", "convertPoint"}),
         group("type", "toolText", "T", "text",
@@ -59,7 +59,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
         group("shape", "toolRectangle", "U", "rectangle",
               {"rectangle", "ellipse", "triangle", "polygon", "star", "line", "customShape"}),
         group("hand", "toolHand", "H", "hand", {"hand", "rotateView"}),
-        group("zoom", "", "Z", "zoomTool", {"zoomTool"})};
+        group("zoom", "toolZoom", "Z", "zoomTool", {"zoomTool"})};
 }
 
 QVariantList WorkspaceSettings::normalizedToolLayout(const QVariantList &_layout)

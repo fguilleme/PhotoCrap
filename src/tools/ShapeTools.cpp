@@ -2,7 +2,28 @@
 #include "ImageUtils.h"
 
 #include <QPainter>
+#include <QPolygonF>
 #include <QtMath>
+#include <cmath>
+
+namespace
+{
+QPolygonF regularPolygon(const QRectF &_bounds, int _points, qreal _innerRatio = 1.)
+{
+    QPolygonF     result;
+    const QPointF center   = _bounds.center();
+    const qreal   radiusX  = _bounds.width() / 2.;
+    const qreal   radiusY  = _bounds.height() / 2.;
+    const int     vertices = _innerRatio < 1. ? _points * 2 : _points;
+    for (int i = 0; i < vertices; ++i) {
+        const qreal radius = (_innerRatio < 1. && i % 2) ? _innerRatio : 1.;
+        const qreal angle  = -M_PI_2 + qreal(i) * 2. * M_PI / qreal(vertices);
+        result.append(center + QPointF(std::cos(angle) * radiusX * radius,
+                                       std::sin(angle) * radiusY * radius));
+    }
+    return result;
+}
+} // namespace
 
 void Document::renderShape(const QPointF &_to)
 {
@@ -13,10 +34,17 @@ void Document::renderShape(const QPointF &_to)
         QPainter     painter(&result);
         const QPoint offset = (_to - m_anchor).toPoint();
         if (hasSelection()) {
+            QImage   selected = ImageUtils::blank(m_selection.size());
+            QPainter selectedPainter(&selected);
+            selectedPainter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
+            selectedPainter.drawImage(-m_selection.topLeft(), source);
+            selectedPainter.end();
+            painter.setClipRegion(m_selectionRegion);
             painter.setCompositionMode(QPainter::CompositionMode_Clear);
-            painter.fillRect(m_selection, Qt::transparent);
+            painter.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
+            painter.setClipping(false);
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            painter.drawImage(m_selection.topLeft() + offset, source.copy(m_selection));
+            painter.drawImage(m_selection.topLeft() + offset, selected);
         } else
             painter.drawImage(offset, source);
         painter.end();
@@ -25,9 +53,10 @@ void Document::renderShape(const QPointF &_to)
         QPainter painter(&m_layers[m_active].image);
         painter.setRenderHint(QPainter::Antialiasing);
         if (hasSelection())
-            painter.setClipRect(m_selection);
+            painter.setClipRegion(m_selectionRegion);
         painter.setOpacity(m_brushOpacity);
-        if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "line") {
+        if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
+            m_tool == "polygon" || m_tool == "star" || m_tool == "line") {
             const auto penStyle = m_shapeStrokeStyle == 1   ? Qt::DashLine
                                   : m_shapeStrokeStyle == 2 ? Qt::DotLine
                                                             : Qt::SolidLine;
@@ -39,7 +68,8 @@ void Document::renderShape(const QPointF &_to)
             painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         QRectF rect = QRectF(m_anchor, _to).normalized();
         if (m_shapeAlignPixels &&
-            (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "line"))
+            (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
+             m_tool == "polygon" || m_tool == "star" || m_tool == "line"))
             rect = QRectF(qRound(rect.left()), qRound(rect.top()), qRound(rect.width()),
                           qRound(rect.height()));
         if (m_tool == "rectangle") {
@@ -47,6 +77,12 @@ void Document::renderShape(const QPointF &_to)
             painter.drawRoundedRect(rect, radius, radius);
         } else if (m_tool == "ellipse")
             painter.drawEllipse(rect);
+        else if (m_tool == "triangle")
+            painter.drawPolygon(regularPolygon(rect, 3));
+        else if (m_tool == "polygon")
+            painter.drawPolygon(regularPolygon(rect, m_shapeSides));
+        else if (m_tool == "star")
+            painter.drawPolygon(regularPolygon(rect, m_shapeSides, m_shapeStarRatio));
         else if (m_tool == "line") {
             QPointF from = m_anchor;
             QPointF to   = _to;

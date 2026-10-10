@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QPainter>
 #include <QRect>
+#include <QRegion>
 #include <QSet>
 #include <QUrl>
 #include <QVariantList>
@@ -72,6 +73,13 @@ class Document : public QObject
     Q_PROPERTY(
         qreal brushSmoothing READ brushSmoothing WRITE setBrushSmoothing NOTIFY settingsChanged)
     Q_PROPERTY(int brushBlend READ brushBlend WRITE setBrushBlend NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool pencilAutoErase READ pencilAutoErase WRITE setPencilAutoErase NOTIFY settingsChanged)
+    Q_PROPERTY(qreal toolStrength READ toolStrength WRITE setToolStrength NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool spongeSaturate READ spongeSaturate WRITE setSpongeSaturate NOTIFY settingsChanged)
+    Q_PROPERTY(int retouchRange READ retouchRange WRITE setRetouchRange NOTIFY settingsChanged)
+    Q_PROPERTY(bool protectTones READ protectTones WRITE setProtectTones NOTIFY settingsChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY settingsChanged)
     Q_PROPERTY(int textSize READ textSize WRITE setTextSize NOTIFY settingsChanged)
     Q_PROPERTY(bool filledShapes READ filledShapes WRITE setFilledShapes NOTIFY settingsChanged)
@@ -89,8 +97,12 @@ class Document : public QObject
                    settingsChanged)
     Q_PROPERTY(bool shapeAlignPixels READ shapeAlignPixels WRITE setShapeAlignPixels NOTIFY
                    settingsChanged)
+    Q_PROPERTY(int shapeSides READ shapeSides WRITE setShapeSides NOTIFY settingsChanged)
+    Q_PROPERTY(
+        qreal shapeStarRatio READ shapeStarRatio WRITE setShapeStarRatio NOTIFY settingsChanged)
     Q_PROPERTY(QRect selection READ selection NOTIFY selectionChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
+    Q_PROPERTY(int selectionShape READ selectionShape NOTIFY selectionChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
@@ -188,6 +200,26 @@ public:
     {
         return m_brushBlend;
     }
+    bool pencilAutoErase() const
+    {
+        return m_pencilAutoErase;
+    }
+    qreal toolStrength() const
+    {
+        return m_toolStrength;
+    }
+    bool spongeSaturate() const
+    {
+        return m_spongeSaturate;
+    }
+    int retouchRange() const
+    {
+        return m_retouchRange;
+    }
+    bool protectTones() const
+    {
+        return m_protectTones;
+    }
     QString text() const
     {
         return m_text;
@@ -228,13 +260,25 @@ public:
     {
         return m_shapeAlignPixels;
     }
+    int shapeSides() const
+    {
+        return m_shapeSides;
+    }
+    qreal shapeStarRatio() const
+    {
+        return m_shapeStarRatio;
+    }
     QRect selection() const
     {
         return m_selection;
     }
     bool hasSelection() const
     {
-        return !m_selection.isEmpty();
+        return !m_selectionRegion.isEmpty();
+    }
+    int selectionShape() const
+    {
+        return m_selectionShape;
     }
     bool canUndo() const
     {
@@ -278,6 +322,11 @@ public:
     void             setBrushRoundness(qreal _value);
     void             setBrushSmoothing(qreal _value);
     void             setBrushBlend(int _value);
+    void             setPencilAutoErase(bool _value);
+    void             setToolStrength(qreal _value);
+    void             setSpongeSaturate(bool _value);
+    void             setRetouchRange(int _value);
+    void             setProtectTones(bool _value);
     void             setText(const QString &_value);
     void             setTextSize(int _value);
     void             setFilledShapes(bool _value);
@@ -288,6 +337,8 @@ public:
     void             setShapeStrokeStyle(int _value);
     void             setShapeCornerRadius(qreal _value);
     void             setShapeAlignPixels(bool _value);
+    void             setShapeSides(int _value);
+    void             setShapeStarRatio(qreal _value);
 
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false);
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
@@ -371,6 +422,8 @@ private:
         QSize          size;
         int            active;
         QRect          selection;
+        QRegion        selectionRegion;
+        int            selectionShape;
         QSet<int>      selectedLayers;
         int            layerSelectionAnchor;
         bool           editingMask;
@@ -390,10 +443,15 @@ private:
     QColor         m_color{Qt::black}, m_secondary{Qt::white};
     qreal          m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
     qreal   m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
-    int     m_brushBlend   = 0;
-    QString m_text         = QStringLiteral("Votre texte");
-    int     m_textSize     = 64;
-    bool    m_filledShapes = true;
+    int     m_brushBlend      = 0;
+    bool    m_pencilAutoErase = false;
+    qreal   m_toolStrength    = .5;
+    bool    m_spongeSaturate  = false;
+    int     m_retouchRange    = 1;
+    bool    m_protectTones    = true;
+    QString m_text            = QStringLiteral("Votre texte");
+    int     m_textSize        = 64;
+    bool    m_filledShapes    = true;
     QColor  m_shapeFillColor;
     QColor  m_shapeStrokeColor;
     bool    m_shapeStrokeEnabled = true;
@@ -401,7 +459,11 @@ private:
     int     m_shapeStrokeStyle   = 0;
     qreal   m_shapeCornerRadius  = 0;
     bool    m_shapeAlignPixels   = true;
+    int     m_shapeSides         = 5;
+    qreal   m_shapeStarRatio     = .5;
     QRect   m_selection;
+    QRegion m_selectionRegion;
+    int     m_selectionShape = 0;
     QVector<Snapshot>              m_undo, m_redo;
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int                            m_revision          = 0;
@@ -424,6 +486,7 @@ private:
     QPointF                        m_smoothedLast;
     qreal                          m_distanceToNextDab = 0;
     QImage                         m_strokeBase, m_strokeCoverage;
+    QColor                         m_strokeInkColor;
     QRectF                         m_strokeBounds;
     mutable QHash<QString, QImage> m_frequencyCache;
     QFutureWatcher<QImage>         m_previewRenderWatcher;
@@ -464,6 +527,7 @@ private:
     void    paintSegment(const QPointF &_from, const QPointF &_to);
     void    stampBrush(const QPointF &_point);
     void    renderBrushStroke();
+    void    renderRetouchStroke();
     void    renderShape(const QPointF &_to);
     void    floodFill(QPoint _point);
     QImage *paintTarget();

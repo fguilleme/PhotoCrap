@@ -28,6 +28,7 @@ ApplicationWindow {
     palette.mid: "#343d48"
     palette.dark: "#171c22"
     property real zoom: 0.6
+    property real canvasRotation: 0
     property string status: qsTr("Prêt à créer")
     property string pendingAction: ""
     property url pendingRecentFile: ""
@@ -43,7 +44,17 @@ ApplicationWindow {
     property bool fillingMaskColor: false
     property bool spacePressed: false
     readonly property bool closedShapeToolActive: editor.tool === "rectangle" || editor.tool === "ellipse"
+                                                  || editor.tool === "triangle" || editor.tool === "polygon"
+                                                  || editor.tool === "star"
     readonly property bool shapeToolActive: closedShapeToolActive || editor.tool === "line"
+    readonly property bool retouchToolActive: editor.tool === "blur" || editor.tool === "sharpen"
+                                              || editor.tool === "dodge" || editor.tool === "burn"
+                                              || editor.tool === "sponge"
+    readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
+                                            || editor.tool === "eraser" || retouchToolActive
+    readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
+                                              || editor.tool === "eraser" || editor.tool === "fill"
+                                              || editor.tool === "gradient" || editor.tool === "text"
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
     property int preferencesPage: 0
@@ -63,6 +74,10 @@ ApplicationWindow {
     property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history"})
     property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, history: true})
     property bool workspaceRestored: false
+    property var colorSamples: []
+    property point rulerStart: Qt.point(0,0)
+    property point rulerEnd: Qt.point(0,0)
+    property bool rulerVisible: false
     property string dockDropPanelId: ""
     property string dockDropZone: ""
     property string pendingLayerPreviewKey: ""
@@ -97,9 +112,9 @@ ApplicationWindow {
         {name:"move", icon:"↖", label:qsTr("Déplacement"), implemented:true},
         {name:"artboard", icon:"▱", label:qsTr("Plan de travail"), implemented:false},
         {name:"select", icon:"⬚", label:qsTr("Sélection rectangulaire"), implemented:true},
-        {name:"ellipticalSelect", icon:"◯", label:qsTr("Sélection elliptique"), implemented:false},
-        {name:"singleRowSelect", icon:"┄", label:qsTr("Rangée unique"), implemented:false},
-        {name:"singleColumnSelect", icon:"┊", label:qsTr("Colonne unique"), implemented:false},
+        {name:"ellipticalSelect", icon:"◯", label:qsTr("Sélection elliptique"), implemented:true},
+        {name:"singleRowSelect", icon:"┄", label:qsTr("Rangée unique"), implemented:true},
+        {name:"singleColumnSelect", icon:"┊", label:qsTr("Colonne unique"), implemented:true},
         {name:"selectionBrush", icon:"◌", label:qsTr("Pinceau de sélection"), implemented:false},
         {name:"lasso", icon:"♧", label:qsTr("Lasso"), implemented:false},
         {name:"polygonalLasso", icon:"⌁", label:qsTr("Lasso polygonal"), implemented:false},
@@ -113,8 +128,8 @@ ApplicationWindow {
         {name:"sliceSelect", icon:"◁", label:qsTr("Sélection de tranche"), implemented:false},
         {name:"frame", icon:"⊠", label:qsTr("Cadre"), implemented:false},
         {name:"picker", icon:"⌖", label:qsTr("Pipette"), implemented:true},
-        {name:"colorSampler", icon:"⌖", label:qsTr("Échantillonnage de couleur"), implemented:false},
-        {name:"ruler", icon:"▥", label:qsTr("Règle"), implemented:false},
+        {name:"colorSampler", icon:"⌖", label:qsTr("Échantillonnage de couleur"), implemented:true},
+        {name:"ruler", icon:"▥", label:qsTr("Règle"), implemented:true},
         {name:"note", icon:"▤", label:qsTr("Annotation"), implemented:false},
         {name:"count", icon:"¹²³", label:qsTr("Comptage"), implemented:false},
         {name:"spotHealing", icon:"✚", label:qsTr("Correcteur localisé"), implemented:false},
@@ -124,7 +139,7 @@ ApplicationWindow {
         {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:false},
         {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:false},
         {name:"brush", icon:"╱", label:qsTr("Pinceau"), implemented:true},
-        {name:"pencil", icon:"✎", label:qsTr("Crayon"), implemented:false},
+        {name:"pencil", icon:"✎", label:qsTr("Crayon"), implemented:true},
         {name:"colorReplacement", icon:"♢", label:qsTr("Remplacement de couleur"), implemented:false},
         {name:"mixerBrush", icon:"♨", label:qsTr("Pinceau mélangeur"), implemented:false},
         {name:"cloneStamp", icon:"♟", label:qsTr("Tampon de duplication"), implemented:false},
@@ -136,13 +151,13 @@ ApplicationWindow {
         {name:"magicEraser", icon:"✧", label:qsTr("Gomme magique"), implemented:false},
         {name:"gradient", icon:"▨", label:qsTr("Dégradé"), implemented:true},
         {name:"fill", icon:"◩", label:qsTr("Remplissage contigu"), implemented:true},
-        {name:"blur", icon:"●", label:qsTr("Flou"), implemented:false},
-        {name:"sharpen", icon:"▲", label:qsTr("Netteté"), implemented:false},
+        {name:"blur", icon:"●", label:qsTr("Flou"), implemented:true},
+        {name:"sharpen", icon:"▲", label:qsTr("Netteté"), implemented:true},
         {name:"smudge", icon:"≈", label:qsTr("Doigt"), implemented:false},
         {name:"adjustmentBrush", icon:"◒", label:qsTr("Pinceau de réglage"), implemented:false},
-        {name:"dodge", icon:"●", label:qsTr("Densité −"), implemented:false},
-        {name:"burn", icon:"◒", label:qsTr("Densité +"), implemented:false},
-        {name:"sponge", icon:"◉", label:qsTr("Éponge"), implemented:false},
+        {name:"dodge", icon:"●", label:qsTr("Densité −"), implemented:true},
+        {name:"burn", icon:"◒", label:qsTr("Densité +"), implemented:true},
+        {name:"sponge", icon:"◉", label:qsTr("Éponge"), implemented:true},
         {name:"pen", icon:"◇", label:qsTr("Plume"), implemented:false},
         {name:"freeformPen", icon:"♢", label:qsTr("Plume libre"), implemented:false},
         {name:"curvaturePen", icon:"♧", label:qsTr("Plume de courbure"), implemented:false},
@@ -157,14 +172,14 @@ ApplicationWindow {
         {name:"directSelection", icon:"➢", label:qsTr("Sélection directe"), implemented:false},
         {name:"rectangle", icon:"□", label:qsTr("Rectangle"), implemented:true},
         {name:"ellipse", icon:"○", label:qsTr("Ellipse"), implemented:true},
-        {name:"triangle", icon:"△", label:qsTr("Triangle"), implemented:false},
-        {name:"polygon", icon:"⬡", label:qsTr("Polygone"), implemented:false},
-        {name:"star", icon:"☆", label:qsTr("Étoile"), implemented:false},
+        {name:"triangle", icon:"△", label:qsTr("Triangle"), implemented:true},
+        {name:"polygon", icon:"⬡", label:qsTr("Polygone"), implemented:true},
+        {name:"star", icon:"☆", label:qsTr("Étoile"), implemented:true},
         {name:"line", icon:"╲", label:qsTr("Ligne"), implemented:true},
         {name:"customShape", icon:"✾", label:qsTr("Forme personnalisée"), implemented:false},
         {name:"hand", icon:"✥", label:qsTr("Main"), implemented:true},
-        {name:"rotateView", icon:"⟳", label:qsTr("Rotation de l’affichage"), implemented:false},
-        {name:"zoomTool", icon:"⌕", label:qsTr("Zoom"), implemented:false}
+        {name:"rotateView", icon:"⟳", label:qsTr("Rotation de l’affichage"), implemented:true},
+        {name:"zoomTool", icon:"⌕", label:qsTr("Zoom"), implemented:true}
     ]
     property var toolLayout: []
     property int toolbarRevision: 0
@@ -637,6 +652,26 @@ ApplicationWindow {
         viewport.contentX=clampScroll(artboard.x+documentX*zoom-pointerX,viewport.contentWidth-viewport.width)
         viewport.contentY=clampScroll(artboard.y+documentY*zoom-pointerY,viewport.contentHeight-viewport.height)
     }
+    function colorText(color) {
+        return "R " + Math.round(color.r*255) + "  V " + Math.round(color.g*255)
+                + "  B " + Math.round(color.b*255)
+    }
+    function addColorSample(x,y) {
+        const next=Array.from(colorSamples)
+        if(next.length>=4) next.shift()
+        const sampled=editor.sampleCompositeColor(Math.floor(x),Math.floor(y))
+        next.push({x:x,y:y,color:sampled,label:colorText(sampled)})
+        colorSamples=next
+    }
+    function removeNearestColorSample(x,y) {
+        if(colorSamples.length===0) return
+        let nearest=0,best=Number.MAX_VALUE
+        for(let i=0;i<colorSamples.length;++i) {
+            const dx=colorSamples[i].x-x,dy=colorSamples[i].y-y,d=dx*dx+dy*dy
+            if(d<best){best=d;nearest=i}
+        }
+        const next=Array.from(colorSamples);next.splice(nearest,1);colorSamples=next
+    }
     function activateMaskThumbnail(layerIndex, modifiers) {
         editor.activeLayer = layerIndex
         editor.setEditingMask(true)
@@ -782,6 +817,7 @@ ApplicationWindow {
     Shortcut { enabled: !window.modalOpen; sequence: "Escape"; onActivated: { editor.cancelStroke(); editor.deselect() } }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomFit")); onActivated: fitCanvas() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("toolRotate")); onActivated: window.activateGroupTool("hand", "rotateView") }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSmaller")); onActivated: editor.brushSize = editor.brushSize-5 }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushLarger")); onActivated: editor.brushSize = editor.brushSize+5 }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSofter")); onActivated: editor.brushHardness = editor.brushHardness-0.1 }
@@ -1001,7 +1037,7 @@ ApplicationWindow {
             model: (window.toolbarRevision, window.groupTools(window.groupById(window.toolMenuGroupId), false, false))
             delegate: DarkMenuItem {
                 required property var modelData
-                text: modelData.icon + "   " + modelData.label
+                text: modelData.label
                 checkable: true
                 checked: window.groupById(window.toolMenuGroupId)
                          && window.groupById(window.toolMenuGroupId).active === modelData.name
@@ -1030,15 +1066,69 @@ ApplicationWindow {
                 }
                 Rectangle { Layout.leftMargin: 10; width: 1; height: 28; color: "#3a414a" }
                 Label { visible: window.width>=1250; text: window.toolName; color: "#c8d0d9"; Layout.preferredWidth: 152 }
-                Label { visible: !window.shapeToolActive; text: qsTr("Taille"); color: "#87929e" }
-                DarkSpinBox { visible: !window.shapeToolActive; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
+                Label { visible: window.paintToolActive; text: qsTr("Taille"); color: "#87929e" }
+                DarkSpinBox { visible: window.paintToolActive; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
                 Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
                 DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
-                Label { visible: !window.shapeToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
-                DarkSpinBox { visible: !window.shapeToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
-                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="eraser"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
+                DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
+                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                CheckBox {
+                    objectName: "pencilAutoErase"
+                    visible: editor.tool === "pencil"
+                    text: qsTr("Effacement auto")
+                    checked: editor.pencilAutoErase
+                    onToggled: editor.pencilAutoErase=checked
+                }
+                Label { visible: editor.tool === "blur" || editor.tool === "sharpen"; text: qsTr("Intensité"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "retouchStrength"
+                    visible: editor.tool === "blur" || editor.tool === "sharpen"
+                    from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
+                    implicitWidth: 92
+                    onValueModified: editor.toolStrength=value/100
+                }
+                Label { visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Gamme"); color: "#87929e" }
+                ComboBox {
+                    objectName: "retouchRange"
+                    visible: editor.tool === "dodge" || editor.tool === "burn"
+                    model: [qsTr("Tons foncés"), qsTr("Tons moyens"), qsTr("Tons clairs")]
+                    currentIndex: editor.retouchRange
+                    implicitWidth: 118; implicitHeight: 30
+                    onActivated: editor.retouchRange=currentIndex
+                }
+                Label { visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Exposition"); color: "#87929e" }
+                DarkSpinBox {
+                    visible: editor.tool === "dodge" || editor.tool === "burn"
+                    from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
+                    implicitWidth: 92
+                    onValueModified: editor.toolStrength=value/100
+                }
+                CheckBox {
+                    objectName: "protectTones"
+                    visible: editor.tool === "dodge" || editor.tool === "burn"
+                    text: qsTr("Protéger les tons")
+                    checked: editor.protectTones
+                    onToggled: editor.protectTones=checked
+                }
+                Label { visible: editor.tool === "sponge"; text: qsTr("Mode"); color: "#87929e" }
+                ComboBox {
+                    objectName: "spongeMode"
+                    visible: editor.tool === "sponge"
+                    model: [qsTr("Désaturer"), qsTr("Saturer")]
+                    currentIndex: editor.spongeSaturate ? 1 : 0
+                    implicitWidth: 108; implicitHeight: 30
+                    onActivated: editor.spongeSaturate=currentIndex === 1
+                }
+                Label { visible: editor.tool === "sponge"; text: qsTr("Débit"); color: "#87929e" }
+                DarkSpinBox {
+                    visible: editor.tool === "sponge"
+                    from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
+                    implicitWidth: 92
+                    onValueModified: editor.toolStrength=value/100
+                }
                 Label { visible: window.shapeToolActive && window.width >= 1250; text: qsTr("Pixels"); color: "#aab3bd" }
                 CheckBox {
                     objectName: "shapeFillEnabled"
@@ -1115,12 +1205,88 @@ ApplicationWindow {
                     implicitWidth: 88
                     onValueModified: editor.shapeCornerRadius=value
                 }
+                Label { visible: editor.tool === "polygon" || editor.tool === "star"; text: qsTr("Côtés"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "shapeSides"
+                    visible: editor.tool === "polygon" || editor.tool === "star"
+                    from: 3; to: 100; value: editor.shapeSides
+                    implicitWidth: 70
+                    onValueModified: editor.shapeSides=value
+                }
+                Label { visible: editor.tool === "star"; text: qsTr("Creux"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "shapeStarRatio"
+                    visible: editor.tool === "star"
+                    from: 5; to: 95; value: Math.round(editor.shapeStarRatio*100); suffix: " %"
+                    implicitWidth: 86
+                    onValueModified: editor.shapeStarRatio=value/100
+                }
                 CheckBox {
                     objectName: "shapeAlignPixels"
                     visible: window.shapeToolActive && window.width >= 1420
                     text: qsTr("Aligner les pixels")
                     checked: editor.shapeAlignPixels
                     onToggled: editor.shapeAlignPixels=checked
+                }
+                Label { visible: editor.tool === "rotateView"; text: qsTr("Angle"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "viewRotationAngle"
+                    visible: editor.tool === "rotateView"
+                    from: -180; to: 180; value: Math.round(window.canvasRotation); suffix: " °"
+                    implicitWidth: 92
+                    onValueModified: window.canvasRotation=value
+                }
+                Button {
+                    objectName: "resetViewRotation"
+                    visible: editor.tool === "rotateView"
+                    text: qsTr("Réinitialiser la vue")
+                    implicitHeight: 32
+                    onClicked: window.canvasRotation=0
+                }
+                Button {
+                    visible: editor.tool === "zoomTool"
+                    text: qsTr("−")
+                    implicitHeight: 32
+                    onClicked: setZoom(zoom/1.25)
+                }
+                Button {
+                    visible: editor.tool === "zoomTool"
+                    text: qsTr("+")
+                    implicitHeight: 32
+                    onClicked: setZoom(zoom*1.25)
+                }
+                Button {
+                    visible: editor.tool === "zoomTool"
+                    text: qsTr("Adapter")
+                    implicitHeight: 32
+                    onClicked: fitCanvas()
+                }
+                Label {
+                    visible: editor.tool === "ruler" && window.rulerVisible
+                    text: {
+                        const dx=window.rulerEnd.x-window.rulerStart.x
+                        const dy=window.rulerEnd.y-window.rulerStart.y
+                        return qsTr("L %1 px · A %2°").arg(Math.round(Math.sqrt(dx*dx+dy*dy)))
+                                .arg(Math.round(Math.atan2(dy,dx)*180/Math.PI))
+                    }
+                    color: "#cbd3da"
+                }
+                Button {
+                    visible: editor.tool === "ruler" && window.rulerVisible
+                    text: qsTr("Effacer la mesure")
+                    implicitHeight: 32
+                    onClicked: window.rulerVisible=false
+                }
+                Label {
+                    visible: editor.tool === "colorSampler"
+                    text: qsTr("%1 / 4 échantillons").arg(window.colorSamples.length)
+                    color: "#cbd3da"
+                }
+                Button {
+                    visible: editor.tool === "colorSampler" && window.colorSamples.length>0
+                    text: qsTr("Effacer")
+                    implicitHeight: 32
+                    onClicked: window.colorSamples=[]
                 }
                 Button { text: qsTr("Recadrer"); visible: editor.tool==="crop"; enabled: editor.hasSelection; implicitHeight: 32; onClicked: editor.cropToSelection() }
                 Item { Layout.fillWidth: true }
@@ -1155,6 +1321,7 @@ ApplicationWindow {
                             readonly property var displayedTool: window.activeToolForGroup(modelData)
                             readonly property var displayedTools: window.groupTools(modelData, false, false)
                             glyph: displayedTool ? displayedTool.icon : "?"
+                            toolName: displayedTool ? displayedTool.name : ""
                             hint: displayedTool ? displayedTool.label + " (" + window.toolGroupShortcut(modelData) + ")" : ""
                             selected: window.toolGroupContains(modelData, editor.tool)
                             hasMenu: displayedTools.length > 1
@@ -1244,6 +1411,8 @@ ApplicationWindow {
                             objectName: "artboard"
                             x: (viewport.contentWidth-width)/2; y: (viewport.contentHeight-height)/2
                             width: editor.width*zoom; height: editor.height*zoom
+                            rotation: window.canvasRotation
+                            transformOrigin: Item.Center
                             onXChanged: horizontalRuler.requestPaint()
                             onYChanged: verticalRuler.requestPaint()
                             Rectangle { x: 5; y: 9; width: parent.width; height: parent.height; color: "#0c1015"; opacity: 0.6 }
@@ -1258,17 +1427,19 @@ ApplicationWindow {
                                 visible: editor.hasSelection
                                 x: editor.selection.x*zoom; y: editor.selection.y*zoom
                                 width: editor.selection.width*zoom; height: editor.selection.height*zoom
+                                radius: editor.selectionShape === 1 ? Math.min(width,height)/2 : 0
                                 color: "#153fe0b0"; border.width: 1; border.color: "#ffffff"
-                                Rectangle { anchors.fill: parent; anchors.margins: 1; color: "transparent"; border.width: 1; border.color: "#263a33" }
+                                Rectangle { anchors.fill: parent; anchors.margins: 1; radius: parent.radius; color: "transparent"; border.width: 1; border.color: "#263a33" }
                             }
                             MouseArea {
                                 id: drawingArea
                                 objectName: "drawingArea"
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                enabled: editor.tool!=="hand"
+                                enabled: editor.tool!=="hand" && editor.tool!=="rotateView"
+                                         && editor.tool!=="zoomTool"
                                 preventStealing: true
-                                cursorShape: editor.tool==="move" ? Qt.SizeAllCursor : (editor.tool==="brush" || editor.tool==="eraser") ? Qt.BlankCursor : Qt.CrossCursor
+                                cursorShape: editor.tool==="move" ? Qt.SizeAllCursor : window.paintToolActive ? Qt.BlankCursor : Qt.CrossCursor
                                 onPressed: function(mouse) { workspace.forceActiveFocus(); editor.beginStroke(mouse.x/zoom,mouse.y/zoom) }
                                 onPositionChanged: function(mouse) {
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
@@ -1277,6 +1448,78 @@ ApplicationWindow {
                                 }
                                 onReleased: editor.endStroke()
                                 onCanceled: editor.cancelStroke()
+                            }
+                            Canvas {
+                                id: rulerOverlay
+                                anchors.fill: parent
+                                z: 4
+                                enabled: false
+                                visible: window.rulerVisible
+                                onPaint: {
+                                    const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
+                                    const x1=window.rulerStart.x*zoom,y1=window.rulerStart.y*zoom
+                                    const x2=window.rulerEnd.x*zoom,y2=window.rulerEnd.y*zoom
+                                    c.strokeStyle="rgba(0,0,0,.85)";c.lineWidth=4
+                                    c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()
+                                    c.strokeStyle="#f5f7f9";c.lineWidth=2
+                                    c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()
+                                    for(const p of [{x:x1,y:y1},{x:x2,y:y2}]) {
+                                        c.beginPath();c.arc(p.x,p.y,4,0,Math.PI*2)
+                                        c.fillStyle="#f5f7f9";c.fill();c.strokeStyle="#101419";c.lineWidth=1;c.stroke()
+                                    }
+                                }
+                                Connections {
+                                    target: window
+                                    function onRulerStartChanged(){rulerOverlay.requestPaint()}
+                                    function onRulerEndChanged(){rulerOverlay.requestPaint()}
+                                    function onZoomChanged(){rulerOverlay.requestPaint()}
+                                }
+                            }
+                            Repeater {
+                                model: window.colorSamples
+                                delegate: Item {
+                                    required property var modelData
+                                    required property int index
+                                    x: modelData.x*zoom-7; y: modelData.y*zoom-7
+                                    z: 5; width: 148; height: 30
+                                    Rectangle { x: 6; y: 0; width: 2; height: 15; color: "#ffffff"; border.color: "#11161b" }
+                                    Rectangle { x: 0; y: 6; width: 15; height: 2; color: "#ffffff"; border.color: "#11161b" }
+                                    Rectangle {
+                                        x: 19; y: 2; width: 126; height: 24; radius: 4
+                                        color: "#dd20262e"; border.color: "#7d8995"
+                                        Row {
+                                            anchors.fill: parent;anchors.margins:4;spacing:5
+                                            Rectangle { width: 15;height:15;color:modelData.color;border.color:"#eef1f4" }
+                                            Text { text:(index+1)+"  "+modelData.label;color:"#eef1f4";font.pixelSize:9 }
+                                        }
+                                    }
+                                }
+                            }
+                            MouseArea {
+                                id: measureToolArea
+                                objectName: "measureToolArea"
+                                anchors.fill: parent
+                                z: 5
+                                enabled: editor.tool === "ruler" || editor.tool === "colorSampler"
+                                hoverEnabled: enabled
+                                preventStealing: true
+                                cursorShape: Qt.CrossCursor
+                                onPressed: function(mouse) {
+                                    workspace.forceActiveFocus()
+                                    const x=mouse.x/zoom,y=mouse.y/zoom
+                                    if(editor.tool==="colorSampler") {
+                                        if(mouse.modifiers&Qt.AltModifier) window.removeNearestColorSample(x,y)
+                                        else window.addColorSample(x,y)
+                                    } else {
+                                        window.rulerStart=Qt.point(x,y)
+                                        window.rulerEnd=Qt.point(x,y)
+                                        window.rulerVisible=true
+                                    }
+                                }
+                                onPositionChanged: function(mouse) {
+                                    if(pressed && editor.tool==="ruler")
+                                        window.rulerEnd=Qt.point(mouse.x/zoom,mouse.y/zoom)
+                                }
                             }
                             MouseArea {
                                 id: curvePickerArea
@@ -1366,7 +1609,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && (editor.tool==="brush" || editor.tool==="eraser")
+                                visible: drawingArea.containsMouse && window.paintToolActive
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2
@@ -1381,6 +1624,63 @@ ApplicationWindow {
                                 Connections { target: window; function onZoomChanged() { brushCursor.requestPaint() } }
                             }
                         }
+                    }
+                    MouseArea {
+                        id: zoomToolArea
+                        objectName: "zoomToolArea"
+                        anchors.fill: viewport
+                        z: 22
+                        enabled: editor.tool === "zoomTool" && !window.spacePressed
+                        hoverEnabled: enabled
+                        preventStealing: true
+                        cursorShape: Qt.CrossCursor
+                        property real pressX: 0
+                        property real pressY: 0
+                        property real initialZoom: 1
+                        property bool dragged: false
+                        property bool zoomOut: false
+                        onPressed: function(mouse) {
+                            workspace.forceActiveFocus()
+                            pressX=mouse.x;pressY=mouse.y;initialZoom=window.zoom;dragged=false
+                            zoomOut=Boolean(mouse.modifiers & Qt.AltModifier)
+                        }
+                        onPositionChanged: function(mouse) {
+                            if(!pressed) return
+                            const delta=mouse.x-pressX
+                            if(Math.abs(delta)<3 && !dragged) return
+                            dragged=true
+                            const factor=Math.exp((zoomOut?-delta:delta)/160)
+                            window.zoomAt(initialZoom*factor,pressX,pressY)
+                        }
+                        onReleased: function(mouse) {
+                            if(!dragged) window.zoomAt(window.zoom*(zoomOut?0.8:1.25),mouse.x,mouse.y)
+                        }
+                    }
+                    MouseArea {
+                        id: rotateToolArea
+                        objectName: "rotateToolArea"
+                        anchors.fill: viewport
+                        z: 22
+                        enabled: editor.tool === "rotateView" && !window.spacePressed
+                        hoverEnabled: enabled
+                        preventStealing: true
+                        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        property real startPointerAngle: 0
+                        property real startCanvasRotation: 0
+                        function pointerAngle(x,y) {
+                            const center=artboard.mapToItem(rotateToolArea,artboard.width/2,artboard.height/2)
+                            return Math.atan2(y-center.y,x-center.x)*180/Math.PI
+                        }
+                        onPressed: function(mouse) {
+                            workspace.forceActiveFocus()
+                            startPointerAngle=pointerAngle(mouse.x,mouse.y)
+                            startCanvasRotation=window.canvasRotation
+                        }
+                        onPositionChanged: function(mouse) {
+                            if(pressed) window.canvasRotation=startCanvasRotation
+                                    + pointerAngle(mouse.x,mouse.y)-startPointerAngle
+                        }
+                        onDoubleClicked: window.canvasRotation=0
                     }
                     MouseArea {
                         id: wheelArea
@@ -3034,7 +3334,14 @@ ApplicationWindow {
                                                         Accessible.name: itemTool ? qsTr("Afficher %1").arg(itemTool.label) : ""
                                                         onToggled: window.setToolVisible(groupCard.groupData.id, modelData, checked)
                                                     }
-                                                    Label { text: itemTool ? itemTool.icon : "?"; color: itemTool && itemTool.implemented ? "#c9d0d8" : "#66717d"; font.pixelSize: 17; Layout.preferredWidth: 25 }
+                                                    ToolIcon {
+                                                        Layout.preferredWidth: 25
+                                                        Layout.preferredHeight: 25
+                                                        toolName: itemTool ? itemTool.name : ""
+                                                        fallback: itemTool ? itemTool.icon : "?"
+                                                        fallbackPixelSize: 17
+                                                        iconColor: itemTool && itemTool.implemented ? "#c9d0d8" : "#66717d"
+                                                    }
                                                     Label {
                                                         Layout.fillWidth: true
                                                         text: itemTool ? itemTool.label + (itemTool.implemented ? "" : "  (NYI)") : modelData

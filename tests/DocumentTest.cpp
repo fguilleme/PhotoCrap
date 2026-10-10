@@ -87,13 +87,16 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 34);
+        QCOMPARE(shortcuts.entries().size(), 37);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
         QCOMPARE(shortcuts.sequence("brushSofter"), QString("Shift+["));
         QCOMPARE(shortcuts.sequence("brushHarder"), QString("Shift+]"));
         QCOMPARE(shortcuts.sequence("toolFill"), QString("G"));
+        QCOMPARE(shortcuts.sequence("toolRotate"), QString("R"));
+        QCOMPARE(shortcuts.sequence("toolZoom"), QString("Z"));
+        QCOMPARE(shortcuts.sequence("toolDodge"), QString("O"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -188,6 +191,135 @@ private slots:
         d.beginStroke(10, 10);
         d.endStroke();
         QVERIFY(!d.canRedo());
+    }
+    void pencilIsCrispAndSupportsPhotoshopAutoErase()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32, true));
+        d.setTool("pencil");
+        d.setBrushSize(5);
+        d.setBrushOpacity(1);
+        d.setBrushFlow(1);
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(12, 12);
+        d.endStroke();
+        QCOMPARE(d.composite().pixelColor(12, 12), QColor(Qt::red));
+        QCOMPARE(d.composite().pixelColor(15, 12).alpha(), 0);
+
+        d.setPencilAutoErase(true);
+        d.beginStroke(12, 12);
+        d.endStroke();
+        QCOMPARE(d.composite().pixelColor(12, 12), QColor(Qt::blue));
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(12, 12), QColor(Qt::red));
+    }
+    void geometricShapeToolsShareFillAndStrokeOptions()
+    {
+        Document d;
+        QVERIFY(d.newDocument(48, 48, true));
+        d.setFilledShapes(true);
+        d.setShapeFillColor(Qt::red);
+        d.setShapeStrokeEnabled(false);
+        for (const QString &tool :
+             {QStringLiteral("triangle"), QStringLiteral("polygon"), QStringLiteral("star")}) {
+            d.setTool(tool);
+            d.beginStroke(6, 6);
+            d.continueStroke(42, 42);
+            d.endStroke();
+            QVERIFY2(d.composite().pixelColor(24, 24).alpha() > 0,
+                     qPrintable(tool + " fills its dragged bounds"));
+            d.undo();
+            QCOMPARE(d.composite().pixelColor(24, 24).alpha(), 0);
+        }
+        d.setShapeSides(8);
+        QCOMPARE(d.shapeSides(), 8);
+        d.setShapeStarRatio(.35);
+        QCOMPARE(d.shapeStarRatio(), .35);
+    }
+    void geometricSelectionsClipPixelsToTheirActualShape()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32, true));
+        d.setColor(Qt::red);
+        d.setTool("ellipticalSelect");
+        d.beginStroke(4, 4);
+        d.continueStroke(28, 28);
+        d.endStroke();
+        QCOMPARE(d.selectionShape(), 1);
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::red));
+        QCOMPARE(d.composite().pixelColor(5, 5).alpha(), 0);
+
+        d.deselect();
+        d.clearSelected();
+        d.setColor(Qt::blue);
+        d.setTool("singleRowSelect");
+        d.beginStroke(8, 12);
+        d.endStroke();
+        QCOMPARE(d.selection(), QRect(0, 12, 32, 1));
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(8, 12), QColor(Qt::blue));
+        QCOMPARE(d.composite().pixelColor(8, 11).alpha(), 0);
+
+        d.deselect();
+        d.setColor(Qt::green);
+        d.setTool("singleColumnSelect");
+        d.beginStroke(20, 8);
+        d.endStroke();
+        QCOMPARE(d.selection(), QRect(20, 0, 1, 32));
+        d.fillWithColor(true);
+        QCOMPARE(d.composite().pixelColor(20, 4), QColor(Qt::green));
+        QCOMPARE(d.composite().pixelColor(19, 4).alpha(), 0);
+    }
+    void localRetouchToolsUseBrushCoverageAndRemainUndoable()
+    {
+        Document d;
+        QVERIFY(d.newDocument(48, 48, true));
+        d.setColor(QColor(128, 128, 128));
+        d.fillWithColor(true);
+        d.setBrushSize(18);
+        d.setBrushOpacity(1);
+        d.setBrushFlow(1);
+        d.setToolStrength(1);
+
+        d.setTool("dodge");
+        d.beginStroke(24, 24);
+        d.endStroke();
+        QVERIFY(d.composite().pixelColor(24, 24).red() > 128);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(24, 24).red(), 128);
+
+        d.setTool("burn");
+        d.beginStroke(24, 24);
+        d.endStroke();
+        QVERIFY(d.composite().pixelColor(24, 24).red() < 128);
+        d.undo();
+
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setSpongeSaturate(false);
+        d.setTool("sponge");
+        d.beginStroke(24, 24);
+        d.endStroke();
+        QVERIFY(d.composite().pixelColor(24, 24).green() > 0);
+
+        d.undo();
+        d.setColor(Qt::black);
+        d.setTool("pencil");
+        d.setBrushSize(8);
+        d.beginStroke(24, 24);
+        d.endStroke();
+        QCOMPARE(d.composite().pixelColor(24, 24), QColor(Qt::black));
+        const QColor untouched = d.composite().pixelColor(4, 4);
+        d.setBrushSize(20);
+        d.setTool("blur");
+        d.beginStroke(24, 24);
+        d.endStroke();
+        QVERIFY(d.composite().pixelColor(27, 24).red() > 0);
+        QCOMPARE(d.composite().pixelColor(4, 4), untouched);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(27, 24), QColor(Qt::black));
     }
     void brushHardnessFlowOpacityAndSpacingFollowDabs()
     {

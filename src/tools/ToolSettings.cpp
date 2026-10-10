@@ -5,9 +5,35 @@
 
 void Document::setTool(const QString &_value)
 {
-    static const QStringList tools{"brush",     "eraser",  "fill", "picker",   "move",
-                                   "rectangle", "ellipse", "line", "gradient", "select",
-                                   "crop",      "text",    "hand"};
+    static const QStringList tools{"brush",
+                                   "pencil",
+                                   "eraser",
+                                   "fill",
+                                   "picker",
+                                   "move",
+                                   "rectangle",
+                                   "ellipse",
+                                   "triangle",
+                                   "polygon",
+                                   "star",
+                                   "line",
+                                   "gradient",
+                                   "select",
+                                   "ellipticalSelect",
+                                   "singleRowSelect",
+                                   "singleColumnSelect",
+                                   "crop",
+                                   "text",
+                                   "hand",
+                                   "rotateView",
+                                   "zoomTool",
+                                   "blur",
+                                   "sharpen",
+                                   "dodge",
+                                   "burn",
+                                   "sponge",
+                                   "colorSampler",
+                                   "ruler"};
     if (!tools.contains(_value))
         return;
     endStroke();
@@ -104,6 +130,45 @@ void Document::setBrushBlend(int _value)
         emit settingsChanged();
     }
 }
+void Document::setPencilAutoErase(bool _value)
+{
+    if (m_pencilAutoErase == _value)
+        return;
+    m_pencilAutoErase = _value;
+    emit settingsChanged();
+}
+void Document::setToolStrength(qreal _value)
+{
+    if (!std::isfinite(_value))
+        return;
+    const qreal strength = qBound(.01, _value, 1.);
+    if (qFuzzyCompare(m_toolStrength, strength))
+        return;
+    m_toolStrength = strength;
+    emit settingsChanged();
+}
+void Document::setSpongeSaturate(bool _value)
+{
+    if (m_spongeSaturate == _value)
+        return;
+    m_spongeSaturate = _value;
+    emit settingsChanged();
+}
+void Document::setRetouchRange(int _value)
+{
+    const int range = qBound(0, _value, 2);
+    if (m_retouchRange == range)
+        return;
+    m_retouchRange = range;
+    emit settingsChanged();
+}
+void Document::setProtectTones(bool _value)
+{
+    if (m_protectTones == _value)
+        return;
+    m_protectTones = _value;
+    emit settingsChanged();
+}
 void Document::setText(const QString &_value)
 {
     m_text = _value.left(4096);
@@ -175,5 +240,23 @@ void Document::setShapeAlignPixels(bool _value)
     if (m_shapeAlignPixels == _value)
         return;
     m_shapeAlignPixels = _value;
+    emit settingsChanged();
+}
+void Document::setShapeSides(int _value)
+{
+    const int sides = qBound(3, _value, 100);
+    if (m_shapeSides == sides)
+        return;
+    m_shapeSides = sides;
+    emit settingsChanged();
+}
+void Document::setShapeStarRatio(qreal _value)
+{
+    if (!std::isfinite(_value))
+        return;
+    const qreal ratio = qBound(.05, _value, .95);
+    if (qFuzzyCompare(m_shapeStarRatio, ratio))
+        return;
+    m_shapeStarRatio = ratio;
     emit settingsChanged();
 }

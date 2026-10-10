@@ -27,13 +27,17 @@ void Document::redo()
 void Document::selectAll()
 {
     endStroke();
-    m_selection = QRect(QPoint{}, m_size);
+    m_selection       = QRect(QPoint{}, m_size);
+    m_selectionRegion = QRegion(m_selection);
+    m_selectionShape  = 0;
     emit selectionChanged();
 }
 void Document::deselect()
 {
     endStroke();
-    m_selection = {};
+    m_selection       = {};
+    m_selectionRegion = {};
+    m_selectionShape  = 0;
     emit selectionChanged();
 }
 void Document::clearSelected()
@@ -45,11 +49,13 @@ void Document::clearSelected()
         if (!target)
             return;
         QPainter p(target);
+        if (hasSelection())
+            p.setClipRegion(m_selectionRegion);
         if (m_editingMask)
-            p.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size), Qt::black);
+            p.fillRect(QRect(QPoint{}, m_size), Qt::black);
         else {
             p.setCompositionMode(QPainter::CompositionMode_Clear);
-            p.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size), Qt::transparent);
+            p.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
         }
     });
 }
@@ -65,10 +71,12 @@ void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
              if (!target)
                  return;
              QPainter painter(target);
+             if (hasSelection())
+                 painter.setClipRegion(m_selectionRegion);
              if (_preserveTransparency && !m_editingMask)
                  painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
              const int maskValue = qGray(color.rgb());
-             painter.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size),
+             painter.fillRect(QRect(QPoint{}, m_size),
                               m_editingMask ? QColor::fromRgb(maskValue, maskValue, maskValue)
                                             : color);
          });
@@ -83,15 +91,23 @@ void Document::fillMaskWithColor(const QColor &_color)
             return;
         const int value = qGray(_color.rgb());
         QPainter  painter(target);
-        painter.fillRect(hasSelection() ? m_selection : QRect(QPoint{}, m_size),
-                         QColor::fromRgb(value, value, value));
+        if (hasSelection())
+            painter.setClipRegion(m_selectionRegion);
+        painter.fillRect(QRect(QPoint{}, m_size), QColor::fromRgb(value, value, value));
     });
 }
 void Document::copy()
 {
     endStroke();
-    QGuiApplication::clipboard()->setImage(hasSelection() ? composite().copy(m_selection)
-                                                          : composite());
+    if (hasSelection()) {
+        QImage   selection = ImageUtils::blank(m_selection.size());
+        QPainter painter(&selection);
+        painter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
+        painter.drawImage(-m_selection.topLeft(), composite());
+        painter.end();
+        QGuiApplication::clipboard()->setImage(selection);
+    } else
+        QGuiApplication::clipboard()->setImage(composite());
     emit statusMessage(tr("Copie de l’image visible dans le presse-papiers"));
 }
 void Document::paste()
@@ -125,8 +141,10 @@ void Document::cropToSelection()
             if (!layer.source.isNull())
                 layer.source = layer.source.copy(m_selection);
         }
-        m_size      = m_selection.size();
-        m_selection = {};
+        m_size            = m_selection.size();
+        m_selection       = {};
+        m_selectionRegion = {};
+        m_selectionShape  = 0;
     });
     emit documentChanged();
     emit selectionChanged();
@@ -147,8 +165,10 @@ void Document::resizeImage(int _w, int _h)
                 layer.source =
                     layer.source.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         }
-        m_size      = {_w, _h};
-        m_selection = {};
+        m_size            = {_w, _h};
+        m_selection       = {};
+        m_selectionRegion = {};
+        m_selectionShape  = 0;
     });
     emit documentChanged();
     emit selectionChanged();
@@ -179,7 +199,9 @@ void Document::transformImage(const QString &_operation)
         }
         if (_operation.startsWith("rotate"))
             m_size.transpose();
-        m_selection = {};
+        m_selection       = {};
+        m_selectionRegion = {};
+        m_selectionShape  = 0;
     });
     emit documentChanged();
     emit selectionChanged();

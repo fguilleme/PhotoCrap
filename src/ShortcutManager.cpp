@@ -57,7 +57,11 @@ const char *translatedShortcutText(const QString &_source)
         {"Rectangle", QT_TRANSLATE_NOOP("ShortcutManager", "Rectangle")},
         {"Ellipse", QT_TRANSLATE_NOOP("ShortcutManager", "Ellipse")},
         {"Ligne", QT_TRANSLATE_NOOP("ShortcutManager", "Ligne")},
-        {"Navigation", QT_TRANSLATE_NOOP("ShortcutManager", "Navigation")}};
+        {"Navigation", QT_TRANSLATE_NOOP("ShortcutManager", "Navigation")},
+        {"Rotation de l’affichage",
+         QT_TRANSLATE_NOOP("ShortcutManager", "Rotation de l’affichage")},
+        {"Zoom", QT_TRANSLATE_NOOP("ShortcutManager", "Zoom")},
+        {"Densité", QT_TRANSLATE_NOOP("ShortcutManager", "Densité")}};
     return texts.value(_source, nullptr);
 }
 
@@ -122,7 +126,10 @@ ShortcutManager::ShortcutManager(QObject *_parent, bool _persist)
         {"toolPicker", "Outils", "Pipette", "I", {}},
         {"toolText", "Outils", "Texte rasterisé", "T", {}},
         {"toolRectangle", "Outils", "Formes", "U", {}},
-        {"toolHand", "Outils", "Navigation", "H", {}}};
+        {"toolHand", "Outils", "Navigation", "H", {}},
+        {"toolRotate", "Outils", "Rotation de l’affichage", "R", {}},
+        {"toolZoom", "Outils", "Zoom", "Z", {}},
+        {"toolDodge", "Outils", "Densité", "O", {}}};
     for (auto &entry : m_entries)
         entry.sequence = entry.defaultSequence;
     load();

@@ -279,7 +279,8 @@ void Document::addLayerMask(bool _revealAll)
         mask.fill(hasSelection() ? (_revealAll ? 0 : 255) : (_revealAll ? 255 : 0));
         if (hasSelection()) {
             QPainter painter(&mask);
-            painter.fillRect(m_selection, _revealAll ? Qt::white : Qt::black);
+            painter.setClipRegion(m_selectionRegion);
+            painter.fillRect(QRect(QPoint{}, m_size), _revealAll ? Qt::white : Qt::black);
         }
         m_layers[m_active].mask        = mask;
         m_layers[m_active].maskEnabled = true;

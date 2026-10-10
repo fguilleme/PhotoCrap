@@ -337,7 +337,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 34,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 37,
                  "keyboard settings list is populated"))
         return false;
     _window->setProperty("preferencesPage", 2);
@@ -363,7 +363,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, QVariant()));
     QTest::qWait(100);
-    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 3,
+    if (!require(toolMenu->property("visible").toBool() && toolMenu->property("count").toInt() == 6,
                  "right click exposes the tools in a toolbar group"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");

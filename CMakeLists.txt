@@ -22,6 +22,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
     src/tools/ShapeTools.cpp
+    src/tools/RetouchTools.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -157,6 +158,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
     src/tools/ShapeTools.cpp
+    src/tools/RetouchTools.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/ImageUtils.h
@@ -234,6 +236,7 @@ qt_add_qml_module(PhotoCrap
         qml/DialogActionButton.qml
         qml/DockablePanel.qml
         qml/IconButton.qml
+        qml/ToolIcon.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml

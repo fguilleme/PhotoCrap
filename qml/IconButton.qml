@@ -4,6 +4,7 @@ import QtQuick.Controls
 Button {
     id: control
     property string glyph: ""
+    property string toolName: ""
     property string hint: ""
     property bool selected: false
     property bool hasMenu: false
@@ -19,12 +20,16 @@ Button {
         border.width: control.selected ? 1 : 0
         border.color: "#668f78"
     }
-    contentItem: Text {
-        text: control.glyph.length ? control.glyph : control.text
-        color: !control.enabled ? "#545d68" : control.selected ? "#c5f2cf" : "#c0c7d0"
-        font.pixelSize: control.glyph.length ? 19 : 12
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
+    contentItem: Item {
+        ToolIcon {
+            anchors.centerIn: parent
+            width: 24
+            height: 24
+            toolName: control.toolName
+            fallback: control.glyph.length ? control.glyph : control.text
+            fallbackPixelSize: control.glyph.length ? 19 : 12
+            iconColor: !control.enabled ? "#545d68" : control.selected ? "#c5f2cf" : "#c0c7d0"
+        }
     }
     Text {
         visible: control.hasMenu

@@ -10,6 +10,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QThreadPool>
@@ -317,6 +318,196 @@ private slots:
         d.fillWithColor(true);
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
+    }
+    void colorReplacementSamplingUndoAndLocality()
+    {
+        QTemporaryDir dir;
+        QImage        image(80, 40, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::blue);
+        QPainter painter(&image);
+        painter.fillRect(0, 0, 30, 40, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("replacement.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        d.setTool("colorReplacement");
+        QCOMPARE(d.tool(), QString("colorReplacement"));
+        d.setBrushSize(8);
+        d.setBrushSmoothing(0);
+        d.setBrushHardness(1);
+        d.setColor(Qt::green);
+        d.setReplacementTolerance(0);
+        d.setReplacementSampling(1);
+        const int history = d.historyIndex();
+        d.beginStroke(20, 20);
+        d.continueStroke(50, 20);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(20, 20).green() > 100);
+        QCOMPARE(d.layerImage(0).pixelColor(45, 20), QColor(Qt::blue));
+        for (int y = 0; y < 40; ++y)
+            for (int x = 0; x < 80; ++x)
+                if (x < 15 || x > 55 || y < 15 || y > 25)
+                    QCOMPARE(d.layerImage(0).pixelColor(x, y), image.pixelColor(x, y));
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QVERIFY(d.layerImage(0).pixelColor(20, 20).green() > 100);
+        d.undo();
+        d.setReplacementSampling(0);
+        d.beginStroke(20, 20);
+        d.continueStroke(50, 20);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(45, 20).green() > 0);
+        d.undo();
+        d.beginStroke(20, 20);
+        d.continueStroke(50, 20);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0), original);
+        d.setReplacementSampling(2);
+        d.setReplacementLimits(1);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(20, 20);
+        d.continueStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(20, 20), QColor(Qt::red));
+        QVERIFY(d.layerImage(0).pixelColor(45, 20).green() > 0);
+        const int beforePick = d.historyIndex();
+        d.beginStroke(2, 2, true);
+        d.continueStroke(60, 20);
+        d.endStroke();
+        QCOMPARE(d.color(), QColor(Qt::red));
+        QCOMPARE(d.historyIndex(), beforePick);
+    }
+    void colorReplacementLimitsToleranceAndEdges()
+    {
+        QTemporaryDir dir;
+        QImage        image(40, 24, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::red);
+        QPainter painter(&image);
+        painter.fillRect(19, 0, 2, 24, Qt::blue);
+        painter.end();
+        const QString path = dir.filePath("islands.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("colorReplacement");
+        d.setBrushSize(40);
+        d.setBrushHardness(1);
+        d.setColor(Qt::green);
+        d.setReplacementTolerance(0);
+        d.beginStroke(16, 12);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(16, 12).green() > 100);
+        QCOMPARE(d.layerImage(0).pixelColor(25, 12), QColor(Qt::red));
+        QCOMPARE(d.layerImage(0).pixelColor(20, 12), QColor(Qt::blue));
+        d.undo();
+        d.setReplacementLimits(1);
+        d.beginStroke(16, 12);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(25, 12).green() > 100);
+        QCOMPARE(d.layerImage(0).pixelColor(20, 12), QColor(Qt::blue));
+        d.undo();
+        d.setReplacementLimits(0);
+        d.setReplacementTolerance(100);
+        d.beginStroke(16, 12);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(20, 12).green() > 0);
+        d.undo();
+        d.setReplacementLimits(2);
+        d.beginStroke(16, 12);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(20, 12), QColor(Qt::blue));
+        QCOMPARE(d.layerImage(0).pixelColor(25, 12), QColor(Qt::red));
+    }
+    void colorReplacementAntialiasAndUnchangedStroke()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 24, true));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setTool("colorReplacement");
+        d.setBrushSize(8);
+        d.setBrushHardness(1);
+        d.setColor(Qt::green);
+        d.setReplacementAntialias(false);
+        d.beginStroke(16.25, 12.25);
+        d.endStroke();
+        const auto mixedPixels = [](const QImage &_image) {
+            int count = 0;
+            for (int y = 0; y < _image.height(); ++y)
+                for (int x = 0; x < _image.width(); ++x) {
+                    const QColor c = _image.pixelColor(x, y);
+                    if (c.red() > 0 && c.green() > 0)
+                        ++count;
+                }
+            return count;
+        };
+        QCOMPARE(mixedPixels(d.layerImage(0)), 0);
+        d.undo();
+        d.setReplacementAntialias(true);
+        d.beginStroke(16.25, 12.25);
+        d.endStroke();
+        QVERIFY(mixedPixels(d.layerImage(0)) > 0);
+        d.undo();
+        d.setColor(Qt::red);
+        const int history = d.historyIndex();
+        d.beginStroke(16, 12);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history);
+    }
+    void colorReplacementModesPreserveAlphaAndLuminosity()
+    {
+        QTemporaryDir dir;
+        QImage        image(32, 24, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(200, 80, 50, 180));
+        image.setPixelColor(16, 11, Qt::transparent);
+        const QString path = dir.filePath("modes.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("colorReplacement");
+        d.setBrushSize(16);
+        d.setBrushHardness(1);
+        d.setReplacementLimits(1);
+        d.setColor(QColor(40, 170, 100));
+        const QColor original = d.layerImage(0).pixelColor(16, 12);
+        const auto   lum      = [](const QColor &_c) {
+            return .3 * _c.red() + .59 * _c.green() + .11 * _c.blue();
+        };
+        for (int mode = 0; mode < 4; ++mode) {
+            d.setReplacementMode(mode);
+            d.beginStroke(16, 12);
+            d.endStroke();
+            const QColor result = d.layerImage(0).pixelColor(16, 12);
+            QCOMPARE(result.alpha(), original.alpha());
+            QCOMPARE(d.layerImage(0).pixelColor(16, 11).alpha(), 0);
+            QVERIFY(result != original);
+            const qreal expected = mode == 3 ? lum(d.color()) : lum(original);
+            QVERIFY(qAbs(lum(result) - expected) < 2);
+            if (mode == 2) {
+                const QColor ink      = d.color();
+                const int    range    = qMax(result.red(), qMax(result.green(), result.blue())) -
+                                        qMin(result.red(), qMin(result.green(), result.blue()));
+                const int    inkRange = qMax(ink.red(), qMax(ink.green(), ink.blue())) -
+                                        qMin(ink.red(), qMin(ink.green(), ink.blue()));
+                QVERIFY(qAbs(range - inkRange) < 3);
+            }
+            d.undo();
+        }
+        d.setTool("ellipticalSelect");
+        d.beginStroke(10, 6);
+        d.continueStroke(22, 18);
+        d.endStroke();
+        d.setTool("colorReplacement");
+        d.setReplacementMode(0);
+        d.setBrushSize(30);
+        d.beginStroke(16, 12);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(16, 12) != original);
+        QCOMPARE(d.layerImage(0).pixelColor(10, 6), image.pixelColor(10, 6));
     }
     void smudgeTransportsPaintOnlyAlongTheStrokeAndRemainsUndoable()
     {

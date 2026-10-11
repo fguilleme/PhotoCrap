@@ -39,6 +39,8 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
         m_smoothedLast = target;
     }
     renderBrushStroke();
+    if (m_tool == "colorReplacement" && m_strokeBounds.isEmpty())
+        return;
     m_strokeChanged = true;
     changed(false);
 }
@@ -46,6 +48,10 @@ void Document::stampBrush(const QPointF &_point)
 {
     if (m_tool == "smudge") {
         smudgeDab(_point);
+        return;
+    }
+    if (m_tool == "colorReplacement") {
+        colorReplacementDab(_point);
         return;
     }
     QPainter painter(&m_strokeCoverage);
@@ -72,7 +78,7 @@ void Document::stampBrush(const QPointF &_point)
 }
 void Document::renderBrushStroke()
 {
-    if (m_tool == "smudge")
+    if (m_tool == "smudge" || m_tool == "colorReplacement")
         return;
     if (m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" ||
         m_tool == "sponge") {

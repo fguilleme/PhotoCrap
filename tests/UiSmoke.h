@@ -489,6 +489,26 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _document.undo();
     _document.setToolStrength(.5);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "brush"),
+                              Q_ARG(QVariant, "colorReplacement"));
+    QTest::qWait(60);
+    for (const char *name : {"replacementMode", "replacementSampling", "replacementLimits",
+                             "replacementTolerance", "replacementAntialias"}) {
+        auto control = _window->findChild<QObject *>(name);
+        if (!require(control && control->property("visible").toBool(),
+                     "Color Replacement exposes its specialised controls"))
+            return false;
+    }
+    if (!require(_document.tool() == "colorReplacement" && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "Color Replacement is enabled in group B with a single native brush cursor"))
+        return false;
+    const int beforeReplacementPick = _document.historyIndex();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, sourceClick);
+    QTest::qWait(40);
+    if (!require(_document.historyIndex() == beforeReplacementPick,
+                 "Option/Alt samples colour without creating a paint stroke"))
+        return false;
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

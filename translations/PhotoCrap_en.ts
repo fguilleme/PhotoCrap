@@ -617,6 +617,7 @@
     <message><source>Un motif peut mesurer jusqu’à 1 024 × 1 024 pixels.</source><translation>A pattern can be up to 1,024 × 1,024 pixels.</translation></message>
     <message><source>Option/Alt-clic sur l’image pour définir la source du tampon.</source><translation>Option/Alt-click the image to set the clone source.</translation></message>
     <message><source>Doigt</source><translation>Smudge</translation></message>
+<message><source>Remplacement de couleur</source><translation>Color Replacement</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2348,6 +2349,14 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Utiliser la zone sélectionnée comme motif répétitif</source><translation>Use the selected area as a repeating pattern</translation></message>
     <message><source>Peinture au doigt</source><translation>Finger Painting</translation></message>
     <message><source>Commencer avec la couleur de premier plan ; Option/Alt l’active temporairement</source><translation>Start with the foreground color; Option/Alt enables this temporarily</translation></message>
+<message><source>Mode de remplacement</source><translation>Replacement mode</translation></message>
+<message><source>En continu</source><translation>Continuous</translation></message>
+<message><source>Une fois</source><translation>Once</translation></message>
+<message><source>Couleur à remplacer : sous la pointe, au début du trait ou couleur d’arrière-plan</source><translation>Colour to replace: under the tip, at stroke start, or the background colour</translation></message>
+<message><source>Contiguës</source><translation>Contiguous</translation></message>
+<message><source>Discontiguës</source><translation>Discontiguous</translation></message>
+<message><source>Contours</source><translation>Find Edges</translation></message>
+<message><source>Limites du remplacement</source><translation>Replacement limits</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>

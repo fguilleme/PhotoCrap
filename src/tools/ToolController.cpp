@@ -13,7 +13,8 @@ bool isPaintStrokeTool(const QString &_tool)
 {
     return _tool == "brush" || _tool == "pencil" || _tool == "eraser" || _tool == "blur" ||
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
-           _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge";
+           _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
+           _tool == "colorReplacement";
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -27,6 +28,7 @@ QString toolLabel(const QString &_tool)
     static const QMap<QString, const char *> labels{
         {"brush", QT_TRANSLATE_NOOP("Document", "Pinceau")},
         {"pencil", QT_TRANSLATE_NOOP("Document", "Crayon")},
+        {"colorReplacement", QT_TRANSLATE_NOOP("Document", "Remplacement de couleur")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
         {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
@@ -68,7 +70,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate)
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
         m_tool == "colorSampler" || m_tool == "ruler")
         return;
-    if (m_tool == "picker") {
+    if (m_tool == "picker" || (m_tool == "colorReplacement" && _alternate)) {
         if (composite().rect().contains(QPoint(int(_x), int(_y))))
             setColor(composite().pixelColor(int(_x), int(_y)));
         return;
@@ -132,6 +134,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate)
         }
         m_strokeBase     = *target;
         m_strokeInkColor = m_color;
+        if (m_tool == "colorReplacement") {
+            const QPoint sample(int(std::floor(_x)), int(std::floor(_y)));
+            m_replacementSample =
+                target->rect().contains(sample) ? target->pixelColor(sample) : QColor{};
+        }
         if (m_tool == "pencil" && m_pencilAutoErase &&
             target->rect().contains(QPoint(int(_x), int(_y))) &&
             target->pixelColor(int(_x), int(_y)).rgba() == m_color.rgba())

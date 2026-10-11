@@ -85,6 +85,16 @@ class Document : public QObject
                    NOTIFY settingsChanged)
     Q_PROPERTY(bool smudgeFingerPainting READ smudgeFingerPainting WRITE setSmudgeFingerPainting
                    NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int replacementMode READ replacementMode WRITE setReplacementMode NOTIFY settingsChanged)
+    Q_PROPERTY(int replacementSampling READ replacementSampling WRITE setReplacementSampling NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(int replacementLimits READ replacementLimits WRITE setReplacementLimits NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(int replacementTolerance READ replacementTolerance WRITE setReplacementTolerance
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool replacementAntialias READ replacementAntialias WRITE setReplacementAntialias
+                   NOTIFY settingsChanged)
     Q_PROPERTY(bool stampAligned READ stampAligned WRITE setStampAligned NOTIFY settingsChanged)
     Q_PROPERTY(
         int cloneSampleMode READ cloneSampleMode WRITE setCloneSampleMode NOTIFY settingsChanged)
@@ -364,6 +374,31 @@ public:
     }
     void setSmudgeSampleAllLayers(bool _value);
     void setSmudgeFingerPainting(bool _value);
+    int  replacementMode() const
+    {
+        return m_replacementMode;
+    }
+    int replacementSampling() const
+    {
+        return m_replacementSampling;
+    }
+    int replacementLimits() const
+    {
+        return m_replacementLimits;
+    }
+    int replacementTolerance() const
+    {
+        return m_replacementTolerance;
+    }
+    bool replacementAntialias() const
+    {
+        return m_replacementAntialias;
+    }
+    void setReplacementMode(int _value);
+    void setReplacementSampling(int _value);
+    void setReplacementLimits(int _value);
+    void setReplacementTolerance(int _value);
+    void setReplacementAntialias(bool _value);
     bool stampAligned() const
     {
         return m_stampAligned;
@@ -562,6 +597,11 @@ private:
     bool   m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
     QImage m_smudgePickup, m_smudgeMask, m_smudgeSample;
 
+    int    m_replacementMode = 0, m_replacementSampling = 0, m_replacementLimits = 0;
+    int    m_replacementTolerance = 30;
+    bool   m_replacementAntialias = true;
+    QColor m_replacementSample;
+
     qreal                          m_toolStrength   = .5;
     bool                           m_spongeSaturate = false;
     int                            m_retouchRange   = 1;
@@ -668,6 +708,7 @@ private:
     void    renderRetouchStroke();
     void    prepareSmudgeStroke(bool _alternate);
     void    smudgeDab(const QPointF &_point);
+    void    colorReplacementDab(const QPointF &_point);
     bool    prepareStampStroke();
     void    renderStampStroke();
     QImage  stampPatternImage() const;

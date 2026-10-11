@@ -106,7 +106,8 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
     QCursor cursor = _tool == QStringLiteral("magicWand")
                          ? magicWandCursor(_selectionMode)
                          : QCursor(static_cast<Qt::CursorShape>(_shape));
-    if ((_tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge") &&
+    if ((_tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
+         _tool == "colorReplacement") &&
         _shape == Qt::BlankCursor && !(_sourcePicking && _tool == "cloneStamp") && m_document) {
         const qreal diameter =
             qBound(2., m_document->brushSize() * width() / qMax(1, m_document->width()), 500.);
@@ -124,6 +125,15 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         painter.drawEllipse(QPointF{}, diameter / 2., diameter / 2.);
         painter.setPen(QPen(Qt::white, 1));
         painter.drawEllipse(QPointF{}, diameter / 2., diameter / 2.);
+        if (_tool == "colorReplacement") {
+            painter.resetTransform();
+            painter.translate(size / 2., size / 2.);
+            for (const QPen pen : {QPen(Qt::black, 3), QPen(Qt::white, 1)}) {
+                painter.setPen(pen);
+                painter.drawLine(QPointF(-4, 0), QPointF(4, 0));
+                painter.drawLine(QPointF(0, -4), QPointF(0, 4));
+            }
+        }
         painter.end();
         cursor = QCursor(pixmap, size / 2, size / 2);
     }

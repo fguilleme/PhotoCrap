@@ -27,6 +27,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/SmartSelectionTools.cpp
     src/tools/StampTools.cpp
     src/tools/SmudgeTool.cpp
+    src/tools/ColorReplacementTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -167,6 +168,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/SmartSelectionTools.cpp
     src/tools/StampTools.cpp
     src/tools/SmudgeTool.cpp
+    src/tools/ColorReplacementTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/ImageUtils.h

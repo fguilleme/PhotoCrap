@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,13 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "cloneStamp" || root.toolName === "patternStamp") {
+            if (root.toolName === "colorReplacement") {
+                ctx.beginPath(); ctx.moveTo(5, 17); ctx.lineTo(15, 3)
+                ctx.lineTo(18, 5); ctx.lineTo(8, 19); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(5, 16); ctx.bezierCurveTo(0, 16, 5, 21, 2, 22)
+                ctx.bezierCurveTo(6, 23, 9, 20, 8, 18); ctx.closePath(); ctx.fill()
+                ctx.fillRect(13, 14, 6, 6); ctx.strokeRect(17, 18, 5, 5)
+            } else if (root.toolName === "cloneStamp" || root.toolName === "patternStamp") {
                 ctx.beginPath(); ctx.moveTo(8, 15); ctx.lineTo(9, 10)
                 ctx.bezierCurveTo(5, 4, 7, 2, 12, 2)
                 ctx.bezierCurveTo(17, 2, 19, 4, 15, 10)

@@ -55,7 +55,7 @@ ApplicationWindow {
                                                  || editor.tool === "magicWand"
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
-    readonly property int canvasCursorShape: window.stampSourcePicking && editor.tool === "cloneStamp"
+    readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "cloneStamp" || editor.tool === "colorReplacement")
                                              ? Qt.CrossCursor
                                              : window.spacePressed || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
@@ -72,7 +72,7 @@ ApplicationWindow {
                                               || editor.tool === "dodge" || editor.tool === "burn"
                                               || editor.tool === "sponge" || editor.tool === "smudge"
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                            || editor.tool === "eraser" || retouchToolActive || stampToolActive
+                                            || editor.tool === "eraser" || editor.tool === "colorReplacement" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                               || editor.tool === "eraser" || editor.tool === "fill"
                                               || editor.tool === "gradient" || editor.tool === "text" || stampToolActive
@@ -161,7 +161,7 @@ ApplicationWindow {
         {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:false},
         {name:"brush", icon:"╱", label:qsTr("Pinceau"), implemented:true},
         {name:"pencil", icon:"✎", label:qsTr("Crayon"), implemented:true},
-        {name:"colorReplacement", icon:"♢", label:qsTr("Remplacement de couleur"), implemented:false},
+        {name:"colorReplacement", icon:"♢", label:qsTr("Remplacement de couleur"), implemented:true},
         {name:"mixerBrush", icon:"♨", label:qsTr("Pinceau mélangeur"), implemented:false},
         {name:"cloneStamp", icon:"♟", label:qsTr("Tampon de duplication"), implemented:true},
         {name:"patternStamp", icon:"♟", label:qsTr("Tampon de motif"), implemented:true},
@@ -1113,8 +1113,8 @@ ApplicationWindow {
                 }
                 Label { visible: window.paintToolActive || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
                 DarkSpinBox { visible: window.paintToolActive || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
                 Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
                 DarkSpinBox {
                     objectName: "selectionTolerance"
@@ -1223,6 +1223,51 @@ ApplicationWindow {
                     onToggled: editor.smudgeFingerPainting = checked
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Commencer avec la couleur de premier plan ; Option/Alt l’active temporairement")
+                }
+                ComboBox {
+                    objectName: "replacementMode"
+                    visible: editor.tool === "colorReplacement"
+                    model: [qsTr("Couleur"), qsTr("Teinte"), qsTr("Saturation"), qsTr("Luminosité")]
+                    currentIndex: editor.replacementMode
+                    implicitWidth: 116; implicitHeight: 30
+                    onActivated: editor.replacementMode = currentIndex
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Mode de remplacement")
+                }
+                ComboBox {
+                    objectName: "replacementSampling"
+                    visible: editor.tool === "colorReplacement"
+                    model: [qsTr("En continu"), qsTr("Une fois"), qsTr("Arrière-plan")]
+                    currentIndex: editor.replacementSampling
+                    implicitWidth: 126; implicitHeight: 30
+                    onActivated: editor.replacementSampling = currentIndex
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Couleur à remplacer : sous la pointe, au début du trait ou couleur d’arrière-plan")
+                }
+                ComboBox {
+                    objectName: "replacementLimits"
+                    visible: editor.tool === "colorReplacement"
+                    model: [qsTr("Contiguës"), qsTr("Discontiguës"), qsTr("Contours")]
+                    currentIndex: editor.replacementLimits
+                    implicitWidth: 126; implicitHeight: 30
+                    onActivated: editor.replacementLimits = currentIndex
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Limites du remplacement")
+                }
+                Label { visible: editor.tool === "colorReplacement"; text: qsTr("Tolérance"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "replacementTolerance"
+                    visible: editor.tool === "colorReplacement"
+                    from: 0; to: 100; value: editor.replacementTolerance
+                    suffix: " %"; implicitWidth: 90
+                    onValueModified: editor.replacementTolerance = value
+                }
+                CheckBox {
+                    objectName: "replacementAntialias"
+                    visible: editor.tool === "colorReplacement"
+                    text: qsTr("Lissage")
+                    checked: editor.replacementAntialias
+                    onToggled: editor.replacementAntialias = checked
                 }
                 Label { visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Gamme"); color: "#87929e" }
                 ComboBox {
@@ -1995,7 +2040,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "smudge" && (window.paintToolActive || editor.tool === "quickSelection")
+                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "smudge" && editor.tool !== "colorReplacement" && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2

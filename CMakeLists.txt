@@ -71,8 +71,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/SelectiveColorFilter.h
     src/filters/ThresholdFilter.h
     src/LanguageManager.h
-    src/MacApplicationMenu.h
-    src/MacApplicationMenu.mm
+    tests/MacApplicationMenuTest.h
+    tests/MacApplicationMenuTest.mm
     src/RecentFilesManager.h
     src/ShortcutManager.h
     src/WorkspaceSettings.h
@@ -222,8 +222,6 @@ qt_add_executable(PhotoCrap
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
-        src/MacApplicationMenu.h
-        src/MacApplicationMenu.mm
         packaging/macos/PhotoCrap.icns
     )
     set_source_files_properties(packaging/macos/PhotoCrap.icns PROPERTIES
@@ -301,6 +299,14 @@ endif()
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     target_sources(PhotoCrap PRIVATE tests/UiSmoke.h)
+    if(APPLE)
+        target_sources(PhotoCrap PRIVATE tests/MacApplicationMenuTest.h tests/MacApplicationMenuTest.mm)
+        add_test(NAME macos_preferences COMMAND PhotoCrap --smoke-test --native-menu-test)
+        set_tests_properties(macos_preferences PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_QUICK_BACKEND=software"
+            TIMEOUT 30
+        )
+    endif()
     target_compile_definitions(PhotoCrap PRIVATE PHOTOCRAP_TESTING)
     target_link_libraries(PhotoCrap PRIVATE Qt6::Test)
     qt_add_executable(photocrap_tests

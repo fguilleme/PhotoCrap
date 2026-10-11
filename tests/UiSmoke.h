@@ -352,6 +352,32 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(preferences, "close");
     QTest::qWait(80);
+    auto preferencesAction = _window->findChild<QObject *>("preferencesAction");
+    if (!require(preferencesAction, "application preferences action exists"))
+        return false;
+    QMetaObject::invokeMethod(preferencesAction, "trigger");
+    QTest::qWait(80);
+    if (!require(preferences->property("visible").toBool() &&
+                     !brushSettings->property("visible").toBool(),
+                 "preferences menu action opens application settings, not brush properties"))
+        return false;
+    QMetaObject::invokeMethod(preferences, "close");
+    QTest::qWait(80);
+    // Headless platforms may have no standard Preferences binding. The Cocoa
+    // regression test below exercises Command-comma through the native menu.
+    const auto preferencesShortcut = preferencesAction->property("shortcut").toString();
+    if (!preferencesShortcut.isEmpty()) {
+        QTest::keySequence(
+            _window, QKeySequence::fromString(preferencesShortcut, QKeySequence::PortableText));
+        QTest::qWait(80);
+        if (!require(
+                preferences->property("visible").toBool() &&
+                    !brushSettings->property("visible").toBool(),
+                "preferences keyboard shortcut opens application settings, not brush properties"))
+            return false;
+        QMetaObject::invokeMethod(preferences, "close");
+        QTest::qWait(80);
+    }
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "ellipse"));
     QTest::qWait(40);

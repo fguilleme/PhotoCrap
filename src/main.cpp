@@ -11,11 +11,11 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTimer>
-#ifdef Q_OS_MACOS
-#include "MacApplicationMenu.h"
-#endif
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/UiSmoke.h"
+#ifdef Q_OS_MACOS
+#include "../tests/MacApplicationMenuTest.h"
+#endif
 #endif
 
 class ThumbnailProvider : public QQuickImageProvider
@@ -81,10 +81,6 @@ int main(int argc, char *argv[])
     QObject::connect(&languageManager, &LanguageManager::languageChanged, &engine, [&] {
         engine.retranslate();
         emit shortcutManager.shortcutsChanged();
-#ifdef Q_OS_MACOS
-        if (!engine.rootObjects().isEmpty())
-            scheduleMacPreferencesHandler(engine.rootObjects().constFirst());
-#endif
     });
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
@@ -92,9 +88,6 @@ int main(int argc, char *argv[])
     engine.loadFromModule("PhotoCrap", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
-#ifdef Q_OS_MACOS
-    scheduleMacPreferencesHandler(engine.rootObjects().constFirst());
-#endif
     if (args.contains("--demo") || smoke)
         document.createDemo();
     else if (args.size() > 1 && !args[1].startsWith("--")) {
@@ -106,7 +99,15 @@ int main(int argc, char *argv[])
         QTimer::singleShot(1200, &app, [&] {
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
-            if (!window || !runUiSmoke(window, document, recentFilesManager, workspaceSettings)) {
+            bool passed = false;
+#ifdef Q_OS_MACOS
+            if (window && args.contains("--native-menu-test"))
+                passed = runMacApplicationMenuTest(window);
+            else
+#endif
+                passed =
+                    window && runUiSmoke(window, document, recentFilesManager, workspaceSettings);
+            if (!passed) {
                 app.exit(3);
                 return;
             }

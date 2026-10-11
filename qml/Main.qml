@@ -827,7 +827,7 @@ ApplicationWindow {
     Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.clearSelected() }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
     Action { id: duplicateAction; text: qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
-    Action { id: preferencesAction; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
+    Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
     Instantiator {
         model: (window.toolbarRevision, window.toolLayout)
         delegate: Shortcut {
@@ -1039,7 +1039,8 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Historique"); checkable: true; checked: window.dockPanelVisible("history"); onTriggered: window.toggleDockPanel("history") }
             }
             MenuSeparator {}
-            DarkMenuItem { text: qsTr("Options du pinceau…"); onTriggered: brushSettingsDialog.open() }
+            // Avoid Qt's macOS Preferences heuristic (Options/Settings/Config prefixes).
+            DarkMenuItem { objectName: "brushOptionsMenuItem"; text: qsTr("Pinceau…"); onTriggered: brushSettingsDialog.open() }
             MenuSeparator {}
             DarkMenuItem { text: qsTr("Adapter à la fenêtre"); onTriggered: fitCanvas() }
             DarkMenuItem { text: qsTr("Taille réelle · 100 %"); onTriggered: setZoom(1) }

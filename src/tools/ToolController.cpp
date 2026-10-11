@@ -14,7 +14,8 @@ bool isPaintStrokeTool(const QString &_tool)
     return _tool == "brush" || _tool == "pencil" || _tool == "eraser" || _tool == "blur" ||
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
            _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
-           _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing";
+           _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing" ||
+           _tool == "spotHealing";
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -32,6 +33,7 @@ QString toolLabel(const QString &_tool)
         {"mixerBrush", QT_TRANSLATE_NOOP("Document", "Pinceau mélangeur")},
         {"redEye", QT_TRANSLATE_NOOP("Document", "Œil rouge")},
         {"healing", QT_TRANSLATE_NOOP("Document", "Correcteur")},
+        {"spotHealing", QT_TRANSLATE_NOOP("Document", "Correcteur localisé")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
         {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
@@ -69,7 +71,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    m_anchor = m_last = (m_tool == "redEye" || m_tool == "healing")
+    m_anchor = m_last = (m_tool == "redEye" || m_tool == "healing" || m_tool == "spotHealing")
                             ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
                             : QPointF(_x, _y);
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
@@ -167,9 +169,12 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         const QPointF requestedEnd = m_anchor;
         if (m_tool == "mixerBrush" && _straight && m_mixerLastEndValid)
             m_anchor = m_last = m_mixerLastEnd;
-        m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" || m_tool == "healing")
+        m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" || m_tool == "healing" ||
+                            m_tool == "spotHealing")
                                ? QImage{}
                                : ImageUtils::blank(m_size);
+        if (m_tool == "spotHealing")
+            prepareSpotHealingStroke();
         if (m_tool == "smudge")
             prepareSmudgeStroke(_alternate);
         if (m_tool == "mixerBrush")
@@ -280,6 +285,8 @@ void Document::endStroke()
         finishMixerStroke(false);
     if (m_tool == "healing")
         finishHealingStroke(false);
+    if (m_tool == "spotHealing")
+        finishSpotHealingStroke();
     m_beforeStroke   = {};
     m_strokeBase     = {};
     m_strokeCoverage = {};
@@ -316,6 +323,8 @@ void Document::cancelStroke()
         finishMixerStroke(true);
     if (m_tool == "healing")
         finishHealingStroke(true);
+    if (m_tool == "spotHealing")
+        finishSpotHealingStroke();
     m_beforeStroke   = {};
     m_strokeBase     = {};
     m_strokeCoverage = {};

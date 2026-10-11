@@ -122,6 +122,10 @@ class Document : public QObject
     Q_PROPERTY(int healingMode READ healingMode WRITE setHealingMode NOTIFY settingsChanged)
     Q_PROPERTY(bool healingIgnoreAdjustments READ healingIgnoreAdjustments WRITE
                    setHealingIgnoreAdjustments NOTIFY settingsChanged)
+    Q_PROPERTY(bool spotHealingSampleAllLayers READ spotHealingSampleAllLayers WRITE
+                   setSpotHealingSampleAllLayers NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int spotHealingMode READ spotHealingMode WRITE setSpotHealingMode NOTIFY settingsChanged)
     Q_PROPERTY(bool healingSourceValid READ healingSourceValid NOTIFY settingsChanged)
     Q_PROPERTY(QPointF healingOffset READ healingOffset NOTIFY settingsChanged)
     Q_PROPERTY(bool stampAligned READ stampAligned WRITE setStampAligned NOTIFY settingsChanged)
@@ -495,7 +499,17 @@ public:
     Q_INVOKABLE void loadMixerBrush();
     Q_INVOKABLE void cleanMixerBrush();
     Q_INVOKABLE void sampleMixerBrush(qreal _x, qreal _y);
-    bool             healingAligned() const
+    bool             spotHealingSampleAllLayers() const
+    {
+        return m_spotHealingSampleAllLayers;
+    }
+    int spotHealingMode() const
+    {
+        return m_spotHealingMode;
+    }
+    void setSpotHealingSampleAllLayers(bool _value);
+    void setSpotHealingMode(int _value);
+    bool healingAligned() const
     {
         return m_healingAligned;
     }
@@ -726,6 +740,10 @@ private:
     bool    m_healingOffsetBeforeStrokeValid = false;
     QPointF m_healingSource, m_healingOffset, m_healingOffsetBeforeStroke;
     QImage  m_healingSample, m_healingTip;
+    bool    m_spotHealingSampleAllLayers = false;
+    int     m_spotHealingMode            = 0;
+    QImage  m_spotHealingSample, m_spotHealingTip;
+    QRegion m_spotHealingExcluded;
     bool    m_stampAligned     = true;
     int     m_cloneSampleMode  = 0;
     bool    m_cloneSourceValid = false, m_cloneOffsetValid = false;
@@ -860,6 +878,14 @@ private:
     void    correctRedEye();
     bool    prepareHealingStroke();
     void    healingDab(const QPointF &_point);
+    QImage  sampleHealingLayers(int _sampleMode, bool _ignoreAdjustments);
+    QImage  makeHealingTip() const;
+    void    applyHealingDab(const QPointF &_point, const QImage &_sample, const QImage &_tip,
+                            const QPoint &_sourceOffset, int _mode, int _diffusion,
+                            bool _selectionBoundary = true);
+    void    prepareSpotHealingStroke();
+    void    spotHealingDab(const QPointF &_point);
+    void    finishSpotHealingStroke();
     void    finishHealingStroke(bool _cancel);
     void    smudgeDab(const QPointF &_point);
     void    colorReplacementDab(const QPointF &_point);

@@ -236,9 +236,10 @@ void Document::resetHistory(bool _clean)
     m_healingOffsetValid      = false;
     m_healingSample           = {};
     m_healingTip              = {};
-    m_cloneSourceValid        = false;
-    m_cloneOffsetValid        = false;
-    m_patternOriginValid      = false;
+    finishSpotHealingStroke();
+    m_cloneSourceValid   = false;
+    m_cloneOffsetValid   = false;
+    m_patternOriginValid = false;
     m_frequencyCache.clear();
     m_fullCompositeDirty = true;
     m_dirtyRegion        = {};

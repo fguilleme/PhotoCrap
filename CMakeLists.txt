@@ -31,6 +31,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/MixerBrushTool.cpp
     src/tools/RedEyeTool.cpp
     src/tools/HealingBrushTool.cpp
+    src/tools/SpotHealingTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -175,6 +176,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/MixerBrushTool.cpp
     src/tools/RedEyeTool.cpp
     src/tools/HealingBrushTool.cpp
+    src/tools/SpotHealingTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/ImageUtils.h
@@ -254,6 +256,7 @@ qt_add_qml_module(PhotoCrap
         qml/MixerBrushOptions.qml
         qml/RedEyeOptions.qml
         qml/HealingBrushOptions.qml
+        qml/SpotHealingOptions.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml

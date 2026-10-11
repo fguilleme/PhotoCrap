@@ -320,6 +320,187 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void spotHealingAutomaticallyRepairsLocallyAndUndoes()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 160, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y) {
+            const int grey = y % 8 < 4 ? 170 : 180;
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixel(x, y, qRgb(grey, grey, grey));
+        }
+        QPainter painter(&image);
+        painter.fillRect(78, 78, 4, 4, Qt::black);
+        painter.end();
+        const QString path = dir.filePath("spot-texture.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("spotHealing");
+        QCOMPARE(d.tool(), QString("spotHealing"));
+        d.setBrushSize(24);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        QCOMPARE(d.composite(), original);
+        d.beginStroke(80, 80); // no source click
+        d.endStroke();
+        QVERIFY(!d.healingSourceValid());
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QImage repaired = d.layerImage(0);
+        QVERIFY(qAbs(repaired.pixelColor(80, 80).red() - 170) <= 2);
+        QCOMPARE(d.composite().pixel(80, 80), repaired.pixel(80, 80));
+        for (int y = 0; y < 160; ++y)
+            for (int x = 0; x < 160; ++x)
+                if (!QRect(66, 66, 28, 28).contains(x, y))
+                    QCOMPARE(repaired.pixel(x, y), original.pixel(x, y));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QCOMPARE(d.layerImage(0), repaired);
+        d.undo();
+        d.beginStroke(80, 80);
+        d.continueStroke(90, 80);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+    }
+
+    void spotHealingRetouchesOnEmptyLayerAndHonoursVisibleLayers()
+    {
+        Document d;
+        d.newDocument(160, 160, false);
+        d.setColor(QColor(150, 170, 190));
+        d.fillWithColor(true);
+        d.setTool("brush");
+        d.setBrushSize(4);
+        d.setBrushHardness(1);
+        d.setColor(Qt::black);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        const QImage background = d.layerImage(0);
+        d.addLayer();
+        const int    history = d.historyIndex();
+        const QImage empty   = d.layerImage(1);
+        d.setTool("spotHealing");
+        d.setBrushSize(24);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QCOMPARE(d.layerImage(1), empty);
+        QCOMPARE(d.historyIndex(), history);
+        d.setSpotHealingSampleAllLayers(true);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QVERIFY(qAbs(d.layerImage(1).pixelColor(80, 80).red() - 150) <= 2);
+        QCOMPARE(d.layerImage(0), background);
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        QCOMPARE(d.layerImage(1), empty);
+        d.setActiveLayer(0);
+        d.setLayerVisible(0, false);
+        d.setActiveLayer(1);
+        const int hiddenHistory = d.historyIndex();
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QCOMPARE(d.layerImage(1), empty);
+        QCOMPARE(d.historyIndex(), hiddenHistory);
+    }
+
+    void spotHealingSelectionEdgesMasksLocksAndNoOps()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 160, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(160, 160, 160));
+        QPainter painter(&image);
+        painter.fillRect(78, 78, 4, 4, Qt::black);
+        painter.fillRect(0, 38, 3, 4, Qt::black);
+        painter.end();
+        const QString path = dir.filePath("spot-selection.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("select");
+        d.beginStroke(78, 78);
+        d.continueStroke(79, 81);
+        d.endStroke();
+        d.setTool("spotHealing");
+        d.setBrushSize(24);
+        d.setBrushHardness(1);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(79, 80).red() > 100);
+        QCOMPARE(d.layerImage(0).pixelColor(81, 80), QColor(Qt::black));
+        d.undo();
+        d.deselect();
+        d.beginStroke(1, 40);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(1, 40).red() > 100);
+        d.undo();
+        const int history = d.historyIndex();
+        d.beginStroke(120, 120);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history);
+        d.setBrushOpacity(0);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history);
+        d.setBrushOpacity(1);
+        d.setLayerLocked(0, true);
+        const int lockedHistory = d.historyIndex();
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), lockedHistory);
+        d.setLayerLocked(0, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask        = d.maskImage(0);
+        const int    maskHistory = d.historyIndex();
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QCOMPARE(d.maskImage(0), mask);
+        QCOMPARE(d.historyIndex(), maskHistory);
+        d.setSpotHealingMode(99);
+        QCOMPARE(d.spotHealingMode(), 7);
+        d.setSpotHealingMode(-1);
+        QCOMPARE(d.spotHealingMode(), 0);
+    }
+
+    void spotHealingUhdGestureStaysLocalWithOneUndo()
+    {
+        Document d;
+        QVERIFY(d.newDocument(3840, 2160, false));
+        d.setColor(QColor(160, 160, 160));
+        d.fillWithColor(true);
+        d.setTool("brush");
+        d.setBrushSize(4);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        d.setColor(Qt::black);
+        d.beginStroke(1920, 1080);
+        d.continueStroke(1950, 1080);
+        d.endStroke();
+        const QImage original = d.layerImage(0);
+        d.composite(); // the display is current before the gesture
+        d.setTool("spotHealing");
+        d.setBrushSize(24);
+        const int     history = d.historyIndex();
+        QElapsedTimer timer;
+        timer.start();
+        d.beginStroke(1920, 1080);
+        d.continueStroke(1950, 1080);
+        d.endStroke();
+        const qint64 elapsed = timer.elapsed();
+        qInfo("UHD Spot Healing gesture: %lld ms", static_cast<long long>(elapsed));
+        QVERIFY2(elapsed < 1500, "A small repair must not scan the full UHD image per dab");
+        QCOMPARE(d.historyIndex(), history + 1);
+        QVERIFY(d.layerImage(0).pixelColor(1935, 1080).red() > 100);
+        QCOMPARE(d.layerImage(0).pixel(100, 100), original.pixel(100, 100));
+        QCOMPARE(d.layerImage(0).pixel(3000, 1500), original.pixel(3000, 1500));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+    }
+
     void healingTransfersTextureAdaptsColourLocallyAndUndoes()
     {
         QTemporaryDir dir;

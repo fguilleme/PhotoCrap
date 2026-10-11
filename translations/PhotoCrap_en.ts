@@ -641,6 +641,7 @@
       <source>Impossible de charger la langue sélectionnée.</source>
       <translation>Unable to load the selected language.</translation>
     </message>
+    <message><source>Correcteur localisé</source><translation>Spot Healing Brush</translation></message>
   </context>
   <context>
     <name>Main</name>
@@ -2673,4 +2674,20 @@ Independent software, not affiliated with Adobe.</translation>
 <message><source>Faible : textures détaillées ; élevée : zones lisses</source><translation>Low: detailed textures; high: smooth areas</translation></message>
 <message><source>Option/Alt-clic pour prélever la source</source><translation>Option/Alt-click to sample the source</translation></message>
 </context>
+  <context>
+    <name>SpotHealingOptions</name>
+    <message><source>Mode</source><translation>Mode</translation></message>
+    <message><source>Normal</source><translation>Normal</translation></message>
+    <message><source>Remplacer</source><translation>Replace</translation></message>
+    <message><source>Produit</source><translation>Multiply</translation></message>
+    <message><source>Écran</source><translation>Screen</translation></message>
+    <message><source>Obscurcir</source><translation>Darken</translation></message>
+    <message><source>Éclaircir</source><translation>Lighten</translation></message>
+    <message><source>Couleur</source><translation>Color</translation></message>
+    <message><source>Luminosité</source><translation>Luminosity</translation></message>
+    <message><source>Correspondance de proximité</source><translation>Proximity Match</translation></message>
+    <message><source>Tous les calques</source><translation>Sample All Layers</translation></message>
+    <message><source>Prélever tous les calques visibles pour retoucher sur un calque vide</source><translation>Sample all visible layers to retouch on an empty layer</translation></message>
+    <message><source>Peindre sur le défaut ; utiliser une brosse un peu plus grande</source><translation>Paint over the blemish with a slightly larger brush</translation></message>
+  </context>
 </TS>

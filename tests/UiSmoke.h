@@ -736,6 +736,52 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.undo();
     _document.undo();
     _document.undo();
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, "spotHealing"));
+    QTest::qWait(60);
+    auto spotOptions = _window->findChild<QObject *>("spotHealingOptions");
+    auto spotMode    = _window->findChild<QObject *>("spotHealingMode");
+    auto spotLayers  = _window->findChild<QObject *>("spotHealingSampleAllLayers");
+    if (!require(spotOptions && spotOptions->property("visible").toBool() && spotMode &&
+                     spotMode->property("count").toInt() == 8 && spotLayers,
+                 "Spot Healing Brush has its own options in the correction group"))
+        return false;
+    _document.setColor(QColor(160, 160, 160));
+    _document.fillWithColor(true);
+    _document.setTool("brush");
+    _document.setBrushSize(6);
+    _document.setColor(Qt::black);
+    _document.beginStroke(_document.width() / 2, _document.height() / 2);
+    _document.endStroke();
+    _document.setTool("spotHealing");
+    _document.setBrushSize(24);
+    _document.setSpotHealingSampleAllLayers(true);
+    QTest::qWait(30);
+    if (!require(spotLayers->property("checked").toBool(),
+                 "Spot Healing all-layer sampling is bound to its own setting"))
+        return false;
+    _document.setSpotHealingSampleAllLayers(false);
+    const int     beforeSpot            = _document.historyIndex();
+    const QPointF previousHealingOffset = _document.healingOffset();
+    QTest::keyClick(_window, Qt::Key_J);
+    QTest::mouseMove(_window, healingPoint);
+    QTest::qWait(40);
+    if (!require(_document.tool() == "spotHealing" && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "J recalls Spot Healing with a single native brush cursor"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, healingPoint);
+    QTest::qWait(40);
+    const QColor spotPixel = _document.layerImage(_document.activeLayer())
+                                 .pixelColor(_document.width() / 2, _document.height() / 2);
+    if (!require(_document.historyIndex() == beforeSpot + 1 && qAbs(spotPixel.red() - 160) <= 2 &&
+                     qAbs(spotPixel.green() - 160) <= 2 && qAbs(spotPixel.blue() - 160) <= 2 &&
+                     _document.healingOffset() == previousHealingOffset,
+                 "Spot Healing repairs a blemish without sampling or changing Healing source"))
+        return false;
+    _document.undo();
+    _document.undo();
+    _document.undo();
     _document.setColor(savedColour);
     _document.setBrushSize(savedSize);
     _document.setBrushHardness(savedHardness);

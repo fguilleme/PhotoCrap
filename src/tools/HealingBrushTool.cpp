@@ -177,23 +177,34 @@ bool Document::prepareHealingStroke()
         m_healingOffsetValid = true;
         emit settingsChanged();
     }
+    m_healingSample = sampleHealingLayers(m_healingSampleMode, m_healingIgnoreAdjustments);
+    m_healingTip    = makeHealingTip();
+    return true;
+}
+
+QImage Document::sampleHealingLayers(int _sampleMode, bool _ignoreAdjustments)
+{
     // A shared, fixed source per gesture prevents overlapping edits feeding
     // back into the sample. All-layer composition occurs once, never per dab.
-    if (m_healingSampleMode == 0)
-        m_healingSample = *paintTarget();
-    else if (m_healingSampleMode == 2 && !m_healingIgnoreAdjustments)
-        m_healingSample = composite();
+    if (_sampleMode == 0)
+        return *paintTarget();
+    else if (_sampleMode == 2 && !_ignoreAdjustments)
+        return composite();
     else {
         auto layers = m_layers;
         for (int i = 0; i < layers.size(); ++i)
-            if ((m_healingSampleMode == 1 && i > m_active && layers[i].kind != "group") ||
-                (m_healingIgnoreAdjustments && layers[i].kind == "adjustment"))
+            if ((_sampleMode == 1 && i > m_active && layers[i].kind != "group") ||
+                (_ignoreAdjustments && layers[i].kind == "adjustment"))
                 layers[i].visible = false;
-        m_healingSample = renderPreviewSnapshot(std::move(layers), m_size, m_size, false);
+        return renderPreviewSnapshot(std::move(layers), m_size, m_size, false);
     }
+}
+
+QImage Document::makeHealingTip() const
+{
     const int size = qCeil(m_brushSize) + 4;
-    m_healingTip   = ImageUtils::blank(QSize(size, size));
-    QPainter painter(&m_healingTip);
+    QImage    tip  = ImageUtils::blank(QSize(size, size));
+    QPainter  painter(&tip);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.translate(size / 2., size / 2.);
     painter.rotate(m_brushAngle);
@@ -209,29 +220,38 @@ bool Document::prepareHealingStroke()
     }
     painter.setPen(Qt::NoPen);
     painter.drawEllipse(QPointF{}, radius, radius);
-    return true;
+    painter.end();
+    return tip;
 }
 
 void Document::healingDab(const QPointF &_point)
 {
+    applyHealingDab(_point, m_healingSample, m_healingTip, m_healingOffset.toPoint(), m_healingMode,
+                    m_healingDiffusion);
+}
+
+void Document::applyHealingDab(const QPointF &_point, const QImage &_sample, const QImage &_tip,
+                               const QPoint &_sourceOffset, int _mode, int _diffusion,
+                               bool _selectionBoundary)
+{
     QImage *target = paintTarget();
-    if (!target || m_healingSample.isNull() || m_brushFlow <= 0 || m_brushOpacity <= 0)
+    if (!target || _sample.isNull() || m_brushFlow <= 0 || m_brushOpacity <= 0)
         return;
-    const int   size = m_healingTip.width();
+    const int   size = _tip.width();
     const QRect dab(qFloor(_point.x()) - size / 2, qFloor(_point.y()) - size / 2, size, size);
     QRect       region = dab.intersected(target->rect());
     if (hasSelection())
         region = region.intersected(m_selectionRegion.boundingRect());
     if (region.isEmpty())
         return;
-    const QRect     sourceRect(dab.topLeft() + m_healingOffset.toPoint(), dab.size());
-    const QImage    sampled   = patchAt(m_healingSample, sourceRect);
-    const QImage    reference = patchAt(m_healingSample, dab);
+    const QRect     sourceRect(dab.topLeft() + _sourceOffset, dab.size());
+    const QImage    sampled   = patchAt(_sample, sourceRect);
+    const QImage    reference = patchAt(_sample, dab);
     const ToneField field =
-        m_healingMode == 1
-            ? ToneField{0, {}}
-            : boundaryTone(sampled, reference, m_selectionRegion.translated(-dab.topLeft()),
-                           hasSelection(), m_healingDiffusion, m_brushAngle, m_brushRoundness);
+        _mode == 1 ? ToneField{0, {}}
+                   : boundaryTone(sampled, reference, m_selectionRegion.translated(-dab.topLeft()),
+                                  hasSelection() && _selectionBoundary, _diffusion, m_brushAngle,
+                                  m_brushRoundness);
     const QPoint offset = region.topLeft() - dab.topLeft();
     QImage       healed = ImageUtils::blank(region.size());
     for (int y = 0; y < region.height(); ++y) {
@@ -253,15 +273,13 @@ void Document::healingDab(const QPointF &_point)
     }
     QImage output = target->copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     static constexpr int modes[]{0, 0, 3, 8, 2, 7, 25, 26};
-    const QImage         effect =
-        m_healingMode == 1 ? healed : blendImages(output, healed, modes[m_healingMode], 1.);
-    QRect modified;
+    const QImage effect = _mode == 1 ? healed : blendImages(output, healed, modes[_mode], 1.);
+    QRect        modified;
     for (int y = 0; y < region.height(); ++y) {
         auto       *destination = reinterpret_cast<QRgb *>(output.scanLine(y));
         const auto *paint       = reinterpret_cast<const QRgb *>(effect.constScanLine(y));
         const auto *source      = reinterpret_cast<const QRgb *>(healed.constScanLine(y));
-        const auto *tip =
-            reinterpret_cast<const QRgb *>(m_healingTip.constScanLine(offset.y() + y));
+        const auto *tip = reinterpret_cast<const QRgb *>(_tip.constScanLine(offset.y() + y));
         for (int x = 0; x < region.width(); ++x) {
             if (!qAlpha(source[x]) ||
                 (hasSelection() && !m_selectionRegion.contains(region.topLeft() + QPoint(x, y))))

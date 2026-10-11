@@ -14,7 +14,7 @@ bool isPaintStrokeTool(const QString &_tool)
     return _tool == "brush" || _tool == "pencil" || _tool == "eraser" || _tool == "blur" ||
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
            _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
-           _tool == "colorReplacement" || _tool == "mixerBrush";
+           _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing";
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -31,6 +31,7 @@ QString toolLabel(const QString &_tool)
         {"colorReplacement", QT_TRANSLATE_NOOP("Document", "Remplacement de couleur")},
         {"mixerBrush", QT_TRANSLATE_NOOP("Document", "Pinceau mélangeur")},
         {"redEye", QT_TRANSLATE_NOOP("Document", "Œil rouge")},
+        {"healing", QT_TRANSLATE_NOOP("Document", "Correcteur")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
         {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
@@ -68,7 +69,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    m_anchor = m_last = m_tool == "redEye"
+    m_anchor = m_last = (m_tool == "redEye" || m_tool == "healing")
                             ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
                             : QPointF(_x, _y);
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
@@ -77,6 +78,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (m_tool == "picker" || (m_tool == "colorReplacement" && _alternate)) {
         if (composite().rect().contains(QPoint(int(_x), int(_y))))
             setColor(composite().pixelColor(int(_x), int(_y)));
+        return;
+    }
+    if (m_tool == "healing" && _alternate) {
+        setHealingSource(_x, _y);
         return;
     }
     if (m_tool == "mixerBrush" && _alternate) {
@@ -143,6 +148,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             m_beforeStroke = {};
             return;
         }
+        if (m_tool == "healing" && !prepareHealingStroke()) {
+            m_drawing      = false;
+            m_beforeStroke = {};
+            return;
+        }
         m_strokeBase     = *target;
         m_strokeInkColor = m_color;
         if (m_tool == "colorReplacement") {
@@ -157,8 +167,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         const QPointF requestedEnd = m_anchor;
         if (m_tool == "mixerBrush" && _straight && m_mixerLastEndValid)
             m_anchor = m_last = m_mixerLastEnd;
-        m_strokeCoverage =
-            (m_tool == "smudge" || m_tool == "mixerBrush") ? QImage{} : ImageUtils::blank(m_size);
+        m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" || m_tool == "healing")
+                               ? QImage{}
+                               : ImageUtils::blank(m_size);
         if (m_tool == "smudge")
             prepareSmudgeStroke(_alternate);
         if (m_tool == "mixerBrush")
@@ -267,6 +278,8 @@ void Document::endStroke()
     }
     if (m_tool == "mixerBrush")
         finishMixerStroke(false);
+    if (m_tool == "healing")
+        finishHealingStroke(false);
     m_beforeStroke   = {};
     m_strokeBase     = {};
     m_strokeCoverage = {};
@@ -301,6 +314,8 @@ void Document::cancelStroke()
         restore(m_beforeStroke);
     if (m_tool == "mixerBrush")
         finishMixerStroke(true);
+    if (m_tool == "healing")
+        finishHealingStroke(true);
     m_beforeStroke   = {};
     m_strokeBase     = {};
     m_strokeCoverage = {};

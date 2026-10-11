@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,17 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "redEye") {
+            if (root.toolName === "healing") {
+                ctx.save(); ctx.translate(12, 12); ctx.rotate(-Math.PI / 4)
+                ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(8, -4)
+                ctx.bezierCurveTo(13, -4, 13, 4, 8, 4); ctx.lineTo(-8, 4)
+                ctx.bezierCurveTo(-13, 4, -13, -4, -8, -4); ctx.closePath(); ctx.stroke()
+                ctx.strokeRect(-3, -4, 6, 8)
+                for (const x of [-7, 7]) for (const y of [-1.5, 1.5]) {
+                    ctx.beginPath(); ctx.arc(x, y, .6, 0, Math.PI * 2); ctx.fill()
+                }
+                ctx.restore()
+            } else if (root.toolName === "redEye") {
                 ctx.beginPath(); ctx.moveTo(2, 14)
                 ctx.bezierCurveTo(6, 7, 18, 7, 22, 14)
                 ctx.bezierCurveTo(18, 21, 6, 21, 2, 14); ctx.closePath(); ctx.stroke()

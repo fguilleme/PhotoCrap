@@ -10,6 +10,7 @@ void Document::setTool(const QString &_value)
                                    "colorReplacement",
                                    "mixerBrush",
                                    "redEye",
+                                   "healing",
                                    "cloneStamp",
                                    "patternStamp",
                                    "eraser",

@@ -320,6 +320,219 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void healingTransfersTextureAdaptsColourLocallyAndUndoes()
+    {
+        QTemporaryDir dir;
+        QImage        image(128, 64, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(40, 80, 110));
+        QPainter painter(&image);
+        painter.fillRect(64, 0, 64, 64, QColor(130, 150, 180));
+        painter.fillRect(18, 30, 4, 4, QColor(65, 100, 130));
+        painter.fillRect(78, 30, 4, 4, Qt::black);
+        painter.end();
+        const QString path = dir.filePath("healing-texture.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("healing");
+        d.setBrushSize(24);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        d.beginStroke(80, 32); // a source is required
+        d.endStroke();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.beginStroke(20, 32, true);
+        d.continueStroke(25, 32);
+        d.endStroke();
+        QVERIFY(d.healingSourceValid());
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.composite(), original);
+        d.beginStroke(80, 32);
+        d.endStroke();
+        const QColor healed = d.layerImage(0).pixelColor(80, 32);
+        QVERIFY(qAbs(healed.red() - 155) <= 2);
+        QVERIFY(qAbs(healed.green() - 170) <= 2);
+        QVERIFY(qAbs(healed.blue() - 200) <= 2);
+        QCOMPARE(d.composite().pixelColor(80, 32), healed);
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QImage result = d.layerImage(0);
+        for (int y = 0; y < 64; ++y)
+            for (int x = 0; x < 128; ++x)
+                if (!QRect(66, 18, 28, 28).contains(x, y))
+                    QCOMPARE(result.pixel(x, y), original.pixel(x, y));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QCOMPARE(d.layerImage(0), result);
+        d.undo();
+        d.beginStroke(80, 32);
+        d.continueStroke(90, 32);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.setHealingMode(1);
+        d.beginStroke(80, 32);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(80, 32), QColor(65, 100, 130));
+    }
+    void healingAlignmentAndCloneSourceAreIndependent()
+    {
+        QTemporaryDir dir;
+        QImage        image(128, 40, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < 40; ++y)
+            for (int x = 0; x < 128; ++x)
+                image.setPixelColor(x, y, QColor(x, x, x));
+        const QString path = dir.filePath("healing-offset.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setCloneSource(8, 20);
+        d.setTool("healing");
+        d.setHealingMode(1);
+        d.setBrushSize(6);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        d.setHealingSource(14, 20);
+        d.beginStroke(60, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(60, 20), QColor(14, 14, 14));
+        d.beginStroke(80, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(80, 20), QColor(14, 14, 14));
+        QCOMPARE(d.cloneSource(), QPointF(8, 20));
+        d.setHealingAligned(true);
+        d.setHealingSource(14, 20);
+        d.beginStroke(60, 20);
+        d.endStroke();
+        d.beginStroke(80, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(80, 20), QColor(34, 34, 34));
+        QCOMPARE(d.healingOffset(), QPointF(-46, 0));
+        d.setHealingSource(20, 20);
+        d.beginStroke(100, 20);
+        d.cancelStroke();
+        d.beginStroke(110, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(110, 20), QColor(20, 20, 20));
+        QVERIFY(d.newDocument(64, 40, false));
+        QVERIFY(!d.healingSourceValid());
+    }
+    void healingSamplingLayersAndIgnoringAdjustments()
+    {
+        Document d;
+        QVERIFY(d.newDocument(80, 40, true));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.addLayer();
+        const int active = d.activeLayer();
+        d.setTool("healing");
+        d.setHealingMode(1);
+        d.setBrushSize(8);
+        d.setBrushHardness(1);
+        d.setHealingSource(12, 20);
+        const int history = d.historyIndex();
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history); // current layer has no source pixels
+        d.setHealingSampleMode(1);
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(50, 20), QColor(Qt::red));
+        d.undo();
+        d.addLayer();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setActiveLayer(active);
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(50, 20), QColor(Qt::red));
+        d.undo();
+        d.setHealingSampleMode(2);
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(50, 20), QColor(Qt::blue));
+        d.undo();
+        d.setActiveLayer(2);
+        d.addAdjustmentLayer("invert");
+        d.setActiveLayer(active);
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(50, 20), QColor(Qt::yellow));
+        d.undo();
+        d.setHealingIgnoreAdjustments(true);
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(50, 20), QColor(Qt::blue));
+        d.undo();
+        d.setLayerVisible(2, false);
+        d.beginStroke(50, 20);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(50, 20), QColor(Qt::red));
+    }
+    void healingClipsSelectionsRejectsMasksAndDoesNotRecordNoOps()
+    {
+        Document d;
+        QVERIFY(d.newDocument(80, 48, false));
+        d.setTool("healing");
+        d.setHealingSource(15, 24);
+        const int history = d.historyIndex();
+        d.beginStroke(55, 24);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history); // identical texture and tone
+        d.setHealingMode(1);
+        d.setTool("brush");
+        d.setColor(Qt::black);
+        d.setBrushSize(8);
+        d.setBrushHardness(1);
+        d.beginStroke(55, 24);
+        d.endStroke();
+        const QImage original = d.layerImage(0);
+        d.setTool("ellipticalSelect");
+        d.beginStroke(51, 20);
+        d.continueStroke(59, 28);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        d.setTool("healing");
+        d.setBrushSize(30);
+        d.beginStroke(55, 24);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(55, 24), QColor(Qt::white));
+        const QImage result = d.layerImage(0);
+        for (int y = 0; y < 48; ++y)
+            for (int x = 0; x < 80; ++x)
+                if (!selection.contains(QPoint(x, y)))
+                    QCOMPARE(result.pixel(x, y), original.pixel(x, y));
+        d.undo();
+        d.deselect();
+        d.setBrushOpacity(0);
+        const int noOpHistory = d.historyIndex();
+        d.beginStroke(55, 24);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), noOpHistory);
+        d.setBrushOpacity(1);
+        d.setLayerLocked(0, true);
+        const int lockedHistory = d.historyIndex();
+        d.beginStroke(55, 24);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), lockedHistory);
+        d.setLayerLocked(0, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask        = d.maskImage(0);
+        const int    maskHistory = d.historyIndex();
+        d.beginStroke(55, 24);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), maskHistory);
+        QCOMPARE(d.maskImage(0), mask);
+        d.setHealingDiffusion(20);
+        QCOMPARE(d.healingDiffusion(), 7);
+        d.setHealingDiffusion(-1);
+        QCOMPARE(d.healingDiffusion(), 1);
+    }
     void redEyeClickCorrectsOnePupilPreservesHighlightsAndUndo()
     {
         QTemporaryDir dir;

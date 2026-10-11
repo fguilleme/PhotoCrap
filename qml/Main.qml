@@ -55,7 +55,7 @@ ApplicationWindow {
                                                  || editor.tool === "magicWand"
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
-    readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
+    readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "healing" || editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
                                              ? Qt.CrossCursor
                                              : window.spacePressed || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
@@ -72,7 +72,7 @@ ApplicationWindow {
                                               || editor.tool === "dodge" || editor.tool === "burn"
                                               || editor.tool === "sponge" || editor.tool === "smudge"
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                            || editor.tool === "eraser" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
+                                            || editor.tool === "eraser" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                               || editor.tool === "eraser" || editor.tool === "fill"
                                               || editor.tool === "gradient" || editor.tool === "text" || stampToolActive
@@ -155,7 +155,7 @@ ApplicationWindow {
         {name:"count", icon:"¹²³", label:qsTr("Comptage"), implemented:false},
         {name:"spotHealing", icon:"✚", label:qsTr("Correcteur localisé"), implemented:false},
         {name:"remove", icon:"✦", label:qsTr("Suppression"), implemented:false},
-        {name:"healing", icon:"▰", label:qsTr("Correcteur"), implemented:false},
+        {name:"healing", icon:"▰", label:qsTr("Correcteur"), implemented:true},
         {name:"patch", icon:"▧", label:qsTr("Pièce"), implemented:false},
         {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:false},
         {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:true},
@@ -1113,8 +1113,8 @@ ApplicationWindow {
                 }
                 Label { visible: window.paintToolActive || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
                 DarkSpinBox { visible: window.paintToolActive || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
                 Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
                 DarkSpinBox {
                     objectName: "selectionTolerance"
@@ -1146,9 +1146,9 @@ ApplicationWindow {
                 }
                 Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
                 DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
-                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
-                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "smudge" || editor.tool === "mixerBrush"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "smudge" || editor.tool === "mixerBrush"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox {
                     objectName: "stampAligned"
                     visible: window.stampToolActive
@@ -1480,6 +1480,12 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        HealingBrushOptions {
+            objectName: "healingBrushOptions"
+            Layout.fillWidth: true
+            visible: editor.tool === "healing"
+            document: editor
+        }
         RedEyeOptions {
             objectName: "redEyeOptions"
             Layout.fillWidth: true
@@ -2057,10 +2063,11 @@ ApplicationWindow {
                                 objectName: "cloneSourceMarker"
                                 width: 21; height: 21; z: 5; enabled: false
                                 visible: drawingArea.containsMouse && drawingArea.pressed
-                                         && editor.tool === "cloneStamp" && editor.cloneSourceValid
+                                         && ((editor.tool === "cloneStamp" && editor.cloneSourceValid)
+                                             || (editor.tool === "healing" && editor.healingSourceValid))
                                          && !window.stampSourcePicking
-                                x: drawingArea.pointerX + editor.cloneOffset.x * zoom - width / 2
-                                y: drawingArea.pointerY + editor.cloneOffset.y * zoom - height / 2
+                                x: drawingArea.pointerX + (editor.tool === "healing" ? editor.healingOffset.x : editor.cloneOffset.x) * zoom - width / 2
+                                y: drawingArea.pointerY + (editor.tool === "healing" ? editor.healingOffset.y : editor.cloneOffset.y) * zoom - height / 2
                                 onPaint: {
                                     const c = getContext("2d")
                                     c.reset(); c.clearRect(0, 0, width, height)
@@ -2074,7 +2081,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "smudge" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
+                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2
@@ -3071,7 +3078,7 @@ ApplicationWindow {
                 text: qsTr("L’opacité plafonne un passage. Le débit détermine la quantité déposée par chaque empreinte et s’accumule lorsque les empreintes se chevauchent.")
             }
             RowLayout {
-                visible: editor.tool !== "mixerBrush"
+                visible: editor.tool !== "mixerBrush" && editor.tool !== "healing"
                 Layout.fillWidth: true
                 Label { text: qsTr("Mode"); color: "#c4cdd5" }
                 ComboBox { Layout.fillWidth: true; model: window.blendModeNames; currentIndex: editor.brushBlend; onActivated: editor.brushBlend=currentIndex }

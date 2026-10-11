@@ -585,8 +585,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "healing"),
                               Q_ARG(QVariant, QVariant()));
     QTest::qWait(40);
-    if (!require(toolMenu->property("count").toInt() == 6,
-                 "correction group includes Red Eye and the five remaining NYI tools"))
+    if (!require(
+            toolMenu->property("count").toInt() == 6,
+            "correction group includes Red Eye, Healing Brush and the four remaining NYI tools"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");
     _document.deselect();
@@ -641,6 +642,78 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.setBrushHardness(savedHardness);
     _document.setBrushSmoothing(savedSmoothing);
     _document.setColor(savedColour);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, "healing"));
+    QTest::qWait(60);
+    auto healingOptions = _window->findChild<QObject *>("healingBrushOptions");
+    for (const char *name : {"healingAligned", "healingSampleMode", "healingDiffusion",
+                             "healingMode", "healingIgnoreAdjustments"}) {
+        auto control = _window->findChild<QObject *>(name);
+        if (!require(control && control->property("visible").toBool(),
+                     "Healing Brush exposes alignment, sample layers, diffusion and modes"))
+            return false;
+    }
+    if (!require(healingOptions && healingOptions->property("visible").toBool(),
+                 "Healing Brush is enabled in the correction group"))
+        return false;
+    _document.setColor(QColor(160, 160, 160));
+    _document.fillWithColor(true);
+    _document.setTool("brush");
+    _document.setBrushSize(6);
+    _document.setBrushHardness(1);
+    _document.setColor(Qt::red);
+    _document.beginStroke(_document.width() / 2., _document.height() / 2.);
+    _document.endStroke();
+    _document.setTool("healing");
+    _document.setBrushSize(24);
+    _document.setBrushSmoothing(0);
+    QTest::qWait(60);
+    const qreal  healingZoom = _window->property("zoom").toReal();
+    const QPoint healingSourcePoint =
+        area->mapToScene(QPointF(area->width() / 2 - 40 * healingZoom, area->height() / 2))
+            .toPoint();
+    const int     beforeHealingSource      = _document.historyIndex();
+    const QPointF cloneSourceBeforeHealing = _document.cloneSource();
+    QTest::mouseMove(_window, healingSourcePoint);
+    QTest::keyPress(_window, Qt::Key_Alt);
+    QTest::qWait(30);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::CrossCursor,
+                 "Option/Alt changes the Healing Brush cursor to a single source target"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, healingSourcePoint);
+    QTest::keyRelease(_window, Qt::Key_Alt);
+    QTest::qWait(40);
+    if (!require(_document.healingSourceValid() &&
+                     _document.historyIndex() == beforeHealingSource &&
+                     _document.cloneSource() == cloneSourceBeforeHealing,
+                 "Healing source sampling creates no undo and does not change clone source"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_J);
+    const QPoint healingPoint =
+        area->mapToScene(QPointF(area->width() / 2, area->height() / 2)).toPoint();
+    QTest::mouseMove(_window, healingPoint);
+    QTest::qWait(40);
+    if (!require(_document.tool() == "healing" && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "J restores the chosen Healing Brush with one native brush cursor"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, healingPoint);
+    QTest::qWait(40);
+    const QColor healedPixel = _document.layerImage(_document.activeLayer())
+                                   .pixelColor(_document.width() / 2, _document.height() / 2);
+    if (!require(_document.historyIndex() == beforeHealingSource + 1 &&
+                     qAbs(healedPixel.red() - 160) <= 2 && qAbs(healedPixel.green() - 160) <= 2 &&
+                     qAbs(healedPixel.blue() - 160) <= 2,
+                 "Healing click removes a defect while adapting to surrounding grey"))
+        return false;
+    _document.undo();
+    _document.undo();
+    _document.undo();
+    _document.setColor(savedColour);
+    _document.setBrushSize(savedSize);
+    _document.setBrushHardness(savedHardness);
+    _document.setBrushSmoothing(savedSmoothing);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

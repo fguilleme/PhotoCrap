@@ -17,7 +17,8 @@ QColor maskColor(const QColor &_color)
 void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 {
     Q_UNUSED(_from)
-    if (m_tool != "smudge" && m_tool != "mixerBrush" && m_strokeCoverage.isNull())
+    if (m_tool != "smudge" && m_tool != "mixerBrush" && m_tool != "healing" &&
+        m_strokeCoverage.isNull())
         return;
     m_strokeBounds = {};
     if (m_anchor == _to && !m_strokeChanged)
@@ -39,13 +40,18 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
         m_smoothedLast = target;
     }
     renderBrushStroke();
-    if ((m_tool == "colorReplacement" || m_tool == "mixerBrush") && m_strokeBounds.isEmpty())
+    if ((m_tool == "colorReplacement" || m_tool == "mixerBrush" || m_tool == "healing") &&
+        m_strokeBounds.isEmpty())
         return;
     m_strokeChanged = true;
     changed(false);
 }
 void Document::stampBrush(const QPointF &_point)
 {
+    if (m_tool == "healing") {
+        healingDab(_point);
+        return;
+    }
     if (m_tool == "smudge") {
         smudgeDab(_point);
         return;
@@ -82,7 +88,8 @@ void Document::stampBrush(const QPointF &_point)
 }
 void Document::renderBrushStroke()
 {
-    if (m_tool == "smudge" || m_tool == "colorReplacement" || m_tool == "mixerBrush")
+    if (m_tool == "smudge" || m_tool == "colorReplacement" || m_tool == "mixerBrush" ||
+        m_tool == "healing")
         return;
     if (m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" ||
         m_tool == "sponge") {

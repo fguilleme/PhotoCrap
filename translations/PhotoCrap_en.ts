@@ -621,6 +621,8 @@
 <message><source>Pinceau mélangeur</source><translation>Mixer Brush</translation></message>
 <message><source>Œil rouge</source><translation>Red Eye</translation></message>
 <message><source>Aucune pupille rouge trouvée dans cette zone.</source><translation>No red pupil found in this area.</translation></message>
+<message><source>Correcteur</source><translation>Healing Brush</translation></message>
+<message><source>Option/Alt-clic sur l’image pour définir la source du correcteur.</source><translation>Option/Alt-click the image to define the Healing Brush source.</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2650,5 +2652,25 @@ Independent software, not affiliated with Adobe.</translation>
 <message><source>Taille de pupille</source><translation>Pupil Size</translation></message>
 <message><source>Obscurcissement</source><translation>Darken Amount</translation></message>
 <message><source>Cliquez sur la pupille rouge ou encadrez un œil</source><translation>Click the red pupil or draw a box around one eye</translation></message>
+</context>
+<context><name>HealingBrushOptions</name>
+<message><source>Mode</source><translation>Mode</translation></message>
+<message><source>Normal</source><translation>Normal</translation></message>
+<message><source>Remplacer</source><translation>Replace</translation></message>
+<message><source>Produit</source><translation>Multiply</translation></message>
+<message><source>Écran</source><translation>Screen</translation></message>
+<message><source>Obscurcir</source><translation>Darken</translation></message>
+<message><source>Éclaircir</source><translation>Lighten</translation></message>
+<message><source>Couleur</source><translation>Color</translation></message>
+<message><source>Luminosité</source><translation>Luminosity</translation></message>
+<message><source>Aligné</source><translation>Aligned</translation></message>
+<message><source>Garder le décalage de source entre les gestes</source><translation>Keep the source offset between strokes</translation></message>
+<message><source>Calque actif</source><translation>Current Layer</translation></message>
+<message><source>Actif et inférieurs</source><translation>Current &amp; Below</translation></message>
+<message><source>Tous les calques</source><translation>All Layers</translation></message>
+<message><source>Ignorer les réglages</source><translation>Ignore Adjustment Layers</translation></message>
+<message><source>Diffusion</source><translation>Diffusion</translation></message>
+<message><source>Faible : textures détaillées ; élevée : zones lisses</source><translation>Low: detailed textures; high: smooth areas</translation></message>
+<message><source>Option/Alt-clic pour prélever la source</source><translation>Option/Alt-click to sample the source</translation></message>
 </context>
 </TS>

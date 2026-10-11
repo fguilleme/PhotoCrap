@@ -113,6 +113,17 @@ class Document : public QObject
     Q_PROPERTY(QColor mixerLoadColor READ mixerLoadColor NOTIFY settingsChanged)
     Q_PROPERTY(bool mixerLoaded READ mixerLoaded NOTIFY settingsChanged)
     Q_PROPERTY(int mixerPreset READ mixerPreset NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool healingAligned READ healingAligned WRITE setHealingAligned NOTIFY settingsChanged)
+    Q_PROPERTY(int healingSampleMode READ healingSampleMode WRITE setHealingSampleMode NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(
+        int healingDiffusion READ healingDiffusion WRITE setHealingDiffusion NOTIFY settingsChanged)
+    Q_PROPERTY(int healingMode READ healingMode WRITE setHealingMode NOTIFY settingsChanged)
+    Q_PROPERTY(bool healingIgnoreAdjustments READ healingIgnoreAdjustments WRITE
+                   setHealingIgnoreAdjustments NOTIFY settingsChanged)
+    Q_PROPERTY(bool healingSourceValid READ healingSourceValid NOTIFY settingsChanged)
+    Q_PROPERTY(QPointF healingOffset READ healingOffset NOTIFY settingsChanged)
     Q_PROPERTY(bool stampAligned READ stampAligned WRITE setStampAligned NOTIFY settingsChanged)
     Q_PROPERTY(
         int cloneSampleMode READ cloneSampleMode WRITE setCloneSampleMode NOTIFY settingsChanged)
@@ -484,6 +495,40 @@ public:
     Q_INVOKABLE void loadMixerBrush();
     Q_INVOKABLE void cleanMixerBrush();
     Q_INVOKABLE void sampleMixerBrush(qreal _x, qreal _y);
+    bool             healingAligned() const
+    {
+        return m_healingAligned;
+    }
+    int healingSampleMode() const
+    {
+        return m_healingSampleMode;
+    }
+    int healingDiffusion() const
+    {
+        return m_healingDiffusion;
+    }
+    int healingMode() const
+    {
+        return m_healingMode;
+    }
+    bool healingIgnoreAdjustments() const
+    {
+        return m_healingIgnoreAdjustments;
+    }
+    bool healingSourceValid() const
+    {
+        return m_healingSourceValid;
+    }
+    QPointF healingOffset() const
+    {
+        return m_healingOffset;
+    }
+    void             setHealingAligned(bool _value);
+    void             setHealingSampleMode(int _value);
+    void             setHealingDiffusion(int _value);
+    void             setHealingMode(int _value);
+    void             setHealingIgnoreAdjustments(bool _value);
+    Q_INVOKABLE void setHealingSource(qreal _x, qreal _y);
     bool             stampAligned() const
     {
         return m_stampAligned;
@@ -675,6 +720,12 @@ private:
     bool    m_pencilAutoErase = false;
     qreal   m_redEyePupilSize = .5, m_redEyeDarken = .5;
     QRectF  m_redEyeRegion;
+    bool    m_healingAligned = false, m_healingIgnoreAdjustments = false;
+    int     m_healingSampleMode = 0, m_healingDiffusion = 5, m_healingMode = 0;
+    bool    m_healingSourceValid = false, m_healingOffsetValid = false;
+    bool    m_healingOffsetBeforeStrokeValid = false;
+    QPointF m_healingSource, m_healingOffset, m_healingOffsetBeforeStroke;
+    QImage  m_healingSample, m_healingTip;
     bool    m_stampAligned     = true;
     int     m_cloneSampleMode  = 0;
     bool    m_cloneSourceValid = false, m_cloneOffsetValid = false;
@@ -807,6 +858,9 @@ private:
     void    renderRetouchStroke();
     void    prepareSmudgeStroke(bool _alternate);
     void    correctRedEye();
+    bool    prepareHealingStroke();
+    void    healingDab(const QPointF &_point);
+    void    finishHealingStroke(bool _cancel);
     void    smudgeDab(const QPointF &_point);
     void    colorReplacementDab(const QPointF &_point);
     void    prepareMixerStroke();

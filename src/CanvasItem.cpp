@@ -107,7 +107,7 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
                          ? magicWandCursor(_selectionMode)
                          : QCursor(static_cast<Qt::CursorShape>(_shape));
     if ((_tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
-         _tool == "colorReplacement" || _tool == "mixerBrush") &&
+         _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing") &&
         _shape == Qt::BlankCursor && !(_sourcePicking && _tool == "cloneStamp") && m_document) {
         const qreal diameter =
             qBound(2., m_document->brushSize() * width() / qMax(1, m_document->width()), 500.);

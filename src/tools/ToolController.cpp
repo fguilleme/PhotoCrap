@@ -34,6 +34,7 @@ QString toolLabel(const QString &_tool)
         {"redEye", QT_TRANSLATE_NOOP("Document", "Œil rouge")},
         {"healing", QT_TRANSLATE_NOOP("Document", "Correcteur")},
         {"spotHealing", QT_TRANSLATE_NOOP("Document", "Correcteur localisé")},
+        {"patch", QT_TRANSLATE_NOOP("Document", "Pièce")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
         {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
@@ -71,9 +72,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    m_anchor = m_last = (m_tool == "redEye" || m_tool == "healing" || m_tool == "spotHealing")
-                            ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
-                            : QPointF(_x, _y);
+    m_anchor = m_last =
+        (m_tool == "redEye" || m_tool == "healing" || m_tool == "spotHealing" || m_tool == "patch")
+            ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
+            : QPointF(_x, _y);
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
         m_tool == "colorSampler" || m_tool == "ruler")
         return;
@@ -96,6 +98,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     }
     if (m_tool == "quickSelection") {
         beginQuickSelection(m_anchor);
+        return;
+    }
+    if (m_tool == "patch") {
+        beginPatch(m_anchor);
         return;
     }
     if (m_tool == "lasso") {
@@ -212,7 +218,9 @@ void Document::continueStroke(qreal _x, qreal _y)
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
-    if (m_tool == "redEye") {
+    if (m_tool == "patch") {
+        continuePatch(point);
+    } else if (m_tool == "redEye") {
         m_redEyeRegion =
             QRectF(m_anchor, point).normalized().intersected(QRectF(QPointF{}, m_size));
         emit redEyeRegionChanged();
@@ -243,6 +251,10 @@ void Document::endStroke()
 {
     if (!m_drawing)
         return;
+    if (m_tool == "patch") {
+        finishPatch(false);
+        return;
+    }
     if (isPaintStrokeTool(m_tool) && QLineF(m_smoothedLast, m_last).length() > .01) {
         const qreal smoothing = m_brushSmoothing;
         m_brushSmoothing      = 0;
@@ -301,6 +313,10 @@ void Document::cancelStroke()
 {
     if (!m_drawing)
         return;
+    if (m_tool == "patch") {
+        finishPatch(true);
+        return;
+    }
     if (m_tool == "redEye") {
         m_redEyeRegion = {};
         emit redEyeRegionChanged();

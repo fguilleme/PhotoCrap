@@ -611,9 +611,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "healing"),
                               Q_ARG(QVariant, QVariant()));
     QTest::qWait(40);
-    if (!require(
-            toolMenu->property("count").toInt() == 6,
-            "correction group includes Red Eye, Healing Brush and the four remaining NYI tools"))
+    if (!require(toolMenu->property("count").toInt() == 6,
+                 "correction group lists its six tools, including the remaining NYI tools"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");
     _document.deselect();
@@ -786,6 +785,71 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.setBrushSize(savedSize);
     _document.setBrushHardness(savedHardness);
     _document.setBrushSmoothing(savedSmoothing);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, "patch"));
+    QTest::qWait(60);
+    auto patchOptions     = _window->findChild<QObject *>("patchOptions");
+    auto patchSource      = _window->findChild<QObject *>("patchSource");
+    auto patchDestination = _window->findChild<QObject *>("patchDestination");
+    auto patchDiffusion   = _window->findChild<QObject *>("patchDiffusion");
+    if (!require(_document.tool() == "patch" && patchOptions &&
+                     patchOptions->property("visible").toBool() && patchSource &&
+                     patchDestination && patchDiffusion &&
+                     patchSource->property("checked").toBool(),
+                 "Patch has Normal Source/Destination and Diffusion controls"))
+        return false;
+    _document.deselect();
+    const qreal   patchZoom = _window->property("zoom").toReal();
+    const QPointF patchCentre(_document.width() / 2., _document.height() / 2.);
+    const auto    patchPoint = [&](qreal _dx, qreal _dy) {
+        return area->mapToScene((patchCentre + QPointF(_dx, _dy)) * patchZoom).toPoint();
+    };
+    const int beforePatch = _document.historyIndex();
+    QTest::keyClick(_window, Qt::Key_J);
+    QTest::mouseMove(_window, patchPoint(-15, -15));
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-15, -15));
+    for (const QPoint offset : {QPoint(15, -15), QPoint(15, 15), QPoint(-15, 15), QPoint(-15, -15)})
+        QTest::mouseMove(_window, patchPoint(offset.x(), offset.y()));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-15, -15));
+    QTest::qWait(30);
+    if (!require(_document.hasSelection() && _document.historyIndex() == beforePatch,
+                 "Patch traces a selection without changing pixels or history"))
+        return false;
+    const QRegion patchSelection = _document.selectionRegion();
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    QTest::qWait(20);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::SizeAllCursor,
+                 "Patch uses one native move cursor inside its selection"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(-50, 0));
+    QTest::qWait(20);
+    if (!require(_document.patchDragging() && !_document.patchPreviewImage().isNull() &&
+                     _document.historyIndex() == beforePatch,
+                 "Patch drag shows donor texture before committing pixels"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-50, 0));
+    QTest::qWait(30);
+    if (!require(!_document.patchDragging() && _document.patchPreviewImage().isNull() &&
+                     _document.selectionRegion() == patchSelection,
+                 "Patch release restores the repair selection and clears its preview"))
+        return false;
+    // This uniform donor can be a no-op; undo only when the repair changes pixels.
+    if (_document.historyIndex() > beforePatch)
+        _document.undo();
+    auto destinationButton = qobject_cast<QQuickItem *>(patchDestination);
+    QTest::mouseClick(
+        _window, Qt::LeftButton, Qt::NoModifier,
+        destinationButton
+            ->mapToScene(QPointF(destinationButton->width() / 2, destinationButton->height() / 2))
+            .toPoint());
+    QTest::qWait(20);
+    if (!require(_document.patchMode() == 1 && patchDestination->property("checked").toBool(),
+                 "Patch destination option updates the document"))
+        return false;
+    _document.setPatchMode(0);
+    _document.deselect();
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

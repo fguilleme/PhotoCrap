@@ -79,6 +79,7 @@ void CanvasItem::setDocument(Document *_document)
         connect(_document, &Document::imageChanged, this, [this] { update(); });
         connect(_document, &Document::documentChanged, this, [this] { update(); });
         connect(_document, &Document::selectionChanged, this, [this] { update(); });
+        connect(_document, &Document::patchPreviewChanged, this, [this] { update(); });
     }
     update();
     emit documentChanged();
@@ -161,6 +162,14 @@ void CanvasItem::paint(QPainter *_painter)
     _painter->fillRect(boundingRect(), QBrush(checker));
     _painter->setRenderHint(QPainter::SmoothPixmapTransform, width() < m_document->width());
     _painter->drawImage(boundingRect(), m_document->displayComposite());
+    if (m_document->patchDragging() && !m_document->patchPreviewImage().isNull()) {
+        // This is a donor-texture preview; colour adaptation is applied on release.
+        _painter->save();
+        _painter->scale(width() / m_document->width(), height() / m_document->height());
+        _painter->setClipRegion(m_document->patchTargetRegion());
+        _painter->drawImage(m_document->patchTargetRect(), m_document->patchPreviewImage());
+        _painter->restore();
+    }
     if (m_document->selectionShape() < 6 || !m_document->hasSelection())
         return;
 

@@ -59,6 +59,8 @@ ApplicationWindow {
                                              ? Qt.CrossCursor
                                              : window.spacePressed || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
+                                             : editor.tool === "patch" && (editor.patchDragging || drawingArea.patchInsideSelection)
+                                               ? Qt.SizeAllCursor
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
                                              : window.paintToolActive
@@ -156,7 +158,7 @@ ApplicationWindow {
         {name:"spotHealing", icon:"✚", label:qsTr("Correcteur localisé"), implemented:true},
         {name:"remove", icon:"✦", label:qsTr("Suppression"), implemented:false},
         {name:"healing", icon:"▰", label:qsTr("Correcteur"), implemented:true},
-        {name:"patch", icon:"▧", label:qsTr("Pièce"), implemented:false},
+        {name:"patch", icon:"▧", label:qsTr("Pièce"), implemented:true},
         {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:false},
         {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:true},
         {name:"brush", icon:"╱", label:qsTr("Pinceau"), implemented:true},
@@ -1481,6 +1483,12 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        PatchOptions {
+            objectName: "patchOptions"
+            Layout.fillWidth: true
+            visible: editor.tool === "patch"
+            document: editor
+        }
         SpotHealingOptions {
             objectName: "spotHealingOptions"
             Layout.fillWidth: true
@@ -1810,6 +1818,11 @@ ApplicationWindow {
                                 property real pointerX: 0
                                 property real pointerY: 0
                                 property int selectionModeBeforeGesture: -1
+                                property bool patchInsideSelection: false
+                                function updatePatchCursor() {
+                                    patchInsideSelection = editor.tool === "patch"
+                                            && editor.selectionContains(pointerX / zoom, pointerY / zoom)
+                                }
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 enabled: editor.tool!=="hand" && editor.tool!=="rotateView"
@@ -1848,6 +1861,7 @@ ApplicationWindow {
                                 onPositionChanged: function(mouse) {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    updatePatchCursor()
                                     window.stampSourcePicking = Boolean(mouse.modifiers & Qt.AltModifier)
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
                                     if (brushCursor.visible) {
@@ -1907,7 +1921,9 @@ ApplicationWindow {
                             }
                             Connections {
                                 target: editor
-                                function onSettingsChanged() { drawingArea.syncSystemCursor() }
+                                function onSettingsChanged() { drawingArea.updatePatchCursor(); drawingArea.syncSystemCursor() }
+                                function onSelectionChanged() { drawingArea.updatePatchCursor() }
+                                function onPatchPreviewChanged() { drawingArea.updatePatchCursor() }
                             }
                             Canvas {
                                 id: rulerOverlay

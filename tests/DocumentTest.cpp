@@ -320,6 +320,197 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void patchRepairsSourceAndDestinationLocallyWithOneUndo()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 130, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int texture = y % 4 < 2 ? -3 : 3;
+                image.setPixel(x, y,
+                               x < 60 ? qRgb(100 + texture, 160 + texture, 200 + texture)
+                                      : qRgb(180 + texture, 140 + texture, 120 + texture));
+            }
+        QPainter painter(&image);
+        painter.fillRect(84, 44, 4, 4, Qt::black);
+        painter.end();
+        const QString path = dir.filePath("patch.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        d.setTool("patch");
+        QCOMPARE(d.tool(), QString("patch"));
+        d.beginStroke(78, 38);
+        d.continueStroke(94, 38);
+        d.continueStroke(94, 54);
+        d.continueStroke(78, 54);
+        d.continueStroke(78, 38);
+        d.endStroke();
+        QVERIFY(d.hasSelection());
+        const QRegion selection = d.selectionRegion();
+        QCOMPARE(d.historyIndex(), history);
+        d.beginStroke(85, 45);
+        d.continueStroke(35, 45);
+        QVERIFY(d.patchDragging());
+        QVERIFY(!d.patchPreviewImage().isNull());
+        QCOMPARE(d.patchTargetRegion(), selection);
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.endStroke();
+        QVERIFY(!d.patchDragging());
+        QVERIFY(d.patchPreviewImage().isNull());
+        QCOMPARE(d.selectionRegion(), selection);
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QImage repaired = d.layerImage(0);
+        const QColor pixel    = repaired.pixelColor(85, 45);
+        QVERIFY(qAbs(pixel.red() - 177) <= 3);
+        QVERIFY(qAbs(pixel.green() - 137) <= 3);
+        QVERIFY(qAbs(pixel.blue() - 117) <= 3);
+        QVERIFY(repaired.pixel(85, 44) != repaired.pixel(85, 46));
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (!selection.contains(QPoint(x, y)))
+                    QCOMPARE(repaired.pixel(x, y), original.pixel(x, y));
+        QCOMPARE(d.composite(), repaired);
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QCOMPARE(d.layerImage(0), repaired);
+        d.undo();
+        d.setTool("select");
+        d.beginStroke(28, 38);
+        d.continueStroke(44, 54);
+        d.endStroke();
+        const QRegion source = d.selectionRegion();
+        d.setTool("patch");
+        d.setPatchMode(1);
+        d.beginStroke(35, 45);
+        d.continueStroke(85, 45);
+        QCOMPARE(d.patchTargetRegion(), source.translated(50, 0));
+        d.endStroke();
+        QCOMPARE(d.selectionRegion(), source.translated(50, 0));
+        QCOMPARE(d.historyIndex(), history + 1);
+        QVERIFY(d.layerImage(0).pixelColor(85, 45).red() > 170);
+        QCOMPARE(d.layerImage(0).copy(source.boundingRect()), original.copy(source.boundingRect()));
+        d.undo();
+        QCOMPARE(d.selectionRegion(), source);
+        QCOMPARE(d.layerImage(0), original);
+    }
+
+    void patchIrregularSelectionEdgesCancelMasksLocksAndNoOps()
+    {
+        QTemporaryDir dir;
+        QImage        image(100, 100, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(180, 180, 180));
+        QPainter painter(&image);
+        painter.fillRect(18, 18, 4, 4, Qt::black);
+        painter.end();
+        const QString path = dir.filePath("patch-ellipse.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("ellipticalSelect");
+        d.beginStroke(10, 10);
+        d.continueStroke(30, 30);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        const QImage  original  = d.layerImage(0);
+        const int     history   = d.historyIndex();
+        d.setTool("patch");
+        d.beginStroke(20, 20);
+        d.continueStroke(70, 20);
+        d.cancelStroke();
+        QCOMPARE(d.selectionRegion(), selection);
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        QVERIFY(d.patchPreviewImage().isNull());
+        d.beginStroke(20, 20);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history);
+        d.beginStroke(20, 20);
+        d.continueStroke(1000, -1000);
+        QCOMPARE(d.selection().right(), d.width() - 1);
+        QCOMPARE(d.selection().top(), 0);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(20, 20).red() > 170);
+        for (int y = 0; y < 100; ++y)
+            for (int x = 0; x < 100; ++x)
+                if (!selection.contains(QPoint(x, y)))
+                    QCOMPARE(d.layerImage(0).pixel(x, y), original.pixel(x, y));
+        d.undo();
+        d.setLayerLocked(0, true);
+        const int lockedHistory = d.historyIndex();
+        d.beginStroke(20, 20);
+        d.continueStroke(70, 20);
+        d.endStroke();
+        QVERIFY(!d.patchDragging());
+        QCOMPARE(d.historyIndex(), lockedHistory);
+        d.setLayerLocked(0, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask        = d.maskImage(0);
+        const int    maskHistory = d.historyIndex();
+        d.beginStroke(20, 20);
+        d.continueStroke(70, 20);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), maskHistory);
+        QCOMPARE(d.maskImage(0), mask);
+        QCOMPARE(d.layerImage(0), original);
+        d.setPatchMode(99);
+        QCOMPARE(d.patchMode(), 1);
+        d.setPatchMode(-1);
+        QCOMPARE(d.patchMode(), 0);
+        d.setPatchDiffusion(99);
+        QCOMPARE(d.patchDiffusion(), 7);
+        d.setPatchDiffusion(-1);
+        QCOMPARE(d.patchDiffusion(), 1);
+    }
+
+    void patchUhdSmallDragStaysLocalAndPreviewIsBounded()
+    {
+        QTemporaryDir dir;
+        QImage        image(3840, 2160, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(170, 170, 170));
+        QPainter painter(&image);
+        painter.fillRect(98, 98, 4, 4, Qt::black);
+        painter.end();
+        const QString path = dir.filePath("patch-uhd.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("select");
+        d.beginStroke(90, 90);
+        d.continueStroke(110, 110);
+        d.endStroke();
+        d.setTool("patch");
+        const int     history   = d.historyIndex();
+        const qint64  sourceKey = d.layerImage(0).cacheKey();
+        QElapsedTimer timer;
+        timer.start();
+        d.beginStroke(100, 100);
+        for (int x = 130; x < 180; ++x)
+            d.continueStroke(x, 100);
+        QCOMPARE(d.layerImage(0).cacheKey(), sourceKey);
+        d.endStroke();
+        qInfo() << "UHD Patch small repair (ms):" << timer.elapsed();
+        QVERIFY(timer.elapsed() < 1500);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layerImage(0).pixelColor(100, 100), QColor(170, 170, 170));
+        QCOMPARE(d.layerImage(0).pixelColor(3000, 1800), QColor(170, 170, 170));
+        d.setTool("select");
+        d.beginStroke(0, 0);
+        d.continueStroke(2500, 2000);
+        d.endStroke();
+        d.setTool("patch");
+        d.beginStroke(1000, 1000);
+        d.continueStroke(1100, 1000);
+        QVERIFY(d.patchPreviewImage().width() <= 1000);
+        QVERIFY(d.patchPreviewImage().height() <= 1000);
+        d.cancelStroke();
+    }
+
     void spotHealingAutomaticallyRepairsLocallyAndUndoes()
     {
         QTemporaryDir dir;

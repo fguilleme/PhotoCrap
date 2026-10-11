@@ -113,6 +113,7 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Pièce</source><translation>Patch</translation></message>
     <message>
       <location filename="../src/Document.cpp" line="38" />
       <source>Pinceau</source>
@@ -2689,5 +2690,16 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Tous les calques</source><translation>Sample All Layers</translation></message>
     <message><source>Prélever tous les calques visibles pour retoucher sur un calque vide</source><translation>Sample all visible layers to retouch on an empty layer</translation></message>
     <message><source>Peindre sur le défaut ; utiliser une brosse un peu plus grande</source><translation>Paint over the blemish with a slightly larger brush</translation></message>
+  </context>
+  <context>
+    <name>PatchOptions</name>
+    <message><source>Pièce : Normal</source><translation>Patch: Normal</translation></message>
+    <message><source>Source</source><translation>Source</translation></message>
+    <message><source>Destination</source><translation>Destination</translation></message>
+    <message><source>Diffusion</source><translation>Diffusion</translation></message>
+    <message><source>Sélectionner la zone à réparer, puis glisser vers une texture saine</source><translation>Select the area to repair, then drag to healthy texture</translation></message>
+    <message><source>Sélectionner une texture saine, puis glisser vers la zone à réparer</source><translation>Select healthy texture, then drag to the area to repair</translation></message>
+    <message><source>Faible : textures détaillées ; élevée : zones lisses</source><translation>Low: detailed textures; high: smooth areas</translation></message>
+    <message><source>Entourez une zone, puis faites glisser la sélection</source><translation>Outline an area, then drag the selection</translation></message>
   </context>
 </TS>

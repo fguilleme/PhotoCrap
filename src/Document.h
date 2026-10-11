@@ -122,6 +122,11 @@ class Document : public QObject
     Q_PROPERTY(int healingMode READ healingMode WRITE setHealingMode NOTIFY settingsChanged)
     Q_PROPERTY(bool healingIgnoreAdjustments READ healingIgnoreAdjustments WRITE
                    setHealingIgnoreAdjustments NOTIFY settingsChanged)
+    Q_PROPERTY(int patchMode READ patchMode WRITE setPatchMode NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int patchDiffusion READ patchDiffusion WRITE setPatchDiffusion NOTIFY settingsChanged)
+    Q_PROPERTY(bool patchDragging READ patchDragging NOTIFY patchPreviewChanged)
+    Q_PROPERTY(QRect patchTargetRect READ patchTargetRect NOTIFY patchPreviewChanged)
     Q_PROPERTY(bool spotHealingSampleAllLayers READ spotHealingSampleAllLayers WRITE
                    setSpotHealingSampleAllLayers NOTIFY settingsChanged)
     Q_PROPERTY(
@@ -507,9 +512,36 @@ public:
     {
         return m_spotHealingMode;
     }
-    void setSpotHealingSampleAllLayers(bool _value);
-    void setSpotHealingMode(int _value);
-    bool healingAligned() const
+    int patchMode() const
+    {
+        return m_patchMode;
+    }
+    int patchDiffusion() const
+    {
+        return m_patchDiffusion;
+    }
+    bool patchDragging() const
+    {
+        return m_patchDragging;
+    }
+    QImage patchPreviewImage() const
+    {
+        return m_patchPreview;
+    }
+    QRect patchTargetRect() const
+    {
+        return m_patchTarget.boundingRect();
+    }
+    QRegion patchTargetRegion() const
+    {
+        return m_patchTarget;
+    }
+    Q_INVOKABLE bool selectionContains(qreal _x, qreal _y) const;
+    void             setPatchMode(int _value);
+    void             setPatchDiffusion(int _value);
+    void             setSpotHealingSampleAllLayers(bool _value);
+    void             setSpotHealingMode(int _value);
+    bool             healingAligned() const
     {
         return m_healingAligned;
     }
@@ -698,6 +730,7 @@ signals:
     void settingsChanged();
     void selectionChanged();
     void redEyeRegionChanged();
+    void patchPreviewChanged();
     void historyChanged();
     void errorOccurred(const QString &_message);
     void statusMessage(const QString &_message);
@@ -740,6 +773,11 @@ private:
     bool    m_healingOffsetBeforeStrokeValid = false;
     QPointF m_healingSource, m_healingOffset, m_healingOffsetBeforeStroke;
     QImage  m_healingSample, m_healingTip;
+    int     m_patchMode = 0, m_patchDiffusion = 5;
+    bool    m_patchDragging = false;
+    QPoint  m_patchOffset;
+    QRegion m_patchTarget;
+    QImage  m_patchSource, m_patchPreview;
     bool    m_spotHealingSampleAllLayers = false;
     int     m_spotHealingMode            = 0;
     QImage  m_spotHealingSample, m_spotHealingTip;
@@ -854,6 +892,11 @@ private:
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
                    bool _notifyImage = true);
     void    trimHistory();
+    void    beginPatch(const QPointF &_point);
+    void    continuePatch(const QPointF &_point);
+    void    finishPatch(bool _cancel);
+    void    clearPatch();
+    void    applyPatch();
     void    beginLasso(qreal _x, qreal _y);
     void    continueLasso(qreal _x, qreal _y);
     void    finishLasso();

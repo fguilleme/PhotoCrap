@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,15 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "healing" || root.toolName === "spotHealing") {
+            if (root.toolName === "patch") {
+                ctx.strokeRect(6, 6, 12, 12)
+                for (const p of [8, 12, 16]) {
+                    ctx.beginPath(); ctx.moveTo(p, 3); ctx.lineTo(p, 8)
+                    ctx.moveTo(p, 16); ctx.lineTo(p, 21)
+                    ctx.moveTo(3, p); ctx.lineTo(8, p)
+                    ctx.moveTo(16, p); ctx.lineTo(21, p); ctx.stroke()
+                }
+            } else if (root.toolName === "healing" || root.toolName === "spotHealing") {
                 ctx.save(); ctx.translate(12, 12); ctx.rotate(-Math.PI / 4)
                 ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(8, -4)
                 ctx.bezierCurveTo(13, -4, 13, 4, 8, 4); ctx.lineTo(-8, 4)

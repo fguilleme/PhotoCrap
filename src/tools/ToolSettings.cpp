@@ -12,6 +12,7 @@ void Document::setTool(const QString &_value)
                                    "redEye",
                                    "healing",
                                    "spotHealing",
+                                   "patch",
                                    "cloneStamp",
                                    "patternStamp",
                                    "eraser",

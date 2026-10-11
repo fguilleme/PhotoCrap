@@ -88,7 +88,7 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 40);
+        QCOMPARE(shortcuts.entries().size(), 41);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
@@ -101,6 +101,7 @@ private slots:
         QCOMPARE(shortcuts.sequence("toolLasso"), QString("L"));
         QCOMPARE(shortcuts.sequence("toolSmartSelection"), QString("W"));
         QCOMPARE(shortcuts.sequence("toolStamp"), QString("S"));
+        QCOMPARE(shortcuts.sequence("toolHealing"), QString("J"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -318,6 +319,168 @@ private slots:
         d.fillWithColor(true);
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
+    }
+    void redEyeClickCorrectsOnePupilPreservesHighlightsAndUndo()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 100, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(210, 165, 140));
+        QPainter painter(&image);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(230, 40, 35));
+        painter.drawEllipse(QRect(32, 32, 20, 20));
+        painter.drawEllipse(QRect(58, 36, 4, 4)); // separate red object in the search area
+        painter.drawEllipse(QRect(100, 32, 20, 20));
+        painter.setBrush(Qt::white);
+        painter.drawEllipse(QRect(40, 38, 4, 4));
+        painter.end();
+        const QString path = dir.filePath("red-eyes.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("redEye");
+        QCOMPARE(d.tool(), QString("redEye"));
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        QCOMPARE(d.composite(), original); // prime the full-resolution cache before the local edit
+        d.beginStroke(42, 40);             // clicking a catchlight finds the surrounding red pupil
+        QCOMPARE(d.layerImage(0), original); // modification happens at release
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QColor corrected = d.layerImage(0).pixelColor(38, 42);
+        QCOMPARE(corrected.red(), corrected.green());
+        QCOMPARE(corrected.green(), corrected.blue());
+        QVERIFY(corrected.red() < 40);
+        QCOMPARE(d.layerImage(0).pixelColor(42, 40), QColor(Qt::white));
+        QCOMPARE(d.layerImage(0).pixelColor(60, 38), original.pixelColor(60, 38));
+        QCOMPARE(d.layerImage(0).pixelColor(110, 42), original.pixelColor(110, 42));
+        const QImage result = d.layerImage(0);
+        for (int y = 0; y < original.height(); ++y)
+            for (int x = 0; x < original.width(); ++x)
+                if (!QRect(32, 32, 20, 20).contains(x, y))
+                    QCOMPARE(result.pixel(x, y), original.pixel(x, y));
+        QCOMPARE(d.composite().pixelColor(38, 42), corrected);
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QCOMPARE(d.layerImage(0), result);
+    }
+    void redEyeBoxControlsSizeAndDarkeningAndCancelsWithoutEditing()
+    {
+        QTemporaryDir dir;
+        QImage        image(100, 100, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(220, 80, 60));
+        painter.drawEllipse(QRect(30, 30, 40, 40));
+        painter.end();
+        const QString path = dir.filePath("pupil.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("redEye");
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        d.beginStroke(25, 25);
+        d.continueStroke(75, 75);
+        QCOMPARE(d.redEyeRegion(), QRectF(25, 25, 50, 50));
+        d.cancelStroke();
+        QVERIFY(d.redEyeRegion().isEmpty());
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.setRedEyePupilSize(.1);
+        d.setRedEyeDarken(0);
+        d.beginStroke(25, 25);
+        d.continueStroke(75, 75);
+        d.endStroke();
+        QVERIFY(d.redEyeRegion().isEmpty());
+        QCOMPARE(d.layerImage(0).pixelColor(50, 50), QColor(70, 70, 70));
+        QCOMPARE(d.layerImage(0).pixelColor(37, 50), original.pixelColor(37, 50));
+        d.undo();
+        d.setRedEyePupilSize(1);
+        d.setRedEyeDarken(1);
+        d.beginStroke(75, 75); // either drag direction works
+        d.continueStroke(25, 25);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(50, 50), QColor(7, 7, 7));
+        QVERIFY(d.layerImage(0).pixelColor(37, 50).red() < 20);
+        QCOMPARE(d.historyIndex(), history + 1);
+    }
+    void redEyeHonoursSelectionAlphaAndRejectsMasksAndLockedLayers()
+    {
+        QTemporaryDir dir;
+        QImage        image(64, 64, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(230, 60, 40, 128));
+        painter.drawEllipse(QRect(16, 16, 32, 32));
+        painter.end();
+        const QString path = dir.filePath("alpha-eye.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        d.setTool("ellipticalSelect");
+        d.beginStroke(24, 24);
+        d.continueStroke(40, 40);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        d.setTool("redEye");
+        d.beginStroke(32, 32);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(32, 32).red() < 60);
+        for (int y = 0; y < 64; ++y)
+            for (int x = 0; x < 64; ++x) {
+                QCOMPARE(qAlpha(d.layerImage(0).pixel(x, y)), qAlpha(original.pixel(x, y)));
+                if (!selection.contains(QPoint(x, y)))
+                    QCOMPARE(d.layerImage(0).pixel(x, y), original.pixel(x, y));
+            }
+        d.undo();
+        d.deselect();
+        d.setLayerLocked(0, true);
+        const int lockedHistory = d.historyIndex();
+        d.beginStroke(32, 32);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), lockedHistory);
+        d.setLayerLocked(0, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask        = d.maskImage(0);
+        const int    maskHistory = d.historyIndex();
+        d.beginStroke(32, 32);
+        d.endStroke();
+        QCOMPARE(d.maskImage(0), mask);
+        QCOMPARE(d.historyIndex(), maskHistory);
+        QCOMPARE(d.layerImage(0), original);
+    }
+    void redEyeNoOpClicksKeepHistoryAndValidateSettings()
+    {
+        Document d;
+        QVERIFY(d.newDocument(64, 64, false));
+        d.setTool("redEye");
+        const int    history  = d.historyIndex();
+        const QImage original = d.layerImage(0);
+        for (const QPointF point : {QPointF(32, 32), QPointF(-20, -20), QPointF(500, 500)}) {
+            d.beginStroke(point.x(), point.y());
+            d.endStroke();
+        }
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(0), original);
+        d.setRedEyePupilSize(-1);
+        QCOMPARE(d.redEyePupilSize(), .01);
+        d.setRedEyePupilSize(5);
+        QCOMPARE(d.redEyePupilSize(), 1.);
+        d.setRedEyeDarken(-2);
+        QCOMPARE(d.redEyeDarken(), 0.);
+        d.setRedEyeDarken(2);
+        QCOMPARE(d.redEyeDarken(), 1.);
+        d.setRedEyeDarken(qQNaN());
+        d.setRedEyePupilSize(qInf());
+        QCOMPARE(d.redEyeDarken(), 1.);
+        QCOMPARE(d.redEyePupilSize(), 1.);
     }
     void mixerDryPaintFlowAndReservoirDepletion()
     {

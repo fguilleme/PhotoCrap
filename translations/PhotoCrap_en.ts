@@ -619,6 +619,8 @@
     <message><source>Doigt</source><translation>Smudge</translation></message>
 <message><source>Remplacement de couleur</source><translation>Color Replacement</translation></message>
 <message><source>Pinceau mélangeur</source><translation>Mixer Brush</translation></message>
+<message><source>Œil rouge</source><translation>Red Eye</translation></message>
+<message><source>Aucune pupille rouge trouvée dans cette zone.</source><translation>No red pupil found in this area.</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2617,6 +2619,7 @@ Independent software, not affiliated with Adobe.</translation>
       <translation>“%1” already uses this shortcut.</translation>
     </message>
       <message><source>Tampons</source><translation>Stamps</translation></message>
+<message><source>Correction</source><translation>Retouching</translation></message>
 </context>
 <context><name>MixerBrushOptions</name>
 <message><source>Personnalisé</source><translation>Custom</translation></message>
@@ -2642,5 +2645,10 @@ Independent software, not affiliated with Adobe.</translation>
 <message><source>Charger après chaque trait</source><translation>Load After Each Stroke</translation></message>
 <message><source>Nettoyer après chaque trait</source><translation>Clean After Each Stroke</translation></message>
 <message><source>Charger les couleurs unies seulement</source><translation>Load Solid Colours Only</translation></message>
+</context>
+<context><name>RedEyeOptions</name>
+<message><source>Taille de pupille</source><translation>Pupil Size</translation></message>
+<message><source>Obscurcissement</source><translation>Darken Amount</translation></message>
+<message><source>Cliquez sur la pupille rouge ou encadrez un œil</source><translation>Click the red pupil or draw a box around one eye</translation></message>
 </context>
 </TS>

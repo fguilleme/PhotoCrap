@@ -341,7 +341,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 40,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 41,
                  "keyboard settings list is populated"))
         return false;
     _window->setProperty("preferencesPage", 2);
@@ -567,6 +567,80 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
                  "B restores Mixer Brush with one native brush cursor"))
         return false;
+    QTest::keyClick(_window, Qt::Key_J);
+    QTest::mouseMove(_window, sourceClick + QPoint(2, 2));
+    QTest::qWait(60);
+    auto redEyeOptions = _window->findChild<QObject *>("redEyeOptions");
+    auto redEyePupil   = _window->findChild<QObject *>("redEyePupilSize");
+    auto redEyeDarken  = _window->findChild<QObject *>("redEyeDarken");
+    auto redEyeOverlay = _window->findChild<QObject *>("redEyeRegionOverlay");
+    if (!require(_document.tool() == "redEye" && redEyeOptions && redEyePupil && redEyeDarken &&
+                     redEyeOverlay && redEyeOptions->property("visible").toBool() &&
+                     redEyePupil->property("value").toInt() == 50 &&
+                     redEyeDarken->property("value").toInt() == 50 &&
+                     QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::CrossCursor,
+                 "J selects Red Eye with pupil size, darkening and one native crosshair"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(40);
+    if (!require(toolMenu->property("count").toInt() == 6,
+                 "correction group includes Red Eye and the five remaining NYI tools"))
+        return false;
+    QMetaObject::invokeMethod(toolMenu, "close");
+    _document.deselect();
+    const qreal  savedSize = _document.brushSize(), savedHardness = _document.brushHardness(),
+                 savedSmoothing = _document.brushSmoothing();
+    const QColor savedColour    = _document.color();
+    _document.setTool("brush");
+    _document.setColor(QColor(220, 60, 40));
+    _document.setBrushSize(16);
+    _document.setBrushHardness(1);
+    _document.setBrushSmoothing(0);
+    _document.beginStroke(_document.width() / 2., _document.height() / 2.);
+    _document.endStroke();
+    _document.setTool("redEye");
+    const int redEyeHistory = _document.historyIndex();
+    QTest::qWait(60); // specialised options row changes the canvas position
+    const QPoint eyeClick =
+        area->mapToScene(QPointF(area->width() / 2, area->height() / 2)).toPoint();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, eyeClick);
+    QTest::qWait(40);
+    const QColor correctedEye = _document.layerImage(_document.activeLayer())
+                                    .pixelColor(_document.width() / 2, _document.height() / 2);
+    if (!require(_document.historyIndex() == redEyeHistory + 1 &&
+                     correctedEye.red() == correctedEye.green() &&
+                     correctedEye.green() == correctedEye.blue(),
+                 "canvas click corrects the red pupil and creates one undo step"))
+        return false;
+    _document.undo();
+    const qreal  redEyeZoom = _window->property("zoom").toReal();
+    const QPoint eyeFrom    = area->mapToScene(QPointF(area->width() / 2 - 20 * redEyeZoom,
+                                                       area->height() / 2 - 20 * redEyeZoom))
+                                  .toPoint();
+    const QPoint eyeTo      = area->mapToScene(QPointF(area->width() / 2 + 20 * redEyeZoom,
+                                                       area->height() / 2 + 20 * redEyeZoom))
+                                  .toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, eyeFrom);
+    QTest::mouseMove(_window, eyeTo);
+    QTest::qWait(40);
+    if (!require(redEyeOverlay->property("visible").toBool() &&
+                     _document.historyIndex() == redEyeHistory,
+                 "Red Eye drag shows its search box without editing before release"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, eyeTo);
+    QTest::qWait(40);
+    if (!require(!redEyeOverlay->property("visible").toBool() &&
+                     _document.historyIndex() == redEyeHistory + 1,
+                 "Red Eye rectangle disappears after correction at release"))
+        return false;
+    _document.undo();
+    _document.undo(); // restore the document before the synthetic red pupil
+    _document.setBrushSize(savedSize);
+    _document.setBrushHardness(savedHardness);
+    _document.setBrushSmoothing(savedSmoothing);
+    _document.setColor(savedColour);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

@@ -30,6 +30,7 @@ QString toolLabel(const QString &_tool)
         {"pencil", QT_TRANSLATE_NOOP("Document", "Crayon")},
         {"colorReplacement", QT_TRANSLATE_NOOP("Document", "Remplacement de couleur")},
         {"mixerBrush", QT_TRANSLATE_NOOP("Document", "Pinceau mélangeur")},
+        {"redEye", QT_TRANSLATE_NOOP("Document", "Œil rouge")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
         {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
@@ -67,7 +68,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    m_anchor = m_last = {_x, _y};
+    m_anchor = m_last = m_tool == "redEye"
+                            ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
+                            : QPointF(_x, _y);
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
         m_tool == "colorSampler" || m_tool == "ruler")
         return;
@@ -126,7 +129,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     m_beforeStroke  = snapshot(toolLabel(m_tool));
     m_drawing       = true;
     m_strokeChanged = false;
-    if (isPaintStrokeTool(m_tool)) {
+    if (m_tool == "redEye") {
+        m_redEyeRegion = {};
+        emit redEyeRegionChanged();
+    } else if (isPaintStrokeTool(m_tool)) {
         QImage *target = paintTarget();
         if (!target) {
             m_drawing = false;
@@ -190,7 +196,11 @@ void Document::continueStroke(qreal _x, qreal _y)
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
-    if (m_tool == "quickSelection") {
+    if (m_tool == "redEye") {
+        m_redEyeRegion =
+            QRectF(m_anchor, point).normalized().intersected(QRectF(QPointF{}, m_size));
+        emit redEyeRegionChanged();
+    } else if (m_tool == "quickSelection") {
         const qreal  step = qMax(2., m_brushSize * .5);
         const QLineF line(m_last, point);
         const int    count = qMax(1, qCeil(line.length() / step));
@@ -223,6 +233,11 @@ void Document::endStroke()
         paintSegment(m_smoothedLast, m_last);
         m_brushSmoothing = smoothing;
     }
+    if (m_tool == "redEye") {
+        correctRedEye();
+        m_redEyeRegion = {};
+        emit redEyeRegionChanged();
+    }
     m_drawing = false;
     if (m_tool == "quickSelection") {
         finishQuickSelection();
@@ -244,8 +259,8 @@ void Document::endStroke()
             m_selectionPath.translate(offset);
             emit selectionChanged();
         }
-        commit(m_beforeStroke, toolLabel(m_tool), !isPaintStrokeTool(m_tool));
-        if (isPaintStrokeTool(m_tool)) {
+        commit(m_beforeStroke, toolLabel(m_tool), !isPaintStrokeTool(m_tool) && m_tool != "redEye");
+        if (isPaintStrokeTool(m_tool) || m_tool == "redEye") {
             ++m_thumbnailRevision;
             emit thumbnailsChanged();
         }
@@ -266,6 +281,10 @@ void Document::cancelStroke()
 {
     if (!m_drawing)
         return;
+    if (m_tool == "redEye") {
+        m_redEyeRegion = {};
+        emit redEyeRegionChanged();
+    }
     m_drawing = false;
     if (m_tool == "quickSelection") {
         cancelQuickSelection();
@@ -278,7 +297,7 @@ void Document::cancelStroke()
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect" || m_tool == "crop")
         deselect();
-    else
+    else if (m_tool != "redEye")
         restore(m_beforeStroke);
     if (m_tool == "mixerBrush")
         finishMixerStroke(true);

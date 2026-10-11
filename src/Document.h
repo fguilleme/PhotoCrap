@@ -95,6 +95,10 @@ class Document : public QObject
                    NOTIFY settingsChanged)
     Q_PROPERTY(bool replacementAntialias READ replacementAntialias WRITE setReplacementAntialias
                    NOTIFY settingsChanged)
+    Q_PROPERTY(
+        qreal redEyePupilSize READ redEyePupilSize WRITE setRedEyePupilSize NOTIFY settingsChanged)
+    Q_PROPERTY(qreal redEyeDarken READ redEyeDarken WRITE setRedEyeDarken NOTIFY settingsChanged)
+    Q_PROPERTY(QRectF redEyeRegion READ redEyeRegion NOTIFY redEyeRegionChanged)
     Q_PROPERTY(qreal mixerWet READ mixerWet WRITE setMixerWet NOTIFY settingsChanged)
     Q_PROPERTY(qreal mixerLoad READ mixerLoad WRITE setMixerLoad NOTIFY settingsChanged)
     Q_PROPERTY(qreal mixerMix READ mixerMix WRITE setMixerMix NOTIFY settingsChanged)
@@ -378,6 +382,20 @@ public:
     {
         return m_maskOnlyView ? m_active : -1;
     }
+    qreal redEyePupilSize() const
+    {
+        return m_redEyePupilSize;
+    }
+    qreal redEyeDarken() const
+    {
+        return m_redEyeDarken;
+    }
+    QRectF redEyeRegion() const
+    {
+        return m_redEyeRegion;
+    }
+    void setRedEyePupilSize(qreal _value);
+    void setRedEyeDarken(qreal _value);
     bool smudgeSampleAllLayers() const
     {
         return m_smudgeSampleAllLayers;
@@ -620,6 +638,7 @@ signals:
     void displayChannelChanged();
     void settingsChanged();
     void selectionChanged();
+    void redEyeRegionChanged();
     void historyChanged();
     void errorOccurred(const QString &_message);
     void statusMessage(const QString &_message);
@@ -652,8 +671,10 @@ private:
     QColor         m_color{Qt::black}, m_secondary{Qt::white};
     qreal          m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
     qreal   m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
-    int     m_brushBlend       = 0;
-    bool    m_pencilAutoErase  = false;
+    int     m_brushBlend      = 0;
+    bool    m_pencilAutoErase = false;
+    qreal   m_redEyePupilSize = .5, m_redEyeDarken = .5;
+    QRectF  m_redEyeRegion;
     bool    m_stampAligned     = true;
     int     m_cloneSampleMode  = 0;
     bool    m_cloneSourceValid = false, m_cloneOffsetValid = false;
@@ -785,6 +806,7 @@ private:
     void    renderBrushStroke();
     void    renderRetouchStroke();
     void    prepareSmudgeStroke(bool _alternate);
+    void    correctRedEye();
     void    smudgeDab(const QPointF &_point);
     void    colorReplacementDab(const QPointF &_point);
     void    prepareMixerStroke();

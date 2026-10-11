@@ -40,7 +40,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
         group("frame", "", "K", "frame", {"frame"}),
         group("measure", "toolPicker", "I", "picker",
               {"picker", "colorSampler", "ruler", "note", "count"}),
-        group("healing", "", "J", "spotHealing",
+        group("healing", "toolHealing", "J", "redEye",
               {"spotHealing", "remove", "healing", "patch", "contentAwareMove", "redEye"}),
         group("brush", "toolBrush", "B", "brush",
               {"brush", "pencil", "colorReplacement", "mixerBrush"}),

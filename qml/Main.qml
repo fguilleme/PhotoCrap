@@ -158,7 +158,7 @@ ApplicationWindow {
         {name:"healing", icon:"▰", label:qsTr("Correcteur"), implemented:false},
         {name:"patch", icon:"▧", label:qsTr("Pièce"), implemented:false},
         {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:false},
-        {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:false},
+        {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:true},
         {name:"brush", icon:"╱", label:qsTr("Pinceau"), implemented:true},
         {name:"pencil", icon:"✎", label:qsTr("Crayon"), implemented:true},
         {name:"colorReplacement", icon:"♢", label:qsTr("Remplacement de couleur"), implemented:true},
@@ -1480,6 +1480,12 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        RedEyeOptions {
+            objectName: "redEyeOptions"
+            Layout.fillWidth: true
+            visible: editor.tool === "redEye"
+            document: editor
+        }
         MixerBrushOptions {
             objectName: "mixerBrushOptions"
             Layout.fillWidth: true
@@ -1685,6 +1691,23 @@ ApplicationWindow {
                                     function onSelectionChanged() {
                                         rectangularSelectionOverlay.requestPaint()
                                     }
+                                }
+                            }
+                            Rectangle {
+                                objectName: "redEyeRegionOverlay"
+                                x: editor.redEyeRegion.x * zoom
+                                y: editor.redEyeRegion.y * zoom
+                                width: editor.redEyeRegion.width * zoom
+                                height: editor.redEyeRegion.height * zoom
+                                z: 2
+                                enabled: false
+                                visible: editor.tool === "redEye" && width > 1 && height > 1
+                                color: "transparent"
+                                border.color: "#f5f7f9"
+                                border.width: 1
+                                Rectangle {
+                                    anchors.fill: parent; anchors.margins: 1
+                                    color: "transparent"; border.color: "#172028"; border.width: 1
                                 }
                             }
                             Canvas {

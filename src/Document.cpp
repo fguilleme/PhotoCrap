@@ -223,6 +223,9 @@ void Document::resetHistory(bool _clean)
     m_strokeCoverage        = {};
     m_strokeBounds          = {};
     m_stampSource           = {};
+    m_smudgePickup          = {};
+    m_smudgeMask            = {};
+    m_smudgeSample          = {};
     m_cloneSourceValid      = false;
     m_cloneOffsetValid      = false;
     m_patternOriginValid    = false;

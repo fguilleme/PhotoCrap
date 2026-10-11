@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -129,6 +129,15 @@ Item {
                 ctx.lineTo(4, 20.5)
                 ctx.closePath()
                 ctx.fill()
+            } else if (root.toolName === "smudge") {
+                ctx.beginPath(); ctx.moveTo(5, 20); ctx.lineTo(5, 13)
+                ctx.quadraticCurveTo(5, 11, 7, 11); ctx.lineTo(9, 13)
+                ctx.lineTo(9, 4); ctx.quadraticCurveTo(9, 1, 12, 3)
+                ctx.lineTo(13, 10); ctx.lineTo(18, 10)
+                ctx.quadraticCurveTo(21, 10, 20, 14)
+                ctx.lineTo(17, 21); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(2, 16); ctx.lineTo(2, 21)
+                ctx.moveTo(22, 17); ctx.lineTo(20, 22); ctx.stroke()
             } else if (root.toolName === "blur") {
                 ctx.beginPath()
                 ctx.moveTo(12, 2.5)

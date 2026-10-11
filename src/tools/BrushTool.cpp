@@ -17,7 +17,7 @@ QColor maskColor(const QColor &_color)
 void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 {
     Q_UNUSED(_from)
-    if (m_strokeCoverage.isNull())
+    if (m_tool != "smudge" && m_strokeCoverage.isNull())
         return;
     m_strokeBounds = {};
     if (m_anchor == _to && !m_strokeChanged)
@@ -44,6 +44,10 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 }
 void Document::stampBrush(const QPointF &_point)
 {
+    if (m_tool == "smudge") {
+        smudgeDab(_point);
+        return;
+    }
     QPainter painter(&m_strokeCoverage);
     painter.setRenderHint(QPainter::Antialiasing, m_tool != "pencil");
     painter.translate(_point);
@@ -68,6 +72,8 @@ void Document::stampBrush(const QPointF &_point)
 }
 void Document::renderBrushStroke()
 {
+    if (m_tool == "smudge")
+        return;
     if (m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" ||
         m_tool == "sponge") {
         renderRetouchStroke();

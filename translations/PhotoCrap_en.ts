@@ -616,6 +616,7 @@
     <message><source>Sélectionnez une zone rectangulaire pour définir un motif.</source><translation>Select a rectangular area to define a pattern.</translation></message>
     <message><source>Un motif peut mesurer jusqu’à 1 024 × 1 024 pixels.</source><translation>A pattern can be up to 1,024 × 1,024 pixels.</translation></message>
     <message><source>Option/Alt-clic sur l’image pour définir la source du tampon.</source><translation>Option/Alt-click the image to set the clone source.</translation></message>
+    <message><source>Doigt</source><translation>Smudge</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2345,6 +2346,8 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Motif personnalisé</source><translation>Custom Pattern</translation></message>
     <message><source>Définir le motif…</source><translation>Define Pattern…</translation></message>
     <message><source>Utiliser la zone sélectionnée comme motif répétitif</source><translation>Use the selected area as a repeating pattern</translation></message>
+    <message><source>Peinture au doigt</source><translation>Finger Painting</translation></message>
+    <message><source>Commencer avec la couleur de premier plan ; Option/Alt l’active temporairement</source><translation>Start with the foreground color; Option/Alt enables this temporarily</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>

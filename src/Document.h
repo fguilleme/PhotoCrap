@@ -81,6 +81,10 @@ class Document : public QObject
         bool spongeSaturate READ spongeSaturate WRITE setSpongeSaturate NOTIFY settingsChanged)
     Q_PROPERTY(int retouchRange READ retouchRange WRITE setRetouchRange NOTIFY settingsChanged)
     Q_PROPERTY(bool protectTones READ protectTones WRITE setProtectTones NOTIFY settingsChanged)
+    Q_PROPERTY(bool smudgeSampleAllLayers READ smudgeSampleAllLayers WRITE setSmudgeSampleAllLayers
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool smudgeFingerPainting READ smudgeFingerPainting WRITE setSmudgeFingerPainting
+                   NOTIFY settingsChanged)
     Q_PROPERTY(bool stampAligned READ stampAligned WRITE setStampAligned NOTIFY settingsChanged)
     Q_PROPERTY(
         int cloneSampleMode READ cloneSampleMode WRITE setCloneSampleMode NOTIFY settingsChanged)
@@ -350,6 +354,16 @@ public:
     {
         return m_maskOnlyView ? m_active : -1;
     }
+    bool smudgeSampleAllLayers() const
+    {
+        return m_smudgeSampleAllLayers;
+    }
+    bool smudgeFingerPainting() const
+    {
+        return m_smudgeFingerPainting;
+    }
+    void setSmudgeSampleAllLayers(bool _value);
+    void setSmudgeFingerPainting(bool _value);
     bool stampAligned() const
     {
         return m_stampAligned;
@@ -470,7 +484,7 @@ public:
     Q_INVOKABLE QVariantList autoBlackWhiteValues() const;
     Q_INVOKABLE void         resetAdjustmentLayer();
     Q_INVOKABLE void         resetCurveAdjustment();
-    Q_INVOKABLE void         beginStroke(qreal _x, qreal _y);
+    Q_INVOKABLE void         beginStroke(qreal _x, qreal _y, bool _alternate = false);
     Q_INVOKABLE void         continueStroke(qreal _x, qreal _y);
     Q_INVOKABLE void         endStroke();
     Q_INVOKABLE void         cancelStroke();
@@ -544,6 +558,9 @@ private:
     bool    m_patternOriginValid = false;
     int     m_stampPattern       = 0;
     QImage  m_customStampPattern, m_stampSource;
+
+    bool   m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
+    QImage m_smudgePickup, m_smudgeMask, m_smudgeSample;
 
     qreal                          m_toolStrength   = .5;
     bool                           m_spongeSaturate = false;
@@ -649,6 +666,8 @@ private:
     void    stampBrush(const QPointF &_point);
     void    renderBrushStroke();
     void    renderRetouchStroke();
+    void    prepareSmudgeStroke(bool _alternate);
+    void    smudgeDab(const QPointF &_point);
     bool    prepareStampStroke();
     void    renderStampStroke();
     QImage  stampPatternImage() const;

@@ -35,6 +35,7 @@ void Document::setTool(const QString &_value)
                                    "zoomTool",
                                    "blur",
                                    "sharpen",
+                                   "smudge",
                                    "dodge",
                                    "burn",
                                    "sponge",

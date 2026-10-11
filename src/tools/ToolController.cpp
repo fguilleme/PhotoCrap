@@ -13,7 +13,7 @@ bool isPaintStrokeTool(const QString &_tool)
 {
     return _tool == "brush" || _tool == "pencil" || _tool == "eraser" || _tool == "blur" ||
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
-           _tool == "cloneStamp" || _tool == "patternStamp";
+           _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge";
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -47,6 +47,7 @@ QString toolLabel(const QString &_tool)
         {"star", QT_TRANSLATE_NOOP("Document", "Étoile")},
         {"blur", QT_TRANSLATE_NOOP("Document", "Flou")},
         {"sharpen", QT_TRANSLATE_NOOP("Document", "Netteté")},
+        {"smudge", QT_TRANSLATE_NOOP("Document", "Doigt")},
         {"dodge", QT_TRANSLATE_NOOP("Document", "Densité moins")},
         {"burn", QT_TRANSLATE_NOOP("Document", "Densité plus")},
         {"sponge", QT_TRANSLATE_NOOP("Document", "Éponge")},
@@ -58,7 +59,7 @@ QString toolLabel(const QString &_tool)
 }
 } // namespace
 
-void Document::beginStroke(qreal _x, qreal _y)
+void Document::beginStroke(qreal _x, qreal _y, bool _alternate)
 {
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
@@ -110,7 +111,8 @@ void Document::beginStroke(qreal _x, qreal _y)
     if (!editable())
         return;
     if (m_editingMask && m_tool != "brush" && m_tool != "pencil" && m_tool != "eraser" &&
-        m_tool != "fill" && m_tool != "cloneStamp" && m_tool != "patternStamp") {
+        m_tool != "fill" && m_tool != "cloneStamp" && m_tool != "patternStamp" &&
+        m_tool != "smudge") {
         fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
         return;
     }
@@ -134,7 +136,9 @@ void Document::beginStroke(qreal _x, qreal _y)
             target->rect().contains(QPoint(int(_x), int(_y))) &&
             target->pixelColor(int(_x), int(_y)).rgba() == m_color.rgba())
             m_strokeInkColor = m_secondary;
-        m_strokeCoverage    = ImageUtils::blank(m_size);
+        m_strokeCoverage = m_tool == "smudge" ? QImage{} : ImageUtils::blank(m_size);
+        if (m_tool == "smudge")
+            prepareSmudgeStroke(_alternate);
         m_strokeBounds      = {};
         m_smoothedLast      = m_anchor;
         m_distanceToNextDab = qMax(1., m_brushSize * m_brushSpacing);
@@ -232,6 +236,9 @@ void Document::endStroke()
     m_strokeBounds   = {};
     m_strokeInkColor = {};
     m_stampSource    = {};
+    m_smudgePickup   = {};
+    m_smudgeMask     = {};
+    m_smudgeSample   = {};
 }
 void Document::cancelStroke()
 {
@@ -257,6 +264,9 @@ void Document::cancelStroke()
     m_strokeBounds   = {};
     m_strokeInkColor = {};
     m_stampSource    = {};
+    m_smudgePickup   = {};
+    m_smudgeMask     = {};
+    m_smudgeSample   = {};
 }
 QImage *Document::paintTarget()
 {

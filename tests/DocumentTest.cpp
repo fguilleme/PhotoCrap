@@ -318,6 +318,124 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void smudgeTransportsPaintOnlyAlongTheStrokeAndRemainsUndoable()
+    {
+        Document d;
+        QVERIFY(d.newDocument(96, 48, true));
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setTool("select");
+        d.beginStroke(0, 0);
+        d.continueStroke(31, 47);
+        d.endStroke();
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.deselect();
+        d.setTool("smudge");
+        d.setBrushSize(12);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        d.setToolStrength(1);
+        d.setColor(Qt::green);
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        d.beginStroke(24, 24);
+        d.continueStroke(48, 24);
+        d.continueStroke(60, 24);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(48, 24), QColor(Qt::red));
+        QCOMPARE(d.layerImage(0).pixelColor(48, 4), QColor(Qt::blue));
+        QCOMPARE(d.layerImage(0).pixelColor(84, 24), QColor(Qt::blue));
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QCOMPARE(d.layerImage(0).pixelColor(48, 24), QColor(Qt::red));
+        d.undo();
+        d.setToolStrength(.5);
+        d.beginStroke(28, 24);
+        d.continueStroke(36, 24);
+        d.endStroke();
+        const QColor mixed = d.layerImage(0).pixelColor(34, 24);
+        QVERIFY(mixed.red() > 0 && mixed.blue() > 0 && mixed.green() == 0);
+        d.undo();
+        d.beginStroke(24, 24);
+        d.continueStroke(48, 24);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0), original);
+    }
+    void smudgeFingerPaintingAndAltIntroduceForegroundColour()
+    {
+        Document d;
+        QVERIFY(d.newDocument(64, 32, true));
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setTool("smudge");
+        d.setBrushSize(10);
+        d.setBrushHardness(1);
+        d.setToolStrength(1);
+        d.setColor(Qt::red);
+        d.beginStroke(16, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(16, 16), QColor(Qt::blue));
+        d.beginStroke(16, 16, true);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(16, 16), QColor(Qt::red));
+        QVERIFY(!d.smudgeFingerPainting());
+        d.undo();
+        d.setSmudgeFingerPainting(true);
+        d.beginStroke(32, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(32, 16), QColor(Qt::red));
+    }
+    void smudgeSamplesVisibleLayersAndRespectsSelectionsAndMasks()
+    {
+        Document d;
+        QVERIFY(d.newDocument(64, 32, true));
+        d.setColor(Qt::yellow);
+        d.fillWithColor(true);
+        const QImage background = d.layerImage(0);
+        d.addLayer();
+        const int active = d.activeLayer();
+        d.setTool("smudge");
+        d.setBrushSize(10);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        d.setToolStrength(1);
+        d.beginStroke(16, 16);
+        d.continueStroke(32, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(32, 16).alpha(), 0);
+        d.setSmudgeSampleAllLayers(true);
+        d.beginStroke(16, 16);
+        d.continueStroke(32, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(32, 16), QColor(Qt::yellow));
+        QCOMPARE(d.layerImage(0), background);
+        d.setTool("ellipticalSelect");
+        d.beginStroke(36, 6);
+        d.continueStroke(54, 26);
+        d.endStroke();
+        d.setTool("smudge");
+        d.setColor(Qt::red);
+        d.beginStroke(44, 16, true);
+        d.continueStroke(54, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(active).pixelColor(44, 16), QColor(Qt::red));
+        QCOMPARE(d.layerImage(active).pixelColor(56, 16).alpha(), 0);
+        QCOMPARE(d.layerImage(active).pixelColor(36, 6).alpha(), 0);
+        d.deselect();
+        d.addLayerMask();
+        d.setEditingMask(true);
+        d.setColor(Qt::black);
+        d.beginStroke(16, 16, true);
+        d.continueStroke(32, 16);
+        d.endStroke();
+        QCOMPARE(d.maskImage(active).pixelColor(24, 16), QColor(Qt::black));
+        QCOMPARE(d.maskImage(active).pixelColor(48, 16), QColor(Qt::white));
+        d.undo();
+        QCOMPARE(d.maskImage(active).pixelColor(24, 16), QColor(Qt::white));
+    }
     void cloneStampKeepsSourceOffsetAndClipsToSelection()
     {
         QTemporaryDir dir;

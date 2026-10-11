@@ -106,8 +106,8 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
     QCursor cursor = _tool == QStringLiteral("magicWand")
                          ? magicWandCursor(_selectionMode)
                          : QCursor(static_cast<Qt::CursorShape>(_shape));
-    if ((_tool == "cloneStamp" || _tool == "patternStamp") && _shape == Qt::BlankCursor &&
-        !(_sourcePicking && _tool == "cloneStamp") && m_document) {
+    if ((_tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge") &&
+        _shape == Qt::BlankCursor && !(_sourcePicking && _tool == "cloneStamp") && m_document) {
         const qreal diameter =
             qBound(2., m_document->brushSize() * width() / qMax(1, m_document->width()), 500.);
         const int   size  = qCeil(diameter) + 8;

@@ -456,6 +456,39 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      !cloneSampleMode->property("visible").toBool(),
                  "pattern stamp exposes pattern selection and definition"))
         return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "blur"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(60);
+    if (!require(toolMenu->property("count").toInt() == 3,
+                 "retouch slot contains Blur, Sharpen and Smudge"))
+        return false;
+    QMetaObject::invokeMethod(toolMenu, "close");
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "blur"),
+                              Q_ARG(QVariant, "smudge"));
+    QTest::qWait(60);
+    auto smudgeStrength  = _window->findChild<QObject *>("retouchStrength");
+    auto smudgeSampleAll = _window->findChild<QObject *>("smudgeSampleAllLayers");
+    auto smudgeFinger    = _window->findChild<QObject *>("smudgeFingerPainting");
+    auto smudgeBlend     = _window->findChild<QObject *>("smudgeBlendMode");
+    if (!require(_document.tool() == "smudge" && smudgeStrength && smudgeSampleAll &&
+                     smudgeFinger && smudgeBlend && smudgeStrength->property("visible").toBool() &&
+                     smudgeSampleAll->property("visible").toBool() &&
+                     smudgeFinger->property("visible").toBool() &&
+                     smudgeBlend->property("visible").toBool() &&
+                     QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "Smudge exposes strength, sampling, finger painting and one native brush cursor"))
+        return false;
+    _document.setColor(Qt::red);
+    _document.setToolStrength(1);
+    const int beforeSmudge = _document.historyIndex();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, sourceClick);
+    QTest::qWait(40);
+    if (!require(_document.historyIndex() == beforeSmudge + 1 && !_document.smudgeFingerPainting(),
+                 "Option/Alt temporarily enables finger painting without changing its setting"))
+        return false;
+    _document.undo();
+    _document.setToolStrength(.5);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

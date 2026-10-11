@@ -7,6 +7,7 @@
 #include <QQuickWindow>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <functional>
 
 // Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
 // Compiled only with BUILD_TESTING; production builds need no Qt Test runtime.
@@ -508,6 +509,63 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::qWait(40);
     if (!require(_document.historyIndex() == beforeReplacementPick,
                  "Option/Alt samples colour without creating a paint stroke"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "brush"),
+                              Q_ARG(QVariant, "mixerBrush"));
+    QTest::qWait(60);
+    auto mixerOptions = _window->findChild<QObject *>("mixerBrushOptions");
+    if (!require(_document.tool() == "mixerBrush" && mixerOptions &&
+                     mixerOptions->property("visible").toBool(),
+                 "Mixer Brush is available in group B"))
+        return false;
+    // Repeater delegates belong to the visual tree, which can differ from the
+    // QObject ownership tree for dynamically created controls.
+    const std::function<QQuickItem *(QQuickItem *, const QString &)> findVisualItem =
+        [&](QQuickItem *_parent, const QString &_name) -> QQuickItem * {
+        if (_parent->objectName() == _name)
+            return _parent;
+        for (auto *child : _parent->childItems())
+            if (auto *found = findVisualItem(child, _name))
+                return found;
+        return nullptr;
+    };
+    for (const char *name : {"mixerWet", "mixerLoad", "mixerMix", "mixerFlow", "mixerLoadSwatch",
+                             "mixerPreset", "mixerSampleAllLayers"}) {
+        auto control = findVisualItem(_window->contentItem(), QString::fromLatin1(name));
+        if (!require(control && control->property("visible").toBool(),
+                     "Mixer Brush exposes its paint reservoir and mixing controls"))
+            return false;
+    }
+    auto mixerMenu = _window->findChild<QObject *>("mixerLoadMenu");
+    if (!require(mixerMenu, "Mixer reservoir menu exists"))
+        return false;
+    QMetaObject::invokeMethod(mixerMenu, "open");
+    QTest::qWait(40);
+    auto cleanAction = _window->findChild<QObject *>("mixerCleanAction");
+    auto loadAction  = _window->findChild<QObject *>("mixerLoadAction");
+    if (!require(mixerMenu && cleanAction && loadAction && mixerMenu->property("visible").toBool(),
+                 "Mixer reservoir menu offers load and clean"))
+        return false;
+    QMetaObject::invokeMethod(cleanAction, "triggered");
+    if (!require(!_document.mixerLoaded(), "Clean removes paint from the reservoir"))
+        return false;
+    QMetaObject::invokeMethod(loadAction, "triggered");
+    QMetaObject::invokeMethod(mixerMenu, "close");
+    QTest::qWait(40);
+    const int beforeMixerPick = _document.historyIndex();
+    QTest::keyPress(_window, Qt::Key_Alt);
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, sourceClick);
+    QTest::keyRelease(_window, Qt::Key_Alt);
+    QTest::qWait(40);
+    if (!require(_document.historyIndex() == beforeMixerPick && _document.mixerLoaded(),
+                 "Option/Alt loads Mixer Brush paint without drawing"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_B);
+    QTest::mouseMove(_window, sourceClick + QPoint(1, 1));
+    QTest::qWait(40);
+    if (!require(_document.tool() == "mixerBrush" && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "B restores Mixer Brush with one native brush cursor"))
         return false;
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));

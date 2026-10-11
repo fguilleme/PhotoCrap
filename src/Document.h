@@ -95,6 +95,20 @@ class Document : public QObject
                    NOTIFY settingsChanged)
     Q_PROPERTY(bool replacementAntialias READ replacementAntialias WRITE setReplacementAntialias
                    NOTIFY settingsChanged)
+    Q_PROPERTY(qreal mixerWet READ mixerWet WRITE setMixerWet NOTIFY settingsChanged)
+    Q_PROPERTY(qreal mixerLoad READ mixerLoad WRITE setMixerLoad NOTIFY settingsChanged)
+    Q_PROPERTY(qreal mixerMix READ mixerMix WRITE setMixerMix NOTIFY settingsChanged)
+    Q_PROPERTY(qreal mixerFlow READ mixerFlow WRITE setMixerFlow NOTIFY settingsChanged)
+    Q_PROPERTY(bool mixerSampleAllLayers READ mixerSampleAllLayers WRITE setMixerSampleAllLayers
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool mixerAutoLoad READ mixerAutoLoad WRITE setMixerAutoLoad NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool mixerAutoClean READ mixerAutoClean WRITE setMixerAutoClean NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool mixerSolidOnly READ mixerSolidOnly WRITE setMixerSolidOnly NOTIFY settingsChanged)
+    Q_PROPERTY(QColor mixerLoadColor READ mixerLoadColor NOTIFY settingsChanged)
+    Q_PROPERTY(bool mixerLoaded READ mixerLoaded NOTIFY settingsChanged)
+    Q_PROPERTY(int mixerPreset READ mixerPreset NOTIFY settingsChanged)
     Q_PROPERTY(bool stampAligned READ stampAligned WRITE setStampAligned NOTIFY settingsChanged)
     Q_PROPERTY(
         int cloneSampleMode READ cloneSampleMode WRITE setCloneSampleMode NOTIFY settingsChanged)
@@ -394,12 +408,65 @@ public:
     {
         return m_replacementAntialias;
     }
-    void setReplacementMode(int _value);
-    void setReplacementSampling(int _value);
-    void setReplacementLimits(int _value);
-    void setReplacementTolerance(int _value);
-    void setReplacementAntialias(bool _value);
-    bool stampAligned() const
+    void  setReplacementMode(int _value);
+    void  setReplacementSampling(int _value);
+    void  setReplacementLimits(int _value);
+    void  setReplacementTolerance(int _value);
+    void  setReplacementAntialias(bool _value);
+    qreal mixerWet() const
+    {
+        return m_mixerWet;
+    }
+    void  setMixerWet(qreal _value);
+    qreal mixerLoad() const
+    {
+        return m_mixerLoad;
+    }
+    void  setMixerLoad(qreal _value);
+    qreal mixerMix() const
+    {
+        return m_mixerMix;
+    }
+    void  setMixerMix(qreal _value);
+    qreal mixerFlow() const
+    {
+        return m_mixerFlow;
+    }
+    void setMixerFlow(qreal _value);
+    bool mixerSampleAllLayers() const
+    {
+        return m_mixerSampleAllLayers;
+    }
+    void setMixerSampleAllLayers(bool _value);
+    bool mixerAutoLoad() const
+    {
+        return m_mixerAutoLoad;
+    }
+    void setMixerAutoLoad(bool _value);
+    bool mixerAutoClean() const
+    {
+        return m_mixerAutoClean;
+    }
+    void setMixerAutoClean(bool _value);
+    bool mixerSolidOnly() const
+    {
+        return m_mixerSolidOnly;
+    }
+    void   setMixerSolidOnly(bool _value);
+    QColor mixerLoadColor() const
+    {
+        return m_mixerColor;
+    }
+    bool mixerLoaded() const
+    {
+        return !m_mixerPaint.isNull() && m_mixerRemaining > 0;
+    }
+    int              mixerPreset() const;
+    Q_INVOKABLE void applyMixerPreset(int _preset);
+    Q_INVOKABLE void loadMixerBrush();
+    Q_INVOKABLE void cleanMixerBrush();
+    Q_INVOKABLE void sampleMixerBrush(qreal _x, qreal _y);
+    bool             stampAligned() const
     {
         return m_stampAligned;
     }
@@ -519,7 +586,8 @@ public:
     Q_INVOKABLE QVariantList autoBlackWhiteValues() const;
     Q_INVOKABLE void         resetAdjustmentLayer();
     Q_INVOKABLE void         resetCurveAdjustment();
-    Q_INVOKABLE void         beginStroke(qreal _x, qreal _y, bool _alternate = false);
+    Q_INVOKABLE void         beginStroke(qreal _x, qreal _y, bool _alternate = false,
+                                         bool _straight = false);
     Q_INVOKABLE void         continueStroke(qreal _x, qreal _y);
     Q_INVOKABLE void         endStroke();
     Q_INVOKABLE void         cancelStroke();
@@ -601,6 +669,16 @@ private:
     int    m_replacementTolerance = 30;
     bool   m_replacementAntialias = true;
     QColor m_replacementSample;
+
+    qreal   m_mixerWet = .5, m_mixerLoad = .5, m_mixerMix = .5, m_mixerFlow = 1.;
+    bool    m_mixerSampleAllLayers = false, m_mixerAutoLoad = true, m_mixerAutoClean = true;
+    bool    m_mixerSolidOnly = false;
+    QColor  m_mixerColor{Qt::black};
+    QImage  m_mixerPaint, m_mixerPickup, m_mixerTip, m_mixerSample, m_mixerReservoirTip;
+    QImage  m_mixerPickupBeforeStroke;
+    qreal   m_mixerRemaining = 1., m_mixerRemainingBeforeStroke = 1.;
+    QPointF m_mixerLastEnd;
+    bool    m_mixerLastEndValid = false;
 
     qreal                          m_toolStrength   = .5;
     bool                           m_spongeSaturate = false;
@@ -709,6 +787,10 @@ private:
     void    prepareSmudgeStroke(bool _alternate);
     void    smudgeDab(const QPointF &_point);
     void    colorReplacementDab(const QPointF &_point);
+    void    prepareMixerStroke();
+    void    mixerDab(const QPointF &_point);
+    void    finishMixerStroke(bool _cancel);
+    void    reloadMixerPaint();
     bool    prepareStampStroke();
     void    renderStampStroke();
     QImage  stampPatternImage() const;

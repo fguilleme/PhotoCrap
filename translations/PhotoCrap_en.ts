@@ -618,6 +618,7 @@
     <message><source>Option/Alt-clic sur l’image pour définir la source du tampon.</source><translation>Option/Alt-click the image to set the clone source.</translation></message>
     <message><source>Doigt</source><translation>Smudge</translation></message>
 <message><source>Remplacement de couleur</source><translation>Color Replacement</translation></message>
+<message><source>Pinceau mélangeur</source><translation>Mixer Brush</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2616,5 +2617,30 @@ Independent software, not affiliated with Adobe.</translation>
       <translation>“%1” already uses this shortcut.</translation>
     </message>
       <message><source>Tampons</source><translation>Stamps</translation></message>
+</context>
+<context><name>MixerBrushOptions</name>
+<message><source>Personnalisé</source><translation>Custom</translation></message>
+<message><source>Sec</source><translation>Dry</translation></message>
+<message><source>Humide</source><translation>Moist</translation></message>
+<message><source>Mouillé</source><translation>Wet</translation></message>
+<message><source>Très mouillé</source><translation>Very Wet</translation></message>
+<message><source>Combinaisons d’humidité, de charge et de mélange</source><translation>Combinations of wetness, load and mix</translation></message>
+<message><source>Charge du pinceau</source><translation>Current Brush Load</translation></message>
+<message><source>Charge actuelle ; Option/Alt-clic sur l’image pour prélever de la peinture</source><translation>Current load; Option/Alt-click the image to sample paint</translation></message>
+<message><source>Humidité</source><translation>Wet</translation></message>
+<message><source>Charge</source><translation>Load</translation></message>
+<message><source>Mélange</source><translation>Mix</translation></message>
+<message><source>Débit</source><translation>Flow</translation></message>
+<message><source>Quantité de peinture prélevée sur l’image</source><translation>Amount of paint picked up from the image</translation></message>
+<message><source>Réserve de peinture : une faible charge sèche plus vite</source><translation>Paint reservoir: a low load dries out sooner</translation></message>
+<message><source>0 % : peinture chargée ; 100 % : couleurs de l’image</source><translation>0%: loaded paint; 100%: image colours</translation></message>
+<message><source>Quantité de peinture déposée par empreinte</source><translation>Amount of paint deposited by each dab</translation></message>
+<message><source>Tous les calques</source><translation>Sample All Layers</translation></message>
+<message><source>Charger le pinceau</source><translation>Load Brush</translation></message>
+<message><source>Nettoyer le pinceau</source><translation>Clean Brush</translation></message>
+<message><source>Choisir la couleur…</source><translation>Choose Colour…</translation></message>
+<message><source>Charger après chaque trait</source><translation>Load After Each Stroke</translation></message>
+<message><source>Nettoyer après chaque trait</source><translation>Clean After Each Stroke</translation></message>
+<message><source>Charger les couleurs unies seulement</source><translation>Load Solid Colours Only</translation></message>
 </context>
 </TS>

@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,14 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "colorReplacement") {
+            if (root.toolName === "mixerBrush") {
+                ctx.beginPath(); ctx.moveTo(6, 15); ctx.lineTo(17, 2); ctx.lineTo(20, 5)
+                ctx.lineTo(9, 18); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(6, 15); ctx.bezierCurveTo(2, 15, 6, 20, 2, 22)
+                ctx.bezierCurveTo(8, 24, 12, 19, 9, 17); ctx.closePath(); ctx.fill()
+                ctx.beginPath(); ctx.moveTo(17, 12); ctx.bezierCurveTo(17, 15, 13, 18, 15, 20)
+                ctx.bezierCurveTo(19, 23, 23, 19, 20, 16); ctx.closePath(); ctx.stroke()
+            } else if (root.toolName === "colorReplacement") {
                 ctx.beginPath(); ctx.moveTo(5, 17); ctx.lineTo(15, 3)
                 ctx.lineTo(18, 5); ctx.lineTo(8, 19); ctx.closePath(); ctx.stroke()
                 ctx.beginPath(); ctx.moveTo(5, 16); ctx.bezierCurveTo(0, 16, 5, 21, 2, 22)

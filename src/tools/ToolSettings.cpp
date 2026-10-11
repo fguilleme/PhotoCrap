@@ -8,6 +8,7 @@ void Document::setTool(const QString &_value)
     static const QStringList tools{"brush",
                                    "pencil",
                                    "colorReplacement",
+                                   "mixerBrush",
                                    "cloneStamp",
                                    "patternStamp",
                                    "eraser",
@@ -49,12 +50,19 @@ void Document::setTool(const QString &_value)
     else
         endStroke();
     m_tool = _value;
+    if (m_tool == "mixerBrush" && m_mixerPaint.isNull())
+        loadMixerBrush();
     emit settingsChanged();
 }
 void Document::setColor(const QColor &_value)
 {
     if (_value.isValid()) {
         m_color = _value;
+        if (m_tool == "mixerBrush") {
+            endStroke();
+            m_mixerPaint = {};
+            loadMixerBrush();
+        }
         emit settingsChanged();
     }
 }
@@ -71,11 +79,21 @@ void Document::resetColors()
         return;
     m_color     = Qt::black;
     m_secondary = Qt::white;
+    if (m_tool == "mixerBrush") {
+        endStroke();
+        m_mixerPaint = {};
+        loadMixerBrush();
+    }
     emit settingsChanged();
 }
 void Document::swapColors()
 {
     qSwap(m_color, m_secondary);
+    if (m_tool == "mixerBrush") {
+        endStroke();
+        m_mixerPaint = {};
+        loadMixerBrush();
+    }
     emit settingsChanged();
 }
 void Document::setBrushSize(qreal _value)

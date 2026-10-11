@@ -68,6 +68,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
         invalidateContentMove();
         cancelRemoval();
     });
+    connect(this, &Document::layersChanged, this, &Document::historyBrushSourceChanged);
     newDocument(1280, 800);
 }
 Document::~Document()
@@ -150,9 +151,11 @@ void Document::trimHistory()
     // QImage snapshots share their storage until an edit detaches a layer.
     // Count unique storage, not theoretical copies, to bound retained history.
     while (m_undo.size() > 1) {
-        QSet<qint64> seen;
-        qint64       bytes = 0;
-        for (const auto &state : m_undo)
+        QSet<qint64>      seen;
+        qint64            bytes    = 0;
+        QVector<Snapshot> retained = m_undo;
+        retained.append(m_historyBrushSource);
+        for (const auto &state : retained)
             for (const auto &layer : state.layers) {
                 for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
                     if (!image->isNull() && !seen.contains(image->cacheKey())) {
@@ -271,6 +274,10 @@ void Document::resetHistory(bool _clean)
     emit canvasSizeChanged();
     emit documentChanged();
     emit selectionChanged();
+    m_historyBrushSource      = snapshot(tr("État initial"));
+    m_historyBrushSourceLabel = tr("État initial");
+    m_historyStrokeSource     = {};
+    emit historyBrushSourceChanged();
     emit historyChanged();
 }
 QVariantList Document::layers() const

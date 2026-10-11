@@ -74,10 +74,10 @@ ApplicationWindow {
                                               || editor.tool === "dodge" || editor.tool === "burn"
                                               || editor.tool === "sponge" || editor.tool === "smudge"
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                            || editor.tool === "eraser" || editor.tool === "remove" || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
+                                            || editor.tool === "eraser" || editor.tool === "remove" || editor.tool === "historyBrush" || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                               || editor.tool === "eraser" || editor.tool === "fill"
-                                              || editor.tool === "gradient" || editor.tool === "text" || editor.tool === "spotHealing" || stampToolActive
+                                              || editor.tool === "gradient" || editor.tool === "text" || editor.tool === "historyBrush" || editor.tool === "spotHealing" || stampToolActive
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
     property int preferencesPage: 0
@@ -167,7 +167,7 @@ ApplicationWindow {
         {name:"mixerBrush", icon:"♨", label:qsTr("Pinceau mélangeur"), implemented:true},
         {name:"cloneStamp", icon:"♟", label:qsTr("Tampon de duplication"), implemented:true},
         {name:"patternStamp", icon:"♟", label:qsTr("Tampon de motif"), implemented:true},
-        {name:"historyBrush", icon:"◴", label:qsTr("Forme d’historique"), implemented:false},
+        {name:"historyBrush", icon:"◴", label:qsTr("Forme d’historique"), implemented:true},
         {name:"artHistoryBrush", icon:"◔", label:qsTr("Forme d’historique artistique"), implemented:false},
         {name:"eraser", icon:"▱", label:qsTr("Gomme"), implemented:true},
         {name:"backgroundEraser", icon:"◇", label:qsTr("Gomme d’arrière-plan"), implemented:false},
@@ -1126,8 +1126,8 @@ ApplicationWindow {
                 }
                 Label { visible: window.paintToolActive || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
                 DarkSpinBox { visible: window.paintToolActive || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "historyBrush" || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "historyBrush" || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
                 Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
                 DarkSpinBox {
                     objectName: "selectionTolerance"
@@ -1159,9 +1159,9 @@ ApplicationWindow {
                 }
                 Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
                 DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
-                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
-                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "mixerBrush"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "historyBrush" || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "historyBrush" || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || editor.tool === "historyBrush" || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "mixerBrush"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox {
                     objectName: "stampAligned"
                     visible: window.stampToolActive
@@ -1493,6 +1493,13 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        HistoryBrushOptions {
+            objectName: "historyBrushOptions"
+            Layout.fillWidth: true
+            visible: editor.tool === "historyBrush"
+            document: editor
+            blendModes: window.blendModeNames
+        }
         RemoveOptions {
             objectName: "removeOptions"
             Layout.fillWidth: true
@@ -2132,7 +2139,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "remove" && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
+                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "remove" && editor.tool !== "historyBrush" && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2
@@ -2828,17 +2835,40 @@ ApplicationWindow {
                         onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
                         onLayoutChanged: window.scheduleWorkspaceSave()
                         contentComponent: Component { ListView {
+                        objectName: "historyStateList"
                         anchors.fill: parent; anchors.margins: 7; clip: true
                         model: editor.history; currentIndex: editor.historyIndex
                         onCurrentIndexChanged: positionViewAtIndex(currentIndex,ListView.Contain)
                         ScrollBar.vertical: ScrollBar {}
-                        delegate: Label {
+                        delegate: Item {
                             required property string modelData
                             required property int index
-                            width: ListView.view.width; height: 26
-                            text: (index===editor.historyIndex?"●  ":"    ")+modelData
-                            color: index===editor.historyIndex?"#beeccb":index>editor.historyIndex?"#65707b":"#9ba8b6"
-                            font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                            width: ListView.view.width; height: 28
+                            RowLayout {
+                                anchors.fill: parent; spacing: 5
+                                ToolButton {
+                                    objectName: "historyBrushSource" + index
+                                    implicitWidth: 28; implicitHeight: 28
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Utiliser cet état comme source de la forme d’historique")
+                                    onClicked: editor.setHistoryBrushSource(index)
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: editor.historyBrushSourceIndex === index ? "#345344" : parent.hovered ? "#343f49" : "#20262e"
+                                        border.color: editor.historyBrushSourceIndex === index ? "#74b393" : "#46515d"
+                                    }
+                                    contentItem: ToolIcon {
+                                        toolName: "historyBrush"
+                                        iconColor: editor.historyBrushSourceIndex === index ? "#c0f1d2" : "#a3afbb"
+                                    }
+                                }
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: (index===editor.historyIndex?"●  ":"    ")+modelData
+                                    color: index===editor.historyIndex?"#beeccb":index>editor.historyIndex?"#65707b":"#9ba8b6"
+                                    font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                                }
+                            }
                         }
                     } }
                     }

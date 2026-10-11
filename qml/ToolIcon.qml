@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,15 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "remove") {
+            if (root.toolName === "historyBrush") {
+                ctx.beginPath(); ctx.arc(12, 11, 8, .7, 5.1); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(10, 2); ctx.lineTo(14, 3); ctx.lineTo(11, 6); ctx.stroke()
+                ctx.save(); ctx.translate(17, 16); ctx.rotate(-Math.PI / 4)
+                ctx.beginPath(); ctx.moveTo(-3, -1); ctx.lineTo(-2, -8); ctx.lineTo(2, -8)
+                ctx.lineTo(3, -1); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(3, 0); ctx.lineTo(3, 5)
+                ctx.lineTo(-3, 5); ctx.closePath(); ctx.fill(); ctx.restore()
+            } else if (root.toolName === "remove") {
                 ctx.save(); ctx.translate(10, 15); ctx.rotate(-Math.PI / 4)
                 ctx.strokeRect(-4, -7, 8, 14)
                 ctx.beginPath(); ctx.moveTo(-4, 2); ctx.lineTo(4, 2); ctx.stroke(); ctx.restore()

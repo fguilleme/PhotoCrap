@@ -143,6 +143,14 @@ Le calcul local s’effectue en arrière-plan, sur les zones marquées et leur v
 
 Référence : [outil Suppression d’Adobe](https://helpx.adobe.com/photoshop/using/tool-techniques/remove-tool.html).
 
+### Forme d’historique
+
+La **Forme d’historique** (`Y`) restaure les pixels d’un état source aux mêmes coordonnées sur le même calque, sans revenir globalement en arrière. Choisissez la source en cliquant sur l’icône à gauche d’un état dans **Historique**, ou dans la liste Source de la barre de l’outil ; ce choix ne modifie ni les pixels ni l’historique. Peignez ensuite avec taille, dureté, opacité, débit et mode de fusion. Une sélection limite le geste et chaque tracé crée une seule étape d’annulation. La transparence de l’état source est également restaurée.
+
+La source initiale est l’état d’ouverture/création du document. On peut choisir un état futur après Annuler, puis en restaurer certaines zones ; la source choisie reste disponible si cette branche disparaît ou si les anciens états sont purgés. Son stockage partagé est compté dans le budget de l’historique. Le calque est retrouvé par son identité même après renommage ou réorganisation ; un nouveau calque ou une copie ne peut être restauré depuis un état où il n’existait pas. La source doit avoir les mêmes dimensions que le document. Cette version agit sur les calques de pixels, pas sur les masques ; la Forme d’historique artistique reste NYI.
+
+Référence : [Forme d’historique d’Adobe](https://helpx.adobe.com/photoshop/using/tool-techniques/history-brush-tool.html).
+
 ## Validation et limites
 
 Les tests vérifient notamment peinture/annulation, opacité, visibilité, verrouillage, sélection, recadrage, déplacements, remplissage, filtres, transformations, fusion, sauvegarde/réouverture, export, sauvegarde en échec et rejet des fichiers corrompus. Un test démarre également le moteur QML, dessine par événements souris, vérifie la saisie de texte et la protection des modifications, puis produit un rendu hors écran sans erreurs QML. Les vérifications d’interaction sont compilées lorsque `BUILD_TESTING=ON`.

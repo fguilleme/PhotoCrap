@@ -29,6 +29,7 @@ void Document::duplicateLayer()
     edit(tr("Dupliquer le calque"), [&] {
         auto layer = m_layers[m_active];
         layer.name += tr(" — copie");
+        layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
         m_layers.insert(++m_active, layer);
         selectOnly(m_active);
     });

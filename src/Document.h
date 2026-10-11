@@ -11,6 +11,7 @@
 #include <QRegion>
 #include <QSet>
 #include <QUrl>
+#include <QUuid>
 #include <QVariantList>
 #include <QVariantMap>
 #include <atomic>
@@ -25,6 +26,8 @@ struct Layer {
           opacity(_layerOpacity), blend(_layerBlend)
     {
     }
+    // Runtime identity follows a layer through reordering and undo.
+    QString     historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString     name;
     QImage      image;
     bool        visible = true;
@@ -197,6 +200,11 @@ class Document : public QObject
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
     Q_PROPERTY(int historyIndex READ historyIndex NOTIFY historyChanged)
+    Q_PROPERTY(int historyBrushSourceIndex READ historyBrushSourceIndex NOTIFY historyChanged)
+    Q_PROPERTY(QString historyBrushSourceLabel READ historyBrushSourceLabel NOTIFY
+                   historyBrushSourceChanged)
+    Q_PROPERTY(bool historyBrushSourceAvailable READ historyBrushSourceAvailable NOTIFY
+                   historyBrushSourceChanged)
     Q_PROPERTY(bool editingMask READ editingMask NOTIFY layersChanged)
 public:
     explicit Document(QObject *_parent = nullptr);
@@ -409,7 +417,14 @@ public:
         return !m_redo.isEmpty();
     }
     QStringList history() const;
-    int         historyIndex() const
+    int         historyBrushSourceIndex() const;
+    QString     historyBrushSourceLabel() const
+    {
+        return m_historyBrushSourceLabel;
+    }
+    bool             historyBrushSourceAvailable() const;
+    Q_INVOKABLE void setHistoryBrushSource(int _index);
+    int              historyIndex() const
     {
         return int(m_undo.size());
     }
@@ -804,6 +819,7 @@ signals:
     void redEyeRegionChanged();
     void patchPreviewChanged();
     void removeRegionChanged();
+    void historyBrushSourceChanged();
     void historyChanged();
     void errorOccurred(const QString &_message);
     void statusMessage(const QString &_message);
@@ -928,6 +944,11 @@ private:
     QPolygonF                      m_selectionPathBeforeStroke;
     bool                           m_quickSelectionFirstDab = false;
     QVector<Snapshot>              m_undo, m_redo;
+    Snapshot                       m_historyBrushSource;
+    QString                        m_historyBrushSourceLabel;
+    QImage                         m_historyStrokeSource;
+    bool                           prepareHistoryBrushStroke();
+    void                           renderHistoryBrushStroke();
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int                            m_revision          = 0;
     int                            m_thumbnailRevision = 0;

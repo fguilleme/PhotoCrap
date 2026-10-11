@@ -170,6 +170,7 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
         }
     }
     Document renderer;
+    renderer.m_historyBrushSource = {}; // Render helpers need no retained initial state.
     renderer.m_layers             = std::move(_layers);
     renderer.m_size               = renderSize;
     renderer.m_cacheDirty         = true;

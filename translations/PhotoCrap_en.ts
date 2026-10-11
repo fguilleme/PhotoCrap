@@ -112,7 +112,7 @@
     </message>
   </context>
   <context>
-    <name>Document</name>
+    <name>Document</name><message><source>Forme d’historique</source><translation>History Brush</translation></message><message><source>La source d’historique a des dimensions différentes. Choisissez un état compatible.</source><translation>The history source has different dimensions. Choose a compatible state.</translation></message><message><source>Ce calque n’existe pas dans l’état source. Choisissez un autre état dans l’Historique.</source><translation>This layer does not exist in the source state. Choose another state in History.</translation></message>
 <message><source>Suppression</source><translation>Remove</translation></message>
     <message><source>Déplacement basé sur le contenu</source><translation>Content-Aware Move</translation></message>
     <message><source>Pas assez de pixels voisins pour reconstruire cette zone.</source><translation>Not enough neighbouring pixels to reconstruct this area.</translation></message>
@@ -649,6 +649,7 @@
   </context>
   <context>
     <name>Main</name>
+<message><source>Utiliser cet état comme source de la forme d’historique</source><translation>Use this state as the History Brush source</translation></message>
     <message>
       <source>Modifier le style colorimétrique</source>
       <translation>Adjust Color Look</translation>
@@ -2719,4 +2720,5 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Entourez un objet, puis faites glisser la sélection</source><translation>Outline an object, then drag the selection</translation></message>
   </context>
 <context><name>RemoveOptions</name><message><source>Retirer des marques</source><translation>Subtract from marked areas</translation></message><message><source>Alt permet aussi de retirer une zone marquée</source><translation>Alt also subtracts from marked areas</translation></message><message><source>Tous les calques</source><translation>Sample all layers</translation></message><message><source>Après chaque tracé</source><translation>Remove after each stroke</translation></message><message><source>Appliquer</source><translation>Apply</translation></message><message><source>Annuler</source><translation>Cancel</translation></message><message><source>Reconstruction en cours…</source><translation>Reconstructing…</translation></message><message><source>Peignez ou entourez l’objet à supprimer</source><translation>Brush over or loop around the object to remove</translation></message></context>
+<context><name>HistoryBrushOptions</name><message><source>Source</source><translation>Source</translation></message><message><source>Mode</source><translation>Mode</translation></message><message><source>Choisir un état sans annuler les modifications actuelles</source><translation>Choose a source without undoing current edits</translation></message><message><source>Peignez pour restaurer cet état aux mêmes coordonnées</source><translation>Paint to restore this state at the same coordinates</translation></message><message><source>Choisissez un état avec ce calque et les mêmes dimensions</source><translation>Choose a state with this layer and matching dimensions</translation></message></context>
 </TS>

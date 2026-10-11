@@ -972,6 +972,79 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.setBrushSize(savedSize);
     _document.setBrushHardness(savedHardness);
     _document.setBrushSmoothing(savedSmoothing);
+    _document.setColor(Qt::red);
+    _document.fillWithColor(true);
+    const int historySourceRow = _document.historyIndex();
+    _document.setColor(Qt::blue);
+    _document.fillWithColor(true);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "historyBrush"),
+                              Q_ARG(QVariant, "historyBrush"));
+    QTest::qWait(50);
+    auto historyOptions      = _window->findChild<QObject *>("historyBrushOptions");
+    auto historySourcePicker = _window->findChild<QObject *>("historyBrushSourcePicker");
+    auto historyMode         = _window->findChild<QObject *>("historyBrushBlend");
+    if (!require(_document.tool() == "historyBrush" && historyOptions &&
+                     historyOptions->property("visible").toBool() && historySourcePicker &&
+                     historyMode,
+                 "History Brush is available in group Y with source and blend controls"))
+        return false;
+    auto historyStateList = _window->findChild<QObject *>("historyStateList");
+    if (!require(historyStateList, "History state list exists"))
+        return false;
+    QMetaObject::invokeMethod(historyStateList, "forceLayout");
+    QMetaObject::invokeMethod(historyStateList, "positionViewAtIndex", Q_ARG(int, historySourceRow),
+                              Q_ARG(int, 4));
+    QTest::qWait(40);
+    auto historySourceButton = findVisualItem(
+        _window->contentItem(), QString("historyBrushSource%1").arg(historySourceRow));
+    if (!require(historySourceButton, "History panel exposes source buttons in the left column"))
+        return false;
+    const int beforeHistoryBrush = _document.historyIndex();
+    QMetaObject::invokeMethod(historySourceButton, "clicked");
+    if (!require(
+            _document.historyBrushSourceIndex() == historySourceRow &&
+                _document.historyIndex() == beforeHistoryBrush &&
+                _document.layerImage(_document.activeLayer()).pixelColor(patchCentre.toPoint()) ==
+                    QColor(Qt::blue),
+            "Choosing a history source does not undo or change the image"))
+        return false;
+    _document.setBrushSize(24);
+    _document.setBrushHardness(1);
+    _document.setBrushFlow(1);
+    _document.setBrushOpacity(1);
+    _document.setBrushBlend(0);
+    _document.setBrushSmoothing(0);
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    QTest::keyClick(_window, Qt::Key_Y);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(25, 0));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(25, 0));
+    if (!require(
+            _document.tool() == "historyBrush" &&
+                _document.layerImage(_document.activeLayer()).pixelColor(patchCentre.toPoint()) ==
+                    QColor(Qt::red) &&
+                _document.layerImage(_document.activeLayer())
+                        .pixelColor((patchCentre + QPointF(-50, 0)).toPoint()) ==
+                    QColor(Qt::blue) &&
+                _document.historyIndex() == beforeHistoryBrush + 1 &&
+                QGuiApplication::overrideCursor() &&
+                QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+            "Y paints the chosen source locally with one native brush cursor and one undo"))
+        return false;
+    _document.undo();
+    if (!require(
+            _document.historyBrushSourceIndex() == historySourceRow &&
+                _document.layerImage(_document.activeLayer()).pixelColor(patchCentre.toPoint()) ==
+                    QColor(Qt::blue),
+            "Undo restores the pixels without changing the history source"))
+        return false;
+    _document.undo();
+    _document.undo();
+    _document.setHistoryBrushSource(0);
+    _document.setColor(savedColour);
+    _document.setBrushSize(savedSize);
+    _document.setBrushHardness(savedHardness);
+    _document.setBrushSmoothing(savedSmoothing);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

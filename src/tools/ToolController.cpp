@@ -15,7 +15,7 @@ bool isPaintStrokeTool(const QString &_tool)
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
            _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
            _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing" ||
-           _tool == "spotHealing";
+           _tool == "spotHealing" || _tool == "historyBrush";
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -34,6 +34,7 @@ QString toolLabel(const QString &_tool)
         {"redEye", QT_TRANSLATE_NOOP("Document", "Œil rouge")},
         {"healing", QT_TRANSLATE_NOOP("Document", "Correcteur")},
         {"spotHealing", QT_TRANSLATE_NOOP("Document", "Correcteur localisé")},
+        {"historyBrush", QT_TRANSLATE_NOOP("Document", "Forme d’historique")},
         {"patch", QT_TRANSLATE_NOOP("Document", "Pièce")},
         {"contentAwareMove", QT_TRANSLATE_NOOP("Document", "Déplacement basé sur le contenu")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
@@ -169,6 +170,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             return;
         }
         if (m_tool == "healing" && !prepareHealingStroke()) {
+            m_drawing      = false;
+            m_beforeStroke = {};
+            return;
+        }
+        if (m_tool == "historyBrush" && !prepareHistoryBrushStroke()) {
             m_drawing      = false;
             m_beforeStroke = {};
             return;
@@ -323,15 +329,16 @@ void Document::endStroke()
         finishHealingStroke(false);
     if (m_tool == "spotHealing")
         finishSpotHealingStroke();
-    m_beforeStroke   = {};
-    m_strokeBase     = {};
-    m_strokeCoverage = {};
-    m_strokeBounds   = {};
-    m_strokeInkColor = {};
-    m_stampSource    = {};
-    m_smudgePickup   = {};
-    m_smudgeMask     = {};
-    m_smudgeSample   = {};
+    m_historyStrokeSource = {};
+    m_beforeStroke        = {};
+    m_strokeBase          = {};
+    m_strokeCoverage      = {};
+    m_strokeBounds        = {};
+    m_strokeInkColor      = {};
+    m_stampSource         = {};
+    m_smudgePickup        = {};
+    m_smudgeMask          = {};
+    m_smudgeSample        = {};
 }
 void Document::cancelStroke()
 {
@@ -374,15 +381,16 @@ void Document::cancelStroke()
         finishHealingStroke(true);
     if (m_tool == "spotHealing")
         finishSpotHealingStroke();
-    m_beforeStroke   = {};
-    m_strokeBase     = {};
-    m_strokeCoverage = {};
-    m_strokeBounds   = {};
-    m_strokeInkColor = {};
-    m_stampSource    = {};
-    m_smudgePickup   = {};
-    m_smudgeMask     = {};
-    m_smudgeSample   = {};
+    m_historyStrokeSource = {};
+    m_beforeStroke        = {};
+    m_strokeBase          = {};
+    m_strokeCoverage      = {};
+    m_strokeBounds        = {};
+    m_strokeInkColor      = {};
+    m_stampSource         = {};
+    m_smudgePickup        = {};
+    m_smudgeMask          = {};
+    m_smudgeSample        = {};
 }
 QImage *Document::paintTarget()
 {

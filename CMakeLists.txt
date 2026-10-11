@@ -37,6 +37,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/ContentAwareMoveTool.cpp
     src/tools/ContentFill.cpp
     src/tools/RemoveTool.cpp
+    src/tools/HistoryBrushTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -189,6 +190,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/ContentAwareMoveTool.cpp
     src/tools/ContentFill.cpp
     src/tools/RemoveTool.cpp
+    src/tools/HistoryBrushTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/ImageUtils.h
@@ -272,6 +274,7 @@ qt_add_qml_module(PhotoCrap
         qml/PatchOptions.qml
         qml/ContentAwareMoveOptions.qml
         qml/RemoveOptions.qml
+        qml/HistoryBrushOptions.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml

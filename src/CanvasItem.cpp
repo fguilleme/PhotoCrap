@@ -10,6 +10,106 @@
 
 namespace
 {
+QCursor eyedropperCursor(const QString &_tool)
+{
+    constexpr int                  size = 36;
+    static QHash<QString, QCursor> cache;
+    const qreal   ratio    = QGuiApplication::primaryScreen()
+                                 ? QGuiApplication::primaryScreen()->devicePixelRatio()
+                                 : 1.;
+    const QString cacheKey = _tool + QString::number(ratio, 'f', 2);
+    if (cache.contains(cacheKey))
+        return cache.value(cacheKey);
+    QPixmap pixmap(qRound(size * ratio), qRound(size * ratio));
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPainterPath tube;
+    tube.moveTo(3, 29);
+    tube.lineTo(9, 23);
+    tube.lineTo(8, 22);
+    tube.lineTo(20, 10);
+    tube.lineTo(24, 14);
+    tube.lineTo(12, 26);
+    tube.lineTo(10, 25);
+    tube.lineTo(3, 29);
+    painter.setPen(QPen(Qt::black, 4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawPath(tube);
+    painter.setPen(QPen(Qt::white, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawPath(tube);
+    QPainterPath bulb;
+    bulb.moveTo(18, 9);
+    bulb.lineTo(24, 3);
+    bulb.quadTo(26, 1, 28, 3);
+    bulb.lineTo(31, 6);
+    bulb.quadTo(33, 8, 31, 10);
+    bulb.lineTo(25, 16);
+    bulb.closeSubpath();
+    painter.setPen(QPen(Qt::black, 2));
+    painter.setBrush(Qt::white);
+    painter.drawPath(bulb);
+    if (_tool.startsWith("colorSampler")) {
+        painter.setBrush(Qt::NoBrush);
+        if (_tool == "colorSamplerDelete") {
+            for (const QPen pen : {QPen(Qt::black, 3), QPen(Qt::white, 1)}) {
+                painter.setPen(pen);
+                painter.drawEllipse(QPointF(25, 26), 2, 2);
+                painter.drawEllipse(QPointF(25, 32), 2, 2);
+                painter.drawLine(QPointF(27, 27), QPointF(34, 33));
+                painter.drawLine(QPointF(27, 31), QPointF(34, 25));
+            }
+        } else {
+            for (const QPen pen : {QPen(Qt::black, 3), QPen(Qt::white, 1)}) {
+                painter.setPen(pen);
+                painter.drawEllipse(QPointF(3, 29), 4, 4);
+                painter.drawLine(QPointF(0, 29), QPointF(8, 29));
+                painter.drawLine(QPointF(3, 24), QPointF(3, 34));
+            }
+        }
+    } else if (_tool.startsWith("curvePicker_")) {
+        const QColor badge = _tool.endsWith("black") ? QColor(Qt::black)
+                             : (_tool.endsWith("gray") || _tool.endsWith("whiteBalance"))
+                                 ? QColor(128, 128, 128)
+                             : _tool.endsWith("white") ? QColor(Qt::white)
+                                                       : QColor(95, 202, 138);
+        painter.setBrush(badge);
+        painter.setPen(QPen(Qt::black, 3));
+        painter.drawEllipse(QPointF(29, 28), 4, 4);
+        painter.setPen(QPen(Qt::white, 1));
+        painter.drawEllipse(QPointF(29, 28), 4, 4);
+    }
+    const QCursor cursor(pixmap, 3, 29);
+    cache.insert(cacheKey, cursor);
+    return cursor;
+}
+
+QCursor rulerCursor()
+{
+    constexpr int size  = 32;
+    const qreal   ratio = QGuiApplication::primaryScreen()
+                              ? QGuiApplication::primaryScreen()->devicePixelRatio()
+                              : 1.;
+    QPixmap       pixmap(qRound(size * ratio), qRound(size * ratio));
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    for (const QPen pen : {QPen(Qt::black, 3), QPen(Qt::white, 1)}) {
+        painter.setPen(pen);
+        painter.drawLine(QPointF(1, 8), QPointF(15, 8));
+        painter.drawLine(QPointF(8, 1), QPointF(8, 15));
+        painter.save();
+        painter.translate(18, 20);
+        painter.rotate(-45);
+        painter.drawRect(QRectF(-10, -3, 20, 6));
+        for (int x = -6; x < 10; x += 4)
+            painter.drawLine(QPointF(x, -3), QPointF(x, 0));
+        painter.restore();
+    }
+    return QCursor(pixmap, 8, 8);
+}
+
 QCursor magicWandCursor(int _selectionMode)
 {
     constexpr int logicalSize = 36;
@@ -108,6 +208,14 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
     QCursor cursor = _tool == QStringLiteral("magicWand")
                          ? magicWandCursor(_selectionMode)
                          : QCursor(static_cast<Qt::CursorShape>(_shape));
+    if (_shape == Qt::CrossCursor || _shape == Qt::BlankCursor) {
+        if (_tool == "picker" || _tool.startsWith("colorSampler") ||
+            _tool.startsWith("curvePicker_") ||
+            (_sourcePicking && (_tool == "colorReplacement" || _tool == "mixerBrush")))
+            cursor = eyedropperCursor(_tool);
+        else if (_tool == "ruler")
+            cursor = rulerCursor();
+    }
     if ((_tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
          _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing" ||
          _tool == "spotHealing" || _tool == "remove" ||

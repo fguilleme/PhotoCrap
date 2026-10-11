@@ -55,6 +55,7 @@ class Document : public QObject
     Q_PROPERTY(bool modified READ modified NOTIFY historyChanged)
     Q_PROPERTY(QVariantList layers READ layers NOTIFY layersChanged)
     Q_PROPERTY(int activeLayer READ activeLayer WRITE setActiveLayer NOTIFY layersChanged)
+    Q_PROPERTY(quint64 documentSession READ documentSession NOTIFY documentChanged)
     Q_PROPERTY(int selectedLayerCount READ selectedLayerCount NOTIFY layersChanged)
     Q_PROPERTY(bool canGroupSelected READ canGroupSelected NOTIFY layersChanged)
     Q_PROPERTY(bool canUngroupActive READ canUngroupActive NOTIFY layersChanged)
@@ -78,6 +79,12 @@ class Document : public QObject
     Q_PROPERTY(
         qreal brushSmoothing READ brushSmoothing WRITE setBrushSmoothing NOTIFY settingsChanged)
     Q_PROPERTY(int brushBlend READ brushBlend WRITE setBrushBlend NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int eyedropperSize READ eyedropperSize WRITE setEyedropperSize NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int eyedropperSource READ eyedropperSource WRITE setEyedropperSource NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool eyedropperRing READ eyedropperRing WRITE setEyedropperRing NOTIFY settingsChanged)
     Q_PROPERTY(
         bool pencilAutoErase READ pencilAutoErase WRITE setPencilAutoErase NOTIFY settingsChanged)
     Q_PROPERTY(qreal toolStrength READ toolStrength WRITE setToolStrength NOTIFY settingsChanged)
@@ -413,6 +420,10 @@ public:
     const QRegion &selectionRegion() const
     {
         return m_selectionRegion;
+    }
+    quint64 documentSession() const
+    {
+        return m_documentSession;
     }
     bool canUndo() const
     {
@@ -794,12 +805,29 @@ public:
     Q_INVOKABLE void previewLayerParameter(const QString &_key, const QVariant &_value);
     Q_INVOKABLE void
     finishLayerPreview(const QString &_label = QStringLiteral("Modifier les propriétés du calque"));
-    Q_INVOKABLE void         cancelLayerPreview();
-    Q_INVOKABLE void         beginLayerPropertiesSession();
-    Q_INVOKABLE void         acceptLayerPropertiesSession();
-    Q_INVOKABLE void         cancelLayerPropertiesSession();
-    Q_INVOKABLE QColor       sampleCurvePoint(const QString &_mode, int _x, int _y);
-    Q_INVOKABLE QColor       sampleCompositeColor(int _x, int _y) const;
+    Q_INVOKABLE void   cancelLayerPreview();
+    Q_INVOKABLE void   beginLayerPropertiesSession();
+    Q_INVOKABLE void   acceptLayerPropertiesSession();
+    Q_INVOKABLE void   cancelLayerPropertiesSession();
+    Q_INVOKABLE QColor sampleCurvePoint(const QString &_mode, int _x, int _y);
+    Q_INVOKABLE QColor sampleCompositeColor(int _x, int _y) const;
+    int                eyedropperSize() const
+    {
+        return m_eyedropperSize;
+    }
+    int eyedropperSource() const
+    {
+        return m_eyedropperSource;
+    }
+    bool eyedropperRing() const
+    {
+        return m_eyedropperRing;
+    }
+    void                     setEyedropperSize(int _value);
+    void                     setEyedropperSource(int _value);
+    void                     setEyedropperRing(bool _value);
+    Q_INVOKABLE QColor       sampleToolColor(int _x, int _y) const;
+    Q_INVOKABLE void         pickToolColor(int _x, int _y, bool _background = false);
     Q_INVOKABLE QVariantList autoBlackWhiteValues() const;
     Q_INVOKABLE void         resetAdjustmentLayer();
     Q_INVOKABLE void         resetCurveAdjustment();
@@ -932,6 +960,10 @@ private:
     qreal   m_mixerRemaining = 1., m_mixerRemainingBeforeStroke = 1.;
     QPointF m_mixerLastEnd;
     bool    m_mixerLastEndValid = false;
+
+    quint64 m_documentSession = 0;
+    int     m_eyedropperSize = 1, m_eyedropperSource = 0;
+    bool    m_eyedropperRing = true;
 
     qreal             m_toolStrength   = .5;
     bool              m_spongeSaturate = false;

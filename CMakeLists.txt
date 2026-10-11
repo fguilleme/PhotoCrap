@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCrap VERSION 0.1.0 LANGUAGES CXX)
+project(PhotoCrap VERSION 0.11.0 LANGUAGES CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()
@@ -41,6 +41,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/ArtHistoryBrushTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
+    src/tools/EyedropperTools.cpp
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
     src/filters/ChannelMixerFilter.cpp
@@ -195,6 +196,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/ArtHistoryBrushTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
+    src/tools/EyedropperTools.cpp
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h
@@ -259,6 +261,8 @@ if(APPLE)
         list(APPEND photocrap_qml_import_paths "${photocrap_qml_prefix}/share/qt/qml")
     endif()
 endif()
+target_compile_definitions(PhotoCrap PRIVATE PHOTOCRAP_VERSION="${PROJECT_VERSION}")
+
 qt_add_qml_module(PhotoCrap
     URI PhotoCrap VERSION 1.0
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qml/PhotoCrap"
@@ -278,6 +282,10 @@ qt_add_qml_module(PhotoCrap
         qml/RemoveOptions.qml
         qml/HistoryBrushOptions.qml
         qml/ArtHistoryBrushOptions.qml
+        qml/EyedropperOptions.qml
+        qml/EyedropperButton.qml
+        qml/RulerOptions.qml
+        qml/InformationPanel.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml
@@ -324,7 +332,13 @@ if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     target_sources(PhotoCrap PRIVATE tests/UiSmoke.h)
     if(APPLE)
-        target_sources(PhotoCrap PRIVATE tests/MacApplicationMenuTest.h tests/MacApplicationMenuTest.mm)
+        target_sources(PhotoCrap PRIVATE tests/MacApplicationMenuTest.h tests/MacApplicationMenuTest.mm
+            tests/MacToolCursorTest.h tests/MacToolCursorTest.mm)
+        add_test(NAME macos_tool_cursors COMMAND PhotoCrap --smoke-test --native-cursor-test)
+        set_tests_properties(macos_tool_cursors PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_QUICK_BACKEND=software"
+            TIMEOUT 30
+        )
         add_test(NAME macos_preferences COMMAND PhotoCrap --smoke-test --native-menu-test)
         set_tests_properties(macos_preferences PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_QUICK_BACKEND=software"

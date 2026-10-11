@@ -90,14 +90,25 @@ ApplicationWindow {
     property int inspectorTab: 0
     property bool inspectorCollapsed: false
     property real dockWidth: 300
-    readonly property var dockPanelIds: ["histogram", "navigator", "color", "layers", "channels", "history"]
-    property var dockPanelOrder: ["histogram", "navigator", "color", "layers", "channels", "history"]
-    property var dockPanelColumns: ({histogram: 0, navigator: 0, color: 0, layers: 0, channels: 0, history: 0})
-    property var dockPanelGroups: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history"})
-    property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history"})
-    property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, history: true})
+    readonly property var dockPanelIds: ["histogram", "navigator", "color", "layers", "channels", "history", "information"]
+    property var dockPanelOrder: ["histogram", "navigator", "color", "layers", "channels", "history", "information"]
+    property var dockPanelColumns: ({histogram: 0, navigator: 0, color: 0, layers: 0, channels: 0, history: 0, information: 0})
+    property var dockPanelGroups: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history", information: "information"})
+    property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history", information: "information"})
+    property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, history: true, information: false})
     property bool workspaceRestored: false
+    property string informationTool: editor.tool
+    property bool informationFloating: true
+    property point informationPosition: Qt.point(0, 0)
+    property color informationColor: "transparent"
+    property bool informationPointerValid: false
     property var colorSamples: []
+    property var sampleDocumentSession: -1
+    property bool pickerDragging: false
+    property color pickerPreviousColor: "#000000"
+    property color pickerSampleColor: "#000000"
+    property point pickerPosition: Qt.point(0,0)
+    readonly property bool eyedropperToolActive: editor.tool === "picker" || editor.tool === "colorSampler"
     property point rulerStart: Qt.point(0,0)
     property point rulerEnd: Qt.point(0,0)
     property bool rulerVisible: false
@@ -150,9 +161,9 @@ ApplicationWindow {
         {name:"slice", icon:"◢", label:qsTr("Tranche"), implemented:false},
         {name:"sliceSelect", icon:"◁", label:qsTr("Sélection de tranche"), implemented:false},
         {name:"frame", icon:"⊠", label:qsTr("Cadre"), implemented:false},
-        {name:"picker", icon:"⌖", label:qsTr("Pipette"), implemented:true},
-        {name:"colorSampler", icon:"⌖", label:qsTr("Échantillonnage de couleur"), implemented:true},
-        {name:"ruler", icon:"▥", label:qsTr("Règle"), implemented:true},
+        {name:"picker", icon:"", label:qsTr("Pipette"), implemented:true},
+        {name:"colorSampler", icon:"", label:qsTr("Échantillonnage de couleur"), implemented:true},
+        {name:"ruler", icon:"", label:qsTr("Règle"), implemented:true},
         {name:"note", icon:"▤", label:qsTr("Annotation"), implemented:false},
         {name:"count", icon:"¹²³", label:qsTr("Comptage"), implemented:false},
         {name:"spotHealing", icon:"✚", label:qsTr("Correcteur localisé"), implemented:true},
@@ -408,6 +419,7 @@ ApplicationWindow {
         if (panelId === "color") return qsTr("Couleur")
         if (panelId === "layers") return qsTr("Calques")
         if (panelId === "channels") return qsTr("Couches")
+        if (panelId === "information") return qsTr("Informations")
         return qsTr("Historique")
     }
     function dockPanelVisible(panelId) {
@@ -419,6 +431,7 @@ ApplicationWindow {
         if (panelId === "color") return colorDock
         if (panelId === "layers") return layersDock
         if (panelId === "channels") return channelsDock
+        if (panelId === "information") return informationDock
         return historyDock
     }
     function dockGroupTabs(panelId) {
@@ -484,7 +497,7 @@ ApplicationWindow {
         dockGroupActive = active
     }
     function dockPanelAt(globalX, globalY, sourceId) {
-        const panels = [histogramDock, navigatorDock, colorDock, layersDock, channelsDock, historyDock]
+        const panels = [histogramDock, navigatorDock, colorDock, layersDock, channelsDock, historyDock, informationDock]
         for (let i = 0; i < panels.length; ++i) {
             const panel = panels[i]
             if (panel.panelId === sourceId || panel.floating || !panel.visible) continue
@@ -535,6 +548,15 @@ ApplicationWindow {
         dockPanelVisibility = visibility
         if (shown) {
             selectDockPanel(panelId)
+            if (panelId === "information" && informationFloating && !informationDock.floating) {
+                if (informationDock.floatingX === 0 && informationDock.floatingY === 0) {
+                    informationDock.floatingX = window.x + Math.max(20, window.width - dockWidth - 330)
+                    informationDock.floatingY = window.y + 110
+                }
+                informationDock.setPanelFloating(true)
+                window.requestActivate()
+                Qt.callLater(drawingArea.refreshSystemCursor)
+            }
         } else {
             const group = dockPanelGroup(panelId)
             if (activeDockPanel(panelId) === panelId) {
@@ -557,7 +579,7 @@ ApplicationWindow {
         return {
             collapsed: panel.collapsed,
             dockedHeight: panel.dockedHeight,
-            floating: panel.floating,
+            floating: panelId === "information" ? informationFloating : panel.floating,
             floatingX: panel.floatingX,
             floatingY: panel.floatingY,
             floatingWidth: panel.floatingWidth,
@@ -608,7 +630,8 @@ ApplicationWindow {
                 groups[id] = dockPanelIds.indexOf(savedGroup) >= 0 ? savedGroup : id
                 const savedActive = saved.active ? String(saved.active[savedGroup] || id) : id
                 active[groups[id]] = dockPanelIds.indexOf(savedActive) >= 0 ? savedActive : id
-                visibility[id] = !saved.visibility || saved.visibility[id] !== false
+                visibility[id] = id === "information" ? Boolean(saved.visibility && saved.visibility[id])
+                                                       : !saved.visibility || saved.visibility[id] !== false
             }
             dockPanelColumns = columns
             dockPanelGroups = groups
@@ -621,6 +644,7 @@ ApplicationWindow {
                 const state = panelStates[id]
                 if (!state) continue
                 const panel = dockPanelObject(id)
+                if (id === "information") informationFloating = Boolean(state.floating)
                 panel.collapsed = Boolean(state.collapsed)
                 panel.dockedHeight = Math.max(panel.minimumContentHeight + panel.headerHeight,
                                               Number(state.dockedHeight || panel.dockedHeight))
@@ -677,26 +701,58 @@ ApplicationWindow {
         viewport.contentX=clampScroll(artboard.x+documentX*zoom-pointerX,viewport.contentWidth-viewport.width)
         viewport.contentY=clampScroll(artboard.y+documentY*zoom-pointerY,viewport.contentHeight-viewport.height)
     }
+    function showInformationPanel() {
+        if (!dockPanelVisible("information")) setDockPanelVisible("information", true)
+        informationDock.collapsed = false
+        selectDockPanel("information")
+    }
+    function updateInformationPointer(x, y) {
+        informationPosition = Qt.point(Math.floor(x), Math.floor(y))
+        informationPointerValid = x >= 0 && y >= 0 && x < editor.width && y < editor.height
+        if (dockPanelVisible("information") && !informationPointerTimer.running)
+            informationPointerTimer.start()
+    }
+    function refreshInformationColor() {
+        if (dockPanelVisible("information") && informationPointerValid)
+            informationColor = editor.sampleToolColor(informationPosition.x, informationPosition.y)
+    }
     function colorText(color) {
         return "R " + Math.round(color.r*255) + "  V " + Math.round(color.g*255)
                 + "  B " + Math.round(color.b*255)
     }
-    function addColorSample(x,y) {
-        const next=Array.from(colorSamples)
-        if(next.length>=4) next.shift()
-        const sampled=editor.sampleCompositeColor(Math.floor(x),Math.floor(y))
-        next.push({x:x,y:y,color:sampled,label:colorText(sampled)})
-        colorSamples=next
-    }
-    function removeNearestColorSample(x,y) {
-        if(colorSamples.length===0) return
-        let nearest=0,best=Number.MAX_VALUE
+    function nearestColorSample(x,y) {
+        let nearest=-1, best=144/(zoom*zoom)
         for(let i=0;i<colorSamples.length;++i) {
             const dx=colorSamples[i].x-x,dy=colorSamples[i].y-y,d=dx*dx+dy*dy
             if(d<best){best=d;nearest=i}
         }
-        const next=Array.from(colorSamples);next.splice(nearest,1);colorSamples=next
+        return nearest
     }
+    function updateColorSample(index,x,y) {
+        if(x<0 || y<0 || x>=editor.width || y>=editor.height) return
+        const sampled=editor.sampleToolColor(Math.floor(x),Math.floor(y))
+        const next=Array.from(colorSamples)
+        next[index]={x:x,y:y,color:sampled,label:colorText(sampled)}
+        colorSamples=next
+        showInformationPanel()
+    }
+    function addColorSample(x,y) {
+        if(colorSamples.length>=4 || x<0 || y<0 || x>=editor.width || y>=editor.height) return -1
+        const index=colorSamples.length
+        updateColorSample(index,x,y)
+        return index
+    }
+    function refreshColorSamples() {
+        colorSamples=colorSamples.map(function(sample) {
+            const color=editor.sampleToolColor(Math.floor(sample.x),Math.floor(sample.y))
+            return {x:sample.x,y:sample.y,color:color,label:colorText(color)}
+        })
+    }
+    function removeColorSample(index) {
+        if(index<0 || index>=colorSamples.length) return
+        const next=Array.from(colorSamples);next.splice(index,1);colorSamples=next
+    }
+    function removeNearestColorSample(x,y) { removeColorSample(nearestColorSample(x,y)) }
     function activateMaskThumbnail(layerIndex, modifiers) {
         editor.activeLayer = layerIndex
         editor.setEditingMask(true)
@@ -792,6 +848,7 @@ ApplicationWindow {
     onDockGroupActiveChanged: scheduleWorkspaceSave()
     onDockPanelVisibilityChanged: scheduleWorkspaceSave()
     Component.onCompleted: {
+        sampleDocumentSession=editor.documentSession
         refreshToolLayout()
         restoreWorkspaceLayout()
         Qt.callLater(fitCanvas)
@@ -810,6 +867,13 @@ ApplicationWindow {
         target: shortcuts
         function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
     }
+    Timer { id: informationPointerTimer; interval: 16; onTriggered: window.refreshInformationColor() }
+    onInformationToolChanged: {
+        if (workspaceRestored && ["picker", "colorSampler", "ruler"].indexOf(informationTool) >= 0)
+            showInformationPanel()
+    }
+    onCurvePickerModeChanged: if (curvePickerMode.length) showInformationPanel()
+    onColorPickerModeChanged: if (colorPickerMode.length) showInformationPanel()
     Timer { id: statusTimer; interval: 5000; onTriggered: window.status = qsTr("Prêt à créer") }
     Timer { id: layerPreviewTimer; interval: 16; onTriggered: window.flushLayerPreview() }
     Timer { id: workspaceSaveTimer; interval: 250; onTriggered: window.saveWorkspaceLayout() }
@@ -1048,6 +1112,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Couleur"); checkable: true; checked: window.dockPanelVisible("color"); onTriggered: window.toggleDockPanel("color") }
                 DarkMenuItem { text: qsTr("Calques"); checkable: true; checked: window.dockPanelVisible("layers"); onTriggered: window.toggleDockPanel("layers") }
                 DarkMenuItem { text: qsTr("Couches"); checkable: true; checked: window.dockPanelVisible("channels"); onTriggered: window.toggleDockPanel("channels") }
+                DarkMenuItem { objectName: "informationPanelMenuItem"; text: qsTr("Informations"); checkable: true; checked: window.dockPanelVisible("information"); onTriggered: window.toggleDockPanel("information") }
                 DarkMenuItem { text: qsTr("Historique"); checkable: true; checked: window.dockPanelVisible("history"); onTriggered: window.toggleDockPanel("history") }
             }
             MenuSeparator {}
@@ -1453,33 +1518,6 @@ ApplicationWindow {
                     implicitHeight: 32
                     onClicked: fitCanvas()
                 }
-                Label {
-                    visible: editor.tool === "ruler" && window.rulerVisible
-                    text: {
-                        const dx=window.rulerEnd.x-window.rulerStart.x
-                        const dy=window.rulerEnd.y-window.rulerStart.y
-                        return qsTr("L %1 px · A %2°").arg(Math.round(Math.sqrt(dx*dx+dy*dy)))
-                                .arg(Math.round(Math.atan2(dy,dx)*180/Math.PI))
-                    }
-                    color: "#cbd3da"
-                }
-                Button {
-                    visible: editor.tool === "ruler" && window.rulerVisible
-                    text: qsTr("Effacer la mesure")
-                    implicitHeight: 32
-                    onClicked: window.rulerVisible=false
-                }
-                Label {
-                    visible: editor.tool === "colorSampler"
-                    text: qsTr("%1 / 4 échantillons").arg(window.colorSamples.length)
-                    color: "#cbd3da"
-                }
-                Button {
-                    visible: editor.tool === "colorSampler" && window.colorSamples.length>0
-                    text: qsTr("Effacer")
-                    implicitHeight: 32
-                    onClicked: window.colorSamples=[]
-                }
                 Button { text: qsTr("Recadrer"); visible: editor.tool==="crop"; enabled: editor.hasSelection; implicitHeight: 32; onClicked: editor.cropToSelection() }
                 Item { Layout.fillWidth: true }
                 IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
@@ -1493,6 +1531,21 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        RulerOptions {
+            objectName:"rulerOptions"
+            Layout.fillWidth:true
+            visible:editor.tool==="ruler"
+            start:window.rulerStart;end:window.rulerEnd;hasMeasure:window.rulerVisible
+            onClearMeasure:window.rulerVisible=false
+        }
+        EyedropperOptions {
+            objectName: "eyedropperOptions"
+            Layout.fillWidth: true
+            visible: window.eyedropperToolActive
+            document: editor
+            samples: window.colorSamples
+            onClearSamples: window.colorSamples=[]
+        }
         HistoryBrushOptions {
             objectName: "historyBrushOptions"
             Layout.fillWidth: true
@@ -1872,18 +1925,44 @@ ApplicationWindow {
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape
                                 function syncSystemCursor() {
-                                    imageCanvas.setSystemCursor(window.canvasCursorShape,
-                                                                containsMouse && window.active
-                                                                && !window.modalOpen,
-                                                                editor.tool,
-                                                                editor.selectionMode,
-                                                                window.stampSourcePicking)
+                                    const calibration=curvePickerArea.enabled && curvePickerArea.containsMouse
+                                    const measuring=measureToolArea.enabled && measureToolArea.containsMouse
+                                    const tool=calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
+                                              : measuring && editor.tool==="colorSampler" && measureToolArea.deleteHovered ? "colorSamplerDelete"
+                                              : editor.tool
+                                    imageCanvas.setSystemCursor(calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
+                                                                (containsMouse || calibration || measuring) && window.active && !window.modalOpen && !window.spacePressed,
+                                                                tool, editor.selectionMode, window.stampSourcePicking)
                                 }
-                                onContainsMouseChanged: syncSystemCursor()
+                                function refreshSystemCursor() {
+                                    syncSystemCursor()
+                                    // Native window creation and tool bindings can finish after
+                                    // the initial focus/hover notification. Reapply the settled state.
+                                    Qt.callLater(syncSystemCursor)
+                                }
+                                onEnabledChanged: refreshSystemCursor()
+                                onContainsMouseChanged: {
+                                    refreshSystemCursor()
+                                    if (!containsMouse) window.informationPointerValid = false
+                                }
                                 onPressed: function(mouse) {
                                     workspace.forceActiveFocus()
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
+                                    if (editor.tool === "picker") {
+                                        window.showInformationPanel()
+                                        if (mouse.modifiers & Qt.ShiftModifier) {
+                                            window.addColorSample(mouse.x/zoom,mouse.y/zoom)
+                                            return
+                                        }
+                                        window.pickerPreviousColor=(mouse.modifiers & Qt.AltModifier) ? editor.secondaryColor : editor.color
+                                        window.pickerDragging=true
+                                        window.pickerPosition=Qt.point(mouse.x,mouse.y)
+                                        editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),Boolean(mouse.modifiers & Qt.AltModifier))
+                                        window.pickerSampleColor=(mouse.modifiers & Qt.AltModifier) ? editor.secondaryColor : editor.color
+                                        return
+                                    }
                                     if (editor.tool === "cloneStamp" && (mouse.modifiers & Qt.AltModifier)) {
                                         editor.setCloneSource(mouse.x / zoom, mouse.y / zoom)
                                         return
@@ -1903,17 +1982,23 @@ ApplicationWindow {
                                 onPositionChanged: function(mouse) {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
                                     updatePatchCursor()
                                     window.stampSourcePicking = Boolean(mouse.modifiers & Qt.AltModifier)
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
                                     if (brushCursor.visible) {
                                         brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
                                     }
-                                    if (editor.polygonLassoActive)
+                                    if (editor.tool === "picker" && window.pickerDragging) {
+                                        window.pickerPosition=Qt.point(mouse.x,mouse.y)
+                                        editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),Boolean(mouse.modifiers & Qt.AltModifier))
+                                        window.pickerSampleColor=(mouse.modifiers & Qt.AltModifier) ? editor.secondaryColor : editor.color
+                                    } else if (editor.polygonLassoActive)
                                         lassoSelectionOverlay.requestPaint()
                                     else if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
                                 }
                                 onReleased: {
+                                    window.pickerDragging=false
                                     if (editor.tool !== "polygonalLasso") editor.endStroke()
                                     if (selectionModeBeforeGesture >= 0) {
                                         editor.selectionMode = selectionModeBeforeGesture
@@ -1924,6 +2009,7 @@ ApplicationWindow {
                                     if (editor.tool === "polygonalLasso") editor.finishPolygonLasso()
                                 }
                                 onCanceled: {
+                                    window.pickerDragging=false
                                     if (editor.tool !== "polygonalLasso") editor.cancelStroke()
                                     if (selectionModeBeforeGesture >= 0) {
                                         editor.selectionMode = selectionModeBeforeGesture
@@ -1956,16 +2042,33 @@ ApplicationWindow {
                             }
                             Connections {
                                 target: window
-                                function onCanvasCursorShapeChanged() { drawingArea.syncSystemCursor() }
+                                function onCanvasCursorShapeChanged() { drawingArea.refreshSystemCursor() }
                                 function onZoomChanged() { drawingArea.syncSystemCursor() }
                                 function onModalOpenChanged() { drawingArea.syncSystemCursor() }
-                                function onActiveChanged() { drawingArea.syncSystemCursor() }
+                                function onActiveChanged() { drawingArea.refreshSystemCursor() }
+                                function onCurvePickerModeChanged() { drawingArea.refreshSystemCursor() }
+                                function onColorPickerModeChanged() { drawingArea.refreshSystemCursor() }
+                                function onStampSourcePickingChanged() { drawingArea.syncSystemCursor() }
                             }
                             Connections {
                                 target: editor
-                                function onSettingsChanged() { drawingArea.updatePatchCursor(); drawingArea.syncSystemCursor() }
+                                function onImageChanged() { if (!sampleRefreshTimer.running) sampleRefreshTimer.start() }
+                                function onDocumentChanged() {
+                                    if(window.sampleDocumentSession!==editor.documentSession) {
+                                        window.sampleDocumentSession=editor.documentSession
+                                        window.colorSamples=[];window.rulerVisible=false;window.informationPointerValid=false
+                                    } else if(window.colorSamples.length) {
+                                        window.colorSamples=window.colorSamples.filter(function(s){return s.x<editor.width && s.y<editor.height})
+                                        sampleRefreshTimer.restart()
+                                    }
+                                }
+                                function onSettingsChanged() { drawingArea.updatePatchCursor(); drawingArea.refreshSystemCursor(); if (!sampleRefreshTimer.running) sampleRefreshTimer.start() }
                                 function onSelectionChanged() { drawingArea.updatePatchCursor() }
                                 function onPatchPreviewChanged() { drawingArea.updatePatchCursor() }
+                            }
+                            Timer {
+                                id: sampleRefreshTimer; interval:40
+                                onTriggered: { window.refreshColorSamples(); window.refreshInformationColor() }
                             }
                             Canvas {
                                 id: rulerOverlay
@@ -1993,51 +2096,96 @@ ApplicationWindow {
                                     function onZoomChanged(){rulerOverlay.requestPaint()}
                                 }
                             }
+                            Canvas {
+                                id: samplingRing
+                                objectName: "samplingRing"
+                                anchors.fill: parent; z: 7; enabled: false
+                                visible: window.pickerDragging && editor.eyedropperRing && editor.tool==="picker"
+                                onPaint: {
+                                    const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
+                                    const x=window.pickerPosition.x,y=window.pickerPosition.y
+                                    c.lineWidth=10
+                                    c.beginPath();c.arc(x,y,35,Math.PI,Math.PI*2);c.strokeStyle=window.pickerSampleColor;c.stroke()
+                                    c.beginPath();c.arc(x,y,35,0,Math.PI);c.strokeStyle=window.pickerPreviousColor;c.stroke()
+                                    c.lineWidth=1;c.strokeStyle="#111111"
+                                    c.beginPath();c.arc(x,y,41,0,Math.PI*2);c.stroke()
+                                    c.strokeStyle="#ffffff";c.beginPath();c.arc(x,y,29,0,Math.PI*2);c.stroke()
+                                }
+                                Connections {
+                                    target: window
+                                    function onPickerPositionChanged(){samplingRing.requestPaint()}
+                                    function onPickerSampleColorChanged(){samplingRing.requestPaint()}
+                                    function onPickerPreviousColorChanged(){samplingRing.requestPaint()}
+                                }
+                            }
                             Repeater {
                                 model: window.colorSamples
-                                delegate: Item {
+                                delegate: Canvas {
                                     required property var modelData
                                     required property int index
-                                    x: modelData.x*zoom-7; y: modelData.y*zoom-7
-                                    z: 5; width: 148; height: 30
-                                    Rectangle { x: 6; y: 0; width: 2; height: 15; color: "#ffffff"; border.color: "#11161b" }
-                                    Rectangle { x: 0; y: 6; width: 15; height: 2; color: "#ffffff"; border.color: "#11161b" }
-                                    Rectangle {
-                                        x: 19; y: 2; width: 126; height: 24; radius: 4
-                                        color: "#dd20262e"; border.color: "#7d8995"
-                                        Row {
-                                            anchors.fill: parent;anchors.margins:4;spacing:5
-                                            Rectangle { width: 15;height:15;color:modelData.color;border.color:"#eef1f4" }
-                                            Text { text:(index+1)+"  "+modelData.label;color:"#eef1f4";font.pixelSize:9 }
+                                    x:modelData.x*zoom-10;y:modelData.y*zoom-10
+                                    z:5;width:28;height:28;enabled:false
+                                    onPaint: {
+                                        const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
+                                        for(const style of [{color:"#111111",width:3},{color:"#ffffff",width:1}]) {
+                                            c.strokeStyle=style.color;c.lineWidth=style.width
+                                            c.beginPath();c.arc(10,10,5,0,Math.PI*2);c.stroke()
+                                            c.beginPath();c.moveTo(0,10);c.lineTo(20,10);c.moveTo(10,0);c.lineTo(10,20);c.stroke()
                                         }
+                                        c.font="bold 10px sans-serif";c.lineWidth=3;c.strokeStyle="#111111";c.strokeText(index+1,19,26)
+                                        c.fillStyle="#ffffff";c.fillText(index+1,19,26)
                                     }
                                 }
                             }
                             MouseArea {
                                 id: measureToolArea
                                 objectName: "measureToolArea"
-                                anchors.fill: parent
-                                z: 5
+                                property int draggedSample: -1
+                                property point pointer:Qt.point(-100,-100)
+                                readonly property bool deleteHovered: window.stampSourcePicking && window.nearestColorSample(pointer.x/zoom,pointer.y/zoom)>=0
+                                anchors.fill: parent; z:5
                                 enabled: editor.tool === "ruler" || editor.tool === "colorSampler"
-                                hoverEnabled: enabled
-                                preventStealing: true
+                                hoverEnabled: enabled; preventStealing:true
                                 cursorShape: Qt.CrossCursor
+                                onEnabledChanged: drawingArea.refreshSystemCursor()
+                                onContainsMouseChanged: {
+                                    drawingArea.refreshSystemCursor()
+                                    if (!containsMouse) window.informationPointerValid = false
+                                }
+                                onDeleteHoveredChanged: drawingArea.syncSystemCursor()
                                 onPressed: function(mouse) {
                                     workspace.forceActiveFocus()
                                     const x=mouse.x/zoom,y=mouse.y/zoom
+                                    window.showInformationPanel()
+                                    window.updateInformationPointer(x, y)
                                     if(editor.tool==="colorSampler") {
-                                        if(mouse.modifiers&Qt.AltModifier) window.removeNearestColorSample(x,y)
-                                        else window.addColorSample(x,y)
+                                        const existing=window.nearestColorSample(x,y)
+                                        if(mouse.modifiers&Qt.AltModifier) window.removeColorSample(existing)
+                                        else draggedSample=existing>=0 ? existing : window.addColorSample(x,y)
                                     } else {
-                                        window.rulerStart=Qt.point(x,y)
-                                        window.rulerEnd=Qt.point(x,y)
-                                        window.rulerVisible=true
+                                        window.rulerStart=Qt.point(x,y);window.rulerEnd=Qt.point(x,y);window.rulerVisible=true
                                     }
                                 }
                                 onPositionChanged: function(mouse) {
-                                    if(pressed && editor.tool==="ruler")
-                                        window.rulerEnd=Qt.point(mouse.x/zoom,mouse.y/zoom)
+                                    const x=mouse.x/zoom,y=mouse.y/zoom
+                                    pointer=Qt.point(mouse.x,mouse.y)
+                                    window.updateInformationPointer(x, y)
+                                    window.stampSourcePicking=Boolean(mouse.modifiers&Qt.AltModifier)
+                                    if(pressed && editor.tool==="ruler") {
+                                        const dx=x-window.rulerStart.x,dy=y-window.rulerStart.y
+                                        const angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4
+                                        const length=Math.sqrt(dx*dx+dy*dy)
+                                        window.rulerEnd=(mouse.modifiers&Qt.ShiftModifier)
+                                                ? Qt.point(window.rulerStart.x+Math.cos(angle)*length,window.rulerStart.y+Math.sin(angle)*length)
+                                                : Qt.point(x,y)
+                                    }
+                                    else if(pressed && draggedSample>=0) window.updateColorSample(draggedSample,x,y)
                                 }
+                                onReleased: function(mouse) {
+                                    if(draggedSample>=0 && (mouse.x<0 || mouse.y<0 || mouse.x>=width || mouse.y>=height)) window.removeColorSample(draggedSample)
+                                    draggedSample=-1
+                                }
+                                onCanceled: draggedSample=-1
                             }
                             MouseArea {
                                 id: curvePickerArea
@@ -2049,9 +2197,12 @@ ApplicationWindow {
                                 enabled: (window.curvePickerMode.length > 0 || window.colorPickerMode.length > 0) && layerPropertiesDialog.opened
                                 hoverEnabled: enabled
                                 cursorShape: Qt.BlankCursor
+                                onContainsMouseChanged: drawingArea.refreshSystemCursor()
+                                onEnabledChanged: drawingArea.refreshSystemCursor()
                                 onPositionChanged: function(mouse) {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
                                 }
                                 onClicked: function(mouse) {
                                     const documentX = Math.floor(mouse.x/zoom)
@@ -2064,63 +2215,6 @@ ApplicationWindow {
                                     else
                                         editor.sampleCurvePoint(window.curvePickerMode,
                                                                 documentX,documentY)
-                                }
-                            }
-                            Canvas {
-                                id: curvePickerCursor
-                                objectName: "curvePickerCursor"
-                                width: 34
-                                height: 34
-                                x: curvePickerArea.pointerX - 3
-                                y: curvePickerArea.pointerY - 30
-                                z: 7
-                                enabled: false
-                                visible: curvePickerArea.enabled && curvePickerArea.containsMouse
-                                onPaint: {
-                                    const c = getContext("2d")
-                                    c.reset()
-                                    c.clearRect(0,0,width,height)
-                                    c.lineCap = "round"
-                                    c.lineJoin = "round"
-                                    c.beginPath()
-                                    c.moveTo(3,30)
-                                    c.lineTo(9,24)
-                                    c.lineTo(7,22)
-                                    c.lineTo(19,10)
-                                    c.lineTo(23,14)
-                                    c.lineTo(11,26)
-                                    c.lineTo(9,24)
-                                    c.strokeStyle = "rgba(0,0,0,.9)"
-                                    c.lineWidth = 5
-                                    c.stroke()
-                                    c.strokeStyle = "#f5f7f9"
-                                    c.lineWidth = 2
-                                    c.stroke()
-                                    c.beginPath()
-                                    c.moveTo(18,9)
-                                    c.lineTo(23,4)
-                                    c.lineTo(30,11)
-                                    c.lineTo(25,16)
-                                    c.closePath()
-                                    c.fillStyle = "#dce4ea"
-                                    c.fill()
-                                    c.strokeStyle = "#101419"
-                                    c.lineWidth = 2
-                                    c.stroke()
-                                    c.beginPath()
-                                    c.arc(28,27,5,0,Math.PI*2)
-                                    c.fillStyle = window.curvePickerMode === "black" ? "#08090a"
-                                                : window.curvePickerMode === "gray" ? "#8d969f"
-                                                : window.curvePickerMode === "white" ? "#ffffff"
-                                                : "#5fca8a"
-                                    c.fill()
-                                    c.strokeStyle = window.curvePickerMode === "white" ? "#20252b" : "#ffffff"
-                                    c.lineWidth = 1.5
-                                    c.stroke()
-                                }
-                                Connections {
-                                    target: window
-                                    function onCurvePickerModeChanged() { curvePickerCursor.requestPaint() }
                                 }
                             }
                             Canvas {
@@ -2819,6 +2913,51 @@ ApplicationWindow {
                     }
 
                     DockablePanel {
+                        id: informationDock
+                        objectName: "informationDockPanel"
+                        panelId: "information"
+                        title: qsTr("Informations")
+                        panelShown: window.dockPanelVisible(panelId)
+                        dockedHeight: 300
+                        minimumContentHeight: 110
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) {
+                            window.informationFloating = isFloating
+                            if (isFloating) window.ungroupDockPanel(panelId)
+                            window.scheduleWorkspaceSave()
+                        }
+                        hideOnClose: true
+                        floatingHeight: 370
+                        onHideRequested: window.setDockPanelVisible(panelId, false)
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { InformationPanel {
+                            pointerPosition: window.informationPosition
+                            pointerColor: window.informationColor
+                            pointerValid: window.informationPointerValid
+                            samples: window.colorSamples
+                            rulerStart: window.rulerStart
+                            rulerEnd: window.rulerEnd
+                            rulerVisible: window.rulerVisible
+                            selection: editor.selection
+                            selectionVisible: editor.hasSelection
+                            documentWidth: editor.width
+                            documentHeight: editor.height
+                        } }
+                    }
+
+                    DockablePanel {
                         id: historyDock
                         objectName: "historyDockPanel"
                         panelId: "history"
@@ -2890,7 +3029,7 @@ ApplicationWindow {
                 Rectangle { width: 5; height: 5; radius: 3; color: "#aad4b4" }
                 Label { text: window.status; color: "#8c99a7"; font.pixelSize: 10 }
                 Item { Layout.fillWidth: true }
-                Label { text: qsTr("%1 × %2 px   ·   %3 calques   ·   PhotoCrap 0.1").arg(editor.width).arg(editor.height).arg(editor.layers.length); color: "#73818f"; font.pixelSize: 10 }
+                Label { text: qsTr("%1 × %2 px   ·   %3 calques   ·   PhotoCrap %4").arg(editor.width).arg(editor.height).arg(editor.layers.length).arg(Qt.application.version); color: "#73818f"; font.pixelSize: 10 }
             }
         }
     }
@@ -3949,7 +4088,7 @@ ApplicationWindow {
         footer: DialogButtonBox { DialogActionButton { text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: errorDialog.accept() } }
     }
     Dialog {
-        id: aboutDialog; title: qsTr("PhotoCrap 0.1"); anchors.centerIn: parent; modal: true; width: 480
+        id: aboutDialog; title: qsTr("PhotoCrap %1").arg(Qt.application.version); anchors.centerIn: parent; modal: true; width: 480
         Label {
             width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.4
             text: qsTr("Un atelier de création d’images en C++ et Qt Quick.\n\nCalques, dessin, sélection, transformations et retouche, sur macOS, Linux et Windows.\n\nCette première version utilise des calques raster en sRGB 8 bits. Elle ne lit pas les PSD et n’inclut pas les objets dynamiques, les masques de calque, le RAW ou les fonctions IA.\n\nLogiciel indépendant, sans affiliation avec Adobe.")

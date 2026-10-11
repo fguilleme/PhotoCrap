@@ -157,6 +157,24 @@ La **Forme d’historique artistique** partage le groupe `Y` et la source de la 
 
 Les contrôles et le principe suivent [la référence Adobe](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/create-fill-with-patterns/paint-stylized-strokes-with-the-art-history-brush.html). Le moteur de touches est propre à PhotoCrap, sans prétendre reproduire pixel pour pixel l’algorithme de Photoshop. Comme la Forme d’historique, cet outil nécessite un calque de pixels présent dans la source et des dimensions compatibles ; il ne peint pas sur les masques.
 
+### Pipette et échantillonnage de couleur
+
+Les outils du groupe `I` ont des icônes vectorielles et des curseurs natifs : la pointe de la pipette est le pixel prélevé, l’échantillonneur a un repère supplémentaire et Option/Alt sur un repère affiche des ciseaux. Les pipettes de Courbes et de balance des blancs utilisent le même curseur, sans dessin retardé dans le canevas ; les pipettes noir, gris et blanc gardent leur témoin distinctif.
+
+La barre de **Pipette** et d’**Échantillonnage de couleur** propose Échantillon ponctuel et les moyennes 3 × 3, 5 × 5, 11 × 11, 31 × 31, 51 × 51 et 101 × 101. Les sources actuellement disponibles sont Tous les calques et Calque actif (ou son masque si l’on y travaille). Cliquer ou glisser avec la Pipette choisit le premier plan ; Option/Alt choisit l’arrière-plan et Maj place un échantillon sans changer la couleur. L’anneau optionnel compare la nouvelle couleur et celle d’avant le geste.
+
+Les quatre repères numérotés restent sur l’image, tandis que leurs valeurs RVB figurent dans le panneau Informations. On peut les déplacer, les retirer avec Option/Alt ou en les tirant hors de l’image, et les supprimer avec Tout effacer. Un cinquième clic ne remplace pas silencieusement le premier. Les valeurs suivent les rendus et les tailles d’échantillon, sans historique de pixels. Le prélèvement utilise la composition complète terminée pour la précision ; pendant un calcul en arrière-plan, il utilise le dernier aperçu terminé sans lancer de nouveau rendu complet. Il ignore les visualisations de couches et les surimpressions de sélection. La Règle a ses lectures X, Y, largeur, hauteur, angle et D1 dans sa barre dédiée et dans Informations ; Maj contraint à 45°.
+
+Références Adobe : [Pipette et couleurs de premier/arrière-plan](https://helpx.adobe.com/ca/photoshop/desktop/adjust-color/choose-colors/set-foreground-and-background-colors.html), [échantillonnage et valeurs de pixels](https://helpx.adobe.com/photoshop/desktop/adjust-color/selective-color-adjustments/view-pixel-color-values-in-an-image.html), [outil Règle](https://helpx.adobe.com/photoshop/using/positioning-ruler-tool.html).
+
+### Panneau Informations
+
+Le panneau Informations affiche aussi les coordonnées et les valeurs RVB sous le pointeur, les dimensions de la sélection et du document. Il est masqué au départ et s’ouvre automatiquement avec la pipette, l’échantillonneur, la règle ou les pipettes des réglages. Par défaut, c’est une fenêtre flottante ; une fois ancré ou regroupé avec un autre panneau, il conserve cette organisation. Affichage → Panneaux → Informations permet de le masquer ou de le rouvrir ; fermer sa fenêtre le masque sans modifier son choix d’ancrage. Son placement et sa taille sont sauvegardés avec l’espace de travail.
+
+Référence : [Panneau Informations Adobe](https://helpx.adobe.com/photoshop/desktop/get-started/settings-and-preferences/use-the-info-panel-and-document-status-bar.html).
+
+Le curseur des outils est synchronisé immédiatement, puis après la stabilisation des fenêtres et du focus. Un test Cocoa contrôle la pointe réelle de la pipette, de l’échantillonneur et de la règle dès leur première activation, sans nouveau mouvement de souris, ainsi qu’après la réouverture d’Informations.
+
 ## Validation et limites
 
 Les tests vérifient notamment peinture/annulation, opacité, visibilité, verrouillage, sélection, recadrage, déplacements, remplissage, filtres, transformations, fusion, sauvegarde/réouverture, export, sauvegarde en échec et rejet des fichiers corrompus. Un test démarre également le moteur QML, dessine par événements souris, vérifie la saisie de texte et la protection des modifications, puis produit un rendu hors écran sans erreurs QML. Les vérifications d’interaction sont compilées lorsque `BUILD_TESTING=ON`.

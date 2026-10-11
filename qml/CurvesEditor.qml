@@ -73,33 +73,28 @@ ColumnLayout {
         Layout.fillWidth: true
         Label { text: qsTr("RVB composite"); color: "#c4cdd5"; Layout.fillWidth: true }
         Label { text: qsTr("Pipettes"); color: "#7f8b96"; font.pixelSize: 10 }
-        ToolButton {
+        EyedropperButton {
             objectName: "curveColorPicker"
-            text: "◉"; checkable: true; checked: root.pickerMode === "color"
-            Accessible.name: qsTr("Échantillonner une couleur dans la courbe")
-            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            sampleMode: "color"; checked: root.pickerMode === "color"
+            hint: qsTr("Échantillonner une couleur dans la courbe")
             onClicked: root.pickerSelected(checked ? "color" : "")
         }
-        ToolButton {
+        EyedropperButton {
             objectName: "curveBlackPicker"
-            text: "●"; checkable: true; checked: root.pickerMode === "black"
-            Accessible.name: qsTr("Définir le point noir")
-            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            sampleMode: "black"; checked: root.pickerMode === "black"
+            hint: qsTr("Définir le point noir")
             onClicked: root.pickerSelected(checked ? "black" : "")
         }
-        ToolButton {
+        EyedropperButton {
             objectName: "curveGrayPicker"
-            text: "●"; checkable: true; checked: root.pickerMode === "gray"
-            palette.buttonText: "#9ca5ad"
-            Accessible.name: qsTr("Neutraliser un gris")
-            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            sampleMode: "gray"; checked: root.pickerMode === "gray"
+            hint: qsTr("Neutraliser un gris")
             onClicked: root.pickerSelected(checked ? "gray" : "")
         }
-        ToolButton {
+        EyedropperButton {
             objectName: "curveWhitePicker"
-            text: "○"; checkable: true; checked: root.pickerMode === "white"
-            Accessible.name: qsTr("Définir le point blanc")
-            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+            sampleMode: "white"; checked: root.pickerMode === "white"
+            hint: qsTr("Définir le point blanc")
             onClicked: root.pickerSelected(checked ? "white" : "")
         }
     }

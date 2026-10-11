@@ -650,6 +650,7 @@
   </context>
   <context>
     <name>Main</name>
+    <message><source>Informations</source><translation>Info</translation></message>
 <message><source>Utiliser cet état comme source de la forme d’historique</source><translation>Use this state as the History Brush source</translation></message>
     <message>
       <source>Modifier le style colorimétrique</source>
@@ -1744,8 +1745,8 @@
     </message>
     <message>
       <location filename="../qml/Main.qml" line="667" />
-      <source>%1 × %2 px   ·   %3 calques   ·   PhotoCrap 0.1</source>
-      <translation>%1 × %2 px   ·   %3 layers   ·   PhotoCrap 0.1</translation>
+      <source>%1 × %2 px   ·   %3 calques   ·   PhotoCrap %4</source>
+      <translation>%1 × %2 px   ·   %3 layers   ·   PhotoCrap %4</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="691" />
@@ -2215,8 +2216,8 @@ The operation can be undone.</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="1197" />
-      <source>PhotoCrap 0.1</source>
-      <translation>PhotoCrap 0.1</translation>
+      <source>PhotoCrap %1</source>
+      <translation>PhotoCrap %1</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="1200" />
@@ -2746,4 +2747,35 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>0 : peindre partout ; une valeur élevée limite les touches aux zones différentes de la source</source><translation>0: paint anywhere; higher values restrict strokes to areas different from the source</translation></message>
     <message><source>Source incompatible</source><translation>Incompatible source</translation></message>
 </context>
+<context>
+    <name>EyedropperOptions</name>
+    <message><source>Taille de l’échantillon</source><translation>Sample Size</translation></message>
+    <message><source>Échantillon ponctuel</source><translation>Point Sample</translation></message>
+    <message><source>Moyenne 3 × 3</source><translation>3 by 3 Average</translation></message>
+    <message><source>Moyenne 5 × 5</source><translation>5 by 5 Average</translation></message>
+    <message><source>Moyenne 11 × 11</source><translation>11 by 11 Average</translation></message>
+    <message><source>Moyenne 31 × 31</source><translation>31 by 31 Average</translation></message>
+    <message><source>Moyenne 51 × 51</source><translation>51 by 51 Average</translation></message>
+    <message><source>Moyenne 101 × 101</source><translation>101 by 101 Average</translation></message>
+    <message><source>Échantillon</source><translation>Sample</translation></message>
+    <message><source>Tous les calques</source><translation>All Layers</translation></message>
+    <message><source>Calque actif</source><translation>Current Layer</translation></message>
+    <message><source>Afficher l’anneau de prélèvement</source><translation>Show Sampling Ring</translation></message>
+    <message><source>Tout effacer</source><translation>Clear All</translation></message>
+    <message><source>%1 / 4 échantillons</source><translation>%1 / 4 samplers</translation></message>
+    <message><source>Option / Alt : couleur d’arrière-plan · Maj : ajouter un échantillon</source><translation>Option / Alt: background colour · Shift: place a sampler</translation></message>
+</context>
+<context>
+    <name>RulerOptions</name>
+    <message><source>Effacer</source><translation>Clear</translation></message>
+    <message><source>Maj : contraindre à 45°</source><translation>Shift: constrain to 45°</translation></message>
+</context>
+  <context>
+    <name>InformationPanel</name>
+    <message><source>Sous le pointeur</source><translation>Under the pointer</translation></message>
+    <message><source>Règle</source><translation>Ruler</translation></message>
+    <message><source>Sélection</source><translation>Selection</translation></message>
+    <message><source>Échantillons de couleur</source><translation>Color samplers</translation></message>
+    <message><source>Document : %1 × %2 px</source><translation>Document: %1 × %2 px</translation></message>
+  </context>
 </TS>

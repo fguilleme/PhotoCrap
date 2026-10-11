@@ -320,6 +320,110 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void eyedropperPointAveragesSourcesAndBackgroundDoNotEditPixels()
+    {
+        QTemporaryDir dir;
+        QImage        image(7, 7, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::black);
+        image.setPixelColor(3, 3, Qt::red);
+        const QString path = dir.filePath("picker.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setEyedropperSource(1);
+        d.setEyedropperSize(1);
+        QCOMPARE(d.sampleToolColor(3, 3), QColor(Qt::red));
+        d.setEyedropperSize(3);
+        QCOMPARE(d.eyedropperSize(), 3);
+        QCOMPARE(d.sampleToolColor(3, 3), QColor(28, 0, 0));
+        d.setEyedropperSize(5);
+        QCOMPARE(d.sampleToolColor(3, 3), QColor(10, 0, 0));
+        d.setEyedropperSize(101);
+        QCOMPARE(d.sampleToolColor(0, 0), QColor(5, 0, 0));
+        d.setEyedropperSize(-100);
+        QCOMPARE(d.eyedropperSize(), 1);
+        d.setEyedropperSize(10000);
+        QCOMPARE(d.eyedropperSize(), 101);
+        d.setEyedropperSize(1);
+        QVERIFY(!d.sampleToolColor(-1, 3).isValid());
+        QVERIFY(!d.sampleToolColor(7, 3).isValid());
+        d.addLayer();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setActiveLayer(0);
+        d.setEyedropperSource(0);
+        QCOMPARE(d.sampleToolColor(3, 3), QColor(Qt::blue));
+        d.setDisplayChannel(1);
+        QCOMPARE(d.sampleToolColor(3, 3),
+                 QColor(Qt::blue)); // Colour sampling ignores channel display.
+        d.setEyedropperSource(1);
+        QCOMPARE(d.sampleToolColor(3, 3), QColor(Qt::red));
+        const int    history = d.historyIndex();
+        const QImage pixels  = d.layerImage(0);
+        d.setTool("picker");
+        d.setColor(Qt::green);
+        d.setSecondaryColor(Qt::white);
+        d.beginStroke(3, 3, true);
+        d.endStroke();
+        QCOMPARE(d.secondaryColor(), QColor(Qt::red));
+        QCOMPARE(d.color(), QColor(Qt::green));
+        d.beginStroke(3, 3);
+        d.endStroke();
+        QCOMPARE(d.color(), QColor(Qt::red));
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(0), pixels);
+        d.setEyedropperRing(false);
+        QVERIFY(!d.eyedropperRing());
+    }
+
+    void eyedropperAveragesPremultipliedAlphaAndSamplesMasks()
+    {
+        QTemporaryDir dir;
+        QImage        image(3, 3, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        image.setPixelColor(1, 1, QColor(255, 0, 0, 128));
+        const QString path = dir.filePath("alpha-picker.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setEyedropperSource(1);
+        d.setEyedropperSize(3);
+        const QColor sample = d.sampleToolColor(1, 1);
+        QCOMPARE(sample.red(), 255);
+        QCOMPARE(sample.alpha(), 14);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        d.setColor(QColor(70, 70, 70));
+        d.fillWithColor(true);
+        QCOMPARE(d.sampleToolColor(1, 1), QColor(70, 70, 70));
+    }
+
+    void eyedropperUsesExactFullResolutionOncePreviewFinishes()
+    {
+        QTemporaryDir dir;
+        QImage        image(1800, 1200, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        image.setPixelColor(801, 601, Qt::red);
+        const QString path = dir.filePath("precise-picker.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setPreviewSize(600, 400);
+        QSignalSpy rendered(&d, &Document::imageChanged);
+        d.addAdjustmentLayer("brightnessContrast");
+        QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 2, 5000);
+        d.setEyedropperSource(0);
+        d.setEyedropperSize(1);
+        const QColor exact = d.composite().pixelColor(801, 601);
+        QCOMPARE(d.sampleToolColor(801, 601), exact);
+        QElapsedTimer timer;
+        timer.start();
+        for (int i = 0; i < 500; ++i)
+            QVERIFY(d.sampleToolColor(801, 601).isValid());
+        QVERIFY2(timer.elapsed() < 500,
+                 "Moving the eyedropper must reuse the completed composition");
+    }
+
     void artHistoryStylesInterpretSourceLocallyAndUndo()
     {
         QTemporaryDir dir;

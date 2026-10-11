@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,18 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "historyBrush" || root.toolName === "artHistoryBrush") {
+            if (root.toolName === "picker" || root.toolName === "colorSampler") {
+                ctx.beginPath();ctx.moveTo(3,21);ctx.lineTo(8,16);ctx.lineTo(7,15)
+                ctx.lineTo(16,6);ctx.lineTo(20,10);ctx.lineTo(11,19);ctx.lineTo(10,18);ctx.closePath();ctx.stroke()
+                ctx.beginPath();ctx.moveTo(14,5);ctx.lineTo(18,1);ctx.lineTo(23,6);ctx.lineTo(19,10);ctx.closePath();ctx.fill()
+                if(root.toolName === "colorSampler") {
+                    ctx.beginPath();ctx.arc(5,19,4,0,Math.PI*2);ctx.stroke()
+                    ctx.beginPath();ctx.moveTo(0,19);ctx.lineTo(10,19);ctx.moveTo(5,14);ctx.lineTo(5,24);ctx.stroke()
+                }
+            } else if (root.toolName === "ruler") {
+                ctx.save();ctx.translate(12,12);ctx.rotate(-Math.PI/4);ctx.strokeRect(-10,-4,20,8)
+                for(let x=-6;x<10;x+=4) {ctx.beginPath();ctx.moveTo(x,-4);ctx.lineTo(x,0);ctx.stroke()};ctx.restore()
+            } else if (root.toolName === "historyBrush" || root.toolName === "artHistoryBrush") {
                 if (root.toolName === "artHistoryBrush") {
                     ctx.beginPath(); ctx.moveTo(2, 19); ctx.bezierCurveTo(8, 12, 11, 25, 16, 20); ctx.stroke()
                 }

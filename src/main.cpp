@@ -15,6 +15,7 @@
 #include "../tests/UiSmoke.h"
 #ifdef Q_OS_MACOS
 #include "../tests/MacApplicationMenuTest.h"
+#include "../tests/MacToolCursorTest.h"
 #endif
 #endif
 
@@ -55,7 +56,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setApplicationName("PhotoCrap");
     app.setOrganizationName("PhotoCrap");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(PHOTOCRAP_VERSION);
     QQuickStyle::setStyle("Basic");
     const auto args  = app.arguments();
     const bool smoke = args.contains("--smoke-test");
@@ -103,6 +104,8 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_MACOS
             if (window && args.contains("--native-menu-test"))
                 passed = runMacApplicationMenuTest(window);
+            else if (window && args.contains("--native-cursor-test"))
+                passed = runMacToolCursorTest(window);
             else
 #endif
                 passed =

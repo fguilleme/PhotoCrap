@@ -227,6 +227,7 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    ++m_documentSession;
     invalidateContentMove();
     cancelRemoval();
     m_undo.clear();

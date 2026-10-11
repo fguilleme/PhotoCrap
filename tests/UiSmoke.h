@@ -34,13 +34,20 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _document.newDocument(300, 200, true);
     QTest::qWait(100);
-    auto histogramPanel  = _window->findChild<QObject *>("histogramDockPanel");
-    auto navigatorPanel  = _window->findChild<QObject *>("navigatorDockPanel");
-    auto histogramCanvas = _window->findChild<QQuickItem *>("colorHistogramCanvas");
-    auto colorPanel      = _window->findChild<QObject *>("colorDockPanel");
-    auto layersPanel     = _window->findChild<QObject *>("layersDockPanel");
-    auto channelsPanel   = _window->findChild<QObject *>("channelsDockPanel");
-    auto historyPanel    = _window->findChild<QObject *>("historyDockPanel");
+    auto histogramPanel     = _window->findChild<QObject *>("histogramDockPanel");
+    auto navigatorPanel     = _window->findChild<QObject *>("navigatorDockPanel");
+    auto histogramCanvas    = _window->findChild<QQuickItem *>("colorHistogramCanvas");
+    auto colorPanel         = _window->findChild<QObject *>("colorDockPanel");
+    auto layersPanel        = _window->findChild<QObject *>("layersDockPanel");
+    auto channelsPanel      = _window->findChild<QObject *>("channelsDockPanel");
+    auto historyPanel       = _window->findChild<QObject *>("historyDockPanel");
+    auto informationPanel   = _window->findChild<QObject *>("informationDockPanel");
+    auto informationContent = _window->findChild<QQuickItem *>("informationPanelContent");
+    if (!require(informationPanel && informationContent &&
+                     !informationPanel->property("panelShown").toBool() &&
+                     _window->findChild<QObject *>("informationPanelMenuItem"),
+                 "Info is an independent panel, initially hidden, with a View menu entry"))
+        return false;
     if (!require(histogramPanel && navigatorPanel && histogramCanvas && colorPanel && layersPanel &&
                      channelsPanel && historyPanel,
                  "dockable workspace panels exist"))
@@ -89,7 +96,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                               Q_ARG(QVariant, 0));
     const QVariantList reordered = _window->property("dockPanelOrder").toList();
     if (!require(!reordered.isEmpty() && reordered.first().toString() == "color" &&
-                     reordered.last().toString() == "navigator",
+                     reordered.indexOf("navigator") == reordered.indexOf("history") + 1,
                  "panels insert at the exact requested position in a dock column"))
         return false;
     auto layersHeader = _window->findChild<QQuickItem *>("layersDockHeader");
@@ -124,7 +131,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     const QVariantMap savedWorkspace = _workspaceSettings.layout();
     if (!require(!savedWorkspace.isEmpty() &&
                      !savedWorkspace.value("visibility").toMap().value("channels").toBool() &&
-                     savedWorkspace.value("order").toList().size() == 6,
+                     savedWorkspace.value("order").toList().size() == 7,
                  "panel visibility and organization are saved in application settings"))
         return false;
     QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "channels"),
@@ -1080,6 +1087,197 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.undo();
     _document.setArtHistoryStyle(0);
     _document.setArtHistoryArea(50);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "measure"),
+                              Q_ARG(QVariant, "picker"));
+    QTest::qWait(50);
+    auto eyedropperOptions = _window->findChild<QObject *>("eyedropperOptions");
+    auto eyedropperSize    = _window->findChild<QObject *>("eyedropperSampleSize");
+    auto eyedropperSource  = _window->findChild<QObject *>("eyedropperSampleSource");
+    auto eyedropperRing    = _window->findChild<QObject *>("eyedropperShowRing");
+    auto samplingRing      = _window->findChild<QObject *>("samplingRing");
+    if (!require(_document.tool() == "picker" && eyedropperOptions &&
+                     eyedropperOptions->property("visible").toBool() && eyedropperSize &&
+                     eyedropperSize->property("count").toInt() == 7 && eyedropperSource &&
+                     eyedropperRing && samplingRing,
+                 "Eyedropper has Adobe-style sample size, layer source and sampling ring controls"))
+        return false;
+    if (!require(
+            informationPanel->property("panelShown").toBool() &&
+                informationPanel->property("floating").toBool() &&
+                !informationPanel->property("visible").toBool() &&
+                informationContent->window() != _window,
+            "Selecting Eyedropper automatically opens Info in a floating window outside the dock"))
+        return false;
+    if (!require(_window->isActive() && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor &&
+                     QGuiApplication::overrideCursor()->hotSpot() == QPoint(3, 29),
+                 "First Eyedropper activation installs its cursor without moving the mouse or "
+                 "clicking again"))
+        return false;
+    _document.setEyedropperSize(1);
+    _document.setEyedropperSource(0);
+    _document.setEyedropperRing(true);
+    _document.setColor(Qt::green);
+    const int beforeSampling = _document.historyIndex();
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    QTest::qWait(30);
+    if (!require(informationContent->property("pointerValid").toBool() &&
+                     informationContent->property("pointerColor").value<QColor>() ==
+                         QColor(Qt::blue),
+                 "Info updates RGB values under the pointer without a click"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    if (!require(
+            samplingRing->property("visible").toBool() && _document.color() == QColor(Qt::blue) &&
+                QGuiApplication::overrideCursor() &&
+                QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor &&
+                QGuiApplication::overrideCursor()->hotSpot() == QPoint(3, 29),
+            "Eyedropper uses a single native cursor with an exact tip and a colour sampling ring"))
+        return false;
+    _document.setColor(Qt::green);
+    QTest::mouseMove(_window, patchPoint(25, 0));
+    if (!require(_document.color() == QColor(Qt::blue),
+                 "Dragging the Eyedropper updates the colour continuously"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(25, 0));
+    _document.setColor(Qt::green);
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, patchPoint(0, 0));
+    if (!require(_document.secondaryColor() == QColor(Qt::blue) &&
+                     _document.color() == QColor(Qt::green) &&
+                     !samplingRing->property("visible").toBool() &&
+                     _document.historyIndex() == beforeSampling,
+                 "Option samples the background colour without changing pixels or history"))
+        return false;
+    _window->setProperty("colorSamples", QVariantList{});
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::ShiftModifier, patchPoint(0, 0));
+    if (!require(_window->property("colorSamples").toList().size() == 1 &&
+                     _document.color() == QColor(Qt::green),
+                 "Shift-click with Eyedropper places a numbered sampler without changing the paint "
+                 "colour"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "measure"),
+                              Q_ARG(QVariant, "colorSampler"));
+    QTest::qWait(30);
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(25, 0));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(25, 0));
+    const QVariantList movedSamples = _window->property("colorSamples").toList();
+    if (!require(informationContent->property("samples").toList().size() == 1 &&
+                     eyedropperOptions->property("implicitHeight").toInt() == 44,
+                 "Sampler readouts live in Info while its options bar remains compact"))
+        return false;
+    if (!require(movedSamples.size() == 1 &&
+                     movedSamples[0].toMap().value("x").toReal() > patchCentre.x() + 20 &&
+                     QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "Colour Sampler moves an existing numbered target instead of adding another"))
+        return false;
+    _document.setColor(Qt::red);
+    _document.fillWithColor(true);
+    QTest::qWait(90);
+    if (!require(_window->property("colorSamples").toList().size() == 1 &&
+                     _window->property("colorSamples")
+                             .toList()[0]
+                             .toMap()
+                             .value("color")
+                             .value<QColor>() == QColor(Qt::red),
+                 "Sampler readouts follow image changes"))
+        return false;
+    _document.undo();
+    QTest::qWait(90);
+    if (!require(_window->property("colorSamples").toList().size() == 1 &&
+                     _window->property("colorSamples")
+                             .toList()[0]
+                             .toMap()
+                             .value("color")
+                             .value<QColor>() == QColor(Qt::blue),
+                 "Undo updates a sampler without deleting its non-destructive marker"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, patchPoint(25, 0));
+    if (!require(_window->property("colorSamples").toList().isEmpty(),
+                 "Option-click deletes the targeted sampler"))
+        return false;
+    for (int i = 0; i < 5; ++i)
+        QMetaObject::invokeMethod(_window, "addColorSample",
+                                  Q_ARG(QVariant, patchCentre.x() + i * 20),
+                                  Q_ARG(QVariant, patchCentre.y()));
+    if (!require(_window->property("colorSamples").toList().size() == 4,
+                 "A fifth sample does not silently replace an existing one"))
+        return false;
+    auto clearSamplers = _window->findChild<QObject *>("clearColorSamplers");
+    if (!require(clearSamplers, "Colour Sampler exposes Clear All"))
+        return false;
+    QMetaObject::invokeMethod(clearSamplers, "clicked");
+    if (!require(_window->property("colorSamples").toList().isEmpty(),
+                 "Clear All removes the sampler markers and readouts"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "measure"),
+                              Q_ARG(QVariant, "ruler"));
+    QTest::qWait(30);
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    auto rulerOptions = _window->findChild<QObject *>("rulerOptions");
+    if (!require(
+            rulerOptions && rulerOptions->property("visible").toBool() &&
+                QGuiApplication::overrideCursor() &&
+                QGuiApplication::overrideCursor()->hotSpot() == QPoint(8, 8),
+            "Ruler has dedicated coordinate, angle and length controls and a measuring cursor"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(30, 40));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(30, 40));
+    if (!require(informationContent->property("rulerVisible").toBool() &&
+                     qAbs(informationContent->property("distance").toReal() - 50.0) < 1.5,
+                 "Info displays live Ruler length from the actual measuring gesture"))
+        return false;
+    auto informationWindow = informationContent->window();
+    informationWindow->close();
+    QTest::qWait(20);
+    if (!require(!informationPanel->property("panelShown").toBool() &&
+                     _window->property("informationFloating").toBool(),
+                 "Closing floating Info hides it without losing its floating placement"))
+        return false;
+    QMetaObject::invokeMethod(_window, "saveWorkspaceLayout");
+    const QVariantMap hiddenInfoLayout = _workspaceSettings.layout();
+    if (!require(!hiddenInfoLayout.value("visibility").toMap().value("information").toBool() &&
+                     hiddenInfoLayout.value("panels")
+                         .toMap()
+                         .value("information")
+                         .toMap()
+                         .value("floating")
+                         .toBool(),
+                 "Hidden Info retains its floating preference in workspace settings"))
+        return false;
+    _window->setProperty("informationFloating", false);
+    QMetaObject::invokeMethod(_window, "restoreWorkspaceLayout");
+    QTest::qWait(30);
+    QMetaObject::invokeMethod(_window, "showInformationPanel");
+    QTest::qWait(20);
+    if (!require(informationPanel->property("floating").toBool(),
+                 "Restored Info reopens in its saved floating placement"))
+        return false;
+    QMetaObject::invokeMethod(informationPanel, "setPanelFloating", Q_ARG(QVariant, false));
+    QMetaObject::invokeMethod(informationPanel, "floatingChangedByUser", Q_ARG(bool, false));
+    QMetaObject::invokeMethod(_window, "groupDockPanels", Q_ARG(QVariant, "information"),
+                              Q_ARG(QVariant, "histogram"));
+    QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "information"),
+                              Q_ARG(QVariant, false));
+    QMetaObject::invokeMethod(_window, "showInformationPanel");
+    QTest::qWait(20);
+    if (!require(!informationPanel->property("floating").toBool() &&
+                     informationPanel->property("visible").toBool() &&
+                     informationContent->window() == _window &&
+                     !histogramPanel->property("visible").toBool(),
+                 "Auto-show selects the docked Info tab instead of creating a floating duplicate"))
+        return false;
+    QMetaObject::invokeMethod(_window, "ungroupDockPanel", Q_ARG(QVariant, "information"));
+    QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "information"),
+                              Q_ARG(QVariant, false));
+    _window->setProperty("informationFloating", true);
+    _window->requestActivate();
+    QTest::qWait(20);
+    _window->setProperty("rulerVisible", false);
+    _document.setSecondaryColor(Qt::white);
     _document.undo();
     _document.undo();
     _document.setHistoryBrushSource(0);
@@ -1252,13 +1450,27 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto curveGrayPicker   = _window->findChild<QObject *>("curveGrayPicker");
     auto curveWhitePicker  = _window->findChild<QObject *>("curveWhitePicker");
     auto curvePickerArea   = _window->findChild<QObject *>("curvePickerArea");
-    auto curvePickerCursor = _window->findChild<QObject *>("curvePickerCursor");
+
     if (!require(propertiesActions && propertiesActions->property("visible").toBool() &&
                      resetButton && curveColorPicker && curveBlackPicker && curveGrayPicker &&
-                     curveWhitePicker && curvePickerArea && curvePickerCursor &&
+                     curveWhitePicker && curvePickerArea &&
                      curvePickerArea->property("cursorShape").toInt() == int(Qt::BlankCursor),
                  "adjustment properties expose shared actions and curve eyedroppers"))
         return false;
+    _window->setProperty("curvePickerMode", "gray");
+    QTest::qWait(20);
+    auto         calibrationArea = qobject_cast<QQuickItem *>(curvePickerArea);
+    const QPoint calibrationPoint =
+        calibrationArea->mapToScene(QPointF(40, calibrationArea->height() / 2)).toPoint();
+    QTest::mouseMove(_window, calibrationPoint);
+    QTest::qWait(30);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor &&
+                     QGuiApplication::overrideCursor()->hotSpot() == QPoint(3, 29) &&
+                     !_window->findChild<QObject *>("curvePickerCursor"),
+                 "Curve calibration shares the native eyedropper without a second canvas cursor"))
+        return false;
+    _window->setProperty("curvePickerMode", "");
     auto curvesRoot = _window->findChild<QQuickItem *>("curvesEditorRoot");
     if (!require(curvesRoot, "curves editor root exists"))
         return false;

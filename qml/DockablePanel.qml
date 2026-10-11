@@ -11,6 +11,7 @@ Item {
     property bool collapsed: false
     property bool floating: false
     property bool panelShown: true
+    property bool hideOnClose: false
     property int dockedHeight: 150
     property int minimumContentHeight: 48
     readonly property int headerHeight: 34
@@ -30,6 +31,7 @@ Item {
     signal ungroupRequested(string panelId)
     signal floatingChangedByUser(bool floating)
     signal layoutChanged()
+    signal hideRequested()
 
     function setPanelFloating(value) {
         floating = value
@@ -69,8 +71,11 @@ Item {
         onHeightChanged: root.layoutChanged()
         onClosing: function(close) {
             close.accepted = false
-            root.setPanelFloating(false)
-            root.floatingChangedByUser(false)
+            if (root.hideOnClose) root.hideRequested()
+            else {
+                root.setPanelFloating(false)
+                root.floatingChangedByUser(false)
+            }
         }
     }
 

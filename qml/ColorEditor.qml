@@ -17,12 +17,12 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         Label { text: qsTr("Balance des blancs"); color: "#d5dbe0"; Layout.fillWidth: true }
-        IconButton {
+        EyedropperButton {
             objectName: "colorWhiteBalancePicker"
-            glyph: "⌁"
+            sampleMode: "whiteBalance"
             hint: qsTr("Pipette de balance des blancs")
-            selected: root.pickerMode === "whiteBalance"
-            onClicked: root.pickerSelected(selected ? "" : "whiteBalance")
+            checked: root.pickerMode === "whiteBalance"
+            onClicked: root.pickerSelected(checked ? "whiteBalance" : "")
         }
     }
     Repeater {

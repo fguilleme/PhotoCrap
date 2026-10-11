@@ -86,8 +86,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_tool == "colorSampler" || m_tool == "ruler")
         return;
     if (m_tool == "picker" || (m_tool == "colorReplacement" && _alternate)) {
-        if (composite().rect().contains(QPoint(int(_x), int(_y))))
-            setColor(composite().pixelColor(int(_x), int(_y)));
+        pickToolColor(int(std::floor(_x)), int(std::floor(_y)), m_tool == "picker" && _alternate);
         return;
     }
     if (m_tool == "healing" && _alternate) {

@@ -1038,6 +1038,48 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                     QColor(Qt::blue),
             "Undo restores the pixels without changing the history source"))
         return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "historyBrush"),
+                              Q_ARG(QVariant, "artHistoryBrush"));
+    QTest::qWait(50);
+    auto artOptions       = _window->findChild<QObject *>("artHistoryBrushOptions");
+    auto artStyle         = _window->findChild<QObject *>("artHistoryStyle");
+    auto artArea          = _window->findChild<QObject *>("artHistoryArea");
+    auto artTolerance     = _window->findChild<QObject *>("artHistoryTolerance");
+    auto artCurrentSource = _window->findChild<QObject *>("artHistoryCurrentSource");
+    if (!require(
+            _document.tool() == "artHistoryBrush" && artOptions &&
+                artOptions->property("visible").toBool() && artStyle &&
+                artStyle->property("count").toInt() == 10 && artArea && artTolerance &&
+                artCurrentSource,
+            "Art History Brush exposes ten styles, area, tolerance and current-source shortcut"))
+        return false;
+    QMetaObject::invokeMethod(artCurrentSource, "clicked");
+    if (!require(_document.historyBrushSourceIndex() == _document.historyIndex(),
+                 "Current source shortcut captures the image without undoing"))
+        return false;
+    _document.setHistoryBrushSource(historySourceRow);
+    _document.setArtHistoryStyle(5);
+    _document.setArtHistoryArea(1);
+    _document.setArtHistoryTolerance(0);
+    _document.setBrushSize(40);
+    const int beforeArtHistory = _document.historyIndex();
+    QTest::keyClick(_window, Qt::Key_Y);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(25, 0));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(25, 0));
+    if (!require(
+            _document.tool() == "artHistoryBrush" &&
+                _document.historyIndex() == beforeArtHistory + 1 &&
+                _document.layerImage(_document.activeLayer()).pixelColor(patchCentre.toPoint()) ==
+                    QColor(Qt::red) &&
+                QGuiApplication::overrideCursor() &&
+                QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+            "Group Y remembers the artistic tool and mouse painting uses its source and native "
+            "cursor"))
+        return false;
+    _document.undo();
+    _document.setArtHistoryStyle(0);
+    _document.setArtHistoryArea(50);
     _document.undo();
     _document.undo();
     _document.setHistoryBrushSource(0);

@@ -15,7 +15,7 @@ bool isPaintStrokeTool(const QString &_tool)
            _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
            _tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
            _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing" ||
-           _tool == "spotHealing" || _tool == "historyBrush";
+           _tool == "spotHealing" || (_tool == "historyBrush" || _tool == "artHistoryBrush");
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -35,6 +35,7 @@ QString toolLabel(const QString &_tool)
         {"healing", QT_TRANSLATE_NOOP("Document", "Correcteur")},
         {"spotHealing", QT_TRANSLATE_NOOP("Document", "Correcteur localisé")},
         {"historyBrush", QT_TRANSLATE_NOOP("Document", "Forme d’historique")},
+        {"artHistoryBrush", QT_TRANSLATE_NOOP("Document", "Forme d’historique artistique")},
         {"patch", QT_TRANSLATE_NOOP("Document", "Pièce")},
         {"contentAwareMove", QT_TRANSLATE_NOOP("Document", "Déplacement basé sur le contenu")},
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
@@ -174,13 +175,15 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             m_beforeStroke = {};
             return;
         }
-        if (m_tool == "historyBrush" && !prepareHistoryBrushStroke()) {
+        if ((m_tool == "historyBrush" || m_tool == "artHistoryBrush") &&
+            !prepareHistoryBrushStroke()) {
             m_drawing      = false;
             m_beforeStroke = {};
             return;
         }
-        m_strokeBase     = *target;
-        m_strokeInkColor = m_color;
+        m_artHistoryDabIndex = 0;
+        m_strokeBase         = *target;
+        m_strokeInkColor     = m_color;
         if (m_tool == "colorReplacement") {
             const QPoint sample(int(std::floor(_x)), int(std::floor(_y)));
             m_replacementSample =

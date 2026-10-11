@@ -627,6 +627,7 @@
 <message><source>Aucune pupille rouge trouvée dans cette zone.</source><translation>No red pupil found in this area.</translation></message>
 <message><source>Correcteur</source><translation>Healing Brush</translation></message>
 <message><source>Option/Alt-clic sur l’image pour définir la source du correcteur.</source><translation>Option/Alt-click the image to define the Healing Brush source.</translation></message>
+    <message><source>Forme d’historique artistique</source><translation>Art History Brush</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2721,4 +2722,28 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
 <context><name>RemoveOptions</name><message><source>Retirer des marques</source><translation>Subtract from marked areas</translation></message><message><source>Alt permet aussi de retirer une zone marquée</source><translation>Alt also subtracts from marked areas</translation></message><message><source>Tous les calques</source><translation>Sample all layers</translation></message><message><source>Après chaque tracé</source><translation>Remove after each stroke</translation></message><message><source>Appliquer</source><translation>Apply</translation></message><message><source>Annuler</source><translation>Cancel</translation></message><message><source>Reconstruction en cours…</source><translation>Reconstructing…</translation></message><message><source>Peignez ou entourez l’objet à supprimer</source><translation>Brush over or loop around the object to remove</translation></message></context>
 <context><name>HistoryBrushOptions</name><message><source>Source</source><translation>Source</translation></message><message><source>Mode</source><translation>Mode</translation></message><message><source>Choisir un état sans annuler les modifications actuelles</source><translation>Choose a source without undoing current edits</translation></message><message><source>Peignez pour restaurer cet état aux mêmes coordonnées</source><translation>Paint to restore this state at the same coordinates</translation></message><message><source>Choisissez un état avec ce calque et les mêmes dimensions</source><translation>Choose a state with this layer and matching dimensions</translation></message></context>
+<context>
+    <name>ArtHistoryBrushOptions</name>
+    <message><source>Source</source><translation>Source</translation></message>
+    <message><source>Choisir un état sans annuler les modifications actuelles</source><translation>Choose a state without undoing current changes</translation></message>
+    <message><source>État actuel</source><translation>Current State</translation></message>
+    <message><source>Utiliser l’image actuelle comme source, puis peindre pour la styliser</source><translation>Use the current image as the source, then paint to stylize it</translation></message>
+    <message><source>Mode</source><translation>Mode</translation></message>
+    <message><source>Style</source><translation>Style</translation></message>
+    <message><source>Serré court</source><translation>Tight Short</translation></message>
+    <message><source>Serré moyen</source><translation>Tight Medium</translation></message>
+    <message><source>Serré long</source><translation>Tight Long</translation></message>
+    <message><source>Relâché moyen</source><translation>Loose Medium</translation></message>
+    <message><source>Relâché long</source><translation>Loose Long</translation></message>
+    <message><source>Touches</source><translation>Dab</translation></message>
+    <message><source>Boucles serrées</source><translation>Tight Curl</translation></message>
+    <message><source>Boucles serrées longues</source><translation>Tight Curl Long</translation></message>
+    <message><source>Boucles relâchées</source><translation>Loose Curl</translation></message>
+    <message><source>Boucles relâchées longues</source><translation>Loose Curl Long</translation></message>
+    <message><source>Zone</source><translation>Area</translation></message>
+    <message><source>Une zone plus grande produit davantage de touches autour du pinceau</source><translation>A larger area creates more strokes around the brush</translation></message>
+    <message><source>Tolérance</source><translation>Tolerance</translation></message>
+    <message><source>0 : peindre partout ; une valeur élevée limite les touches aux zones différentes de la source</source><translation>0: paint anywhere; higher values restrict strokes to areas different from the source</translation></message>
+    <message><source>Source incompatible</source><translation>Incompatible source</translation></message>
+</context>
 </TS>

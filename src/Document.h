@@ -205,6 +205,12 @@ class Document : public QObject
                    historyBrushSourceChanged)
     Q_PROPERTY(bool historyBrushSourceAvailable READ historyBrushSourceAvailable NOTIFY
                    historyBrushSourceChanged)
+    Q_PROPERTY(
+        int artHistoryStyle READ artHistoryStyle WRITE setArtHistoryStyle NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int artHistoryArea READ artHistoryArea WRITE setArtHistoryArea NOTIFY settingsChanged)
+    Q_PROPERTY(int artHistoryTolerance READ artHistoryTolerance WRITE setArtHistoryTolerance NOTIFY
+                   settingsChanged)
     Q_PROPERTY(bool editingMask READ editingMask NOTIFY layersChanged)
 public:
     explicit Document(QObject *_parent = nullptr);
@@ -424,7 +430,22 @@ public:
     }
     bool             historyBrushSourceAvailable() const;
     Q_INVOKABLE void setHistoryBrushSource(int _index);
-    int              historyIndex() const
+    int              artHistoryStyle() const
+    {
+        return m_artHistoryStyle;
+    }
+    int artHistoryArea() const
+    {
+        return m_artHistoryArea;
+    }
+    int artHistoryTolerance() const
+    {
+        return m_artHistoryTolerance;
+    }
+    void setArtHistoryStyle(int _value);
+    void setArtHistoryArea(int _value);
+    void setArtHistoryTolerance(int _value);
+    int  historyIndex() const
     {
         return int(m_undo.size());
     }
@@ -912,66 +933,70 @@ private:
     QPointF m_mixerLastEnd;
     bool    m_mixerLastEndValid = false;
 
-    qreal                          m_toolStrength   = .5;
-    bool                           m_spongeSaturate = false;
-    int                            m_retouchRange   = 1;
-    bool                           m_protectTones   = true;
-    QString                        m_text           = QStringLiteral("Votre texte");
-    int                            m_textSize       = 64;
-    bool                           m_filledShapes   = true;
-    QColor                         m_shapeFillColor;
-    QColor                         m_shapeStrokeColor;
-    bool                           m_shapeStrokeEnabled = true;
-    qreal                          m_shapeStrokeWidth   = 1;
-    int                            m_shapeStrokeStyle   = 0;
-    qreal                          m_shapeCornerRadius  = 0;
-    bool                           m_shapeAlignPixels   = true;
-    int                            m_shapeSides         = 5;
-    qreal                          m_shapeStarRatio     = .5;
-    QRect                          m_selection;
-    QRegion                        m_selectionRegion;
-    int                            m_selectionShape = 0;
-    QPolygonF                      m_selectionPath;
-    bool                           m_polygonLassoActive       = false;
-    int                            m_selectionMode            = 0;
-    int                            m_selectionTolerance       = 32;
-    bool                           m_selectionContiguous      = true;
-    bool                           m_selectionSampleAllLayers = false;
-    bool                           m_selectionEnhanceEdge     = true;
-    QRegion                        m_selectionRegionBeforeStroke;
-    QRect                          m_selectionBoundsBeforeStroke;
-    int                            m_selectionShapeBeforeStroke = 0;
-    QPolygonF                      m_selectionPathBeforeStroke;
-    bool                           m_quickSelectionFirstDab = false;
-    QVector<Snapshot>              m_undo, m_redo;
-    Snapshot                       m_historyBrushSource;
-    QString                        m_historyBrushSourceLabel;
-    QImage                         m_historyStrokeSource;
-    bool                           prepareHistoryBrushStroke();
-    void                           renderHistoryBrushStroke();
-    quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
-    int                            m_revision          = 0;
-    int                            m_thumbnailRevision = 0;
-    int                            m_displayChannel    = 0;
-    bool                           m_maskOnlyView      = false;
-    mutable QImage                 m_channelDisplayCache;
-    mutable qint64                 m_channelDisplaySourceKey  = 0;
-    mutable int                    m_channelDisplayCacheIndex = 0;
-    mutable QImage                 m_composite;
-    mutable bool                   m_cacheDirty         = true;
-    mutable bool                   m_fullCompositeDirty = true;
-    mutable QRect                  m_dirtyRegion;
-    bool                           m_drawing = false, m_strokeChanged = false;
-    bool                           m_editingMask           = false;
-    bool                           m_previewingLayer       = false;
-    bool                           m_layerPreviewChanged   = false;
-    bool                           m_frequencyPreviewDraft = false;
-    QPointF                        m_anchor, m_last;
-    QPointF                        m_smoothedLast;
-    qreal                          m_distanceToNextDab = 0;
-    QImage                         m_strokeBase, m_strokeCoverage;
-    QColor                         m_strokeInkColor;
-    QRectF                         m_strokeBounds;
+    qreal             m_toolStrength   = .5;
+    bool              m_spongeSaturate = false;
+    int               m_retouchRange   = 1;
+    bool              m_protectTones   = true;
+    QString           m_text           = QStringLiteral("Votre texte");
+    int               m_textSize       = 64;
+    bool              m_filledShapes   = true;
+    QColor            m_shapeFillColor;
+    QColor            m_shapeStrokeColor;
+    bool              m_shapeStrokeEnabled = true;
+    qreal             m_shapeStrokeWidth   = 1;
+    int               m_shapeStrokeStyle   = 0;
+    qreal             m_shapeCornerRadius  = 0;
+    bool              m_shapeAlignPixels   = true;
+    int               m_shapeSides         = 5;
+    qreal             m_shapeStarRatio     = .5;
+    QRect             m_selection;
+    QRegion           m_selectionRegion;
+    int               m_selectionShape = 0;
+    QPolygonF         m_selectionPath;
+    bool              m_polygonLassoActive       = false;
+    int               m_selectionMode            = 0;
+    int               m_selectionTolerance       = 32;
+    bool              m_selectionContiguous      = true;
+    bool              m_selectionSampleAllLayers = false;
+    bool              m_selectionEnhanceEdge     = true;
+    QRegion           m_selectionRegionBeforeStroke;
+    QRect             m_selectionBoundsBeforeStroke;
+    int               m_selectionShapeBeforeStroke = 0;
+    QPolygonF         m_selectionPathBeforeStroke;
+    bool              m_quickSelectionFirstDab = false;
+    QVector<Snapshot> m_undo, m_redo;
+    Snapshot          m_historyBrushSource;
+    QString           m_historyBrushSourceLabel;
+    QImage            m_historyStrokeSource;
+    bool              prepareHistoryBrushStroke();
+    void              renderHistoryBrushStroke();
+    void              artHistoryDab(const QPointF &_point);
+    void              renderArtHistoryStroke();
+    int               m_artHistoryStyle = 0, m_artHistoryArea = 50, m_artHistoryTolerance = 0;
+    quint32           m_artHistoryDabIndex = 0;
+    quint64           m_stateId = 1, m_savedId = 1, m_nextId = 2;
+    int               m_revision          = 0;
+    int               m_thumbnailRevision = 0;
+    int               m_displayChannel    = 0;
+    bool              m_maskOnlyView      = false;
+    mutable QImage    m_channelDisplayCache;
+    mutable qint64    m_channelDisplaySourceKey  = 0;
+    mutable int       m_channelDisplayCacheIndex = 0;
+    mutable QImage    m_composite;
+    mutable bool      m_cacheDirty         = true;
+    mutable bool      m_fullCompositeDirty = true;
+    mutable QRect     m_dirtyRegion;
+    bool              m_drawing = false, m_strokeChanged = false;
+    bool              m_editingMask           = false;
+    bool              m_previewingLayer       = false;
+    bool              m_layerPreviewChanged   = false;
+    bool              m_frequencyPreviewDraft = false;
+    QPointF           m_anchor, m_last;
+    QPointF           m_smoothedLast;
+    qreal             m_distanceToNextDab = 0;
+    QImage            m_strokeBase, m_strokeCoverage;
+    QColor            m_strokeInkColor;
+    QRectF            m_strokeBounds;
     mutable QHash<QString, QImage> m_frequencyCache;
     QFutureWatcher<QImage>         m_previewRenderWatcher;
     QVector<Layer>                 m_pendingPreviewLayers;

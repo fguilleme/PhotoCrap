@@ -147,9 +147,15 @@ Référence : [outil Suppression d’Adobe](https://helpx.adobe.com/photoshop/us
 
 La **Forme d’historique** (`Y`) restaure les pixels d’un état source aux mêmes coordonnées sur le même calque, sans revenir globalement en arrière. Choisissez la source en cliquant sur l’icône à gauche d’un état dans **Historique**, ou dans la liste Source de la barre de l’outil ; ce choix ne modifie ni les pixels ni l’historique. Peignez ensuite avec taille, dureté, opacité, débit et mode de fusion. Une sélection limite le geste et chaque tracé crée une seule étape d’annulation. La transparence de l’état source est également restaurée.
 
-La source initiale est l’état d’ouverture/création du document. On peut choisir un état futur après Annuler, puis en restaurer certaines zones ; la source choisie reste disponible si cette branche disparaît ou si les anciens états sont purgés. Son stockage partagé est compté dans le budget de l’historique. Le calque est retrouvé par son identité même après renommage ou réorganisation ; un nouveau calque ou une copie ne peut être restauré depuis un état où il n’existait pas. La source doit avoir les mêmes dimensions que le document. Cette version agit sur les calques de pixels, pas sur les masques ; la Forme d’historique artistique reste NYI.
+La source initiale est l’état d’ouverture/création du document. On peut choisir un état futur après Annuler, puis en restaurer certaines zones ; la source choisie reste disponible si cette branche disparaît ou si les anciens états sont purgés. Son stockage partagé est compté dans le budget de l’historique. Le calque est retrouvé par son identité même après renommage ou réorganisation ; un nouveau calque ou une copie ne peut être restauré depuis un état où il n’existait pas. La source doit avoir les mêmes dimensions que le document. Cette version agit sur les calques de pixels, pas sur les masques.
 
 Référence : [Forme d’historique d’Adobe](https://helpx.adobe.com/photoshop/using/tool-techniques/history-brush-tool.html).
+
+### Forme d’historique artistique
+
+La **Forme d’historique artistique** partage le groupe `Y` et la source de la Forme d’historique. Pour un essai simple sur une photo, cliquez sur **État actuel**, laissez **Tolérance** à zéro, puis peignez : les couleurs de la source deviennent des touches orientées selon ses détails. Dix styles proposent des traits serrés ou relâchés, courts ou longs, des touches et des boucles. **Zone** règle la dispersion et le nombre de touches ; une tolérance élevée réserve la peinture aux pixels différents de la source. La brosse conserve ses réglages de taille, dureté, forme, opacité, débit et fusion. Le calcul et la recomposition portent uniquement sur les rectangles touchés, avec sélection, verrouillage, annulation et annulation du geste.
+
+Les contrôles et le principe suivent [la référence Adobe](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/create-fill-with-patterns/paint-stylized-strokes-with-the-art-history-brush.html). Le moteur de touches est propre à PhotoCrap, sans prétendre reproduire pixel pour pixel l’algorithme de Photoshop. Comme la Forme d’historique, cet outil nécessite un calque de pixels présent dans la source et des dimensions compatibles ; il ne peint pas sur les masques.
 
 ## Validation et limites
 

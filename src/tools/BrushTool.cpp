@@ -41,7 +41,7 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
     }
     renderBrushStroke();
     if ((m_tool == "colorReplacement" || m_tool == "mixerBrush" || m_tool == "healing" ||
-         m_tool == "spotHealing" || m_tool == "historyBrush") &&
+         m_tool == "spotHealing" || (m_tool == "historyBrush" || m_tool == "artHistoryBrush")) &&
         m_strokeBounds.isEmpty())
         return;
     m_strokeChanged = true;
@@ -49,6 +49,10 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 }
 void Document::stampBrush(const QPointF &_point)
 {
+    if (m_tool == "artHistoryBrush") {
+        artHistoryDab(_point);
+        return;
+    }
     if (m_tool == "spotHealing") {
         spotHealingDab(_point);
         return;
@@ -99,6 +103,10 @@ void Document::renderBrushStroke()
     if (m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" ||
         m_tool == "sponge") {
         renderRetouchStroke();
+        return;
+    }
+    if (m_tool == "artHistoryBrush") {
+        renderArtHistoryStroke();
         return;
     }
     if (m_tool == "historyBrush") {

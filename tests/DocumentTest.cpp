@@ -320,6 +320,190 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void artHistoryStylesInterpretSourceLocallyAndUndo()
+    {
+        QTemporaryDir dir;
+        QImage        texture(200, 160, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < texture.height(); ++y)
+            for (int x = 0; x < texture.width(); ++x)
+                texture.setPixel(
+                    x, y, qRgb((x * 17 + y * 3) % 256, (y * 13) % 256, (x * 5 + y * 11) % 256));
+        const QString path = dir.filePath("art-source.png");
+        QVERIFY(texture.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        d.setTool("artHistoryBrush");
+        QCOMPARE(d.tool(), QString("artHistoryBrush"));
+        d.setHistoryBrushSource(d.historyIndex());
+        d.setBrushSize(20);
+        d.setBrushHardness(1);
+        d.setBrushOpacity(1);
+        d.setBrushFlow(1);
+        d.setBrushBlend(0);
+        d.setBrushSmoothing(0);
+        d.setArtHistoryArea(40);
+        QList<QImage> results;
+        const int     history = d.historyIndex();
+        for (int style = 0; style < 10; ++style) {
+            d.setArtHistoryStyle(style);
+            d.beginStroke(80, 80);
+            d.continueStroke(120, 80);
+            d.endStroke();
+            const QImage painted = d.layerImage(0);
+            QVERIFY(painted != original);
+            QCOMPARE(painted.pixel(5, 5), original.pixel(5, 5));
+            QCOMPARE(painted.pixel(190, 150), original.pixel(190, 150));
+            QCOMPARE(d.historyIndex(), history + 1);
+            for (const QImage &other : results)
+                QVERIFY(painted != other);
+            results.append(painted);
+            d.undo();
+            QCOMPARE(d.layerImage(0), original);
+            d.redo();
+            QCOMPARE(d.layerImage(0), painted);
+            d.undo();
+        }
+        d.beginStroke(80, 80);
+        d.continueStroke(120, 80);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.setArtHistoryStyle(99);
+        QCOMPARE(d.artHistoryStyle(), 9);
+        d.setArtHistoryArea(999);
+        QCOMPARE(d.artHistoryArea(), 500);
+        d.setArtHistoryArea(-1);
+        QCOMPARE(d.artHistoryArea(), 1);
+        d.setArtHistoryTolerance(120);
+        QCOMPARE(d.artHistoryTolerance(), 100);
+        d.setArtHistoryTolerance(-5);
+        QCOMPARE(d.artHistoryTolerance(), 0);
+    }
+
+    void artHistoryToleranceOpacitySelectionAndProtection()
+    {
+        Document d;
+        d.newDocument(160, 120);
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setHistoryBrushSource(d.historyIndex());
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        const QImage blue = d.layerImage(0);
+        d.setTool("artHistoryBrush");
+        d.setArtHistoryStyle(5);
+        d.setArtHistoryArea(1);
+        d.setBrushSize(40);
+        d.setBrushHardness(1);
+        d.setBrushOpacity(.5);
+        d.setBrushFlow(1);
+        d.setBrushBlend(0);
+        d.setBrushSmoothing(0);
+        d.beginStroke(80, 60);
+        d.endStroke();
+        const QColor half = d.layerImage(0).pixelColor(80, 60);
+        QVERIFY(qAbs(half.red() - 128) <= 2);
+        QVERIFY(qAbs(half.blue() - 127) <= 2);
+        d.undo();
+        d.setBrushOpacity(1);
+        d.setArtHistoryTolerance(100);
+        const int noop = d.historyIndex();
+        d.beginStroke(80, 60);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0), blue);
+        QCOMPARE(d.historyIndex(), noop);
+        d.setArtHistoryTolerance(90);
+        d.beginStroke(80, 60);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(80, 60), QColor(Qt::red));
+        d.undo();
+        d.setTool("ellipticalSelect");
+        d.beginStroke(60, 40);
+        d.continueStroke(100, 80);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        d.setTool("artHistoryBrush");
+        d.setArtHistoryTolerance(0);
+        d.setArtHistoryArea(100);
+        d.beginStroke(80, 60);
+        d.endStroke();
+        const QImage selected = d.layerImage(0);
+        QVERIFY(selected != blue);
+        for (int y = 0; y < selected.height(); ++y)
+            for (int x = 0; x < selected.width(); ++x)
+                if (!selection.contains(QPoint(x, y)))
+                    QCOMPARE(selected.pixel(x, y), blue.pixel(x, y));
+        d.undo();
+        d.deselect();
+        d.setLayerLocked(0, true);
+        const int locked = d.historyIndex();
+        d.beginStroke(80, 60);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), locked);
+        QCOMPARE(d.layerImage(0), blue);
+        d.setLayerLocked(0, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask      = d.maskImage(0);
+        const int    maskState = d.historyIndex();
+        d.beginStroke(80, 60);
+        d.endStroke();
+        QCOMPARE(d.maskImage(0), mask);
+        QCOMPARE(d.historyIndex(), maskState);
+        d.setEditingMask(false);
+        d.duplicateLayer();
+        const int missing = d.historyIndex();
+        d.beginStroke(80, 60);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), missing);
+    }
+
+    void artHistoryAreaControlsFootprintAndUhdStrokeRemainsLocal()
+    {
+        Document d;
+        d.newDocument(3840, 2160);
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setHistoryBrushSource(d.historyIndex());
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setTool("artHistoryBrush");
+        d.setArtHistoryStyle(5);
+        d.setBrushSize(16);
+        d.setBrushHardness(1);
+        d.setBrushFlow(1);
+        d.setBrushOpacity(1);
+        d.setBrushBlend(0);
+        d.setBrushSmoothing(0);
+        auto paintedCount = [&]() {
+            int          count = 0;
+            const QImage image = d.layerImage(0);
+            for (int y = 900; y < 1100; ++y)
+                for (int x = 900; x < 1100; ++x)
+                    if (image.pixelColor(x, y) != QColor(Qt::blue))
+                        ++count;
+            return count;
+        };
+        d.setArtHistoryArea(1);
+        d.beginStroke(1000, 1000);
+        d.endStroke();
+        const int small = paintedCount();
+        QVERIFY(small > 0);
+        d.undo();
+        d.setArtHistoryArea(100);
+        const int     history = d.historyIndex();
+        QElapsedTimer timer;
+        timer.start();
+        d.beginStroke(1000, 1000);
+        d.continueStroke(1010, 1000);
+        d.endStroke();
+        QVERIFY2(timer.elapsed() < 1000, "A small art gesture must not process the full UHD image");
+        QVERIFY(paintedCount() > small * 2);
+        QCOMPARE(d.layerImage(0).pixelColor(2000, 1000), QColor(Qt::blue));
+        QCOMPARE(d.historyIndex(), history + 1);
+    }
+
     void historyBrushRestoresOnlyPaintedPixelsAndUndoesOnce()
     {
         Document d;

@@ -14,6 +14,7 @@ void Document::setTool(const QString &_value)
                                    "spotHealing",
                                    "remove",
                                    "historyBrush",
+                                   "artHistoryBrush",
                                    "patch",
                                    "contentAwareMove",
                                    "cloneStamp",

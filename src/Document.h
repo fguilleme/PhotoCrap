@@ -15,6 +15,7 @@
 #include <QVariantMap>
 #include <atomic>
 #include <functional>
+#include <memory>
 
 struct Layer {
     Layer() = default;
@@ -122,6 +123,15 @@ class Document : public QObject
     Q_PROPERTY(int healingMode READ healingMode WRITE setHealingMode NOTIFY settingsChanged)
     Q_PROPERTY(bool healingIgnoreAdjustments READ healingIgnoreAdjustments WRITE
                    setHealingIgnoreAdjustments NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int contentMoveMode READ contentMoveMode WRITE setContentMoveMode NOTIFY settingsChanged)
+    Q_PROPERTY(int contentMoveStructure READ contentMoveStructure WRITE setContentMoveStructure
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int contentMoveColor READ contentMoveColor WRITE setContentMoveColor NOTIFY settingsChanged)
+    Q_PROPERTY(bool contentMoveSampleAllLayers READ contentMoveSampleAllLayers WRITE
+                   setContentMoveSampleAllLayers NOTIFY settingsChanged)
+    Q_PROPERTY(bool contentMoveBusy READ contentMoveBusy NOTIFY settingsChanged)
     Q_PROPERTY(int patchMode READ patchMode WRITE setPatchMode NOTIFY settingsChanged)
     Q_PROPERTY(
         int patchDiffusion READ patchDiffusion WRITE setPatchDiffusion NOTIFY settingsChanged)
@@ -182,6 +192,7 @@ class Document : public QObject
     Q_PROPERTY(bool editingMask READ editingMask NOTIFY layersChanged)
 public:
     explicit Document(QObject *_parent = nullptr);
+    ~Document() override;
     int width() const
     {
         return m_size.width();
@@ -512,7 +523,31 @@ public:
     {
         return m_spotHealingMode;
     }
-    int patchMode() const
+    int contentMoveMode() const
+    {
+        return m_contentMoveMode;
+    }
+    int contentMoveStructure() const
+    {
+        return m_contentMoveStructure;
+    }
+    int contentMoveColor() const
+    {
+        return m_contentMoveColor;
+    }
+    bool contentMoveSampleAllLayers() const
+    {
+        return m_contentMoveSampleAllLayers;
+    }
+    bool contentMoveBusy() const
+    {
+        return m_contentMoveBusy;
+    }
+    void setContentMoveMode(int _value);
+    void setContentMoveStructure(int _value);
+    void setContentMoveColor(int _value);
+    void setContentMoveSampleAllLayers(bool _value);
+    int  patchMode() const
     {
         return m_patchMode;
     }
@@ -773,22 +808,27 @@ private:
     bool    m_healingOffsetBeforeStrokeValid = false;
     QPointF m_healingSource, m_healingOffset, m_healingOffsetBeforeStroke;
     QImage  m_healingSample, m_healingTip;
-    int     m_patchMode = 0, m_patchDiffusion = 5;
-    bool    m_patchDragging = false;
-    QPoint  m_patchOffset;
-    QRegion m_patchTarget;
-    QImage  m_patchSource, m_patchPreview;
-    bool    m_spotHealingSampleAllLayers = false;
-    int     m_spotHealingMode            = 0;
-    QImage  m_spotHealingSample, m_spotHealingTip;
-    QRegion m_spotHealingExcluded;
-    bool    m_stampAligned     = true;
-    int     m_cloneSampleMode  = 0;
-    bool    m_cloneSourceValid = false, m_cloneOffsetValid = false;
-    QPointF m_cloneSource, m_cloneOffset, m_patternOrigin;
-    bool    m_patternOriginValid = false;
-    int     m_stampPattern       = 0;
-    QImage  m_customStampPattern, m_stampSource;
+    int     m_contentMoveMode = 0, m_contentMoveStructure = 4, m_contentMoveColor = 0;
+    bool    m_contentMoveSampleAllLayers = false, m_contentMoveBusy = false;
+    bool    m_contentMoveAwaitingImage = false;
+    quint64 m_contentMoveGeneration    = 0;
+    std::shared_ptr<std::atomic_bool> m_contentMoveCancel;
+    int                               m_patchMode = 0, m_patchDiffusion = 5;
+    bool                              m_patchDragging = false;
+    QPoint                            m_patchOffset;
+    QRegion                           m_patchTarget;
+    QImage                            m_patchSource, m_patchPreview, m_regionPreviewSource;
+    bool                              m_spotHealingSampleAllLayers = false;
+    int                               m_spotHealingMode            = 0;
+    QImage                            m_spotHealingSample, m_spotHealingTip;
+    QRegion                           m_spotHealingExcluded;
+    bool                              m_stampAligned     = true;
+    int                               m_cloneSampleMode  = 0;
+    bool                              m_cloneSourceValid = false, m_cloneOffsetValid = false;
+    QPointF                           m_cloneSource, m_cloneOffset, m_patternOrigin;
+    bool                              m_patternOriginValid = false;
+    int                               m_stampPattern       = 0;
+    QImage                            m_customStampPattern, m_stampSource;
 
     bool   m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
     QImage m_smudgePickup, m_smudgeMask, m_smudgeSample;
@@ -880,6 +920,7 @@ private:
     bool                           m_previewRenderPending     = false;
     std::atomic_bool               m_previewRenderActive{false};
     mutable QMutex                 m_previewImageMutex;
+    Snapshot                       m_beforeContentMove;
     Snapshot                       m_beforeStroke;
     Snapshot                       m_beforeLayerPreview;
     QImage                         m_beforeLayerPreviewComposite;
@@ -892,6 +933,10 @@ private:
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
                    bool _notifyImage = true);
     void    trimHistory();
+    void    beginContentMove(const QPointF &_point);
+    void    finishContentMove(bool _cancel);
+    void    invalidateContentMove(bool _restoreSelection = false);
+    void    continueRegionDrag(const QPointF &_point, bool _sourceMode);
     void    beginPatch(const QPointF &_point);
     void    continuePatch(const QPointF &_point);
     void    finishPatch(bool _cancel);

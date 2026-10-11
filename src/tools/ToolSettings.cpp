@@ -13,6 +13,7 @@ void Document::setTool(const QString &_value)
                                    "healing",
                                    "spotHealing",
                                    "patch",
+                                   "contentAwareMove",
                                    "cloneStamp",
                                    "patternStamp",
                                    "eraser",

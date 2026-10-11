@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,15 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "patch") {
+            if (root.toolName === "contentAwareMove") {
+                ctx.lineWidth = 1.5
+                ctx.beginPath(); ctx.moveTo(3, 6); ctx.lineTo(6, 3); ctx.lineTo(10, 4)
+                ctx.lineTo(12, 8); ctx.lineTo(9, 12); ctx.lineTo(4, 11); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(12, 15); ctx.lineTo(15, 12); ctx.lineTo(20, 13)
+                ctx.lineTo(22, 18); ctx.lineTo(18, 22); ctx.lineTo(13, 20); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(7, 17); ctx.lineTo(16, 8)
+                ctx.moveTo(11, 8); ctx.lineTo(16, 8); ctx.lineTo(16, 13); ctx.stroke()
+            } else if (root.toolName === "patch") {
                 ctx.strokeRect(6, 6, 12, 12)
                 for (const p of [8, 12, 16]) {
                     ctx.beginPath(); ctx.moveTo(p, 3); ctx.lineTo(p, 8)

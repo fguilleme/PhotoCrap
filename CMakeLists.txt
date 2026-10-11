@@ -33,6 +33,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/HealingBrushTool.cpp
     src/tools/SpotHealingTool.cpp
     src/tools/PatchTool.cpp
+    src/tools/RegionHealing.cpp
+    src/tools/ContentAwareMoveTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -59,6 +61,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/CanvasItem.h
     src/Document.h
     src/ImageUtils.h
+    src/tools/RegionHealing.h
     src/filters/BlackWhiteFilter.h
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.h
@@ -179,6 +182,8 @@ qt_add_library(photocrap_core STATIC
     src/tools/HealingBrushTool.cpp
     src/tools/SpotHealingTool.cpp
     src/tools/PatchTool.cpp
+    src/tools/RegionHealing.cpp
+    src/tools/ContentAwareMoveTool.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/ImageUtils.h
@@ -260,6 +265,7 @@ qt_add_qml_module(PhotoCrap
         qml/HealingBrushOptions.qml
         qml/SpotHealingOptions.qml
         qml/PatchOptions.qml
+        qml/ContentAwareMoveOptions.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml

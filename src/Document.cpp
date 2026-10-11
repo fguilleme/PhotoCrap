@@ -46,6 +46,10 @@ Document::Document(QObject *_parent) : QObject(_parent)
                 m_fullCompositeDirty = false;
                 m_dirtyRegion        = {};
             }
+            if (m_contentMoveAwaitingImage) {
+                m_contentMoveAwaitingImage = false;
+                clearPatch();
+            }
             ++m_revision;
             emit imageChanged();
         }
@@ -56,7 +60,14 @@ Document::Document(QObject *_parent) : QObject(_parent)
         else
             m_previewRenderActive.store(false);
     });
+    connect(this, &Document::selectionChanged, this, [this] { invalidateContentMove(); });
+    connect(this, &Document::layersChanged, this, [this] { invalidateContentMove(); });
     newDocument(1280, 800);
+}
+Document::~Document()
+{
+    if (m_contentMoveCancel)
+        m_contentMoveCancel->store(true);
 }
 bool Document::fail(const QString &_message)
 {
@@ -169,6 +180,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    invalidateContentMove();
     if (m_maskOnlyView &&
         (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull()))
         m_maskOnlyView = false;
@@ -203,6 +215,7 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    invalidateContentMove();
     m_undo.clear();
     m_redo.clear();
     m_stateId         = m_nextId++;

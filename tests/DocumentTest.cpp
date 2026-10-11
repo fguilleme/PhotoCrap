@@ -320,6 +320,335 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void contentMoveRepairsTheHolePreservesTextureAndUndoesOnce()
+    {
+        QTemporaryDir dir;
+        QImage        image(180, 120, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int grey = y % 6 < 3 ? 165 : 175;
+                image.setPixel(x, y, qRgb(grey, grey, grey));
+            }
+        QPainter painter(&image);
+        painter.fillRect(48, 48, 8, 8, QColor(220, 40, 30));
+        painter.end();
+        const QString path = dir.filePath("content-move.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        d.setTool("contentAwareMove");
+        QCOMPARE(d.tool(), QString("contentAwareMove"));
+        d.beginStroke(40, 40);
+        d.continueStroke(64, 40);
+        d.continueStroke(64, 64);
+        d.continueStroke(40, 64);
+        d.continueStroke(40, 40);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        QVERIFY(d.hasSelection());
+        QCOMPARE(d.historyIndex(), history);
+        d.beginStroke(52, 52);
+        d.continueStroke(132, 52);
+        QCOMPARE(d.patchTargetRegion(), selection.translated(80, 0));
+        QVERIFY(!d.patchPreviewImage().isNull());
+        QCOMPARE(d.layerImage(0), original);
+        d.endStroke();
+        QVERIFY(d.contentMoveBusy());
+        QCOMPARE(d.historyIndex(), history); // worker cannot mutate Document
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 5000);
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QImage moved      = d.layerImage(0);
+        const QColor background = moved.pixelColor(52, 52);
+        QVERIFY(qAbs(background.red() - image.pixelColor(20, 52).red()) <= 3);
+        QCOMPARE(background.red(), background.green());
+        QVERIFY(moved.pixel(50, 49) != moved.pixel(50, 51));
+        QCOMPARE(moved.pixelColor(132, 52), QColor(220, 40, 30));
+        QCOMPARE(d.selectionRegion(), selection.translated(80, 0));
+        const QRegion affected = selection | selection.translated(80, 0);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (!affected.contains(QPoint(x, y)))
+                    QCOMPARE(moved.pixel(x, y), original.pixel(x, y));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.selectionRegion(), selection);
+        d.redo();
+        QCOMPARE(d.layerImage(0), moved);
+    }
+
+    void contentMoveExtensionOverlapAndTransparentBackground()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 120, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.fillRect(48, 48, 8, 8, QColor(220, 40, 30));
+        painter.end();
+        const QString path = dir.filePath("content-extend.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("select");
+        d.beginStroke(40, 40);
+        d.continueStroke(64, 64);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        const QImage  original  = d.layerImage(0);
+        d.setTool("contentAwareMove");
+        d.setContentMoveMode(1);
+        d.beginStroke(52, 52);
+        d.continueStroke(102, 52);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QCOMPARE(d.layerImage(0).pixelColor(52, 52), QColor(220, 40, 30));
+        QCOMPARE(d.layerImage(0).pixelColor(102, 52), QColor(220, 40, 30));
+        QCOMPARE(d.layerImage(0).copy(selection.boundingRect()),
+                 original.copy(selection.boundingRect()));
+        d.undo();
+        d.setContentMoveMode(0);
+        d.setContentMoveStructure(7);
+        d.beginStroke(52, 52);
+        d.continueStroke(56, 52); // overlapping source and destination
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QCOMPARE(d.layerImage(0).pixelColor(56, 52), QColor(220, 40, 30));
+        QCOMPARE(d.layerImage(0).pixelColor(48, 52).alpha(), 0);
+        QCOMPARE(d.layerImage(0).pixelColor(52, 52), QColor(220, 40, 30));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+    }
+
+    void contentMoveSamplesVisibleLayersWithoutModifyingThem()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 120, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(165, 165, 165));
+        QPainter painter(&image);
+        painter.fillRect(48, 48, 8, 8, QColor(220, 40, 30));
+        painter.end();
+        const QString path = dir.filePath("content-move-layers.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage base = d.layerImage(0);
+        d.addLayer();
+        const QImage empty = d.layerImage(1);
+        d.setTool("select");
+        d.beginStroke(40, 40);
+        d.continueStroke(64, 64);
+        d.endStroke();
+        d.setTool("contentAwareMove");
+        d.setContentMoveSampleAllLayers(true);
+        d.beginStroke(52, 52);
+        d.continueStroke(102, 52);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QCOMPARE(d.layerImage(0), base);
+        QCOMPARE(d.layerImage(1).pixelColor(52, 52), QColor(165, 165, 165));
+        QCOMPARE(d.layerImage(1).pixelColor(102, 52), QColor(220, 40, 30));
+        QCOMPARE(d.layerImage(1).pixelColor(10, 10).alpha(), 0);
+        d.undo();
+        QCOMPARE(d.layerImage(1), empty);
+        d.setLayerVisible(0, false);
+        const int history = d.historyIndex();
+        d.beginStroke(52, 52);
+        d.continueStroke(102, 52);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QCOMPARE(d.layerImage(1), empty);
+        QCOMPARE(d.historyIndex(), history);
+    }
+
+    void contentMoveCancelAndNewEditsDiscardPendingResults()
+    {
+        QTemporaryDir dir;
+        QImage        image(180, 120, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(165, 165, 165));
+        QPainter painter(&image);
+        painter.fillRect(48, 48, 8, 8, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("content-move-cancel.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("select");
+        d.beginStroke(40, 40);
+        d.continueStroke(64, 64);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        const QImage  original  = d.layerImage(0);
+        const int     history   = d.historyIndex();
+        d.setTool("contentAwareMove");
+        d.beginStroke(52, 52);
+        d.continueStroke(132, 52);
+        d.endStroke();
+        QVERIFY(d.contentMoveBusy());
+        d.cancelStroke();
+        QTest::qWait(80);
+        QVERIFY(!d.contentMoveBusy());
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.selectionRegion(), selection);
+        QCOMPARE(d.historyIndex(), history);
+        d.beginStroke(52, 52);
+        d.continueStroke(132, 52);
+        d.endStroke();
+        d.setTool("brush");
+        d.setColor(Qt::blue);
+        d.setBrushSize(5);
+        d.setBrushHardness(1);
+        d.beginStroke(132, 52);
+        d.endStroke();
+        const QImage painted = d.layerImage(0);
+        QTest::qWait(80);
+        QCOMPARE(d.layerImage(0), painted);
+        QCOMPARE(d.layerImage(0).pixelColor(52, 52), QColor(Qt::red));
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        d.deselect();
+        d.setTool("select");
+        d.beginStroke(40, 40);
+        d.continueStroke(64, 64);
+        d.endStroke();
+        d.setTool("contentAwareMove");
+        d.beginStroke(52, 52);
+        d.continueStroke(132, 52);
+        d.endStroke();
+        QVERIFY(d.newDocument(20, 20, true));
+        QTest::qWait(80);
+        QCOMPARE(d.width(), 20);
+        QCOMPARE(d.height(), 20);
+        QVERIFY(!d.contentMoveBusy());
+        QCOMPARE(d.layerImage(0).pixelColor(10, 10).alpha(), 0);
+    }
+
+    void contentMoveNoOpsMasksLocksAndColorAdaptation()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 120, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(180, 140, 120));
+        QPainter painter(&image);
+        painter.fillRect(0, 0, 75, 120, QColor(100, 160, 200));
+        painter.fillRect(48, 48, 8, 8, QColor(80, 120, 160));
+        painter.end();
+        const QString path = dir.filePath("content-move-color.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("select");
+        d.beginStroke(40, 40);
+        d.continueStroke(64, 64);
+        d.endStroke();
+        d.setTool("contentAwareMove");
+        d.setContentMoveMode(1);
+        d.setContentMoveColor(10);
+        d.setContentMoveStructure(7);
+        const int history = d.historyIndex();
+        d.beginStroke(52, 52);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), history);
+        QVERIFY(!d.contentMoveBusy());
+        d.beginStroke(52, 52);
+        d.continueStroke(112, 52);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        const QColor adapted = d.layerImage(0).pixelColor(112, 52);
+        QVERIFY(qAbs(adapted.red() - 160) <= 2);
+        QVERIFY(qAbs(adapted.green() - 100) <= 2);
+        QVERIFY(qAbs(adapted.blue() - 80) <= 2);
+        d.undo();
+        d.setLayerLocked(0, true);
+        const int locked = d.historyIndex();
+        d.beginStroke(52, 52);
+        d.continueStroke(112, 52);
+        d.endStroke();
+        QVERIFY(!d.contentMoveBusy());
+        QCOMPARE(d.historyIndex(), locked);
+        d.setLayerLocked(0, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask        = d.maskImage(0);
+        const int    maskHistory = d.historyIndex();
+        d.beginStroke(52, 52);
+        d.continueStroke(112, 52);
+        d.endStroke();
+        QVERIFY(!d.contentMoveBusy());
+        QCOMPARE(d.maskImage(0), mask);
+        QCOMPARE(d.historyIndex(), maskHistory);
+        d.setContentMoveMode(9);
+        QCOMPARE(d.contentMoveMode(), 1);
+        d.setContentMoveStructure(-9);
+        QCOMPARE(d.contentMoveStructure(), 1);
+        d.setContentMoveStructure(99);
+        QCOMPARE(d.contentMoveStructure(), 7);
+        d.setContentMoveColor(-1);
+        QCOMPARE(d.contentMoveColor(), 0);
+        d.setContentMoveColor(99);
+        QCOMPARE(d.contentMoveColor(), 10);
+    }
+
+    void contentMoveEdgeFallbackAndUhdReleaseRemainResponsive()
+    {
+        QTemporaryDir dir;
+        QImage        image(70, 70, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(170, 170, 170));
+        QPainter painter(&image);
+        painter.fillRect(10, 10, 6, 6, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("content-move-fallback.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        d.setTool("select");
+        d.beginStroke(0, 0);
+        d.continueStroke(60, 60);
+        d.endStroke();
+        d.setTool("contentAwareMove");
+        d.setContentMoveStructure(7);
+        d.beginStroke(12, 12);
+        d.continueStroke(21, 21);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QCOMPARE(d.layerImage(0).pixelColor(12, 12), QColor(170, 170, 170));
+        QCOMPARE(d.layerImage(0).pixelColor(21, 21), QColor(Qt::red));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        QImage uhd(3840, 2160, QImage::Format_ARGB32_Premultiplied);
+        uhd.fill(QColor(170, 170, 170));
+        QPainter largePainter(&uhd);
+        largePainter.fillRect(100, 100, 480, 480, Qt::red);
+        largePainter.end();
+        const QString uhdPath = dir.filePath("content-move-uhd.png");
+        QVERIFY(uhd.save(uhdPath));
+        QVERIFY(d.openFile(QUrl::fromLocalFile(uhdPath)));
+        d.setTool("select");
+        d.beginStroke(80, 80);
+        d.continueStroke(600, 600);
+        d.endStroke();
+        d.setTool("contentAwareMove");
+        const int     history     = d.historyIndex();
+        const qint64  originalKey = d.layerImage(0).cacheKey();
+        QElapsedTimer drag;
+        drag.start();
+        d.beginStroke(300, 300);
+        d.continueStroke(1800, 300);
+        QCOMPARE(d.layerImage(0).cacheKey(), originalKey);
+        d.endStroke();
+        qInfo() << "UHD Content-Aware Move drag/release (ms):" << drag.elapsed();
+        QVERIFY(drag.elapsed() < 150);
+        QVERIFY(d.contentMoveBusy());
+        QCOMPARE(d.historyIndex(), history);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 10000);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layerImage(0).pixelColor(300, 300), QColor(170, 170, 170));
+        QCOMPARE(d.layerImage(0).pixelColor(1800, 300), QColor(Qt::red));
+        QCOMPARE(d.layerImage(0).pixelColor(3200, 1800), QColor(170, 170, 170));
+    }
+
     void patchRepairsSourceAndDestinationLocallyWithOneUndo()
     {
         QTemporaryDir dir;

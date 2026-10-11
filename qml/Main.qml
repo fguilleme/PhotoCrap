@@ -59,7 +59,7 @@ ApplicationWindow {
                                              ? Qt.CrossCursor
                                              : window.spacePressed || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
-                                             : editor.tool === "patch" && (editor.patchDragging || drawingArea.patchInsideSelection)
+                                             : (editor.tool === "patch" || editor.tool === "contentAwareMove") && (editor.patchDragging || drawingArea.patchInsideSelection)
                                                ? Qt.SizeAllCursor
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
@@ -159,7 +159,7 @@ ApplicationWindow {
         {name:"remove", icon:"✦", label:qsTr("Suppression"), implemented:false},
         {name:"healing", icon:"▰", label:qsTr("Correcteur"), implemented:true},
         {name:"patch", icon:"▧", label:qsTr("Pièce"), implemented:true},
-        {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:false},
+        {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:true},
         {name:"redEye", icon:"◉", label:qsTr("Œil rouge"), implemented:true},
         {name:"brush", icon:"╱", label:qsTr("Pinceau"), implemented:true},
         {name:"pencil", icon:"✎", label:qsTr("Crayon"), implemented:true},
@@ -839,7 +839,17 @@ ApplicationWindow {
             onActivated: window.selectActiveGroupTool(modelData.id)
         }
     }
-    Shortcut { enabled: !window.modalOpen; sequence: "Escape"; onActivated: { editor.cancelStroke(); editor.cancelPolygonLasso(); editor.deselect() } }
+    Shortcut {
+        enabled: !window.modalOpen
+        sequence: "Escape"
+        onActivated: {
+            const movingContent = editor.contentMoveBusy
+                    || (editor.tool === "contentAwareMove" && editor.patchDragging)
+            editor.cancelStroke()
+            editor.cancelPolygonLasso()
+            if (!movingContent) editor.deselect()
+        }
+    }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomFit")); onActivated: fitCanvas() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("toolRotate")); onActivated: window.activateGroupTool("hand", "rotateView") }
@@ -1483,6 +1493,12 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        ContentAwareMoveOptions {
+            objectName: "contentAwareMoveOptions"
+            Layout.fillWidth: true
+            visible: editor.tool === "contentAwareMove"
+            document: editor
+        }
         PatchOptions {
             objectName: "patchOptions"
             Layout.fillWidth: true
@@ -1820,7 +1836,7 @@ ApplicationWindow {
                                 property int selectionModeBeforeGesture: -1
                                 property bool patchInsideSelection: false
                                 function updatePatchCursor() {
-                                    patchInsideSelection = editor.tool === "patch"
+                                    patchInsideSelection = (editor.tool === "patch" || editor.tool === "contentAwareMove")
                                             && editor.selectionContains(pointerX / zoom, pointerY / zoom)
                                 }
                                 anchors.fill: parent

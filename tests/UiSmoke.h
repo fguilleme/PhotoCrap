@@ -850,6 +850,79 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _document.setPatchMode(0);
     _document.deselect();
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, "contentAwareMove"));
+    QTest::qWait(40);
+    auto contentMoveOptions   = _window->findChild<QObject *>("contentAwareMoveOptions");
+    auto contentMoveMode      = _window->findChild<QObject *>("contentMoveMode");
+    auto contentMoveStructure = _window->findChild<QObject *>("contentMoveStructure");
+    auto contentMoveColor     = _window->findChild<QObject *>("contentMoveColor");
+    auto contentMoveLayers    = _window->findChild<QObject *>("contentMoveAllLayers");
+    if (!require(_document.tool() == "contentAwareMove" && contentMoveOptions &&
+                     contentMoveOptions->property("visible").toBool() && contentMoveMode &&
+                     contentMoveMode->property("count").toInt() == 2 && contentMoveStructure &&
+                     contentMoveColor && contentMoveLayers,
+                 "Content-Aware Move has Move/Extend, Structure, Color and sampling controls"))
+        return false;
+    _document.setColor(QColor(165, 165, 165));
+    _document.fillWithColor(true);
+    _document.setTool("brush");
+    _document.setBrushHardness(1);
+    _document.setBrushSize(8);
+    _document.setBrushSmoothing(0);
+    _document.setColor(Qt::red);
+    _document.beginStroke(patchCentre.x(), patchCentre.y());
+    _document.endStroke();
+    _document.setTool("contentAwareMove");
+    QTest::qWait(20);
+    QTest::keyClick(_window, Qt::Key_J);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-15, -15));
+    for (const QPoint offset : {QPoint(15, -15), QPoint(15, 15), QPoint(-15, 15), QPoint(-15, -15)})
+        QTest::mouseMove(_window, patchPoint(offset.x(), offset.y()));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-15, -15));
+    const int beforeContentMove = _document.historyIndex();
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(-60, 0));
+    if (!require(_document.patchDragging() && QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::SizeAllCursor,
+                 "Content-Aware Move keeps one native move cursor and a live object preview"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-60, 0));
+    QElapsedTimer contentMoveWait;
+    contentMoveWait.start();
+    while ((_document.contentMoveBusy() || _document.patchDragging()) &&
+           contentMoveWait.elapsed() < 5000)
+        QTest::qWait(10);
+    const QColor oldObject =
+        _document.layerImage(_document.activeLayer()).pixelColor(patchCentre.toPoint());
+    const QColor movedObject = _document.layerImage(_document.activeLayer())
+                                   .pixelColor((patchCentre + QPointF(-60, 0)).toPoint());
+    if (!require(!_document.contentMoveBusy() &&
+                     _document.historyIndex() == beforeContentMove + 1 &&
+                     qAbs(oldObject.red() - 165) <= 3 && movedObject.red() > 240 &&
+                     movedObject.green() < 10,
+                 "Content-Aware Move repairs the hole asynchronously and commits one undo"))
+        return false;
+    _document.undo();
+    const int     beforeCancelledMove = _document.historyIndex();
+    const QRegion contentSelection    = _document.selectionRegion();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseMove(_window, patchPoint(-60, 0));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-60, 0));
+    QTest::keyClick(_window, Qt::Key_Escape, Qt::NoModifier, 0);
+    QTest::qWait(40);
+    if (!require(!_document.contentMoveBusy() && _document.historyIndex() == beforeCancelledMove &&
+                     _document.selectionRegion() == contentSelection,
+                 "Escape cancels a pending content move and restores its selection without undo"))
+        return false;
+    _document.undo();
+    _document.undo();
+    _document.deselect();
+    _document.setColor(savedColour);
+    _document.setBrushSize(savedSize);
+    _document.setBrushHardness(savedHardness);
+    _document.setBrushSmoothing(savedSmoothing);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));
     QTest::qWait(60);

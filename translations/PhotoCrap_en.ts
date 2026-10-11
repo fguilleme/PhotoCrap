@@ -113,6 +113,8 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Déplacement basé sur le contenu</source><translation>Content-Aware Move</translation></message>
+    <message><source>Pas assez de pixels voisins pour reconstruire cette zone.</source><translation>Not enough neighbouring pixels to reconstruct this area.</translation></message>
     <message><source>Pièce</source><translation>Patch</translation></message>
     <message>
       <location filename="../src/Document.cpp" line="38" />
@@ -2701,5 +2703,18 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Sélectionner une texture saine, puis glisser vers la zone à réparer</source><translation>Select healthy texture, then drag to the area to repair</translation></message>
     <message><source>Faible : textures détaillées ; élevée : zones lisses</source><translation>Low: detailed textures; high: smooth areas</translation></message>
     <message><source>Entourez une zone, puis faites glisser la sélection</source><translation>Outline an area, then drag the selection</translation></message>
+  </context>
+  <context>
+    <name>ContentAwareMoveOptions</name>
+    <message><source>Mode</source><translation>Mode</translation></message>
+    <message><source>Déplacement</source><translation>Move</translation></message>
+    <message><source>Extension</source><translation>Extend</translation></message>
+    <message><source>Structure</source><translation>Structure</translation></message>
+    <message><source>Couleur</source><translation>Color</translation></message>
+    <message><source>Tous les calques</source><translation>Sample All Layers</translation></message>
+    <message><source>Faible : raccord souple ; élevée : préserver les motifs</source><translation>Low: flexible blending; high: preserve patterns</translation></message>
+    <message><source>0 : couleur d’origine ; 10 : adaptation maximale au fond</source><translation>0: original color; 10: maximum background color adaptation</translation></message>
+    <message><source>Reconstruction en cours…</source><translation>Reconstructing…</translation></message>
+    <message><source>Entourez un objet, puis faites glisser la sélection</source><translation>Outline an object, then drag the selection</translation></message>
   </context>
 </TS>

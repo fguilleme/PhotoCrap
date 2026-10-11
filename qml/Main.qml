@@ -74,7 +74,7 @@ ApplicationWindow {
                                               || editor.tool === "dodge" || editor.tool === "burn"
                                               || editor.tool === "sponge" || editor.tool === "smudge"
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                            || editor.tool === "eraser" || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
+                                            || editor.tool === "eraser" || editor.tool === "remove" || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                               || editor.tool === "eraser" || editor.tool === "fill"
                                               || editor.tool === "gradient" || editor.tool === "text" || editor.tool === "spotHealing" || stampToolActive
@@ -156,7 +156,7 @@ ApplicationWindow {
         {name:"note", icon:"▤", label:qsTr("Annotation"), implemented:false},
         {name:"count", icon:"¹²³", label:qsTr("Comptage"), implemented:false},
         {name:"spotHealing", icon:"✚", label:qsTr("Correcteur localisé"), implemented:true},
-        {name:"remove", icon:"✦", label:qsTr("Suppression"), implemented:false},
+        {name:"remove", icon:"✦", label:qsTr("Suppression"), implemented:true},
         {name:"healing", icon:"▰", label:qsTr("Correcteur"), implemented:true},
         {name:"patch", icon:"▧", label:qsTr("Pièce"), implemented:true},
         {name:"contentAwareMove", icon:"↝", label:qsTr("Déplacement basé sur le contenu"), implemented:true},
@@ -843,7 +843,7 @@ ApplicationWindow {
         enabled: !window.modalOpen
         sequence: "Escape"
         onActivated: {
-            const movingContent = editor.contentMoveBusy
+            const movingContent = editor.removeHasPending || editor.removeBusy || editor.tool === "remove" || editor.contentMoveBusy
                     || (editor.tool === "contentAwareMove" && editor.patchDragging)
             editor.cancelStroke()
             editor.cancelPolygonLasso()
@@ -1493,6 +1493,12 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        RemoveOptions {
+            objectName: "removeOptions"
+            Layout.fillWidth: true
+            visible: editor.tool === "remove"
+            document: editor
+        }
         ContentAwareMoveOptions {
             objectName: "contentAwareMoveOptions"
             Layout.fillWidth: true
@@ -1596,6 +1602,12 @@ ApplicationWindow {
                         if (editor.polygonLassoActive && !event.isAutoRepeat
                                 && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete)) {
                             editor.removeLastPolygonLassoPoint()
+                            event.accepted = true
+                            return
+                        }
+                        if (editor.tool === "remove" && !window.editingText && !window.modalOpen
+                                && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                            editor.applyRemoval()
                             event.accepted = true
                             return
                         }
@@ -2120,7 +2132,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
+                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "remove" && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2

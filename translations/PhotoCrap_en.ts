@@ -113,6 +113,7 @@
   </context>
   <context>
     <name>Document</name>
+<message><source>Suppression</source><translation>Remove</translation></message>
     <message><source>Déplacement basé sur le contenu</source><translation>Content-Aware Move</translation></message>
     <message><source>Pas assez de pixels voisins pour reconstruire cette zone.</source><translation>Not enough neighbouring pixels to reconstruct this area.</translation></message>
     <message><source>Pièce</source><translation>Patch</translation></message>
@@ -2717,4 +2718,5 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Reconstruction en cours…</source><translation>Reconstructing…</translation></message>
     <message><source>Entourez un objet, puis faites glisser la sélection</source><translation>Outline an object, then drag the selection</translation></message>
   </context>
+<context><name>RemoveOptions</name><message><source>Retirer des marques</source><translation>Subtract from marked areas</translation></message><message><source>Alt permet aussi de retirer une zone marquée</source><translation>Alt also subtracts from marked areas</translation></message><message><source>Tous les calques</source><translation>Sample all layers</translation></message><message><source>Après chaque tracé</source><translation>Remove after each stroke</translation></message><message><source>Appliquer</source><translation>Apply</translation></message><message><source>Annuler</source><translation>Cancel</translation></message><message><source>Reconstruction en cours…</source><translation>Reconstructing…</translation></message><message><source>Peignez ou entourez l’objet à supprimer</source><translation>Brush over or loop around the object to remove</translation></message></context>
 </TS>

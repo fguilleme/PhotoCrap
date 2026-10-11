@@ -320,6 +320,284 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void removalBrushAndLoopRepairLocallyWithOneUndo()
+    {
+        QTemporaryDir dir;
+        QImage        image(200, 140, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int grey = y % 6 < 3 ? 160 : 170;
+                image.setPixel(x, y, qRgb(grey, grey, grey));
+            }
+        QPainter painter(&image);
+        painter.fillRect(64, 60, 12, 12, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("remove.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        const int    history  = d.historyIndex();
+        d.setTool("remove");
+        QCOMPARE(d.tool(), QString("remove"));
+        d.setBrushSize(28);
+        d.beginStroke(70, 66);
+        const QRegion marked = d.removeRegion();
+        QVERIFY(marked.contains(QPoint(70, 66)));
+        QCOMPARE(d.layerImage(0), original);
+        d.endStroke();
+        QVERIFY(d.removeBusy());
+        QCOMPARE(d.historyIndex(), history);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QVERIFY(!d.removeHasPending());
+        const QImage repaired = d.layerImage(0);
+        QVERIFY(repaired.pixelColor(70, 66).red() >= 155);
+        QVERIFY(repaired.pixelColor(70, 66).green() >= 155);
+        QVERIFY(repaired.pixel(70, 65) != repaired.pixel(70, 68));
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (!marked.contains(QPoint(x, y)))
+                    QCOMPARE(repaired.pixel(x, y), original.pixel(x, y));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        d.redo();
+        QCOMPARE(d.layerImage(0), repaired);
+        d.undo();
+        d.setRemoveAfterEachStroke(false);
+        d.setBrushSize(4);
+        d.beginStroke(58, 54);
+        d.continueStroke(82, 54);
+        d.continueStroke(82, 78);
+        d.continueStroke(58, 78);
+        d.continueStroke(58, 55);
+        d.endStroke();
+        QVERIFY(d.removeRegion().contains(QPoint(70, 66)));
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(0), original);
+        d.applyRemoval();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
+        QVERIFY(d.layerImage(0).pixelColor(70, 66).green() >= 155);
+        QCOMPARE(d.historyIndex(), history + 1);
+    }
+
+    void removalBatchSubtractSelectionAndCancellation()
+    {
+        Document d;
+        d.newDocument(160, 100);
+        d.setTool("select");
+        d.beginStroke(35, 20);
+        d.continueStroke(110, 80);
+        d.endStroke();
+        const QRegion selection = d.selectionRegion();
+        const QImage  original  = d.layerImage(0);
+        const int     history   = d.historyIndex();
+        d.setTool("remove");
+        d.setRemoveAfterEachStroke(false);
+        d.setBrushSize(24);
+        d.beginStroke(35, 35);
+        d.continueStroke(60, 35);
+        d.endStroke();
+        d.beginStroke(90, 65);
+        d.endStroke();
+        QVERIFY((d.removeRegion() - selection).isEmpty());
+        QVERIFY(d.removeRegion().contains(QPoint(60, 35)));
+        QVERIFY(d.removeRegion().contains(QPoint(90, 65)));
+        const QRegion both = d.removeRegion();
+        d.setBrushSize(10);
+        d.beginStroke(60, 35, true);
+        d.endStroke();
+        QVERIFY(!d.removeRegion().contains(QPoint(60, 35)));
+        QVERIFY(d.removeRegion().contains(QPoint(90, 65)));
+        QVERIFY((d.removeRegion() - both).isEmpty());
+        d.setRemoveSubtract(true);
+        d.beginStroke(90, 65);
+        d.endStroke();
+        QVERIFY(!d.removeRegion().contains(QPoint(90, 65)));
+        d.cancelStroke();
+        QVERIFY(!d.removeHasPending());
+        QCOMPARE(d.selectionRegion(), selection);
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.setRemoveSubtract(false);
+        d.beginStroke(55, 45);
+        d.endStroke();
+        d.applyRemoval();
+        QVERIFY(d.removeBusy());
+        d.cancelRemoval();
+        QTest::qWait(100);
+        QVERIFY(!d.removeBusy());
+        QVERIFY(!d.removeHasPending());
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        d.beginStroke(55, 45);
+        d.endStroke();
+        d.setTool("brush");
+        QVERIFY(!d.removeHasPending());
+    }
+
+    void removalSamplesVisibleLayersIntoEmptyLayerAndRejectsMasksLocks()
+    {
+        QTemporaryDir dir;
+        QImage        image(180, 120, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(150, 150, 150));
+        QPainter painter(&image);
+        painter.fillRect(54, 54, 12, 12, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("remove-layers.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage base = d.layerImage(0);
+        d.addLayer();
+        const int active = d.activeLayer(), history = d.historyIndex();
+        d.setTool("remove");
+        d.setRemoveSampleAllLayers(true);
+        d.setBrushSize(32);
+        d.beginStroke(60, 60);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
+        const QImage result = d.layerImage(active);
+        QVERIFY(result.pixelColor(60, 60).alpha() > 240);
+        QVERIFY(qAbs(result.pixelColor(60, 60).red() - 150) <= 3);
+        QCOMPARE(result.pixelColor(10, 10).alpha(), 0);
+        QCOMPARE(d.layerImage(0), base);
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        d.setLayerVisible(0, false);
+        const int hiddenHistory = d.historyIndex();
+        d.beginStroke(60, 60);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
+        QCOMPARE(d.layerImage(active).pixelColor(60, 60).alpha(), 0);
+        QCOMPARE(d.historyIndex(), hiddenHistory);
+        d.setLayerLocked(active, true);
+        d.beginStroke(60, 60);
+        d.endStroke();
+        QVERIFY(!d.removeHasPending());
+        d.setLayerLocked(active, false);
+        d.addLayerMask();
+        d.setEditingMask(true);
+        const QImage mask = d.maskImage(active);
+        d.beginStroke(60, 60);
+        d.endStroke();
+        QVERIFY(!d.removeBusy());
+        QVERIFY(!d.removeHasPending());
+        QCOMPARE(d.maskImage(active), mask);
+    }
+
+    void removalEdgeToEdgeStrokeIncludesTheCornerAndCancelsWithoutHistory()
+    {
+        QTemporaryDir dir;
+        QImage        image(160, 120, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(180, 180, 180));
+        QPainter painter(&image);
+        painter.fillRect(0, 0, 12, 12, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("remove-corner.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        d.setTool("remove");
+        d.setBrushSize(6);
+        d.setRemoveAfterEachStroke(false);
+        d.beginStroke(0, 40);
+        d.continueStroke(20, 20);
+        d.continueStroke(40, 0);
+        d.endStroke();
+        QVERIFY(d.removeRegion().contains(QPoint(4, 4)));
+        QVERIFY(!d.removeRegion().contains(QPoint(90, 90)));
+        const QRegion region  = d.removeRegion();
+        const int     history = d.historyIndex();
+        d.applyRemoval();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
+        QVERIFY(qAbs(d.layerImage(0).pixelColor(4, 4).green() - 180) <= 3);
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QImage repaired = d.layerImage(0);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (!region.contains(QPoint(x, y)))
+                    QCOMPARE(repaired.pixel(x, y), image.pixel(x, y));
+        d.undo();
+        d.beginStroke(0, 40);
+        d.continueStroke(20, 20);
+        d.continueStroke(40, 0);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.historyIndex(), history);
+        QVERIFY(!d.removeHasPending());
+    }
+
+    void removalNewMarksReplacePendingWorkAndNewDocumentDiscardsIt()
+    {
+        QTemporaryDir dir;
+        QImage        image(800, 600, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(170, 170, 170));
+        QPainter painter(&image);
+        painter.fillRect(190, 190, 20, 20, Qt::red);
+        painter.fillRect(490, 390, 20, 20, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("remove-latest.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("remove");
+        d.setBrushSize(80);
+        const int history = d.historyIndex();
+        d.beginStroke(200, 200);
+        d.endStroke();
+        QVERIFY(d.removeBusy());
+        d.beginStroke(500, 400);
+        d.endStroke();
+        QVERIFY(d.removeBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
+        QVERIFY(d.layerImage(0).pixelColor(200, 200).green() > 160);
+        QVERIFY(d.layerImage(0).pixelColor(500, 400).green() > 160);
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        d.beginStroke(200, 200);
+        d.endStroke();
+        d.newDocument(32, 32);
+        const QImage newImage   = d.layerImage(0);
+        const int    newHistory = d.historyIndex();
+        QTest::qWait(100);
+        QCOMPARE(d.layerImage(0), newImage);
+        QCOMPARE(d.historyIndex(), newHistory);
+        QVERIFY(!d.removeBusy());
+        QVERIFY(!d.removeHasPending());
+    }
+
+    void removalUhdLoopReleaseDoesNotRunReconstructionOnUiThread()
+    {
+        QTemporaryDir dir;
+        QImage        image(3840, 2160, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(160, 160, 160));
+        QPainter painter(&image);
+        painter.fillRect(1200, 700, 400, 400, Qt::red);
+        painter.end();
+        const QString path = dir.filePath("remove-uhd.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("remove");
+        d.setBrushSize(12);
+        d.beginStroke(1180, 680);
+        d.continueStroke(1620, 680);
+        d.continueStroke(1620, 1120);
+        d.continueStroke(1180, 1120);
+        d.continueStroke(1180, 680);
+        QElapsedTimer timer;
+        timer.start();
+        d.endStroke();
+        QVERIFY2(timer.elapsed() < 500, "Release must schedule reconstruction, not execute it");
+        QVERIFY(d.removeBusy());
+        QCOMPARE(d.layerImage(0).pixelColor(1400, 900), QColor(Qt::red));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 10000);
+        QVERIFY(qAbs(d.layerImage(0).pixelColor(1400, 900).green() - 160) <= 3);
+        QCOMPARE(d.layerImage(0).pixelColor(20, 20), QColor(160, 160, 160));
+    }
+
     void contentMoveRepairsTheHolePreservesTextureAndUndoesOnce()
     {
         QTemporaryDir dir;

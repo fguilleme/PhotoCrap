@@ -12,6 +12,7 @@ void Document::setTool(const QString &_value)
                                    "redEye",
                                    "healing",
                                    "spotHealing",
+                                   "remove",
                                    "patch",
                                    "contentAwareMove",
                                    "cloneStamp",
@@ -54,6 +55,8 @@ void Document::setTool(const QString &_value)
         cancelPolygonLasso();
     else
         endStroke();
+    if (m_tool != _value)
+        cancelRemoval();
     m_tool = _value;
     if (m_tool == "mixerBrush" && m_mixerPaint.isNull())
         loadMixerBrush();

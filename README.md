@@ -135,6 +135,14 @@ Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premulti
 
 Le `.pcr` est un document JSON versionné. Sa version 3 conserve les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle reste compatible en lecture avec les versions 1 et 2. L’historique et la sélection ne sont pas enregistrés. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
+### Suppression
+
+Dans le groupe de correction (J), Suppression permet de peindre sur un objet ou de l’entourer avec un contour presque fermé ; un tracé entre deux bords inclut aussi le coin correspondant. Une surbrillance rose montre les zones marquées ; Alt ou « Retirer des marques » soustrait une zone. « Après chaque tracé » lance la reconstruction au relâchement ; désactivé, plusieurs tracés peuvent être regroupés puis appliqués avec « Appliquer » ou Retour. Échap/Annuler abandonne les marques et le calcul en cours. Une sélection limite les zones marquées ; chaque application produit une seule étape d’annulation.
+
+Le calcul local s’effectue en arrière-plan, sur les zones marquées et leur voisinage ; une nouvelle marque conserve les précédentes et remplace le résultat en attente. « Tous les calques » prélève les calques visibles et écrit uniquement dans le calque de pixels actif, ce qui permet une retouche sur un calque vide. Les masques et les calques verrouillés ne sont pas modifiés. La reconstruction copie et adapte des textures voisines, avec propagation de bordure en secours ; elle ne reproduit pas l’IA générative ni la détection automatique des distractions de Photoshop. Les arrière-plans complexes peuvent demander des retouches.
+
+Référence : [outil Suppression d’Adobe](https://helpx.adobe.com/photoshop/using/tool-techniques/remove-tool.html).
+
 ## Validation et limites
 
 Les tests vérifient notamment peinture/annulation, opacité, visibilité, verrouillage, sélection, recadrage, déplacements, remplissage, filtres, transformations, fusion, sauvegarde/réouverture, export, sauvegarde en échec et rejet des fichiers corrompus. Un test démarre également le moteur QML, dessine par événements souris, vérifie la saisie de texte et la protection des modifications, puis produit un rendu hors écran sans erreurs QML. Les vérifications d’interaction sont compilées lorsque `BUILD_TESTING=ON`.

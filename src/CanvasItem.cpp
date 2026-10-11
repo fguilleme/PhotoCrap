@@ -79,6 +79,7 @@ void CanvasItem::setDocument(Document *_document)
         connect(_document, &Document::imageChanged, this, [this] { update(); });
         connect(_document, &Document::documentChanged, this, [this] { update(); });
         connect(_document, &Document::selectionChanged, this, [this] { update(); });
+        connect(_document, &Document::removeRegionChanged, this, [this] { update(); });
         connect(_document, &Document::patchPreviewChanged, this, [this] { update(); });
     }
     update();
@@ -109,7 +110,7 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
                          : QCursor(static_cast<Qt::CursorShape>(_shape));
     if ((_tool == "cloneStamp" || _tool == "patternStamp" || _tool == "smudge" ||
          _tool == "colorReplacement" || _tool == "mixerBrush" || _tool == "healing" ||
-         _tool == "spotHealing") &&
+         _tool == "spotHealing" || _tool == "remove") &&
         _shape == Qt::BlankCursor && !(_sourcePicking && _tool == "cloneStamp") && m_document) {
         const qreal diameter =
             qBound(2., m_document->brushSize() * width() / qMax(1, m_document->width()), 500.);
@@ -121,8 +122,8 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         QPainter painter(&pixmap);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.translate(size / 2., size / 2.);
-        painter.rotate(m_document->brushAngle());
-        painter.scale(1., m_document->brushRoundness());
+        painter.rotate(_tool == "remove" ? 0 : m_document->brushAngle());
+        painter.scale(1., _tool == "remove" ? 1. : m_document->brushRoundness());
         painter.setPen(QPen(Qt::black, 3));
         painter.drawEllipse(QPointF{}, diameter / 2., diameter / 2.);
         painter.setPen(QPen(Qt::white, 1));
@@ -168,6 +169,13 @@ void CanvasItem::paint(QPainter *_painter)
         _painter->scale(width() / m_document->width(), height() / m_document->height());
         _painter->setClipRegion(m_document->patchTargetRegion());
         _painter->drawImage(m_document->patchTargetRect(), m_document->patchPreviewImage());
+        _painter->restore();
+    }
+    if (m_document->removeHasPending()) {
+        _painter->save();
+        _painter->scale(width() / m_document->width(), height() / m_document->height());
+        _painter->setClipRegion(m_document->removeRegion());
+        _painter->fillRect(m_document->removeRegion().boundingRect(), QColor(235, 70, 180, 110));
         _painter->restore();
     }
     if (m_document->selectionShape() < 6 || !m_document->hasSelection())

@@ -916,6 +916,55 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      _document.selectionRegion() == contentSelection,
                  "Escape cancels a pending content move and restores its selection without undo"))
         return false;
+    _document.deselect();
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, "remove"));
+    QTest::qWait(40);
+    auto removeOptions   = _window->findChild<QObject *>("removeOptions");
+    auto removeAutomatic = _window->findChild<QObject *>("removeAutomatic");
+    auto removeApply     = _window->findChild<QObject *>("removeApply");
+    auto removeLayers    = _window->findChild<QObject *>("removeAllLayers");
+    if (!require(
+            _document.tool() == "remove" && removeOptions &&
+                removeOptions->property("visible").toBool() && removeAutomatic && removeApply &&
+                removeLayers,
+            "Remove is available in the J group with automatic, manual and all-layer controls"))
+        return false;
+    _document.setRemoveAfterEachStroke(false);
+    _document.setBrushSize(28);
+    QTest::mouseMove(_window, patchPoint(0, 0));
+    QTest::keyClick(_window, Qt::Key_J);
+    const int beforeRemoval = _document.historyIndex();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    if (!require(_document.removeHasPending() && !_document.removeBusy() &&
+                     _document.removeRegion().contains(patchCentre.toPoint()) &&
+                     _document.historyIndex() == beforeRemoval &&
+                     QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "Remove paints a pending overlay and uses one native brush cursor"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Return);
+    QElapsedTimer removalWait;
+    removalWait.start();
+    while (_document.removeBusy() && removalWait.elapsed() < 5000)
+        QTest::qWait(10);
+    if (!require(!_document.removeBusy() && !_document.removeHasPending() &&
+                     _document.historyIndex() == beforeRemoval + 1 &&
+                     _document.layerImage(_document.activeLayer())
+                             .pixelColor(patchCentre.toPoint())
+                             .green() > 150,
+                 "Return applies the pending removal asynchronously with one undo"))
+        return false;
+    _document.undo();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
+    QTest::keyClick(_window, Qt::Key_Escape, Qt::NoModifier, 0);
+    if (!require(!_document.removeHasPending() && !_document.removeBusy() &&
+                     _document.historyIndex() == beforeRemoval,
+                 "Escape discards Remove marks without changing pixels or history"))
+        return false;
+    _document.setRemoveAfterEachStroke(true);
     _document.undo();
     _document.undo();
     _document.deselect();

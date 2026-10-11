@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,13 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "contentAwareMove") {
+            if (root.toolName === "remove") {
+                ctx.save(); ctx.translate(10, 15); ctx.rotate(-Math.PI / 4)
+                ctx.strokeRect(-4, -7, 8, 14)
+                ctx.beginPath(); ctx.moveTo(-4, 2); ctx.lineTo(4, 2); ctx.stroke(); ctx.restore()
+                ctx.beginPath(); ctx.moveTo(20, 2); ctx.lineTo(20, 10); ctx.moveTo(16, 6); ctx.lineTo(24, 6)
+                ctx.moveTo(22, 14); ctx.lineTo(22, 18); ctx.moveTo(20, 16); ctx.lineTo(24, 16); ctx.stroke()
+            } else if (root.toolName === "contentAwareMove") {
                 ctx.lineWidth = 1.5
                 ctx.beginPath(); ctx.moveTo(3, 6); ctx.lineTo(6, 3); ctx.lineTo(10, 4)
                 ctx.lineTo(12, 8); ctx.lineTo(9, 12); ctx.lineTo(4, 11); ctx.closePath(); ctx.stroke()

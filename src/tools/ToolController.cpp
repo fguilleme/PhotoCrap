@@ -74,8 +74,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         return;
     endStroke();
     invalidateContentMove();
+    if (m_tool != "remove")
+        cancelRemoval();
     m_anchor = m_last = (m_tool == "redEye" || m_tool == "healing" || m_tool == "spotHealing" ||
-                         m_tool == "patch" || m_tool == "contentAwareMove")
+                         m_tool == "remove" || m_tool == "patch" || m_tool == "contentAwareMove")
                             ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
                             : QPointF(_x, _y);
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
@@ -100,6 +102,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     }
     if (m_tool == "quickSelection") {
         beginQuickSelection(m_anchor);
+        return;
+    }
+    if (m_tool == "remove") {
+        beginRemove(m_anchor, _alternate);
         return;
     }
     if (m_tool == "contentAwareMove") {
@@ -224,7 +230,9 @@ void Document::continueStroke(qreal _x, qreal _y)
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
-    if (m_tool == "contentAwareMove") {
+    if (m_tool == "remove") {
+        continueRemove(point);
+    } else if (m_tool == "contentAwareMove") {
         continueRegionDrag(point, false);
     } else if (m_tool == "patch") {
         continuePatch(point);
@@ -259,6 +267,10 @@ void Document::endStroke()
 {
     if (!m_drawing)
         return;
+    if (m_tool == "remove") {
+        finishRemove();
+        return;
+    }
     if (m_tool == "contentAwareMove") {
         finishContentMove(false);
         return;
@@ -324,6 +336,10 @@ void Document::endStroke()
 void Document::cancelStroke()
 {
     invalidateContentMove(true);
+    if (m_tool == "remove") {
+        cancelRemoval();
+        return;
+    }
     if (!m_drawing)
         return;
     if (m_tool == "contentAwareMove") {

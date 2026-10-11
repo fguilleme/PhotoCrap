@@ -60,12 +60,20 @@ Document::Document(QObject *_parent) : QObject(_parent)
         else
             m_previewRenderActive.store(false);
     });
-    connect(this, &Document::selectionChanged, this, [this] { invalidateContentMove(); });
-    connect(this, &Document::layersChanged, this, [this] { invalidateContentMove(); });
+    connect(this, &Document::selectionChanged, this, [this] {
+        invalidateContentMove();
+        cancelRemoval();
+    });
+    connect(this, &Document::layersChanged, this, [this] {
+        invalidateContentMove();
+        cancelRemoval();
+    });
     newDocument(1280, 800);
 }
 Document::~Document()
 {
+    if (m_removeCancel)
+        m_removeCancel->store(true);
     if (m_contentMoveCancel)
         m_contentMoveCancel->store(true);
 }
@@ -181,6 +189,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 void Document::changed(bool _metadata, bool _notifyImage)
 {
     invalidateContentMove();
+    cancelRemoval();
     if (m_maskOnlyView &&
         (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull()))
         m_maskOnlyView = false;
@@ -216,6 +225,7 @@ void Document::setPreviewSize(int _width, int _height)
 void Document::resetHistory(bool _clean)
 {
     invalidateContentMove();
+    cancelRemoval();
     m_undo.clear();
     m_redo.clear();
     m_stateId         = m_nextId++;

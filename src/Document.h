@@ -132,6 +132,14 @@ class Document : public QObject
     Q_PROPERTY(bool contentMoveSampleAllLayers READ contentMoveSampleAllLayers WRITE
                    setContentMoveSampleAllLayers NOTIFY settingsChanged)
     Q_PROPERTY(bool contentMoveBusy READ contentMoveBusy NOTIFY settingsChanged)
+    Q_PROPERTY(bool removeSampleAllLayers READ removeSampleAllLayers WRITE setRemoveSampleAllLayers
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool removeAfterEachStroke READ removeAfterEachStroke WRITE setRemoveAfterEachStroke
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(
+        bool removeSubtract READ removeSubtract WRITE setRemoveSubtract NOTIFY settingsChanged)
+    Q_PROPERTY(bool removeBusy READ removeBusy NOTIFY settingsChanged)
+    Q_PROPERTY(bool removeHasPending READ removeHasPending NOTIFY removeRegionChanged)
     Q_PROPERTY(int patchMode READ patchMode WRITE setPatchMode NOTIFY settingsChanged)
     Q_PROPERTY(
         int patchDiffusion READ patchDiffusion WRITE setPatchDiffusion NOTIFY settingsChanged)
@@ -523,7 +531,36 @@ public:
     {
         return m_spotHealingMode;
     }
-    int contentMoveMode() const
+    bool removeSampleAllLayers() const
+    {
+        return m_removeSampleAllLayers;
+    }
+    bool removeAfterEachStroke() const
+    {
+        return m_removeAfterEachStroke;
+    }
+    bool removeSubtract() const
+    {
+        return m_removeSubtract;
+    }
+    bool removeBusy() const
+    {
+        return m_removeBusy;
+    }
+    bool removeHasPending() const
+    {
+        return !m_removeRegion.isEmpty();
+    }
+    QRegion removeRegion() const
+    {
+        return m_removeRegion;
+    }
+    void             setRemoveSampleAllLayers(bool _value);
+    void             setRemoveAfterEachStroke(bool _value);
+    void             setRemoveSubtract(bool _value);
+    Q_INVOKABLE void applyRemoval();
+    Q_INVOKABLE void cancelRemoval();
+    int              contentMoveMode() const
     {
         return m_contentMoveMode;
     }
@@ -766,6 +803,7 @@ signals:
     void selectionChanged();
     void redEyeRegionChanged();
     void patchPreviewChanged();
+    void removeRegionChanged();
     void historyChanged();
     void errorOccurred(const QString &_message);
     void statusMessage(const QString &_message);
@@ -808,6 +846,16 @@ private:
     bool    m_healingOffsetBeforeStrokeValid = false;
     QPointF m_healingSource, m_healingOffset, m_healingOffsetBeforeStroke;
     QImage  m_healingSample, m_healingTip;
+    bool m_removeSampleAllLayers = false, m_removeAfterEachStroke = true, m_removeSubtract = false;
+    bool m_removeBusy = false, m_removeStrokeSubtract = false;
+    quint64                           m_removeGeneration = 0;
+    std::shared_ptr<std::atomic_bool> m_removeCancel;
+    QRegion                           m_removeRegion;
+    QPolygonF                         m_removePath;
+    void                              beginRemove(const QPointF &_point, bool _alternate);
+    void                              continueRemove(const QPointF &_point);
+    void                              finishRemove();
+    void                              stopRemovalJob();
     int     m_contentMoveMode = 0, m_contentMoveStructure = 4, m_contentMoveColor = 0;
     bool    m_contentMoveSampleAllLayers = false, m_contentMoveBusy = false;
     bool    m_contentMoveAwaitingImage = false;

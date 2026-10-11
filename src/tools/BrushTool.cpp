@@ -73,6 +73,10 @@ void Document::renderBrushStroke()
         renderRetouchStroke();
         return;
     }
+    if (m_tool == "cloneStamp" || m_tool == "patternStamp") {
+        renderStampStroke();
+        return;
+    }
     QImage *target = paintTarget();
     if (!target || m_strokeBase.isNull())
         return;

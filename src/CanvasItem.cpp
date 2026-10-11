@@ -4,7 +4,9 @@
 #include <QGuiApplication>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QQuickWindow>
 #include <QScreen>
+#include <QtMath>
 
 namespace
 {
@@ -90,7 +92,8 @@ void CanvasItem::setSelectionPhase(qreal _phase)
         update();
     emit selectionPhaseChanged();
 }
-void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool, int _selectionMode)
+void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool, int _selectionMode,
+                                 bool _sourcePicking)
 {
     if (!_active) {
         if (m_systemCursorActive) {
@@ -100,9 +103,30 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         return;
     }
 
-    const QCursor cursor = _tool == QStringLiteral("magicWand")
-                               ? magicWandCursor(_selectionMode)
-                               : QCursor(static_cast<Qt::CursorShape>(_shape));
+    QCursor cursor = _tool == QStringLiteral("magicWand")
+                         ? magicWandCursor(_selectionMode)
+                         : QCursor(static_cast<Qt::CursorShape>(_shape));
+    if ((_tool == "cloneStamp" || _tool == "patternStamp") && _shape == Qt::BlankCursor &&
+        !(_sourcePicking && _tool == "cloneStamp") && m_document) {
+        const qreal diameter =
+            qBound(2., m_document->brushSize() * width() / qMax(1, m_document->width()), 500.);
+        const int   size  = qCeil(diameter) + 8;
+        const qreal ratio = window() ? window()->devicePixelRatio() : 1.;
+        QPixmap     pixmap(qRound(size * ratio), qRound(size * ratio));
+        pixmap.setDevicePixelRatio(ratio);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.translate(size / 2., size / 2.);
+        painter.rotate(m_document->brushAngle());
+        painter.scale(1., m_document->brushRoundness());
+        painter.setPen(QPen(Qt::black, 3));
+        painter.drawEllipse(QPointF{}, diameter / 2., diameter / 2.);
+        painter.setPen(QPen(Qt::white, 1));
+        painter.drawEllipse(QPointF{}, diameter / 2., diameter / 2.);
+        painter.end();
+        cursor = QCursor(pixmap, size / 2, size / 2);
+    }
     if (m_systemCursorActive)
         QGuiApplication::changeOverrideCursor(cursor);
     else {

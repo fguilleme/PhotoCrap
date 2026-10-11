@@ -23,7 +23,7 @@ public:
     }
     void             setSelectionPhase(qreal _phase);
     Q_INVOKABLE void setSystemCursor(int _shape, bool _active, const QString &_tool,
-                                     int _selectionMode);
+                                     int _selectionMode, bool _sourcePicking = false);
     void             paint(QPainter *_painter) override;
 signals:
     void documentChanged();

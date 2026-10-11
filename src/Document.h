@@ -81,6 +81,14 @@ class Document : public QObject
         bool spongeSaturate READ spongeSaturate WRITE setSpongeSaturate NOTIFY settingsChanged)
     Q_PROPERTY(int retouchRange READ retouchRange WRITE setRetouchRange NOTIFY settingsChanged)
     Q_PROPERTY(bool protectTones READ protectTones WRITE setProtectTones NOTIFY settingsChanged)
+    Q_PROPERTY(bool stampAligned READ stampAligned WRITE setStampAligned NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int cloneSampleMode READ cloneSampleMode WRITE setCloneSampleMode NOTIFY settingsChanged)
+    Q_PROPERTY(bool cloneSourceValid READ cloneSourceValid NOTIFY settingsChanged)
+    Q_PROPERTY(QPointF cloneSource READ cloneSource NOTIFY settingsChanged)
+    Q_PROPERTY(QPointF cloneOffset READ cloneOffset NOTIFY settingsChanged)
+    Q_PROPERTY(int stampPattern READ stampPattern WRITE setStampPattern NOTIFY settingsChanged)
+    Q_PROPERTY(bool hasCustomStampPattern READ hasCustomStampPattern NOTIFY settingsChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY settingsChanged)
     Q_PROPERTY(int textSize READ textSize WRITE setTextSize NOTIFY settingsChanged)
     Q_PROPERTY(bool filledShapes READ filledShapes WRITE setFilledShapes NOTIFY settingsChanged)
@@ -342,6 +350,39 @@ public:
     {
         return m_maskOnlyView ? m_active : -1;
     }
+    bool stampAligned() const
+    {
+        return m_stampAligned;
+    }
+    int cloneSampleMode() const
+    {
+        return m_cloneSampleMode;
+    }
+    bool cloneSourceValid() const
+    {
+        return m_cloneSourceValid;
+    }
+    QPointF cloneSource() const
+    {
+        return m_cloneSource;
+    }
+    QPointF cloneOffset() const
+    {
+        return m_cloneOffset;
+    }
+    int stampPattern() const
+    {
+        return m_stampPattern;
+    }
+    bool hasCustomStampPattern() const
+    {
+        return !m_customStampPattern.isNull();
+    }
+    void             setStampAligned(bool _value);
+    void             setCloneSampleMode(int _value);
+    void             setStampPattern(int _value);
+    Q_INVOKABLE void setCloneSource(qreal _x, qreal _y);
+    Q_INVOKABLE bool defineStampPattern();
     const QImage    &composite() const;
     QImage           displayComposite() const;
     QImage           layerImage(int _index) const;
@@ -493,40 +534,48 @@ private:
     QString        m_tool = QStringLiteral("brush");
     QColor         m_color{Qt::black}, m_secondary{Qt::white};
     qreal          m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
-    qreal     m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
-    int       m_brushBlend      = 0;
-    bool      m_pencilAutoErase = false;
-    qreal     m_toolStrength    = .5;
-    bool      m_spongeSaturate  = false;
-    int       m_retouchRange    = 1;
-    bool      m_protectTones    = true;
-    QString   m_text            = QStringLiteral("Votre texte");
-    int       m_textSize        = 64;
-    bool      m_filledShapes    = true;
-    QColor    m_shapeFillColor;
-    QColor    m_shapeStrokeColor;
-    bool      m_shapeStrokeEnabled = true;
-    qreal     m_shapeStrokeWidth   = 1;
-    int       m_shapeStrokeStyle   = 0;
-    qreal     m_shapeCornerRadius  = 0;
-    bool      m_shapeAlignPixels   = true;
-    int       m_shapeSides         = 5;
-    qreal     m_shapeStarRatio     = .5;
-    QRect     m_selection;
-    QRegion   m_selectionRegion;
-    int       m_selectionShape = 0;
-    QPolygonF m_selectionPath;
-    bool      m_polygonLassoActive       = false;
-    int       m_selectionMode            = 0;
-    int       m_selectionTolerance       = 32;
-    bool      m_selectionContiguous      = true;
-    bool      m_selectionSampleAllLayers = false;
-    bool      m_selectionEnhanceEdge     = true;
-    QRegion   m_selectionRegionBeforeStroke;
-    QRect     m_selectionBoundsBeforeStroke;
-    int       m_selectionShapeBeforeStroke = 0;
-    QPolygonF m_selectionPathBeforeStroke;
-    bool      m_quickSelectionFirstDab = false;
+    qreal   m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
+    int     m_brushBlend       = 0;
+    bool    m_pencilAutoErase  = false;
+    bool    m_stampAligned     = true;
+    int     m_cloneSampleMode  = 0;
+    bool    m_cloneSourceValid = false, m_cloneOffsetValid = false;
+    QPointF m_cloneSource, m_cloneOffset, m_patternOrigin;
+    bool    m_patternOriginValid = false;
+    int     m_stampPattern       = 0;
+    QImage  m_customStampPattern, m_stampSource;
+
+    qreal                          m_toolStrength   = .5;
+    bool                           m_spongeSaturate = false;
+    int                            m_retouchRange   = 1;
+    bool                           m_protectTones   = true;
+    QString                        m_text           = QStringLiteral("Votre texte");
+    int                            m_textSize       = 64;
+    bool                           m_filledShapes   = true;
+    QColor                         m_shapeFillColor;
+    QColor                         m_shapeStrokeColor;
+    bool                           m_shapeStrokeEnabled = true;
+    qreal                          m_shapeStrokeWidth   = 1;
+    int                            m_shapeStrokeStyle   = 0;
+    qreal                          m_shapeCornerRadius  = 0;
+    bool                           m_shapeAlignPixels   = true;
+    int                            m_shapeSides         = 5;
+    qreal                          m_shapeStarRatio     = .5;
+    QRect                          m_selection;
+    QRegion                        m_selectionRegion;
+    int                            m_selectionShape = 0;
+    QPolygonF                      m_selectionPath;
+    bool                           m_polygonLassoActive       = false;
+    int                            m_selectionMode            = 0;
+    int                            m_selectionTolerance       = 32;
+    bool                           m_selectionContiguous      = true;
+    bool                           m_selectionSampleAllLayers = false;
+    bool                           m_selectionEnhanceEdge     = true;
+    QRegion                        m_selectionRegionBeforeStroke;
+    QRect                          m_selectionBoundsBeforeStroke;
+    int                            m_selectionShapeBeforeStroke = 0;
+    QPolygonF                      m_selectionPathBeforeStroke;
+    bool                           m_quickSelectionFirstDab = false;
     QVector<Snapshot>              m_undo, m_redo;
     quint64                        m_stateId = 1, m_savedId = 1, m_nextId = 2;
     int                            m_revision          = 0;
@@ -600,6 +649,9 @@ private:
     void    stampBrush(const QPointF &_point);
     void    renderBrushStroke();
     void    renderRetouchStroke();
+    bool    prepareStampStroke();
+    void    renderStampStroke();
+    QImage  stampPatternImage() const;
     void    renderShape(const QPointF &_to);
     void    floodFill(QPoint _point);
     QImage *paintTarget();

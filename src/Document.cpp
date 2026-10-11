@@ -222,6 +222,10 @@ void Document::resetHistory(bool _clean)
     m_strokeBase            = {};
     m_strokeCoverage        = {};
     m_strokeBounds          = {};
+    m_stampSource           = {};
+    m_cloneSourceValid      = false;
+    m_cloneOffsetValid      = false;
+    m_patternOriginValid    = false;
     m_frequencyCache.clear();
     m_fullCompositeDirty = true;
     m_dirtyRegion        = {};

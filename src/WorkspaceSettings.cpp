@@ -44,7 +44,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
               {"spotHealing", "remove", "healing", "patch", "contentAwareMove", "redEye"}),
         group("brush", "toolBrush", "B", "brush",
               {"brush", "pencil", "colorReplacement", "mixerBrush"}),
-        group("stamp", "", "S", "cloneStamp", {"cloneStamp", "patternStamp"}),
+        group("stamp", "toolStamp", "S", "cloneStamp", {"cloneStamp", "patternStamp"}),
         group("historyBrush", "", "Y", "historyBrush", {"historyBrush", "artHistoryBrush"}),
         group("eraser", "toolEraser", "E", "eraser", {"eraser", "backgroundEraser", "magicEraser"}),
         group("paint", "toolFill", "G", "gradient", {"gradient", "fill"}),

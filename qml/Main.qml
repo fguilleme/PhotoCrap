@@ -43,6 +43,8 @@ ApplicationWindow {
     property bool changingPhotoFilterColor: false
     property bool fillingMaskColor: false
     property bool spacePressed: false
+    property bool stampSourcePicking: false
+    readonly property bool stampToolActive: editor.tool === "cloneStamp" || editor.tool === "patternStamp"
     readonly property bool selectionToolActive: editor.tool === "select"
                                                  || editor.tool === "ellipticalSelect"
                                                  || editor.tool === "singleRowSelect"
@@ -53,7 +55,9 @@ ApplicationWindow {
                                                  || editor.tool === "magicWand"
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
-    readonly property int canvasCursorShape: window.spacePressed || editor.tool === "hand"
+    readonly property int canvasCursorShape: window.stampSourcePicking && editor.tool === "cloneStamp"
+                                             ? Qt.CrossCursor
+                                             : window.spacePressed || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
@@ -68,10 +72,10 @@ ApplicationWindow {
                                               || editor.tool === "dodge" || editor.tool === "burn"
                                               || editor.tool === "sponge"
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                            || editor.tool === "eraser" || retouchToolActive
+                                            || editor.tool === "eraser" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                               || editor.tool === "eraser" || editor.tool === "fill"
-                                              || editor.tool === "gradient" || editor.tool === "text"
+                                              || editor.tool === "gradient" || editor.tool === "text" || stampToolActive
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
     property int preferencesPage: 0
@@ -159,8 +163,8 @@ ApplicationWindow {
         {name:"pencil", icon:"✎", label:qsTr("Crayon"), implemented:true},
         {name:"colorReplacement", icon:"♢", label:qsTr("Remplacement de couleur"), implemented:false},
         {name:"mixerBrush", icon:"♨", label:qsTr("Pinceau mélangeur"), implemented:false},
-        {name:"cloneStamp", icon:"♟", label:qsTr("Tampon de duplication"), implemented:false},
-        {name:"patternStamp", icon:"♟", label:qsTr("Tampon de motif"), implemented:false},
+        {name:"cloneStamp", icon:"♟", label:qsTr("Tampon de duplication"), implemented:true},
+        {name:"patternStamp", icon:"♟", label:qsTr("Tampon de motif"), implemented:true},
         {name:"historyBrush", icon:"◴", label:qsTr("Forme d’historique"), implemented:false},
         {name:"artHistoryBrush", icon:"◔", label:qsTr("Forme d’historique artistique"), implemented:false},
         {name:"eraser", icon:"▱", label:qsTr("Gomme"), implemented:true},
@@ -1109,8 +1113,8 @@ ApplicationWindow {
                 }
                 Label { visible: window.paintToolActive || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
                 DarkSpinBox { visible: window.paintToolActive || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
                 Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
                 DarkSpinBox {
                     objectName: "selectionTolerance"
@@ -1142,9 +1146,44 @@ ApplicationWindow {
                 }
                 Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
                 DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
-                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
-                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                CheckBox {
+                    objectName: "stampAligned"
+                    visible: window.stampToolActive
+                    text: qsTr("Aligné")
+                    checked: editor.stampAligned
+                    onToggled: editor.stampAligned = checked
+                }
+                ComboBox {
+                    objectName: "cloneSampleMode"
+                    visible: editor.tool === "cloneStamp"
+                    model: [qsTr("Calque actif"), qsTr("Actif et inférieurs"), qsTr("Tous les calques")]
+                    currentIndex: editor.cloneSampleMode
+                    implicitWidth: 165; implicitHeight: 30
+                    onActivated: editor.cloneSampleMode = currentIndex
+                }
+                ComboBox {
+                    objectName: "stampPattern"
+                    visible: editor.tool === "patternStamp"
+                    model: editor.hasCustomStampPattern
+                           ? [qsTr("Damier"), qsTr("Points"), qsTr("Rayures"), qsTr("Motif personnalisé")]
+                           : [qsTr("Damier"), qsTr("Points"), qsTr("Rayures")]
+                    currentIndex: editor.stampPattern
+                    implicitWidth: 145; implicitHeight: 30
+                    onActivated: editor.stampPattern = currentIndex
+                }
+                Button {
+                    objectName: "defineStampPattern"
+                    visible: editor.tool === "patternStamp"
+                    enabled: editor.hasSelection
+                    text: qsTr("Définir le motif…")
+                    implicitHeight: 32
+                    onClicked: editor.defineStampPattern()
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Utiliser la zone sélectionnée comme motif répétitif")
+                }
                 CheckBox {
                     objectName: "pencilAutoErase"
                     visible: editor.tool === "pencil"
@@ -1427,6 +1466,9 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Alt && !event.isAutoRepeat) {
+                            window.stampSourcePicking = true
+                        }
                         if (editor.polygonLassoActive && !event.isAutoRepeat
                                 && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete)) {
                             editor.removeLastPolygonLassoPoint()
@@ -1444,6 +1486,8 @@ ApplicationWindow {
                         }
                     }
                     Keys.onReleased: function(event) {
+                        if (event.key === Qt.Key_Alt && !event.isAutoRepeat)
+                            window.stampSourcePicking = false
                         if(event.key===Qt.Key_Space && !event.isAutoRepeat) {
                             window.spacePressed=false;event.accepted=true
                         }
@@ -1660,13 +1704,18 @@ ApplicationWindow {
                                                                 containsMouse && window.active
                                                                 && !window.modalOpen,
                                                                 editor.tool,
-                                                                editor.selectionMode)
+                                                                editor.selectionMode,
+                                                                window.stampSourcePicking)
                                 }
                                 onContainsMouseChanged: syncSystemCursor()
                                 onPressed: function(mouse) {
                                     workspace.forceActiveFocus()
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    if (editor.tool === "cloneStamp" && (mouse.modifiers & Qt.AltModifier)) {
+                                        editor.setCloneSource(mouse.x / zoom, mouse.y / zoom)
+                                        return
+                                    }
                                     if (window.smartSelectionToolActive) {
                                         selectionModeBeforeGesture = editor.selectionMode
                                         if (mouse.modifiers & Qt.ShiftModifier)
@@ -1682,8 +1731,11 @@ ApplicationWindow {
                                 onPositionChanged: function(mouse) {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
+                                    window.stampSourcePicking = Boolean(mouse.modifiers & Qt.AltModifier)
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
-                                    brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
+                                    if (brushCursor.visible) {
+                                        brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
+                                    }
                                     if (editor.polygonLassoActive)
                                         lassoSelectionOverlay.requestPaint()
                                     else if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
@@ -1732,6 +1784,7 @@ ApplicationWindow {
                             Connections {
                                 target: window
                                 function onCanvasCursorShapeChanged() { drawingArea.syncSystemCursor() }
+                                function onZoomChanged() { drawingArea.syncSystemCursor() }
                                 function onModalOpenChanged() { drawingArea.syncSystemCursor() }
                                 function onActiveChanged() { drawingArea.syncSystemCursor() }
                             }
@@ -1896,10 +1949,28 @@ ApplicationWindow {
                                 }
                             }
                             Canvas {
+                                id: cloneSourceMarker
+                                objectName: "cloneSourceMarker"
+                                width: 21; height: 21; z: 5; enabled: false
+                                visible: drawingArea.containsMouse && drawingArea.pressed
+                                         && editor.tool === "cloneStamp" && editor.cloneSourceValid
+                                         && !window.stampSourcePicking
+                                x: drawingArea.pointerX + editor.cloneOffset.x * zoom - width / 2
+                                y: drawingArea.pointerY + editor.cloneOffset.y * zoom - height / 2
+                                onPaint: {
+                                    const c = getContext("2d")
+                                    c.reset(); c.clearRect(0, 0, width, height)
+                                    c.beginPath(); c.moveTo(10, 2); c.lineTo(10, 18)
+                                    c.moveTo(2, 10); c.lineTo(18, 10)
+                                    c.lineWidth = 3; c.strokeStyle = "#111111"; c.stroke()
+                                    c.lineWidth = 1; c.strokeStyle = "#ffffff"; c.stroke()
+                                }
+                            }
+                            Canvas {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && (window.paintToolActive || editor.tool === "quickSelection")
+                                visible: drawingArea.containsMouse && !window.stampToolActive && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2

@@ -12,7 +12,8 @@ namespace
 bool isPaintStrokeTool(const QString &_tool)
 {
     return _tool == "brush" || _tool == "pencil" || _tool == "eraser" || _tool == "blur" ||
-           _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge";
+           _tool == "sharpen" || _tool == "dodge" || _tool == "burn" || _tool == "sponge" ||
+           _tool == "cloneStamp" || _tool == "patternStamp";
 }
 
 bool isShapeStrokeTool(const QString &_tool)
@@ -26,6 +27,8 @@ QString toolLabel(const QString &_tool)
     static const QMap<QString, const char *> labels{
         {"brush", QT_TRANSLATE_NOOP("Document", "Pinceau")},
         {"pencil", QT_TRANSLATE_NOOP("Document", "Crayon")},
+        {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
+        {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
         {"fill", QT_TRANSLATE_NOOP("Document", "Remplissage")},
         {"move", QT_TRANSLATE_NOOP("Document", "Déplacement")},
@@ -107,7 +110,7 @@ void Document::beginStroke(qreal _x, qreal _y)
     if (!editable())
         return;
     if (m_editingMask && m_tool != "brush" && m_tool != "pencil" && m_tool != "eraser" &&
-        m_tool != "fill") {
+        m_tool != "fill" && m_tool != "cloneStamp" && m_tool != "patternStamp") {
         fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
         return;
     }
@@ -118,6 +121,11 @@ void Document::beginStroke(qreal _x, qreal _y)
         QImage *target = paintTarget();
         if (!target) {
             m_drawing = false;
+            return;
+        }
+        if ((m_tool == "cloneStamp" || m_tool == "patternStamp") && !prepareStampStroke()) {
+            m_drawing      = false;
+            m_beforeStroke = {};
             return;
         }
         m_strokeBase     = *target;
@@ -223,6 +231,7 @@ void Document::endStroke()
     m_strokeCoverage = {};
     m_strokeBounds   = {};
     m_strokeInkColor = {};
+    m_stampSource    = {};
 }
 void Document::cancelStroke()
 {
@@ -247,6 +256,7 @@ void Document::cancelStroke()
     m_strokeCoverage = {};
     m_strokeBounds   = {};
     m_strokeInkColor = {};
+    m_stampSource    = {};
 }
 QImage *Document::paintTarget()
 {

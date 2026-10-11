@@ -611,7 +611,12 @@
       <source>Groupe %1</source>
       <translation>Group %1</translation>
     </message>
-  </context>
+      <message><source>Tampon de duplication</source><translation>Clone Stamp</translation></message>
+    <message><source>Tampon de motif</source><translation>Pattern Stamp</translation></message>
+    <message><source>Sélectionnez une zone rectangulaire pour définir un motif.</source><translation>Select a rectangular area to define a pattern.</translation></message>
+    <message><source>Un motif peut mesurer jusqu’à 1 024 × 1 024 pixels.</source><translation>A pattern can be up to 1,024 × 1,024 pixels.</translation></message>
+    <message><source>Option/Alt-clic sur l’image pour définir la source du tampon.</source><translation>Option/Alt-click the image to set the clone source.</translation></message>
+</context>
   <context>
     <name>LanguageManager</name>
     <message>
@@ -2330,7 +2335,17 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Tirets</source><translation>Dashed</translation></message>
     <message><source>Pointillés</source><translation>Dotted</translation></message>
     <message><source>Aligner les pixels</source><translation>Align pixels</translation></message>
-  </context>
+      <message><source>Aligné</source><translation>Aligned</translation></message>
+    <message><source>Calque actif</source><translation>Current Layer</translation></message>
+    <message><source>Actif et inférieurs</source><translation>Current &amp; Below</translation></message>
+    <message><source>Tous les calques</source><translation>All Layers</translation></message>
+    <message><source>Damier</source><translation>Checkerboard</translation></message>
+    <message><source>Points</source><translation>Dots</translation></message>
+    <message><source>Rayures</source><translation>Stripes</translation></message>
+    <message><source>Motif personnalisé</source><translation>Custom Pattern</translation></message>
+    <message><source>Définir le motif…</source><translation>Define Pattern…</translation></message>
+    <message><source>Utiliser la zone sélectionnée comme motif répétitif</source><translation>Use the selected area as a repeating pattern</translation></message>
+</context>
   <context>
     <name>DockablePanel</name>
     <message>
@@ -2588,5 +2603,6 @@ Independent software, not affiliated with Adobe.</translation>
       <source>« %1 » utilise déjà ce raccourci.</source>
       <translation>“%1” already uses this shortcut.</translation>
     </message>
-  </context>
+      <message><source>Tampons</source><translation>Stamps</translation></message>
+</context>
 </TS>

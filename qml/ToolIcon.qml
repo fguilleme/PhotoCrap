@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,17 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "lasso") {
+            if (root.toolName === "cloneStamp" || root.toolName === "patternStamp") {
+                ctx.beginPath(); ctx.moveTo(8, 15); ctx.lineTo(9, 10)
+                ctx.bezierCurveTo(5, 4, 7, 2, 12, 2)
+                ctx.bezierCurveTo(17, 2, 19, 4, 15, 10)
+                ctx.lineTo(16, 15); ctx.closePath(); ctx.fill()
+                ctx.fillRect(4, 16, 16, 3); ctx.fillRect(3, 21, 18, 1.5)
+                if (root.toolName === "patternStamp") {
+                    ctx.fillRect(2, 5, 2, 2); ctx.fillRect(4, 7, 2, 2)
+                    ctx.fillRect(2, 9, 2, 2)
+                }
+            } else if (root.toolName === "lasso") {
                 ctx.beginPath()
                 ctx.moveTo(6, 5)
                 ctx.bezierCurveTo(2.8, 7.4, 3.6, 13.5, 8.2, 15.2)

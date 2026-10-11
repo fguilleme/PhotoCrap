@@ -340,7 +340,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 39,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 40,
                  "keyboard settings list is populated"))
         return false;
     _window->setProperty("preferencesPage", 2);
@@ -419,6 +419,42 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      selectionContiguous->property("visible").toBool() &&
                      selectionSampleAllLayers->property("visible").toBool(),
                  "magic wand exposes tolerance, contiguous pixels and all-layer sampling"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_S);
+    QTest::qWait(60);
+    auto stampAligned    = _window->findChild<QObject *>("stampAligned");
+    auto cloneSampleMode = _window->findChild<QObject *>("cloneSampleMode");
+    if (!require(_document.tool() == "cloneStamp" && stampAligned && cloneSampleMode &&
+                     stampAligned->property("visible").toBool() &&
+                     cloneSampleMode->property("visible").toBool() &&
+                     QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+                 "S activates clone stamp with alignment, sampling and a native brush cursor"))
+        return false;
+    const int    beforeCloneSource = _document.historyIndex();
+    const QPoint sourceClick =
+        area->mapToScene(QPointF(area->width() / 2, area->height() / 2)).toPoint();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, sourceClick);
+    QTest::qWait(40);
+    if (!require(_document.cloneSourceValid() && _document.historyIndex() == beforeCloneSource,
+                 "Option/Alt click picks the clone source without painting or adding history"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "stamp"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(60);
+    if (!require(toolMenu->property("count").toInt() == 2,
+                 "stamp toolbar slot contains clone and pattern stamp"))
+        return false;
+    QMetaObject::invokeMethod(toolMenu, "close");
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "stamp"),
+                              Q_ARG(QVariant, "patternStamp"));
+    QTest::qWait(60);
+    auto stampPattern       = _window->findChild<QObject *>("stampPattern");
+    auto defineStampPattern = _window->findChild<QObject *>("defineStampPattern");
+    if (!require(stampPattern && defineStampPattern && stampPattern->property("visible").toBool() &&
+                     defineStampPattern->property("visible").toBool() &&
+                     !cloneSampleMode->property("visible").toBool(),
+                 "pattern stamp exposes pattern selection and definition"))
         return false;
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "rectangle"));

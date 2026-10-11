@@ -87,7 +87,7 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 39);
+        QCOMPARE(shortcuts.entries().size(), 40);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
@@ -99,6 +99,7 @@ private slots:
         QCOMPARE(shortcuts.sequence("toolDodge"), QString("O"));
         QCOMPARE(shortcuts.sequence("toolLasso"), QString("L"));
         QCOMPARE(shortcuts.sequence("toolSmartSelection"), QString("W"));
+        QCOMPARE(shortcuts.sequence("toolStamp"), QString("S"));
         QVERIFY(shortcuts.setSequence("toolBrush", "P"));
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
         QVERIFY(!shortcuts.setSequence("toolMove", "P"));
@@ -316,6 +317,138 @@ private slots:
         d.fillWithColor(true);
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
+    }
+    void cloneStampKeepsSourceOffsetAndClipsToSelection()
+    {
+        QTemporaryDir dir;
+        QImage        source(64, 32, QImage::Format_ARGB32);
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x)
+                source.setPixelColor(x, y, QColor(x * 4, y * 8, 80));
+        const QString path = dir.filePath("source.png");
+        QVERIFY(source.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("cloneStamp");
+        d.setBrushSize(8);
+        d.setBrushHardness(1);
+        d.setBrushOpacity(1);
+        d.setBrushFlow(1);
+        const int    before   = d.historyIndex();
+        const QImage original = d.layerImage(0);
+        d.beginStroke(40, 16);
+        d.endStroke();
+        QCOMPARE(d.historyIndex(), before);
+        QCOMPARE(d.layerImage(0), original);
+        d.setCloneSource(8, 16);
+        QCOMPARE(d.historyIndex(), before);
+        d.beginStroke(40, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(40, 16), source.pixelColor(8, 16));
+        QCOMPARE(d.layerImage(0).pixelColor(60, 16), source.pixelColor(60, 16));
+        d.beginStroke(48, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(48, 16), source.pixelColor(16, 16));
+        d.setStampAligned(false);
+        d.beginStroke(56, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(56, 16), source.pixelColor(8, 16));
+        d.undo();
+        QCOMPARE(d.layerImage(0).pixelColor(56, 16), source.pixelColor(56, 16));
+        d.setTool("select");
+        d.beginStroke(38, 14);
+        d.continueStroke(42, 18);
+        d.endStroke();
+        const QImage beforeClip = d.layerImage(0);
+        d.setTool("cloneStamp");
+        d.setCloneSource(20, 16);
+        d.beginStroke(40, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(40, 16), source.pixelColor(20, 16));
+        QCOMPARE(d.layerImage(0).pixelColor(36, 16), beforeClip.pixelColor(36, 16));
+        d.beginStroke(41, 16);
+        d.cancelStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(40, 16), source.pixelColor(20, 16));
+    }
+    void cloneStampSamplesBelowAndAllLayersAndMasks()
+    {
+        Document d;
+        QVERIFY(d.newDocument(48, 32, true));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.addLayer();
+        const int destination = d.activeLayer();
+        d.addLayer();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setActiveLayer(destination);
+        d.setTool("cloneStamp");
+        d.setBrushSize(8);
+        d.setBrushHardness(1);
+        d.setBrushFlow(1);
+        d.setCloneSource(8, 16);
+        d.setCloneSampleMode(1);
+        d.beginStroke(24, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(destination).pixelColor(24, 16), QColor(Qt::red));
+        d.setCloneSampleMode(2);
+        d.beginStroke(36, 16);
+        d.endStroke();
+        QCOMPARE(d.layerImage(destination).pixelColor(36, 16), QColor(Qt::blue));
+        d.addLayerMask();
+        d.setEditingMask(true);
+        d.setTool("brush");
+        d.setColor(Qt::black);
+        d.beginStroke(8, 16);
+        d.endStroke();
+        d.setTool("cloneStamp");
+        d.setCloneSource(8, 16);
+        d.beginStroke(24, 16);
+        d.endStroke();
+        QCOMPARE(d.maskImage(destination).pixelColor(24, 16), QColor(Qt::black));
+        QCOMPARE(d.maskImage(destination).pixelColor(44, 16), QColor(Qt::white));
+        d.undo();
+        QCOMPARE(d.maskImage(destination).pixelColor(24, 16), QColor(Qt::white));
+    }
+    void patternStampRepeatsAndDefinesCustomPatterns()
+    {
+        Document d;
+        QVERIFY(d.newDocument(80, 32, true));
+        d.setTool("patternStamp");
+        d.setBrushSize(8);
+        d.setBrushHardness(1);
+        d.setBrushFlow(1);
+        d.beginStroke(8, 8);
+        d.endStroke();
+        const QColor first = d.layerImage(0).pixelColor(8, 8);
+        d.beginStroke(32, 8);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(32, 8), first);
+        d.beginStroke(44, 8);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(44, 8) != first);
+        d.setStampAligned(false);
+        d.beginStroke(56, 8);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(56, 8), first);
+        d.undo();
+        QCOMPARE(d.layerImage(0).pixelColor(56, 8).alpha(), 0);
+        QVERIFY(!d.defineStampPattern());
+        d.setTool("select");
+        d.beginStroke(2, 20);
+        d.continueStroke(5, 23);
+        d.endStroke();
+        d.setColor(Qt::cyan);
+        d.fillWithColor(true);
+        QVERIFY(d.defineStampPattern());
+        QVERIFY(d.hasCustomStampPattern());
+        QCOMPARE(d.stampPattern(), 3);
+        d.deselect();
+        d.setTool("patternStamp");
+        d.beginStroke(64, 24);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(64, 24), QColor(Qt::cyan));
+        QCOMPARE(d.layerImage(0).pixelColor(76, 24).alpha(), 0);
     }
     void lassoSelectionsFollowFreehandAndPolygonalContours()
     {

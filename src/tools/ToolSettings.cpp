@@ -7,6 +7,8 @@ void Document::setTool(const QString &_value)
 {
     static const QStringList tools{"brush",
                                    "pencil",
+                                   "cloneStamp",
+                                   "patternStamp",
                                    "eraser",
                                    "fill",
                                    "picker",

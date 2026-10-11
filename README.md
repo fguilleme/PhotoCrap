@@ -4,28 +4,38 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La version 0.1 est une première application fonctionnelle, **pas une reproduction complète de Photoshop**. Les fonctions disponibles et les limites sont détaillées ci-dessous ; les développements nécessaires à une parité plus large sont dans [ROADMAP.md](ROADMAP.md).
+La version **0.11.0** est une application raster fonctionnelle, **pas une reproduction complète de Photoshop**. Les fonctions disponibles et les limites sont détaillées ci-dessous ; les développements nécessaires à une parité plus large sont dans [ROADMAP.md](ROADMAP.md).
 
-![Interface PhotoCrap](docs/screenshot.png)
+## Télécharger
+
+La [release 0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**. Chaque paquet est accompagné d’un fichier `.sha256`. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+
+État vérifié le **12 octobre 2026** : le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/38168128564) a réussi les builds, tests, déploiements et la publication sur les trois plateformes. Le DMG a passé le contrôle de signature ad hoc ; les sommes SHA-256 des quatre paquets téléchargés ont été vérifiées. Un [workflow de branche](https://github.com/fguilleme/PhotoCrap/actions/runs/38168129164) échoue toutefois au test du curseur natif macOS, même après relance. Ce défaut reste ouvert ; la réussite de la publication ne signifie pas que tous les contrôles sont verts.
+
+![Composition de démonstration PhotoCrap](docs/screenshot.png)
 
 ## Fonctionnalités
 
 - Documents RVB 8 bits sRGB, fond blanc ou transparent, dimensions personnalisées et préréglages.
 - Import d’images, ouverture de projets, import centré comme calque et collage du presse-papiers.
-- Pinceau rond et gomme à empreintes : taille, dureté, opacité, débit cumulatif, espacement, angle, arrondi et lissage. Le contour de pointe suit le pointeur et un aperçu de trait est affiché dans **Affichage → Paramètres de pinceau…**. Les raccourcis suivent Photoshop pour la taille (`[`/`]`), la dureté (`Maj+[`/`Maj+]`) et les couleurs avant/arrière-plan (`D`/`X`).
-- Pipette, remplissage contigu, dégradé à deux couleurs, rectangle, ellipse, ligne et texte rasterisé.
+- Pinceau rond et gomme à empreintes : taille, dureté, opacité, débit cumulatif, espacement, angle, arrondi et lissage. Le contour de pointe suit le pointeur et un aperçu de trait est affiché dans **Affichage → Pinceau…**. Les raccourcis suivent Photoshop pour la taille (`[`/`]`), la dureté (`Maj+[`/`Maj+]`) et les couleurs avant/arrière-plan (`D`/`X`).
+- Barre d’outils organisée par groupes : clic droit pour choisir un outil, icône du dernier outil choisi et infobulles. Ordre des groupes, ordre des outils et visibilité personnalisables dans **Réglages → Barre d’outils** ; les outils non implémentés restent visibles, désactivés et marqués **NYI**.
+- Peinture et retouche : pinceau, crayon, remplacement de couleur, pinceau mélangeur, gomme, tampon de duplication, tampon de motif, flou, netteté, doigt, densité −/+, éponge, correction des yeux rouges, correcteur, correcteur localisé, pièce, déplacement basé sur le contenu, suppression et formes d’historique.
+- Pipette avec prélèvement ponctuel ou moyen, quatre échantillons de couleur, règle, remplissage contigu et dégradé à deux couleurs. Formes raster : rectangle, ellipse, triangle, polygone, étoile et ligne, avec paramètres de remplissage et de contour. Texte horizontal rasterisé.
 - Navigation façon Photoshop : `Ctrl/⌘ + molette` zoome autour du pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace librement la toile.
-- Sélection rectangulaire, déplacement d’un calque ou des pixels sélectionnés, effacement, copie fusionnée et recadrage.
-- Calques : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas. Les masques de fusion peuvent être créés en blanc ou en noir, peints, inversés, activés et désactivés.
+- Sélections rectangulaire, elliptique, rangée/colonne unique, lasso, lasso polygonal, sélection rapide et baguette magique. Contours animés, modes remplacer/ajouter/soustraire/intersection, déplacement des pixels sélectionnés, effacement, copie fusionnée et recadrage.
+- Calques de pixels, remplissage Couleur unie, réglages, groupes et écrêtage : ajout, duplication, renommage, ordre, visibilité, verrouillage, opacité et fusion vers le bas. Masques raster blancs/noirs, peinture, inversion, activation/désactivation et copie d’un masque vers un autre calque par glisser. Alt-clic sur l’œil isole un calque ; Alt-clic sur une vignette de masque affiche le masque seul.
 - Menu contextuel des calques avec duplication, renommage, suppression, fusion, masques et visibilité. Les commandes qui ne s’appliquent pas au calque actif sont affichées désactivées.
-- Les 27 modes de fusion RVB classés par familles : normal, obscurcissement, éclaircissement, contraste, comparaison et composantes TSL.
-- Vingt-trois calques de réglage non destructifs : luminosité/contraste, niveaux, courbes, exposition, vibrance, teinte/saturation, balance des couleurs, noir et blanc, filtre photo, mélangeur de couches, recherche de couleurs, négatif, isohélie, seuil, transfert de dégradé, correction sélective, flou gaussien, flou directionnel, flou de boîte, netteté optimisée, passe-haut, mosaïque et ajout de bruit. Chaque réglage reçoit automatiquement un masque blanc ou un masque dérivé de la sélection active.
+- Les 27 modes de fusion RVB classés par familles, avec aperçu au survol du menu : le clic valide, quitter le menu restaure l’état précédent.
+- Calques de réglage non destructifs : **Lumière** (exposition, contraste, hautes lumières, ombres, blancs, noirs), **Couleur** (température, teinte, vibrance, saturation et pipette de balance des blancs), Niveaux, Courbes, Balance des couleurs, Noir et blanc, Filtre photo, Mélangeur de couches, Style colorimétrique (LUT), Négatif, Isohélie, Seuil, Transfert de dégradé et Correction sélective. Flou gaussien, flou directionnel, flou de boîte, netteté optimisée, passe-haut, mosaïque et bruit sont aussi disponibles comme calques de filtre. Les anciens paramètres de projets restent lisibles ; chaque réglage reçoit un masque blanc ou dérivé de la sélection.
+- Éditeurs spécialisés : Courbes avec histogramme, points de contrôle et quatre pipettes ; Niveaux avec repères d’entrée/sortie ; Noir et blanc avec six familles de couleurs, presets, Auto et Teinte ; Transfert de dégradé avec roue à deux pointeurs ; Filtre photo et Mélangeur de couches avec préréglages. Barre commune d’écrêtage, visibilité, réinitialisation et suppression.
 - Séparation de fréquences dynamique : un calque de basses fréquences flouté et un calque de hautes fréquences lié, placé en mode Lumière linéaire. Le rayon commun est recalculé pendant le déplacement du curseur ; la prévisualisation réduite et le cache évitent de recalculer inutilement le flou.
 - Réglages du calque actif : luminosité, contraste, saturation, noir et blanc, négatif, sépia, flou et netteté. Les sélections limitent leur zone d’application.
-- Dialogues de réglage avec prévisualisation automatique, curseurs pleine largeur adaptés au thème sombre et valeurs modifiables en temps réel.
-- Redimensionnement, rotation à 90°, symétries, zoom, déplacement du canevas, règles et aperçu de navigation.
+- Aperçus de réglage calculés en arrière-plan sur des proxies réduits, demandes intermédiaires remplacées par la plus récente et rendu complet asynchrone qui actualise le cache écran. Annuler restaure une session de propriétés ; Fermer conserve les changements. Dans un champ numérique, le premier Retour valide et sort de l’édition ; le suivant active le bouton par défaut.
+- Redimensionnement, rotation à 90°, symétries, zoom, rotation de l’affichage, déplacement du canevas, règles et aperçu de navigation.
+- Panneaux **Histogramme, Navigateur, Couleur, Calques, Couches, Historique et Informations** : déplacement, regroupement en onglets, colonnes, repli, redimensionnement, fenêtres flottantes et organisation persistante. **Affichage → Panneaux** contrôle leur visibilité. Couches affiche RVB ou un canal en niveaux de gris sans modifier le document.
 - Historique annuler/rétablir avec suivi de l’état enregistré. Protection à l’ouverture, à la création et à la fermeture d’un document modifié.
-- Fenêtre **Réglages** avec sections **Raccourcis clavier** et **Interface**. Les raccourcis sont modifiables, validés et persistants ; l’interface française ou anglaise peut être appliquée à chaud et le choix est conservé.
+- Fenêtre **Réglages** avec sections **Raccourcis clavier**, **Interface** et **Barre d’outils**. Les raccourcis sont modifiables, validés et persistants ; l’interface française ou anglaise peut être appliquée à chaud et le choix est conservé.
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
 - Une liste persistante des dix fichiers récemment ouverts ou enregistrés est disponible dans **Fichier → Ouvrir les fichiers récents** ; les fichiers disparus sont retirés automatiquement.
@@ -111,9 +121,34 @@ ctest --preset release
 4. Pour un recadrage, tracer une zone puis cliquer **Recadrer**. Les réglages et les coups de pinceau respectent la sélection ; la désélectionner pour agir sur toute l’image.
 5. Enregistrer en `.pcr` pour conserver les calques, puis exporter une image pour la partager.
 
-Raccourcis : B pinceau, E gomme, V déplacement, M sélection, C recadrage, G remplissage, Maj+G dégradé, I pipette, T texte, U rectangle, O ellipse, L ligne, H navigation. `[` / `]` modifient la taille du pinceau et `Maj+[` / `Maj+]` sa dureté. `D` rétablit les couleurs noir/blanc et `X` les échange. Les raccourcis standards de sauvegarde, ouverture, annulation et presse-papiers sont adaptés par Qt à la plateforme. Ctrl (Cmd sur Mac) + 0 adapte l’image et + 1 affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace librement la toile.
+### Outils et raccourcis
 
-Tous les raccourcis se consultent et se modifient dans **Édition → Réglages… → Raccourcis clavier**. Une combinaison vide désactive une commande, les doublons sont refusés et le bouton **Valeurs par défaut** restaure le jeu initial. Les personnalisations sont conservées entre les lancements. Les raccourcis d’outils et d’édition d’image sont suspendus pendant la saisie dans un champ texte ou l’affichage d’une boîte de dialogue.
+Un bouton représente un groupe d’outils. Son **clic droit** affiche les variantes ; son icône et sa touche rappellent le dernier outil choisi. Les touches actuellement branchées par défaut sont :
+
+| Touche | Groupe / outils disponibles |
+|---|---|
+| V | Déplacement |
+| M | Rectangle, ellipse, rangée unique, colonne unique de sélection |
+| L | Lasso, lasso polygonal |
+| W | Sélection rapide, baguette magique |
+| C | Recadrage |
+| I | Pipette, échantillonnage de couleur, règle |
+| J | Correcteur localisé, suppression, correcteur, pièce, déplacement basé sur le contenu, œil rouge |
+| B | Pinceau, crayon, remplacement de couleur, pinceau mélangeur |
+| S | Tampon de duplication, tampon de motif |
+| E | Gomme |
+| G | Dégradé, remplissage contigu |
+| O | Densité −, densité +, éponge |
+| T | Texte horizontal rasterisé |
+| U | Rectangle, ellipse, triangle, polygone, étoile, ligne |
+| H / R / Z | Main / rotation de l’affichage / zoom |
+
+Les formes d’historique se choisissent par clic droit dans leur groupe ; la lettre Y affichée n’est pas encore branchée dans le registre de raccourcis. Flou, Netteté et Doigt partagent aussi un groupe, sans lettre par défaut. Le cycle des variantes par Maj + touche reste à implémenter. Les entrées **NYI** indiquent des outils futurs ; elles ne sont pas activables. Les touches de groupe peuvent être personnalisées ; ce tableau décrit le jeu initial.
+
+`[` / `]` règlent la taille du pinceau, `Maj+[` / `Maj+]` sa dureté, `D` rétablit noir/blanc et `X` échange les couleurs. `Ctrl/⌘ + 0` adapte l’image ; `Ctrl/⌘ + 1` affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace la toile. Annuler/Rétablir conserve le zoom de navigation.
+
+Les raccourcis et la barre d’outils se personnalisent dans **Réglages** : **menu PhotoCrap → Préférences…** ou **⌘,** sur macOS, **Édition → Réglages…** sur les autres plateformes. Les raccourcis sont suspendus pendant une saisie ou une boîte de dialogue modale ; une combinaison vide désactive une commande, les doublons sont refusés et les personnalisations sont conservées entre les lancements.
+
 
 L’outil **Pièce** se trouve dans le groupe de correction (`J`). En mode **Source**, entourez la zone à réparer, puis faites glisser l’intérieur de la sélection vers une texture saine. En mode **Destination**, entourez la texture saine et faites-la glisser sur la zone à réparer. L’aperçu montre la texture pendant le geste ; au relâchement, sa couleur s’adapte aux bords de la zone. **Diffusion** va de 1 (textures détaillées) à 7 (zones lisses). Une réparation crée une seule étape d’annulation. Cette première version couvre le mode Normal sur le calque de pixels actif, sans les options Contenu pris en compte, Transparent ni Motif de Photoshop.
 
@@ -123,17 +158,21 @@ Le **Déplacement basé sur le contenu** partage le groupe `J`. Entourez un obje
 
 | Fichier | Responsabilité |
 |---|---|
-| `src/Document.h`, `src/Document.cpp` | Calques, pixels, sélection, composition, outils, historique, fichiers |
-| `src/CanvasItem.*` | Affichage Qt Quick du composite C++ et du damier de transparence |
-| `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*` | Démarrage, exposition à QML, miniatures, langues, fichiers récents et registre persistant des raccourcis |
-| `qml/Main.qml` | Fenêtre, menus, dialogues, raccourcis, canevas et panneaux |
-| `qml/IconButton.qml`, `qml/PanelTitle.qml` | Composants visuels communs |
-| `tests/DocumentTest.cpp`, `tests/UiSmoke.h` | Tests Qt Test du moteur et des interactions QML |
-| `.github/workflows/build.yml` | Compilation, tests et installation sur trois systèmes |
+| `src/Document.h`, `src/Document.cpp` | Modèle du document, état commun, historique et histogrammes |
+| `src/DocumentLayers.cpp`, `src/DocumentEditing.cpp`, `src/DocumentIO.cpp` | Calques/masques, édition/transformation et lecture/écriture des projets |
+| `src/DocumentCompositor.cpp`, `src/DocumentPreview.cpp` | Composition, caches de proxies, rendus complets et ordonnanceur asynchrone |
+| `src/DocumentAdjustments.cpp`, `src/DocumentFilters.cpp`, `src/filters/*` | Gestion des réglages et modules de calcul spécialisés |
+| `src/tools/*` | Contrôleur de gestes, paramètres et implémentations d’outils séparées par famille |
+| `src/CanvasItem.*` | Affichage Qt Quick, damier, contours de sélection et curseurs natifs |
+| `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Démarrage, exposition QML, langues, fichiers récents, raccourcis et espace de travail persistant |
+| `qml/Main.qml`, `qml/*Editor.qml`, `qml/*Options.qml` | Fenêtre, menus, dialogues, éditeurs de réglage et barres d’options spécialisées |
+| `qml/DockablePanel.qml`, `qml/InformationPanel.qml` | Conteneur commun des panneaux et affichage des mesures |
+| `tests/DocumentTest.cpp`, `tests/UiSmoke.h`, `tests/Mac*Test.*` | Tests du moteur, des interactions QML et des menus/curseurs natifs macOS |
+| `.github/workflows/build.yml`, `cmake/*`, `packaging/*` | Builds, tests, déploiement, paquets, contrôles de signature et publication des releases |
 
 Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied`. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images retenues, avec au moins une annulation conservée même si elle dépasse ce budget.
 
-Le `.pcr` est un document JSON versionné. Sa version 3 conserve les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle reste compatible en lecture avec les versions 1 et 2. L’historique et la sélection ne sont pas enregistrés. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
+Le `.pcr` est un document JSON versionné. Sa version 5 conserve les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 4. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
 ### Suppression
 
@@ -145,7 +184,7 @@ Référence : [outil Suppression d’Adobe](https://helpx.adobe.com/photoshop/us
 
 ### Forme d’historique
 
-La **Forme d’historique** (`Y`) restaure les pixels d’un état source aux mêmes coordonnées sur le même calque, sans revenir globalement en arrière. Choisissez la source en cliquant sur l’icône à gauche d’un état dans **Historique**, ou dans la liste Source de la barre de l’outil ; ce choix ne modifie ni les pixels ni l’historique. Peignez ensuite avec taille, dureté, opacité, débit et mode de fusion. Une sélection limite le geste et chaque tracé crée une seule étape d’annulation. La transparence de l’état source est également restaurée.
+La **Forme d’historique** (groupe affiché `Y`) restaure les pixels d’un état source aux mêmes coordonnées sur le même calque, sans revenir globalement en arrière. Choisissez la source en cliquant sur l’icône à gauche d’un état dans **Historique**, ou dans la liste Source de la barre de l’outil ; ce choix ne modifie ni les pixels ni l’historique. Peignez ensuite avec taille, dureté, opacité, débit et mode de fusion. Une sélection limite le geste et chaque tracé crée une seule étape d’annulation. La transparence de l’état source est également restaurée.
 
 La source initiale est l’état d’ouverture/création du document. On peut choisir un état futur après Annuler, puis en restaurer certaines zones ; la source choisie reste disponible si cette branche disparaît ou si les anciens états sont purgés. Son stockage partagé est compté dans le budget de l’historique. Le calque est retrouvé par son identité même après renommage ou réorganisation ; un nouveau calque ou une copie ne peut être restauré depuis un état où il n’existait pas. La source doit avoir les mêmes dimensions que le document. Cette version agit sur les calques de pixels, pas sur les masques.
 
@@ -184,9 +223,9 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
   ./build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --screenshot /tmp/photocrap.png
 ```
 
-Sous Linux, utiliser `./build/PhotoCrap`. Le workflow GitHub est préparé pour les trois systèmes ; sa présence ne constitue pas une validation de builds qui n’ont pas encore été exécutés.
+Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut de publication et l’échec de curseur restant sont détaillés dans [Télécharger](#télécharger) et dans la [roadmap](ROADMAP.md).
 
-Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; opérations synchrones pouvant ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références techniques
 

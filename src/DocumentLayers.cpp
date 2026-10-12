@@ -408,3 +408,11 @@ void Document::createDemo()
     m_name = tr("Exploration créative");
     resetHistory(false);
 }
+
+void Document::selectAllLayers()
+{
+    m_selectedLayers.clear();
+    for (int i = 0; i < m_layers.size(); ++i)
+        m_selectedLayers.insert(i);
+    emit layersChanged();
+}

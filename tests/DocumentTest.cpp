@@ -283,7 +283,7 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 42);
+        QVERIFY(shortcuts.entries().size() > 250);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
@@ -306,6 +306,114 @@ private slots:
         shortcuts.resetDefaults();
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QVERIFY(!shortcuts.setSequence("missing", "Q"));
+    }
+    void shortcutCatalogDistinguishesCommandsGesturesAndMissingFeatures()
+    {
+        ShortcutManager shortcuts(nullptr, false);
+        QSet<QString>   ids;
+        QSet<QString>   executableKeys;
+        for (const auto &value : shortcuts.entries()) {
+            const auto    entry = value.toMap();
+            const QString id    = entry.value("id").toString();
+            QVERIFY(!ids.contains(id));
+            ids.insert(id);
+            QVERIFY(!entry.value("context").toString().isEmpty());
+            if (!entry.value("editable").toBool()) {
+                QVERIFY(shortcuts.sequence(id).isEmpty());
+                QVERIFY(!shortcuts.setSequence(id, "Ctrl+Alt+9"));
+            } else {
+                const auto key = shortcuts.sequence(id);
+                if (!key.isEmpty()) {
+                    QVERIFY2(!executableKeys.contains(key), qPrintable(id + " : " + key));
+                    executableKeys.insert(key);
+                }
+            }
+        }
+        QVERIFY(shortcuts.filteredEntries({}, 2).size() > 80);
+        QVERIFY(shortcuts.filteredEntries({}, 3).size() > 30);
+        QVERIFY(!shortcuts.filteredEntries("Fluidité", 2).isEmpty());
+        QVERIFY(shortcuts.filteredEntries("Fluidité", 1).isEmpty());
+        QCOMPARE(shortcuts.sequence("invertSelection"), QString("Ctrl+Shift+I"));
+        QCOMPARE(shortcuts.sequence("channel0"), QString("Ctrl+2"));
+        QCOMPARE(shortcuts.sequence("backgroundFill"), QString("Ctrl+Backspace"));
+        QVERIFY(!shortcuts.setSequence("zoomIn", "Shift+B"));
+        QVERIFY(!shortcuts.setSequence("toolMove", "Ctrl+I"));
+        QVERIFY(shortcuts.setSequence("invertSelection", "Ctrl+Alt+9"));
+        QVERIFY(!shortcuts.setSequence("reselect", "Ctrl+Alt+9"));
+        shortcuts.resetDefaults();
+        QCOMPARE(shortcuts.sequence("invertSelection"), QString("Ctrl+Shift+I"));
+    }
+    void newShortcutDefaultsPreserveSavedCustomizations()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, directory.path());
+        QCoreApplication::setOrganizationName("PhotoCrapTests");
+        QCoreApplication::setApplicationName("ShortcutMigrationTest");
+        QSettings().setValue("shortcuts/toolBrush", "Ctrl+K");
+        ShortcutManager migrated;
+        QCOMPARE(migrated.sequence("toolBrush"), QString("Ctrl+K"));
+        QVERIFY(migrated.sequence("preferencesAdobe").isEmpty());
+        QVERIFY(!QSettings().contains("shortcuts/preferencesAdobe"));
+        QVERIFY(migrated.setSequence("toolBrush", "P"));
+        QVERIFY(migrated.setSequence("preferencesAdobe", "Ctrl+K"));
+        ShortcutManager reloaded;
+        QCOMPARE(reloaded.sequence("toolBrush"), QString("P"));
+        QCOMPARE(reloaded.sequence("preferencesAdobe"), QString("Ctrl+K"));
+    }
+    void selectionsCanBeInvertedAndReselectedWithoutChangingPixels()
+    {
+        Document document;
+        QVERIFY(document.newDocument(40, 30, true, 16));
+        document.setTool("ellipticalSelect");
+        document.beginStroke(4, 5);
+        document.continueStroke(24, 20);
+        document.endStroke();
+        const auto original = document.selectionRegion();
+        QVERIFY(!original.isEmpty());
+        const auto pixels = document.layerImage(0);
+        document.deselect();
+        QVERIFY(!document.hasSelection());
+        document.reselect();
+        QCOMPARE(document.selectionRegion(), original);
+        document.invertSelection();
+        QCOMPARE(document.selectionRegion(), QRegion(QRect(0, 0, 40, 30)).subtracted(original));
+        document.invertSelection();
+        QCOMPARE(document.selectionRegion(), original);
+        QCOMPARE(document.layerImage(0), pixels);
+        QVERIFY(document.newDocument(20, 20));
+        document.reselect();
+        QVERIFY(!document.hasSelection());
+    }
+    void chosenFillPreservesColorsDepthAndSelection()
+    {
+        Document document;
+        QVERIFY(document.newDocument(20, 20, true, 16));
+        document.setColor(Qt::red);
+        document.setSecondaryColor(Qt::blue);
+        document.setTool("select");
+        document.beginStroke(2, 2);
+        document.continueStroke(10, 10);
+        document.endStroke();
+        const QColor chosen = QColor::fromRgba64(12345, 23456, 34567, 65535);
+        document.fillSelectedWithColor(chosen);
+        QCOMPARE(document.color(), QColor(Qt::red));
+        QCOMPARE(document.secondaryColor(), QColor(Qt::blue));
+        QCOMPARE(document.layerImage(0).pixelColor(4, 4).rgba64(), chosen.rgba64());
+        QCOMPARE(document.layerImage(0).pixelColor(0, 0).alpha(), 0);
+        document.addLayerMask(true);
+        document.invertSelectedPixels();
+        QCOMPARE(document.maskImage(0).pixelColor(4, 4).red(), 0);
+        QCOMPARE(document.maskImage(0).pixelColor(0, 0).red(), 0);
+        document.undo();
+        QCOMPARE(document.maskImage(0).pixelColor(4, 4).red(), 255);
+        document.undo(); // Remove the mask.
+        document.undo();
+        QCOMPARE(document.layerImage(0).pixelColor(4, 4).alpha(), 0);
+        document.addLayer();
+        document.selectAllLayers();
+        QCOMPARE(document.selectedLayerCount(), 2);
     }
     void toolLayoutIsGroupedConfigurableAndPersistent()
     {

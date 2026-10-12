@@ -18,10 +18,11 @@ public:
         return m_revision;
     }
 
-    Q_INVOKABLE QString sequence(const QString &_id) const;
-    Q_INVOKABLE QString displaySequence(const QString &_id) const;
-    Q_INVOKABLE bool    setSequence(const QString &_id, const QString &_sequence);
-    Q_INVOKABLE void    resetDefaults();
+    Q_INVOKABLE QVariantList filteredEntries(const QString &_query, int _filter = 0) const;
+    Q_INVOKABLE QString      sequence(const QString &_id) const;
+    Q_INVOKABLE QString      displaySequence(const QString &_id) const;
+    Q_INVOKABLE bool         setSequence(const QString &_id, const QString &_sequence);
+    Q_INVOKABLE void         resetDefaults();
 
 signals:
     void shortcutsChanged();
@@ -34,6 +35,10 @@ private:
         QString label;
         QString defaultSequence;
         QString sequence;
+        QString context     = QStringLiteral("Document");
+        bool    implemented = true;
+        bool    editable    = true;
+        QString gesture;
     };
 
     QVector<Entry> m_entries;

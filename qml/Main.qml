@@ -42,6 +42,7 @@ ApplicationWindow {
     property bool changingBlackWhiteTint: false
     property bool changingPhotoFilterColor: false
     property bool fillingMaskColor: false
+    property bool fillingPixelsColor: false
     property bool spacePressed: false
     property bool stampSourcePicking: false
     property bool shiftPressed: false
@@ -89,13 +90,20 @@ ApplicationWindow {
         }
     }
     function setNumericToolValue(key, shift) {
-        const target = shift && window.paintToolActive ? "flow" : window.retouchToolActive ? "strength" : "opacity"
+        const target = editor.tool === "mixerBrush" ? (stampSourcePicking && shift ? "mix" : shift ? "mixerFlow" : "wet")
+                     : editor.tool === "move" ? "layerOpacity"
+                     : shift && window.paintToolActive ? "flow" : window.retouchToolActive ? "strength" : "opacity"
         const now = Date.now()
         numericToolValue = target === numericToolTarget && now-numericToolTime < 750 && numericToolValue.length < 2
                          ? numericToolValue + String(key-Qt.Key_0) : String(key-Qt.Key_0)
         numericToolTarget = target; numericToolTime = now
+        if (editor.tool === "mixerBrush" && numericToolValue === "00") { editor.mixerWet = 0; editor.mixerMix = 0; return }
         const value = numericToolValue === "0" ? 1 : Number(numericToolValue)/100 * (numericToolValue.length === 1 ? 10 : 1)
-        if (target === "flow") editor.brushFlow=value
+        if (target === "wet") editor.mixerWet=value
+        else if (target === "mix") editor.mixerMix=value
+        else if (target === "mixerFlow") editor.mixerFlow=value
+        else if (target === "layerOpacity") editor.setLayerOpacity(editor.activeLayer,value)
+        else if (target === "flow") editor.brushFlow=value
         else if (target === "strength") editor.toolStrength=value
         else editor.brushOpacity=value
     }
@@ -210,7 +218,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -930,6 +938,87 @@ ApplicationWindow {
     function openLayerContextMenu() { layerContextMenu.popup() }
     function closeLayerContextMenu() { layerContextMenu.close() }
     function setInterfaceLanguage(code) { languages.language=code }
+    property bool panelsTemporarilyHidden: false
+    property bool toolsTemporarilyHidden: false
+    readonly property var additionalShortcutIds: ["keyboardSettings", "copyMerged", "newLayerNoDialog", "preferencesAdobe", "invertSelection", "invertSelectionF7", "reselect", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "selectAllLayers", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
+    function openFillColor() {
+        fillingMaskColor = editor.editingMask
+        fillingPixelsColor = !editor.editingMask
+        changingSecondary = false
+        changingSolidColor = false
+        changingBlackWhiteTint = false
+        changingPhotoFilterColor = false
+        changingShapeFill = false
+        changingShapeStroke = false
+        colorDialog.selectedColor = editor.color
+        colorDialog.open()
+    }
+    function applyBlendShortcut(mode) {
+        // Adobe reuses these keys for tonal ranges and Sponge saturation.
+        if (editor.tool === "sponge" && (mode === 8 || mode === 9)) {
+            editor.spongeSaturate = mode === 8
+            return
+        }
+        if ((editor.tool === "dodge" || editor.tool === "burn") && [8,3,14].indexOf(mode) >= 0) {
+            editor.retouchRange = mode === 8 ? 0 : mode === 3 ? 1 : 2
+            return
+        }
+        const brushBlendTools = ["brush", "pencil", "eraser", "cloneStamp", "patternStamp", "historyBrush", "artHistoryBrush"]
+        if (brushBlendTools.indexOf(editor.tool) >= 0) editor.brushBlend = mode
+        else if (editor.tool === "move" || editor.tool === "hand" || editor.tool === "zoomTool" || window.selectionToolActive)
+            editor.setLayerBlend(editor.activeLayer, mode)
+    }
+    function activateShortcut(id) {
+        if (id === "keyboardSettings") { preferencesPage = 0; openPreferences() }
+        else if (id === "preferencesAdobe") openPreferences()
+        else if (id === "copyMerged") editor.copy()
+        else if (id === "newLayerNoDialog") editor.addLayer()
+        else if (id === "invertSelection" || id === "invertSelectionF7") editor.invertSelection()
+        else if (id === "reselect") editor.reselect()
+        else if (id === "groupLayers") editor.groupSelectedLayers()
+        else if (id === "ungroupLayers") editor.ungroupActiveLayers()
+        else if (id === "clippingMask") editor.setClippingMask(!activeInfo.clippingMask)
+        else if (id === "layerUp" || id === "layerDown") editor.moveLayer(id === "layerUp" ? 1 : -1)
+        else if (id === "selectLayerUp" || id === "selectLayerDown") {
+            const rows = editor.layers
+            const current = rows.findIndex(function(row) { return row.layerIndex === editor.activeLayer })
+            const next = Math.max(0, Math.min(rows.length-1, current + (id === "selectLayerUp" ? -1 : 1)))
+            if (rows.length) editor.activeLayer = rows[next].layerIndex
+        }
+        else if (id === "selectTopLayer") { if (editor.layers.length) editor.activeLayer = editor.layers[0].layerIndex }
+        else if (id === "selectBottomLayer") { if (editor.layers.length) editor.activeLayer = editor.layers[editor.layers.length-1].layerIndex }
+        else if (id === "selectAllLayers") editor.selectAllLayers()
+        else if (id === "resizeImage") { resizeWidth.value = editor.width; resizeHeight.value = editor.height; resizeDialog.open() }
+        else if (id === "invertImage") editor.invertSelectedPixels()
+        else if (id === "zoomIn" || id === "zoomOut") setZoom(zoom * (id === "zoomIn" ? 1.25 : .8))
+        else if (id === "scrollUp") viewport.contentY = Math.max(0, viewport.contentY - viewport.height)
+        else if (id === "scrollDown") viewport.contentY = Math.min(Math.max(0, viewport.contentHeight-viewport.height), viewport.contentY + viewport.height)
+        else if (id === "scrollLeft") viewport.contentX = Math.max(0, viewport.contentX - viewport.width)
+        else if (id === "scrollRight") viewport.contentX = Math.min(Math.max(0, viewport.contentWidth-viewport.width), viewport.contentX + viewport.width)
+        else if (id === "scrollUpFine") viewport.contentY = Math.max(0, viewport.contentY - 10)
+        else if (id === "scrollDownFine") viewport.contentY = Math.min(Math.max(0, viewport.contentHeight-viewport.height), viewport.contentY + 10)
+        else if (id === "scrollLeftFine") viewport.contentX = Math.max(0, viewport.contentX - 10)
+        else if (id === "scrollRightFine") viewport.contentX = Math.min(Math.max(0, viewport.contentWidth-viewport.width), viewport.contentX + 10)
+        else if (id === "scrollTopLeft") { viewport.contentX = 0; viewport.contentY = 0 }
+        else if (id === "scrollBottomRight") { viewport.contentX = Math.max(0, viewport.contentWidth-viewport.width); viewport.contentY = Math.max(0, viewport.contentHeight-viewport.height) }
+        else if (id === "hidePanels") panelsTemporarilyHidden = !panelsTemporarilyHidden
+        else if (id === "hideAllPanels") {
+            const hidden = !toolsTemporarilyHidden
+            toolsTemporarilyHidden = hidden; panelsTemporarilyHidden = hidden
+        }
+        else if (id === "toggleColorPanel") toggleDockPanel("color")
+        else if (id === "toggleLayersPanel") toggleDockPanel("layers")
+        else if (id === "toggleInfoPanel") toggleDockPanel("information")
+        else if (id === "brushSettings") brushSettingsDialog.open()
+        else if (id.indexOf("channel") === 0) editor.displayChannel = Number(id.substring(7))
+        else if (id === "fillDialogF5") openFillColor()
+        else if (id === "blendNext" || id === "blendPrevious") {
+            const brushBlendTools = ["brush", "pencil", "eraser", "cloneStamp", "patternStamp", "historyBrush", "artHistoryBrush"]
+            const current = brushBlendTools.indexOf(editor.tool) >= 0 ? editor.brushBlend : activeInfo.blend
+            applyBlendShortcut((Number(current) + (id === "blendNext" ? 1 : 26)) % 27)
+        }
+        else if (id.indexOf("blend") === 0) applyBlendShortcut(Number(id.substring(5)))
+    }
     function openPreferences() { preferencesDialog.open() }
     onClosing: function(event) {
         saveWorkspaceLayout()
@@ -1012,6 +1101,19 @@ ApplicationWindow {
             if (!movingContent && !pendingGesture) editor.deselect()
         }
     }
+    Instantiator {
+        model: (shortcuts.revision, shortcuts.entries.filter(function(entry) {
+            return entry.editable && window.additionalShortcutIds.indexOf(entry.id) >= 0
+        }))
+        delegate: Shortcut {
+            required property var modelData
+            objectName: "commandShortcut_" + modelData.id
+            sequence: modelData.sequence
+            enabled: !window.editingText && !window.modalOpen &&
+                     (!layerPropertiesDialog.opened || (modelData.id !== "hidePanels" && modelData.id !== "hideAllPanels"))
+            onActivated: window.activateShortcut(modelData.id)
+        }
+    }
     FolderDialog {
         id: sliceFolderDialog
         title: qsTr("Exporter les tranches utilisateur en PNG")
@@ -1025,24 +1127,16 @@ ApplicationWindow {
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushHarder")); onActivated: editor.brushHardness = editor.brushHardness+0.25 }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("defaultColors")); onActivated: editor.resetColors() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("swapColors")); onActivated: editor.swapColors() }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Delete" : "Alt+Backspace"; onActivated: editor.fillWithColor(true, false) }
-    Shortcut { objectName: "backgroundFillShortcut"; enabled: !window.editingText && !window.modalOpen; sequences: Qt.platform.os === "osx" ? ["Meta+Backspace", "Meta+Delete"] : ["Ctrl+Backspace"]; onActivated: editor.fillWithColor(false, false) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("foregroundFill")); onActivated: editor.fillWithColor(true, false) }
+    Shortcut { objectName: "backgroundFillShortcut"; enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("backgroundFill")); onActivated: editor.fillWithColor(false, false) }
     Shortcut {
         objectName: "maskColorFillShortcut"
-        enabled: editor.editingMask && !window.editingText && !window.modalOpen
-        sequences: Qt.platform.os === "osx" ? ["Shift+Backspace", "Shift+Delete"] : ["Shift+Backspace"]
-        onActivated: {
-            fillingMaskColor = true
-            changingSecondary = false
-            changingSolidColor = false
-            changingBlackWhiteTint = false
-            changingPhotoFilterColor = false
-            colorDialog.selectedColor = editor.color
-            colorDialog.open()
-        }
+        enabled: !window.editingText && !window.modalOpen
+        sequence: (shortcuts.revision, shortcuts.sequence("fillDialog"))
+        onActivated: window.openFillColor()
     }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Shift+Delete" : "Alt+Shift+Backspace"; onActivated: editor.fillWithColor(true, true) }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Meta+Shift+Delete" : "Ctrl+Shift+Backspace"; onActivated: editor.fillWithColor(false, true) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("foregroundFillPreserve")); onActivated: editor.fillWithColor(true, true) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("backgroundFillPreserve")); onActivated: editor.fillWithColor(false, true) }
 
     menuBar: MenuBar {
         background: Rectangle { color: "#22272e" }
@@ -1731,6 +1825,7 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
             Rectangle {
+                visible: !window.toolsTemporarilyHidden
                 Layout.preferredWidth: 58; Layout.fillHeight: true; color: "#222830"
                 Flickable {
                     anchors.fill: parent; contentHeight: toolColumn.height+26; clip: true
@@ -1785,9 +1880,9 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
-                        if (!window.editingText && !window.modalOpen && !window.primaryPressed && !window.stampSourcePicking
+                        if (!window.editingText && !window.modalOpen && !window.primaryPressed && (!window.stampSourcePicking || editor.tool === "mixerBrush")
                                 && event.key >= Qt.Key_0 && event.key <= Qt.Key_9
-                                && (window.paintToolActive || window.opacityToolActive)) {
+                                && (window.paintToolActive || window.opacityToolActive || editor.tool === "move")) {
                             window.setNumericToolValue(event.key,Boolean(event.modifiers & Qt.ShiftModifier))
                             event.accepted=true; return
                         }
@@ -2513,7 +2608,7 @@ ApplicationWindow {
                         objectName: "zoomToolArea"
                         anchors.fill: viewport
                         z: 22
-                        enabled: (editor.tool === "zoomTool" || (window.spacePressed && window.primaryPressed)) && !window.repositioningGesture
+                        enabled: (editor.tool === "zoomTool" || (window.spacePressed && (window.primaryPressed || window.stampSourcePicking))) && !window.repositioningGesture
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: Qt.CrossCursor
@@ -2570,7 +2665,7 @@ ApplicationWindow {
                         objectName: "panArea"
                         anchors.fill: viewport
                         z: 21
-                        enabled: (window.spacePressed && !window.primaryPressed && !window.repositioningGesture) || editor.tool==="hand"
+                        enabled: (window.spacePressed && !window.primaryPressed && !window.stampSourcePicking && !window.repositioningGesture) || editor.tool==="hand"
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: enabled && pressed ? Qt.ClosedHandCursor
@@ -2609,6 +2704,7 @@ ApplicationWindow {
             Rectangle { width: 1; Layout.fillHeight: true; color: "#10141a" }
             Rectangle {
                 id: dockArea
+                visible: !window.panelsTemporarilyHidden
                 Layout.preferredWidth: window.dockWidth
                 Layout.minimumWidth: 230
                 Layout.maximumWidth: 760
@@ -2658,6 +2754,7 @@ ApplicationWindow {
                         panelId: "histogram"
                         title: qsTr("Histogramme")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 142
                         minimumContentHeight: 70
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -2727,6 +2824,7 @@ ApplicationWindow {
                         panelId: "navigator"
                         title: qsTr("Navigateur")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 155
                         minimumContentHeight: 80
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -2775,6 +2873,7 @@ ApplicationWindow {
                         panelId: "color"
                         title: qsTr("Couleur")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 118
                         minimumContentHeight: 65
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -2831,6 +2930,7 @@ ApplicationWindow {
                         panelId: "layers"
                         title: qsTr("Calques")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 370
                         minimumContentHeight: 170
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -3087,6 +3187,7 @@ ApplicationWindow {
                         panelId: "channels"
                         title: qsTr("Couches")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 260
                         minimumContentHeight: 120
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -3161,6 +3262,7 @@ ApplicationWindow {
                         panelId: "information"
                         title: qsTr("Informations")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 300
                         minimumContentHeight: 110
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -3206,6 +3308,7 @@ ApplicationWindow {
                         panelId: "history"
                         title: qsTr("Historique")
                         panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
                         dockedHeight: 118
                         minimumContentHeight: 55
                         property int dockColumn: window.dockPanelColumn(panelId)
@@ -3393,7 +3496,10 @@ ApplicationWindow {
         objectName: "colorDialog"
         title: qsTr("Choisir une couleur")
         onAccepted: {
-            if (fillingMaskColor) {
+            if (fillingPixelsColor) {
+                editor.fillSelectedWithColor(selectedColor)
+                fillingPixelsColor = false
+            } else if (fillingMaskColor) {
                 editor.fillMaskWithColor(selectedColor)
                 fillingMaskColor = false
             } else if (changingShapeFill) {
@@ -3424,6 +3530,7 @@ ApplicationWindow {
                 editor.color=selectedColor
         }
         onRejected: {
+            fillingPixelsColor = false
             fillingMaskColor = false
             changingShapeFill = false
             changingShapeStroke = false
@@ -4106,12 +4213,34 @@ ApplicationWindow {
                     }
                     Label {
                         Layout.fillWidth: true
-                        text: qsTr("Cliquez dans un champ puis saisissez une combinaison comme Ctrl+Shift+E. Sur macOS, Ctrl correspond à la touche Commande. Videz un champ pour désactiver la commande.")
+                        text: qsTr("Cliquez dans un champ puis saisissez une combinaison comme Ctrl+Shift+E. Sur macOS, Ctrl correspond à la touche Commande et Alt à Option. Videz un champ pour désactiver la commande. Les gestes dépendent du contexte ; NYI indique une fonction à venir.")
                         color: "#95a2af"
                         wrapMode: Text.WordWrap
                     }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#39424c" }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        TextField {
+                            id: shortcutSearch
+                            objectName: "shortcutSearch"
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("Rechercher une action, une touche, un contexte…")
+                            selectByMouse: true
+                        }
+                        ComboBox {
+                            id: shortcutStatus
+                            objectName: "shortcutStatus"
+                            model: [qsTr("Tous"), qsTr("Disponibles"), qsTr("NYI"), qsTr("Gestes contextuels")]
+                        }
+                    }
+                    Label {
+                        text: qsTr("%1 entrées · NYI : pas encore implémenté · gestes : indication non modifiable").arg(shortcutList.count)
+                        color: "#95a2af"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
                     ListView {
                         id: shortcutList
                         objectName: "shortcutList"
@@ -4119,7 +4248,7 @@ ApplicationWindow {
                         Layout.fillHeight: true
                         clip: true
                         spacing: 3
-                        model: shortcuts.entries
+                        model: (shortcuts.revision, shortcuts.filteredEntries(shortcutSearch.text, shortcutStatus.currentIndex))
                         section.property: "category"
                         section.criteria: ViewSection.FullString
                         ScrollBar.vertical: ScrollBar {}
@@ -4141,7 +4270,7 @@ ApplicationWindow {
                         required property var modelData
                         required property int index
                         width: shortcutList.width
-                        height: 42
+                        height: 60
                         radius: 4
                         color: shortcutField.activeFocus ? "#303b38" : index % 2 ? "#252b33" : "transparent"
 
@@ -4151,16 +4280,28 @@ ApplicationWindow {
                             anchors.rightMargin: 5
                             spacing: 10
 
-                            Label {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: modelData.label
-                                color: "#d3dbe2"
-                                elide: Text.ElideRight
+                                spacing: 3
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: modelData.label + (modelData.implemented ? "" : " (NYI)")
+                                    color: modelData.implemented ? "#d3dbe2" : "#95a2af"
+                                    elide: Text.ElideRight
+                                }
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: modelData.context
+                                    color: "#87939e"
+                                    font.pixelSize: 10
+                                    elide: Text.ElideRight
+                                }
                             }
                             TextField {
                                 id: shortcutField
                                 objectName: "shortcut_" + modelData.id
                                 Layout.preferredWidth: 175
+                                visible: modelData.editable
                                 text: modelData.sequence
                                 placeholderText: qsTr("Aucun")
                                 selectByMouse: true
@@ -4170,7 +4311,16 @@ ApplicationWindow {
                                         text = modelData.sequence
                                 }
                             }
+                            Label {
+                                visible: !modelData.editable
+                                Layout.preferredWidth: 200
+                                text: modelData.displaySequence.length ? modelData.displaySequence : qsTr("Aucun par défaut")
+                                color: modelData.implemented ? "#acbcb5" : "#87939e"
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 11
+                            }
                             ToolButton {
+                                visible: modelData.editable
                                 text: qsTr("×")
                                 enabled: modelData.sequence.length > 0
                                 ToolTip.visible: hovered

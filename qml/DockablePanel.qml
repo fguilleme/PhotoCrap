@@ -11,6 +11,7 @@ Item {
     property bool collapsed: false
     property bool floating: false
     property bool panelShown: true
+    property bool temporarilyHidden: false
     property bool hideOnClose: false
     property int dockedHeight: 150
     property int minimumContentHeight: 48
@@ -36,7 +37,7 @@ Item {
     function setPanelFloating(value) {
         floating = value
         if (value) {
-            floatingWindow.show()
+            if (!temporarilyHidden) floatingWindow.show()
             frame.parent = floatingWindow.contentItem
         } else {
             frame.parent = root
@@ -45,8 +46,14 @@ Item {
     }
 
     implicitHeight: floating ? 0 : (collapsed ? headerHeight : dockedHeight)
-    visible: panelShown && !floating && (groupTabs.length <= 1 || activeGroupPanel === panelId)
+    visible: panelShown && !temporarilyHidden && !floating && (groupTabs.length <= 1 || activeGroupPanel === panelId)
 
+    onTemporarilyHiddenChanged: {
+        if (floating) {
+            if (temporarilyHidden) floatingWindow.hide()
+            else floatingWindow.show()
+        }
+    }
     onCollapsedChanged: layoutChanged()
     onDockedHeightChanged: layoutChanged()
     onFloatingChanged: layoutChanged()

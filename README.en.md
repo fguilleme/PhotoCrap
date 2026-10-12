@@ -148,6 +148,8 @@ On the development branch, **Y** selects history brushes. **Shift + key** and **
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 
+The catalog contains **275 entries**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
+
 Customize shortcuts and the toolbar in **Settings**: **PhotoCrap → Preferences…** or **⌘,** on macOS, **Edit → Settings…** on other platforms. Shortcuts are suspended during text entry or modal dialogs. Empty combinations disable commands, duplicates are rejected, and customizations persist between launches.
 
 ### Retouching and history brushes

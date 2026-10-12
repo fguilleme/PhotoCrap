@@ -30,6 +30,7 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 - [x] Tranche et Sélection de tranche : création, déplacement, redimensionnement, division, sauvegarde et export PNG des tranches utilisateur ; repères automatiques facultatifs.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 
+- [x] Catalogue de 275 raccourcis et gestes référencés à Adobe, recherche et filtres disponibles/NYI/contextuels dans Réglages. Commandes simples de sélection, calques, couches, fusion, remplissage et affichage branchées ; inventaire des 118 entrées NYI dans [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
 - [x] Interactions communes inspirées des références Adobe : Maj/Option pour les variantes, raccourcis temporaires, contraintes de tracé, combinaisons de sélections, Maj-clic de peinture, chiffres pour opacité/débit, réglage de brosse à la souris et curseur précis. [Guide détaillé](docs/TOOL_INTERACTIONS.md).
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
 

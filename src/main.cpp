@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     LanguageManager       languageManager(nullptr, !smoke);
     RecentFilesManager    recentFilesManager(nullptr, !smoke);
     Document              document;
-    ShortcutManager       shortcutManager;
+    ShortcutManager       shortcutManager(nullptr, !smoke);
     WorkspaceSettings     workspaceSettings(nullptr, !smoke);
     int                   qmlWarnings = 0;
     QQmlApplicationEngine engine;
@@ -114,8 +114,8 @@ int main(int argc, char *argv[])
                 passed = runMacToolCursorTest(window);
             else
 #endif
-                passed =
-                    window && runUiSmoke(window, document, recentFilesManager, workspaceSettings);
+                passed = window && runUiSmoke(window, document, recentFilesManager,
+                                              workspaceSettings, shortcutManager);
             if (!passed) {
                 app.exit(3);
                 return;

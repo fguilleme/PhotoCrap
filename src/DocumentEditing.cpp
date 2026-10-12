@@ -37,9 +37,34 @@ void Document::selectAll()
 void Document::deselect()
 {
     endStroke();
+    if (!m_selectionRegion.isEmpty())
+        m_lastSelectionRegion = m_selectionRegion;
     m_selection       = {};
     m_selectionRegion = {};
     m_selectionShape  = 0;
+    m_selectionPath.clear();
+    m_polygonLassoActive = false;
+    emit selectionChanged();
+}
+void Document::reselect()
+{
+    endStroke();
+    if (m_lastSelectionRegion.isEmpty())
+        return;
+    m_selectionRegion = m_lastSelectionRegion & QRegion(QRect(QPoint{}, m_size));
+    m_selection       = m_selectionRegion.boundingRect();
+    m_selectionShape  = m_selectionRegion.isEmpty() ? 0 : 6;
+    m_selectionPath.clear();
+    m_polygonLassoActive = false;
+    emit selectionChanged();
+}
+void Document::invertSelection()
+{
+    endStroke();
+    m_lastSelectionRegion = m_selectionRegion;
+    m_selectionRegion     = QRegion(QRect(QPoint{}, m_size)).subtracted(m_selectionRegion);
+    m_selection           = m_selectionRegion.boundingRect();
+    m_selectionShape      = m_selectionRegion.isEmpty() ? 0 : 6;
     m_selectionPath.clear();
     m_polygonLassoActive = false;
     emit selectionChanged();
@@ -84,6 +109,43 @@ void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
                               m_editingMask ? QColor::fromRgb(maskValue, maskValue, maskValue)
                                             : color);
          });
+}
+void Document::invertSelectedPixels()
+{
+    if (!m_editingMask) {
+        applyFilter("invert");
+        return;
+    }
+    if (!editable())
+        return;
+    edit(tr("Inverser les pixels du masque"), [&] {
+        QImage *target = paintTarget();
+        if (!target)
+            return;
+        const QRect area = hasSelection() ? m_selection : target->rect();
+        for (int y = area.top(); y <= area.bottom(); ++y) {
+            auto *row = target->scanLine(y);
+            for (int x = area.left(); x <= area.right(); ++x)
+                if (!hasSelection() || m_selectionRegion.contains(QPoint(x, y)))
+                    row[x] = 255 - row[x];
+        }
+    });
+}
+void Document::fillSelectedWithColor(const QColor &_color)
+{
+    if (!_color.isValid() || !editable())
+        return;
+    edit(tr("Remplir avec une couleur"), [&] {
+        QImage *target = paintTarget();
+        if (!target)
+            return;
+        QPainter painter(target);
+        if (hasSelection())
+            painter.setClipRegion(m_selectionRegion);
+        const int gray = qGray(_color.rgb());
+        painter.fillRect(QRect(QPoint{}, m_size),
+                         m_editingMask ? QColor(gray, gray, gray) : _color);
+    });
 }
 void Document::fillMaskWithColor(const QColor &_color)
 {

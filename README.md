@@ -158,6 +158,8 @@ Sur la branche de développement, **Y** active les formes d’historique. **Maj 
 
 `[` / `]` règlent la taille du pinceau, `Maj+[` / `Maj+]` sa dureté, `D` rétablit noir/blanc et `X` échange les couleurs. `Ctrl/⌘ + 0` adapte l’image ; `Ctrl/⌘ + 1` affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace la toile. Annuler/Rétablir conserve le zoom de navigation.
 
+Le catalogue contient **275 entrées**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
+
 Les raccourcis et la barre d’outils se personnalisent dans **Réglages** : **menu PhotoCrap → Préférences…** ou **⌘,** sur macOS, **Édition → Réglages…** sur les autres plateformes. Les raccourcis sont suspendus pendant une saisie ou une boîte de dialogue modale ; une combinaison vide désactive une commande, les doublons sont refusés et les personnalisations sont conservées entre les lancements.
 
 

@@ -2,6 +2,7 @@
 #include "Document.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
+#include "ShortcutManager.h"
 #include "WorkspaceSettings.h"
 #include <QFile>
 #include <QOperatingSystemVersion>
@@ -14,7 +15,7 @@
 // Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
 // Compiled only with BUILD_TESTING; production builds need no Qt Test runtime.
 inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesManager &_recentFiles,
-                       WorkspaceSettings &_workspaceSettings)
+                       WorkspaceSettings &_workspaceSettings, ShortcutManager &_shortcuts)
 {
     auto require = [](bool _ok, const char *_message) {
         if (!_ok)
@@ -137,6 +138,17 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     if (!require(histogramCanvas->window() != _window,
                  "dock panel content moves into a floating tool window"))
+        return false;
+    _window->setProperty("panelsTemporarilyHidden", true);
+    QTest::qWait(30);
+    if (!require(!histogramCanvas->window()->isVisible() &&
+                     histogramPanel->property("floating").toBool(),
+                 "temporary hiding preserves the floating layout"))
+        return false;
+    _window->setProperty("panelsTemporarilyHidden", false);
+    QTest::qWait(30);
+    if (!require(histogramCanvas->window()->isVisible(),
+                 "temporary hiding restores the floating window"))
         return false;
     QMetaObject::invokeMethod(histogramPanel, "setPanelFloating", Q_ARG(QVariant, false));
     QTest::qWait(30);
@@ -376,9 +388,26 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 42,
+    if (!require(shortcutList && shortcutList->property("count").toInt() > 250,
                  "keyboard settings list is populated"))
         return false;
+    auto shortcutStatus = _window->findChild<QObject *>("shortcutStatus");
+    auto shortcutSearch = _window->findChild<QObject *>("shortcutSearch");
+    if (!require(shortcutStatus && shortcutSearch,
+                 "shortcut inventory has search and state filters"))
+        return false;
+    shortcutStatus->setProperty("currentIndex", 2);
+    QTest::qWait(30);
+    if (!require(shortcutList->property("count").toInt() > 80,
+                 "NYI inventory lists missing commands"))
+        return false;
+    shortcutSearch->setProperty("text", "Fluidité");
+    QTest::qWait(30);
+    if (!require(shortcutList->property("count").toInt() == 1,
+                 "shortcut search filters missing features"))
+        return false;
+    shortcutSearch->setProperty("text", "");
+    shortcutStatus->setProperty("currentIndex", 0);
     _window->setProperty("preferencesPage", 2);
     QTest::qWait(80);
     auto toolSettingsList = _window->findChild<QObject *>("toolSettingsList");
@@ -387,6 +416,73 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(preferences, "close");
     QTest::qWait(80);
+    _window->requestActivate();
+    area->forceActiveFocus();
+    _document.selectAll();
+    QTest::keySequence(_window, QKeySequence("Ctrl+Shift+I"));
+    QTest::qWait(30);
+    if (!require(!_document.hasSelection(), "Adobe inverse-selection shortcut is active"))
+        return false;
+    QTest::keySequence(_window, QKeySequence("Ctrl+Shift+D"));
+    QTest::qWait(30);
+    if (!require(_document.hasSelection(), "Adobe reselect shortcut restores the selection"))
+        return false;
+    if (!require(_shortcuts.setSequence("invertSelection", "Ctrl+Alt+9"),
+                 "new command can be customized"))
+        return false;
+    _document.selectAll();
+    QTest::qWait(30);
+    QTest::keySequence(_window, QKeySequence("Ctrl+Shift+I"));
+    QTest::qWait(30);
+    if (!require(_document.hasSelection(), "the former binding no longer executes"))
+        return false;
+    QTest::keySequence(_window, QKeySequence("Ctrl+Alt+9"));
+    QTest::qWait(30);
+    if (!require(!_document.hasSelection(), "custom binding executes immediately"))
+        return false;
+    _shortcuts.resetDefaults();
+    _document.setTool("move");
+    QTest::keySequence(_window, QKeySequence("Ctrl+T"));
+    QTest::qWait(30);
+    if (!require(_document.tool() == "move", "NYI bindings do not execute another tool"))
+        return false;
+    _document.setTool("brush");
+    _document.deselect();
+    QTest::keySequence(_window, QKeySequence("Ctrl+3"));
+    QTest::qWait(30);
+    if (!require(_document.displayChannel() == 1, "Adobe channel shortcut displays red"))
+        return false;
+    QTest::keySequence(_window, QKeySequence("Ctrl+2"));
+    QTest::qWait(30);
+    if (!require(_document.displayChannel() == 0, "Adobe composite shortcut restores RGB"))
+        return false;
+    _document.setTool("brush");
+    QTest::keySequence(_window, QKeySequence("Alt+Shift+M"));
+    QTest::qWait(30);
+    if (!require(_document.brushBlend() == 3, "blend shortcut applies to the brush"))
+        return false;
+    _document.setBrushBlend(0);
+    _document.setTool("sponge");
+    QTest::keySequence(_window, QKeySequence("Alt+Shift+S"));
+    QTest::qWait(30);
+    if (!require(_document.spongeSaturate(), "Sponge shortcut takes priority over Screen blending"))
+        return false;
+    _document.setTool("dodge");
+    QTest::keySequence(_window, QKeySequence("Alt+Shift+M"));
+    QTest::qWait(30);
+    if (!require(_document.retouchRange() == 1, "Dodge shortcut selects midtones"))
+        return false;
+    _document.setTool("brush");
+    QTest::keySequence(_window, QKeySequence("Shift+Tab"));
+    QTest::qWait(30);
+    if (!require(_window->property("panelsTemporarilyHidden").toBool(),
+                 "Shift-Tab hides panels temporarily"))
+        return false;
+    QTest::keySequence(_window, QKeySequence("Shift+Tab"));
+    QTest::qWait(30);
+    if (!require(!_window->property("panelsTemporarilyHidden").toBool(),
+                 "Shift-Tab restores panels"))
+        return false;
     auto preferencesAction = _window->findChild<QObject *>("preferencesAction");
     if (!require(preferencesAction, "application preferences action exists"))
         return false;

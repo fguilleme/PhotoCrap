@@ -64,6 +64,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/LanguageManager.cpp
     src/RecentFilesManager.cpp
     src/ShortcutManager.cpp
+    src/ShortcutCatalog.h
     src/WorkspaceSettings.cpp
     src/main.cpp
 )

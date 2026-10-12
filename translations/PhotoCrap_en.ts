@@ -694,6 +694,26 @@
     <message><source>Choisissez un fichier RAW local.</source><translation>Choose a local RAW file.</translation></message>
     <message><source>Un RAW est déjà en cours de lecture.</source><translation>A RAW file is already loading.</translation></message>
     <message><source>Cet outil nécessite actuellement un document 8 bits. Changez la profondeur dans le menu Image.</source><translation>This tool currently requires an 8-bit document. Change the channel depth in the Image menu.</translation></message>
+    <message>
+        <source>Remplir avec la couleur de premier plan</source>
+        <translation>Fill with foreground color</translation>
+    </message>
+    <message>
+        <source>Remplir avec la couleur d’arrière-plan</source>
+        <translation>Fill with background color</translation>
+    </message>
+    <message>
+        <source>Inverser les pixels du masque</source>
+        <translation>Invert mask pixels</translation>
+    </message>
+    <message>
+        <source>Remplir avec une couleur</source>
+        <translation>Fill with color</translation>
+    </message>
+    <message>
+        <source>Remplir le masque avec une couleur</source>
+        <translation>Fill mask with color</translation>
+    </message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2462,6 +2482,54 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Images et projets (%1)</source><translation>Images and projects (%1)</translation></message>
     <message><source>Développement du RAW…</source><translation>Developing RAW…</translation></message>
     <message><source> (8 bits)</source><translation> (8-bit)</translation></message>
+    <message>
+        <source>Ajouter à la sélection</source>
+        <translation>Add to selection</translation>
+    </message>
+    <message>
+        <source>Soustraire de la sélection</source>
+        <translation>Subtract from selection</translation>
+    </message>
+    <message>
+        <source>Désaturer</source>
+        <translation>Desaturate</translation>
+    </message>
+    <message>
+        <source>Saturer</source>
+        <translation>Saturate</translation>
+    </message>
+    <message>
+        <source>Cliquez dans un champ puis saisissez une combinaison comme Ctrl+Shift+E. Sur macOS, Ctrl correspond à la touche Commande et Alt à Option. Videz un champ pour désactiver la commande. Les gestes dépendent du contexte ; NYI indique une fonction à venir.</source>
+        <translation>Click a field and type a combination such as Ctrl+Shift+E. On macOS, Ctrl means Command and Alt means Option. Clear a field to disable the command. Gestures depend on context; NYI marks a future feature.</translation>
+    </message>
+    <message>
+        <source>Rechercher une action, une touche, un contexte…</source>
+        <translation>Search actions, keys or contexts…</translation>
+    </message>
+    <message>
+        <source>Tous</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Disponibles</source>
+        <translation>Available</translation>
+    </message>
+    <message>
+        <source>NYI</source>
+        <translation>NYI</translation>
+    </message>
+    <message>
+        <source>Gestes contextuels</source>
+        <translation>Contextual gestures</translation>
+    </message>
+    <message>
+        <source>%1 entrées · NYI : pas encore implémenté · gestes : indication non modifiable</source>
+        <translation>%1 entries · NYI: not yet implemented · gestures: read-only reference</translation>
+    </message>
+    <message>
+        <source>Aucun par défaut</source>
+        <translation>No default shortcut</translation>
+    </message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -2725,6 +2793,1366 @@ Independent software, not affiliated with Adobe.</translation>
     <message>
         <source>Forme d’historique</source>
         <translation>History Brush</translation>
+    </message>
+    <message>
+        <source>Configurer les raccourcis</source>
+        <translation>Customize keyboard shortcuts</translation>
+    </message>
+    <message>
+        <source>Document</source>
+        <translation>Document</translation>
+    </message>
+    <message>
+        <source>Copier avec fusion</source>
+        <translation>Copy merged</translation>
+    </message>
+    <message>
+        <source>Couper les pixels du calque</source>
+        <translation>Cut layer pixels</translation>
+    </message>
+    <message>
+        <source>Copier les pixels du calque</source>
+        <translation>Copy layer pixels</translation>
+    </message>
+    <message>
+        <source>Coller sur place</source>
+        <translation>Paste in place</translation>
+    </message>
+    <message>
+        <source>Coller dans la sélection</source>
+        <translation>Paste into selection</translation>
+    </message>
+    <message>
+        <source>Atténuer la dernière opération</source>
+        <translation>Fade last operation</translation>
+    </message>
+    <message>
+        <source>Transformation</source>
+        <translation>Transform</translation>
+    </message>
+    <message>
+        <source>Transformation manuelle</source>
+        <translation>Free transform</translation>
+    </message>
+    <message>
+        <source>Répéter la transformation</source>
+        <translation>Transform again</translation>
+    </message>
+    <message>
+        <source>Transformer une copie</source>
+        <translation>Transform a copy</translation>
+    </message>
+    <message>
+        <source>Répéter avec une copie</source>
+        <translation>Transform again with a copy</translation>
+    </message>
+    <message>
+        <source>Déformation</source>
+        <translation>Warp</translation>
+    </message>
+    <message>
+        <source>Intervertir la sélection</source>
+        <translation>Invert selection</translation>
+    </message>
+    <message>
+        <source>Resélectionner</source>
+        <translation>Reselect</translation>
+    </message>
+    <message>
+        <source>Intervertir (touche de fonction)</source>
+        <translation>Invert selection (function key)</translation>
+    </message>
+    <message>
+        <source>Contour progressif</source>
+        <translation>Feather selection</translation>
+    </message>
+    <message>
+        <source>Sélectionner et masquer</source>
+        <translation>Select and mask</translation>
+    </message>
+    <message>
+        <source>Mode masque rapide</source>
+        <translation>Quick mask mode</translation>
+    </message>
+    <message>
+        <source>Plage de couleurs</source>
+        <translation>Color range</translation>
+    </message>
+    <message>
+        <source>Transformer la sélection</source>
+        <translation>Transform selection</translation>
+    </message>
+    <message>
+        <source>Grouper les calques</source>
+        <translation>Group layers</translation>
+    </message>
+    <message>
+        <source>Dissocier les calques</source>
+        <translation>Ungroup layers</translation>
+    </message>
+    <message>
+        <source>Créer/libérer le masque d’écrêtage</source>
+        <translation>Create/release clipping mask</translation>
+    </message>
+    <message>
+        <source>Monter le calque</source>
+        <translation>Bring layer forward</translation>
+    </message>
+    <message>
+        <source>Descendre le calque</source>
+        <translation>Send layer backward</translation>
+    </message>
+    <message>
+        <source>Sélectionner le calque supérieur</source>
+        <translation>Select next layer up</translation>
+    </message>
+    <message>
+        <source>Sélectionner le calque inférieur</source>
+        <translation>Select next layer down</translation>
+    </message>
+    <message>
+        <source>Sélectionner le premier calque</source>
+        <translation>Select top layer</translation>
+    </message>
+    <message>
+        <source>Sélectionner le dernier calque</source>
+        <translation>Select bottom layer</translation>
+    </message>
+    <message>
+        <source>Sélectionner tous les calques</source>
+        <translation>Select all layers</translation>
+    </message>
+    <message>
+        <source>Fusionner les calques sélectionnés</source>
+        <translation>Merge selected layers</translation>
+    </message>
+    <message>
+        <source>Fusionner les calques visibles</source>
+        <translation>Merge visible layers</translation>
+    </message>
+    <message>
+        <source>Créer un calque des visibles fusionnés</source>
+        <translation>Stamp visible layers</translation>
+    </message>
+    <message>
+        <source>Placer le calque tout en haut</source>
+        <translation>Bring layer to front</translation>
+    </message>
+    <message>
+        <source>Placer le calque tout en bas</source>
+        <translation>Send layer to back</translation>
+    </message>
+    <message>
+        <source>Nouveau calque par copie de sélection</source>
+        <translation>Layer via copy</translation>
+    </message>
+    <message>
+        <source>Nouveau calque par couper</source>
+        <translation>Layer via cut</translation>
+    </message>
+    <message>
+        <source>Verrouiller les pixels transparents</source>
+        <translation>Lock transparent pixels</translation>
+    </message>
+    <message>
+        <source>Nouveau calque sans dialogue</source>
+        <translation>New layer without dialog</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Image</translation>
+    </message>
+    <message>
+        <source>Taille de l’image</source>
+        <translation>Image size</translation>
+    </message>
+    <message>
+        <source>Négatif</source>
+        <translation>Invert image</translation>
+    </message>
+    <message>
+        <source>Taille de la zone de travail</source>
+        <translation>Canvas size</translation>
+    </message>
+    <message>
+        <source>Niveaux (réglage direct)</source>
+        <translation>Levels (direct adjustment)</translation>
+    </message>
+    <message>
+        <source>Courbes (réglage direct)</source>
+        <translation>Curves (direct adjustment)</translation>
+    </message>
+    <message>
+        <source>Teinte/Saturation (réglage direct)</source>
+        <translation>Hue/Saturation (direct adjustment)</translation>
+    </message>
+    <message>
+        <source>Balance des couleurs (réglage direct)</source>
+        <translation>Color balance (direct adjustment)</translation>
+    </message>
+    <message>
+        <source>Noir et blanc (réglage direct)</source>
+        <translation>Black and white (direct adjustment)</translation>
+    </message>
+    <message>
+        <source>Tonalité automatique</source>
+        <translation>Auto tone</translation>
+    </message>
+    <message>
+        <source>Contraste automatique</source>
+        <translation>Auto contrast</translation>
+    </message>
+    <message>
+        <source>Couleur automatique</source>
+        <translation>Auto color</translation>
+    </message>
+    <message>
+        <source>Désaturer</source>
+        <translation>Desaturate</translation>
+    </message>
+    <message>
+        <source>Zoom avant</source>
+        <translation>Zoom in</translation>
+    </message>
+    <message>
+        <source>Zoom arrière</source>
+        <translation>Zoom out</translation>
+    </message>
+    <message>
+        <source>Défiler vers le haut</source>
+        <translation>Scroll up</translation>
+    </message>
+    <message>
+        <source>Défiler vers le bas</source>
+        <translation>Scroll down</translation>
+    </message>
+    <message>
+        <source>Défiler vers la gauche</source>
+        <translation>Scroll left</translation>
+    </message>
+    <message>
+        <source>Défiler vers la droite</source>
+        <translation>Scroll right</translation>
+    </message>
+    <message>
+        <source>Aller en haut à gauche</source>
+        <translation>Go to upper-left corner</translation>
+    </message>
+    <message>
+        <source>Aller en bas à droite</source>
+        <translation>Go to lower-right corner</translation>
+    </message>
+    <message>
+        <source>Afficher/masquer les panneaux</source>
+        <translation>Show/hide panels</translation>
+    </message>
+    <message>
+        <source>Afficher/masquer panneaux et outils</source>
+        <translation>Show/hide panels and tools</translation>
+    </message>
+    <message>
+        <source>Panneau Couleur</source>
+        <translation>Color panel</translation>
+    </message>
+    <message>
+        <source>Panneau Calques</source>
+        <translation>Layers panel</translation>
+    </message>
+    <message>
+        <source>Panneau Informations</source>
+        <translation>Info panel</translation>
+    </message>
+    <message>
+        <source>Options du pinceau</source>
+        <translation>Brush options</translation>
+    </message>
+    <message>
+        <source>Changer le mode d’écran</source>
+        <translation>Cycle screen modes</translation>
+    </message>
+    <message>
+        <source>Mode d’écran précédent</source>
+        <translation>Previous screen mode</translation>
+    </message>
+    <message>
+        <source>Afficher/masquer les extras</source>
+        <translation>Show/hide extras</translation>
+    </message>
+    <message>
+        <source>Afficher/masquer la grille</source>
+        <translation>Show/hide grid</translation>
+    </message>
+    <message>
+        <source>Afficher/masquer les repères</source>
+        <translation>Show/hide guides</translation>
+    </message>
+    <message>
+        <source>Magnétisme</source>
+        <translation>Snap</translation>
+    </message>
+    <message>
+        <source>Panneau Actions</source>
+        <translation>Actions panel</translation>
+    </message>
+    <message>
+        <source>Couleurs d’épreuve</source>
+        <translation>Proof colors</translation>
+    </message>
+    <message>
+        <source>Couleurs non imprimables</source>
+        <translation>Gamut warning</translation>
+    </message>
+    <message>
+        <source>Couches</source>
+        <translation>Channels</translation>
+    </message>
+    <message>
+        <source>Afficher RVB</source>
+        <translation>Show RGB</translation>
+    </message>
+    <message>
+        <source>Afficher Rouge</source>
+        <translation>Show red</translation>
+    </message>
+    <message>
+        <source>Charger Rouge en sélection</source>
+        <translation>Load red as selection</translation>
+    </message>
+    <message>
+        <source>Afficher Vert</source>
+        <translation>Show green</translation>
+    </message>
+    <message>
+        <source>Charger Vert en sélection</source>
+        <translation>Load green as selection</translation>
+    </message>
+    <message>
+        <source>Afficher Bleu</source>
+        <translation>Show blue</translation>
+    </message>
+    <message>
+        <source>Charger Bleu en sélection</source>
+        <translation>Load blue as selection</translation>
+    </message>
+    <message>
+        <source>Peinture</source>
+        <translation>Painting</translation>
+    </message>
+    <message>
+        <source>Remplir : premier plan</source>
+        <translation>Fill with foreground color</translation>
+    </message>
+    <message>
+        <source>Remplir : arrière-plan</source>
+        <translation>Fill with background color</translation>
+    </message>
+    <message>
+        <source>Remplir : premier plan, transparence conservée</source>
+        <translation>Fill foreground, preserving transparency</translation>
+    </message>
+    <message>
+        <source>Remplir : arrière-plan, transparence conservée</source>
+        <translation>Fill background, preserving transparency</translation>
+    </message>
+    <message>
+        <source>Remplir avec une couleur…</source>
+        <translation>Fill with color…</translation>
+    </message>
+    <message>
+        <source>Remplir (touche de fonction)</source>
+        <translation>Fill (function key)</translation>
+    </message>
+    <message>
+        <source>Remplir depuis l’historique</source>
+        <translation>Fill from history</translation>
+    </message>
+    <message>
+        <source>Préréglage de pinceau précédent</source>
+        <translation>Previous brush preset</translation>
+    </message>
+    <message>
+        <source>Préréglage de pinceau suivant</source>
+        <translation>Next brush preset</translation>
+    </message>
+    <message>
+        <source>Premier préréglage de pinceau</source>
+        <translation>First brush preset</translation>
+    </message>
+    <message>
+        <source>Dernier préréglage de pinceau</source>
+        <translation>Last brush preset</translation>
+    </message>
+    <message>
+        <source>Activer l’aérographe</source>
+        <translation>Toggle airbrush</translation>
+    </message>
+    <message>
+        <source>Éponge · même touche que le mode de fusion</source>
+        <translation>Sponge · shares a blend-mode shortcut</translation>
+    </message>
+    <message>
+        <source>Saturer</source>
+        <translation>Saturate</translation>
+    </message>
+    <message>
+        <source>Cibler les ombres</source>
+        <translation>Target shadows</translation>
+    </message>
+    <message>
+        <source>Densité +/− · même touche que le mode de fusion</source>
+        <translation>Dodge/Burn · shares a blend-mode shortcut</translation>
+    </message>
+    <message>
+        <source>Cibler les tons moyens</source>
+        <translation>Target midtones</translation>
+    </message>
+    <message>
+        <source>Cibler les hautes lumières</source>
+        <translation>Target highlights</translation>
+    </message>
+    <message>
+        <source>Fusion</source>
+        <translation>Blending</translation>
+    </message>
+    <message>
+        <source>Mode de fusion suivant</source>
+        <translation>Next blending mode</translation>
+    </message>
+    <message>
+        <source>Calque ou outil de peinture</source>
+        <translation>Layer or painting tool</translation>
+    </message>
+    <message>
+        <source>Mode de fusion précédent</source>
+        <translation>Previous blending mode</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <translation>Normal</translation>
+    </message>
+    <message>
+        <source>Calque ou pinceau · priorité Éponge/Densité</source>
+        <translation>Layer or brush · Sponge/Dodge/Burn take priority</translation>
+    </message>
+    <message>
+        <source>Fondu</source>
+        <translation>Dissolve</translation>
+    </message>
+    <message>
+        <source>Obscurcir</source>
+        <translation>Darken</translation>
+    </message>
+    <message>
+        <source>Produit</source>
+        <translation>Multiply</translation>
+    </message>
+    <message>
+        <source>Densité couleur +</source>
+        <translation>Color burn</translation>
+    </message>
+    <message>
+        <source>Densité linéaire +</source>
+        <translation>Linear burn</translation>
+    </message>
+    <message>
+        <source>Éclaircir</source>
+        <translation>Lighten</translation>
+    </message>
+    <message>
+        <source>Écran</source>
+        <translation>Screen</translation>
+    </message>
+    <message>
+        <source>Densité couleur −</source>
+        <translation>Color dodge</translation>
+    </message>
+    <message>
+        <source>Densité linéaire −</source>
+        <translation>Linear dodge</translation>
+    </message>
+    <message>
+        <source>Incrustation</source>
+        <translation>Overlay</translation>
+    </message>
+    <message>
+        <source>Lumière tamisée</source>
+        <translation>Soft light</translation>
+    </message>
+    <message>
+        <source>Lumière crue</source>
+        <translation>Hard light</translation>
+    </message>
+    <message>
+        <source>Lumière vive</source>
+        <translation>Vivid light</translation>
+    </message>
+    <message>
+        <source>Lumière linéaire</source>
+        <translation>Linear light</translation>
+    </message>
+    <message>
+        <source>Lumière ponctuelle</source>
+        <translation>Pin light</translation>
+    </message>
+    <message>
+        <source>Mélange maximal</source>
+        <translation>Hard mix</translation>
+    </message>
+    <message>
+        <source>Différence</source>
+        <translation>Difference</translation>
+    </message>
+    <message>
+        <source>Exclusion</source>
+        <translation>Exclusion</translation>
+    </message>
+    <message>
+        <source>Teinte</source>
+        <translation>Hue</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Saturation</translation>
+    </message>
+    <message>
+        <source>Couleur</source>
+        <translation>Color</translation>
+    </message>
+    <message>
+        <source>Luminosité</source>
+        <translation>Luminosity</translation>
+    </message>
+    <message>
+        <source>Arrière (pinceau)</source>
+        <translation>Behind (brush)</translation>
+    </message>
+    <message>
+        <source>Effacer (pinceau)</source>
+        <translation>Clear (brush)</translation>
+    </message>
+    <message>
+        <source>Plume et variantes</source>
+        <translation>Pen tools</translation>
+    </message>
+    <message>
+        <source>Sélection de tracé et sélection directe</source>
+        <translation>Path and direct selection</translation>
+    </message>
+    <message>
+        <source>Cadre</source>
+        <translation>Frame</translation>
+    </message>
+    <message>
+        <source>Gestes contextuels</source>
+        <translation>Contextual gestures</translation>
+    </message>
+    <message>
+        <source>Parcourir les outils d’un groupe</source>
+        <translation>Cycle tools in a group</translation>
+    </message>
+    <message>
+        <source>Barre d’outils</source>
+        <translation>Toolbar</translation>
+    </message>
+    <message>
+        <source>Maj + raccourci du groupe</source>
+        <translation>Shift + group shortcut</translation>
+    </message>
+    <message>
+        <source>Parcourir les outils masqués</source>
+        <translation>Cycle hidden tools</translation>
+    </message>
+    <message>
+        <source>Alt + clic sur l’outil</source>
+        <translation>Alt + clickk the tool</translation>
+    </message>
+    <message>
+        <source>Activer temporairement un outil</source>
+        <translation>Temporarily activate a tool</translation>
+    </message>
+    <message>
+        <source>Selon le réglage des outils temporaires</source>
+        <translation>Depends on spring-loaded tool settings</translation>
+    </message>
+    <message>
+        <source>Maintenir son raccourci</source>
+        <translation>Hold its shortcut</translation>
+    </message>
+    <message>
+        <source>Navigation temporaire</source>
+        <translation>Temporary hand tool</translation>
+    </message>
+    <message>
+        <source>Canevas</source>
+        <translation>Canvas</translation>
+    </message>
+    <message>
+        <source>Espace + glisser</source>
+        <translation>Space + drag</translation>
+    </message>
+    <message>
+        <source>Zoom avant temporaire</source>
+        <translation>Temporary zoom in</translation>
+    </message>
+    <message>
+        <source>Ctrl + Espace + clic</source>
+        <translation>Ctrl + Space + click</translation>
+    </message>
+    <message>
+        <source>Zoom arrière temporaire</source>
+        <translation>Temporary zoom out</translation>
+    </message>
+    <message>
+        <source>Alt + Espace + clic</source>
+        <translation>Alt + Space + click</translation>
+    </message>
+    <message>
+        <source>Opacité / intensité / exposition</source>
+        <translation>Opacity / strength / exposure</translation>
+    </message>
+    <message>
+        <source>Peinture · 0 = 100 %, 45 = 45 %</source>
+        <translation>Painting · 0 = 100%, 45 = 45%</translation>
+    </message>
+    <message>
+        <source>0–9, deux chiffres rapprochés</source>
+        <translation>0–9, two digits in quick succession</translation>
+    </message>
+    <message>
+        <source>Débit</source>
+        <translation>Flow</translation>
+    </message>
+    <message>
+        <source>Outils de peinture</source>
+        <translation>Painting tools</translation>
+    </message>
+    <message>
+        <source>Maj + 0–9</source>
+        <translation>Shift + 0–9</translation>
+    </message>
+    <message>
+        <source>Curseur précis</source>
+        <translation>Precise cursor</translation>
+    </message>
+    <message>
+        <source>Verr. Maj</source>
+        <translation>Caps Lock</translation>
+    </message>
+    <message>
+        <source>Tracer une ligne entre deux points</source>
+        <translation>Connect two points with a straight stroke</translation>
+    </message>
+    <message>
+        <source>Maj + clic</source>
+        <translation>Shift + click</translation>
+    </message>
+    <message>
+        <source>Prélever une couleur temporairement</source>
+        <translation>Temporarily sample a color</translation>
+    </message>
+    <message>
+        <source>Pinceau, gomme, dégradé et remplissage</source>
+        <translation>Brush, eraser, gradient and fill</translation>
+    </message>
+    <message>
+        <source>Alt + clic</source>
+        <translation>Alt + click</translation>
+    </message>
+    <message>
+        <source>Prélever la couleur d’arrière-plan</source>
+        <translation>Sample background color</translation>
+    </message>
+    <message>
+        <source>Ajouter un échantillon</source>
+        <translation>Add a color sample</translation>
+    </message>
+    <message>
+        <source>Supprimer un échantillon</source>
+        <translation>Delete a color sample</translation>
+    </message>
+    <message>
+        <source>Échantillonnage de couleur</source>
+        <translation>Color sampler</translation>
+    </message>
+    <message>
+        <source>Taille / dureté avec la souris</source>
+        <translation>Brush size / hardness with the mouse</translation>
+    </message>
+    <message>
+        <source>Ctrl + Alt + glisser (Mac) ; Alt + clic droit + glisser (Windows)</source>
+        <translation>Ctrl + Alt + drag (Mac) ; Alt + right-clickk + drag (Windows)</translation>
+    </message>
+    <message>
+        <source>Ajouter à la sélection</source>
+        <translation>Add to selection</translation>
+    </message>
+    <message>
+        <source>Outils de sélection</source>
+        <translation>Selection tools</translation>
+    </message>
+    <message>
+        <source>Maj + glisser</source>
+        <translation>Shift + drag</translation>
+    </message>
+    <message>
+        <source>Soustraire de la sélection</source>
+        <translation>Subtract from selection</translation>
+    </message>
+    <message>
+        <source>Alt + glisser</source>
+        <translation>Alt + drag</translation>
+    </message>
+    <message>
+        <source>Intersection de sélections</source>
+        <translation>Intersect selections</translation>
+    </message>
+    <message>
+        <source>Maj + Alt + glisser</source>
+        <translation>Shift + Alt + drag</translation>
+    </message>
+    <message>
+        <source>Contraindre les proportions / angles</source>
+        <translation>Constrain proportions / angles</translation>
+    </message>
+    <message>
+        <source>Sélection, formes et recadrage</source>
+        <translation>Selection, shapes and crop</translation>
+    </message>
+    <message>
+        <source>Dessiner depuis le centre</source>
+        <translation>Draw from center</translation>
+    </message>
+    <message>
+        <source>Sélection et formes</source>
+        <translation>Selection and shapes</translation>
+    </message>
+    <message>
+        <source>Déplacer le tracé pendant le geste</source>
+        <translation>Reposition while drawing</translation>
+    </message>
+    <message>
+        <source>Déplacer d’un pixel</source>
+        <translation>Nudge one pixel</translation>
+    </message>
+    <message>
+        <source>Déplacement ou sélection</source>
+        <translation>Move or selection</translation>
+    </message>
+    <message>
+        <source>Flèches</source>
+        <translation>Arrow keys</translation>
+    </message>
+    <message>
+        <source>Déplacer de dix pixels</source>
+        <translation>Nudge ten pixels</translation>
+    </message>
+    <message>
+        <source>Maj + flèches</source>
+        <translation>Shift + arrow keys</translation>
+    </message>
+    <message>
+        <source>Déplacer le contenu sélectionné</source>
+        <translation>Move selected contents</translation>
+    </message>
+    <message>
+        <source>Ctrl + flèches</source>
+        <translation>Ctrl + arrow keys</translation>
+    </message>
+    <message>
+        <source>Déplacer une copie</source>
+        <translation>Move a copy</translation>
+    </message>
+    <message>
+        <source>Définir la source de copie</source>
+        <translation>Set sampling source</translation>
+    </message>
+    <message>
+        <source>Tampon / correcteur</source>
+        <translation>Clone stamp / healing brush</translation>
+    </message>
+    <message>
+        <source>Valider le recadrage</source>
+        <translation>Commit crop</translation>
+    </message>
+    <message>
+        <source>Entrée</source>
+        <translation>Enter</translation>
+    </message>
+    <message>
+        <source>Annuler le geste en cours</source>
+        <translation>Cancel current gesture</translation>
+    </message>
+    <message>
+        <source>Échap</source>
+        <translation>Escape</translation>
+    </message>
+    <message>
+        <source>Retirer le dernier sommet</source>
+        <translation>Remove last vertex</translation>
+    </message>
+    <message>
+        <source>Lasso polygonal</source>
+        <translation>Polygonal lasso</translation>
+    </message>
+    <message>
+        <source>Retour arrière</source>
+        <translation>Backspace</translation>
+    </message>
+    <message>
+        <source>Fermer la sélection polygonale</source>
+        <translation>Close polygonal selection</translation>
+    </message>
+    <message>
+        <source>Entrée / double-clic</source>
+        <translation>Enter / double-click</translation>
+    </message>
+    <message>
+        <source>Afficher le masque seul</source>
+        <translation>View mask alone</translation>
+    </message>
+    <message>
+        <source>Masque de fusion</source>
+        <translation>Layer mask</translation>
+    </message>
+    <message>
+        <source>Alt + clic sur la vignette</source>
+        <translation>Alt + clickk the thumbnail</translation>
+    </message>
+    <message>
+        <source>Activer/désactiver le masque</source>
+        <translation>Enable/disable mask</translation>
+    </message>
+    <message>
+        <source>Maj + clic sur la vignette</source>
+        <translation>Shift + clickk the thumbnail</translation>
+    </message>
+    <message>
+        <source>Isoler le calque</source>
+        <translation>Isolate layer</translation>
+    </message>
+    <message>
+        <source>Alt + clic sur l’œil</source>
+        <translation>Alt + clickk the eye</translation>
+    </message>
+    <message>
+        <source>Renommer le calque</source>
+        <translation>Rename layer</translation>
+    </message>
+    <message>
+        <source>Double-clic sur le nom</source>
+        <translation>Double-clickkk the name</translation>
+    </message>
+    <message>
+        <source>Double-clic sur Main</source>
+        <translation>Double-clickkk Hand</translation>
+    </message>
+    <message>
+        <source>Double-clic sur Zoom</source>
+        <translation>Double-clickkk Zoom</translation>
+    </message>
+    <message>
+        <source>Gestes à venir</source>
+        <translation>Future gestures</translation>
+    </message>
+    <message>
+        <source>Superposition rouge du masque</source>
+        <translation>Red mask overlay</translation>
+    </message>
+    <message>
+        <source>Masque sélectionné</source>
+        <translation>Selected mask</translation>
+    </message>
+    <message>
+        <source>\</source>
+        <translation>\</translation>
+    </message>
+    <message>
+        <source>Charger la transparence en sélection</source>
+        <translation>Load layer transparency as selection</translation>
+    </message>
+    <message>
+        <source>Ctrl + clic sur la vignette</source>
+        <translation>Ctrl + clickk the thumbnail</translation>
+    </message>
+    <message>
+        <source>Charger le masque en sélection</source>
+        <translation>Load mask as selection</translation>
+    </message>
+    <message>
+        <source>Masque</source>
+        <translation>Mask</translation>
+    </message>
+    <message>
+        <source>Ajouter le masque à la sélection</source>
+        <translation>Add mask to selection</translation>
+    </message>
+    <message>
+        <source>Ctrl + Maj + clic</source>
+        <translation>Ctrl + Shift + click</translation>
+    </message>
+    <message>
+        <source>Soustraire le masque</source>
+        <translation>Subtract mask from selection</translation>
+    </message>
+    <message>
+        <source>Ctrl + Alt + clic</source>
+        <translation>Ctrl + Alt + click</translation>
+    </message>
+    <message>
+        <source>Intersection avec le masque</source>
+        <translation>Intersect selection with mask</translation>
+    </message>
+    <message>
+        <source>Ctrl + Maj + Alt + clic</source>
+        <translation>Ctrl + Shift + Alt + click</translation>
+    </message>
+    <message>
+        <source>Décaler la source</source>
+        <translation>Nudge clone source</translation>
+    </message>
+    <message>
+        <source>Tampon</source>
+        <translation>Clone stamp</translation>
+    </message>
+    <message>
+        <source>Alt + Maj + flèches</source>
+        <translation>Alt + Shift + arrow keys</translation>
+    </message>
+    <message>
+        <source>Tourner la source</source>
+        <translation>Rotate clone source</translation>
+    </message>
+    <message>
+        <source>Alt + Maj + &lt; / &gt;</source>
+        <translation>Alt + Shift + &lt; / &gt;</translation>
+    </message>
+    <message>
+        <source>Redimensionner la source</source>
+        <translation>Scale clone source</translation>
+    </message>
+    <message>
+        <source>Alt + Maj + [ / ]</source>
+        <translation>Alt + Shift + [ / ]</translation>
+    </message>
+    <message>
+        <source>Effacer temporairement</source>
+        <translation>Temporarily erase</translation>
+    </message>
+    <message>
+        <source>Maintenir `</source>
+        <translation>Hold `</translation>
+    </message>
+    <message>
+        <source>Sélecteur de couleur sous le pointeur</source>
+        <translation>Color picker under the pointer</translation>
+    </message>
+    <message>
+        <source>Ctrl + Alt + Commande + glisser (Mac)</source>
+        <translation>Ctrl + Alt + Command + drag (Mac)</translation>
+    </message>
+    <message>
+        <source>Vue d’ensemble temporaire</source>
+        <translation>Temporary bird’s-eye view</translation>
+    </message>
+    <message>
+        <source>Maintenir H + clic</source>
+        <translation>Hold H + click</translation>
+    </message>
+    <message>
+        <source>Afficher/masquer le voile de recadrage</source>
+        <translation>Toggle crop shield</translation>
+    </message>
+    <message>
+        <source>/</source>
+        <translation>/</translation>
+    </message>
+    <message>
+        <source>Rapporteur</source>
+        <translation>Protractor</translation>
+    </message>
+    <message>
+        <source>Règle</source>
+        <translation>Ruler</translation>
+    </message>
+    <message>
+        <source>Alt + glisser l’extrémité</source>
+        <translation>Alt + drag the end point</translation>
+    </message>
+    <message>
+        <source>Point suivant de la courbe</source>
+        <translation>Next curve point</translation>
+    </message>
+    <message>
+        <source>Courbes</source>
+        <translation>Curves</translation>
+    </message>
+    <message>
+        <source>+</source>
+        <translation>+</translation>
+    </message>
+    <message>
+        <source>Point précédent de la courbe</source>
+        <translation>Previous curve point</translation>
+    </message>
+    <message>
+        <source>−</source>
+        <translation>−</translation>
+    </message>
+    <message>
+        <source>Déplacer le point de 1 / 10</source>
+        <translation>Nudge point by 1 / 10</translation>
+    </message>
+    <message>
+        <source>Flèches / Maj + flèches</source>
+        <translation>Arrow keys / Shift + arrow keys</translation>
+    </message>
+    <message>
+        <source>Supprimer le point choisi</source>
+        <translation>Delete selected point</translation>
+    </message>
+    <message>
+        <source>Suppr</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Ajouter un point depuis l’image</source>
+        <translation>Add curve point from the image</translation>
+    </message>
+    <message>
+        <source>Ctrl + clic</source>
+        <translation>Ctrl + click</translation>
+    </message>
+    <message>
+        <source>Point sur chaque courbe de canal</source>
+        <translation>Add a point on each channel curve</translation>
+    </message>
+    <message>
+        <source>Changer la grille</source>
+        <translation>Change grid size</translation>
+    </message>
+    <message>
+        <source>Afficher l’écrêtage</source>
+        <translation>Show clipping</translation>
+    </message>
+    <message>
+        <source>Courbes / Niveaux</source>
+        <translation>Curves / Levels</translation>
+    </message>
+    <message>
+        <source>Régler la famille de couleur sur l’image</source>
+        <translation>Adjust color family by dragging on the image</translation>
+    </message>
+    <message>
+        <source>Noir et blanc</source>
+        <translation>Black and white</translation>
+    </message>
+    <message>
+        <source>Glisser sur l’image</source>
+        <translation>Drag on the image</translation>
+    </message>
+    <message>
+        <source>Sélectionner tout le texte</source>
+        <translation>Select all text</translation>
+    </message>
+    <message>
+        <source>Texte</source>
+        <translation>Text</translation>
+    </message>
+    <message>
+        <source>Ctrl + A</source>
+        <translation>Ctrl + A</translation>
+    </message>
+    <message>
+        <source>Valider le texte</source>
+        <translation>Commit text</translation>
+    </message>
+    <message>
+        <source>Ctrl + Entrée</source>
+        <translation>Ctrl + Enter</translation>
+    </message>
+    <message>
+        <source>Taille du texte</source>
+        <translation>Text size</translation>
+    </message>
+    <message>
+        <source>Ctrl + Maj + &lt; / &gt;</source>
+        <translation>Ctrl + Shift + &lt; / &gt;</translation>
+    </message>
+    <message>
+        <source>Interligne</source>
+        <translation>Leading</translation>
+    </message>
+    <message>
+        <source>Alt + flèches haut / bas</source>
+        <translation>Alt + Up / Down arrows</translation>
+    </message>
+    <message>
+        <source>Approche du texte</source>
+        <translation>Tracking</translation>
+    </message>
+    <message>
+        <source>Alt + flèches gauche / droite</source>
+        <translation>Alt + Left / Right arrows</translation>
+    </message>
+    <message>
+        <source>Aligner le texte</source>
+        <translation>Align text</translation>
+    </message>
+    <message>
+        <source>Ctrl + Maj + L / C / R</source>
+        <translation>Ctrl + Shift + L / C / R</translation>
+    </message>
+    <message>
+        <source>Document suivant / précédent</source>
+        <translation>Next / previous document</translation>
+    </message>
+    <message>
+        <source>Documents multiples</source>
+        <translation>Multiple documents</translation>
+    </message>
+    <message>
+        <source>Ctrl + Tab / Ctrl + Maj + Tab</source>
+        <translation>Ctrl + Tab / Ctrl + Shift + Tab</translation>
+    </message>
+    <message>
+        <source>Écrêtage des ombres / hautes lumières</source>
+        <translation>Shadow / highlight clipping</translation>
+    </message>
+    <message>
+        <source>Développement RAW</source>
+        <translation>RAW development</translation>
+    </message>
+    <message>
+        <source>U / O</source>
+        <translation>U / O</translation>
+    </message>
+    <message>
+        <source>Notation d’image</source>
+        <translation>Image rating</translation>
+    </message>
+    <message>
+        <source>Ctrl + 1–5</source>
+        <translation>Ctrl + 1–5</translation>
+    </message>
+    <message>
+        <source>Commandes à venir</source>
+        <translation>Future commands</translation>
+    </message>
+    <message>
+        <source>Imprimer</source>
+        <translation>Print</translation>
+    </message>
+    <message>
+        <source>Informations du fichier</source>
+        <translation>File information</translation>
+    </message>
+    <message>
+        <source>Rétablir le fichier enregistré</source>
+        <translation>Revert to saved file</translation>
+    </message>
+    <message>
+        <source>Répéter le dernier filtre</source>
+        <translation>Repeat last filter</translation>
+    </message>
+    <message>
+        <source>Fluidité</source>
+        <translation>Liquify</translation>
+    </message>
+    <message>
+        <source>Filtre Camera Raw</source>
+        <translation>Camera Raw filter</translation>
+    </message>
+    <message>
+        <source>Enregistrer pour le web</source>
+        <translation>Save for web</translation>
+    </message>
+    <message>
+        <source>Outils à venir</source>
+        <translation>Future tools</translation>
+    </message>
+    <message>
+        <source>Plan de travail</source>
+        <translation>Artboard</translation>
+    </message>
+    <message>
+        <source>Groupe d’outils Adobe</source>
+        <translation>Adobe tool group</translation>
+    </message>
+    <message>
+        <source>Pinceau de sélection</source>
+        <translation>Selection brush</translation>
+    </message>
+    <message>
+        <source>Lasso magnétique</source>
+        <translation>Magnetic lasso</translation>
+    </message>
+    <message>
+        <source>Sélection d’objet</source>
+        <translation>Object selection</translation>
+    </message>
+    <message>
+        <source>Annotation</source>
+        <translation>Note</translation>
+    </message>
+    <message>
+        <source>Comptage</source>
+        <translation>Count</translation>
+    </message>
+    <message>
+        <source>Gomme d’arrière-plan</source>
+        <translation>Background eraser</translation>
+    </message>
+    <message>
+        <source>Gomme magique</source>
+        <translation>Magic eraser</translation>
+    </message>
+    <message>
+        <source>Pinceau de réglage</source>
+        <translation>Adjustment brush</translation>
+    </message>
+    <message>
+        <source>Plume libre</source>
+        <translation>Freeform pen</translation>
+    </message>
+    <message>
+        <source>Plume de courbure</source>
+        <translation>Curvature pen</translation>
+    </message>
+    <message>
+        <source>Ajout de point d’ancrage</source>
+        <translation>Add anchor point</translation>
+    </message>
+    <message>
+        <source>Suppression de point d’ancrage</source>
+        <translation>Delete anchor point</translation>
+    </message>
+    <message>
+        <source>Conversion de point</source>
+        <translation>Convert point</translation>
+    </message>
+    <message>
+        <source>Texte vertical</source>
+        <translation>Vertical type</translation>
+    </message>
+    <message>
+        <source>Masque de texte vertical</source>
+        <translation>Vertical type mask</translation>
+    </message>
+    <message>
+        <source>Masque de texte horizontal</source>
+        <translation>Horizontal type mask</translation>
+    </message>
+    <message>
+        <source>Sélection directe</source>
+        <translation>Direct selection</translation>
+    </message>
+    <message>
+        <source>Forme personnalisée</source>
+        <translation>Custom shape</translation>
+    </message>
+    <message>
+        <source>Préférences (raccourci Adobe)</source>
+        <translation>Preferences (Adobe shortcut)</translation>
+    </message>
+    <message>
+        <source>Humidité du pinceau mélangeur</source>
+        <translation>Mixer brush wetness</translation>
+    </message>
+    <message>
+        <source>Pinceau mélangeur</source>
+        <translation>Mixer brush</translation>
+    </message>
+    <message>
+        <source>Mélange du pinceau mélangeur</source>
+        <translation>Mixer brush mix</translation>
+    </message>
+    <message>
+        <source>Opacité du calque</source>
+        <translation>Layer opacity</translation>
+    </message>
+    <message>
+        <source>Masquer aussi la barre supérieure des options</source>
+        <translation>Also hide the top options bar</translation>
+    </message>
+    <message>
+        <source>Masquage intégral des panneaux Photoshop</source>
+        <translation>Complete Photoshop panel hiding</translation>
+    </message>
+    <message>
+        <source>Dialogue Remplir complet (motif, historique, contenu)</source>
+        <translation>Full Fill dialog (pattern, history, content)</translation>
+    </message>
+    <message>
+        <source>Le sélecteur de couleur PhotoCrap est déjà disponible</source>
+        <translation>PhotoCrap’s color picker is already available</translation>
+    </message>
+    <message>
+        <source>Défiler vers le haut de dix unités</source>
+        <translation>Scroll up ten units</translation>
+    </message>
+    <message>
+        <source>Défiler vers le bas de dix unités</source>
+        <translation>Scroll down ten units</translation>
+    </message>
+    <message>
+        <source>Défiler à gauche de dix unités</source>
+        <translation>Scroll left ten units</translation>
+    </message>
+    <message>
+        <source>Défiler à droite de dix unités</source>
+        <translation>Scroll right ten units</translation>
+    </message>
+    <message>
+        <source>Mettre humidité et mélange à zéro</source>
+        <translation>Set wetness and mix to zero</translation>
+    </message>
+    <message>
+        <source>Lasso</source>
+        <translation>Lasso</translation>
+    </message>
+    <message>
+        <source>Sélections intelligentes</source>
+        <translation>Smart selections</translation>
+    </message>
+    <message>
+        <source>Rotation de l’affichage</source>
+        <translation>Rotate view</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>Zoom</translation>
+    </message>
+    <message>
+        <source>Densité</source>
+        <translation>Dodge / Burn / Sponge</translation>
+    </message>
+    <message>
+        <source>Ce raccourci est contextuel ou pas encore implémenté (NYI).</source>
+        <translation>This shortcut is contextual or not yet implemented (NYI).</translation>
+    </message>
+    <message>
+        <source>Ce raccourci est réservé au changement d’outil avec Maj.</source>
+        <translation>This shortcut is reserved for cycling tools with Shift.</translation>
+    </message>
+    <message>
+        <source>Le changement d’outil avec Maj entrerait en conflit avec « %1 ».</source>
+        <translation>Cycling tools with Shift would conflict with “%1”.</translation>
+    </message>
+    <message>
+        <source>PhotoCrap : duplication du calque complet</source>
+        <translation>PhotoCrap: duplicate the entire layer</translation>
+    </message>
+    <message>
+        <source>PhotoCrap : copie de l’image visible</source>
+        <translation>PhotoCrap: copy the visible image</translation>
+    </message>
+    <message>
+        <source>PhotoCrap : création directe, sans dialogue</source>
+        <translation>PhotoCrap: create directly, without a dialog</translation>
+    </message>
+    <message>
+        <source>PhotoCrap : sélecteur de couleur, pixels ou masque</source>
+        <translation>PhotoCrap: color picker, pixels or mask</translation>
     </message>
 </context>
 <context><name>MixerBrushOptions</name>

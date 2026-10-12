@@ -882,8 +882,13 @@ public:
     Q_INVOKABLE void         redo();
     Q_INVOKABLE void         selectAll();
     Q_INVOKABLE void         deselect();
+    Q_INVOKABLE void         reselect();
+    Q_INVOKABLE void         invertSelection();
+    Q_INVOKABLE void         invertSelectedPixels();
+    Q_INVOKABLE void         selectAllLayers();
     Q_INVOKABLE void         clearSelected();
     Q_INVOKABLE void         fillWithColor(bool _foreground, bool _preserveTransparency = false);
+    Q_INVOKABLE void         fillSelectedWithColor(const QColor &_color);
     Q_INVOKABLE void         fillMaskWithColor(const QColor &_color);
     Q_INVOKABLE void         copy();
     Q_INVOKABLE void         paste();
@@ -1098,6 +1103,7 @@ private:
     void              setCropRectangle(const QRectF &_rect);
     QRect             m_selection;
     QRegion           m_selectionRegion;
+    QRegion           m_lastSelectionRegion;
     int               m_selectionShape = 0;
     QPolygonF         m_selectionPath;
     bool              m_polygonLassoActive       = false;

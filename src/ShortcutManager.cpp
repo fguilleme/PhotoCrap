@@ -1,8 +1,11 @@
 #include "ShortcutManager.h"
+#include "ShortcutCatalog.h"
+#include <algorithm>
 
 #include <QGuiApplication>
 #include <QHash>
 #include <QKeySequence>
+#include <QSet>
 #include <QSettings>
 
 namespace
@@ -74,7 +77,8 @@ const char *translatedShortcutText(const QString &_source)
 QString translated(const QString &_source)
 {
     const char *text = translatedShortcutText(_source);
-    return text ? QCoreApplication::translate("ShortcutManager", text) : _source;
+    return QCoreApplication::translate("ShortcutManager",
+                                       text ? text : _source.toUtf8().constData());
 }
 
 QString standard(QKeySequence::StandardKey _key)
@@ -100,9 +104,9 @@ ShortcutManager::ShortcutManager(QObject *_parent, bool _persist)
         {"import", "Fichier", "Importer comme calque", primary("O", true), {}},
         {"save", "Fichier", "Enregistrer", standard(QKeySequence::Save), {}},
         {"saveAs", "Fichier", "Enregistrer sous", standard(QKeySequence::SaveAs), {}},
-        {"export", "Fichier", "Exporter l’image", primary("E", true), {}},
+        {"export", "Fichier", "Exporter l’image", "Ctrl+Alt+Shift+W", {}},
         {"undo", "Édition", "Annuler", standard(QKeySequence::Undo), {}},
-        {"redo", "Édition", "Rétablir", standard(QKeySequence::Redo), {}},
+        {"redo", "Édition", "Rétablir", primary("Z", true), {}},
         {"copy", "Édition", "Copier l’image visible", standard(QKeySequence::Copy), {}},
         {"paste", "Édition", "Coller comme calque", standard(QKeySequence::Paste), {}},
         {"preferences", "Édition", "Ouvrir les réglages", standard(QKeySequence::Preferences), {}},
@@ -141,8 +145,37 @@ ShortcutManager::ShortcutManager(QObject *_parent, bool _persist)
         {"toolRotate", "Outils", "Rotation de l’affichage", "R", {}},
         {"toolZoom", "Outils", "Zoom", "Z", {}},
         {"toolDodge", "Outils", "Densité", "O", {}}};
+    for (const auto &definition : adobeShortcuts) {
+        m_entries.append({definition.id,
+                          definition.category,
+                          definition.label,
+                          definition.sequence,
+                          {},
+                          definition.context,
+                          definition.implemented,
+                          definition.editable,
+                          definition.gesture});
+    }
+    for (auto &entry : m_entries) {
+        entry.sequence = normalized(entry.defaultSequence);
+        if (entry.id == "duplicateLayer")
+            entry.context = QString::fromUtf8(
+                QT_TRANSLATE_NOOP("ShortcutManager", "PhotoCrap : duplication du calque complet"));
+        if (entry.id == "copy")
+            entry.context = QString::fromUtf8(
+                QT_TRANSLATE_NOOP("ShortcutManager", "PhotoCrap : copie de l’image visible"));
+        if (entry.id == "newLayer")
+            entry.context = QString::fromUtf8(QT_TRANSLATE_NOOP(
+                "ShortcutManager", "PhotoCrap : création directe, sans dialogue"));
+        if (entry.id == "fillDialog" || entry.id == "fillDialogF5")
+            entry.context = QString::fromUtf8(QT_TRANSLATE_NOOP(
+                "ShortcutManager", "PhotoCrap : sélecteur de couleur, pixels ou masque"));
+    }
+#ifdef Q_OS_MACOS
     for (auto &entry : m_entries)
-        entry.sequence = entry.defaultSequence;
+        if (entry.id == "actionsPanel")
+            entry.sequence = entry.defaultSequence = QStringLiteral("Alt+F9");
+#endif
     load();
 }
 
@@ -170,11 +203,41 @@ void ShortcutManager::load()
     QSettings settings;
     settings.beginGroup(QStringLiteral("shortcuts"));
     for (auto &entry : m_entries) {
-        if (!settings.contains(entry.id))
+        if (!entry.editable || !entry.implemented || !settings.contains(entry.id))
             continue;
         const QString candidate = normalized(settings.value(entry.id).toString());
         if (!candidate.isEmpty() || settings.value(entry.id).toString().trimmed().isEmpty())
             entry.sequence = candidate;
+    }
+    // New Adobe defaults must not make a previously saved customization ambiguous.
+    QVector<int> order;
+    for (int i = 0; i < m_entries.size(); ++i)
+        order.append(i);
+    std::stable_sort(order.begin(), order.end(), [&](int _a, int _b) {
+        return settings.contains(m_entries[_a].id) && !settings.contains(m_entries[_b].id);
+    });
+    QSet<QString> occupied;
+    for (const int index : order) {
+        auto &entry = m_entries[index];
+        if (!entry.implemented || !entry.editable || entry.sequence.isEmpty())
+            continue;
+        QStringList keys{entry.sequence};
+        const auto  key = QKeySequence::fromString(entry.sequence, QKeySequence::PortableText);
+        if (entry.id.startsWith("tool") && key.count() == 1 &&
+            !key[0].keyboardModifiers().testFlag(Qt::ShiftModifier)) {
+            keys.append(QKeySequence(QKeyCombination(key[0].keyboardModifiers() | Qt::ShiftModifier,
+                                                     key[0].key()))
+                            .toString(QKeySequence::PortableText));
+        }
+        bool conflict = false;
+        for (const auto &candidate : keys)
+            conflict |= occupied.contains(candidate);
+        if (conflict) {
+            entry.sequence.clear();
+            continue;
+        }
+        for (const auto &candidate : keys)
+            occupied.insert(candidate);
     }
 }
 
@@ -195,13 +258,19 @@ void ShortcutManager::notifyChanged()
 QString ShortcutManager::sequence(const QString &_id) const
 {
     const int index = indexOf(_id);
-    return index < 0 ? QString{} : m_entries[index].sequence;
+    return index < 0 || !m_entries[index].implemented || !m_entries[index].editable
+               ? QString{}
+               : m_entries[index].sequence;
 }
 
 QString ShortcutManager::displaySequence(const QString &_id) const
 {
     const int index = indexOf(_id);
-    if (index < 0 || m_entries[index].sequence.isEmpty())
+    if (index < 0)
+        return {};
+    if (!m_entries[index].gesture.isEmpty())
+        return translated(m_entries[index].gesture);
+    if (m_entries[index].sequence.isEmpty())
         return {};
     return QKeySequence::fromString(m_entries[index].sequence, QKeySequence::PortableText)
         .toString(QKeySequence::NativeText);
@@ -212,12 +281,47 @@ QVariantList ShortcutManager::entries() const
     QVariantList result;
     result.reserve(m_entries.size());
     for (const auto &entry : m_entries) {
-        result.append(QVariantMap{{"id", entry.id},
-                                  {"category", translated(entry.category)},
-                                  {"label", translated(entry.label)},
-                                  {"sequence", entry.sequence},
-                                  {"displaySequence", displaySequence(entry.id)},
-                                  {"defaultSequence", entry.defaultSequence}});
+        result.append(QVariantMap{
+            {"id", entry.id},
+            {"category", translated(entry.category)},
+            {"label", translated(entry.label)},
+            {"sequence", entry.sequence},
+            {"displaySequence", displaySequence(entry.id)},
+            {"defaultSequence", entry.defaultSequence},
+            {"context", translated(entry.context)},
+            {"source", entry.context.startsWith("PhotoCrap") || entry.id == "import" ||
+                               entry.id == "preferences"
+                           ? "PhotoCrap"
+                           : "Adobe"},
+            {"implemented", entry.implemented},
+            {"editable", entry.editable && entry.implemented},
+            {"status", entry.implemented ? (entry.editable ? "available" : "gesture") : "nyi"}});
+    }
+    std::stable_sort(result.begin(), result.end(), [](const QVariant &_a, const QVariant &_b) {
+        return _a.toMap()
+                   .value("category")
+                   .toString()
+                   .localeAwareCompare(_b.toMap().value("category").toString()) < 0;
+    });
+    return result;
+}
+
+QVariantList ShortcutManager::filteredEntries(const QString &_query, int _filter) const
+{
+    QVariantList  result;
+    const QString query = _query.trimmed();
+    for (const auto &value : entries()) {
+        const auto    entry  = value.toMap();
+        const QString status = entry.value("status").toString();
+        if ((_filter == 1 && status == "nyi") || (_filter == 2 && status != "nyi") ||
+            (_filter == 3 && status != "gesture"))
+            continue;
+        const QString searchable =
+            entry.value("label").toString() + " " + entry.value("category").toString() + " " +
+            entry.value("context").toString() + " " + entry.value("sequence").toString() + " " +
+            entry.value("displaySequence").toString();
+        if (query.isEmpty() || searchable.contains(query, Qt::CaseInsensitive))
+            result.append(value);
     }
     return result;
 }
@@ -229,16 +333,53 @@ bool ShortcutManager::setSequence(const QString &_id, const QString &_value)
         emit errorOccurred(tr("Commande de raccourci inconnue."));
         return false;
     }
+    if (!m_entries[index].editable || !m_entries[index].implemented) {
+        emit errorOccurred(tr("Ce raccourci est contextuel ou pas encore implémenté (NYI)."));
+        return false;
+    }
     const QString candidate = normalized(_value);
     if (!_value.trimmed().isEmpty() && candidate.isEmpty()) {
         emit errorOccurred(tr("Raccourci invalide. Exemple : Ctrl+Shift+E."));
         return false;
     }
     for (int i = 0; i < m_entries.size(); ++i) {
-        if (i != index && !candidate.isEmpty() && m_entries[i].sequence == candidate) {
+        if (i != index && m_entries[i].editable && m_entries[i].implemented &&
+            !candidate.isEmpty() && m_entries[i].sequence == candidate) {
             emit errorOccurred(
                 tr("« %1 » utilise déjà ce raccourci.").arg(translated(m_entries[i].label)));
             return false;
+        }
+    }
+    const auto key = QKeySequence::fromString(candidate, QKeySequence::PortableText);
+    if (!key.isEmpty() && key.count() == 1) {
+        for (const auto &entry : m_entries) {
+            if (entry.id == _id || !entry.id.startsWith("tool") || !entry.implemented)
+                continue;
+            const auto toolKey =
+                QKeySequence::fromString(entry.sequence, QKeySequence::PortableText);
+            if (toolKey.isEmpty() || toolKey.count() != 1)
+                continue;
+            const auto         combination = toolKey[0];
+            const QKeySequence cycle(QKeyCombination(
+                combination.keyboardModifiers() | Qt::ShiftModifier, combination.key()));
+            if (key == cycle) {
+                emit errorOccurred(tr("Ce raccourci est réservé au changement d’outil avec Maj."));
+                return false;
+            }
+        }
+        if (_id.startsWith("tool")) {
+            const auto         combination = key[0];
+            const QKeySequence cycle(QKeyCombination(
+                combination.keyboardModifiers() | Qt::ShiftModifier, combination.key()));
+            for (const auto &entry : m_entries) {
+                if (entry.id != _id && entry.implemented && entry.editable &&
+                    cycle == QKeySequence::fromString(entry.sequence, QKeySequence::PortableText)) {
+                    emit errorOccurred(
+                        tr("Le changement d’outil avec Maj entrerait en conflit avec « %1 ».")
+                            .arg(translated(entry.label)));
+                    return false;
+                }
+            }
         }
     }
     if (m_entries[index].sequence == candidate)

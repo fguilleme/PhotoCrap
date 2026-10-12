@@ -296,7 +296,7 @@ void Document::applyCrop()
         const auto warp = [&transform, outputSize, &result](QImage &_image) {
             if (_image.isNull())
                 return;
-            QImage output = ImageUtils::blank(outputSize);
+            QImage output = ImageUtils::blank(outputSize, ImageUtils::workingFormat(_image));
             if (output.isNull()) {
                 result.valid = false;
                 return;

@@ -1,5 +1,5 @@
 #include "PosterizeFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -14,8 +14,18 @@ QImage applyPosterize(const QImage &_source, const QVariantMap &_parameters)
     if (_source.isNull())
         return _source;
 
-    const int              levels = qBound(2, _parameters.value("levels", 4).toInt(), 32);
-    const double           step   = 255. / (levels - 1);
+    const int levels = qBound(2, _parameters.value("levels", 4).toInt(), 32);
+    if (ImageUtils::is16Bit(_source)) {
+        const double step = 65535. / (levels - 1);
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            auto channel = [&](int _value) {
+                return qBound(0, qRound(qRound(_value / step) * step), 65535);
+            };
+            return QRgba64::fromRgba64(channel(_pixel.red()), channel(_pixel.green()),
+                                       channel(_pixel.blue()), _pixel.alpha());
+        });
+    }
+    const double           step = 255. / (levels - 1);
     std::array<uchar, 256> table{};
     for (int value = 0; value < int(table.size()); ++value)
         table[size_t(value)] = uchar(qBound(0, qRound(qRound(value / step) * step), 255));

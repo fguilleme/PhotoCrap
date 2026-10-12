@@ -1,4 +1,5 @@
 #pragma once
+#include "RawImageReader.h"
 #include <QColor>
 #include <QFutureWatcher>
 #include <QHash>
@@ -56,6 +57,7 @@ class Document : public QObject
     Q_PROPERTY(QVariantList layers READ layers NOTIFY layersChanged)
     Q_PROPERTY(int activeLayer READ activeLayer WRITE setActiveLayer NOTIFY layersChanged)
     Q_PROPERTY(quint64 documentSession READ documentSession NOTIFY documentChanged)
+    Q_PROPERTY(bool rawLoading READ rawLoading NOTIFY rawLoadingChanged)
     Q_PROPERTY(int selectedLayerCount READ selectedLayerCount NOTIFY layersChanged)
     Q_PROPERTY(bool canGroupSelected READ canGroupSelected NOTIFY layersChanged)
     Q_PROPERTY(bool canUngroupActive READ canUngroupActive NOTIFY layersChanged)
@@ -232,6 +234,19 @@ class Document : public QObject
 public:
     explicit Document(QObject *_parent = nullptr);
     ~Document() override;
+    Q_PROPERTY(int channelBits READ channelBits NOTIFY documentChanged)
+    int channelBits() const
+    {
+        return m_channelBits;
+    }
+    Q_INVOKABLE bool setChannelBits(int _bits);
+    Q_INVOKABLE bool toolSupportsDepth(const QString &_tool) const;
+    QImage::Format   workingFormat() const
+    {
+        return m_channelBits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                   : QImage::Format_ARGB32_Premultiplied;
+    }
+
     int width() const
     {
         return m_size.width();
@@ -781,10 +796,18 @@ public:
     void             setSelectionSampleAllLayers(bool _value);
     void             setSelectionEnhanceEdge(bool _value);
 
-    Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false);
+    Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false, int _bits = 8);
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
+    Q_INVOKABLE bool isRawFile(const QUrl &_url) const;
+    Q_INVOKABLE QString rawFilePatterns() const;
+    Q_INVOKABLE bool    openRawFile(const QUrl &_url, bool _asLayer = false);
+    Q_INVOKABLE void    cancelRawLoad();
+    bool                rawLoading() const
+    {
+        return m_rawLoading;
+    }
     Q_INVOKABLE bool saveProject(const QUrl &_url);
     Q_INVOKABLE bool exportImage(const QUrl &_url);
     Q_INVOKABLE void addLayer();
@@ -919,6 +942,8 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void rawLoadingChanged();
+    void rawFileOpened(const QUrl &_url);
     void slicesChanged();
     void cropChanged();
     void canvasSizeChanged();
@@ -953,6 +978,7 @@ private:
         QString        label;
         QVector<QRect> slices;
         int            activeSlice = -1;
+        int            channelBits = 8;
     };
     QVector<QRect> m_slices;
     int            m_activeSlice = -1, m_sliceHandle = -2;
@@ -961,6 +987,7 @@ private:
     QRectF         m_sliceDraft, m_sliceBefore;
     QPointF        m_sliceAnchor;
     void           commitSlices(const Snapshot &_before, const QString &_label);
+    int            m_channelBits = 8;
     QSize          m_size{1280, 800};
     QVector<Layer> m_layers;
     int            m_active = 0;
@@ -1034,9 +1061,17 @@ private:
     QPointF m_mixerLastEnd;
     bool    m_mixerLastEndValid = false;
 
-    quint64 m_documentSession = 0;
-    int     m_eyedropperSize = 1, m_eyedropperSource = 0;
-    bool    m_eyedropperRing = true;
+    quint64                           m_documentSession = 0;
+    QFutureWatcher<RawImageResult>    m_rawWatcher;
+    std::shared_ptr<std::atomic_bool> m_rawCancel;
+    bool                              m_rawLoading = false;
+    quint64                           m_rawSession = 0, m_rawState = 0;
+    QUrl                              m_rawUrl;
+    bool                              m_rawAsLayer = false;
+    void                              finishRawLoad();
+    bool adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _asLayer);
+    int  m_eyedropperSize = 1, m_eyedropperSource = 0;
+    bool m_eyedropperRing = true;
 
     qreal             m_toolStrength   = .5;
     bool              m_spongeSaturate = false;
@@ -1174,7 +1209,7 @@ private:
     void    selectOnly(int _index);
     void    changed(bool _metadata = true, bool _notifyImage = true);
     void    resetHistory(bool _clean);
-    bool    validSize(int _width, int _height, int _layerCount = 1);
+    bool    validSize(int _width, int _height, int _layerCount = 1, int _bits = 0);
     bool    editable();
     bool    fail(const QString &_message);
     void    edit(const QString &_label, const std::function<void()> &_operation);

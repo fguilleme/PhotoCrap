@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImageUtils.h"
 
 #include <QCache>
 #include <QJSValue>
@@ -173,6 +174,9 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     renderer.m_historyBrushSource = {}; // Render helpers need no retained initial state.
     renderer.m_layers             = std::move(_layers);
     renderer.m_size               = renderSize;
+    for (const auto &layer : renderer.m_layers)
+        if (ImageUtils::is16Bit(layer.image) || ImageUtils::is16Bit(layer.source))
+            renderer.m_channelBits = 16;
     renderer.m_cacheDirty         = true;
     renderer.m_fullCompositeDirty = true;
     renderer.m_dirtyRegion        = {};

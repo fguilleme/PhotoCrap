@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "RawTestImage.h"
 #include "RecentFilesManager.h"
 #include "WorkspaceSettings.h"
 #include <QFile>
@@ -33,6 +34,32 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto artboard = _window->findChild<QQuickItem *>("artboard");
     if (!require(viewport && artboard, "viewport and artboard exist"))
         return false;
+    QTemporaryDir rawDirectory;
+    QFile         rawFile(rawDirectory.filePath(QString::fromUtf8("échantillon.DNG")));
+    if (!require(rawFile.open(QIODevice::WriteOnly), "create a RAW fixture"))
+        return false;
+    rawFile.write(RawTestImage::dng());
+    rawFile.close();
+    auto rawPopup = _window->findChild<QObject *>("rawLoadPopup");
+    if (!require(rawPopup && _document.rawFilePatterns().contains("*.DNG") &&
+                     _document.rawFilePatterns().contains("*.cr3"),
+                 "RAW dialog and camera patterns exist"))
+        return false;
+    if (!require(_document.openRawFile(QUrl::fromLocalFile(rawFile.fileName())),
+                 "start asynchronous RAW open"))
+        return false;
+    QCoreApplication::processEvents();
+    if (_document.rawLoading() && !require(rawPopup->property("visible").toBool() &&
+                                               rawPopup->property("height").toInt() > 100,
+                                           "RAW progress popup is usable"))
+        return false;
+    if (!require(QTest::qWaitFor([&] { return !_document.rawLoading(); }, 10000),
+                 "RAW load finishes"))
+        return false;
+    if (!require(_document.channelBits() == 16 && _recentFiles.entries().size() > 0,
+                 "RAW opens16-bit and enters recent files"))
+        return false;
+    _recentFiles.clear();
     _document.newDocument(300, 200, true);
     QTest::qWait(100);
     auto histogramPanel     = _window->findChild<QObject *>("histogramDockPanel");

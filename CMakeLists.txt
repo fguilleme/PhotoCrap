@@ -8,8 +8,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
+include(cmake/RawDependencies.cmake)
 
 set(PHOTOCRAP_CXX_SOURCES
+    src/RawImageReader.cpp
     src/ToolInput.cpp
     src/CanvasItem.cpp
     src/Document.cpp
@@ -66,6 +68,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/main.cpp
 )
 set(PHOTOCRAP_FORMAT_SOURCES
+    src/ImagePixels.h
+    src/RawImageReader.h
     src/ToolInput.h
     src/MacToolCursor.h
     src/MacToolCursor.mm
@@ -95,6 +99,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/ShortcutManager.h
     src/WorkspaceSettings.h
     tests/DocumentTest.cpp
+    tests/RawTestImage.h
     tests/UiSmoke.h
 )
 
@@ -179,6 +184,8 @@ qt_add_library(photocrap_core STATIC
     src/DocumentEditing.cpp
     src/DocumentFilters.cpp
     src/DocumentIO.cpp
+    src/RawImageReader.cpp
+    src/RawImageReader.h
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
     src/tools/BrushTool.cpp
@@ -236,6 +243,7 @@ qt_add_library(photocrap_core STATIC
     src/filters/ThresholdFilter.h
 )
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent)
+target_link_libraries(photocrap_core PRIVATE photocrap_libraw)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE)
     target_compile_definitions(photocrap_core PRIVATE PHOTOCRAP_USE_ACCELERATE)
@@ -387,6 +395,7 @@ include(GNUInstallDirs)
 install(TARGETS PhotoCrap BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 qt_generate_deploy_qml_app_script(TARGET PhotoCrap OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
 install(SCRIPT ${deploy_script})
+photocrap_install_raw_sources()
 if(APPLE)
     # Qt's deployment step adds frameworks, plugins and QML resources after
     # the executable has received its linker signature. Seal the completed

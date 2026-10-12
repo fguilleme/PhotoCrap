@@ -1,5 +1,5 @@
 #include "SelectiveColorFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -57,14 +57,16 @@ QVariantMap defaultSelectiveColorParameters()
     return result;
 }
 
-QImage applySelectiveColor(const QImage &_source, const QVariantMap &_parameters)
+template <typename Pixel>
+QImage applySelectiveColorPixels(const QImage &_source, const QVariantMap &_parameters)
 {
+    using P = ImageUtils::PixelAccess<Pixel>;
     if (_source.isNull())
         return _source;
     const bool   relative = _parameters.value("relative", true).toBool();
     const bool   legacy   = !_parameters.contains("redsCyanRed");
-    const QImage input    = _source.convertToFormat(QImage::Format_ARGB32);
-    QImage       result(input.size(), QImage::Format_ARGB32);
+    const QImage input    = _source.convertToFormat(P::format);
+    QImage       result(input.size(), P::format);
     std::array<RangeAdjustment, RangeNames.size()> adjustments{};
     for (size_t range = 0; range < RangeNames.size(); ++range) {
         const QString prefix = QLatin1String(RangeNames[range]);
@@ -84,11 +86,11 @@ QImage applySelectiveColor(const QImage &_source, const QVariantMap &_parameters
     ImageUtils::blockingMap(jobs, [&](int _job) {
         for (int y = input.height() * _job / jobCount; y < input.height() * (_job + 1) / jobCount;
              ++y) {
-            const auto *source = reinterpret_cast<const QRgb *>(input.constScanLine(y));
-            auto       *output = reinterpret_cast<QRgb *>(result.scanLine(y));
+            const auto *source = reinterpret_cast<const Pixel *>(input.constScanLine(y));
+            auto       *output = reinterpret_cast<Pixel *>(result.scanLine(y));
             for (int x = 0; x < input.width(); ++x) {
-                const QRgb pixel = source[x];
-                double     red = qRed(pixel), green = qGreen(pixel), blue = qBlue(pixel);
+                const Pixel pixel = source[x];
+                double      red = P::red(pixel), green = P::green(pixel), blue = P::blue(pixel);
                 if (legacy) {
                     const double saturation =
                         (std::max({red, green, blue}) - std::min({red, green, blue})) / 255.;
@@ -112,12 +114,18 @@ QImage applySelectiveColor(const QImage &_source, const QVariantMap &_parameters
                     green = adjustedChannel(green, greenDelta, relative);
                     blue  = adjustedChannel(blue, blueDelta, relative);
                 }
-                output[x] = qRgba(qBound(0, qRound(red), 255), qBound(0, qRound(green), 255),
-                                  qBound(0, qRound(blue), 255), qAlpha(pixel));
+                output[x] =
+                    P::rgba(qBound(0., P::round(red), 255.), qBound(0., P::round(green), 255.),
+                            qBound(0., P::round(blue), 255.), P::alpha(pixel));
             }
         }
     });
     result.setColorSpace(QColorSpace::SRgb);
-    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    return result.convertToFormat(P::premultiplied);
+}
+QImage applySelectiveColor(const QImage &_source, const QVariantMap &_parameters)
+{
+    return ImageUtils::is16Bit(_source) ? applySelectiveColorPixels<QRgba64>(_source, _parameters)
+                                        : applySelectiveColorPixels<QRgb>(_source, _parameters);
 }
 } // namespace PhotoCrap::Filters

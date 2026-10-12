@@ -1,5 +1,5 @@
 #include "CurvesFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QPointF>
@@ -17,8 +17,9 @@ namespace PhotoCrap::Filters
 {
 namespace
 {
-std::array<int, 256> curveTable(const QVariantMap &_parameters)
+QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255)
 {
+    const double     scale = _maximum / 255.;
     QVector<QPointF> points;
     for (const QVariant &entry : _parameters.value("points").toList()) {
         const QVariantMap point = entry.toMap();
@@ -26,26 +27,28 @@ std::array<int, 256> curveTable(const QVariantMap &_parameters)
             points.append({qBound(0., point.value("x").toDouble(), 255.),
                            qBound(0., point.value("y").toDouble(), 255.)});
     }
+    for (auto &point : points)
+        point *= scale;
     std::sort(points.begin(), points.end(),
               [](const QPointF &_a, const QPointF &_b) { return _a.x() < _b.x(); });
     QVector<QPointF> unique;
     for (const QPointF &point : std::as_const(points)) {
-        if (!unique.isEmpty() && qAbs(unique.last().x() - point.x()) < .5)
+        if (!unique.isEmpty() && qAbs(unique.last().x() - point.x()) < .5 * scale)
             unique.last() = point;
         else
             unique.append(point);
     }
 
-    std::array<int, 256> table{};
+    QVector<int> table(_maximum + 1);
     if (unique.size() < 2) {
         const double shadows    = _parameters.value("shadows", 0).toDouble();
         const double midtones   = _parameters.value("midtones", 0).toDouble();
         const double highlights = _parameters.value("highlights", 0).toDouble();
-        for (int x = 0; x < 256; ++x) {
-            const double t = x / 255.;
+        for (int x = 0; x <= _maximum; ++x) {
+            const double t = double(x) / _maximum;
             const double delta =
                 shadows * std::pow(1 - t, 2) + midtones * 4 * t * (1 - t) + highlights * t * t;
-            table[x] = qBound(0, qRound(x + delta), 255);
+            table[x] = qBound(0, qRound(x + delta * scale), _maximum);
         }
         return table;
     }
@@ -67,7 +70,7 @@ std::array<int, 256> curveTable(const QVariantMap &_parameters)
         }
     }
     int segment = 0;
-    for (int x = 0; x < 256; ++x) {
+    for (int x = 0; x <= _maximum; ++x) {
         while (segment + 1 < unique.size() - 1 && x > unique[segment + 1].x())
             ++segment;
         if (x <= unique.first().x()) {
@@ -84,7 +87,7 @@ std::array<int, 256> curveTable(const QVariantMap &_parameters)
                          (t3 - 2 * t2 + t) * width * slopes[segment] +
                          (-2 * t3 + 3 * t2) * unique[segment + 1].y() +
                          (t3 - t2) * width * slopes[segment + 1];
-        table[x]       = qBound(0, qRound(y), 255);
+        table[x]       = qBound(0, qRound(y), _maximum);
     }
     return table;
 }
@@ -113,6 +116,16 @@ QImage applyCurves(const QImage &_source, const QVariantMap &_parameters)
 {
     if (_source.isNull())
         return _source;
+    if (ImageUtils::is16Bit(_source)) {
+        const auto table = curveTable(_parameters, 65535);
+        const auto red   = curveTable({{"points", channelPoints(_parameters, 0)}}, 65535);
+        const auto green = curveTable({{"points", channelPoints(_parameters, 1)}}, 65535);
+        const auto blue  = curveTable({{"points", channelPoints(_parameters, 2)}}, 65535);
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            return QRgba64::fromRgba64(red[table[_pixel.red()]], green[table[_pixel.green()]],
+                                       blue[table[_pixel.blue()]], _pixel.alpha());
+        });
+    }
     const auto   table      = curveTable(_parameters);
     const auto   redTable   = curveTable({{"points", channelPoints(_parameters, 0)}});
     const auto   greenTable = curveTable({{"points", channelPoints(_parameters, 1)}});

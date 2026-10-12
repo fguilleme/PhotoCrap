@@ -75,6 +75,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
+    if (!toolSupportsDepth(m_tool)) {
+        fail(tr("Cet outil nécessite actuellement un document 8 bits. Changez la profondeur dans "
+                "le menu Image."));
+        return;
+    }
     invalidateContentMove();
     if (m_tool != "remove")
         cancelRemoval();
@@ -228,7 +233,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" || m_tool == "healing" ||
                             m_tool == "spotHealing")
                                ? QImage{}
-                               : ImageUtils::blank(m_size);
+                               : ImageUtils::blank(m_size, workingFormat());
         if (m_tool == "spotHealing")
             prepareSpotHealingStroke();
         if (m_tool == "smudge")

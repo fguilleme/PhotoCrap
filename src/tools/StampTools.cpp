@@ -128,7 +128,7 @@ void Document::renderStampStroke()
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
 
     // All temporary images, blending and copies cover only the touched pixels.
-    QImage   overlay = ImageUtils::blank(region.size());
+    QImage   overlay = ImageUtils::blank(region.size(), ImageUtils::workingFormat(m_strokeBase));
     QPainter sampler(&overlay);
     if (hasSelection())
         sampler.setClipRegion(m_selectionRegion.translated(-region.topLeft()));
@@ -142,8 +142,9 @@ void Document::renderStampStroke()
     sampler.drawImage(0, 0, m_strokeCoverage.copy(region));
     sampler.end();
 
-    QImage canvas = m_strokeBase.copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    canvas        = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
+    QImage canvas =
+        m_strokeBase.copy(region).convertToFormat(ImageUtils::workingFormat(m_strokeBase));
+    canvas = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
     if (m_editingMask) {
         const QImage gray = canvas.convertToFormat(QImage::Format_Grayscale8);
         for (int y = 0; y < region.height(); ++y)

@@ -1,5 +1,5 @@
 #include "LightFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -38,6 +38,33 @@ QImage applyLight(const QImage &_source, const QVariantMap &_parameters)
     const double whites  = qBound(-1., _parameters.value("whites", 0.).toDouble() / 100., 1.);
     const double blacks  = qBound(-1., _parameters.value("blacks", 0.).toDouble() / 100., 1.);
 
+    if (ImageUtils::is16Bit(_source)) {
+        QVector<quint16> toneCurve(65536);
+        for (int level = 0; level < toneCurve.size(); ++level) {
+            double value     = qBound(0., level / 65535. * std::exp2(exposure), 1.);
+            value            = qBound(0., .5 + (value - .5) * std::exp2(contrast), 1.);
+            value            = shiftTone(value, shadows, 1. - smoothStep(0., .65, value));
+            value            = shiftTone(value, highlights, smoothStep(.35, 1., value));
+            value            = shiftTone(value, blacks, 1. - smoothStep(0., .35, value));
+            value            = shiftTone(value, whites, smoothStep(.65, 1., value));
+            toneCurve[level] = quint16(qBound(0, qRound(value * 65535.), 65535));
+        }
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            const int luminance =
+                (54 * _pixel.red() + 183 * _pixel.green() + 19 * _pixel.blue() + 128) >> 8;
+            const int mapped  = toneCurve[luminance];
+            auto      channel = [&](int _value) {
+                if (mapped >= luminance)
+                    return luminance == 65535
+                               ? mapped
+                               : qRound(_value + (65535. - _value) * (mapped - luminance) /
+                                                     (65535. - luminance));
+                return luminance == 0 ? mapped : qRound(double(_value) * mapped / luminance);
+            };
+            return QRgba64::fromRgba64(channel(_pixel.red()), channel(_pixel.green()),
+                                       channel(_pixel.blue()), _pixel.alpha());
+        });
+    }
     std::array<uchar, 256> toneCurve{};
     for (int level = 0; level < int(toneCurve.size()); ++level) {
         double       value          = qBound(0., level / 255. * std::exp2(exposure), 1.);

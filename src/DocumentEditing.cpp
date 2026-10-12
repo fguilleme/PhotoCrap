@@ -104,7 +104,7 @@ void Document::copy()
 {
     endStroke();
     if (hasSelection()) {
-        QImage   selection = ImageUtils::blank(m_selection.size());
+        QImage   selection = ImageUtils::blank(m_selection.size(), workingFormat());
         QPainter painter(&selection);
         painter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
         painter.drawImage(-m_selection.topLeft(), composite());
@@ -124,7 +124,7 @@ void Document::paste()
     if (source.colorSpace().isValid())
         source.convertToColorSpace(QColorSpace::SRgb);
     edit(tr("Coller"), [&] {
-        auto     image = ImageUtils::blank(m_size);
+        auto     image = ImageUtils::blank(m_size, workingFormat());
         QPainter p(&image);
         p.drawImage((width() - source.width()) / 2, (height() - source.height()) / 2, source);
         p.end();

@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QPainter>
 #include <QSaveFile>
+#include <QtConcurrentRun>
 
 namespace
 {
@@ -23,12 +24,13 @@ QString localPath(const QUrl &_url)
 }
 } // namespace
 
-bool Document::newDocument(int _w, int _h, bool _transparent)
+bool Document::newDocument(int _w, int _h, bool _transparent, int _bits)
 {
-    if (!validSize(_w, _h))
+    if ((_bits != 8 && _bits != 16) || !validSize(_w, _h, 1, _bits))
         return false;
-    m_size       = {_w, _h};
-    QImage image = ImageUtils::blank(m_size);
+    m_channelBits = _bits;
+    m_size        = {_w, _h};
+    QImage image  = ImageUtils::blank(m_size, workingFormat());
     if (!_transparent)
         image.fill(Qt::white);
     m_layers     = {{tr("Arrière-plan"), image}};
@@ -40,6 +42,12 @@ bool Document::newDocument(int _w, int _h, bool _transparent)
 }
 QImage Document::readImage(const QString &_path)
 {
+    if (RawImageReader::isRawFile(_path)) {
+        const auto result = RawImageReader::read(_path);
+        if (result.image.isNull())
+            fail(result.error);
+        return result.image;
+    }
     QImageReader reader(_path);
     reader.setAutoTransform(true);
     const QSize size = reader.size();
@@ -57,7 +65,7 @@ QImage Document::readImage(const QString &_path)
         image.convertToColorSpace(QColorSpace::SRgb);
     else
         image.setColorSpace(QColorSpace::SRgb);
-    return image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    return image.convertToFormat(ImageUtils::workingFormat(image));
 }
 bool Document::openFile(const QUrl &_url)
 {
@@ -69,11 +77,99 @@ bool Document::openFile(const QUrl &_url)
     auto image = readImage(path);
     if (image.isNull())
         return false;
-    m_size       = image.size();
-    m_layers     = {{QFileInfo(path).completeBaseName(), image}};
-    m_active     = 0;
-    m_name       = QFileInfo(path).completeBaseName();
-    m_projectUrl = QUrl{};
+    return adoptDecodedImage(image, _url, false);
+}
+bool Document::isRawFile(const QUrl &_url) const
+{
+    return _url.isLocalFile() && RawImageReader::isRawFile(_url.toLocalFile());
+}
+QString Document::rawFilePatterns() const
+{
+    return RawImageReader::filePatterns();
+}
+bool Document::openRawFile(const QUrl &_url, bool _asLayer)
+{
+    if (!isRawFile(_url))
+        return fail(tr("Choisissez un fichier RAW local."));
+    if (m_rawLoading)
+        return fail(tr("Un RAW est déjà en cours de lecture."));
+    endStroke();
+    if (_asLayer && !validSize(width(), height(), int(m_layers.size()) + 1))
+        return false;
+    m_rawUrl     = _url;
+    m_rawAsLayer = _asLayer;
+    m_rawSession = m_documentSession;
+    m_rawState   = m_stateId;
+    m_rawCancel  = std::make_shared<std::atomic_bool>(false);
+    m_rawLoading = true;
+    emit          rawLoadingChanged();
+    const QString path   = _url.toLocalFile();
+    const auto    cancel = m_rawCancel;
+    m_rawWatcher.setFuture(
+        QtConcurrent::run([path, cancel] { return RawImageReader::read(path, cancel); }));
+    return true;
+}
+void Document::cancelRawLoad()
+{
+    if (m_rawCancel)
+        m_rawCancel->store(true);
+}
+void Document::finishRawLoad()
+{
+    const auto result    = m_rawWatcher.result();
+    const bool cancelled = result.cancelled || m_rawCancel->load() ||
+                           m_rawSession != m_documentSession || m_rawState != m_stateId;
+    const QUrl url       = m_rawUrl;
+    const bool asLayer   = m_rawAsLayer;
+    bool       opened    = false;
+    if (!cancelled) {
+        if (result.image.isNull())
+            fail(result.error);
+        else
+            opened = adoptDecodedImage(result.image, url, asLayer);
+    }
+    m_rawLoading = false;
+    m_rawCancel.reset();
+    emit rawLoadingChanged();
+    if (opened && !asLayer)
+        emit rawFileOpened(url);
+}
+bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _asLayer)
+{
+    if (_image.isNull() ||
+        !validSize(_image.width(), _image.height(), 1, ImageUtils::is16Bit(_image) ? 16 : 8))
+        return false;
+    if (_asLayer) {
+        if (!validSize(width(), height(), int(m_layers.size()) + 1))
+            return false;
+        const int bits = qMax(m_channelBits, ImageUtils::is16Bit(_image) ? 16 : 8);
+        if (!validSize(width(), height(), int(m_layers.size()) + 1, bits))
+            return false;
+        edit(tr("Importer un calque"), [&] {
+            m_channelBits = bits;
+            for (auto &layer : m_layers) {
+                if (!layer.image.isNull())
+                    layer.image.convertTo(workingFormat());
+                if (!layer.source.isNull())
+                    layer.source.convertTo(workingFormat());
+            }
+            QImage   target = ImageUtils::blank(m_size, workingFormat());
+            QPainter painter(&target);
+            painter.drawImage((width() - _image.width()) / 2, (height() - _image.height()) / 2,
+                              _image);
+            painter.end();
+            m_layers.insert(++m_active, {QFileInfo(_url.toLocalFile()).completeBaseName(), target});
+            selectOnly(m_active);
+        });
+        return true;
+    }
+    const QString path = _url.toLocalFile();
+    m_channelBits      = ImageUtils::is16Bit(_image) ? 16 : 8;
+    m_size             = _image.size();
+    m_layers           = {{QFileInfo(path).completeBaseName(), _image}};
+    m_active           = 0;
+    m_name             = QFileInfo(path).completeBaseName();
+    m_projectUrl       = QUrl{};
     resetHistory(false);
     return true;
 }
@@ -84,15 +180,7 @@ bool Document::importLayer(const QUrl &_url)
     auto image = readImage(localPath(_url));
     if (image.isNull())
         return false;
-    edit(tr("Importer un calque"), [&] {
-        QImage   target = ImageUtils::blank(m_size);
-        QPainter painter(&target);
-        painter.drawImage((width() - image.width()) / 2, (height() - image.height()) / 2, image);
-        painter.end();
-        m_layers.insert(++m_active, {QFileInfo(_url.toLocalFile()).completeBaseName(), target});
-        selectOnly(m_active);
-    });
-    return true;
+    return adoptDecodedImage(image, _url, true);
 }
 bool Document::saveProject(const QUrl &_url)
 {
@@ -133,10 +221,11 @@ bool Document::saveProject(const QUrl &_url)
                                   {"groupCollapsed", layer.groupCollapsed},
                                   {"source", source}});
     }
-    QJsonObject root{{"format", "PhotoCrap"},   {"version", 5},
+    QJsonObject root{{"format", "PhotoCrap"},   {"version", 6},
                      {"width", width()},        {"height", height()},
                      {"activeLayer", m_active}, {"layers", layers}};
-    QJsonArray  slices;
+    root["channelBits"] = m_channelBits;
+    QJsonArray slices;
     for (const auto &rect : m_slices)
         slices.append(QJsonObject{
             {"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}});
@@ -167,11 +256,16 @@ bool Document::loadProject(const QString &_path)
     const auto      root    = json.object();
     const int       version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 5))
+        (version < 1 || version > 6))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
-    if (!validSize(w, h, int(array.size())))
+    const int  bits  = version >= 6 ? root["channelBits"].toInt() : 8;
+    if (bits != 8 && bits != 16)
+        return fail(tr("Profondeur de projet invalide."));
+    const auto format =
+        bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
+    if (!validSize(w, h, int(array.size()), bits))
         return false;
     QVector<Layer> layers;
     for (const auto &value : array) {
@@ -193,9 +287,9 @@ bool Document::loadProject(const QString &_path)
         if (kind != "pixel" && kind != "adjustment" && kind != "group" && kind != "frequency" &&
             kind != "frequencyLow" && kind != "frequencyHigh")
             return fail(tr("Type de calque inconnu."));
-        auto image  = decode(object["png"].toString(), QImage::Format_ARGB32_Premultiplied);
+        auto image  = decode(object["png"].toString(), format);
         auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8);
-        auto source = decode(object["source"].toString(), QImage::Format_ARGB32_Premultiplied);
+        auto source = decode(object["source"].toString(), format);
         if ((kind == "pixel" && image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||
             (!object["mask"].toString().isEmpty() && mask.isNull()))
@@ -246,11 +340,12 @@ bool Document::loadProject(const QString &_path)
         slices.append(QRect(x, y, sw, sh));
     }
     // Only replace the current document after validating every layer.
-    m_layers     = layers;
-    m_size       = {w, h};
-    m_active     = qBound(0, root["activeLayer"].toInt(), int(layers.size()) - 1);
-    m_projectUrl = QUrl::fromLocalFile(_path);
-    m_name       = QFileInfo(_path).completeBaseName();
+    m_channelBits = bits;
+    m_layers      = layers;
+    m_size        = {w, h};
+    m_active      = qBound(0, root["activeLayer"].toInt(), int(layers.size()) - 1);
+    m_projectUrl  = QUrl::fromLocalFile(_path);
+    m_name        = QFileInfo(_path).completeBaseName();
     resetHistory(true);
     m_slices      = slices;
     m_activeSlice = slices.isEmpty() ? -1 : 0;

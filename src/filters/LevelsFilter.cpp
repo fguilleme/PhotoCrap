@@ -1,5 +1,5 @@
 #include "LevelsFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -22,6 +22,22 @@ QImage applyLevels(const QImage &_source, const QVariantMap &_parameters)
     const double outputBlack = qBound(0., _parameters.value("outputBlack", 0).toDouble(), 255.);
     const double outputWhite =
         qBound(outputBlack, _parameters.value("outputWhite", 255).toDouble(), 255.);
+    if (ImageUtils::is16Bit(_source)) {
+        QVector<quint16> table(65536);
+        for (int value = 0; value < table.size(); ++value) {
+            const double normalized =
+                qBound(0., (value / 257. - inputBlack) / (inputWhite - inputBlack), 1.);
+            table[value] = quint16(qBound(0,
+                                          qRound((outputBlack + std::pow(normalized, 1 / gamma) *
+                                                                    (outputWhite - outputBlack)) *
+                                                 257.),
+                                          65535));
+        }
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            return QRgba64::fromRgba64(table[_pixel.red()], table[_pixel.green()],
+                                       table[_pixel.blue()], _pixel.alpha());
+        });
+    }
     std::array<int, 256> table{};
     for (int value = 0; value < 256; ++value) {
         const double normalized = qBound(0., (value - inputBlack) / (inputWhite - inputBlack), 1.);

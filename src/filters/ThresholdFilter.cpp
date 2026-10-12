@@ -1,5 +1,5 @@
 #include "ThresholdFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -13,8 +13,16 @@ QImage applyThreshold(const QImage &_source, const QVariantMap &_parameters)
     if (_source.isNull())
         return _source;
 
-    const int    threshold = qBound(0, _parameters.value("level", 128).toInt(), 255);
-    const QImage input     = _source.convertToFormat(QImage::Format_ARGB32);
+    const int threshold = qBound(0, _parameters.value("level", 128).toInt(), 255);
+    if (ImageUtils::is16Bit(_source)) {
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            const double luminance =
+                .2126 * _pixel.red() + .7152 * _pixel.green() + .0722 * _pixel.blue();
+            const int value = luminance >= threshold * 257. ? 65535 : 0;
+            return QRgba64::fromRgba64(value, value, value, _pixel.alpha());
+        });
+    }
+    const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
     QImage       result(input.size(), QImage::Format_ARGB32);
     const int    jobCount =
         qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));

@@ -78,8 +78,10 @@ Améliorations des outils déjà disponibles :
 - [ ] Transformation libre, perspective, formes vectorielles et texte éditable.
 - [ ] Fidélité colorimétrique des réglages et jeux d’images de référence ; les traitements actuels sont des implémentations sRGB simplifiées.
 - [ ] Lectures supplémentaires dans Informations : espaces colorimétriques, opacité, avant/après et unités de mesure configurables.
-- [ ] Gestion ICC complète, épreuvage écran/impression, RVB 16/32 bits, CMJN, tons directs et HDR.
-- [ ] Développement RAW via une bibliothèque dédiée, corrections optiques et réduction du bruit.
+- [ ] Gestion ICC complète, épreuvage écran/impression, RVB 32 bits, CMJN, tons directs et HDR.
+- [x] Ouverture/import RAW asynchrone via LibRaw ; stockage, réglages photo, projets et PNG en 16 bits par canal.
+- [ ] Porter les outils de réparation, Doigt, Pinceau mélangeur, Remplacement de couleur et formes d’historique en 16 bits.
+- [ ] Développement RAW réglable, corrections optiques et réduction du bruit ; validation sur des fichiers de boîtiers réels.
 
 ## 5. Interopérabilité et extensibilité
 

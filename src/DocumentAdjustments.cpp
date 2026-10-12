@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImagePixels.h"
 #include "filters/SelectiveColorFilter.h"
 
 #include <QPainter>
@@ -281,77 +282,88 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
     }
     _amount = qBound(-100., _amount, 100.);
     edit(tr("Filtre : %1").arg(_filter), [&] {
-        const QImage original = m_layers[m_active].image;
-        QImage       result   = original.convertToFormat(QImage::Format_ARGB32);
-        const QRect  area     = hasSelection() ? m_selection : result.rect();
-        if (_filter == "blur" || _filter == "sharpen") {
-            const int    radius  = _filter == "sharpen" ? 1 : qBound(1, int(_amount), 30);
-            const QImage blurred = blurImage(original, radius);
-            if (_filter == "blur") {
-                result = original;
-                QPainter p(&result);
-                p.setCompositionMode(QPainter::CompositionMode_Source);
-                if (hasSelection())
-                    p.setClipRegion(m_selectionRegion);
-                else
-                    p.setClipRect(area);
-                p.drawImage(0, 0, blurred);
-                p.end();
-                m_layers[m_active].image = result;
-                return;
-            }
-            const QImage smooth = blurred.convertToFormat(QImage::Format_ARGB32);
-            for (int y = area.top(); y <= area.bottom(); ++y)
-                for (int x = area.left(); x <= area.right(); ++x) {
-                    if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))
-                        continue;
-                    const QColor c = result.pixelColor(x, y), b = smooth.pixelColor(x, y);
-                    result.setPixelColor(x, y,
-                                         QColor(qBound(0, 2 * c.red() - b.red(), 255),
-                                                qBound(0, 2 * c.green() - b.green(), 255),
-                                                qBound(0, 2 * c.blue() - b.blue(), 255),
-                                                c.alpha()));
+        const auto render = [&]<typename Pixel>() {
+            using P               = ImageUtils::PixelAccess<Pixel>;
+            const QImage original = m_layers[m_active].image;
+            QImage       result   = original.convertToFormat(P::format);
+            const QRect  area     = hasSelection() ? m_selection : result.rect();
+            if (_filter == "blur" || _filter == "sharpen") {
+                const int    radius  = _filter == "sharpen" ? 1 : qBound(1, int(_amount), 30);
+                const QImage blurred = blurImage(original, radius);
+                if (_filter == "blur") {
+                    result = original;
+                    QPainter p(&result);
+                    p.setCompositionMode(QPainter::CompositionMode_Source);
+                    if (hasSelection())
+                        p.setClipRegion(m_selectionRegion);
+                    else
+                        p.setClipRect(area);
+                    p.drawImage(0, 0, blurred);
+                    p.end();
+                    m_layers[m_active].image = result;
+                    return;
                 }
-        } else
-            for (int y = area.top(); y <= area.bottom(); ++y) {
-                auto row = reinterpret_cast<QRgb *>(result.scanLine(y));
-                for (int x = area.left(); x <= area.right(); ++x) {
-                    if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))
-                        continue;
-                    QRgb         pixel = row[x];
-                    double       r = qRed(pixel), g = qGreen(pixel), b = qBlue(pixel);
-                    const double gray = .2126 * r + .7152 * g + .0722 * b;
-                    if (_filter == "invert") {
-                        r = 255 - r;
-                        g = 255 - g;
-                        b = 255 - b;
-                    } else if (_filter == "grayscale")
-                        r = g = b = gray;
-                    else if (_filter == "sepia") {
-                        double nr = .393 * r + .769 * g + .189 * b,
-                               ng = .349 * r + .686 * g + .168 * b;
-                        b         = .272 * r + .534 * g + .131 * b;
-                        r         = nr;
-                        g         = ng;
-                    } else if (_filter == "brightness") {
-                        r += _amount * 2.55;
-                        g += _amount * 2.55;
-                        b += _amount * 2.55;
-                    } else if (_filter == "contrast") {
-                        const double f = std::pow((100 + _amount) / 100, 2);
-                        r              = (r - 128) * f + 128;
-                        g              = (g - 128) * f + 128;
-                        b              = (b - 128) * f + 128;
-                    } else if (_filter == "saturation") {
-                        const double f = 1 + _amount / 100;
-                        r              = gray + (r - gray) * f;
-                        g              = gray + (g - gray) * f;
-                        b              = gray + (b - gray) * f;
+                const QImage smooth = blurred.convertToFormat(P::format);
+                for (int y = area.top(); y <= area.bottom(); ++y)
+                    for (int x = area.left(); x <= area.right(); ++x) {
+                        if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))
+                            continue;
+                        const QColor c = result.pixelColor(x, y), b = smooth.pixelColor(x, y);
+                        const auto   value = [](double _a, double _b) {
+                            return qBound(0., 2 * _a - _b, 1.);
+                        };
+                        result.setPixelColor(x, y,
+                                             QColor::fromRgbF(value(c.redF(), b.redF()),
+                                                              value(c.greenF(), b.greenF()),
+                                                              value(c.blueF(), b.blueF()),
+                                                              c.alphaF()));
                     }
-                    row[x] = qRgba(qBound(0, qRound(r), 255), qBound(0, qRound(g), 255),
-                                   qBound(0, qRound(b), 255), qAlpha(pixel));
+            } else
+                for (int y = area.top(); y <= area.bottom(); ++y) {
+                    auto row = reinterpret_cast<Pixel *>(result.scanLine(y));
+                    for (int x = area.left(); x <= area.right(); ++x) {
+                        if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))
+                            continue;
+                        Pixel        pixel = row[x];
+                        double       r = P::red(pixel), g = P::green(pixel), b = P::blue(pixel);
+                        const double gray = .2126 * r + .7152 * g + .0722 * b;
+                        if (_filter == "invert") {
+                            r = 255 - r;
+                            g = 255 - g;
+                            b = 255 - b;
+                        } else if (_filter == "grayscale")
+                            r = g = b = gray;
+                        else if (_filter == "sepia") {
+                            double nr = .393 * r + .769 * g + .189 * b,
+                                   ng = .349 * r + .686 * g + .168 * b;
+                            b         = .272 * r + .534 * g + .131 * b;
+                            r         = nr;
+                            g         = ng;
+                        } else if (_filter == "brightness") {
+                            r += _amount * 2.55;
+                            g += _amount * 2.55;
+                            b += _amount * 2.55;
+                        } else if (_filter == "contrast") {
+                            const double f = std::pow((100 + _amount) / 100, 2);
+                            r              = (r - 128) * f + 128;
+                            g              = (g - 128) * f + 128;
+                            b              = (b - 128) * f + 128;
+                        } else if (_filter == "saturation") {
+                            const double f = 1 + _amount / 100;
+                            r              = gray + (r - gray) * f;
+                            g              = gray + (g - gray) * f;
+                            b              = gray + (b - gray) * f;
+                        }
+                        row[x] =
+                            P::rgba(qBound(0., P::round(r), 255.), qBound(0., P::round(g), 255.),
+                                    qBound(0., P::round(b), 255.), P::alpha(pixel));
+                    }
                 }
-            }
-        m_layers[m_active].image = result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            m_layers[m_active].image = result.convertToFormat(P::premultiplied);
+        };
+        if (m_channelBits == 16)
+            render.template operator()<QRgba64>();
+        else
+            render.template operator()<QRgb>();
     });
 }

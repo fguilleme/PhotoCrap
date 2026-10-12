@@ -16,7 +16,7 @@ Status checked on **October 12, 2026**: the [tag workflow](https://github.com/fg
 
 ## Features
 
-- 8-bit sRGB RGB documents with a white or transparent background, custom dimensions, and presets.
+- 8- or 16-bit-per-channel sRGB RGB documents with a white or transparent background, custom dimensions, and presets.
 - Image import, project opening, centered import as a layer, and clipboard paste.
 - Round stamp brush and eraser with size, hardness, opacity, cumulative flow, spacing, angle, roundness, and smoothing. A tip outline follows the pointer, and a stroke preview is available under **View → Brush…**. Photoshop-style shortcuts control size (`[`/`]`), hardness (`Shift+[`/`Shift+]`), and foreground/background colors (`D`/`X`).
 - Grouped toolbar: right-click to choose a tool, the last chosen tool supplies the icon, and tooltips identify tools. Group order, tool order, and visibility are configurable under **Settings → Toolbar**. Unimplemented tools remain visible, disabled, and marked **NYI**.
@@ -196,9 +196,9 @@ Cropping removes pixels outside the frame; Undo recovers them. Nondestructive re
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h`, `tests/Mac*Test.*` | Engine, QML interaction, and native macOS menu/cursor tests |
 | `.github/workflows/build.yml`, `cmake/*`, `packaging/*` | Builds, tests, deployment, packaging, signature checks, and release publication |
 
-Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied`. The composite and frequency-separation renders are cached. During a stroke, only affected regions are recomposed, so frequency blur is not recalculated when a mask changes. History snapshots use QImage implicit sharing; one continuous gesture becomes one operation. History is limited to 40 operations and approximately 256 MiB of retained images, with at least one undo preserved even when it exceeds that budget.
+Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied` (8-bit channels) or `QImage::Format_RGBA64_Premultiplied` (16-bit channels). Masks remain 8-bit; screen proxies may use 8-bit pixels without changing the working images. The composite and frequency-separation renders are cached. During a stroke, only affected regions are recomposed, so frequency blur is not recalculated when a mask changes. History snapshots use QImage implicit sharing; one continuous gesture becomes one operation. History is limited to 40 operations and approximately 256 MiB of retained images, with at least one undo preserved even when it exceeds that budget.
 
-The `.pcr` file is a versioned JSON document. Version 5 stores pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–4. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 64 layers, and 512 MiB of uncompressed pixels. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
+The `.pcr` file is a versioned JSON document. Version 6 stores channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–5. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 64 layers, and 512 MiB of uncompressed pixels. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
 
 ## Validation and limitations
 
@@ -211,7 +211,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) and the [roadmap](ROADMAP.md) for the verified release status and the remaining cursor failure.
 
-Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, RAW, CMYK, HDR, 16/32-bit, vector masks, smart objects, Bézier paths, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
+Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, vector masks, smart objects, Bézier paths, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
 
 ## Technical references
 
@@ -219,3 +219,13 @@ Known limitations: one document at a time; CPU raster composition with native ac
 - [Deploying QML applications](https://doc.qt.io/qt-6/qt-generate-deploy-qml-app-script.html)
 - [QPainter composition](https://doc.qt.io/qt-6/qpainter.html)
 - [Installing Qt in GitHub Actions](https://github.com/jurplel/install-qt-action)
+
+## RAW and color precision
+
+RAW files are developed asynchronously through LibRaw 0.22.2 using camera white balance, orientation and 16-bit sRGB output. Opening and layer import decode sensor data rather than embedded previews; loading can be cancelled. Camera compatibility depends on LibRaw and encoding. An original synthetic Bayer DNG is exercised by automated tests. Lossy JPEG and JPEG XL DNG are unsupported by this build.
+
+Choose 8- or 16-bit channels on creation or under **Image → Color depth**. Photo adjustments, masks, blends, spatial filters, Brush, Eraser, Stamp, shapes and Crop retain 16-bit storage; projects and PNG export preserve it. JPEG, BMP and WebP output 8-bit pixels. Converting 8 to 16 bits does not recover lost precision.
+
+Smudge, Mixer Brush, Healing, Spot Healing, Remove, Patch, Content-Aware Move, Red Eye, Color Replacement and both History Brushes currently require 8-bit pixels and are explicitly blocked on 16-bit pixel layers. Documents remain limited to 32 megapixels and 512 MiB of uncompressed layer pixels, with 8 bytes per 16-bit color pixel.
+
+CMake fetches pinned, SHA-256-verified LibRaw and zlib sources and links them statically. Standalone packages ship their unmodified sources and notices under `third-party`; LibRaw is distributed under CDDL 1.0.

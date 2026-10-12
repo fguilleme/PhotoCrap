@@ -210,7 +210,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -874,7 +874,8 @@ ApplicationWindow {
         guard("recent")
     }
     function openRecentFile(url) {
-        if(editor.openFile(url)) recentFiles.add(url)
+        if(editor.isRawFile(url)) editor.openRawFile(url)
+        else if(editor.openFile(url)) recentFiles.add(url)
         else recentFiles.remove(url)
     }
     function compactRecentPath(path) {
@@ -1123,6 +1124,11 @@ ApplicationWindow {
         DarkMenu {
             title: qsTr("Image")
             DarkMenuItem { text: qsTr("Dimensions de l’image…"); onTriggered: { resizeWidth.value=editor.width; resizeHeight.value=editor.height; resizeDialog.open() } }
+            DarkMenu {
+                title: qsTr("Profondeur des couleurs")
+                DarkMenuItem { text: qsTr("8 bits par canal"); checkable: true; checked: editor.channelBits === 8; onTriggered: editor.setChannelBits(8) }
+                DarkMenuItem { text: qsTr("16 bits par canal"); checkable: true; checked: editor.channelBits === 16; onTriggered: editor.setChannelBits(16) }
+            }
             DarkMenuItem { text: qsTr("Recadrer selon la sélection"); enabled: editor.hasSelection; onTriggered: editor.cropToSelection() }
             MenuSeparator {}
             DarkMenuItem { text: qsTr("Rotation de 90° à droite"); onTriggered: editor.transformImage("rotateRight") }
@@ -1239,8 +1245,8 @@ ApplicationWindow {
             model: (window.toolbarRevision, window.groupTools(window.groupById(window.toolMenuGroupId), false, true))
             delegate: DarkMenuItem {
                 required property var modelData
-                text: modelData.label + (modelData.implemented ? "" : qsTr(" (NYI)"))
-                enabled: modelData.implemented
+                text: modelData.label + (!modelData.implemented ? qsTr(" (NYI)") : (editor.channelBits, editor.editingMask, editor.toolSupportsDepth(modelData.name)) ? "" : qsTr(" (8 bits)"))
+                enabled: modelData.implemented && (editor.channelBits, editor.editingMask, editor.toolSupportsDepth(modelData.name))
                 checkable: true
                 checked: window.groupById(window.toolMenuGroupId)
                          && window.groupById(window.toolMenuGroupId).active === modelData.name
@@ -3336,12 +3342,35 @@ ApplicationWindow {
 
     FileDialog {
         id: openDialog; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
-        nameFilters: window.importing ? [qsTr("Images (*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff)"),qsTr("Tous les fichiers (*)")] : [qsTr("Images et projets (*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff)"),qsTr("Tous les fichiers (*)")]
+        nameFilters: [window.importing
+            ? qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns())
+            : qsTr("Images et projets (%1)").arg("*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
+            qsTr("Fichiers RAW (%1)").arg(editor.rawFilePatterns()), qsTr("Tous les fichiers (*)")]
         onAccepted: {
-            if(window.importing) editor.importLayer(selectedFile)
+            if(editor.isRawFile(selectedFile)) editor.openRawFile(selectedFile, window.importing)
+            else if(window.importing) editor.importLayer(selectedFile)
             else if(editor.openFile(selectedFile)) recentFiles.add(selectedFile)
         }
     }
+    Popup {
+        objectName: "rawLoadPopup"
+        anchors.centerIn: Overlay.overlay
+        width: 300
+        padding: 20
+        modal: true
+        visible: editor.rawLoading
+        closePolicy: Popup.NoAutoClose
+        contentItem: ColumnLayout {
+            BusyIndicator { running: editor.rawLoading; Layout.alignment: Qt.AlignHCenter }
+            Label { text: qsTr("Développement du RAW…"); Layout.alignment: Qt.AlignHCenter }
+            DialogActionButton {
+                text: qsTr("Annuler")
+                Layout.alignment: Qt.AlignRight
+                onClicked: editor.cancelRawLoad()
+            }
+        }
+    }
+    Shortcut { sequence: "Escape"; enabled: editor.rawLoading; onActivated: editor.cancelRawLoad() }
     FileDialog {
         id: saveDialog; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("Projet PhotoCrap (*.pcr)")]; defaultSuffix: "pcr"
@@ -3418,13 +3447,14 @@ ApplicationWindow {
             RowLayout { Label { text: qsTr("Largeur (px)"); Layout.preferredWidth: 140 } DarkSpinBox { id: newWidth; from: 1; to: 16384; value: 1280; suffix: " px"; Layout.fillWidth: true } }
             RowLayout { Label { text: qsTr("Hauteur (px)"); Layout.preferredWidth: 140 } DarkSpinBox { id: newHeight; from: 1; to: 16384; value: 800; suffix: " px"; Layout.fillWidth: true } }
             CheckBox { id: transparent; text: qsTr("Arrière-plan transparent") }
-            Label { text: qsTr("RVB · 8 bits · sRGB"); color: "#8794a2" }
+            RowLayout { Label { text: qsTr("Profondeur"); Layout.preferredWidth: 140 } ComboBox { id: newDepth; model: [qsTr("8 bits par canal"), qsTr("16 bits par canal")]; Layout.fillWidth: true } }
+            Label { text: qsTr("RVB · sRGB"); color: "#8794a2" }
         }
         footer: DialogButtonBox {
             DialogActionButton { objectName: "newDialogCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: newDialog.reject() }
             DialogActionButton { objectName: "newDialogOkButton"; text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: newDialog.accept() }
         }
-        onAccepted: editor.newDocument(newWidth.value,newHeight.value,transparent.checked)
+        onAccepted: editor.newDocument(newWidth.value,newHeight.value,transparent.checked,newDepth.currentIndex === 1 ? 16 : 8)
     }
     Dialog {
         id: resizeDialog; title: qsTr("Dimensions de l’image"); anchors.centerIn: parent; modal: true; width: 370

@@ -127,7 +127,7 @@ void Document::renderBrushStroke()
         return;
     if (!m_fullCompositeDirty)
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
-    QImage       overlay     = ImageUtils::blank(region.size());
+    QImage overlay = ImageUtils::blank(region.size(), ImageUtils::workingFormat(m_strokeBase));
     const QColor strokeColor = m_strokeInkColor.isValid() ? m_strokeInkColor : m_color;
     const QColor ink =
         m_editingMask ? maskColor(m_tool == "eraser" ? m_secondary : strokeColor) : strokeColor;
@@ -138,7 +138,8 @@ void Document::renderBrushStroke()
     maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
     maskPainter.drawImage(0, 0, m_strokeCoverage.copy(region));
     maskPainter.end();
-    QImage canvas = m_strokeBase.copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage canvas =
+        m_strokeBase.copy(region).convertToFormat(ImageUtils::workingFormat(m_strokeBase));
     if ((m_tool == "brush" || m_tool == "pencil") && !m_editingMask) {
         canvas = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
     } else {

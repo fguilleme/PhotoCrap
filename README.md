@@ -16,7 +16,7 @@ La [release 0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0)
 
 ## Fonctionnalités
 
-- Documents RVB 8 bits sRGB, fond blanc ou transparent, dimensions personnalisées et préréglages.
+- Documents RVB 8 ou 16 bits par canal sRGB, fond blanc ou transparent, dimensions personnalisées et préréglages.
 - Import d’images, ouverture de projets, import centré comme calque et collage du presse-papiers.
 - Pinceau rond et gomme à empreintes : taille, dureté, opacité, débit cumulatif, espacement, angle, arrondi et lissage. Le contour de pointe suit le pointeur et un aperçu de trait est affiché dans **Affichage → Pinceau…**. Les raccourcis suivent Photoshop pour la taille (`[`/`]`), la dureté (`Maj+[`/`Maj+]`) et les couleurs avant/arrière-plan (`D`/`X`).
 - Barre d’outils organisée par groupes : clic droit pour choisir un outil, icône du dernier outil choisi et infobulles. Ordre des groupes, ordre des outils et visibilité personnalisables dans **Réglages → Barre d’outils** ; les outils non implémentés restent visibles, désactivés et marqués **NYI**.
@@ -39,6 +39,16 @@ La [release 0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0)
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
 - Une liste persistante des dix fichiers récemment ouverts ou enregistrés est disponible dans **Fichier → Ouvrir les fichiers récents** ; les fichiers disparus sont retirés automatiquement.
+
+## RAW et précision des couleurs
+
+Les fichiers RAW (DNG, CR2/CR3, NEF, ARW, RAF, ORF, RW2 et autres extensions reconnues) sont développés par LibRaw 0.22.2 en arrière-plan, avec balance des blancs du boîtier, orientation et sortie sRGB 16 bits. L’ouverture et l’import comme calque utilisent les données du capteur ; un chargement peut être annulé. La compatibilité réelle dépend du boîtier et de son encodage. Le test automatisé développe un DNG Bayer synthétique, sans vignette JPEG. Les DNG compressés en JPEG avec pertes ou JPEG XL ne sont pas pris en charge par cette configuration.
+
+La profondeur se choisit à la création ou dans **Image → Profondeur des couleurs**. Les réglages photo, la composition, les masques, les filtres spatiaux, le pinceau, la gomme, le tampon, les formes et le recadrage conservent le format 16 bits. Le projet `.pcr` et l’export PNG conservent cette précision ; JPEG, BMP et WebP sont des sorties 8 bits. Passer de 8 à 16 bits ne recrée pas les détails perdus.
+
+Doigt, Pinceau mélangeur, Correcteur, Correcteur localisé, Suppression, Pièce, Déplacement basé sur le contenu, Œil rouge, Remplacement de couleur et les deux formes d’historique restent réservés aux pixels 8 bits ; leur utilisation sur les pixels 16 bits est bloquée explicitement, sans conversion silencieuse. Les limites de 32 mégapixels et 512 Mio de pixels restent appliquées, avec 8 octets par pixel couleur 16 bits.
+
+CMake télécharge les sources LibRaw et zlib épinglées et vérifie leurs SHA-256. Ces bibliothèques sont liées statiquement. Les paquets incluent les sources et licences inchangées dans `third-party` (LibRaw distribué sous CDDL 1.0).
 
 ## Compilation
 
@@ -181,9 +191,9 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h`, `tests/Mac*Test.*` | Tests du moteur, des interactions QML et des menus/curseurs natifs macOS |
 | `.github/workflows/build.yml`, `cmake/*`, `packaging/*` | Builds, tests, déploiement, paquets, contrôles de signature et publication des releases |
 
-Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied`. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images retenues, avec au moins une annulation conservée même si elle dépasse ce budget.
+Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied` (8 bits par canal) ou `QImage::Format_RGBA64_Premultiplied` (16 bits par canal). Les masques restent en 8 bits ; les proxies écran peuvent être réduits en 8 bits sans changer les pixels de travail. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images retenues, avec au moins une annulation conservée même si elle dépasse ce budget.
 
-Le `.pcr` est un document JSON versionné. Sa version 5 conserve les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 4. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
+Le `.pcr` est un document JSON versionné. Sa version 6 conserve la profondeur des couleurs et les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 5. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 64 calques et 512 Mio de pixels non compressés. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
 ### Suppression
 
@@ -236,7 +246,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut de publication et l’échec de curseur restant sont détaillés dans [Télécharger](#télécharger) et dans la [roadmap](ROADMAP.md).
 
-Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, RAW, CMJN, HDR, 16/32 bits, masques vectoriels, objets dynamiques, tracés Bézier, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels, objets dynamiques, tracés Bézier, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références techniques
 

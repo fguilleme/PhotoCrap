@@ -688,6 +688,12 @@
         <source>Impossible d’exporter les tranches dans ce dossier.</source>
         <translation>Unable to export slices to this folder.</translation>
     </message>
+    <message><source>La profondeur doit être de 8 ou 16 bits par canal.</source><translation>Channel depth must be 8 or 16 bits.</translation></message>
+    <message><source>Profondeur des couleurs</source><translation>Color depth</translation></message>
+    <message><source>Profondeur de projet invalide.</source><translation>Invalid project channel depth.</translation></message>
+    <message><source>Choisissez un fichier RAW local.</source><translation>Choose a local RAW file.</translation></message>
+    <message><source>Un RAW est déjà en cours de lecture.</source><translation>A RAW file is already loading.</translation></message>
+    <message><source>Cet outil nécessite actuellement un document 8 bits. Changez la profondeur dans le menu Image.</source><translation>This tool currently requires an 8-bit document. Change the channel depth in the Image menu.</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2446,6 +2452,16 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Revenir à l’outil précédent après un raccourci maintenu</source>
         <translation>Return to the previous tool after holding its shortcut</translation>
     </message>
+    <message><source>Profondeur des couleurs</source><translation>Color depth</translation></message>
+    <message><source>8 bits par canal</source><translation>8 bits per channel</translation></message>
+    <message><source>16 bits par canal</source><translation>16 bits per channel</translation></message>
+    <message><source>Profondeur</source><translation>Channel depth</translation></message>
+    <message><source>RVB · sRGB</source><translation>RGB · sRGB</translation></message>
+    <message><source>Fichiers RAW (%1)</source><translation>RAW files (%1)</translation></message>
+    <message><source>Images (%1)</source><translation>Images (%1)</translation></message>
+    <message><source>Images et projets (%1)</source><translation>Images and projects (%1)</translation></message>
+    <message><source>Développement du RAW…</source><translation>Developing RAW…</translation></message>
+    <message><source> (8 bits)</source><translation> (8-bit)</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -2956,4 +2972,13 @@ Independent software, not affiliated with Adobe.</translation>
         <translation>Divide</translation>
     </message>
 </context>
+  <context>
+    <name>RawImageReader</name>
+    <message><source>Fichier RAW vide, incomplet ou trop volumineux (1 Gio maximum).</source><translation>RAW file is empty, incomplete or too large (1 GiB maximum).</translation></message>
+    <message><source>Impossible de lire le fichier RAW.</source><translation>Unable to read the RAW file.</translation></message>
+    <message><source>Impossible de développer ce RAW : %1</source><translation>Unable to develop this RAW file: %1</translation></message>
+    <message><source>Ce RAW dépasse la limite de 32 mégapixels du document.</source><translation>This RAW file exceeds the 32-megapixel document limit.</translation></message>
+    <message><source>Le décodeur RAW a produit une image invalide.</source><translation>The RAW decoder produced an invalid image.</translation></message>
+    <message><source>Mémoire insuffisante pour ouvrir ce RAW.</source><translation>Insufficient memory to open this RAW file.</translation></message>
+  </context>
 </TS>

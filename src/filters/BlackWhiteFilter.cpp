@@ -1,5 +1,5 @@
 #include "BlackWhiteFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColor>
 #include <QColorSpace>
@@ -25,6 +25,36 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
     QColor tint(_parameters.value("tintColor", QStringLiteral("#d6aa78")).toString());
     if (!tint.isValid())
         tint = QColor(QStringLiteral("#d6aa78"));
+    if (ImageUtils::is16Bit(_source)) {
+        float hue = 0., saturation = 0., lightness = 0., alpha = 0.;
+        tint.getHslF(&hue, &saturation, &lightness, &alpha);
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            const double red = _pixel.red(), green = _pixel.green(), blue = _pixel.blue();
+            const double maximum = std::max({red, green, blue}),
+                         minimum = std::min({red, green, blue}), chroma = maximum - minimum;
+            double       family = 0.;
+            if (chroma > 0) {
+                if (maximum == red)
+                    family = std::fmod((green - blue) / chroma + 6., 6.);
+                else if (maximum == green)
+                    family = (blue - red) / chroma + 2.;
+                else
+                    family = (red - green) / chroma + 4.;
+            }
+            const int    first = int(std::floor(family)) % 6, second = (first + 1) % 6;
+            const double fraction   = family - std::floor(family);
+            const double adjustment = ((values[first] - defaults[first]) * (1. - fraction) +
+                                       (values[second] - defaults[second]) * fraction) /
+                                      100.;
+            const int    gray       = qBound(
+                0, qRound(.2126 * red + .7152 * green + .0722 * blue + adjustment * chroma), 65535);
+            if (!tintEnabled)
+                return QRgba64::fromRgba64(gray, gray, gray, _pixel.alpha());
+            QColor mapped;
+            mapped.setHslF(hue, saturation, gray / 65535., _pixel.alpha() / 65535.);
+            return mapped.rgba64();
+        });
+    }
     std::array<QRgb, 256> tintLookup{};
     if (tintEnabled) {
         float hue = 0., saturation = 0., lightness = 0., alpha = 0.;

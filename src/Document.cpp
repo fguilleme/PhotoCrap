@@ -20,6 +20,8 @@ constexpr int    MaxLayers        = 64;
 
 Document::Document(QObject *_parent) : QObject(_parent)
 {
+    connect(&m_rawWatcher, &QFutureWatcher<RawImageResult>::finished, this,
+            &Document::finishRawLoad);
     connect(&m_previewRenderWatcher, &QFutureWatcher<QImage>::finished, this, [this] {
         const QImage result  = m_previewRenderWatcher.result();
         const bool   current = m_runningPreviewGeneration == m_previewRequestGeneration;
@@ -73,6 +75,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
 }
 Document::~Document()
 {
+    cancelRawLoad();
     if (m_removeCancel)
         m_removeCancel->store(true);
     if (m_contentMoveCancel)
@@ -83,11 +86,12 @@ bool Document::fail(const QString &_message)
     emit errorOccurred(_message);
     return false;
 }
-bool Document::validSize(int _w, int _h, int _count)
+bool Document::validSize(int _w, int _h, int _count, int _bits)
 {
     if (_w < 1 || _h < 1 || _w > 16384 || _h > 16384 || qint64(_w) * _h > MaxPixels)
         return fail(tr("Dimensions invalides : 1 à 16 384 px, 32 mégapixels maximum."));
-    if (_count < 1 || _count > MaxLayers || qint64(_w) * _h * 4 * _count > MaxDocumentBytes)
+    if (_count < 1 || _count > MaxLayers ||
+        qint64(_w) * _h * ((_bits ? _bits : m_channelBits) / 2) * _count > MaxDocumentBytes)
         return fail(tr("Limite atteinte : 64 calques et 512 Mio de pixels par document."));
     return true;
 }
@@ -122,7 +126,8 @@ Document::Snapshot Document::snapshot(const QString &_label) const
             m_stateId,
             _label,
             m_slices,
-            m_activeSlice};
+            m_activeSlice,
+            m_channelBits};
 }
 void Document::restore(const Snapshot &_state)
 {
@@ -130,6 +135,7 @@ void Document::restore(const Snapshot &_state)
     const bool sizeChanged = m_size != _state.size;
     m_layers               = _state.layers;
     m_size                 = _state.size;
+    m_channelBits          = _state.channelBits;
     m_active               = _state.active;
     m_slices               = _state.slices;
     m_activeSlice          = _state.activeSlice;
@@ -240,6 +246,7 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    cancelRawLoad();
     cancelCrop();
     m_slices.clear();
     m_activeSlice   = -1;
@@ -527,4 +534,38 @@ void Document::selectLayer(int _index, bool _toggle, bool _range)
     m_active      = _index;
     m_editingMask = false;
     emit layersChanged();
+}
+
+bool Document::setChannelBits(int _bits)
+{
+    if (_bits != 8 && _bits != 16)
+        return fail(tr("La profondeur doit être de 8 ou 16 bits par canal."));
+    if (_bits == m_channelBits)
+        return true;
+    if (!validSize(width(), height(), int(m_layers.size()), _bits))
+        return false;
+    endStroke();
+    edit(tr("Profondeur des couleurs"), [&] {
+        m_channelBits = _bits;
+        for (auto &layer : m_layers) {
+            if (!layer.image.isNull())
+                layer.image.convertTo(workingFormat());
+            if (!layer.source.isNull())
+                layer.source.convertTo(workingFormat());
+        }
+    });
+    return true;
+}
+
+bool Document::toolSupportsDepth(const QString &_tool) const
+{
+    if (m_channelBits == 8 || m_editingMask)
+        return true;
+    // These legacy algorithms still work in QRgb patches. Do not silently
+    // truncate a high-precision image or interpret RGBA64 storage as QRgb.
+    static const QStringList eightBitTools{"smudge",           "mixerBrush",     "healing",
+                                           "spotHealing",      "remove",         "patch",
+                                           "contentAwareMove", "redEye",         "colorReplacement",
+                                           "historyBrush",     "artHistoryBrush"};
+    return !eightBitTools.contains(_tool);
 }

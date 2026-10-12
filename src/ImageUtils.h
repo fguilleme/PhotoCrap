@@ -10,9 +10,21 @@
 
 namespace ImageUtils
 {
-inline QImage blank(const QSize &_size)
+inline bool is16Bit(const QImage &_image)
 {
-    QImage image(_size, QImage::Format_ARGB32_Premultiplied);
+    return _image.depth() > 32 || _image.format() == QImage::Format_Grayscale16;
+}
+
+inline QImage::Format workingFormat(const QImage &_image)
+{
+    return is16Bit(_image) ? QImage::Format_RGBA64_Premultiplied
+                           : QImage::Format_ARGB32_Premultiplied;
+}
+
+inline QImage blank(const QSize   &_size,
+                    QImage::Format _format = QImage::Format_ARGB32_Premultiplied)
+{
+    QImage image(_size, _format);
     image.fill(Qt::transparent);
     image.setColorSpace(QColorSpace::SRgb);
     return image;

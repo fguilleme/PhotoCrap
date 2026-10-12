@@ -1,5 +1,5 @@
 #include "GradientMapFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColor>
 #include <QColorSpace>
@@ -18,6 +18,19 @@ QImage applyGradientMap(const QImage &_source, const QVariantMap &_parameters)
     const QColor shadow(_parameters.value("shadowColor", QStringLiteral("#101828")).toString());
     const QColor highlight(
         _parameters.value("highlightColor", QStringLiteral("#f5d9a8")).toString());
+    if (ImageUtils::is16Bit(_source)) {
+        return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
+            const double luminance =
+                (54. * _pixel.red() + 183. * _pixel.green() + 19. * _pixel.blue()) /
+                (256. * 65535.);
+            auto channel = [&](double _shadow, double _highlight) {
+                return qRound((_shadow + (_highlight - _shadow) * luminance) * 65535.);
+            };
+            return QRgba64::fromRgba64(channel(shadow.redF(), highlight.redF()),
+                                       channel(shadow.greenF(), highlight.greenF()),
+                                       channel(shadow.blueF(), highlight.blueF()), _pixel.alpha());
+        });
+    }
     std::array<QRgb, 256> palette{};
     for (int luminance = 0; luminance < int(palette.size()); ++luminance) {
         const int inverse = 255 - luminance;

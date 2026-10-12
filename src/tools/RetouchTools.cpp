@@ -1,15 +1,8 @@
 #include "Document.h"
+#include "ImagePixels.h"
 
 #include <QPainter>
 #include <QtMath>
-
-namespace
-{
-int mixedChannel(int _base, int _effect, qreal _amount)
-{
-    return qBound(0, qRound(_base + (_effect - _base) * _amount), 255);
-}
-} // namespace
 
 void Document::renderRetouchStroke()
 {
@@ -35,78 +28,88 @@ void Document::renderRetouchStroke()
     // Keep every expensive conversion and convolution inside the pixels touched by
     // this stroke segment. Blur and sharpen only need a small source halo so their
     // result at the brush edge still samples the real neighbouring pixels.
-    const QImage sourcePatch =
-        m_strokeBase.copy(sampleRegion).convertToFormat(QImage::Format_ARGB32);
-    const QImage smooth =
-        (effectTool == "blur" || effectTool == "sharpen") ? blurImage(sourcePatch, 2) : QImage{};
-    const QPoint outputOffset = region.topLeft() - sampleRegion.topLeft();
-    QImage       output       = sourcePatch.copy(QRect(outputOffset, region.size()));
+    const auto render = [&]<typename Pixel>() {
+        using P                 = ImageUtils::PixelAccess<Pixel>;
+        const auto mixedChannel = [](double _base, double _effect, qreal _amount) {
+            return qBound(0., P::round(_base + (_effect - _base) * _amount), 255.);
+        };
+        const QImage sourcePatch  = m_strokeBase.copy(sampleRegion).convertToFormat(P::format);
+        const QImage smooth       = (effectTool == "blur" || effectTool == "sharpen")
+                                        ? blurImage(sourcePatch, 2)
+                                        : QImage{};
+        const QPoint outputOffset = region.topLeft() - sampleRegion.topLeft();
+        QImage       output       = sourcePatch.copy(QRect(outputOffset, region.size()));
 
-    for (int y = 0; y < region.height(); ++y) {
-        auto       *dst = reinterpret_cast<QRgb *>(output.scanLine(y));
-        const auto *coverage =
-            reinterpret_cast<const QRgb *>(m_strokeCoverage.constScanLine(region.y() + y));
-        const auto *src =
-            reinterpret_cast<const QRgb *>(sourcePatch.constScanLine(outputOffset.y() + y));
-        for (int x = 0; x < region.width(); ++x) {
-            const int globalX = region.x() + x;
-            const int globalY = region.y() + y;
-            if (hasSelection() && !m_selectionRegion.contains(QPoint(globalX, globalY)))
-                continue;
-            qreal amount = qAlpha(coverage[globalX]) / 255. * m_brushOpacity * m_toolStrength;
-            if (amount <= 0)
-                continue;
-            const QRgb pixel = src[outputOffset.x() + x];
-            int        red = qRed(pixel), green = qGreen(pixel), blue = qBlue(pixel);
-            int        effectRed = red, effectGreen = green, effectBlue = blue;
-            if (effectTool == "blur" || effectTool == "sharpen") {
-                const QRgb soft = reinterpret_cast<const QRgb *>(
-                    smooth.constScanLine(outputOffset.y() + y))[outputOffset.x() + x];
-                if (effectTool == "blur") {
-                    effectRed   = qRed(soft);
-                    effectGreen = qGreen(soft);
-                    effectBlue  = qBlue(soft);
-                } else {
-                    effectRed   = qBound(0, 2 * red - qRed(soft), 255);
-                    effectGreen = qBound(0, 2 * green - qGreen(soft), 255);
-                    effectBlue  = qBound(0, 2 * blue - qBlue(soft), 255);
+        for (int y = 0; y < region.height(); ++y) {
+            auto       *dst = reinterpret_cast<Pixel *>(output.scanLine(y));
+            const auto *coverage =
+                reinterpret_cast<const QRgb *>(m_strokeCoverage.constScanLine(region.y() + y));
+            const auto *src =
+                reinterpret_cast<const Pixel *>(sourcePatch.constScanLine(outputOffset.y() + y));
+            for (int x = 0; x < region.width(); ++x) {
+                const int globalX = region.x() + x;
+                const int globalY = region.y() + y;
+                if (hasSelection() && !m_selectionRegion.contains(QPoint(globalX, globalY)))
+                    continue;
+                qreal amount = qAlpha(coverage[globalX]) / 255. * m_brushOpacity * m_toolStrength;
+                if (amount <= 0)
+                    continue;
+                const Pixel pixel = src[outputOffset.x() + x];
+                double      red = P::red(pixel), green = P::green(pixel), blue = P::blue(pixel);
+                double      effectRed = red, effectGreen = green, effectBlue = blue;
+                if (effectTool == "blur" || effectTool == "sharpen") {
+                    const Pixel soft = reinterpret_cast<const Pixel *>(
+                        smooth.constScanLine(outputOffset.y() + y))[outputOffset.x() + x];
+                    if (effectTool == "blur") {
+                        effectRed   = P::red(soft);
+                        effectGreen = P::green(soft);
+                        effectBlue  = P::blue(soft);
+                    } else {
+                        effectRed   = qBound(0., 2 * red - P::red(soft), 255.);
+                        effectGreen = qBound(0., 2 * green - P::green(soft), 255.);
+                        effectBlue  = qBound(0., 2 * blue - P::blue(soft), 255.);
+                    }
+                } else if (effectTool == "dodge" || effectTool == "burn") {
+                    const qreal luminance = (.2126 * red + .7152 * green + .0722 * blue) / 255.;
+                    const qreal range     = m_retouchRange == 0   ? 1. - luminance
+                                            : m_retouchRange == 2 ? luminance
+                                                                  : 1. - qAbs(2. * luminance - 1.);
+                    amount *= qBound(.08, range, 1.);
+                    if (m_protectTones)
+                        amount *= .75;
+                    if (effectTool == "dodge") {
+                        effectRed   = P::round(red + (255 - red) * amount);
+                        effectGreen = P::round(green + (255 - green) * amount);
+                        effectBlue  = P::round(blue + (255 - blue) * amount);
+                    } else {
+                        effectRed   = P::round(red * (1. - amount));
+                        effectGreen = P::round(green * (1. - amount));
+                        effectBlue  = P::round(blue * (1. - amount));
+                    }
+                    amount = 1.;
+                } else if (effectTool == "sponge") {
+                    QColor color = QColor::fromRgbF(red / 255., green / 255., blue / 255.);
+                    float  hue = 0, saturation = 0, lightness = 0;
+                    color.getHslF(&hue, &saturation, &lightness);
+                    saturation = m_spongeSaturate ? saturation + (1. - saturation) * amount
+                                                  : saturation * (1. - amount);
+                    color.setHslF(hue, qBound(0., saturation, 1.), lightness);
+                    effectRed   = color.redF() * 255.;
+                    effectGreen = color.greenF() * 255.;
+                    effectBlue  = color.blueF() * 255.;
+                    amount      = 1.;
                 }
-            } else if (effectTool == "dodge" || effectTool == "burn") {
-                const qreal luminance = (.2126 * red + .7152 * green + .0722 * blue) / 255.;
-                const qreal range     = m_retouchRange == 0   ? 1. - luminance
-                                        : m_retouchRange == 2 ? luminance
-                                                              : 1. - qAbs(2. * luminance - 1.);
-                amount *= qBound(.08, range, 1.);
-                if (m_protectTones)
-                    amount *= .75;
-                if (effectTool == "dodge") {
-                    effectRed   = qRound(red + (255 - red) * amount);
-                    effectGreen = qRound(green + (255 - green) * amount);
-                    effectBlue  = qRound(blue + (255 - blue) * amount);
-                } else {
-                    effectRed   = qRound(red * (1. - amount));
-                    effectGreen = qRound(green * (1. - amount));
-                    effectBlue  = qRound(blue * (1. - amount));
-                }
-                amount = 1.;
-            } else if (effectTool == "sponge") {
-                QColor color(red, green, blue);
-                float  hue = 0, saturation = 0, lightness = 0;
-                color.getHslF(&hue, &saturation, &lightness);
-                saturation = m_spongeSaturate ? saturation + (1. - saturation) * amount
-                                              : saturation * (1. - amount);
-                color.setHslF(hue, qBound(0., saturation, 1.), lightness);
-                effectRed   = color.red();
-                effectGreen = color.green();
-                effectBlue  = color.blue();
-                amount      = 1.;
+                dst[x] = P::rgba(mixedChannel(red, effectRed, amount),
+                                 mixedChannel(green, effectGreen, amount),
+                                 mixedChannel(blue, effectBlue, amount), P::alpha(pixel));
             }
-            dst[x] = qRgba(mixedChannel(red, effectRed, amount),
-                           mixedChannel(green, effectGreen, amount),
-                           mixedChannel(blue, effectBlue, amount), qAlpha(pixel));
         }
-    }
-    QPainter painter(target);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.drawImage(region.topLeft(), output);
+        QPainter painter(target);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.drawImage(region.topLeft(), output);
+    };
+    if (ImageUtils::is16Bit(*target))
+        render.template operator()<QRgba64>();
+    else
+        render.template operator()<QRgb>();
 }

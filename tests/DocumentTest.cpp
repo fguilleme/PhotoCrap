@@ -1,7 +1,19 @@
 #include "Document.h"
+#include "ImageUtils.h"
+#include "RawTestImage.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
 #include "WorkspaceSettings.h"
+#include "filters/BlackWhiteFilter.h"
+#include "filters/BrightnessContrastFilter.h"
+#include "filters/ChannelMixerFilter.h"
+#include "filters/ColorFilter.h"
+#include "filters/ColorLookupFilter.h"
+#include "filters/CurvesFilter.h"
+#include "filters/GradientMapFilter.h"
+#include "filters/LevelsFilter.h"
+#include "filters/LightFilter.h"
+#include "filters/PhotoFilterFilter.h"
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
@@ -27,6 +39,188 @@ private slots:
         QThreadPool::globalInstance()->setMaxThreadCount(2);
     }
 
+    void rawDecoderDevelopsSixteenBitSensorData()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QString::fromUtf8("échantillon.DNG"));
+        QFile         file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(RawTestImage::dng());
+        file.close();
+        QVERIFY(RawImageReader::isRawFile(path));
+        const auto result = RawImageReader::read(path);
+        QVERIFY2(!result.image.isNull(), qPrintable(result.error));
+        QCOMPARE(result.image.format(), QImage::Format_RGBA64_Premultiplied);
+        QCOMPARE(result.image.size(), QSize(128, 96));
+        bool finePrecision = false;
+        for (int y = 8; y < 88; ++y)
+            for (int x = 8; x < 120; ++x)
+                finePrecision |= result.image.pixelColor(x, y).rgba64().green() % 257 != 0 ||
+                                 result.image.pixelColor(x, y).rgba64().blue() % 257 != 0;
+        QVERIFY(finePrecision);
+        QFile rotated(dir.filePath("rotated.dng"));
+        QVERIFY(rotated.open(QIODevice::WriteOnly));
+        rotated.write(RawTestImage::dng(6));
+        rotated.close();
+        QCOMPARE(RawImageReader::read(rotated.fileName()).image.size(), QSize(96, 128));
+        auto cancel = std::make_shared<std::atomic_bool>(true);
+        QVERIFY(RawImageReader::read(path, cancel).cancelled);
+        QVERIFY(RawImageReader::read(dir.filePath("missing.dng")).image.isNull());
+    }
+    void rawOpeningRunsAsynchronouslyAndPreservesDocumentOnFailure()
+    {
+        QTemporaryDir dir;
+        QFile         file(dir.filePath("sample.dng"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(RawTestImage::dng());
+        file.close();
+        Document   document;
+        QSignalSpy opened(&document, &Document::rawFileOpened);
+        QVERIFY(document.openRawFile(QUrl::fromLocalFile(file.fileName())));
+        QVERIFY(document.rawLoading());
+        QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
+        QCOMPARE(opened.size(), 1);
+        QCOMPARE(document.channelBits(), 16);
+        const auto before = document.composite();
+        QVERIFY(document.openRawFile(QUrl::fromLocalFile(dir.filePath("missing.dng"))));
+        QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
+        QCOMPARE(document.composite(), before);
+        QVERIFY(document.openRawFile(QUrl::fromLocalFile(file.fileName())));
+        document.cancelRawLoad();
+        QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
+        QCOMPARE(opened.size(), 1);
+        QCOMPARE(document.composite(), before);
+        QVERIFY(document.openRawFile(QUrl::fromLocalFile(file.fileName()), true));
+        QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
+        QCOMPARE(document.layers().size(), 2);
+        document.undo();
+        QCOMPARE(document.layers().size(), 1);
+    }
+    void sixteenBitPixelsSurviveEditingHistoryProjectAndExport()
+    {
+        QTemporaryDir dir;
+        QImage        image(32, 32, QImage::Format_RGBA64_Premultiplied);
+        for (int y = 0; y < 32; ++y) {
+            auto *row = reinterpret_cast<QRgba64 *>(image.scanLine(y));
+            for (int x = 0; x < 32; ++x)
+                row[x] = QRgba64::fromRgba64(15001 + x, 22003 + y, 32007 + x + y, 65535);
+        }
+        image.setColorSpace(QColorSpace::SRgb);
+        const auto input = QUrl::fromLocalFile(dir.filePath("input.png"));
+        QVERIFY(image.save(input.toLocalFile()));
+        Document document;
+        QVERIFY(document.openFile(input));
+        QCOMPARE(document.channelBits(), 16);
+        QCOMPARE(document.layerImage(0), image);
+        document.setEyedropperSource(1);
+        QCOMPARE(document.sampleToolColor(0, 0).rgba64(), image.pixelColor(0, 0).rgba64());
+        QCOMPARE(document.composite().format(), QImage::Format_RGBA64_Premultiplied);
+        QCOMPARE(document.composite().pixelColor(0, 0).rgba64(), image.pixelColor(0, 0).rgba64());
+        QVERIFY(document.saveProject(QUrl::fromLocalFile(dir.filePath("wide.pcr"))));
+        Document loaded;
+        QVERIFY(loaded.openFile(document.projectUrl()));
+        QCOMPARE(loaded.channelBits(), 16);
+        QCOMPARE(loaded.layerImage(0), image);
+        const auto output = QUrl::fromLocalFile(dir.filePath("output.png"));
+        QVERIFY(loaded.exportImage(output));
+        QCOMPARE(QImage(output.toLocalFile()).pixelColor(0, 0).rgba64(),
+                 image.pixelColor(0, 0).rgba64());
+        QVERIFY(loaded.setChannelBits(8));
+        QCOMPARE(loaded.channelBits(), 8);
+        loaded.undo();
+        QCOMPARE(loaded.channelBits(), 16);
+        QCOMPARE(loaded.layerImage(0), image);
+        loaded.addLayer();
+        QCOMPARE(loaded.layerImage(1).format(), QImage::Format_RGBA64_Premultiplied);
+        loaded.setColor(QColor::fromRgba64(15001, 22003, 32007, 65535));
+        loaded.setBrushHardness(1.);
+        loaded.setBrushOpacity(1.);
+        loaded.setBrushFlow(1.);
+        loaded.setTool("brush");
+        loaded.beginStroke(20, 20);
+        loaded.endStroke();
+        QCOMPARE(loaded.layerImage(1).pixelColor(20, 20).rgba64(),
+                 QColor::fromRgba64(15001, 22003, 32007, 65535).rgba64());
+        QCOMPARE(loaded.layerImage(1).format(), QImage::Format_RGBA64_Premultiplied);
+        loaded.undo();
+        loaded.undo();
+        QCOMPARE(loaded.layerImage(0), image);
+    }
+    void sixteenBitAdjustmentsPreserveFineStepsAndAlpha()
+    {
+        using Filter = QImage (*)(const QImage &, const QVariantMap &);
+        const QVector<QPair<QString, Filter>> filters{
+            {"brightnessContrast", PhotoCrap::Filters::applyBrightnessContrast},
+            {"channelMixer", PhotoCrap::Filters::applyChannelMixer},
+            {"color", PhotoCrap::Filters::applyColor},
+            {"curves", PhotoCrap::Filters::applyCurves},
+            {"levels", PhotoCrap::Filters::applyLevels},
+            {"light", PhotoCrap::Filters::applyLight},
+            {"selectiveColor", PhotoCrap::Filters::applySelectiveColor},
+            {"blackWhite", PhotoCrap::Filters::applyBlackWhite}};
+        QImage image(32, 1, QImage::Format_RGBA64_Premultiplied);
+        image.setColorSpace(QColorSpace::SRgb);
+        auto *row = reinterpret_cast<QRgba64 *>(image.scanLine(0));
+        for (int x = 0; x < 32; ++x)
+            row[x] = QRgba64::fromRgba64(15001 + x, 15001 + x, 15001 + x, 65535);
+        for (const auto &filter : filters) {
+            const auto result = filter.second(image, {});
+            QVERIFY2(result.format() == QImage::Format_RGBA64_Premultiplied,
+                     qPrintable(filter.first));
+            for (int x = 0; x < 32; ++x) {
+                const auto actual = result.pixelColor(x, 0).rgba64();
+                QCOMPARE(actual.alpha(), quint16(65535));
+                QVERIFY2(qAbs(int(actual.red()) - (15001 + x)) <= 1, qPrintable(filter.first));
+            }
+            QVERIFY2(result.pixelColor(0, 0).rgba64().red() !=
+                         result.pixelColor(31, 0).rgba64().red(),
+                     qPrintable(filter.first));
+        }
+        const auto exposed = PhotoCrap::Filters::applyLight(image, {{"exposure", 1.}});
+        QCOMPARE(exposed.pixelColor(0, 0).rgba64().red(), quint16(30002));
+        QVERIFY(exposed.pixelColor(0, 0).rgba64().red() !=
+                exposed.pixelColor(31, 0).rgba64().red());
+        const auto gradient = PhotoCrap::Filters::applyGradientMap(
+            image, {{"shadowColor", "#000000"}, {"highlightColor", "#ffffff"}});
+        QCOMPARE(gradient.pixelColor(0, 0).rgba64().red(), quint16(15001));
+    }
+    void sixteenBitMasksBlendsAndBackgroundRendersRetainPrecision()
+    {
+        QTemporaryDir dir;
+        QImage        image(32, 32, QImage::Format_RGBA64_Premultiplied);
+        image.fill(QColor::fromRgba64(15001, 22003, 32007, 65535));
+        image.setColorSpace(QColorSpace::SRgb);
+        const auto url = QUrl::fromLocalFile(dir.filePath("input.png"));
+        QVERIFY(image.save(url.toLocalFile()));
+        Document document;
+        QVERIFY(document.openFile(url));
+        document.addAdjustmentLayer("light");
+        document.beginLayerPreview();
+        document.previewLayerParameter("exposure", 1.);
+        QSignalSpy updated(&document, &Document::imageChanged);
+        document.finishLayerPreview("Exposure");
+        const int synchronousUpdates = updated.size();
+        QTRY_VERIFY_WITH_TIMEOUT(updated.size() > synchronousUpdates, 10000);
+        const auto full = document.composite();
+        QCOMPARE(full.format(), QImage::Format_RGBA64_Premultiplied);
+        QVERIFY(full.pixelColor(0, 0).rgba64().red() % 257 != 0);
+        document.setLayerBlend(1, 3);
+        QCOMPARE(document.composite().format(), QImage::Format_RGBA64_Premultiplied);
+        document.setLayerBlend(1, 0);
+        document.setActiveLayer(0);
+        document.addLayerMask(true);
+        QCOMPARE(document.maskImage(0).format(), QImage::Format_Grayscale8);
+        QCOMPARE(document.composite().format(), QImage::Format_RGBA64_Premultiplied);
+        document.setTool("brush");
+        document.setBrushSize(5);
+        document.beginStroke(20, 20);
+        document.endStroke();
+        QCOMPARE(document.layerImage(0).format(), QImage::Format_RGBA64_Premultiplied);
+        QCOMPARE(document.layerImage(0).pixelColor(0, 0).rgba64(), image.pixelColor(0, 0).rgba64());
+        document.setActiveLayer(1);
+        QVERIFY(document.toolSupportsDepth("brush"));
+        QVERIFY(!document.toolSupportsDepth("healing"));
+    }
     void recentFilesAreOrderedDeduplicatedLimitedAndPruned()
     {
         QTemporaryDir dir;

@@ -1,5 +1,5 @@
 #include "ColorLookupFilter.h"
-#include "ImageUtils.h"
+#include "ImagePixels.h"
 
 #include <QColorSpace>
 #include <QThreadPool>
@@ -59,8 +59,10 @@ void applyStyle(int _preset, double &_red, double &_green, double &_blue)
 
 namespace PhotoCrap::Filters
 {
-QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters)
+template <typename Pixel>
+QImage applyColorLookupPixels(const QImage &_source, const QVariantMap &_parameters)
 {
+    using P = ImageUtils::PixelAccess<Pixel>;
     if (_source.isNull())
         return _source;
     const int    preset   = qBound(0, _parameters.value("preset", 0).toInt(), 5);
@@ -69,8 +71,8 @@ QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters)
     if (strength <= 0.)
         return _source;
 
-    const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
-    QImage       result(input.size(), QImage::Format_ARGB32);
+    const QImage input = _source.convertToFormat(P::format);
+    QImage       result(input.size(), P::format);
     const int    jobCount =
         qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
     QVector<int> jobs(jobCount);
@@ -78,12 +80,12 @@ QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters)
     ImageUtils::blockingMap(jobs, [&](int _job) {
         for (int y = input.height() * _job / jobCount; y < input.height() * (_job + 1) / jobCount;
              ++y) {
-            const auto *source = reinterpret_cast<const QRgb *>(input.constScanLine(y));
-            auto       *output = reinterpret_cast<QRgb *>(result.scanLine(y));
+            const auto *source = reinterpret_cast<const Pixel *>(input.constScanLine(y));
+            auto       *output = reinterpret_cast<Pixel *>(result.scanLine(y));
             for (int x = 0; x < input.width(); ++x) {
-                const QRgb   pixel     = source[x];
-                const double sourceRed = qRed(pixel), sourceGreen = qGreen(pixel),
-                             sourceBlue = qBlue(pixel);
+                const Pixel  pixel     = source[x];
+                const double sourceRed = P::red(pixel), sourceGreen = P::green(pixel),
+                             sourceBlue = P::blue(pixel);
                 double       red = sourceRed, green = sourceGreen, blue = sourceBlue;
                 applyStyle(preset, red, green, blue);
                 if (preserveLuminosity) {
@@ -94,15 +96,21 @@ QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters)
                     green += sourceLum - styledLum;
                     blue += sourceLum - styledLum;
                 }
-                red       = sourceRed + (red - sourceRed) * strength;
-                green     = sourceGreen + (green - sourceGreen) * strength;
-                blue      = sourceBlue + (blue - sourceBlue) * strength;
-                output[x] = qRgba(qBound(0, qRound(red), 255), qBound(0, qRound(green), 255),
-                                  qBound(0, qRound(blue), 255), qAlpha(pixel));
+                red   = sourceRed + (red - sourceRed) * strength;
+                green = sourceGreen + (green - sourceGreen) * strength;
+                blue  = sourceBlue + (blue - sourceBlue) * strength;
+                output[x] =
+                    P::rgba(qBound(0., P::round(red), 255.), qBound(0., P::round(green), 255.),
+                            qBound(0., P::round(blue), 255.), P::alpha(pixel));
             }
         }
     });
     result.setColorSpace(QColorSpace::SRgb);
-    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    return result.convertToFormat(P::premultiplied);
+}
+QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters)
+{
+    return ImageUtils::is16Bit(_source) ? applyColorLookupPixels<QRgba64>(_source, _parameters)
+                                        : applyColorLookupPixels<QRgb>(_source, _parameters);
 }
 } // namespace PhotoCrap::Filters

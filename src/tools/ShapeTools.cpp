@@ -48,11 +48,12 @@ void Document::renderShape(const QPointF &_to)
     m_layers[m_active].image = sourceImage;
     if (m_tool == "move") {
         const QImage source = sourceImage;
-        QImage       result = hasSelection() || m_moveCopy ? source : ImageUtils::blank(m_size);
+        QImage       result =
+            hasSelection() || m_moveCopy ? source : ImageUtils::blank(m_size, workingFormat());
         QPainter     painter(&result);
         const QPoint offset = (_to - m_anchor).toPoint();
         if (hasSelection()) {
-            QImage   selected = ImageUtils::blank(m_selection.size());
+            QImage   selected = ImageUtils::blank(m_selection.size(), workingFormat());
             QPainter selectedPainter(&selected);
             selectedPainter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
             selectedPainter.drawImage(-m_selection.topLeft(), source);

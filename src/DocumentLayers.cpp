@@ -14,8 +14,8 @@ void Document::addLayer()
     if (!validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     edit(tr("Nouveau calque"), [&] {
-        m_layers.insert(++m_active,
-                        {tr("Calque %1").arg(m_layers.size() + 1), ImageUtils::blank(m_size)});
+        m_layers.insert(++m_active, {tr("Calque %1").arg(m_layers.size() + 1),
+                                     ImageUtils::blank(m_size, workingFormat())});
         selectOnly(m_active);
     });
 }
@@ -48,7 +48,7 @@ void Document::removeLayer()
         } else
             m_layers.removeAt(m_active);
         if (m_layers.isEmpty())
-            m_layers.append({tr("Calque 1"), ImageUtils::blank(m_size)});
+            m_layers.append({tr("Calque 1"), ImageUtils::blank(m_size, workingFormat())});
         m_active      = qMin(m_active, int(m_layers.size()) - 1);
         m_editingMask = false;
         selectOnly(m_active);
@@ -86,7 +86,7 @@ void Document::mergeDown()
     edit(tr("Fusionner vers le bas"), [&] {
         auto       &bottom = m_layers[m_active - 1];
         const auto &top    = m_layers[m_active];
-        QImage      image  = ImageUtils::blank(m_size);
+        QImage      image  = ImageUtils::blank(m_size, workingFormat());
         QPainter    painter(&image);
         painter.setOpacity(bottom.opacity);
         painter.drawImage(0, 0, bottom.image);
@@ -354,7 +354,7 @@ void Document::createDemo()
     gradient.setColorAt(1, QColor("#30424c"));
     bg.fillRect(background.image.rect(), gradient);
     bg.end();
-    QImage   orb = ImageUtils::blank(m_size);
+    QImage   orb = ImageUtils::blank(m_size, workingFormat());
     QPainter p(&orb);
     p.setRenderHint(QPainter::Antialiasing);
     QRadialGradient sphere(QPointF(1010, 405), 350, QPointF(910, 270));
@@ -371,7 +371,7 @@ void Document::createDemo()
         p.drawEllipse(QPointF(1010, 405), 350 + i * 17, 350 + i * 17);
     p.end();
     m_layers.append({tr("Sphère · lumière"), orb});
-    QImage   typography = ImageUtils::blank(m_size);
+    QImage   typography = ImageUtils::blank(m_size, workingFormat());
     QPainter t(&typography);
     t.setRenderHint(QPainter::TextAntialiasing);
     QFont font("sans-serif");
@@ -402,7 +402,7 @@ void Document::createDemo()
     t.drawText(QPointF(1162, 912), QStringLiteral("VOL. 001"));
     t.end();
     m_layers.append({tr("Composition · typographie"), typography});
-    m_layers.append({tr("Vos retouches"), ImageUtils::blank(m_size)});
+    m_layers.append({tr("Vos retouches"), ImageUtils::blank(m_size, workingFormat())});
     m_active = 3;
     selectOnly(m_active);
     m_name = tr("Exploration créative");

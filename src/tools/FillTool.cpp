@@ -22,10 +22,10 @@ void Document::floodFill(QPoint _point)
     const QRect bounds = hasSelection() ? m_selection : image.rect();
     if (!bounds.contains(_point))
         return;
-    const QRgb targetColor = image.pixel(_point);
-    QImage     solid(1, 1, QImage::Format_ARGB32_Premultiplied);
+    const QColor targetColor = image.pixelColor(_point);
+    QImage       solid(1, 1, ImageUtils::workingFormat(image));
     solid.fill(m_editingMask ? maskColor(m_color) : m_color);
-    const QRgb replacement = solid.pixel(0, 0);
+    const QColor replacement = solid.pixelColor(0, 0);
     if (targetColor == replacement && qFuzzyCompare(m_brushOpacity, 1.))
         return;
     // Scanline flood fill: visited pixels are kept separate so semi-transparent
@@ -35,7 +35,7 @@ void Document::floodFill(QPoint _point)
     QVector<QPoint> stack{_point};
     auto            matches = [&](int _x, int _y) {
         return (!hasSelection() || m_selectionRegion.contains(QPoint(_x, _y))) &&
-               !mask.constScanLine(_y)[_x] && image.pixel(_x, _y) == targetColor;
+               !mask.constScanLine(_y)[_x] && image.pixelColor(_x, _y) == targetColor;
     };
     while (!stack.isEmpty()) {
         auto seed = stack.takeLast();
@@ -60,13 +60,12 @@ void Document::floodFill(QPoint _point)
                 }
             }
     }
-    QImage overlay = ImageUtils::blank(m_size);
+    QImage overlay = ImageUtils::blank(m_size, workingFormat());
     for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
-        auto row      = reinterpret_cast<QRgb *>(overlay.scanLine(y));
         auto selected = mask.constScanLine(y);
         for (int x = bounds.left(); x <= bounds.right(); ++x)
             if (selected[x])
-                row[x] = replacement;
+                overlay.setPixelColor(x, y, replacement);
     }
     QPainter painter(&image);
     painter.setOpacity(m_brushOpacity);

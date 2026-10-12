@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImageUtils.h"
 
 #include <QMutexLocker>
 #include <QtMath>
@@ -47,13 +48,35 @@ QColor Document::sampleToolColor(int _x, int _y) const
     }
     if (image.isNull())
         return {};
-    const int    radius = m_eyedropperSize / 2;
-    const QRect  requested(_x - radius, _y - radius, m_eyedropperSize, m_eyedropperSize);
-    const QRect  clipped = requested.intersected(QRect(QPoint{}, m_size));
-    const qreal  sx      = qreal(image.width()) / m_size.width(),
-                 sy      = qreal(image.height()) / m_size.height();
-    const QRect  area(QPoint(qFloor(clipped.left() * sx), qFloor(clipped.top() * sy)),
-                      QPoint(qFloor(clipped.right() * sx), qFloor(clipped.bottom() * sy)));
+    const int   radius = m_eyedropperSize / 2;
+    const QRect requested(_x - radius, _y - radius, m_eyedropperSize, m_eyedropperSize);
+    const QRect clipped = requested.intersected(QRect(QPoint{}, m_size));
+    const qreal sx      = qreal(image.width()) / m_size.width(),
+                sy      = qreal(image.height()) / m_size.height();
+    const QRect area(QPoint(qFloor(clipped.left() * sx), qFloor(clipped.top() * sy)),
+                     QPoint(qFloor(clipped.right() * sx), qFloor(clipped.bottom() * sy)));
+    if (ImageUtils::is16Bit(image)) {
+        const QImage sample = image.copy(area.intersected(image.rect()))
+                                  .convertToFormat(QImage::Format_RGBA64_Premultiplied);
+        if (sample.isNull())
+            return {};
+        quint64 red = 0, green = 0, blue = 0, alpha = 0;
+        for (int y = 0; y < sample.height(); ++y) {
+            const auto *row = reinterpret_cast<const QRgba64 *>(sample.constScanLine(y));
+            for (int x = 0; x < sample.width(); ++x) {
+                red += row[x].red();
+                green += row[x].green();
+                blue += row[x].blue();
+                alpha += row[x].alpha();
+            }
+        }
+        if (!alpha)
+            return QColor::fromRgba64(0, 0, 0, 0);
+        const quint64 count = quint64(sample.width()) * sample.height();
+        return QColor::fromRgba64((red * 65535 + alpha / 2) / alpha,
+                                  (green * 65535 + alpha / 2) / alpha,
+                                  (blue * 65535 + alpha / 2) / alpha, (alpha + count / 2) / count);
+    }
     const QImage sample = image.copy(area.intersected(image.rect()))
                               .convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (sample.isNull())

@@ -80,7 +80,7 @@ const QImage &Document::composite() const
         fullRender ? documentRect : expanded(dirtyRegion, totalMargin, documentRect);
     const QRect workRegion =
         fullRender ? documentRect : expanded(outputRegion, totalMargin, documentRect);
-    QImage               regionComposite = ImageUtils::blank(workRegion.size());
+    QImage               regionComposite = ImageUtils::blank(workRegion.size(), workingFormat());
     QImage               clippingBase;
     qreal                clippingBaseOpacity = 1.;
     QHash<QString, bool> groupVisibility;

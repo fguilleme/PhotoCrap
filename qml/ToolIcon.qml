@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,22 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "picker" || root.toolName === "colorSampler") {
+            if(root.toolName === "slice" || root.toolName === "sliceSelect") {
+                ctx.setLineDash([3,2]);ctx.strokeRect(3,3,18,17);ctx.setLineDash([])
+                if(root.toolName === "sliceSelect") {
+                    ctx.beginPath();ctx.moveTo(10,7);ctx.lineTo(10,20);ctx.lineTo(14,16);ctx.lineTo(19,16);ctx.closePath();ctx.fill()
+                } else {
+                    ctx.beginPath();ctx.moveTo(5,18);ctx.lineTo(15,5);ctx.lineTo(19,8);ctx.lineTo(8,20);ctx.closePath();ctx.fill()
+                }
+            } else if (root.toolName === "crop") {
+                ctx.beginPath();ctx.moveTo(6,2);ctx.lineTo(6,18);ctx.lineTo(22,18)
+                ctx.moveTo(2,6);ctx.lineTo(18,6);ctx.lineTo(18,22);ctx.stroke()
+                ctx.beginPath();ctx.moveTo(9,15);ctx.lineTo(15,9);ctx.stroke()
+            } else if(root.toolName === "perspectiveCrop") {
+                ctx.beginPath();ctx.moveTo(6,4);ctx.lineTo(20,7);ctx.lineTo(17,21);ctx.lineTo(3,18);ctx.closePath();ctx.stroke()
+                ctx.beginPath();ctx.moveTo(5,9);ctx.lineTo(19,12);ctx.moveTo(4,14);ctx.lineTo(18,17)
+                ctx.moveTo(11,5);ctx.lineTo(8,19);ctx.moveTo(16,6);ctx.lineTo(13,20);ctx.stroke()
+            } else if (root.toolName === "picker" || root.toolName === "colorSampler") {
                 ctx.beginPath();ctx.moveTo(3,21);ctx.lineTo(8,16);ctx.lineTo(7,15)
                 ctx.lineTo(16,6);ctx.lineTo(20,10);ctx.lineTo(11,19);ctx.lineTo(10,18);ctx.closePath();ctx.stroke()
                 ctx.beginPath();ctx.moveTo(14,5);ctx.lineTo(18,1);ctx.lineTo(23,6);ctx.lineTo(19,10);ctx.closePath();ctx.fill()

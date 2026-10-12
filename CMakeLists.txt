@@ -42,6 +42,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/tools/EyedropperTools.cpp
+    src/tools/CropTools.cpp
+    src/tools/SliceTools.cpp
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
     src/filters/ChannelMixerFilter.cpp
@@ -197,6 +199,8 @@ qt_add_library(photocrap_core STATIC
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/tools/EyedropperTools.cpp
+    src/tools/CropTools.cpp
+    src/tools/SliceTools.cpp
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h
@@ -285,6 +289,11 @@ qt_add_qml_module(PhotoCrap
         qml/EyedropperOptions.qml
         qml/EyedropperButton.qml
         qml/RulerOptions.qml
+        qml/CropOptions.qml
+        qml/CropOverlay.qml
+        qml/ScreenOverlayCanvas.qml
+        qml/SliceOptions.qml
+        qml/SliceOverlay.qml
         qml/InformationPanel.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml

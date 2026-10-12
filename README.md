@@ -131,7 +131,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | M | Rectangle, ellipse, rangée unique, colonne unique de sélection |
 | L | Lasso, lasso polygonal |
 | W | Sélection rapide, baguette magique |
-| C | Recadrage |
+| C | Recadrage, perspective, tranches |
 | I | Pipette, échantillonnage de couleur, règle |
 | J | Correcteur localisé, suppression, correcteur, pièce, déplacement basé sur le contenu, œil rouge |
 | B | Pinceau, crayon, remplacement de couleur, pinceau mélangeur |
@@ -153,6 +153,16 @@ Les raccourcis et la barre d’outils se personnalisent dans **Réglages** : **m
 L’outil **Pièce** se trouve dans le groupe de correction (`J`). En mode **Source**, entourez la zone à réparer, puis faites glisser l’intérieur de la sélection vers une texture saine. En mode **Destination**, entourez la texture saine et faites-la glisser sur la zone à réparer. L’aperçu montre la texture pendant le geste ; au relâchement, sa couleur s’adapte aux bords de la zone. **Diffusion** va de 1 (textures détaillées) à 7 (zones lisses). Une réparation crée une seule étape d’annulation. Cette première version couvre le mode Normal sur le calque de pixels actif, sans les options Contenu pris en compte, Transparent ni Motif de Photoshop.
 
 Le **Déplacement basé sur le contenu** partage le groupe `J`. Entourez un objet, puis faites glisser la sélection. Le mode **Déplacement** reconstruit l’ancien emplacement depuis les textures voisines ; **Extension** garde aussi l’original. **Structure** (1–7) règle la recherche de motifs et le raccord de bord, **Couleur** (0–10) l’adaptation au fond ; à zéro, la couleur copiée reste intacte. **Tous les calques** prélève le composite visible et écrit uniquement sur le calque de pixels actif. Le calcul final et la recomposition se font en arrière-plan, avec une seule étape d’annulation. Cette version utilise une recherche locale de texture et un raccord de couleur : les fonds complexes peuvent demander une retouche complémentaire. La transformation au dépôt n’est pas encore implémentée.
+
+### Recadrage et tranches (branche de développement)
+
+Le groupe **C** propose désormais Recadrage, Recadrage en perspective, Tranche et Sélection de tranche, accessibles par clic droit sur son icône. Ces ajouts sont postérieurs à la release 0.11.0.
+
+- **Recadrage** : tracez un cadre, déplacez-le ou ajustez ses huit poignées ; choisissez un ratio, inversez son orientation ou saisissez les dimensions de sortie en pixels. La grille et l’assombrissement extérieur aident au cadrage. Entrée applique, Échap abandonne.
+- **Perspective** : tracez un cadre puis ajustez ses quatre coins sur les bords du sujet. Entrée redresse le quadrilatère et recadre tous les calques, masques et sources en arrière-plan. Annuler restaure l’image d’origine.
+- **Tranches** : tracez des rectangles avec Tranche ; Sélection de tranche permet de les déplacer, les redimensionner, les supprimer ou les diviser en rangées/colonnes. Les tranches utilisateur sont sauvegardées dans le projet et exportables en PNG ; les fichiers existants ne sont pas écrasés. Les tranches automatiques sont des repères visuels, pas des zones modifiables ni exportées.
+
+Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La conservation non destructive hors canevas, la rotation/redressement par ligne, les presets de résolution et l’export HTML des tranches restent à implémenter. Un changement de dimensions efface les repères de tranches ; Annuler les restaure.
 
 ## Architecture
 

@@ -131,7 +131,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | M | Rectangular, elliptical, single-row, single-column marquee |
 | L | Lasso, polygonal lasso |
 | W | Quick selection, magic wand |
-| C | Crop |
+| C | Crop, perspective, slices |
 | I | Eyedropper, color sampler, ruler |
 | J | Spot healing, remove, healing, patch, content-aware move, red eye |
 | B | Brush, pencil, color replacement, mixer brush |
@@ -168,6 +168,16 @@ Up to four numbered samplers remain on the image; their RGB values appear in **I
 Tool cursors have precise native hotspots, including Curves and white-balance eyedroppers. Sampling uses the completed full-resolution composite, or the latest finished proxy while a render is pending, excluding selection overlays and channel visualization. The unresolved first-activation macOS cursor check is tracked in the [roadmap](ROADMAP.md).
 
 Adobe references: [pixel values and color samplers](https://helpx.adobe.com/photoshop/desktop/adjust-color/selective-color-adjustments/view-pixel-color-values-in-an-image.html), [Ruler](https://helpx.adobe.com/photoshop/using/positioning-ruler-tool.html), [Info panel](https://helpx.adobe.com/photoshop/desktop/get-started/settings-and-preferences/use-the-info-panel-and-document-status-bar.html).
+
+### Crop and slices (development branch)
+
+The **C** group now contains Crop, Perspective Crop, Slice, and Slice Select, accessed by right-clicking its icon. These additions are newer than release 0.11.0.
+
+- **Crop**: draw a frame, move it, or adjust its eight handles. Select an aspect ratio, swap its orientation, or enter output dimensions in pixels. A grid and shaded exterior help framing. Return applies; Escape discards.
+- **Perspective Crop**: draw a frame and align its four corners with the subject’s edges. Return rectifies the quadrilateral and crops all layers, masks, and sources in the background. Undo restores the original image.
+- **Slices**: draw rectangles with Slice. Slice Select moves, resizes, deletes, or divides them into rows/columns. User slices are saved in the project and exported as PNG without overwriting existing files. Auto slices are visual guides, not editable or exported regions.
+
+Cropping removes pixels outside the frame; Undo recovers them. Nondestructive retention outside the canvas, rotation/line-based straightening, resolution presets, and HTML slice export remain unimplemented. A dimension change clears slice guides; Undo restores them.
 
 ## Architecture
 

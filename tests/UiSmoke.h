@@ -1347,6 +1347,96 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(guard, "close");
     QTest::qWait(150);
+    // The four C variants share one toolbar slot and operate through real pointer delivery.
+    _document.newDocument(300, 200, true);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "crop"),
+                              Q_ARG(QVariant, "crop"));
+    QTest::qWait(100);
+    auto cropOptions = _window->findChild<QQuickItem *>("cropOptions");
+    auto cropOverlay = _window->findChild<QQuickItem *>("cropOverlay");
+    if (!require(cropOptions && cropOptions->isVisible() && cropOverlay,
+                 "crop has a dedicated options bar and frame overlay"))
+        return false;
+    const auto cropScene = [&](qreal x, qreal y) {
+        return area->mapToScene(QPointF(x, y) * _window->property("zoom").toReal()).toPoint();
+    };
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, cropScene(20, 20));
+    QTest::mouseMove(_window, cropScene(180, 140), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, cropScene(180, 140));
+    if (!require(_document.hasCrop() && cropOverlay->isVisible() && !_document.hasSelection(),
+                 "drawing a crop frame leaves the pixel selection separate"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Escape);
+    if (!require(!_document.hasCrop() && _document.width() == 300,
+                 "Escape discards a crop without touching image pixels"))
+        return false;
+    _document.resetCrop();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, cropScene(150, 100));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, cropScene(150, 100));
+    QTest::keyClick(_window, Qt::Key_Return);
+    QElapsedTimer cropTimer;
+    cropTimer.start();
+    while (_document.cropBusy() && cropTimer.elapsed() < 5000)
+        QTest::qWait(10);
+    if (!require(!_document.cropBusy() && !_document.hasCrop() && _document.historyIndex() == 1,
+                 "Return applies one asynchronous crop with a single undo step"))
+        return false;
+    _document.undo();
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "crop"),
+                              Q_ARG(QVariant, "perspectiveCrop"));
+    QTest::qWait(60);
+    _document.beginCropGesture(20, 20, 0);
+    _document.updateCropGesture(250, 170);
+    _document.endCropGesture();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, cropScene(20, 20));
+    QTest::mouseMove(_window, cropScene(40, 35), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, cropScene(40, 35));
+    if (!require(_document.tool() == "perspectiveCrop" &&
+                     qAbs(_document.cropPoints().first().toMap()["x"].toReal() - 40) < 1,
+                 "perspective corner handles can be adjusted with the mouse"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Escape);
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "crop"),
+                              Q_ARG(QVariant, "slice"));
+    QTest::qWait(60);
+    auto sliceOptions = _window->findChild<QQuickItem *>("sliceOptions");
+    if (!require(sliceOptions && sliceOptions->isVisible(), "Slice has dedicated controls"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, cropScene(30, 30));
+    QTest::mouseMove(_window, cropScene(150, 120), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, cropScene(150, 120));
+    if (!require(_document.slices().size() == 1, "dragging Slice creates a user slice"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "crop"),
+                              Q_ARG(QVariant, "sliceSelect"));
+    QTest::qWait(60);
+    QTest::keyClick(_window, Qt::Key_C);
+    if (!require(_document.tool() == "sliceSelect", "C selects the group's last active variant"))
+        return false;
+    const auto sliceBeforeMove = _document.slices().first().toMap();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, cropScene(80, 70));
+    QTest::mouseMove(_window, cropScene(90, 80), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, cropScene(90, 80));
+    if (!require(qAbs(_document.slices().first().toMap()["x"].toReal() -
+                      sliceBeforeMove["x"].toReal() - 10) <= 1 &&
+                     _document.width() == 300 && _document.height() == 200,
+                 "Slice Select moves a slice without changing document dimensions"))
+        return false;
+    auto deleteSlice = _window->findChild<QObject *>("deleteSliceButton");
+    QMetaObject::invokeMethod(deleteSlice, "clicked");
+    if (!require(_document.slices().isEmpty(),
+                 "slice deletion is wired to the dedicated options bar"))
+        return false;
+    _document.setTool("crop");
+    _document.resetCrop();
+    _window->setProperty("zoom", 8.0);
+    QTest::qWait(40);
+    if (!require(cropOverlay->width() <= viewport->width() + 2 &&
+                     cropOverlay->height() <= viewport->height() + 2,
+                 "crop overlay allocation stays limited to the visible viewport at high zoom"))
+        return false;
+    _window->setProperty("zoom", 1.0);
+    _document.setTool("brush");
     _document.newDocument(300, 200, true);
     QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
     QTest::qWait(150);

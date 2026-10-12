@@ -65,6 +65,16 @@ class Document : public QObject
         int displayChannel READ displayChannel WRITE setDisplayChannel NOTIFY displayChannelChanged)
     Q_PROPERTY(int maskOnlyLayer READ maskOnlyLayer NOTIFY displayChannelChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList slices READ slices NOTIFY slicesChanged)
+    Q_PROPERTY(int activeSlice READ activeSlice NOTIFY slicesChanged)
+    Q_PROPERTY(QRectF sliceDraft READ sliceDraft NOTIFY slicesChanged)
+    Q_PROPERTY(bool sliceBusy READ sliceBusy NOTIFY slicesChanged)
+    Q_PROPERTY(bool sliceShowAuto READ sliceShowAuto WRITE setSliceShowAuto NOTIFY slicesChanged)
+    Q_PROPERTY(QVariantList cropPoints READ cropPoints NOTIFY cropChanged)
+    Q_PROPERTY(bool hasCrop READ hasCrop NOTIFY cropChanged)
+    Q_PROPERTY(bool cropBusy READ cropBusy NOTIFY cropChanged)
+    Q_PROPERTY(qreal cropRatio READ cropRatio WRITE setCropRatio NOTIFY cropChanged)
+    Q_PROPERTY(QSize cropOutputSize READ cropOutputSize WRITE setCropOutputSize NOTIFY cropChanged)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY settingsChanged)
     Q_PROPERTY(
         QColor secondaryColor READ secondaryColor WRITE setSecondaryColor NOTIFY settingsChanged)
@@ -852,11 +862,62 @@ public:
     Q_INVOKABLE void         copy();
     Q_INVOKABLE void         paste();
     Q_INVOKABLE void         cropToSelection();
-    Q_INVOKABLE void         resizeImage(int _width, int _height);
-    Q_INVOKABLE void         transformImage(const QString &_operation);
-    Q_INVOKABLE void         applyFilter(const QString &_filter, qreal _amount = 0);
-    Q_INVOKABLE void         createDemo();
+    QVariantList             slices() const;
+    int                      activeSlice() const
+    {
+        return m_activeSlice;
+    }
+    QRectF sliceDraft() const
+    {
+        return m_sliceDraft;
+    }
+    bool sliceBusy() const
+    {
+        return m_sliceBusy;
+    }
+    bool sliceShowAuto() const
+    {
+        return m_sliceShowAuto;
+    }
+    void             setSliceShowAuto(bool _value);
+    Q_INVOKABLE void beginSliceGesture(qreal _x, qreal _y, qreal _tolerance = 8,
+                                       bool _select = false);
+    Q_INVOKABLE void updateSliceGesture(qreal _x, qreal _y);
+    Q_INVOKABLE void endSliceGesture(bool _cancel = false);
+    Q_INVOKABLE void deleteActiveSlice();
+    Q_INVOKABLE void divideActiveSlice(int _columns, int _rows);
+    Q_INVOKABLE void setActiveSliceRect(int _x, int _y, int _width, int _height);
+    Q_INVOKABLE void exportSlices(const QUrl &_folder);
+    QVariantList     cropPoints() const;
+    bool             hasCrop() const;
+    bool             cropBusy() const
+    {
+        return m_cropBusy;
+    }
+    qreal cropRatio() const
+    {
+        return m_cropRatio;
+    }
+    QSize cropOutputSize() const
+    {
+        return m_cropOutputSize;
+    }
+    void             setCropRatio(qreal _ratio);
+    void             setCropOutputSize(const QSize &_size);
+    Q_INVOKABLE void beginCropGesture(qreal _x, qreal _y, qreal _tolerance = 8);
+    Q_INVOKABLE void updateCropGesture(qreal _x, qreal _y);
+    Q_INVOKABLE void endCropGesture();
+    Q_INVOKABLE void setCropCorner(int _index, qreal _x, qreal _y);
+    Q_INVOKABLE void resetCrop();
+    Q_INVOKABLE void cancelCrop();
+    Q_INVOKABLE void applyCrop();
+    Q_INVOKABLE void resizeImage(int _width, int _height);
+    Q_INVOKABLE void transformImage(const QString &_operation);
+    Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
+    Q_INVOKABLE void createDemo();
 signals:
+    void slicesChanged();
+    void cropChanged();
     void canvasSizeChanged();
     void documentChanged();
     void layersChanged();
@@ -887,7 +948,16 @@ private:
         bool           editingMask;
         quint64        id;
         QString        label;
+        QVector<QRect> slices;
+        int            activeSlice = -1;
     };
+    QVector<QRect> m_slices;
+    int            m_activeSlice = -1, m_sliceHandle = -2;
+    bool           m_sliceBusy = false, m_sliceDragging = false, m_sliceCreating = false,
+                   m_sliceShowAuto = false;
+    QRectF         m_sliceDraft, m_sliceBefore;
+    QPointF        m_sliceAnchor;
+    void           commitSlices(const Snapshot &_before, const QString &_label);
     QSize          m_size{1280, 800};
     QVector<Layer> m_layers;
     int            m_active = 0;
@@ -981,6 +1051,13 @@ private:
     bool              m_shapeAlignPixels   = true;
     int               m_shapeSides         = 5;
     qreal             m_shapeStarRatio     = .5;
+    QPolygonF         m_cropPoints, m_cropGesturePoints;
+    QPointF           m_cropAnchor;
+    int               m_cropHandle   = -2;
+    bool              m_cropDragging = false, m_cropBusy = false;
+    qreal             m_cropRatio = 0;
+    QSize             m_cropOutputSize{0, 0};
+    void              setCropRectangle(const QRectF &_rect);
     QRect             m_selection;
     QRegion           m_selectionRegion;
     int               m_selectionShape = 0;

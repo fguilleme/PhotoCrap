@@ -39,6 +39,9 @@ void Document::setTool(const QString &_value)
                                    "quickSelection",
                                    "magicWand",
                                    "crop",
+                                   "perspectiveCrop",
+                                   "slice",
+                                   "sliceSelect",
                                    "text",
                                    "hand",
                                    "rotateView",
@@ -59,6 +62,10 @@ void Document::setTool(const QString &_value)
         endStroke();
     if (m_tool != _value)
         cancelRemoval();
+    if (m_tool != _value) {
+        cancelCrop();
+        endSliceGesture(true);
+    }
     m_tool = _value;
     if (m_tool == "mixerBrush" && m_mixerPaint.isNull())
         loadMixerBrush();

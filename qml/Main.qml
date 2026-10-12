@@ -53,6 +53,8 @@ ApplicationWindow {
                                                  || editor.tool === "polygonalLasso"
                                                  || editor.tool === "quickSelection"
                                                  || editor.tool === "magicWand"
+    readonly property bool sliceToolActive: editor.tool === "slice" || editor.tool === "sliceSelect"
+    readonly property bool cropToolActive: editor.tool === "crop" || editor.tool === "perspectiveCrop"
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
     readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "healing" || editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
@@ -61,6 +63,10 @@ ApplicationWindow {
                                              ? Qt.OpenHandCursor
                                              : (editor.tool === "patch" || editor.tool === "contentAwareMove") && (editor.patchDragging || drawingArea.patchInsideSelection)
                                                ? Qt.SizeAllCursor
+                                             : window.sliceToolActive
+                                               ? (editor.slices, sliceOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY))
+                                             : window.cropToolActive
+                                               ? (editor.cropPoints, cropOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY))
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
                                              : window.paintToolActive
@@ -117,7 +123,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -157,9 +163,9 @@ ApplicationWindow {
         {name:"quickSelection", icon:"◌", label:qsTr("Sélection rapide"), implemented:true},
         {name:"magicWand", icon:"✦", label:qsTr("Baguette magique"), implemented:true},
         {name:"crop", icon:"⌗", label:qsTr("Recadrage"), implemented:true},
-        {name:"perspectiveCrop", icon:"⌗", label:qsTr("Recadrage en perspective"), implemented:false},
-        {name:"slice", icon:"◢", label:qsTr("Tranche"), implemented:false},
-        {name:"sliceSelect", icon:"◁", label:qsTr("Sélection de tranche"), implemented:false},
+        {name:"perspectiveCrop", icon:"⌗", label:qsTr("Recadrage en perspective"), implemented:true},
+        {name:"slice", icon:"◢", label:qsTr("Tranche"), implemented:true},
+        {name:"sliceSelect", icon:"◁", label:qsTr("Sélection de tranche"), implemented:true},
         {name:"frame", icon:"⊠", label:qsTr("Cadre"), implemented:false},
         {name:"picker", icon:"", label:qsTr("Pipette"), implemented:true},
         {name:"colorSampler", icon:"", label:qsTr("Échantillonnage de couleur"), implemented:true},
@@ -890,7 +896,7 @@ ApplicationWindow {
     Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
     Action { id: selectAction; text: qsTr("Tout sélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
     Action { id: deselectAction; text: qsTr("Désélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("deselect")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.deselect() }
-    Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.clearSelected() }
+    Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: { if(window.sliceToolActive) editor.deleteActiveSlice(); else editor.clearSelected() } }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
     Action { id: duplicateAction; text: qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
     Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
@@ -907,12 +913,19 @@ ApplicationWindow {
         enabled: !window.modalOpen
         sequence: "Escape"
         onActivated: {
+            if (window.cropToolActive) { editor.cancelCrop(); return }
+            if (window.sliceToolActive) { editor.endSliceGesture(true); return }
             const movingContent = editor.removeHasPending || editor.removeBusy || editor.tool === "remove" || editor.contentMoveBusy
                     || (editor.tool === "contentAwareMove" && editor.patchDragging)
             editor.cancelStroke()
             editor.cancelPolygonLasso()
             if (!movingContent) editor.deselect()
         }
+    }
+    FolderDialog {
+        id: sliceFolderDialog
+        title: qsTr("Exporter les tranches utilisateur en PNG")
+        onAccepted: editor.exportSlices(selectedFolder)
     }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomFit")); onActivated: fitCanvas() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
@@ -1518,7 +1531,6 @@ ApplicationWindow {
                     implicitHeight: 32
                     onClicked: fitCanvas()
                 }
-                Button { text: qsTr("Recadrer"); visible: editor.tool==="crop"; enabled: editor.hasSelection; implicitHeight: 32; onClicked: editor.cropToSelection() }
                 Item { Layout.fillWidth: true }
                 IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
                 IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
@@ -1531,6 +1543,21 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        SliceOptions {
+            objectName: "sliceOptions"
+            Layout.fillWidth: true
+            visible: window.sliceToolActive
+            document: editor
+            onExportRequested: sliceFolderDialog.open()
+        }
+        CropOptions {
+            id: cropOptions
+            onEditCommitted: workspace.forceActiveFocus()
+            objectName: "cropOptions"
+            Layout.fillWidth: true
+            visible: window.cropToolActive
+            document: editor
+        }
         RulerOptions {
             objectName:"rulerOptions"
             Layout.fillWidth:true
@@ -1663,6 +1690,12 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if (window.cropToolActive && !window.editingText && !window.modalOpen
+                                && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                            editor.applyCrop()
+                            event.accepted = true
+                            return
+                        }
                         if (event.key === Qt.Key_Alt && !event.isAutoRepeat) {
                             window.stampSourcePicking = true
                         }
@@ -1771,6 +1804,23 @@ ApplicationWindow {
                                 Component.onCompleted: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
+                            }
+                            SliceOverlay {
+                                id: sliceOverlay
+                                objectName: "sliceOverlay"
+                                viewportItem: viewport
+                                z: 3
+                                document: editor
+                                zoom: window.zoom
+                            }
+                            CropOverlay {
+                                id: cropOverlay
+                                objectName: "cropOverlay"
+                                viewportItem: viewport
+                                z: 3
+                                document: editor
+                                zoom: window.zoom
+                                showGrid: cropOptions.showGrid
                             }
                             NumberAnimation on selectionAntPhase {
                                 from: 0
@@ -1920,7 +1970,7 @@ ApplicationWindow {
                                 }
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                enabled: editor.tool!=="hand" && editor.tool!=="rotateView"
+                                enabled: !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape
@@ -1950,6 +2000,14 @@ ApplicationWindow {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
                                     window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
+                                    if (window.sliceToolActive) {
+                                        editor.beginSliceGesture(mouse.x/zoom,mouse.y/zoom,10/zoom,Boolean(mouse.modifiers & Qt.AltModifier))
+                                        return
+                                    }
+                                    if (window.cropToolActive) {
+                                        editor.beginCropGesture(mouse.x/zoom,mouse.y/zoom,10/zoom)
+                                        return
+                                    }
                                     if (editor.tool === "picker") {
                                         window.showInformationPanel()
                                         if (mouse.modifiers & Qt.ShiftModifier) {
@@ -2352,7 +2410,7 @@ ApplicationWindow {
                     Layout.fillWidth: true; height: editor.tool==="text" ? 54 : 40; color: "#20262e"
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 15
-                        Label { text: editor.tool==="text" ? qsTr("Texte") : editor.tool==="crop" ? qsTr("Tracez une zone, puis cliquez sur Recadrer") : ""; color: "#8e9aa7" }
+                        Label { text: editor.tool==="text" ? qsTr("Texte") : window.cropToolActive ? qsTr("Tracez le cadre, ajustez les poignées ; Entrée pour recadrer, Échap pour annuler") : ""; color: "#8e9aa7" }
                         TextField { id: textField; objectName: "textField"; visible: editor.tool==="text"; text: editor.text; Layout.fillWidth: true; placeholderText: qsTr("Cliquez ensuite sur le canevas"); onTextEdited: editor.text=text }
                         DarkSpinBox { visible: editor.tool==="text"; from: 6; to: 512; value: editor.textSize; suffix: " px"; onValueModified: editor.textSize=value }
                         Item { Layout.fillWidth: true; visible: editor.tool!=="text" }

@@ -628,6 +628,66 @@
 <message><source>Correcteur</source><translation>Healing Brush</translation></message>
 <message><source>Option/Alt-clic sur l’image pour définir la source du correcteur.</source><translation>Option/Alt-click the image to define the Healing Brush source.</translation></message>
     <message><source>Forme d’historique artistique</source><translation>Art History Brush</translation></message>
+    <message>
+        <source>Le projet contient trop de tranches.</source>
+        <translation>The project contains too many slices.</translation>
+    </message>
+    <message>
+        <source>Tranche de projet invalide.</source>
+        <translation>Invalid project slice.</translation>
+    </message>
+    <message>
+        <source>Recadrer en perspective</source>
+        <translation>Perspective crop</translation>
+    </message>
+    <message>
+        <source>Recadrage en cours…</source>
+        <translation>Cropping…</translation>
+    </message>
+    <message>
+        <source>Recadrage appliqué</source>
+        <translation>Crop applied</translation>
+    </message>
+    <message>
+        <source>Impossible de calculer le recadrage.</source>
+        <translation>Unable to calculate the crop.</translation>
+    </message>
+    <message>
+        <source>Le document contient déjà 256 tranches.</source>
+        <translation>The document already contains 256 slices.</translation>
+    </message>
+    <message>
+        <source>Modifier les tranches</source>
+        <translation>Edit slices</translation>
+    </message>
+    <message>
+        <source>Créer une tranche</source>
+        <translation>Create slice</translation>
+    </message>
+    <message>
+        <source>Modifier une tranche</source>
+        <translation>Edit slice</translation>
+    </message>
+    <message>
+        <source>Supprimer une tranche</source>
+        <translation>Delete slice</translation>
+    </message>
+    <message>
+        <source>Diviser une tranche</source>
+        <translation>Divide slice</translation>
+    </message>
+    <message>
+        <source>Tranches exportées en PNG</source>
+        <translation>Slices exported as PNG</translation>
+    </message>
+    <message>
+        <source>Impossible de calculer l’image des tranches.</source>
+        <translation>Unable to render the slice image.</translation>
+    </message>
+    <message>
+        <source>Impossible d’exporter les tranches dans ce dossier.</source>
+        <translation>Unable to export slices to this folder.</translation>
+    </message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2370,6 +2430,14 @@ Independent software, not affiliated with Adobe.</translation>
 <message><source>Discontiguës</source><translation>Discontiguous</translation></message>
 <message><source>Contours</source><translation>Find Edges</translation></message>
 <message><source>Limites du remplacement</source><translation>Replacement limits</translation></message>
+    <message>
+        <source>Tracez le cadre, ajustez les poignées ; Entrée pour recadrer, Échap pour annuler</source>
+        <translation>Draw the frame and adjust its handles; Return to crop, Escape to cancel</translation>
+    </message>
+    <message>
+        <source>Exporter les tranches utilisateur en PNG</source>
+        <translation>Export user slices as PNG</translation>
+    </message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -2778,4 +2846,102 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Échantillons de couleur</source><translation>Color samplers</translation></message>
     <message><source>Document : %1 × %2 px</source><translation>Document: %1 × %2 px</translation></message>
   </context>
+<context>
+    <name>CropOptions</name>
+    <message>
+        <source>Libre</source>
+        <translation>Unconstrained</translation>
+    </message>
+    <message>
+        <source>Ratio d’origine</source>
+        <translation>Original ratio</translation>
+    </message>
+    <message>
+        <source>Permuter</source>
+        <translation>Swap</translation>
+    </message>
+    <message>
+        <source>L</source>
+        <translation>W</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>Auto</source>
+        <translation>Auto</translation>
+    </message>
+    <message>
+        <source>Dimensions de sortie en pixels ; vide = automatique</source>
+        <translation>Output dimensions in pixels; empty = automatic</translation>
+    </message>
+    <message>
+        <source>Grille</source>
+        <translation>Grid</translation>
+    </message>
+    <message>
+        <source>Réinitialiser</source>
+        <translation>Reset</translation>
+    </message>
+    <message>
+        <source>Annuler</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Recadrer</source>
+        <translation>Crop</translation>
+    </message>
+</context>
+<context>
+    <name>SliceOptions</name>
+    <message>
+        <source>L</source>
+        <translation>W</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>Diviser…</source>
+        <translation>Divide…</translation>
+    </message>
+    <message>
+        <source>Supprimer</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Tranches automatiques</source>
+        <translation>Auto slices</translation>
+    </message>
+    <message>
+        <source>Exporter en PNG…</source>
+        <translation>Export as PNG…</translation>
+    </message>
+    <message>
+        <source>Diviser la tranche sélectionnée</source>
+        <translation>Divide the selected slice</translation>
+    </message>
+    <message>
+        <source>Colonnes</source>
+        <translation>Columns</translation>
+    </message>
+    <message>
+        <source>Rangées</source>
+        <translation>Rows</translation>
+    </message>
+    <message>
+        <source>256 tranches maximum par document</source>
+        <translation>Maximum 256 slices per document</translation>
+    </message>
+    <message>
+        <source>Annuler</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Diviser</source>
+        <translation>Divide</translation>
+    </message>
+</context>
 </TS>

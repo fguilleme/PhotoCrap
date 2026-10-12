@@ -24,6 +24,12 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 - [x] Interface française/anglaise, raccourcis personnalisables, fichiers récents, historique à budget mémoire et sauvegarde atomique.
 - [x] Builds et paquets autonomes sur trois plateformes, checksums SHA-256 et publication GitHub depuis les tags `v*`. Contrôle de déploiement et de signature ad hoc du DMG ; tests moteur, QML et natifs macOS.
 
+## Ajouts de la branche de développement (après 0.11.0)
+
+- [x] Recadrage avec cadre indépendant, ratios, dimensions de sortie, poignées et grille ; recadrage en perspective asynchrone des calques, masques et sources.
+- [x] Tranche et Sélection de tranche : création, déplacement, redimensionnement, division, sauvegarde et export PNG des tranches utilisateur ; repères automatiques facultatifs.
+- [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
+
 ## 1. Fiabilité et validation à terminer
 
 - [ ] Corriger le premier affichage du curseur natif macOS : le test a relevé une flèche Cocoa malgré une pipette correcte dans l’état Qt. Reproduire sur Qt 6.8.3 et vérifier les transitions de focus, de fenêtres flottantes et de survol, sans masquer le défaut par des relances.
@@ -50,7 +56,7 @@ Les entrées existent dans le catalogue mais sont désactivées. Elles restent d
 | Famille | Outils restant à implémenter |
 |---|---|
 | Déplacement et sélection | Plan de travail, pinceau de sélection, lasso magnétique, sélection d’objet |
-| Recadrage et mise en page | Recadrage en perspective, tranche, sélection de tranche, cadre |
+| Recadrage et mise en page | Cadre |
 | Mesure et annotation | Annotation, comptage |
 | Gomme et réglage local | Gomme d’arrière-plan, gomme magique, pinceau de réglage |
 | Tracés | Plume, plume libre, plume de courbure, ajout de point d’ancrage, suppression de point d’ancrage, conversion de point, sélection de tracé et sélection directe |

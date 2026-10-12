@@ -82,6 +82,14 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
                          m_tool == "remove" || m_tool == "patch" || m_tool == "contentAwareMove")
                             ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
                             : QPointF(_x, _y);
+    if (m_tool == "slice" || m_tool == "sliceSelect") {
+        beginSliceGesture(_x, _y);
+        return;
+    }
+    if (m_tool == "crop" || m_tool == "perspectiveCrop") {
+        beginCropGesture(_x, _y);
+        return;
+    }
     if (m_tool == "hand" || m_tool == "rotateView" || m_tool == "zoomTool" ||
         m_tool == "colorSampler" || m_tool == "ruler")
         return;
@@ -122,7 +130,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         return;
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
-        m_tool == "singleColumnSelect" || m_tool == "crop") {
+        m_tool == "singleColumnSelect") {
         m_drawing         = true;
         m_selection       = {};
         m_selectionRegion = {};
@@ -235,6 +243,14 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
 }
 void Document::continueStroke(qreal _x, qreal _y)
 {
+    if (m_sliceDragging) {
+        updateSliceGesture(_x, _y);
+        return;
+    }
+    if (m_tool == "crop" || m_tool == "perspectiveCrop") {
+        updateCropGesture(_x, _y);
+        return;
+    }
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
@@ -256,7 +272,7 @@ void Document::continueStroke(qreal _x, qreal _y)
             continueQuickSelection(line.pointAt(qreal(i) / count));
     } else if (m_tool == "lasso")
         continueLasso(point.x(), point.y());
-    else if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "crop") {
+    else if (m_tool == "select" || m_tool == "ellipticalSelect") {
         m_selection       = QRect(m_anchor.toPoint(), point.toPoint())
                                 .normalized()
                                 .intersected(QRect(QPoint{}, m_size));
@@ -273,6 +289,14 @@ void Document::continueStroke(qreal _x, qreal _y)
 }
 void Document::endStroke()
 {
+    if (m_sliceDragging) {
+        endSliceGesture();
+        return;
+    }
+    if (m_cropDragging) {
+        endCropGesture();
+        return;
+    }
     if (!m_drawing)
         return;
     if (m_tool == "remove") {
@@ -308,7 +332,7 @@ void Document::endStroke()
         return;
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
-        m_tool == "singleColumnSelect" || m_tool == "crop")
+        m_tool == "singleColumnSelect")
         return;
     if (m_strokeChanged) {
         if (m_tool == "move" && hasSelection()) {
@@ -344,6 +368,15 @@ void Document::endStroke()
 }
 void Document::cancelStroke()
 {
+    if (m_sliceDragging) {
+        endSliceGesture(true);
+        return;
+    }
+    if (m_cropDragging) {
+        m_cropPoints = m_cropGesturePoints;
+        endCropGesture();
+        return;
+    }
     invalidateContentMove(true);
     if (m_tool == "remove") {
         cancelRemoval();
@@ -373,7 +406,7 @@ void Document::cancelStroke()
         return;
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
-        m_tool == "singleColumnSelect" || m_tool == "crop")
+        m_tool == "singleColumnSelect")
         deselect();
     else if (m_tool != "redEye")
         restore(m_beforeStroke);

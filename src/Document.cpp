@@ -120,14 +120,22 @@ Document::Snapshot Document::snapshot(const QString &_label) const
             m_layerSelectionAnchor,
             m_editingMask,
             m_stateId,
-            _label};
+            _label,
+            m_slices,
+            m_activeSlice};
 }
 void Document::restore(const Snapshot &_state)
 {
+    cancelCrop();
     const bool sizeChanged = m_size != _state.size;
     m_layers               = _state.layers;
     m_size                 = _state.size;
     m_active               = _state.active;
+    m_slices               = _state.slices;
+    m_activeSlice          = _state.activeSlice;
+    m_sliceDragging        = false;
+    m_sliceDraft           = {};
+    emit slicesChanged();
     m_selection            = _state.selection;
     m_selectionRegion      = _state.selectionRegion;
     m_selectionShape       = _state.selectionShape;
@@ -186,8 +194,13 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
     auto before = snapshot(_label);
     _operation();
     commit(before, _label);
-    if (before.size != m_size)
+    if (before.size != m_size) {
+        cancelCrop();
+        m_slices.clear();
+        m_activeSlice = -1;
+        emit slicesChanged();
         emit canvasSizeChanged();
+    }
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
@@ -227,6 +240,12 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    cancelCrop();
+    m_slices.clear();
+    m_activeSlice   = -1;
+    m_sliceDragging = false;
+    m_sliceDraft    = {};
+    emit slicesChanged();
     ++m_documentSession;
     invalidateContentMove();
     cancelRemoval();

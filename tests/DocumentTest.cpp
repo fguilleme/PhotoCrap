@@ -15,6 +15,7 @@
 #include <QTemporaryDir>
 #include <QThreadPool>
 #include <QtTest>
+#include <limits>
 
 class DocumentTest : public QObject
 {
@@ -3212,6 +3213,160 @@ private slots:
         d.clearSelected();
         QCOMPARE(d.composite(), before);
         QCOMPARE(d.historyIndex(), history);
+    }
+    void cropFrameRatiosAndUndoPreservePixelsAndMasks()
+    {
+        Document d;
+        d.newDocument(80, 60, true);
+        d.setColor(QColor(40, 100, 220));
+        d.fillWithColor(true);
+        d.addLayerMask(true);
+        const QImage original = d.composite();
+        const int    history  = d.historyIndex();
+        d.setTool("crop");
+        d.setCropRatio(1);
+        d.beginCropGesture(10, 10, 0);
+        d.updateCropGesture(50, 30);
+        d.endCropGesture();
+        QVERIFY(d.hasCrop());
+        QVERIFY(!d.hasSelection());
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.cropPoints()[2].toMap()["x"].toReal(), 50.);
+        QCOMPARE(d.cropPoints()[2].toMap()["y"].toReal(), 50.);
+        d.beginCropGesture(30, 30, 0);
+        d.updateCropGesture(35, 35);
+        d.endCropGesture();
+        QCOMPARE(d.cropPoints()[0].toMap()["x"].toReal(), 15.);
+        d.setCropOutputSize(QSize(20, 20));
+        d.applyCrop();
+        QVERIFY(d.cropBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.cropBusy(), 5000);
+        QCOMPARE(d.width(), 20);
+        QCOMPARE(d.height(), 20);
+        QCOMPARE(d.composite().pixelColor(10, 10), original.pixelColor(35, 35));
+        QVERIFY(d.layers().first().toMap()["hasMask"].toBool());
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        QCOMPARE(d.width(), 80);
+        QCOMPARE(d.height(), 60);
+        QCOMPARE(d.composite(), original);
+        d.redo();
+        QCOMPARE(d.width(), 20);
+    }
+    void perspectiveCropMapsAQuadAndRejectsCrossedCorners()
+    {
+        QTemporaryDir dir;
+        QImage        image(80, 60, QImage::Format_ARGB32);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(x, y, QColor(x * 3, y * 4, 0));
+        QVERIFY(image.save(dir.filePath("perspective.png")));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(dir.filePath("perspective.png"))));
+        d.setTool("perspectiveCrop");
+        QCOMPARE(d.tool(), QString("perspectiveCrop"));
+        d.beginStroke(10, 10);
+        d.continueStroke(70, 50);
+        d.endStroke();
+        d.setCropCorner(0, 20, 10);
+        d.setCropCorner(1, 60, 10);
+        const QVariantList valid = d.cropPoints();
+        d.setCropCorner(0, 80, 60);
+        QCOMPARE(d.cropPoints(), valid);
+        d.setCropCorner(0, std::numeric_limits<double>::quiet_NaN(), 5);
+        QCOMPARE(d.cropPoints(), valid);
+        d.setCropOutputSize(QSize(40, 30));
+        const QImage before = d.composite();
+        d.applyCrop();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.cropBusy(), 5000);
+        QCOMPARE(d.width(), 40);
+        QCOMPARE(d.height(), 30);
+        const QImage cropped = d.composite();
+        QVERIFY(qAbs(cropped.pixelColor(0, 0).red() - 60) <= 6);
+        QVERIFY(qAbs(cropped.pixelColor(0, 0).green() - 40) <= 6);
+        QVERIFY(qAbs(cropped.pixelColor(39, 29).red() - 210) <= 10);
+        QVERIFY(qAbs(cropped.pixelColor(0, 29).red() - 30) <= 10);
+        QVERIFY(qAbs(cropped.pixelColor(0, 29).green() - 200) <= 10);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+        d.resetCrop();
+        d.cancelCrop();
+        QVERIFY(!d.hasCrop());
+    }
+    void cropWorkerCannotReplaceANewerDocument()
+    {
+        Document d;
+        d.newDocument(100, 80);
+        d.setTool("perspectiveCrop");
+        d.beginStroke(10, 10);
+        d.continueStroke(90, 70);
+        d.endStroke();
+        d.applyCrop();
+        d.newDocument(32, 24, true);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.cropBusy(), 5000);
+        QCOMPARE(d.width(), 32);
+        QCOMPARE(d.height(), 24);
+        QCOMPARE(d.composite().pixelColor(10, 10).alpha(), 0);
+        QCOMPARE(d.historyIndex(), 0);
+    }
+    void slicesAreMetadataWithCancelableGesturesDivisionAndExport()
+    {
+        QTemporaryDir dir;
+        Document      d;
+        d.newDocument(81, 61);
+        const QImage original = d.composite();
+        const int    revision = d.revision();
+        d.setTool("slice");
+        d.beginStroke(5, 5);
+        d.continueStroke(46, 36);
+        d.endStroke();
+        QCOMPARE(d.slices().size(), 1);
+        QCOMPARE(d.revision(), revision);
+        QCOMPARE(d.composite(), original);
+        d.setTool("sliceSelect");
+        d.beginSliceGesture(20, 20, 0);
+        d.updateSliceGesture(25, 25);
+        d.endSliceGesture(true);
+        QCOMPARE(d.slices().first().toMap()["x"].toInt(), 5);
+        d.beginSliceGesture(20, 20, 0);
+        d.updateSliceGesture(25, 25);
+        d.endSliceGesture();
+        QCOMPARE(d.slices().first().toMap()["x"].toInt(), 10);
+        d.divideActiveSlice(2, 2);
+        QCOMPARE(d.slices().size(), 4);
+        int     area = 0;
+        QRegion covered;
+        for (const auto &value : d.slices()) {
+            const auto  slice = value.toMap();
+            const QRect rect(slice["x"].toInt(), slice["y"].toInt(), slice["width"].toInt(),
+                             slice["height"].toInt());
+            QVERIFY((covered & QRegion(rect)).isEmpty());
+            covered += rect;
+            area += rect.width() * rect.height();
+        }
+        QCOMPARE(area, 41 * 31);
+        d.setSliceShowAuto(true);
+        QVERIFY(d.slices().size() > 4);
+        d.setSliceShowAuto(false);
+        const auto project = QUrl::fromLocalFile(dir.filePath("sliced.pcr"));
+        QVERIFY(d.saveProject(project));
+        Document restored;
+        QVERIFY(restored.openFile(project));
+        QCOMPARE(restored.slices(), d.slices());
+        d.exportSlices(QUrl::fromLocalFile(dir.path()));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.sliceBusy(), 5000);
+        QImage exported(dir.filePath("tranche_01.png"));
+        QCOMPARE(exported.size(), QSize(20, 15));
+        QCOMPARE(exported.pixelColor(0, 0), QColor(Qt::white));
+        d.exportSlices(QUrl::fromLocalFile(dir.path()));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.sliceBusy(), 5000);
+        QVERIFY(QFile::exists(dir.filePath("tranche_01_1.png")));
+        d.undo();
+        QCOMPARE(d.slices().size(), 1);
+        d.deleteActiveSlice();
+        QCOMPARE(d.slices().size(), 0);
+        d.undo();
+        QCOMPARE(d.slices().size(), 1);
     }
     void selectionClipsPaintingAndCropping()
     {

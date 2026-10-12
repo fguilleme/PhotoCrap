@@ -133,9 +133,14 @@ bool Document::saveProject(const QUrl &_url)
                                   {"groupCollapsed", layer.groupCollapsed},
                                   {"source", source}});
     }
-    QJsonObject      root{{"format", "PhotoCrap"},   {"version", 5},
-                          {"width", width()},        {"height", height()},
-                          {"activeLayer", m_active}, {"layers", layers}};
+    QJsonObject root{{"format", "PhotoCrap"},   {"version", 5},
+                     {"width", width()},        {"height", height()},
+                     {"activeLayer", m_active}, {"layers", layers}};
+    QJsonArray  slices;
+    for (const auto &rect : m_slices)
+        slices.append(QJsonObject{
+            {"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}});
+    root["slices"]        = slices;
     const QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Compact);
     if (data.size() > MaxProjectBytes)
         return fail(tr("Le projet dépasse 256 Mio. Réduisez ses dimensions ou ses calques."));
@@ -228,6 +233,18 @@ bool Document::loadProject(const QString &_path)
             layers.last().parameters = {};
         }
     }
+    QVector<QRect> slices;
+    const auto     sliceArray = root["slices"].toArray();
+    if (sliceArray.size() > 256)
+        return fail(tr("Le projet contient trop de tranches."));
+    for (const auto &value : sliceArray) {
+        const auto object = value.toObject();
+        const int  x = object["x"].toInt(-1), y = object["y"].toInt(-1);
+        const int  sw = object["width"].toInt(), sh = object["height"].toInt();
+        if (x < 0 || y < 0 || sw < 1 || sh < 1 || x > w || y > h || sw > w - x || sh > h - y)
+            return fail(tr("Tranche de projet invalide."));
+        slices.append(QRect(x, y, sw, sh));
+    }
     // Only replace the current document after validating every layer.
     m_layers     = layers;
     m_size       = {w, h};
@@ -235,6 +252,9 @@ bool Document::loadProject(const QString &_path)
     m_projectUrl = QUrl::fromLocalFile(_path);
     m_name       = QFileInfo(_path).completeBaseName();
     resetHistory(true);
+    m_slices      = slices;
+    m_activeSlice = slices.isEmpty() ? -1 : 0;
+    emit slicesChanged();
     return true;
 }
 bool Document::exportImage(const QUrl &_url)

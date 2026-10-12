@@ -30,10 +30,12 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 - [x] Tranche et Sélection de tranche : création, déplacement, redimensionnement, division, sauvegarde et export PNG des tranches utilisateur ; repères automatiques facultatifs.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 
+- [x] Interactions communes inspirées des références Adobe : Maj/Option pour les variantes, raccourcis temporaires, contraintes de tracé, combinaisons de sélections, Maj-clic de peinture, chiffres pour opacité/débit, réglage de brosse à la souris et curseur précis. [Guide détaillé](docs/TOOL_INTERACTIONS.md).
+- [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
+
 ## 1. Fiabilité et validation à terminer
 
 - [ ] Corriger le premier affichage du curseur natif macOS : le test a relevé une flèche Cocoa malgré une pipette correcte dans l’état Qt. Reproduire sur Qt 6.8.3 et vérifier les transitions de focus, de fenêtres flottantes et de survol, sans masquer le défaut par des relances.
-- [ ] Terminer les raccourcis de groupes : brancher la touche Y actuellement indiquée pour les formes d’historique, et ajouter le cycle des variantes par Maj + touche. Garantir la cohérence entre l’affichage, les préférences et les touches réellement actives.
 - [ ] Étendre les tests d’espaces de travail : déplacements entre colonnes, sorties de groupes, dépôt avant le premier panneau, écrans multiples, changement de résolution et restauration de fenêtres hors écran.
 - [ ] Étendre les essais au clavier, l’accessibilité, les curseurs, la haute densité et les tablettes sur les trois plateformes.
 - [ ] Signature Developer ID et notarisation macOS ; signature Authenticode Windows. Les signatures de distribution ne sont pas encore configurées.

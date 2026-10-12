@@ -8,8 +8,10 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
     : QObject(_parent), m_persist(_persist)
 {
     if (m_persist) {
-        m_layout     = QSettings().value(QStringLiteral("workspace/layout")).toMap();
-        m_toolLayout = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
+        m_useShiftToCycleTools = QSettings().value("tools/useShiftToCycle", true).toBool();
+        m_springLoadedTools    = QSettings().value("tools/springLoaded", true).toBool();
+        m_layout               = QSettings().value(QStringLiteral("workspace/layout")).toMap();
+        m_toolLayout           = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
     }
     m_toolLayout = normalizedToolLayout(m_toolLayout);
 }
@@ -45,7 +47,8 @@ QVariantList WorkspaceSettings::defaultToolLayout()
         group("brush", "toolBrush", "B", "brush",
               {"brush", "pencil", "colorReplacement", "mixerBrush"}),
         group("stamp", "toolStamp", "S", "cloneStamp", {"cloneStamp", "patternStamp"}),
-        group("historyBrush", "", "Y", "historyBrush", {"historyBrush", "artHistoryBrush"}),
+        group("historyBrush", "toolHistoryBrush", "Y", "historyBrush",
+              {"historyBrush", "artHistoryBrush"}),
         group("eraser", "toolEraser", "E", "eraser", {"eraser", "backgroundEraser", "magicEraser"}),
         group("paint", "toolFill", "G", "gradient", {"gradient", "fill"}),
         group("blur", "", "", "blur", {"blur", "sharpen", "smudge"}),
@@ -140,4 +143,23 @@ void WorkspaceSettings::resetToolLayout()
     if (m_persist)
         QSettings().remove(QStringLiteral("workspace/toolLayout"));
     emit toolLayoutChanged();
+}
+
+void WorkspaceSettings::setUseShiftToCycleTools(bool _value)
+{
+    if (m_useShiftToCycleTools == _value)
+        return;
+    m_useShiftToCycleTools = _value;
+    if (m_persist)
+        QSettings().setValue("tools/useShiftToCycle", _value);
+    emit toolBehaviorChanged();
+}
+void WorkspaceSettings::setSpringLoadedTools(bool _value)
+{
+    if (m_springLoadedTools == _value)
+        return;
+    m_springLoadedTools = _value;
+    if (m_persist)
+        QSettings().setValue("tools/springLoaded", _value);
+    emit toolBehaviorChanged();
 }

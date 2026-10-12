@@ -28,16 +28,27 @@ QPolygonF regularPolygon(const QRectF &_bounds, int _points, qreal _innerRatio =
 void Document::renderShape(const QPointF &_to)
 {
     if (m_active < 0 || m_active >= m_layers.size() ||
-        m_active >= m_beforeStroke.layers.size()) {
+        (m_tool != "move" && m_active >= m_beforeStroke.layers.size())) {
         m_drawing       = false;
         m_strokeChanged = false;
         return;
     }
-    const QImage sourceImage = m_beforeStroke.layers.at(m_active).image;
+    const QImage sourceImage =
+        m_tool == "move" ? m_strokeBase : m_beforeStroke.layers.at(m_active).image;
+    if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
+        _to != m_anchor) {
+        auto layer = m_layers[m_active];
+        layer.name += tr(" — copie");
+        layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        m_layers.insert(++m_active, layer);
+        selectOnly(m_active);
+        m_moveCopy            = false;
+        m_moveDuplicatedLayer = true;
+    }
     m_layers[m_active].image = sourceImage;
     if (m_tool == "move") {
         const QImage source = sourceImage;
-        QImage       result = hasSelection() ? source : ImageUtils::blank(m_size);
+        QImage       result = hasSelection() || m_moveCopy ? source : ImageUtils::blank(m_size);
         QPainter     painter(&result);
         const QPoint offset = (_to - m_anchor).toPoint();
         if (hasSelection()) {
@@ -46,10 +57,12 @@ void Document::renderShape(const QPointF &_to)
             selectedPainter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
             selectedPainter.drawImage(-m_selection.topLeft(), source);
             selectedPainter.end();
-            painter.setClipRegion(m_selectionRegion);
-            painter.setCompositionMode(QPainter::CompositionMode_Clear);
-            painter.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
-            painter.setClipping(false);
+            if (!m_moveCopy) {
+                painter.setClipRegion(m_selectionRegion);
+                painter.setCompositionMode(QPainter::CompositionMode_Clear);
+                painter.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
+                painter.setClipping(false);
+            }
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
             painter.drawImage(m_selection.topLeft() + offset, selected);
         } else
@@ -73,7 +86,7 @@ void Document::renderShape(const QPointF &_to)
             painter.setBrush(m_filledShapes ? QBrush(shapeFillColor()) : Qt::NoBrush);
         } else
             painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        QRectF rect = QRectF(m_anchor, _to).normalized();
+        QRectF rect = toolRectangle(m_anchor, _to, m_toolAlternate);
         if (m_shapeAlignPixels &&
             (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
              m_tool == "polygon" || m_tool == "star" || m_tool == "line"))

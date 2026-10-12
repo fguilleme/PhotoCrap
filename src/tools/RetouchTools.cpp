@@ -16,7 +16,12 @@ void Document::renderRetouchStroke()
     QImage *target = paintTarget();
     if (!target || m_strokeBase.isNull() || m_strokeCoverage.isNull())
         return;
-    QRect region = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
+    const QString effectTool = m_toolAlternate && m_tool == "dodge"     ? "burn"
+                               : m_toolAlternate && m_tool == "burn"    ? "dodge"
+                               : m_toolAlternate && m_tool == "blur"    ? "sharpen"
+                               : m_toolAlternate && m_tool == "sharpen" ? "blur"
+                                                                        : m_tool;
+    QRect         region     = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
         region = region.intersected(m_selection);
     if (region.isEmpty())
@@ -25,7 +30,7 @@ void Document::renderRetouchStroke()
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
 
     QRect sampleRegion = region;
-    if (m_tool == "blur" || m_tool == "sharpen")
+    if (effectTool == "blur" || effectTool == "sharpen")
         sampleRegion = region.adjusted(-4, -4, 4, 4).intersected(m_strokeBase.rect());
     // Keep every expensive conversion and convolution inside the pixels touched by
     // this stroke segment. Blur and sharpen only need a small source halo so their
@@ -33,7 +38,7 @@ void Document::renderRetouchStroke()
     const QImage sourcePatch =
         m_strokeBase.copy(sampleRegion).convertToFormat(QImage::Format_ARGB32);
     const QImage smooth =
-        (m_tool == "blur" || m_tool == "sharpen") ? blurImage(sourcePatch, 2) : QImage{};
+        (effectTool == "blur" || effectTool == "sharpen") ? blurImage(sourcePatch, 2) : QImage{};
     const QPoint outputOffset = region.topLeft() - sampleRegion.topLeft();
     QImage       output       = sourcePatch.copy(QRect(outputOffset, region.size()));
 
@@ -54,10 +59,10 @@ void Document::renderRetouchStroke()
             const QRgb pixel = src[outputOffset.x() + x];
             int        red = qRed(pixel), green = qGreen(pixel), blue = qBlue(pixel);
             int        effectRed = red, effectGreen = green, effectBlue = blue;
-            if (m_tool == "blur" || m_tool == "sharpen") {
+            if (effectTool == "blur" || effectTool == "sharpen") {
                 const QRgb soft = reinterpret_cast<const QRgb *>(
                     smooth.constScanLine(outputOffset.y() + y))[outputOffset.x() + x];
-                if (m_tool == "blur") {
+                if (effectTool == "blur") {
                     effectRed   = qRed(soft);
                     effectGreen = qGreen(soft);
                     effectBlue  = qBlue(soft);
@@ -66,7 +71,7 @@ void Document::renderRetouchStroke()
                     effectGreen = qBound(0, 2 * green - qGreen(soft), 255);
                     effectBlue  = qBound(0, 2 * blue - qBlue(soft), 255);
                 }
-            } else if (m_tool == "dodge" || m_tool == "burn") {
+            } else if (effectTool == "dodge" || effectTool == "burn") {
                 const qreal luminance = (.2126 * red + .7152 * green + .0722 * blue) / 255.;
                 const qreal range     = m_retouchRange == 0   ? 1. - luminance
                                         : m_retouchRange == 2 ? luminance
@@ -74,7 +79,7 @@ void Document::renderRetouchStroke()
                 amount *= qBound(.08, range, 1.);
                 if (m_protectTones)
                     amount *= .75;
-                if (m_tool == "dodge") {
+                if (effectTool == "dodge") {
                     effectRed   = qRound(red + (255 - red) * amount);
                     effectGreen = qRound(green + (255 - green) * amount);
                     effectBlue  = qRound(blue + (255 - blue) * amount);
@@ -84,7 +89,7 @@ void Document::renderRetouchStroke()
                     effectBlue  = qRound(blue * (1. - amount));
                 }
                 amount = 1.;
-            } else if (m_tool == "sponge") {
+            } else if (effectTool == "sponge") {
                 QColor color(red, green, blue);
                 float  hue = 0, saturation = 0, lightness = 0;
                 color.getHslF(&hue, &saturation, &lightness);

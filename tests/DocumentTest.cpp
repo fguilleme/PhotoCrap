@@ -89,7 +89,7 @@ private slots:
     void shortcutsAreValidatedAndResettable()
     {
         ShortcutManager shortcuts(nullptr, false);
-        QCOMPARE(shortcuts.entries().size(), 41);
+        QCOMPARE(shortcuts.entries().size(), 42);
         QCOMPARE(shortcuts.sequence("toolBrush"), QString("B"));
         QCOMPARE(shortcuts.sequence("defaultColors"), QString("D"));
         QCOMPARE(shortcuts.sequence("swapColors"), QString("X"));
@@ -2921,6 +2921,186 @@ private slots:
         d.endStroke();
         QCOMPARE(d.layerImage(0).pixelColor(64, 24), QColor(Qt::cyan));
         QCOMPARE(d.layerImage(0).pixelColor(76, 24).alpha(), 0);
+    }
+    void photoshopSelectionGesturesAndModifiers()
+    {
+        Document d;
+        QVERIFY(d.newDocument(100, 100, true));
+        d.setTool("select");
+        d.beginStroke(10, 10);
+        d.continueStroke(30, 30);
+        d.endStroke();
+        const QRegion original = d.selectionRegion();
+        const int     revision = d.revision();
+        d.setSelectionMode(1);
+        d.beginStroke(50, 50);
+        d.continueStroke(70, 70);
+        d.endStroke();
+        QVERIFY(d.selectionRegion().contains(QPoint(20, 20)));
+        QVERIFY(d.selectionRegion().contains(QPoint(60, 60)));
+        d.setSelectionMode(2);
+        d.beginStroke(5, 5);
+        d.continueStroke(40, 40);
+        d.endStroke();
+        QVERIFY(!d.selectionRegion().contains(QPoint(20, 20)));
+        QVERIFY(d.selectionRegion().contains(QPoint(60, 60)));
+        const QRegion beforeCancel = d.selectionRegion();
+        d.setSelectionMode(0);
+        d.beginStroke(80, 80);
+        d.continueStroke(95, 95);
+        d.cancelStroke();
+        QCOMPARE(d.selectionRegion(), beforeCancel);
+        d.beginStroke(60, 60);
+        d.continueStroke(70, 65);
+        d.endStroke();
+        QVERIFY(d.selectionRegion().contains(QPoint(80, 70)));
+        QVERIFY(!d.selectionRegion().contains(QPoint(51, 51)));
+        QCOMPARE(d.revision(), revision);
+        d.deselect();
+        d.beginStroke(50, 50);
+        d.setToolModifiers(true, true, false);
+        d.continueStroke(60, 70);
+        QCOMPARE(d.selection().width(), d.selection().height());
+        QCOMPARE(d.selection().center(), QPoint(50, 50));
+        const QSize size = d.selection().size();
+        d.setToolModifiers(true, true, true);
+        d.continueStroke(65, 75);
+        QCOMPARE(d.selection().size(), size);
+        QCOMPARE(d.selection().center(), QPoint(55, 55));
+        d.endStroke();
+        d.nudgeTool(0, -10);
+        QCOMPARE(d.selection().center(), QPoint(55, 45));
+        d.setSelectionMode(3);
+        d.beginStroke(40, 40);
+        d.continueStroke(60, 60);
+        d.endStroke();
+        QVERIFY(d.selectionRegion().contains(QPoint(50, 45)));
+        QVERIFY(!d.selectionRegion().contains(QPoint(70, 45)));
+        d.setSelectionMode(0);
+        d.deselect();
+        d.setTool("singleRowSelect");
+        d.beginStroke(10, 10);
+        d.continueStroke(80, 40);
+        d.endStroke();
+        QCOMPARE(d.selection(), QRect(0, 40, 100, 1));
+        QVERIFY(!original.isEmpty());
+    }
+    void photoshopLassoMixedGesturesPreserveTheOriginalSelection()
+    {
+        Document d;
+        QVERIFY(d.newDocument(100, 100, true));
+        d.setTool("select");
+        d.beginStroke(5, 5);
+        d.continueStroke(20, 20);
+        d.endStroke();
+        const QRegion original = d.selectionRegion();
+        d.setTool("lasso");
+        d.setSelectionMode(1);
+        d.beginStroke(50, 50);
+        d.continueStroke(80, 50);
+        d.continueStroke(65, 80);
+        d.endStroke();
+        QVERIFY(d.selectionRegion().contains(QPoint(10, 10)));
+        QVERIFY(d.selectionRegion().contains(QPoint(65, 60)));
+        const QRegion combined = d.selectionRegion();
+        d.beginStroke(30, 30);
+        d.continueStroke(45, 30);
+        d.setToolModifiers(false, true, false);
+        d.endStroke();
+        QVERIFY(d.polygonLassoActive());
+        d.addPolygonLassoPoint(45, 45);
+        d.cancelPolygonLasso();
+        QCOMPARE(d.selectionRegion(), combined);
+        d.setTool("polygonalLasso");
+        d.addPolygonLassoPoint(30, 30);
+        d.setToolModifiers(true, false, false);
+        d.addPolygonLassoPoint(50, 33);
+        const auto path = d.selectionPath();
+        QCOMPARE(path[0].toPointF().y(), path[1].toPointF().y());
+        d.setToolModifiers(false, true, false);
+        d.continuePolygonLasso(60, 50);
+        d.continuePolygonLasso(40, 60);
+        d.finishPolygonLasso();
+        QVERIFY(d.selectionRegion().contains(QPoint(10, 10)));
+        QVERIFY(d.selectionRegion().contains(QPoint(45, 45)));
+        QVERIFY(!original.isEmpty());
+    }
+    void photoshopPaintAndShapeGestures()
+    {
+        Document d;
+        QVERIFY(d.newDocument(100, 100, true));
+        d.setBrushSize(3);
+        d.setBrushHardness(1);
+        d.setBrushSmoothing(0);
+        d.setColor(Qt::red);
+        d.setTool("brush");
+        d.beginStroke(10, 10);
+        d.endStroke();
+        d.beginStroke(40, 40, false, true);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(25, 25).alpha() > 0);
+        QCOMPARE(d.layerImage(0).pixelColor(25, 10).alpha(), 0);
+        d.undo();
+        QCOMPARE(d.layerImage(0).pixelColor(25, 25).alpha(), 0);
+        d.beginStroke(10, 60);
+        d.setToolModifiers(true, false, false);
+        d.continueStroke(40, 67);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(30, 60).alpha() > 0);
+        QCOMPARE(d.layerImage(0).pixelColor(30, 66).alpha(), 0);
+        d.setTool("rectangle");
+        d.setShapeStrokeEnabled(false);
+        d.setShapeFillColor(Qt::blue);
+        d.beginStroke(60, 60, true, true);
+        d.continueStroke(70, 80);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).pixelColor(41, 41), QColor(Qt::blue));
+        QCOMPARE(d.layerImage(0).pixelColor(79, 79), QColor(Qt::blue));
+        QCOMPARE(d.layerImage(0).pixelColor(39, 39).alpha(), 0);
+        d.undo();
+        d.setTool("move");
+        d.beginStroke(0, 0, true);
+        d.continueStroke(10, 0);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(10, 10).alpha() > 0);
+        QCOMPARE(d.layers().size(), 2);
+        QVERIFY(d.layerImage(1).pixelColor(20, 10).alpha() > 0);
+        d.undo();
+        QCOMPARE(d.layers().size(), 1);
+        QCOMPARE(d.layerImage(0).pixelColor(20, 10).alpha(), 0);
+    }
+    void photoshopCropSliceAndRetouchModifiers()
+    {
+        Document d;
+        QVERIFY(d.newDocument(100, 100, true));
+        d.setTool("crop");
+        d.setToolModifiers(true, true, false);
+        d.beginCropGesture(50, 50);
+        d.updateCropGesture(60, 70);
+        d.endCropGesture();
+        QCOMPARE(d.cropPoints().at(0).toMap().value("x").toReal(), 30.);
+        QCOMPARE(d.cropPoints().at(2).toMap().value("x").toReal(), 70.);
+        d.cancelCrop();
+        d.setTool("slice");
+        d.setToolModifiers(false, false, false);
+        d.beginSliceGesture(50, 50);
+        d.setToolModifiers(true, true, false);
+        d.updateSliceGesture(60, 70);
+        d.endSliceGesture();
+        QCOMPARE(d.slices().first().toMap().value("width").toInt(), 40);
+        QCOMPARE(d.slices().first().toMap().value("height").toInt(), 40);
+        d.setTool("dodge");
+        d.setColor(QColor(128, 128, 128));
+        d.fillWithColor(true);
+        d.setBrushSize(20);
+        d.setToolStrength(1);
+        d.beginStroke(50, 50, true);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(50, 50).red() < 128);
+        d.undo();
+        d.beginStroke(50, 50);
+        d.endStroke();
+        QVERIFY(d.layerImage(0).pixelColor(50, 50).red() > 128);
     }
     void lassoSelectionsFollowFreehandAndPolygonalContours()
     {

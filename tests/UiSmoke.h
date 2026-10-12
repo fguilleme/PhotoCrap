@@ -3,6 +3,7 @@
 #include "RecentFilesManager.h"
 #include "WorkspaceSettings.h"
 #include <QFile>
+#include <QOperatingSystemVersion>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -313,7 +314,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QTest::keyClick(_window, Qt::Key_BracketLeft, Qt::ShiftModifier);
     QTest::qWait(20);
-    if (!require(qAbs(_document.brushHardness() - .4) < .001, "Shift+[ decreases brush hardness"))
+    if (!require(qAbs(_document.brushHardness() - .25) < .001, "Shift+[ decreases brush hardness"))
         return false;
     QTest::keyClick(_window, Qt::Key_BracketRight, Qt::ShiftModifier);
     QTest::qWait(20);
@@ -348,7 +349,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->setProperty("preferencesPage", 0);
     auto shortcutList = _window->findChild<QObject *>("shortcutList");
-    if (!require(shortcutList && shortcutList->property("count").toInt() == 41,
+    if (!require(shortcutList && shortcutList->property("count").toInt() == 42,
                  "keyboard settings list is populated"))
         return false;
     _window->setProperty("preferencesPage", 2);
@@ -394,6 +395,146 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::qWait(30);
     if (!require(_document.tool() == "ellipse", "group shortcut restores its active tool"))
         return false;
+    QTest::keyClick(_window, Qt::Key_U, Qt::ShiftModifier);
+    if (!require(_document.tool() == "triangle",
+                 "Shift+U cycles to the next implemented visible shape"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_U);
+    if (!require(_document.tool() == "triangle",
+                 "plain tool shortcut keeps the current group variant"))
+        return false;
+    _workspaceSettings.setUseShiftToCycleTools(false);
+    QTest::keyClick(_window, Qt::Key_U);
+    if (!require(_document.tool() == "polygon",
+                 "tool cycling without Shift follows the preference"))
+        return false;
+    _workspaceSettings.setUseShiftToCycleTools(true);
+    QTest::keyClick(_window, Qt::Key_B);
+    QTest::keyPress(_window, Qt::Key_E);
+    QTest::qWait(250);
+    if (!require(_document.tool() == "eraser", "held E temporarily selects the eraser"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_E);
+    if (!require(_document.tool() == "brush", "releasing held E restores the brush"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_E);
+    if (!require(_document.tool() == "eraser", "a short E press keeps the eraser"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Y);
+    if (!require(_document.tool() == "historyBrush", "Y selects the history brush group"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_B);
+    QTest::keyClick(_window, Qt::Key_4);
+    QTest::keyClick(_window, Qt::Key_5);
+    if (!require(qAbs(_document.brushOpacity() - .45) < .001,
+                 "rapid digit keys set precise brush opacity"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_2, Qt::ShiftModifier);
+    if (!require(qAbs(_document.brushFlow() - .2) < .001,
+                 "Shift+digit sets brush flow independently"))
+        return false;
+    QTest::keyPress(_window, Qt::Key_Alt);
+    if (!require(_window->property("temporaryPickerActive").toBool(),
+                 "Option temporarily activates the brush eyedropper"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Alt);
+    if (!require(!_window->property("temporaryPickerActive").toBool(),
+                 "releasing Option restores the brush cursor"))
+        return false;
+    QTest::keyPress(_window, Qt::Key_Meta);
+    if (!require(!_window->property("temporaryMoveActive").toBool(),
+                 "physical Control on Mac does not activate Command's temporary Move"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Meta);
+    _document.setTool("colorSampler");
+    QTest::keyPress(_window, Qt::Key_Control);
+    auto measureArea = _window->findChild<QQuickItem *>("measureToolArea");
+    if (!require(_window->property("temporaryMoveActive").toBool() && measureArea &&
+                     !measureArea->property("enabled").toBool(),
+                 "Command/Ctrl temporarily moves without the measurement overlay stealing input"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Control);
+    _document.setTool("brush");
+    _document.setBrushOpacity(1);
+    _document.setBrushFlow(1);
+    QTest::qWait(40);
+    std::function<QQuickItem *(QQuickItem *)> findBrushGroup =
+        [&](QQuickItem *_item) -> QQuickItem * {
+        if (_item->objectName() == "toolGroup_brush")
+            return _item;
+        for (auto *child : _item->childItems())
+            if (auto *result = findBrushGroup(child))
+                return result;
+        return nullptr;
+    };
+    auto brushGroup = findBrushGroup(_window->contentItem());
+    if (!require(brushGroup, "brush group button exists"))
+        return false;
+    const QPoint brushGroupPoint =
+        brushGroup->mapToScene(QPointF(brushGroup->width() / 2, brushGroup->height() / 2))
+            .toPoint();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, brushGroupPoint);
+    if (!require(_document.tool() == "pencil", "Option-click cycles the toolbar group"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_B, Qt::ShiftModifier);
+    if (!require(_document.tool() == "colorReplacement",
+                 "keyboard cycling follows the toolbar variant"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "brush"),
+                              Q_ARG(QVariant, "brush"));
+    QTest::mouseMove(_window, start);
+    _document.setBrushSize(20);
+    _document.setBrushHardness(.5);
+    const int  beforeHudRevision = _document.revision();
+    const auto hudModifiers = Qt::AltModifier | (QGuiApplication::platformName() == "cocoa" ||
+                                                         QOperatingSystemVersion::currentType() ==
+                                                             QOperatingSystemVersion::MacOS
+                                                     ? Qt::MetaModifier
+                                                     : Qt::NoModifier);
+    const auto hudButton = QOperatingSystemVersion::currentType() == QOperatingSystemVersion::MacOS
+                               ? Qt::LeftButton
+                               : Qt::RightButton;
+    QTest::mousePress(_window, hudButton, hudModifiers, start);
+    QTest::mouseMove(_window, start + QPoint(20, -10), 20);
+    QTest::mouseRelease(_window, hudButton, hudModifiers, start + QPoint(20, -10));
+    if (!require(qAbs(_document.brushSize() - 40) < .01 &&
+                     qAbs(_document.brushHardness() - .6) < .01 &&
+                     _document.revision() == beforeHudRevision,
+                 "canvas brush adjustment changes size/hardness without painting or undo entries"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_CapsLock);
+    if (!require(area->property("cursorShape").toInt() == Qt::CrossCursor,
+                 "Caps Lock switches the brush to a precise cursor"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_CapsLock);
+    _document.setTool("select");
+    _document.deselect();
+    const qreal gestureZoom = _window->property("zoom").toReal();
+    const auto  selectionStart =
+        area->mapToScene(QPointF(20 * gestureZoom, 20 * gestureZoom)).toPoint();
+    const auto selectionEnd =
+        area->mapToScene(QPointF(40 * gestureZoom, 30 * gestureZoom)).toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, selectionStart);
+    QTest::mouseMove(_window, selectionEnd, 20);
+    QTest::keyPress(_window, Qt::Key_Shift);
+    if (!require(_document.selection().width() == _document.selection().height(),
+                 "pressing Shift during marquee drawing immediately constrains the frame"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Shift);
+    const QSize beforeReposition = _document.selection().size();
+    QTest::keyPress(_window, Qt::Key_Space);
+    if (!require(!panArea->property("enabled").toBool(),
+                 "Space while drawing a marquee does not steal the gesture for canvas panning"))
+        return false;
+    QTest::mouseMove(_window,
+                     selectionEnd + QPoint(qRound(10 * gestureZoom), qRound(5 * gestureZoom)), 20);
+    if (!require(_document.selection().size() == beforeReposition,
+                 "Space-drag repositions a marquee without changing its size"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier,
+                        selectionEnd + QPoint(qRound(10 * gestureZoom), qRound(5 * gestureZoom)));
+    QTest::keyRelease(_window, Qt::Key_Space);
+    _document.deselect();
     auto toolMenu = _window->findChild<QObject *>("toolGroupMenu");
     if (!require(toolMenu, "grouped toolbar menu exists"))
         return false;
@@ -1357,8 +1498,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(cropOptions && cropOptions->isVisible() && cropOverlay,
                  "crop has a dedicated options bar and frame overlay"))
         return false;
-    const auto cropScene = [&](qreal x, qreal y) {
-        return area->mapToScene(QPointF(x, y) * _window->property("zoom").toReal()).toPoint();
+    const auto cropScene = [&](qreal _x, qreal _y) {
+        return area->mapToScene(QPointF(_x, _y) * _window->property("zoom").toReal()).toPoint();
     };
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, cropScene(20, 20));
     QTest::mouseMove(_window, cropScene(180, 140), 20);

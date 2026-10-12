@@ -2438,6 +2438,14 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Exporter les tranches utilisateur en PNG</source>
         <translation>Export user slices as PNG</translation>
     </message>
+    <message>
+        <source>Utiliser Maj pour parcourir les outils d’un groupe</source>
+        <translation>Use Shift to cycle through tools in a group</translation>
+    </message>
+    <message>
+        <source>Revenir à l’outil précédent après un raccourci maintenu</source>
+        <translation>Return to the previous tool after holding its shortcut</translation>
+    </message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -2698,6 +2706,10 @@ Independent software, not affiliated with Adobe.</translation>
     </message>
       <message><source>Tampons</source><translation>Stamps</translation></message>
 <message><source>Correction</source><translation>Retouching</translation></message>
+    <message>
+        <source>Forme d’historique</source>
+        <translation>History Brush</translation>
+    </message>
 </context>
 <context><name>MixerBrushOptions</name>
 <message><source>Personnalisé</source><translation>Custom</translation></message>

@@ -93,6 +93,7 @@ void Document::beginCropGesture(qreal _x, qreal _y, qreal _tolerance)
         (m_tool != "crop" && m_tool != "perspectiveCrop"))
         return;
     m_cropAnchor        = QPointF(qBound(0., _x, qreal(width())), qBound(0., _y, qreal(height())));
+    m_geometryPointer   = m_cropAnchor;
     m_cropGesturePoints = m_cropPoints;
     m_cropHandle        = -2; // Draw a new frame.
     const qreal tolerance = std::isfinite(_tolerance) ? qMax(0., _tolerance) : 8;
@@ -133,6 +134,14 @@ void Document::updateCropGesture(qreal _x, qreal _y)
     if (!m_cropDragging || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     QPointF point(qBound(0., _x, qreal(width())), qBound(0., _y, qreal(height())));
+    if (m_toolSpace && m_cropHandle == -2)
+        m_cropAnchor += point - m_geometryPointer;
+    m_geometryPointer    = point;
+    const QRectF initial = m_cropGesturePoints.boundingRect();
+    const qreal  ratio   = m_cropRatio > 0 ? m_cropRatio
+                           : m_toolShift && m_tool == "crop"
+                               ? (initial.height() > 0 ? initial.width() / initial.height() : 1.)
+                               : 0;
     if (m_cropHandle == -1) {
         const QRectF bounds = m_cropGesturePoints.boundingRect();
         QPointF      delta  = point - m_cropAnchor;
@@ -149,7 +158,10 @@ void Document::updateCropGesture(qreal _x, qreal _y)
     QPointF fixed = m_cropAnchor;
     if (m_cropHandle >= 0 && m_cropHandle < 4)
         fixed = m_cropGesturePoints[(m_cropHandle + 2) % 4];
-    QRectF rect(fixed, point);
+    const bool centered = m_toolAlternate && m_tool == "crop";
+    if (centered && m_cropHandle >= 0)
+        fixed = initial.center();
+    QRectF rect(centered ? fixed - (point - fixed) : fixed, point);
     if (m_cropHandle >= 4) {
         rect = m_cropGesturePoints.boundingRect();
         if (m_cropHandle == 4)
@@ -160,13 +172,23 @@ void Document::updateCropGesture(qreal _x, qreal _y)
             rect.setBottom(qMax(point.y(), rect.top() + 1));
         if (m_cropHandle == 7)
             rect.setLeft(qMin(point.x(), rect.right() - 1));
-        if (m_cropRatio > 0) {
+        if (centered) {
+            if (m_cropHandle == 4)
+                rect.setBottom(initial.center().y() + (initial.center().y() - rect.top()));
+            if (m_cropHandle == 5)
+                rect.setLeft(initial.center().x() - (rect.right() - initial.center().x()));
+            if (m_cropHandle == 6)
+                rect.setTop(initial.center().y() - (rect.bottom() - initial.center().y()));
+            if (m_cropHandle == 7)
+                rect.setRight(initial.center().x() + (initial.center().x() - rect.left()));
+        }
+        if (ratio > 0) {
             const bool vertical = m_cropHandle == 4 || m_cropHandle == 6;
             QSizeF     size     = rect.size();
             if (vertical)
-                size.setWidth(size.height() * m_cropRatio);
+                size.setWidth(size.height() * ratio);
             else
-                size.setHeight(size.width() / m_cropRatio);
+                size.setHeight(size.width() / ratio);
             const qreal fit = qMin(1., qMin(width() / size.width(), height() / size.height()));
             size *= fit;
             QPointF origin = rect.center() - QPointF(size.width(), size.height()) / 2;
@@ -174,18 +196,22 @@ void Document::updateCropGesture(qreal _x, qreal _y)
             origin.setY(qBound(0., origin.y(), height() - size.height()));
             rect = QRectF(origin, size);
         }
-    } else if (m_cropRatio > 0 && m_tool == "crop") {
+    } else if (ratio > 0 && m_tool == "crop") {
         qreal w = qAbs(point.x() - fixed.x()), h = qAbs(point.y() - fixed.y());
-        if (w / qMax(.001, h) > m_cropRatio)
-            h = w / m_cropRatio;
+        if (w / qMax(.001, h) > ratio)
+            h = w / ratio;
         else
-            w = h * m_cropRatio;
-        const qreal availableW = point.x() < fixed.x() ? fixed.x() : width() - fixed.x();
-        const qreal availableH = point.y() < fixed.y() ? fixed.y() : height() - fixed.y();
+            w = h * ratio;
+        const qreal availableW = centered                ? qMin(fixed.x(), width() - fixed.x())
+                                 : point.x() < fixed.x() ? fixed.x()
+                                                         : width() - fixed.x();
+        const qreal availableH = centered                ? qMin(fixed.y(), height() - fixed.y())
+                                 : point.y() < fixed.y() ? fixed.y()
+                                                         : height() - fixed.y();
         const qreal fit = qMin(1., qMin(availableW / qMax(.001, w), availableH / qMax(.001, h)));
         point           = fixed + QPointF((point.x() < fixed.x() ? -w : w) * fit,
                                           (point.y() < fixed.y() ? -h : h) * fit);
-        rect            = QRectF(fixed, point);
+        rect            = QRectF(centered ? fixed - (point - fixed) : fixed, point);
     }
     setCropRectangle(rect);
 }

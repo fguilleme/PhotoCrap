@@ -10,6 +10,8 @@ Button {
     property bool hasMenu: false
     property string groupId: ""
     signal contextRequested()
+    signal alternateClicked()
+    onPressAndHold: if (hasMenu) contextRequested()
     implicitWidth: 38
     implicitHeight: 36
     hoverEnabled: true
@@ -43,8 +45,14 @@ Button {
     }
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onClicked: control.contextRequested()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: function(mouse) {
+            if (mouse.button === Qt.LeftButton && !(control.hasMenu && (mouse.modifiers & Qt.AltModifier))) mouse.accepted=false
+        }
+        onClicked: function(mouse) {
+            if (mouse.button===Qt.RightButton) control.contextRequested()
+            else control.alternateClicked()
+        }
     }
     ToolTip.visible: hovered && hint.length > 0
     ToolTip.text: hint

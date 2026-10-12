@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
 
 set(PHOTOCRAP_CXX_SOURCES
+    src/ToolInput.cpp
     src/CanvasItem.cpp
     src/Document.cpp
     src/DocumentAdjustments.cpp
@@ -39,6 +40,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/RemoveTool.cpp
     src/tools/HistoryBrushTool.cpp
     src/tools/ArtHistoryBrushTool.cpp
+    src/tools/ToolInteraction.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/tools/EyedropperTools.cpp
@@ -64,6 +66,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/main.cpp
 )
 set(PHOTOCRAP_FORMAT_SOURCES
+    src/ToolInput.h
+    src/MacToolCursor.h
+    src/MacToolCursor.mm
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
     src/Document.h
@@ -196,6 +201,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/RemoveTool.cpp
     src/tools/HistoryBrushTool.cpp
     src/tools/ArtHistoryBrushTool.cpp
+    src/tools/ToolInteraction.cpp
     src/tools/ToolController.cpp
     src/tools/ToolSettings.cpp
     src/tools/EyedropperTools.cpp
@@ -238,6 +244,7 @@ endif()
 
 qt_add_executable(PhotoCrap
     src/main.cpp
+    src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h
     src/ShortcutManager.cpp src/ShortcutManager.h
     src/LanguageManager.cpp src/LanguageManager.h
@@ -246,8 +253,10 @@ qt_add_executable(PhotoCrap
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
+        src/MacToolCursor.h src/MacToolCursor.mm
         packaging/macos/PhotoCrap.icns
     )
+    target_link_libraries(PhotoCrap PRIVATE "-framework AppKit")
     set_source_files_properties(packaging/macos/PhotoCrap.icns PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources"
     )

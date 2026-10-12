@@ -44,6 +44,91 @@ ApplicationWindow {
     property bool fillingMaskColor: false
     property bool spacePressed: false
     property bool stampSourcePicking: false
+    property bool shiftPressed: false
+    property string springPreviousTool: ""
+    property string springSelectedTool: ""
+    property string gesturePreviousTool: ""
+    property string numericToolValue: ""
+    property string numericToolTarget: ""
+    property double numericToolTime: 0
+    // Qt maps ControlModifier to Command on macOS, MetaModifier to physical Control.
+    readonly property bool primaryPressed: Boolean(toolInput.modifiers & Qt.ControlModifier)
+    readonly property bool temporaryPickerActive: stampSourcePicking && !primaryPressed
+        && ["brush", "pencil", "eraser", "historyBrush", "artHistoryBrush", "fill", "gradient"].indexOf(editor.tool) >= 0
+    readonly property bool temporaryMoveActive: primaryPressed && !stampSourcePicking
+        && !window.cropToolActive && !window.sliceToolActive && !window.shapeToolActive
+        && editor.tool !== "move" && editor.tool !== "hand" && editor.tool !== "rotateView" && editor.tool !== "zoomTool"
+    readonly property bool repositioningGesture: drawingArea.pressed
+        && (window.cropToolActive || window.sliceToolActive || window.closedShapeToolActive
+            || editor.tool === "line" || editor.tool === "gradient" || window.selectionToolActive)
+    function toolBindings() {
+        const result = []
+        for (let i = 0; i < toolLayout.length; ++i) {
+            const group = toolLayout[i]
+            const sequence = group.shortcut.length ? shortcuts.sequence(group.shortcut) : ""
+            if (sequence.length && groupTools(group, false, false).length)
+                result.push({group:group.id, tool:"", sequence:sequence})
+        }
+        result.push({group:"hand", tool:"rotateView", sequence:shortcuts.sequence("toolRotate")})
+        return result
+    }
+    function cycleGroupTool(groupId) {
+        const group = groupById(groupId)
+        const tools = groupTools(group, false, false)
+        if (!tools.length) return
+        const active = activeToolForGroup(group)
+        let index = tools.findIndex(function(t){return active && t.name === active.name})
+        activateGroupTool(groupId, tools[(index+1)%tools.length].name)
+    }
+    function stepBrushSize(direction) {
+        const sizes=[1,2,3,4,5,6,7,8,9,10,15,20,25,30,35,40,45,50,60,70,80,90,100,125,150,175,200,250,300,400,500]
+        if(direction>0) {
+            for(let i=0;i<sizes.length;++i) if(sizes[i]>editor.brushSize) { editor.brushSize=sizes[i];return }
+        } else {
+            for(let i=sizes.length-1;i>=0;--i) if(sizes[i]<editor.brushSize) { editor.brushSize=sizes[i];return }
+        }
+    }
+    function setNumericToolValue(key, shift) {
+        const target = shift && window.paintToolActive ? "flow" : window.retouchToolActive ? "strength" : "opacity"
+        const now = Date.now()
+        numericToolValue = target === numericToolTarget && now-numericToolTime < 750 && numericToolValue.length < 2
+                         ? numericToolValue + String(key-Qt.Key_0) : String(key-Qt.Key_0)
+        numericToolTarget = target; numericToolTime = now
+        const value = numericToolValue === "0" ? 1 : Number(numericToolValue)/100 * (numericToolValue.length === 1 ? 10 : 1)
+        if (target === "flow") editor.brushFlow=value
+        else if (target === "strength") editor.toolStrength=value
+        else editor.brushOpacity=value
+    }
+    ToolInput {
+        id: toolInput
+        objectName: "toolInput"
+        targetWindow: window
+        enabled: window.active && !window.editingText && !window.modalOpen
+        bindings: (shortcuts.revision, window.toolbarRevision, window.toolBindings())
+        onEnabledChanged: if (!enabled) window.spacePressed=false
+        onModifiersChanged: {
+            window.stampSourcePicking = Boolean(modifiers & Qt.AltModifier)
+            window.shiftPressed = Boolean(modifiers & Qt.ShiftModifier)
+            editor.setToolModifiers(window.shiftPressed, window.stampSourcePicking, window.spacePressed)
+            if (drawingArea.pressed) editor.continueStroke(drawingArea.pointerX/window.zoom,drawingArea.pointerY/window.zoom)
+        }
+        onShortcutPressed: function(group, tool, cycle) {
+            if (drawingArea.pressed) return
+            window.springPreviousTool = editor.tool
+            if (tool.length) window.activateGroupTool(group,tool)
+            else if (cycle || !workspaceSettings.useShiftToCycleTools) window.cycleGroupTool(group)
+            else window.selectActiveGroupTool(group)
+            window.springSelectedTool = !cycle ? editor.tool : ""
+        }
+        onShortcutReleased: function(springLoaded) {
+            if (springLoaded && workspaceSettings.springLoadedTools
+                    && window.springSelectedTool.length && editor.tool === window.springSelectedTool) {
+                editor.endStroke()
+                editor.tool = window.springPreviousTool
+            }
+            window.springPreviousTool = ""; window.springSelectedTool = ""
+        }
+    }
     readonly property bool stampToolActive: editor.tool === "cloneStamp" || editor.tool === "patternStamp"
     readonly property bool selectionToolActive: editor.tool === "select"
                                                  || editor.tool === "ellipticalSelect"
@@ -59,7 +144,9 @@ ApplicationWindow {
                                                      || editor.tool === "magicWand"
     readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "healing" || editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
                                              ? Qt.CrossCursor
-                                             : window.spacePressed || editor.tool === "hand"
+                                             : window.temporaryPickerActive ? Qt.CrossCursor
+                                             : window.temporaryMoveActive ? Qt.SizeAllCursor
+                                             : (window.spacePressed && !window.repositioningGesture) || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
                                              : (editor.tool === "patch" || editor.tool === "contentAwareMove") && (editor.patchDragging || drawingArea.patchInsideSelection)
                                                ? Qt.SizeAllCursor
@@ -71,7 +158,7 @@ ApplicationWindow {
                                                ? Qt.SizeAllCursor
                                              : window.paintToolActive
                                                    || window.smartSelectionToolActive
-                                                 ? Qt.BlankCursor : Qt.CrossCursor
+                                                 ? (toolInput.precise ? Qt.CrossCursor : Qt.BlankCursor) : Qt.CrossCursor
     readonly property bool closedShapeToolActive: editor.tool === "rectangle" || editor.tool === "ellipse"
                                                   || editor.tool === "triangle" || editor.tool === "polygon"
                                                   || editor.tool === "star"
@@ -905,7 +992,7 @@ ApplicationWindow {
         delegate: Shortcut {
             required property var modelData
             sequence: (shortcuts.revision, shortcuts.sequence(modelData.shortcut))
-            enabled: !window.editingText && !window.modalOpen
+            enabled: !window.editingText && !window.modalOpen && !toolInput.handlesSequence(sequence)
             onActivated: window.selectActiveGroupTool(modelData.id)
         }
     }
@@ -917,9 +1004,11 @@ ApplicationWindow {
             if (window.sliceToolActive) { editor.endSliceGesture(true); return }
             const movingContent = editor.removeHasPending || editor.removeBusy || editor.tool === "remove" || editor.contentMoveBusy
                     || (editor.tool === "contentAwareMove" && editor.patchDragging)
+            const pendingGesture=editor.polygonLassoActive || drawingArea.pressed
             editor.cancelStroke()
             editor.cancelPolygonLasso()
-            if (!movingContent) editor.deselect()
+            drawingArea.restoreSelectionMode()
+            if (!movingContent && !pendingGesture) editor.deselect()
         }
     }
     FolderDialog {
@@ -929,11 +1018,10 @@ ApplicationWindow {
     }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomFit")); onActivated: fitCanvas() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("zoomActual")); onActivated: setZoom(1) }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("toolRotate")); onActivated: window.activateGroupTool("hand", "rotateView") }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSmaller")); onActivated: editor.brushSize = editor.brushSize-5 }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushLarger")); onActivated: editor.brushSize = editor.brushSize+5 }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSofter")); onActivated: editor.brushHardness = editor.brushHardness-0.1 }
-    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushHarder")); onActivated: editor.brushHardness = editor.brushHardness+0.1 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSmaller")); onActivated: window.stepBrushSize(-1) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushLarger")); onActivated: window.stepBrushSize(1) }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushSofter")); onActivated: editor.brushHardness = editor.brushHardness-0.25 }
+    Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("brushHarder")); onActivated: editor.brushHardness = editor.brushHardness+0.25 }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("defaultColors")); onActivated: editor.resetColors() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("swapColors")); onActivated: editor.swapColors() }
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: Qt.platform.os === "osx" ? "Alt+Delete" : "Alt+Backspace"; onActivated: editor.fillWithColor(true, false) }
@@ -1658,7 +1746,8 @@ ApplicationWindow {
                             hint: displayedTool ? displayedTool.label + " (" + window.toolGroupShortcut(modelData) + ")" : ""
                             selected: window.toolGroupContains(modelData, editor.tool)
                             hasMenu: window.groupTools(modelData, false, true).length > 1
-                            onClicked: window.selectActiveGroupTool(modelData.id)
+                            onClicked: if (!toolGroupMenu.visible) window.selectActiveGroupTool(modelData.id)
+                            onAlternateClicked: window.cycleGroupTool(modelData.id)
                             onContextRequested: window.openToolGroupMenu(modelData.id, toolButton)
                         }
                     }
@@ -1690,6 +1779,24 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if (!window.editingText && !window.modalOpen && !window.primaryPressed && !window.stampSourcePicking
+                                && event.key >= Qt.Key_0 && event.key <= Qt.Key_9
+                                && (window.paintToolActive || window.opacityToolActive)) {
+                            window.setNumericToolValue(event.key,Boolean(event.modifiers & Qt.ShiftModifier))
+                            event.accepted=true; return
+                        }
+                        if (!window.editingText && !window.modalOpen
+                                && [Qt.Key_Left,Qt.Key_Right,Qt.Key_Up,Qt.Key_Down].indexOf(event.key)>=0) {
+                            const step=(event.modifiers & Qt.ShiftModifier) ? 10 : 1
+                            const previous=editor.tool
+                            const moveContents=window.primaryPressed && window.selectionToolActive
+                            if(moveContents) editor.tool="move"
+                            editor.nudgeTool(event.key===Qt.Key_Left ? -step : event.key===Qt.Key_Right ? step : 0,
+                                             event.key===Qt.Key_Up ? -step : event.key===Qt.Key_Down ? step : 0,
+                                             Boolean(event.modifiers & Qt.AltModifier))
+                            if(moveContents) editor.tool=previous
+                            event.accepted=true; return
+                        }
                         if (window.cropToolActive && !window.editingText && !window.modalOpen
                                 && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
                             editor.applyCrop()
@@ -1714,18 +1821,19 @@ ApplicationWindow {
                         if (editor.polygonLassoActive && !event.isAutoRepeat
                                 && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
                             editor.finishPolygonLasso()
+                            drawingArea.restoreSelectionMode()
                             event.accepted = true
                             return
                         }
                         if(event.key===Qt.Key_Space && !event.isAutoRepeat && !window.editingText && !window.modalOpen) {
-                            window.spacePressed=true;event.accepted=true
+                            window.spacePressed=true; editor.setToolModifiers(window.shiftPressed,window.stampSourcePicking,true); event.accepted=true
                         }
                     }
                     Keys.onReleased: function(event) {
                         if (event.key === Qt.Key_Alt && !event.isAutoRepeat)
                             window.stampSourcePicking = false
                         if(event.key===Qt.Key_Space && !event.isAutoRepeat) {
-                            window.spacePressed=false;event.accepted=true
+                            window.spacePressed=false; editor.setToolModifiers(window.shiftPressed,window.stampSourcePicking,false); event.accepted=true
                         }
                     }
                     Rectangle { anchors.fill: parent; color: "#171c22" }
@@ -1960,9 +2068,21 @@ ApplicationWindow {
                             MouseArea {
                                 id: drawingArea
                                 objectName: "drawingArea"
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                property bool brushAdjusting: false
+                                property real brushAdjustX: 0
+                                property real brushAdjustY: 0
+                                property real brushAdjustSize: 0
+                                property real brushAdjustHardness: 0
                                 property real pointerX: 0
                                 property real pointerY: 0
                                 property int selectionModeBeforeGesture: -1
+                                function restoreSelectionMode() {
+                                    if(selectionModeBeforeGesture>=0) {
+                                        const previous=selectionModeBeforeGesture;selectionModeBeforeGesture=-1
+                                        editor.selectionMode=previous
+                                    }
+                                }
                                 property bool patchInsideSelection: false
                                 function updatePatchCursor() {
                                     patchInsideSelection = (editor.tool === "patch" || editor.tool === "contentAwareMove")
@@ -1979,10 +2099,10 @@ ApplicationWindow {
                                     const measuring=measureToolArea.enabled && measureToolArea.containsMouse
                                     const tool=calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
                                               : measuring && editor.tool==="colorSampler" && measureToolArea.deleteHovered ? "colorSamplerDelete"
-                                              : editor.tool
+                                              : window.temporaryPickerActive ? "picker" : editor.tool
                                     imageCanvas.setSystemCursor(calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
-                                                                (containsMouse || calibration || measuring) && window.active && !window.modalOpen && !window.spacePressed,
-                                                                tool, editor.selectionMode, window.stampSourcePicking)
+                                                                (containsMouse || calibration || measuring) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
+                                                                tool, editor.selectionMode, window.stampSourcePicking, toolInput.precise)
                                 }
                                 function refreshSystemCursor() {
                                     syncSystemCursor()
@@ -2000,6 +2120,29 @@ ApplicationWindow {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
                                     window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
+                                    const adjust = window.paintToolActive && (mouse.modifiers & Qt.AltModifier)
+                                        && (Qt.platform.os === "osx" ? Boolean(mouse.modifiers & Qt.MetaModifier)
+                                                                     : mouse.button===Qt.RightButton)
+                                    if (adjust) {
+                                        brushAdjusting=true;brushAdjustX=mouse.x;brushAdjustY=mouse.y
+                                        brushAdjustSize=editor.brushSize;brushAdjustHardness=editor.brushHardness
+                                        return
+                                    }
+                                    if (mouse.button===Qt.RightButton) {
+                                        if (window.paintToolActive) brushSettingsDialog.open()
+                                        else mouse.accepted=false
+                                        return
+                                    }
+                                    editor.setToolModifiers(Boolean(mouse.modifiers & Qt.ShiftModifier),Boolean(mouse.modifiers & Qt.AltModifier),false)
+                                    if (window.temporaryMoveActive) {
+                                        window.gesturePreviousTool=editor.tool
+                                        editor.tool="move"
+                                    }
+                                    if (window.temporaryPickerActive) {
+                                        window.pickerDragging=true
+                                        editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),false)
+                                        return
+                                    }
                                     if (window.sliceToolActive) {
                                         editor.beginSliceGesture(mouse.x/zoom,mouse.y/zoom,10/zoom,Boolean(mouse.modifiers & Qt.AltModifier))
                                         return
@@ -2025,14 +2168,16 @@ ApplicationWindow {
                                         editor.setCloneSource(mouse.x / zoom, mouse.y / zoom)
                                         return
                                     }
-                                    if (window.smartSelectionToolActive) {
+                                    if (window.selectionToolActive && !editor.polygonLassoActive) {
                                         selectionModeBeforeGesture = editor.selectionMode
-                                        if (mouse.modifiers & Qt.ShiftModifier)
+                                        if ((mouse.modifiers & Qt.ShiftModifier) && (mouse.modifiers & Qt.AltModifier))
+                                            editor.selectionMode = 3
+                                        else if (mouse.modifiers & Qt.ShiftModifier)
                                             editor.selectionMode = 1
                                         else if (mouse.modifiers & Qt.AltModifier)
                                             editor.selectionMode = 2
                                     }
-                                    if (editor.tool === "polygonalLasso")
+                                    if (editor.tool === "polygonalLasso" || editor.polygonLassoActive)
                                         editor.addPolygonLassoPoint(mouse.x / zoom, mouse.y / zoom)
                                     else
                                         editor.beginStroke(mouse.x / zoom, mouse.y / zoom, Boolean(mouse.modifiers & Qt.AltModifier), Boolean(mouse.modifiers & Qt.ShiftModifier))
@@ -2041,34 +2186,64 @@ ApplicationWindow {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
                                     window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
+                                    if(brushAdjusting) {
+                                        editor.brushSize=brushAdjustSize+(mouse.x-brushAdjustX)
+                                        editor.brushHardness=brushAdjustHardness-(mouse.y-brushAdjustY)/100
+                                        return
+                                    }
                                     updatePatchCursor()
                                     window.stampSourcePicking = Boolean(mouse.modifiers & Qt.AltModifier)
+                                    editor.setToolModifiers(Boolean(mouse.modifiers & Qt.ShiftModifier),Boolean(mouse.modifiers & Qt.AltModifier),window.spacePressed)
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
                                     if (brushCursor.visible) {
                                         brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
                                     }
-                                    if (editor.tool === "picker" && window.pickerDragging) {
+                                    if (window.temporaryPickerActive && window.pickerDragging) {
+                                        editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),false)
+                                    } else if (editor.tool === "picker" && window.pickerDragging) {
                                         window.pickerPosition=Qt.point(mouse.x,mouse.y)
                                         editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),Boolean(mouse.modifiers & Qt.AltModifier))
                                         window.pickerSampleColor=(mouse.modifiers & Qt.AltModifier) ? editor.secondaryColor : editor.color
-                                    } else if (editor.polygonLassoActive)
+                                    } else if (editor.polygonLassoActive) {
+                                        if (pressed && ((editor.tool === "polygonalLasso" && (mouse.modifiers & Qt.AltModifier))
+                                                || (editor.tool === "lasso" && !(mouse.modifiers & Qt.AltModifier))))
+                                            editor.continuePolygonLasso(mouse.x/zoom,mouse.y/zoom)
                                         lassoSelectionOverlay.requestPaint()
+                                    }
                                     else if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
                                 }
-                                onReleased: {
+                                onReleased: function(mouse) {
+                                    if(brushAdjusting) { brushAdjusting=false; return }
                                     window.pickerDragging=false
-                                    if (editor.tool !== "polygonalLasso") editor.endStroke()
-                                    if (selectionModeBeforeGesture >= 0) {
+                                    if (editor.tool === "lasso" && editor.polygonLassoActive && !(mouse.modifiers & Qt.AltModifier))
+                                        editor.finishPolygonLasso()
+                                    else if (editor.tool !== "polygonalLasso") editor.endStroke()
+                                    if (window.gesturePreviousTool.length) {
+                                        editor.tool=window.gesturePreviousTool;window.gesturePreviousTool=""
+                                    }
+                                    if (selectionModeBeforeGesture >= 0 && !editor.polygonLassoActive) {
                                         editor.selectionMode = selectionModeBeforeGesture
                                         selectionModeBeforeGesture = -1
                                     }
                                 }
                                 onDoubleClicked: {
-                                    if (editor.tool === "polygonalLasso") editor.finishPolygonLasso()
+                                    if (editor.polygonLassoActive) {
+                                        editor.finishPolygonLasso()
+                                        if (selectionModeBeforeGesture>=0) {
+                                            editor.selectionMode=selectionModeBeforeGesture;selectionModeBeforeGesture=-1
+                                        }
+                                    }
                                 }
                                 onCanceled: {
+                                    if(brushAdjusting) {
+                                        editor.brushSize=brushAdjustSize;editor.brushHardness=brushAdjustHardness;brushAdjusting=false
+                                        return
+                                    }
                                     window.pickerDragging=false
                                     if (editor.tool !== "polygonalLasso") editor.cancelStroke()
+                                    if (window.gesturePreviousTool.length) {
+                                        editor.tool=window.gesturePreviousTool;window.gesturePreviousTool=""
+                                    }
                                     if (selectionModeBeforeGesture >= 0) {
                                         editor.selectionMode = selectionModeBeforeGesture
                                         selectionModeBeforeGesture = -1
@@ -2107,6 +2282,10 @@ ApplicationWindow {
                                 function onCurvePickerModeChanged() { drawingArea.refreshSystemCursor() }
                                 function onColorPickerModeChanged() { drawingArea.refreshSystemCursor() }
                                 function onStampSourcePickingChanged() { drawingArea.syncSystemCursor() }
+                            }
+                            Connections {
+                                target: toolInput
+                                function onPreciseChanged() { drawingArea.refreshSystemCursor() }
                             }
                             Connections {
                                 target: editor
@@ -2202,7 +2381,7 @@ ApplicationWindow {
                                 property point pointer:Qt.point(-100,-100)
                                 readonly property bool deleteHovered: window.stampSourcePicking && window.nearestColorSample(pointer.x/zoom,pointer.y/zoom)>=0
                                 anchors.fill: parent; z:5
-                                enabled: editor.tool === "ruler" || editor.tool === "colorSampler"
+                                enabled: (editor.tool === "ruler" || editor.tool === "colorSampler") && !window.temporaryMoveActive
                                 hoverEnabled: enabled; preventStealing:true
                                 cursorShape: Qt.CrossCursor
                                 onEnabledChanged: drawingArea.refreshSystemCursor()
@@ -2298,7 +2477,7 @@ ApplicationWindow {
                                 id: brushCursor
                                 property real pointerX: 0
                                 property real pointerY: 0
-                                visible: drawingArea.containsMouse && !window.stampToolActive && editor.tool !== "remove" && editor.tool !== "historyBrush" && editor.tool !== "artHistoryBrush" && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
+                                visible: drawingArea.containsMouse && !toolInput.precise && !window.temporaryPickerActive && !window.temporaryMoveActive && !window.spacePressed && !window.stampToolActive && editor.tool !== "remove" && editor.tool !== "historyBrush" && editor.tool !== "artHistoryBrush" && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
                                 enabled: false; z: 5
                                 width: Math.max(8,editor.brushSize*zoom+8); height: width
                                 x: pointerX-width/2; y: pointerY-height/2
@@ -2328,7 +2507,7 @@ ApplicationWindow {
                         objectName: "zoomToolArea"
                         anchors.fill: viewport
                         z: 22
-                        enabled: editor.tool === "zoomTool" && !window.spacePressed
+                        enabled: (editor.tool === "zoomTool" || (window.spacePressed && window.primaryPressed)) && !window.repositioningGesture
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: Qt.CrossCursor
@@ -2385,7 +2564,7 @@ ApplicationWindow {
                         objectName: "panArea"
                         anchors.fill: viewport
                         z: 21
-                        enabled: window.spacePressed || editor.tool==="hand"
+                        enabled: (window.spacePressed && !window.primaryPressed && !window.repositioningGesture) || editor.tool==="hand"
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: enabled && pressed ? Qt.ClosedHandCursor
@@ -4004,6 +4183,18 @@ ApplicationWindow {
                 }
                 ColumnLayout {
                     spacing: 10
+                    CheckBox {
+                        objectName: "shiftToolCycleCheck"
+                        text: qsTr("Utiliser Maj pour parcourir les outils d’un groupe")
+                        checked: workspaceSettings.useShiftToCycleTools
+                        onToggled: workspaceSettings.useShiftToCycleTools=checked
+                    }
+                    CheckBox {
+                        objectName: "springLoadedToolsCheck"
+                        text: qsTr("Revenir à l’outil précédent après un raccourci maintenu")
+                        checked: workspaceSettings.springLoadedTools
+                        onToggled: workspaceSettings.springLoadedTools=checked
+                    }
                     Label { text: qsTr("Barre d’outils"); color: "#eef2f5"; font.pixelSize: 20; font.bold: true }
                     Label {
                         Layout.fillWidth: true

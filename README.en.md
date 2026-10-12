@@ -136,6 +136,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | J | Spot healing, remove, healing, patch, content-aware move, red eye |
 | B | Brush, pencil, color replacement, mixer brush |
 | S | Clone stamp, pattern stamp |
+| Y | History brush, Art History Brush (development branch) |
 | E | Eraser |
 | G | Gradient, contiguous fill |
 | O | Dodge, burn, sponge |
@@ -143,7 +144,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | U | Rectangle, ellipse, triangle, polygon, star, line |
 | H / R / Z | Hand / rotate view / zoom |
 
-History brushes are selected by right-clicking their group; its displayed Y key is not yet wired into the shortcut registry. Blur, Sharpen, and Smudge share a group without a default letter. Shift + key cycling remains to be implemented. **NYI** entries are future tools and cannot be activated. Group keys are customizable; this table describes the initial configuration.
+On the development branch, **Y** selects history brushes. **Shift + key** and **Option/Alt-click** cycle variants; holding a letter temporarily selects its tool. These behaviors are configurable in Settings. Blur, Sharpen, and Smudge share a group without a default letter. **NYI** entries remain disabled. The [mouse and keyboard guide](docs/TOOL_INTERACTIONS.md) (French) lists Adobe references and current limitations.
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 

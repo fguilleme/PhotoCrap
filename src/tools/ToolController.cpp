@@ -78,6 +78,15 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     invalidateContentMove();
     if (m_tool != "remove")
         cancelRemoval();
+    m_toolAlternate             = _alternate;
+    m_toolShift                 = _straight;
+    m_toolSpace                 = false;
+    m_selectionInitialAlternate = _alternate;
+    m_selectionMoving           = false;
+    m_moveDuplicatedLayer       = false;
+    m_moveCopy                  = m_tool == "move" && _alternate;
+    m_strokeConnect             = false;
+    m_geometryPointer           = QPointF(_x, _y);
     m_anchor = m_last = (m_tool == "redEye" || m_tool == "healing" || m_tool == "spotHealing" ||
                          m_tool == "remove" || m_tool == "patch" || m_tool == "contentAwareMove")
                             ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
@@ -131,7 +140,12 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect") {
+        rememberSelection();
+        m_selectionMoving = m_selectionMode == 0 && !_alternate && !_straight &&
+                            m_selectionRegion.contains(QPoint(qRound(_x), qRound(_y)));
         m_drawing         = true;
+        if (m_selectionMoving)
+            return;
         m_selection       = {};
         m_selectionRegion = {};
         m_selectionShape  = m_tool == "ellipticalSelect"     ? 1
@@ -160,7 +174,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
         return;
     }
-    m_beforeStroke  = snapshot(toolLabel(m_tool));
+    if (m_moveCopy && !hasSelection() && !validSize(width(), height(), int(m_layers.size()) + 1))
+        return;
+    m_beforeStroke = snapshot(toolLabel(m_tool));
+    if (m_tool == "move")
+        m_strokeBase = m_layers[m_active].image;
     m_drawing       = true;
     m_strokeChanged = false;
     if (m_tool == "redEye") {
@@ -201,8 +219,12 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             target->pixelColor(int(_x), int(_y)).rgba() == m_color.rgba())
             m_strokeInkColor = m_secondary;
         const QPointF requestedEnd = m_anchor;
-        if (m_tool == "mixerBrush" && _straight && m_mixerLastEndValid)
-            m_anchor = m_last = m_mixerLastEnd;
+        if (_straight && m_paintLastSession == m_documentSession && m_paintLastState == m_stateId &&
+            m_paintLastTool == m_tool && m_paintLastLayer == m_active &&
+            m_paintLastMask == m_editingMask) {
+            m_anchor = m_last = m_paintLastEnd;
+            m_strokeConnect   = true;
+        }
         m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" || m_tool == "healing" ||
                             m_tool == "spotHealing")
                                ? QImage{}
@@ -217,7 +239,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_smoothedLast      = m_anchor;
         m_distanceToNextDab = qMax(1., m_brushSize * m_brushSpacing);
         paintSegment(m_anchor, m_anchor);
-        if (m_tool == "mixerBrush" && m_anchor != requestedEnd)
+        if (m_strokeConnect && m_anchor != requestedEnd)
             continueStroke(requestedEnd.x(), requestedEnd.y());
     } else if (m_tool == "fill") {
         floodFill(QPoint(int(_x), int(_y)));
@@ -253,7 +275,17 @@ void Document::continueStroke(qreal _x, qreal _y)
     }
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
-    const QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
+    QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
+    if (m_toolSpace &&
+        (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "rectangle" ||
+         m_tool == "ellipse" || m_tool == "triangle" || m_tool == "polygon" || m_tool == "star" ||
+         m_tool == "line" || m_tool == "gradient"))
+        m_anchor += point - m_geometryPointer;
+    m_geometryPointer = point;
+    if (m_tool == "line" || m_tool == "gradient" || m_tool == "move")
+        point = constrainedToolPoint(point, true);
+    else if (isPaintStrokeTool(m_tool) && !m_strokeConnect)
+        point = constrainedToolPoint(point, false);
     if (m_tool == "remove") {
         continueRemove(point);
     } else if (m_tool == "contentAwareMove") {
@@ -273,11 +305,46 @@ void Document::continueStroke(qreal _x, qreal _y)
     } else if (m_tool == "lasso")
         continueLasso(point.x(), point.y());
     else if (m_tool == "select" || m_tool == "ellipticalSelect") {
-        m_selection       = QRect(m_anchor.toPoint(), point.toPoint())
-                                .normalized()
+        if (m_selectionMoving) {
+            const QPoint offset = (point - m_anchor).toPoint();
+            m_selectionRegion =
+                m_selectionRegionBeforeStroke.translated(offset) & QRegion(QRect(QPoint{}, m_size));
+            m_selection     = m_selectionRegion.boundingRect();
+            m_selectionPath = m_selectionPathBeforeStroke.translated(offset);
+            emit selectionChanged();
+            m_last = point;
+            return;
+        }
+        const QRectF rect =
+            toolRectangle(m_anchor, point, m_toolAlternate && !m_selectionInitialAlternate);
+        // Round size independently of position so fractional Space-drag offsets
+        // preserve the marquee dimensions at non-integer zoom levels.
+        m_selection       = QRect(qRound(rect.left()), qRound(rect.top()), qRound(rect.width()) + 1,
+                                  qRound(rect.height()) + 1)
                                 .intersected(QRect(QPoint{}, m_size));
         m_selectionRegion = m_tool == "ellipticalSelect" ? QRegion(m_selection, QRegion::Ellipse)
                                                          : QRegion(m_selection);
+        m_selectionCombined = false;
+        combineGestureSelection();
+        emit selectionChanged();
+    } else if (m_tool == "singleRowSelect" || m_tool == "singleColumnSelect") {
+        if (m_selectionMoving) {
+            const QPoint delta = (point - m_anchor).toPoint();
+            m_selectionRegion =
+                m_selectionRegionBeforeStroke.translated(
+                    m_tool == "singleRowSelect" ? QPoint(0, delta.y()) : QPoint(delta.x(), 0)) &
+                QRegion(QRect(QPoint{}, m_size));
+            m_selection = m_selectionRegion.boundingRect();
+        } else {
+            m_selection = m_tool == "singleRowSelect"
+                              ? QRect(0, qBound(0, qRound(point.y()), height() - 1), width(), 1)
+                              : QRect(qBound(0, qRound(point.x()), width() - 1), 0, 1, height());
+            m_selectionRegion = QRegion(m_selection);
+        }
+        if (!m_selectionMoving) {
+            m_selectionCombined = false;
+            combineGestureSelection();
+        }
         emit selectionChanged();
     } else if (isPaintStrokeTool(m_tool))
         paintSegment(m_last, point);
@@ -328,12 +395,20 @@ void Document::endStroke()
         return;
     }
     if (m_tool == "lasso") {
-        finishLasso();
+        if (m_toolAlternate && !m_selectionInitialAlternate && m_selectionPath.size() >= 2) {
+            m_polygonLassoActive = true;
+            m_selectionShape     = 5;
+            emit selectionChanged();
+        } else
+            finishLasso();
         return;
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
-        m_tool == "singleColumnSelect")
+        m_tool == "singleColumnSelect") {
+        if (!m_selectionMoving)
+            combineGestureSelection();
         return;
+    }
     if (m_strokeChanged) {
         if (m_tool == "move" && hasSelection()) {
             const QPoint offset = (m_last - m_anchor).toPoint();
@@ -348,6 +423,14 @@ void Document::endStroke()
             ++m_thumbnailRevision;
             emit thumbnailsChanged();
         }
+    }
+    if (isPaintStrokeTool(m_tool) && m_strokeChanged) {
+        m_paintLastEnd     = m_last;
+        m_paintLastState   = m_stateId;
+        m_paintLastSession = m_documentSession;
+        m_paintLastTool    = m_tool;
+        m_paintLastLayer   = m_active;
+        m_paintLastMask    = m_editingMask;
     }
     if (m_tool == "mixerBrush")
         finishMixerStroke(false);
@@ -402,12 +485,12 @@ void Document::cancelStroke()
         return;
     }
     if (m_tool == "lasso") {
-        deselect();
+        restoreGestureSelection();
         return;
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect")
-        deselect();
+        restoreGestureSelection();
     else if (m_tool != "redEye")
         restore(m_beforeStroke);
     if (m_tool == "mixerBrush")

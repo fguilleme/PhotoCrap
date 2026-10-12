@@ -58,7 +58,13 @@ bool runMacToolCursorTest(QQuickWindow *_window)
         if (!_window->isActive() || qAbs(reopenedHotspot.x - expected.x()) > 0.1 ||
             qAbs(reopenedHotspot.y - expected.y()) > 0.1) {
             qWarning() << "Opening Info resets the native tool cursor:" << tool << reopenedHotspot.x
-                       << reopenedHotspot.y;
+                       << reopenedHotspot.y << "active" << _window->isActive() << "Qt hotspot"
+                       << (QGuiApplication::overrideCursor()
+                               ? QGuiApplication::overrideCursor()->hotSpot()
+                               : QPoint(-1, -1))
+                       << "pointer" << QCursor::pos() << "canvas point" << canvasPoint
+                       << "drawing hover"
+                       << _window->findChild<QObject *>("drawingArea")->property("containsMouse");
             passed = false;
             break;
         }

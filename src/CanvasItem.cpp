@@ -1,4 +1,7 @@
 #include "CanvasItem.h"
+#ifdef Q_OS_MACOS
+#include "MacToolCursor.h"
+#endif
 
 #include <QCursor>
 #include <QGuiApplication>
@@ -141,7 +144,8 @@ QCursor magicWandCursor(int _selectionMode)
     drawSparkle(QPointF(25, 8), 5);
     drawSparkle(QPointF(32, 17), 2.5);
 
-    const QString sign = _selectionMode == 2   ? QStringLiteral("−")
+    const QString sign = _selectionMode == 3   ? QStringLiteral("×")
+                         : _selectionMode == 2 ? QStringLiteral("−")
                          : _selectionMode == 1 ? QStringLiteral("+")
                                                : QString();
     if (!sign.isEmpty()) {
@@ -195,13 +199,14 @@ void CanvasItem::setSelectionPhase(qreal _phase)
     emit selectionPhaseChanged();
 }
 void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool, int _selectionMode,
-                                 bool _sourcePicking)
+                                 bool _sourcePicking, bool _precise)
 {
     if (!_active) {
         if (m_systemCursorActive) {
             QGuiApplication::restoreOverrideCursor();
             m_systemCursorActive = false;
         }
+        unsetCursor();
         return;
     }
 
@@ -249,12 +254,18 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         painter.end();
         cursor = QCursor(pixmap, size / 2, size / 2);
     }
+    if (_precise)
+        cursor = QCursor(Qt::CrossCursor);
+    setCursor(cursor);
     if (m_systemCursorActive)
         QGuiApplication::changeOverrideCursor(cursor);
     else {
         QGuiApplication::setOverrideCursor(cursor);
         m_systemCursorActive = true;
     }
+#ifdef Q_OS_MACOS
+    reapplyMacToolCursor(cursor);
+#endif
 }
 void CanvasItem::paint(QPainter *_painter)
 {

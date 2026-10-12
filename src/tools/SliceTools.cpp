@@ -64,9 +64,10 @@ void Document::beginSliceGesture(qreal _x, qreal _y, qreal _tolerance, bool _sel
         return;
     endSliceGesture();
     const QPointF point(qBound(0., _x, qreal(width())), qBound(0., _y, qreal(height())));
-    m_sliceAnchor   = point;
-    m_sliceHandle   = -1;
-    m_sliceCreating = m_tool == "slice" && !_select;
+    m_geometryPointer = point;
+    m_sliceAnchor     = point;
+    m_sliceHandle     = -1;
+    m_sliceCreating   = m_tool == "slice" && !_select;
     if (m_sliceCreating) {
         if (m_slices.size() >= 256) {
             fail(tr("Le document contient déjà 256 tranches."));
@@ -115,9 +116,11 @@ void Document::updateSliceGesture(qreal _x, qreal _y)
     if (!m_sliceDragging || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     const QPointF point(qBound(0., _x, qreal(width())), qBound(0., _y, qreal(height())));
-    if (m_sliceCreating)
-        m_sliceDraft = QRectF(m_sliceAnchor, point).normalized();
-    else if (m_sliceHandle == -1) {
+    if (m_sliceCreating) {
+        if (m_toolSpace)
+            m_sliceAnchor += point - m_geometryPointer;
+        m_sliceDraft = toolRectangle(m_sliceAnchor, point, m_toolAlternate);
+    } else if (m_sliceHandle == -1) {
         QPointF delta = point - m_sliceAnchor;
         delta.setX(qBound(-m_sliceBefore.left(), delta.x(), width() - m_sliceBefore.right()));
         delta.setY(qBound(-m_sliceBefore.top(), delta.y(), height() - m_sliceBefore.bottom()));
@@ -134,6 +137,7 @@ void Document::updateSliceGesture(qreal _x, qreal _y)
             rect.setBottom(qMax(point.y(), rect.top() + 1));
         m_sliceDraft = rect;
     }
+    m_geometryPointer = point;
     emit slicesChanged();
 }
 void Document::endSliceGesture(bool _cancel)

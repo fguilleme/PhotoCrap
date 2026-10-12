@@ -3,6 +3,7 @@
 #include "LanguageManager.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
+#include "ToolInput.h"
 #include "WorkspaceSettings.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -60,6 +61,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Basic");
     const auto args  = app.arguments();
     const bool smoke = args.contains("--smoke-test");
+    qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");

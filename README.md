@@ -136,6 +136,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | J | Correcteur localisé, suppression, correcteur, pièce, déplacement basé sur le contenu, œil rouge |
 | B | Pinceau, crayon, remplacement de couleur, pinceau mélangeur |
 | S | Tampon de duplication, tampon de motif |
+| Y | Forme d’historique, forme d’historique artistique (branche de développement) |
 | E | Gomme |
 | G | Dégradé, remplissage contigu |
 | O | Densité −, densité +, éponge |
@@ -143,7 +144,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | U | Rectangle, ellipse, triangle, polygone, étoile, ligne |
 | H / R / Z | Main / rotation de l’affichage / zoom |
 
-Les formes d’historique se choisissent par clic droit dans leur groupe ; la lettre Y affichée n’est pas encore branchée dans le registre de raccourcis. Flou, Netteté et Doigt partagent aussi un groupe, sans lettre par défaut. Le cycle des variantes par Maj + touche reste à implémenter. Les entrées **NYI** indiquent des outils futurs ; elles ne sont pas activables. Les touches de groupe peuvent être personnalisées ; ce tableau décrit le jeu initial.
+Sur la branche de développement, **Y** active les formes d’historique. **Maj + touche** et **Option/Alt-clic** parcourent les variantes ; maintenir une lettre utilise temporairement son outil. Les préférences permettent de modifier ces comportements. Flou, Netteté et Doigt partagent un groupe sans lettre par défaut. Les entrées **NYI** restent désactivées. Voir le [guide souris et clavier](docs/TOOL_INTERACTIONS.md), avec les références Adobe et les limites actuelles.
 
 `[` / `]` règlent la taille du pinceau, `Maj+[` / `Maj+]` sa dureté, `D` rétablit noir/blanc et `X` échange les couleurs. `Ctrl/⌘ + 0` adapte l’image ; `Ctrl/⌘ + 1` affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace la toile. Annuler/Rétablir conserve le zoom de navigation.
 

@@ -18,13 +18,15 @@ NSMenuItem *preferencesItem()
     return nil;
 }
 
-bool checkDialog(QObject *_preferences, QObject *_brush)
+bool checkDialog(QObject *_preferences, QObject *_brush, const char *_stage)
 {
     QTest::qWait(100);
     const bool ok =
         _preferences->property("visible").toBool() && !_brush->property("visible").toBool();
     if (!ok)
-        qWarning("Native Preferences must open application settings, never brush properties");
+        qWarning() << "Native Preferences must open application settings, never brush properties:"
+                   << _stage << "preferences" << _preferences->property("visible") << "brush"
+                   << _brush->property("visible");
     QMetaObject::invokeMethod(_preferences, "close");
     QMetaObject::invokeMethod(_brush, "reject");
     QTest::qWait(100);
@@ -92,7 +94,7 @@ bool runMacApplicationMenuTest(QQuickWindow *_window)
             return false;
         }
         [[item menu] performActionForItemAtIndex:[[item menu] indexOfItem:item]];
-        if (!checkDialog(preferences, brush))
+        if (!checkDialog(preferences, brush, "native menu"))
             return false;
 
         NSEvent *key = [NSEvent keyEventWithType:NSEventTypeKeyDown
@@ -105,11 +107,12 @@ bool runMacApplicationMenuTest(QQuickWindow *_window)
                      charactersIgnoringModifiers:@","
                                        isARepeat:NO
                                          keyCode:43];
-        if (![[NSApp mainMenu] performKeyEquivalent:key] || !checkDialog(preferences, brush))
+        if (![[NSApp mainMenu] performKeyEquivalent:key] ||
+            !checkDialog(preferences, brush, "Cocoa Command-comma"))
             return false;
 
         QTest::keyClick(_window, Qt::Key_Comma, Qt::ControlModifier);
-        if (!checkDialog(preferences, brush))
+        if (!checkDialog(preferences, brush, "Qt Command-comma"))
             return false;
     }
     return true;

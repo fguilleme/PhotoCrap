@@ -34,7 +34,8 @@ void Document::addAdjustmentLayer(const QString &_type)
                                        {"highPass", tr("Passe-haut")},
                                        {"mosaic", tr("Mosaïque")},
                                        {"noise", tr("Ajout de bruit")}};
-    if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1))
+    if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 0, 1))
         return;
     QVariantMap params;
     if (_type == "solidColor")
@@ -134,7 +135,8 @@ void Document::addAdjustmentLayer(const QString &_type)
 }
 void Document::addFrequencySeparation(qreal _radius)
 {
-    if (!std::isfinite(_radius) || !validSize(width(), height(), int(m_layers.size()) + 2))
+    if (!std::isfinite(_radius) || !validSize(width(), height(), int(m_layers.size()) + 2) ||
+        !validLayerStorage(width(), height(), 2))
         return;
     QImage source = m_layers[m_active].kind == "pixel" ? m_layers[m_active].image : composite();
     if (m_layers[m_active].kind == "pixel" && m_layers[m_active].maskEnabled &&

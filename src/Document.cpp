@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "DocumentStorage.h"
 #include "ImageUtils.h"
 
 #include <QFont>
@@ -13,9 +14,8 @@
 
 namespace
 {
-constexpr qint64 MaxPixels        = 32LL * 1024 * 1024;
-constexpr qint64 MaxDocumentBytes = 512LL * 1024 * 1024;
-constexpr int    MaxLayers        = 64;
+constexpr qint64 MaxPixels = 32LL * 1024 * 1024;
+constexpr int    MaxLayers = 64;
 } // namespace
 
 Document::Document(QObject *_parent) : QObject(_parent)
@@ -86,14 +86,34 @@ bool Document::fail(const QString &_message)
     emit errorOccurred(_message);
     return false;
 }
-bool Document::validSize(int _w, int _h, int _count, int _bits)
+bool Document::validSize(int _w, int _h, int _count)
 {
     if (_w < 1 || _h < 1 || _w > 16384 || _h > 16384 || qint64(_w) * _h > MaxPixels)
         return fail(tr("Dimensions invalides : 1 à 16 384 px, 32 mégapixels maximum."));
-    if (_count < 1 || _count > MaxLayers ||
-        qint64(_w) * _h * ((_bits ? _bits : m_channelBits) / 2) * _count > MaxDocumentBytes)
-        return fail(tr("Limite atteinte : 64 calques et 512 Mio de pixels par document."));
+    if (_count < 1 || _count > MaxLayers)
+        return fail(tr("Limite atteinte : %1 calques par document (demandés : %2).")
+                        .arg(MaxLayers)
+                        .arg(_count));
     return true;
+}
+bool Document::validStorageBytes(qint64 _bytes)
+{
+    if (_bytes > DocumentStorage::MaxLayerBytes)
+        return fail(tr("Limite mémoire atteinte : %1 Mio nécessaires, %2 Mio maximum pour les "
+                       "pixels, sources et masques des calques.")
+                        .arg((_bytes + 1024 * 1024 - 1) / (1024 * 1024))
+                        .arg(DocumentStorage::MaxLayerBytes / (1024 * 1024)));
+    return true;
+}
+bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMasks, int _bits)
+{
+    int colors = _extraColors, masks = _extraMasks;
+    for (const auto &layer : std::as_const(m_layers)) {
+        colors += !layer.image.isNull() + !layer.source.isNull();
+        masks += !layer.mask.isNull();
+    }
+    return validStorageBytes(
+        DocumentStorage::estimateBytes(_w, _h, colors, masks, _bits ? _bits : m_channelBits));
 }
 bool Document::editable()
 {
@@ -543,7 +563,7 @@ bool Document::setChannelBits(int _bits)
         return fail(tr("La profondeur doit être de 8 ou 16 bits par canal."));
     if (_bits == m_channelBits)
         return true;
-    if (!validSize(width(), height(), int(m_layers.size()), _bits))
+    if (!validLayerStorage(width(), height(), 0, 0, _bits))
         return false;
     endStroke();
     edit(tr("Profondeur des couleurs"), [&] {

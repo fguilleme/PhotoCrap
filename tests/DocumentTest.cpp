@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
@@ -20,6 +21,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
@@ -37,6 +39,100 @@ private slots:
     {
         // Match the smallest GitHub runners and catch nested global-pool waits.
         QThreadPool::globalInstance()->setMaxThreadCount(2);
+    }
+
+    void layerStorageDistinguishesColorPixelsSourcesAndMasks()
+    {
+        constexpr qint64 pixels = 6000LL * 4000;
+        QCOMPARE(DocumentStorage::estimateBytes(6000, 4000, 3, 1, 16), pixels * 25);
+        QCOMPARE(DocumentStorage::estimateBytes(6000, 4000, 3, 1, 8), pixels * 13);
+        // Fifty adjustments hold masks, not fifty full RGBA64 images.
+        QVERIFY(DocumentStorage::estimateBytes(6000, 4000, 1, 50, 16) <
+                DocumentStorage::MaxLayerBytes);
+        QCOMPARE(DocumentStorage::estimateBytes(3, 2, 0, 1, 16), qint64(8));
+        QCOMPARE(DocumentStorage::estimateBytes(8192, 4096, 8, 0, 16),
+                 DocumentStorage::MaxLayerBytes);
+        QVERIFY(DocumentStorage::estimateBytes(8192, 4096, 8, 1, 16) >
+                DocumentStorage::MaxLayerBytes);
+    }
+    void largeSixteenBitFrequencyLayersCanBeDuplicatedAndMasked()
+    {
+        Document   d;
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.addFrequencySeparation(4);
+        QCOMPARE(d.layers().size(), 3);
+        d.duplicateLayer();
+        QCOMPARE(d.layers().size(), 4);
+        d.addLayerMask();
+        QVERIFY(d.layers().first().toMap().value("hasMask").toBool());
+        QVERIFY(errors.isEmpty());
+        d.undo();
+        QVERIFY(!d.layers().first().toMap().value("hasMask").toBool());
+        d.undo();
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.channelBits(), 16);
+    }
+    void layerStorageLimitRejectsBeforeChangingDocument()
+    {
+        Document d;
+        QVERIFY(d.newDocument(8192, 4096, true, 16));
+        for (int i = 1; i < 8; ++i)
+            d.duplicateLayer();
+        QCOMPARE(d.layers().size(), 8);
+        const auto history = d.history();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.duplicateLayer();
+        QCOMPARE(d.layers().size(), 8);
+        QCOMPARE(errors.size(), 1);
+        QVERIFY(errors.last().first().toString().contains("2304"));
+        QVERIFY(errors.last().first().toString().contains("2048"));
+        d.addLayerMask();
+        QVERIFY(!d.layers().first().toMap().value("hasMask").toBool());
+        QCOMPARE(errors.size(), 2);
+        QCOMPARE(d.history(), history);
+        // Replacing the large document must not inherit its storage budget.
+        QVERIFY(d.newDocument(8, 8));
+        d.addLayer();
+        QCOMPARE(d.layers().size(), 2);
+    }
+    void projectStoragePreflightCountsPlanesAndPreservesOpenDocument()
+    {
+        QTemporaryDir dir;
+        Document      d;
+        QVERIFY(d.newDocument(8, 8));
+        const auto original = d.composite();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        auto       writeProject = [&](const QJsonArray &_layers) {
+            QFile file(dir.filePath("budget.pcr"));
+            if (!file.open(QIODevice::WriteOnly))
+                return QUrl{};
+            const QJsonObject root{{"format", "PhotoCrap"}, {"version", 6},
+                                   {"width", 8192},         {"height", 4096},
+                                   {"channelBits", 16},     {"layers", _layers}};
+            file.write(QJsonDocument(root).toJson());
+            return QUrl::fromLocalFile(file.fileName());
+        };
+        QJsonArray pixels;
+        for (int i = 0; i < 9; ++i)
+            pixels.append(QJsonObject{{"kind", "pixel"}, {"png", "not-a-png"}});
+        QVERIFY(!d.openFile(writeProject(pixels)));
+        QCOMPARE(errors.size(), 1);
+        // Storage rejection precedes decoding the deliberately invalid images.
+        QVERIFY(errors.last().first().toString().contains("2304"));
+        QCOMPARE(d.composite(), original);
+        QCOMPARE(d.channelBits(), 8);
+        QJsonArray groups;
+        for (int i = 0; i < 64; ++i)
+            groups.append(QJsonObject{
+                {"kind", "group"}, {"opacity", 1}, {"blend", 0}, {"groupId", QString::number(i)}});
+        QVERIFY(d.openFile(writeProject(groups)));
+        QCOMPARE(d.layers().size(), 64);
+        QVERIFY(d.setChannelBits(8));
+        QVERIFY(d.setChannelBits(16));
+        d.addLayer();
+        QCOMPARE(d.layers().size(), 64);
+        QVERIFY(errors.last().first().toString().contains("65"));
     }
 
     void rawDecoderDevelopsSixteenBitSensorData()

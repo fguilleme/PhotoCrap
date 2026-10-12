@@ -181,7 +181,8 @@ void Document::paste()
     auto source = QGuiApplication::clipboard()->image();
     if (source.isNull())
         return;
-    if (!validSize(width(), height(), int(m_layers.size()) + 1))
+    if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 1))
         return;
     if (source.colorSpace().isValid())
         source.convertToColorSpace(QColorSpace::SRgb);
@@ -219,7 +220,8 @@ void Document::cropToSelection()
 }
 void Document::resizeImage(int _w, int _h)
 {
-    if (!validSize(_w, _h, int(m_layers.size())) || m_size == QSize(_w, _h))
+    if (!validSize(_w, _h, int(m_layers.size())) || !validLayerStorage(_w, _h) ||
+        m_size == QSize(_w, _h))
         return;
     edit(tr("Redimensionner l’image"), [&] {
         for (auto &layer : m_layers) {

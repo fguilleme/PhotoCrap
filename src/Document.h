@@ -1215,7 +1215,10 @@ private:
     void    selectOnly(int _index);
     void    changed(bool _metadata = true, bool _notifyImage = true);
     void    resetHistory(bool _clean);
-    bool    validSize(int _width, int _height, int _layerCount = 1, int _bits = 0);
+    bool    validSize(int _width, int _height, int _layerCount = 1);
+    bool    validStorageBytes(qint64 _bytes);
+    bool    validLayerStorage(int _width, int _height, int _extraColors = 0, int _extraMasks = 0,
+                              int _bits = 0);
     bool    editable();
     bool    fail(const QString &_message);
     void    edit(const QString &_label, const std::function<void()> &_operation);

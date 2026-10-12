@@ -169,8 +169,12 @@
     </message>
     <message>
       <location filename="../src/Document.cpp" line="56" />
-      <source>Limite atteinte : 64 calques et 512 Mio de pixels par document.</source>
-      <translation>Limit reached: 64 layers and 512 MiB of pixels per document.</translation>
+      <source>Limite atteinte : %1 calques par document (demandés : %2).</source>
+      <translation>Limit reached: %1 layers per document (%2 requested).</translation>
+    </message>
+    <message>
+      <source>Limite mémoire atteinte : %1 Mio nécessaires, %2 Mio maximum pour les pixels, sources et masques des calques.</source>
+      <translation>Memory limit reached: %1 MiB required, %2 MiB maximum for layer pixels, sources and masks.</translation>
     </message>
     <message>
       <location filename="../src/Document.cpp" line="61" />

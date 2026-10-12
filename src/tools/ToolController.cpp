@@ -179,7 +179,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
         return;
     }
-    if (m_moveCopy && !hasSelection() && !validSize(width(), height(), int(m_layers.size()) + 1))
+    if (m_moveCopy && !hasSelection() &&
+        (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+         !validLayerStorage(width(), height(), 1, !m_layers[m_active].mask.isNull())))
         return;
     m_beforeStroke = snapshot(toolLabel(m_tool));
     if (m_tool == "move")

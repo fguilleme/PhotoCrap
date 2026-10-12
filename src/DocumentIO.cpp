@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "DocumentStorage.h"
 #include "ImageUtils.h"
 
 #include <QBuffer>
@@ -26,7 +27,7 @@ QString localPath(const QUrl &_url)
 
 bool Document::newDocument(int _w, int _h, bool _transparent, int _bits)
 {
-    if ((_bits != 8 && _bits != 16) || !validSize(_w, _h, 1, _bits))
+    if ((_bits != 8 && _bits != 16) || !validSize(_w, _h))
         return false;
     m_channelBits = _bits;
     m_size        = {_w, _h};
@@ -94,7 +95,8 @@ bool Document::openRawFile(const QUrl &_url, bool _asLayer)
     if (m_rawLoading)
         return fail(tr("Un RAW est déjà en cours de lecture."));
     endStroke();
-    if (_asLayer && !validSize(width(), height(), int(m_layers.size()) + 1))
+    if (_asLayer && (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+                     !validLayerStorage(width(), height(), 1)))
         return false;
     m_rawUrl     = _url;
     m_rawAsLayer = _asLayer;
@@ -136,14 +138,14 @@ void Document::finishRawLoad()
 }
 bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _asLayer)
 {
-    if (_image.isNull() ||
-        !validSize(_image.width(), _image.height(), 1, ImageUtils::is16Bit(_image) ? 16 : 8))
+    if (_image.isNull() || !validSize(_image.width(), _image.height()))
         return false;
     if (_asLayer) {
-        if (!validSize(width(), height(), int(m_layers.size()) + 1))
+        if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+            !validLayerStorage(width(), height(), 1))
             return false;
         const int bits = qMax(m_channelBits, ImageUtils::is16Bit(_image) ? 16 : 8);
-        if (!validSize(width(), height(), int(m_layers.size()) + 1, bits))
+        if (!validLayerStorage(width(), height(), 1, 0, bits))
             return false;
         edit(tr("Importer un calque"), [&] {
             m_channelBits = bits;
@@ -175,7 +177,8 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
 }
 bool Document::importLayer(const QUrl &_url)
 {
-    if (!validSize(width(), height(), int(m_layers.size()) + 1))
+    if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 1))
         return false;
     auto image = readImage(localPath(_url));
     if (image.isNull())
@@ -265,7 +268,15 @@ bool Document::loadProject(const QString &_path)
         return fail(tr("Profondeur de projet invalide."));
     const auto format =
         bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
-    if (!validSize(w, h, int(array.size()), bits))
+    if (!validSize(w, h, int(array.size())))
+        return false;
+    int colors = 0, masks = 0;
+    for (const auto &value : array) {
+        const auto object = value.toObject();
+        colors += !object["png"].toString().isEmpty() + !object["source"].toString().isEmpty();
+        masks += !object["mask"].toString().isEmpty();
+    }
+    if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
     QVector<Layer> layers;
     for (const auto &value : array) {

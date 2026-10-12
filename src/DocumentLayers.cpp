@@ -11,7 +11,8 @@
 
 void Document::addLayer()
 {
-    if (!validSize(width(), height(), int(m_layers.size()) + 1))
+    if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 1))
         return;
     edit(tr("Nouveau calque"), [&] {
         m_layers.insert(++m_active, {tr("Calque %1").arg(m_layers.size() + 1),
@@ -24,7 +25,10 @@ void Document::duplicateLayer()
     if (m_active < 0 || m_active >= m_layers.size() ||
         m_layers[m_active].kind == QStringLiteral("group"))
         return;
-    if (!validSize(width(), height(), int(m_layers.size()) + 1))
+    const auto &active = m_layers[m_active];
+    if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), !active.image.isNull() + !active.source.isNull(),
+                           !active.mask.isNull()))
         return;
     edit(tr("Dupliquer le calque"), [&] {
         auto layer = m_layers[m_active];
@@ -275,6 +279,8 @@ void Document::addLayerMask(bool _revealAll)
         emit layersChanged();
         return;
     }
+    if (!validLayerStorage(width(), height(), 0, 1))
+        return;
     edit(tr("Ajouter un masque de fusion"), [&] {
         QImage mask(m_size, QImage::Format_Grayscale8);
         mask.fill(hasSelection() ? (_revealAll ? 0 : 255) : (_revealAll ? 255 : 0));
@@ -296,6 +302,8 @@ void Document::copyLayerMask(int _sourceIndex, int _targetIndex)
         _targetIndex >= m_layers.size() || _sourceIndex == _targetIndex ||
         m_layers[_sourceIndex].mask.isNull() ||
         m_layers[_targetIndex].kind == QStringLiteral("group") || m_layers[_targetIndex].locked)
+        return;
+    if (!validLayerStorage(width(), height(), 0, m_layers[_targetIndex].mask.isNull() ? 1 : 0))
         return;
     edit(tr("Copier le masque de fusion"), [&] {
         const auto &source                = m_layers[_sourceIndex];

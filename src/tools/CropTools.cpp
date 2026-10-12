@@ -237,7 +237,7 @@ void Document::applyCrop()
         w = m_cropOutputSize.width();
     if (m_cropOutputSize.height() > 0)
         h = m_cropOutputSize.height();
-    if (!validSize(w, h, int(m_layers.size())))
+    if (!validSize(w, h, int(m_layers.size())) || !validLayerStorage(w, h))
         return;
     QTransform      transform;
     const QPolygonF target{QPointF(0, 0), QPointF(w, 0), QPointF(w, h), QPointF(0, h)};

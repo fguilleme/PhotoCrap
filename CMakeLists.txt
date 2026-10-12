@@ -70,6 +70,7 @@ set(PHOTOCRAP_CXX_SOURCES
 )
 set(PHOTOCRAP_FORMAT_SOURCES
     src/ImagePixels.h
+    src/DocumentStorage.h
     src/RawImageReader.h
     src/ToolInput.h
     src/MacToolCursor.h

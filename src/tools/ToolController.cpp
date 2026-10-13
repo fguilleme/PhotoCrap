@@ -253,7 +253,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         endStroke();
     } else if (m_tool == "text") {
         if (!m_text.isEmpty()) {
-            QPainter painter(&m_layers[m_active].image);
+            QPainter painter(paintTarget());
             painter.setRenderHint(QPainter::TextAntialiasing);
             if (hasSelection())
                 painter.setClipRegion(m_selectionRegion);
@@ -521,9 +521,13 @@ QImage *Document::paintTarget()
 {
     if (m_active < 0 || m_active >= m_layers.size())
         return nullptr;
-    if (m_editingMask && !m_layers[m_active].mask.isNull())
+    if (m_editingMask && !m_layers[m_active].mask.isNull()) {
+        m_layers[m_active].mask = ImageUtils::expandedPlane(m_layers[m_active].mask, m_size);
         return &m_layers[m_active].mask;
-    if (m_layers[m_active].kind == "pixel")
+    }
+    if (m_layers[m_active].kind == "pixel") {
+        m_layers[m_active].image = ImageUtils::expandedPlane(m_layers[m_active].image, m_size);
         return &m_layers[m_active].image;
+    }
     return nullptr;
 }

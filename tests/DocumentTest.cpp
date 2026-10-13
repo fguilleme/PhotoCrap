@@ -88,9 +88,18 @@ private slots:
         QVERIFY(errors.last().first().toString().contains("2304"));
         QVERIFY(errors.last().first().toString().contains("2048"));
         d.addLayerMask();
-        QVERIFY(!d.layers().first().toMap().value("hasMask").toBool());
-        QCOMPARE(errors.size(), 2);
-        QCOMPARE(d.history(), history);
+        QVERIFY(d.layers().first().toMap().value("hasMask").toBool());
+        QCOMPARE(errors.size(), 1); // A uniform mask needs no full-sized plane.
+        const auto compactHistory = d.history();
+        d.setTool("brush");
+        d.setColor(Qt::black);
+        d.beginStroke(10, 10);
+        d.endStroke();
+        QCOMPARE(errors.size(), 2); // Materializing it must respect the budget.
+        QCOMPARE(d.history(), compactHistory);
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 1);
+        d.undo();
+        QCOMPARE(d.history().mid(0, history.size()), history);
         // Replacing the large document must not inherit its storage budget.
         QVERIFY(d.newDocument(8, 8));
         d.addLayer();
@@ -123,16 +132,187 @@ private slots:
         QCOMPARE(d.composite(), original);
         QCOMPARE(d.channelBits(), 8);
         QJsonArray groups;
-        for (int i = 0; i < 64; ++i)
+        for (int i = 0; i < 512; ++i)
             groups.append(QJsonObject{
                 {"kind", "group"}, {"opacity", 1}, {"blend", 0}, {"groupId", QString::number(i)}});
         QVERIFY(d.openFile(writeProject(groups)));
-        QCOMPARE(d.layers().size(), 64);
+        QCOMPARE(d.layers().size(), 512);
         QVERIFY(d.setChannelBits(8));
         QVERIFY(d.setChannelBits(16));
         d.addLayer();
-        QCOMPARE(d.layers().size(), 64);
-        QVERIFY(errors.last().first().toString().contains("65"));
+        QCOMPARE(d.layers().size(), 512);
+        QVERIFY(errors.last().first().toString().contains("513"));
+    }
+
+    void hundredsOfLargeLayersStayCompactAfterReload()
+    {
+        QTemporaryDir dir;
+        Document      d;
+        QSignalSpy    errors(&d, &Document::errorOccurred);
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        const qint64  baseBytes = d.memoryUsage()["layerBytes"].toLongLong();
+        QElapsedTimer timer;
+        timer.start();
+        for (int i = 0; i < 150; ++i) {
+            d.addLayer();
+            d.addLayerMask();
+        }
+        for (int i = 0; i < 150; ++i) {
+            d.addAdjustmentLayer("light");
+            d.setLayerVisible(d.activeLayer(), false);
+        }
+        QCOMPARE(d.layers().size(), 301);
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 450);
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() < baseBytes + 16 * 1024);
+        QCOMPARE(d.memoryUsage()["reservedLayerBytes"].toLongLong(), baseBytes);
+        QCOMPARE(d.memoryUsage()["historyBytes"].toLongLong(), qint64(0));
+        QVERIFY(errors.isEmpty());
+        qInfo() << "301 layers / 24 MP / 16 bit: creation" << timer.elapsed() << "ms, stored bytes"
+                << d.memoryUsage()["layerBytes"];
+        const auto project = QUrl::fromLocalFile(dir.filePath("many.pcr"));
+        QVERIFY(d.saveProject(project));
+        QVERIFY(QFileInfo(project.toLocalFile()).size() < 2 * 1024 * 1024);
+        Document loaded;
+        QVERIFY(loaded.openFile(project));
+        QCOMPARE(loaded.layers().size(), 301);
+        QCOMPARE(loaded.channelBits(), 16);
+        QCOMPARE(loaded.memoryUsage()["compactPlanes"].toInt(), 450);
+        QVERIFY(loaded.memoryUsage()["layerBytes"].toLongLong() < baseBytes + 16 * 1024);
+        QCOMPARE(loaded.maskImage(1, QSize(12, 12)).pixelColor(5, 5), QColor(Qt::white));
+        QCOMPARE(loaded.layerImage(1, QSize(12, 12)).pixelColor(5, 5).alpha(), 0);
+    }
+    void paintingMaterializesOnlyTheEditedPlane()
+    {
+        Document d;
+        QVERIFY(d.newDocument(128, 96, true, 16));
+        for (int i = 0; i < 80; ++i) {
+            d.addLayer();
+            d.addLayerMask();
+        }
+        const auto   initial = d.memoryUsage();
+        const QImage before  = d.composite();
+        d.setTool("brush");
+        d.setColor(Qt::black);
+        d.setBrushSize(9);
+        d.setBrushHardness(1);
+        d.beginStroke(50, 40);
+        d.endStroke();
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 159);
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <
+                initial["layerBytes"].toLongLong() + 128 * 96 + 16);
+        QVERIFY(d.maskImage(d.activeLayer()).pixelColor(50, 40).red() < 255);
+        d.undo();
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 160);
+        QCOMPARE(d.composite(), before);
+        d.setEditingMask(false);
+        d.setColor(Qt::red);
+        d.beginStroke(50, 40);
+        d.endStroke();
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 159);
+        QCOMPARE(d.layerImage(d.activeLayer()).pixelColor(50, 40), QColor(Qt::red));
+        d.undo();
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 160);
+        d.selectAll();
+        d.cropToSelection();
+        d.resizeImage(96, 64);
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 160);
+        QCOMPARE(d.maskImage(d.activeLayer()).size(), QSize(96, 64));
+    }
+    void layerCountLimitAllowsFiveHundredAndTwelveCompactLayers()
+    {
+        Document d;
+        QVERIFY(d.newDocument(8, 8));
+        for (int i = 1; i < 512; ++i)
+            d.addLayer();
+        QCOMPARE(d.layers().size(), 512);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        const int  history = d.historyIndex();
+        d.addLayer();
+        QCOMPARE(d.layers().size(), 512);
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(errors.size(), 1);
+        QVERIFY(errors.last().first().toString().contains("513"));
+    }
+    void frequencyCacheIsByteBoundedAndThumbnailsAvoidNativeRendering()
+    {
+        Document d;
+        QVERIFY(d.newDocument(4096, 2048, false));
+        for (int i = 0; i < 3; ++i) {
+            d.setActiveLayer(0);
+            d.addFrequencySeparation(i + 1);
+        }
+        QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), qint64(0));
+        const auto thumb = d.layerImage(1, QSize(96, 96));
+        QCOMPARE(thumb.size(), QSize(96, 48));
+        QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), qint64(0));
+        for (int i = 1; i <= 6; ++i) {
+            QVERIFY(!d.layerImage(i).isNull());
+            QVERIFY(d.memoryUsage()["frequencyCacheBytes"].toLongLong() <= 128LL * 1024 * 1024);
+        }
+    }
+    void compactProjectFlagsCannotBypassDimensionValidation()
+    {
+        QTemporaryDir dir;
+        Document      d;
+        QVERIFY(d.newDocument(32, 24));
+        d.addLayer();
+        d.addLayerMask();
+        const auto path = QUrl::fromLocalFile(dir.filePath("compact.pcr"));
+        QVERIFY(d.saveProject(path));
+        QFile input(path.toLocalFile());
+        QVERIFY(input.open(QIODevice::ReadOnly));
+        auto root = QJsonDocument::fromJson(input.readAll()).object();
+        input.close();
+        QCOMPARE(root["version"].toInt(), 7);
+        auto layers    = root["layers"].toArray();
+        auto compact   = layers[1].toObject();
+        compact["png"] = layers[0].toObject()["png"]; // Full image with a compact flag.
+        layers[1]      = compact;
+        root["layers"] = layers;
+        QFile output(path.toLocalFile());
+        QVERIFY(output.open(QIODevice::WriteOnly));
+        output.write(QJsonDocument(root).toJson());
+        output.close();
+        const auto before = d.layers();
+        QVERIFY(!d.openFile(path));
+        QCOMPARE(d.layers(), before);
+    }
+    void uniformMasksKeepTheirCoverageAndSurviveGeometryChanges()
+    {
+        Document d;
+        QVERIFY(d.newDocument(40, 30, false));
+        d.addAdjustmentLayer("invert");
+        QCOMPARE(d.composite().pixelColor(20, 15), QColor(Qt::black));
+        d.addLayerMask();
+        d.fillMaskWithColor(QColor(128, 128, 128));
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 1);
+        QVERIFY(qAbs(d.composite().pixelColor(20, 15).red() - 127) <= 1);
+        d.invertLayerMask();
+        QVERIFY(qAbs(d.composite().pixelColor(20, 15).red() - 128) <= 1);
+        d.beginLayerPreview();
+        d.previewLayerParameter("_maskFeather", 3);
+        d.finishLayerPreview();
+        d.resizeImage(25, 20);
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 1);
+        QVERIFY(qAbs(d.composite().pixelColor(10, 10).red() - 128) <= 1);
+        d.toggleMaskOnlyView(d.activeLayer());
+        QCOMPARE(d.displayComposite().size(), QSize(25, 20));
+        QCOMPARE(d.displayComposite().pixelColor(10, 10).red(), 127);
+    }
+    void largeLiveDocumentDoesNotEvictMetadataUndo()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        for (int i = 0; i < 12; ++i)
+            d.renameLayer(0, QString("Rename %1").arg(i));
+        QCOMPARE(d.historyIndex(), 13);
+        for (int i = 0; i < 12; ++i)
+            d.undo();
+        QCOMPARE(d.layerImage(0).pixelColor(0, 0), QColor(Qt::red));
+        d.undo();
+        QCOMPARE(d.layerImage(0).pixelColor(0, 0).alpha(), 0);
     }
 
     void rawDecoderDevelopsSixteenBitSensorData()

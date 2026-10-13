@@ -33,9 +33,11 @@ public:
         if (_id.startsWith("composite"))
             image = m_document->composite();
         else if (_id.startsWith("mask/"))
-            image = m_document->maskImage(_id.section('/', 1, 1).toInt());
+            image = m_document->maskImage(_id.section('/', 1, 1).toInt(),
+                                          _requested.isValid() ? _requested : QSize(180, 120));
         else
-            image = m_document->layerImage(_id.section('/', 0, 0).toInt());
+            image = m_document->layerImage(_id.section('/', 0, 0).toInt(),
+                                           _requested.isValid() ? _requested : QSize(180, 120));
         // A removed delegate can finish requesting its thumbnail while the
         // layer list is being reset. Serve a transparent placeholder for it.
         if (image.isNull()) {

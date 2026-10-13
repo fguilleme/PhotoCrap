@@ -71,9 +71,16 @@ void Document::invertSelection()
 }
 void Document::clearSelected()
 {
-    if (!editable())
+    if (!editable(hasSelection()))
         return;
     edit(tr("Effacer"), [&] {
+        if (!hasSelection()) {
+            if (m_editingMask)
+                m_layers[m_active].mask = ImageUtils::uniformMask(0);
+            else
+                m_layers[m_active].image = ImageUtils::blank(QSize(1, 1), workingFormat());
+            return;
+        }
         QImage *target = paintTarget();
         if (!target)
             return;
@@ -90,12 +97,16 @@ void Document::clearSelected()
 }
 void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
 {
-    if (!editable())
+    if (!editable(hasSelection() || !m_editingMask))
         return;
     const QColor color = _foreground ? m_color : m_secondary;
     edit(_foreground ? tr("Remplir avec la couleur de premier plan")
                      : tr("Remplir avec la couleur d’arrière-plan"),
          [&] {
+             if (m_editingMask && !hasSelection()) {
+                 m_layers[m_active].mask = ImageUtils::uniformMask(qGray(color.rgb()));
+                 return;
+             }
              QImage *target = paintTarget();
              if (!target)
                  return;
@@ -149,9 +160,13 @@ void Document::fillSelectedWithColor(const QColor &_color)
 }
 void Document::fillMaskWithColor(const QColor &_color)
 {
-    if (!m_editingMask || !_color.isValid() || !editable())
+    if (!m_editingMask || !_color.isValid() || !editable(hasSelection()))
         return;
     edit(tr("Remplir le masque avec une couleur"), [&] {
+        if (!hasSelection()) {
+            m_layers[m_active].mask = ImageUtils::uniformMask(qGray(_color.rgb()));
+            return;
+        }
         QImage *target = paintTarget();
         if (!target)
             return;
@@ -201,9 +216,9 @@ void Document::cropToSelection()
         return;
     edit(tr("Recadrer"), [&] {
         for (auto &layer : m_layers) {
-            if (!layer.image.isNull())
+            if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image = layer.image.copy(m_selection);
-            if (!layer.mask.isNull())
+            if (!layer.mask.isNull() && !ImageUtils::compact(layer.mask))
                 layer.mask = layer.mask.copy(m_selection);
             if (!layer.source.isNull())
                 layer.source = layer.source.copy(m_selection);
@@ -225,10 +240,10 @@ void Document::resizeImage(int _w, int _h)
         return;
     edit(tr("Redimensionner l’image"), [&] {
         for (auto &layer : m_layers) {
-            if (!layer.image.isNull())
+            if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     layer.image.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            if (!layer.mask.isNull())
+            if (!layer.mask.isNull() && !ImageUtils::compact(layer.mask))
                 layer.mask =
                     layer.mask.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             if (!layer.source.isNull())

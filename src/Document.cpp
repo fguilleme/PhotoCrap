@@ -15,7 +15,7 @@
 namespace
 {
 constexpr qint64 MaxPixels = 32LL * 1024 * 1024;
-constexpr int    MaxLayers = 64;
+constexpr int    MaxLayers = 512;
 } // namespace
 
 Document::Document(QObject *_parent) : QObject(_parent)
@@ -110,13 +110,14 @@ bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMas
 {
     int colors = _extraColors, masks = _extraMasks;
     for (const auto &layer : std::as_const(m_layers)) {
-        colors += !layer.image.isNull() + !layer.source.isNull();
-        masks += !layer.mask.isNull();
+        colors +=
+            (!layer.image.isNull() && !ImageUtils::compact(layer.image)) + !layer.source.isNull();
+        masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
     }
     return validStorageBytes(
         DocumentStorage::estimateBytes(_w, _h, colors, masks, _bits ? _bits : m_channelBits));
 }
-bool Document::editable()
+bool Document::editable(bool _materialize)
 {
     if (m_active < 0 || m_active >= m_layers.size())
         return false;
@@ -133,6 +134,10 @@ bool Document::editable()
                        "de fréquences pour modifier ses pixels."));
     if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask)
         return fail(tr("Sélectionnez le masque de ce calque pour peindre dessus."));
+    const auto &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+    if (_materialize && ImageUtils::compact(target) &&
+        !validLayerStorage(width(), height(), m_editingMask ? 0 : 1, m_editingMask ? 1 : 0))
+        return false;
     return true;
 }
 Document::Snapshot Document::snapshot(const QString &_label) const
@@ -186,25 +191,65 @@ void Document::restore(const Snapshot &_state)
 }
 void Document::trimHistory()
 {
-    // QImage snapshots share their storage until an edit detaches a layer.
-    // Count unique storage, not theoretical copies, to bound retained history.
-    while (m_undo.size() > 1) {
-        QSet<qint64>      seen;
-        qint64            bytes    = 0;
-        QVector<Snapshot> retained = m_undo;
-        retained.append(m_historyBrushSource);
-        for (const auto &state : retained)
-            for (const auto &layer : state.layers) {
-                for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
-                    if (!image->isNull() && !seen.contains(image->cacheKey())) {
-                        seen.insert(image->cacheKey());
-                        bytes += image->sizeInBytes();
-                    }
-            }
-        if (m_undo.size() <= 40 && bytes <= 256LL * 1024 * 1024)
+    if (m_undo.size() > 40)
+        m_undo.remove(0, m_undo.size() - 40);
+    QSet<qint64> seen;
+    for (const auto &layer : std::as_const(m_layers))
+        for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
+            if (!image->isNull())
+                seen.insert(image->cacheKey());
+    qint64     bytes = 0;
+    const auto count = [&](const Snapshot &_state) {
+        for (const auto &layer : _state.layers)
+            for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
+                if (!image->isNull() && !seen.contains(image->cacheKey())) {
+                    seen.insert(image->cacheKey());
+                    bytes += image->sizeInBytes();
+                }
+    };
+    count(m_historyBrushSource);
+    // Current document pixels are not additional history storage. Walk from
+    // newest to oldest once, retaining at least the most recent undo operation.
+    for (int i = m_undo.size() - 1; i >= 0; --i) {
+        count(m_undo[i]);
+        if (bytes > 256LL * 1024 * 1024 && i < m_undo.size() - 1) {
+            m_undo.remove(0, i + 1);
             break;
-        m_undo.removeFirst();
+        }
     }
+}
+QVariantMap Document::memoryUsage() const
+{
+    QSet<qint64> seen;
+    qint64       layerBytes = 0, historyBytes = 0;
+    int          colors = 0, masks = 0, compactPlanes = 0;
+    const auto   count = [&](const QVector<Layer> &_layers, qint64 &_bytes) {
+        for (const auto &layer : _layers)
+            for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
+                if (!image->isNull() && !seen.contains(image->cacheKey())) {
+                    seen.insert(image->cacheKey());
+                    _bytes += image->sizeInBytes();
+                }
+    };
+    count(m_layers, layerBytes);
+    for (const auto &state : m_undo)
+        count(state.layers, historyBytes);
+    for (const auto &state : m_redo)
+        count(state.layers, historyBytes);
+    count(m_historyBrushSource.layers, historyBytes);
+    for (const auto &layer : m_layers) {
+        colors +=
+            (!layer.image.isNull() && !ImageUtils::compact(layer.image)) + !layer.source.isNull();
+        masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
+        compactPlanes += ImageUtils::compact(layer.image) + ImageUtils::compact(layer.mask);
+    }
+    return {{"layerCount", m_layers.size()},
+            {"compactPlanes", compactPlanes},
+            {"layerBytes", layerBytes},
+            {"historyBytes", historyBytes},
+            {"reservedLayerBytes",
+             DocumentStorage::estimateBytes(width(), height(), colors, masks, m_channelBits)},
+            {"frequencyCacheBytes", qint64(m_frequencyCache.totalCost()) * 1024}};
 }
 void Document::commit(const Snapshot &_before, const QString &_label, bool _invalidateFull,
                       bool _notifyImage)
@@ -433,7 +478,7 @@ QStringList Document::history() const
         result.append(it->label);
     return result;
 }
-QImage Document::layerImage(int _index) const
+QImage Document::layerImage(int _index, const QSize &_requested) const
 {
     if (_index < 0 || _index >= m_layers.size())
         return {};
@@ -448,8 +493,19 @@ QImage Document::layerImage(int _index) const
         painter.drawRoundedRect(QRect(18, 15, 30, 18), 4, 4);
         return icon;
     }
-    if (layer.kind.startsWith(QStringLiteral("frequency")))
-        return frequencyImage(layer);
+    if (layer.kind.startsWith(QStringLiteral("frequency"))) {
+        if (!_requested.isValid())
+            return frequencyImage(layer);
+        // Thumbnails must never render native-resolution frequency bands.
+        Layer       proxy = layer;
+        const QSize size  = m_size.scaled(_requested, Qt::KeepAspectRatio);
+        proxy.source = layer.source.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        proxy.parameters.insert("radius", qMax(1., layer.parameters.value("radius", 8).toDouble() *
+                                                       size.width() / qMax(1, width())));
+        Document renderer;
+        renderer.m_historyBrushSource = {};
+        return renderer.frequencyImage(proxy);
+    }
     if (layer.kind == QStringLiteral("adjustment")) {
         QImage icon(96, 72, QImage::Format_ARGB32_Premultiplied);
         icon.fill(QColor("#232b32"));
@@ -462,11 +518,17 @@ QImage Document::layerImage(int _index) const
         p.drawText(icon.rect(), Qt::AlignCenter, QStringLiteral("A"));
         return icon;
     }
-    return layer.image;
+    const QSize size =
+        _requested.isValid() ? m_size.scaled(_requested, Qt::KeepAspectRatio) : m_size;
+    return ImageUtils::expandedPlane(layer.image, size);
 }
-QImage Document::maskImage(int _index) const
+QImage Document::maskImage(int _index, const QSize &_requested) const
 {
-    return _index >= 0 && _index < m_layers.size() ? m_layers[_index].mask : QImage{};
+    const QSize size =
+        _requested.isValid() ? m_size.scaled(_requested, Qt::KeepAspectRatio) : m_size;
+    return _index >= 0 && _index < m_layers.size()
+               ? ImageUtils::expandedPlane(m_layers[_index].mask, size)
+               : QImage{};
 }
 void Document::setActiveLayer(int _index)
 {

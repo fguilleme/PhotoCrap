@@ -100,6 +100,13 @@ const QImage &Document::composite() const
                 clippingBase = {};
             continue;
         }
+        // Empty pixel layers contribute no coverage.
+        if (layer.kind == QStringLiteral("pixel") && ImageUtils::compact(layer.image) &&
+            layer.image.pixelColor(0, 0).alpha() == 0) {
+            if (!layer.clippingMask)
+                clippingBase = {};
+            continue;
+        }
         // An untouched low/high pair reconstructs its source independently of
         // the radius. Collapsing it avoids two full-image filters per slider tick.
         if (layer.kind == QStringLiteral("frequencyLow") && layerIndex + 1 < m_layers.size()) {
@@ -150,13 +157,17 @@ const QImage &Document::composite() const
         } else if (layer.kind.startsWith(QStringLiteral("frequency")))
             rendered = frequencyImage(layer).copy(workRegion);
         else
-            rendered = layer.image.copy(workRegion);
+            rendered = ImageUtils::compact(layer.image)
+                           ? ImageUtils::expandedPlane(layer.image, workRegion.size())
+                           : layer.image.copy(workRegion);
         if (layer.maskEnabled && !layer.mask.isNull()) {
             const qreal  density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal  feather = layer.parameters.value("_maskFeather", 0.).toDouble();
             const QImage maskRegion =
-                (feather >= .5 ? blurImage(layer.mask, qRound(feather)) : layer.mask)
-                    .copy(workRegion);
+                ImageUtils::compact(layer.mask)
+                    ? layer.mask
+                    : (feather >= .5 ? blurImage(layer.mask, qRound(feather)) : layer.mask)
+                          .copy(workRegion);
             rendered = applyMask(rendered, maskRegion, density, 0);
         }
         if (layer.clippingMask) {
@@ -187,7 +198,7 @@ QImage Document::displayComposite() const
 {
     if (m_maskOnlyView && m_active >= 0 && m_active < m_layers.size() &&
         !m_layers[m_active].mask.isNull()) {
-        QImage mask = m_layers[m_active].mask.convertToFormat(QImage::Format_RGB32);
+        QImage mask = maskImage(m_active).convertToFormat(QImage::Format_RGB32);
         mask.setColorSpace(QColorSpace::SRgb);
         return mask;
     }

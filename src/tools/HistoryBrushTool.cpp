@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImageUtils.h"
 
 #include <QPainter>
 #include <QtMath>
@@ -60,7 +61,7 @@ bool Document::prepareHistoryBrushStroke()
         if (layer.historyId == id) {
             // Immutable for the gesture, including restoration from a future
             // state after Undo. Layer identity survives reordering and renaming.
-            m_historyStrokeSource = layer.image;
+            m_historyStrokeSource = ImageUtils::expandedPlane(layer.image, m_size);
             return true;
         }
     return false;

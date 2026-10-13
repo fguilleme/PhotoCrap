@@ -33,8 +33,8 @@ void Document::renderShape(const QPointF &_to)
         m_strokeChanged = false;
         return;
     }
-    const QImage sourceImage =
-        m_tool == "move" ? m_strokeBase : m_beforeStroke.layers.at(m_active).image;
+    const QImage sourceImage = ImageUtils::expandedPlane(
+        m_tool == "move" ? m_strokeBase : m_beforeStroke.layers.at(m_active).image, m_size);
     if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
         _to != m_anchor) {
         auto layer = m_layers[m_active];

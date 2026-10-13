@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImagePixels.h"
+#include "ImageUtils.h"
 #include "filters/SelectiveColorFilter.h"
 
 #include <QPainter>
@@ -35,7 +36,7 @@ void Document::addAdjustmentLayer(const QString &_type)
                                        {"mosaic", tr("Mosaïque")},
                                        {"noise", tr("Ajout de bruit")}};
     if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1) ||
-        !validLayerStorage(width(), height(), 0, 1))
+        !validLayerStorage(width(), height(), 0, hasSelection() ? 1 : 0))
         return;
     QVariantMap params;
     if (_type == "solidColor")
@@ -112,11 +113,11 @@ void Document::addAdjustmentLayer(const QString &_type)
         layer.kind           = "adjustment";
         layer.adjustmentType = _type;
         layer.parameters     = params;
-        layer.mask           = QImage(m_size, QImage::Format_Grayscale8);
-        layer.mask.fill(hasSelection() ? 0 : 255);
+        layer.mask           = ImageUtils::uniformMask(hasSelection() ? 0 : 255);
         layer.parameters.insert("_maskDensity", 100.);
         layer.parameters.insert("_maskFeather", 0.);
         if (hasSelection()) {
+            layer.mask = ImageUtils::expandedPlane(layer.mask, m_size);
             QPainter painter(&layer.mask);
             painter.setClipRegion(m_selectionRegion);
             painter.fillRect(QRect(QPoint{}, m_size), Qt::white);
@@ -138,7 +139,7 @@ void Document::addFrequencySeparation(qreal _radius)
     if (!std::isfinite(_radius) || !validSize(width(), height(), int(m_layers.size()) + 2) ||
         !validLayerStorage(width(), height(), 2))
         return;
-    QImage source = m_layers[m_active].kind == "pixel" ? m_layers[m_active].image : composite();
+    QImage source = m_layers[m_active].kind == "pixel" ? layerImage(m_active) : composite();
     if (m_layers[m_active].kind == "pixel" && m_layers[m_active].maskEnabled &&
         !m_layers[m_active].mask.isNull())
         source =

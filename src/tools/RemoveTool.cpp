@@ -186,7 +186,7 @@ void Document::applyRemoval()
     if (m_removeRegion.isEmpty() || m_removeBusy || !editable() || m_editingMask)
         return;
     const Snapshot       before     = snapshot(tr("Suppression"));
-    const QImage         source     = m_layers[m_active].image;
+    const QImage         source     = layerImage(m_active);
     const QVector<Layer> layers     = m_removeSampleAllLayers ? m_layers : QVector<Layer>{};
     const QSize          size       = m_size;
     const QRegion        region     = m_removeRegion;

@@ -137,7 +137,7 @@ void Document::applyMagicWand(const QPoint &_point)
         m_layers[m_active].kind != QStringLiteral("pixel"))
         source = composite();
     else
-        source = m_layers[m_active].image;
+        source = layerImage(m_active);
     m_selectionRegionBeforeStroke = m_selectionRegion;
     QRegion candidate =
         colorRegion(source, _point, m_selectionTolerance, m_selectionContiguous, source.rect());
@@ -164,7 +164,7 @@ void Document::continueQuickSelection(const QPointF &_point)
         m_layers[m_active].kind != QStringLiteral("pixel"))
         source = composite();
     else
-        source = m_layers[m_active].image;
+        source = layerImage(m_active);
     const QPoint seed(qBound(0, qRound(_point.x()), m_size.width() - 1),
                       qBound(0, qRound(_point.y()), m_size.height() - 1));
     const int    radius = qMax(2, qRound(m_brushSize / 2));

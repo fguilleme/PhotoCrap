@@ -217,14 +217,16 @@ bool Document::saveProject(const QUrl &_url)
                                   {"adjustmentType", layer.adjustmentType},
                                   {"parameters", QJsonObject::fromVariantMap(layer.parameters)},
                                   {"png", png},
+                                  {"compactPixels", ImageUtils::compact(layer.image)},
                                   {"mask", mask},
+                                  {"compactMask", ImageUtils::compact(layer.mask)},
                                   {"maskEnabled", layer.maskEnabled},
                                   {"clippingMask", layer.clippingMask},
                                   {"groupId", layer.groupId},
                                   {"groupCollapsed", layer.groupCollapsed},
                                   {"source", source}});
     }
-    QJsonObject root{{"format", "PhotoCrap"},   {"version", 6},
+    QJsonObject root{{"format", "PhotoCrap"},   {"version", 7},
                      {"width", width()},        {"height", height()},
                      {"activeLayer", m_active}, {"layers", layers}};
     root["channelBits"] = m_channelBits;
@@ -259,7 +261,7 @@ bool Document::loadProject(const QString &_path)
     const auto      root    = json.object();
     const int       version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 6))
+        (version < 1 || version > 7))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
@@ -273,15 +275,19 @@ bool Document::loadProject(const QString &_path)
     int colors = 0, masks = 0;
     for (const auto &value : array) {
         const auto object = value.toObject();
-        colors += !object["png"].toString().isEmpty() + !object["source"].toString().isEmpty();
-        masks += !object["mask"].toString().isEmpty();
+        colors += (!object["png"].toString().isEmpty() &&
+                   !(version >= 7 && object["compactPixels"].toBool())) +
+                  !object["source"].toString().isEmpty();
+        masks += !object["mask"].toString().isEmpty() &&
+                 !(version >= 7 && object["compactMask"].toBool());
     }
     if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
     QVector<Layer> layers;
     for (const auto &value : array) {
         auto object = value.toObject();
-        auto decode = [&](const QString &_encoded, QImage::Format _format) -> QImage {
+        auto decode = [&](const QString &_encoded, QImage::Format _format,
+                          bool _compact = false) -> QImage {
             if (_encoded.isEmpty())
                 return {};
             QByteArray bytes = QByteArray::fromBase64(_encoded.toLatin1(),
@@ -289,7 +295,7 @@ bool Document::loadProject(const QString &_path)
             QBuffer    buffer(&bytes);
             buffer.open(QIODevice::ReadOnly);
             QImageReader reader(&buffer, "PNG");
-            if (reader.size() != QSize(w, h))
+            if (reader.size() != (_compact ? QSize(1, 1) : QSize(w, h)))
                 return {};
             return reader.read().convertToFormat(_format);
         };
@@ -298,8 +304,10 @@ bool Document::loadProject(const QString &_path)
         if (kind != "pixel" && kind != "adjustment" && kind != "group" && kind != "frequency" &&
             kind != "frequencyLow" && kind != "frequencyHigh")
             return fail(tr("Type de calque inconnu."));
-        auto image  = decode(object["png"].toString(), format);
-        auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8);
+        auto image  = decode(object["png"].toString(), format,
+                             version >= 7 && object["compactPixels"].toBool());
+        auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8,
+                             version >= 7 && object["compactMask"].toBool());
         auto source = decode(object["source"].toString(), format);
         if ((kind == "pixel" && image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||

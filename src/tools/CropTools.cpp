@@ -294,7 +294,7 @@ void Document::applyCrop()
     watcher->setFuture(QtConcurrent::run([layers = m_layers, transform, outputSize]() mutable {
         CropResult result;
         const auto warp = [&transform, outputSize, &result](QImage &_image) {
-            if (_image.isNull())
+            if (_image.isNull() || ImageUtils::compact(_image))
                 return;
             QImage output = ImageUtils::blank(outputSize, ImageUtils::workingFormat(_image));
             if (output.isNull()) {

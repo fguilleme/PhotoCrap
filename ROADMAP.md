@@ -6,7 +6,7 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 
 ## Disponible en 0.11.0
 
-- [x] Documents raster RVB sRGB 8 bits, import d’images, export aplati et projets `.pcr` version 5 compatibles en lecture avec les versions 1–4.
+- [x] Documents raster RVB sRGB 8 bits, import d’images, export aplati et projets `.pcr` version 7 compatibles en lecture avec les versions 1–6.
 - [x] Calques de pixels, Couleur unie, réglages non destructifs, groupes, écrêtage et 27 modes de fusion avec aperçu au survol.
 - [x] Masques raster : création, peinture, inversion, activation/désactivation, affichage isolé par Alt-clic et copie vers un autre calque par glisser. Alt-clic sur l’œil isole un calque puis restaure les visibilités.
 - [x] Panneaux Histogramme, Navigateur, Couleur, Calques, Couches, Historique et Informations : redimensionnement, repli, déplacement, regroupement en onglets, colonnes, flottants et organisation sauvegardée. Visibilité contrôlée depuis Affichage → Panneaux.
@@ -45,6 +45,7 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 
+- [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Tests de charge de 301 calques sur une image 24 Mpx en 16 bits et liste de calques virtualisée.
 - [ ] Composition et stockage par tuiles, invalidation fine des caches et traitements régionaux plus systématiques.
 - [ ] Généraliser le calcul asynchrone avec annulation des résultats périmés aux opérations complètes de calques, masques, transformations et filtres directs.
 - [ ] Mesures de latence, mémoire et précision des aperçus par outil/filtre, notamment lorsque le rayon d’un flou est ramené à la résolution du proxy.

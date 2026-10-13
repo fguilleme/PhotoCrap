@@ -3005,6 +3005,8 @@ ApplicationWindow {
                     }
                     ListView {
                         id: layerList
+                        objectName: "layerListView"
+                        reuseItems: true
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
                         clip: true; spacing: 5; model: editor.layers
                         ScrollBar.vertical: ScrollBar {}

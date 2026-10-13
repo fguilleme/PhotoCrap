@@ -1985,6 +1985,20 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
     _document.newDocument(64, 64);
+    for (int i = 0; i < 300; ++i)
+        _document.addLayer();
+    QTest::qWait(100);
+    auto manyLayerList = _window->findChild<QObject *>("layerListView");
+    if (!require(manyLayerList && manyLayerList->property("count").toInt() == 301 &&
+                     _window->findChildren<QObject *>("layerDelegate").size() < 40,
+                 "hundreds of layers instantiate only visible list delegates"))
+        return false;
+    QMetaObject::invokeMethod(manyLayerList, "positionViewAtEnd");
+    QTest::qWait(100);
+    if (!require(_window->findChildren<QObject *>("layerDelegate").size() < 40,
+                 "layer delegates remain bounded after scrolling through a large stack"))
+        return false;
+    _document.newDocument(64, 64);
     _document.addFrequencySeparation(4);
     QMetaObject::invokeMethod(layerProperties, "open");
     QTest::qWait(100);

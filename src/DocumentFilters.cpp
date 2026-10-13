@@ -35,6 +35,8 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
 {
     if (_source.isNull() || _mask.isNull())
         return _source;
+    if (ImageUtils::compact(_mask) && (_mask.constScanLine(0)[0] == 255 || _density <= 0))
+        return _source;
     const auto render = [&]<typename Pixel>() -> QImage {
         using P               = ImageUtils::PixelAccess<Pixel>;
         QImage result         = _source.convertToFormat(P::premultiplied);
@@ -42,13 +44,14 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
         _feather              = qBound(0., _feather, 100.);
         const QImage coverage = (_feather >= .5 ? blurImage(_mask, P::round(_feather)) : _mask)
                                     .convertToFormat(QImage::Format_Grayscale8);
-        const int    h        = qMin(result.height(), coverage.height()),
-                     w        = qMin(result.width(), coverage.width());
+        const bool   uniform  = ImageUtils::compact(coverage);
+        const int    h = uniform ? result.height() : qMin(result.height(), coverage.height()),
+                     w = uniform ? result.width() : qMin(result.width(), coverage.width());
         for (int y = 0; y < h; ++y) {
             auto         pixels = reinterpret_cast<Pixel *>(result.scanLine(y));
-            const uchar *m      = coverage.constScanLine(y);
+            const uchar *m      = coverage.constScanLine(uniform ? 0 : y);
             for (int x = 0; x < w; ++x) {
-                const double a = P::round(255 - (255 - m[x]) * _density);
+                const double a = P::round(255 - (255 - m[uniform ? 0 : x]) * _density);
                 pixels[x] = P::rgba(P::red(pixels[x]) * a / 255, P::green(pixels[x]) * a / 255,
                                     P::blue(pixels[x]) * a / 255, P::alpha(pixels[x]) * a / 255);
             }
@@ -472,23 +475,23 @@ QImage Document::frequencyImage(const Layer &_layer) const
             QString::number(_layer.source.cacheKey()) + QLatin1Char('/') + QString::number(radius) +
             (previewScale < 1 ? QStringLiteral("/draft/") + QString::number(source.width())
                               : QStringLiteral("/full"));
-        const QString lowKey = QStringLiteral("low/") + cacheBase;
-        QImage        low    = m_frequencyCache.value(lowKey);
+        const QString lowKey    = QStringLiteral("low/") + cacheBase;
+        const auto    cachedLow = m_frequencyCache.object(lowKey);
+        QImage        low       = cachedLow ? *cachedLow : QImage{};
         if (low.isNull()) {
-            if (m_frequencyCache.size() > 12)
-                m_frequencyCache.clear();
             low = blurImage(source, qMax(1, qRound(radius * previewScale)))
                       .convertToFormat(P::format);
             if (previewScale < 1)
                 low = low.scaled(_layer.source.size(), Qt::IgnoreAspectRatio,
                                  Qt::SmoothTransformation);
-            m_frequencyCache.insert(lowKey, low);
+            m_frequencyCache.insert(lowKey, new QImage(low),
+                                    int((low.sizeInBytes() + 1023) / 1024));
         }
         if (_layer.kind == QStringLiteral("frequencyLow"))
             return low;
         const QString highKey = QStringLiteral("high/") + cacheBase;
-        if (m_frequencyCache.contains(highKey))
-            return m_frequencyCache.value(highKey);
+        if (const auto cachedHigh = m_frequencyCache.object(highKey))
+            return *cachedHigh;
         const QImage fullSource = _layer.source.convertToFormat(P::format);
         QImage       result(fullSource.size(), P::format);
         QVector<int> rows(fullSource.height());
@@ -510,7 +513,8 @@ QImage Document::frequencyImage(const Layer &_layer) const
         });
         result = result.convertToFormat(P::premultiplied);
         result.setColorSpace(_layer.source.colorSpace());
-        m_frequencyCache.insert(highKey, result);
+        m_frequencyCache.insert(highKey, new QImage(result),
+                                int((result.sizeInBytes() + 1023) / 1024));
         return result;
     };
     return ImageUtils::is16Bit(_layer.source) ? render.template operator()<QRgba64>()

@@ -155,10 +155,10 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     if (renderSize != _size) {
         const qreal scale = qreal(renderSize.width()) / qMax(1, _size.width());
         for (Layer &layer : _layers) {
-            if (!layer.image.isNull())
+            if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     cachedScreenProxy(layer.image, renderSize, QImage::Format_ARGB32_Premultiplied);
-            if (!layer.mask.isNull())
+            if (!layer.mask.isNull() && !ImageUtils::compact(layer.mask))
                 layer.mask = cachedScreenProxy(layer.mask, renderSize, QImage::Format_Grayscale8);
             if (!layer.source.isNull())
                 layer.source = cachedScreenProxy(layer.source, renderSize,

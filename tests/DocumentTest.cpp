@@ -609,6 +609,8 @@ private slots:
         QVERIFY(shortcuts.filteredEntries({}, 3).size() > 30);
         QVERIFY(!shortcuts.filteredEntries("Fluidité", 2).isEmpty());
         QVERIFY(shortcuts.filteredEntries("Fluidité", 1).isEmpty());
+        QVERIFY(shortcuts.filteredEntries("Gomme magique", 2).isEmpty());
+        QVERIFY(!shortcuts.filteredEntries("Gomme magique", 3).isEmpty());
         QCOMPARE(shortcuts.sequence("invertSelection"), QString("Ctrl+Shift+I"));
         QCOMPARE(shortcuts.sequence("channel0"), QString("Ctrl+2"));
         QCOMPARE(shortcuts.sequence("backgroundFill"), QString("Ctrl+Backspace"));
@@ -855,6 +857,213 @@ private slots:
         d.fillWithColor(true);
         QCOMPARE(d.composite().pixelColor(20, 4), QColor(Qt::green));
         QCOMPARE(d.composite().pixelColor(19, 4).alpha(), 0);
+    }
+    void magicEraserContiguitySelectionAndHistory()
+    {
+        QTemporaryDir dir;
+        for (const int bits : {8, 16}) {
+            QImage image(9, 5,
+                         bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                    : QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::red);
+            for (int y = 0; y < 5; ++y)
+                for (int x = 3; x <= 5; ++x)
+                    image.setPixelColor(x, y, Qt::blue);
+            const QString path = dir.filePath(QStringLiteral("erase%1.png").arg(bits));
+            QVERIFY(image.save(path));
+            Document d;
+            QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+            d.setTool("magicEraser");
+            QCOMPARE(d.tool(), QString("magicEraser"));
+            QVERIFY(d.toolSupportsDepth("magicEraser"));
+            d.setMagicEraserTolerance(0);
+            d.setMagicEraserAntialias(false);
+            const auto original = d.layerImage(0);
+            const int  history  = d.historyIndex();
+            d.beginStroke(1, 2);
+            QVERIFY(d.magicEraserBusy());
+            d.endStroke();
+            QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+            QCOMPARE(d.layerImage(0).pixelColor(1, 2).alpha(), 0);
+            QCOMPARE(d.layerImage(0).pixelColor(7, 2), QColor(Qt::red));
+            QCOMPARE(d.layerImage(0).pixelColor(4, 2), QColor(Qt::blue));
+            QCOMPARE(d.historyIndex(), history + 1);
+            QCOMPARE(d.channelBits(), bits);
+            d.undo();
+            QCOMPARE(d.layerImage(0), original);
+            d.redo();
+            QCOMPARE(d.layerImage(0).pixelColor(1, 2).alpha(), 0);
+            d.undo();
+            d.setMagicEraserContiguous(false);
+            d.beginStroke(1, 2);
+            QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+            QCOMPARE(d.layerImage(0).pixelColor(7, 2).alpha(), 0);
+            QCOMPARE(d.layerImage(0).pixelColor(4, 2), QColor(Qt::blue));
+            d.undo();
+            d.setTool("select");
+            d.beginStroke(0, 0);
+            d.continueStroke(1, 4);
+            d.endStroke();
+            const QRegion selection = d.selectionRegion();
+            d.setTool("magicEraser");
+            d.beginStroke(0, 2);
+            QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+            QCOMPARE(d.layerImage(0).pixelColor(0, 2).alpha(), 0);
+            QCOMPARE(d.layerImage(0).pixelColor(2, 2), QColor(Qt::red));
+            QCOMPARE(d.layerImage(0).pixelColor(7, 2), QColor(Qt::red));
+            QCOMPARE(d.selectionRegion(), selection);
+            const auto selectedHistory = d.history();
+            d.beginStroke(7, 2); // Outside the selection: no change or undo entry.
+            QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+            QCOMPARE(d.history(), selectedHistory);
+            d.beginStroke(-1, 2);
+            QCOMPARE(d.history(), selectedHistory);
+            d.setLayerLocked(0, true);
+            QSignalSpy errors(&d, &Document::errorOccurred);
+            d.beginStroke(0, 2);
+            QCOMPARE(errors.size(), 1);
+            QVERIFY(!d.magicEraserBusy());
+        }
+    }
+    void magicEraserNativePrecisionOpacityAndTolerance()
+    {
+        QTemporaryDir dir;
+        QImage        image(3, 1, QImage::Format_RGBA64_Premultiplied);
+        auto         *pixels = reinterpret_cast<QRgba64 *>(image.scanLine(0));
+        pixels[0]            = QRgba64::fromRgba64(30001, 12001, 6001, 65535);
+        pixels[1]            = QRgba64::fromRgba64(30101, 12001, 6001, 65535);
+        pixels[2]            = QRgba64::fromRgba64(20000, 10000, 5000, 32768);
+        const QString path   = dir.filePath("precise.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        const QImage original = d.layerImage(0);
+        const auto  *before   = reinterpret_cast<const QRgba64 *>(original.constScanLine(0));
+        d.setTool("magicEraser");
+        d.setMagicEraserAntialias(false);
+        d.setMagicEraserTolerance(0);
+        d.setMagicEraserContiguous(false);
+        d.setBrushOpacity(.5);
+        d.beginStroke(0, 0);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+        const QImage erased = d.layerImage(0);
+        const auto  *after  = reinterpret_cast<const QRgba64 *>(erased.constScanLine(0));
+        QCOMPARE(after[0].alpha(), quint16(32768));
+        QCOMPARE(after[0].red(), quint16(qRound(before[0].red() * .5)));
+        QCOMPARE(after[1], before[1]); // Same 8-bit bucket, different native 16-bit colour.
+        QCOMPARE(after[2], before[2]); // Premultiplied semitransparent pixel untouched.
+        d.undo();
+        d.setBrushOpacity(1);
+        d.setMagicEraserTolerance(1);
+        d.beginStroke(0, 0);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+        QCOMPARE(d.layerImage(0).pixelColor(1, 0).alpha(), 0);
+        QCOMPARE(d.layerImage(0).pixelColor(2, 0), original.pixelColor(2, 0));
+    }
+    void magicEraserAntialiasOnlySoftensMatchingBoundary()
+    {
+        Document d;
+        QVERIFY(d.newDocument(12, 8));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setTool("select");
+        d.beginStroke(6, 0);
+        d.continueStroke(11, 7);
+        d.endStroke();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.deselect();
+        d.setTool("magicEraser");
+        d.setMagicEraserTolerance(0);
+        d.beginStroke(2, 4);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+        QCOMPARE(d.layerImage(0).pixelColor(2, 4).alpha(), 0);
+        const int edge = d.layerImage(0).pixelColor(5, 4).alpha();
+        QVERIFY(edge > 0 && edge < 255);
+        QCOMPARE(d.layerImage(0).pixelColor(6, 4), QColor(Qt::blue));
+    }
+    void magicEraserSamplesCompositeButOnlyErasesActiveLayer()
+    {
+        Document d;
+        QVERIFY(d.newDocument(12, 8));
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.setTool("select");
+        d.beginStroke(6, 0);
+        d.continueStroke(11, 7);
+        d.endStroke();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.deselect();
+        const QImage background = d.layerImage(0);
+        d.addLayer();
+        d.setColor(Qt::green);
+        d.fillWithColor(true);
+        d.setLayerOpacity(d.activeLayer(), .5);
+        const QImage foreground = d.layerImage(d.activeLayer());
+        d.setTool("magicEraser");
+        d.setMagicEraserTolerance(0);
+        d.setMagicEraserAntialias(false);
+        d.setMagicEraserSampleAllLayers(true);
+        d.beginStroke(2, 4);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+        QCOMPARE(d.layerImage(d.activeLayer()).pixelColor(2, 4).alpha(), 0);
+        QCOMPARE(d.layerImage(d.activeLayer()).pixelColor(9, 4), QColor(Qt::green));
+        QCOMPARE(d.layerImage(0), background);
+        d.undo();
+        QCOMPARE(d.layerImage(d.activeLayer()), foreground);
+        d.setMagicEraserSampleAllLayers(false);
+        d.beginStroke(2, 4);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.magicEraserBusy(), 10000);
+        QCOMPARE(d.layerImage(d.activeLayer()).pixelColor(9, 4).alpha(), 0);
+        d.undo();
+        d.addLayerMask();
+        const QImage mask = d.maskImage(d.activeLayer());
+        QSignalSpy   errors(&d, &Document::errorOccurred);
+        d.beginStroke(2, 4);
+        QCOMPARE(errors.size(), 1); // Raster masks have no transparency to erase.
+        QCOMPARE(d.maskImage(d.activeLayer()), mask);
+        QVERIFY(!d.magicEraserBusy());
+    }
+    void magicEraserCancelsAndDiscardsStaleResults()
+    {
+        Document d;
+        QVERIFY(d.newDocument(2048, 1024));
+        d.setTool("magicEraser");
+        d.setMagicEraserAntialias(false);
+        const QImage  original = d.layerImage(0);
+        const auto    history  = d.history();
+        QElapsedTimer timer;
+        timer.start();
+        d.beginStroke(500, 500);
+        QVERIFY(d.magicEraserBusy());
+        QVERIFY(timer.elapsed() < 500); // Scheduling must not traverse the image.
+        d.cancelMagicErase();
+        QVERIFY(!d.magicEraserBusy());
+        QVERIFY(QThreadPool::globalInstance()->waitForDone(10000));
+        QTest::qWait(30);
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.history(), history);
+        d.beginStroke(500, 500);
+        d.setTool("brush");
+        QVERIFY(!d.magicEraserBusy());
+        QVERIFY(QThreadPool::globalInstance()->waitForDone(10000));
+        QTest::qWait(30);
+        QCOMPARE(d.layerImage(0), original);
+        d.setTool("magicEraser");
+        d.beginStroke(500, 500);
+        QVERIFY(d.newDocument(24, 24));
+        QVERIFY(QThreadPool::globalInstance()->waitForDone(10000));
+        QTest::qWait(30);
+        QCOMPARE(d.layerImage(0).size(), QSize(24, 24));
+        QCOMPARE(d.layerImage(0).pixelColor(0, 0), QColor(Qt::white));
+        QVERIFY(!d.magicEraserBusy());
+        d.addLayer();
+        const auto emptyHistory = d.history();
+        d.beginStroke(4, 4);
+        QVERIFY(!d.magicEraserBusy());
+        QCOMPARE(d.history(), emptyHistory);
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 1);
     }
     void smartSelectionsFollowColorAndCombineLikePhotoshop()
     {

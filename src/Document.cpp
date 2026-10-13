@@ -65,10 +65,12 @@ Document::Document(QObject *_parent) : QObject(_parent)
     connect(this, &Document::selectionChanged, this, [this] {
         invalidateContentMove();
         cancelRemoval();
+        cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, [this] {
         invalidateContentMove();
         cancelRemoval();
+        cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, &Document::historyBrushSourceChanged);
     newDocument(1280, 800);
@@ -77,6 +79,7 @@ Document::~Document()
 {
     cancelRawLoad();
     cancelFrequencyRetouch();
+    cancelMagicErase();
     if (m_removeCancel)
         m_removeCancel->store(true);
     if (m_contentMoveCancel)
@@ -279,6 +282,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    cancelMagicErase();
     invalidateContentMove();
     cancelRemoval();
     if (m_maskOnlyView &&
@@ -318,6 +322,7 @@ void Document::resetHistory(bool _clean)
     m_lastSelectionRegion = {};
     cancelRawLoad();
     cancelFrequencyRetouch();
+    cancelMagicErase();
     cancelCrop();
     m_slices.clear();
     m_activeSlice   = -1;

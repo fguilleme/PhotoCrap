@@ -4461,4 +4461,17 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Les retouches des calques Basses fréquences et Hautes fréquences seront abandonnées. Leurs sources d’origine, masques et propriétés seront conservés. Vous pourrez annuler cette opération pour retrouver les retouches.</source><translation>Retouches to the Low frequencies and High frequencies layers will be discarded. Their original sources, masks and properties will be retained. You can undo this operation to recover the retouches.</translation></message>
     <message><source>Revenir au rayon</source><translation>Return to radius</translation></message>
 </context>
+  <context>
+    <name>Main</name>
+    <message><source>Pixels contigus</source><translation>Contiguous</translation></message>
+    <message><source>Effacement… Échap pour annuler</source><translation>Erasing… Escape to cancel</translation></message>
+  </context>
+  <context>
+    <name>Document</name>
+    <message><source>Gomme magique</source><translation>Magic Eraser</translation></message>
+    <message><source>La gomme magique efface les pixels du calque. Utilisez le pinceau ou la gomme pour modifier un masque.</source><translation>The Magic Eraser erases layer pixels. Use the brush or eraser to edit a mask.</translation></message>
+  </context>
+  <context><name>ShortcutManager</name>
+    <message><source>E / Maj+E / clic droit dans le groupe Gomme</source><translation>E / Shift+E / right-click in the Eraser group</translation></message>
+  </context>
 </TS>

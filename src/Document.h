@@ -218,6 +218,15 @@ class Document : public QObject
                    setSelectionSampleAllLayers NOTIFY settingsChanged)
     Q_PROPERTY(bool selectionEnhanceEdge READ selectionEnhanceEdge WRITE setSelectionEnhanceEdge
                    NOTIFY settingsChanged)
+    Q_PROPERTY(int magicEraserTolerance READ magicEraserTolerance WRITE setMagicEraserTolerance
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool magicEraserContiguous READ magicEraserContiguous WRITE setMagicEraserContiguous
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool magicEraserAntialias READ magicEraserAntialias WRITE setMagicEraserAntialias
+                   NOTIFY settingsChanged)
+    Q_PROPERTY(bool magicEraserSampleAllLayers READ magicEraserSampleAllLayers WRITE
+                   setMagicEraserSampleAllLayers NOTIFY settingsChanged)
+    Q_PROPERTY(bool magicEraserBusy READ magicEraserBusy NOTIFY settingsChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
@@ -449,6 +458,32 @@ public:
     {
         return m_selectionRegion;
     }
+    int magicEraserTolerance() const
+    {
+        return m_magicEraserTolerance;
+    }
+    bool magicEraserContiguous() const
+    {
+        return m_magicEraserContiguous;
+    }
+    bool magicEraserAntialias() const
+    {
+        return m_magicEraserAntialias;
+    }
+    bool magicEraserSampleAllLayers() const
+    {
+        return m_magicEraserSampleAllLayers;
+    }
+    bool magicEraserBusy() const
+    {
+        return m_magicEraserBusy;
+    }
+    void             setMagicEraserTolerance(int _value);
+    void             setMagicEraserContiguous(bool _value);
+    void             setMagicEraserAntialias(bool _value);
+    void             setMagicEraserSampleAllLayers(bool _value);
+    Q_INVOKABLE void cancelMagicErase();
+
     quint64 documentSession() const
     {
         return m_documentSession;
@@ -1088,6 +1123,11 @@ private:
     bool                              m_rawAsLayer = false;
     void                              finishRawLoad();
     bool adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _asLayer);
+    int  m_magicEraserTolerance  = 32;
+    bool m_magicEraserContiguous = true, m_magicEraserAntialias = true;
+    bool m_magicEraserSampleAllLayers = false, m_magicEraserBusy = false;
+    std::shared_ptr<std::atomic_bool> m_magicEraserCancel;
+
     int  m_eyedropperSize = 1, m_eyedropperSource = 0;
     bool m_eyedropperRing = true;
 
@@ -1286,6 +1326,7 @@ private:
                                 const QVariantMap &_parameters);
     QImage        frequencyImage(const Layer &_layer) const;
     void          requestPreviewRender(bool _draft, bool _refine = false);
+    void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                         const QSize &_targetSize, bool _draft);

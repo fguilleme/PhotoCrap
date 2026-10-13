@@ -20,6 +20,7 @@ void Document::setTool(const QString &_value)
                                    "cloneStamp",
                                    "patternStamp",
                                    "eraser",
+                                   "magicEraser",
                                    "fill",
                                    "picker",
                                    "move",
@@ -66,6 +67,8 @@ void Document::setTool(const QString &_value)
         cancelCrop();
         endSliceGesture(true);
     }
+    if (m_tool != _value)
+        cancelMagicErase();
     m_tool = _value;
     if (m_tool == "mixerBrush" && m_mixerPaint.isNull())
         loadMixerBrush();

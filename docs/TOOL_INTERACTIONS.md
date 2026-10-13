@@ -60,3 +60,11 @@ PhotoCrap reste un éditeur raster : absence de tracés vectoriels, transformati
 - [Formes](https://helpx.adobe.com/id_en/photoshop/using/drawing-shapes.html)
 - [Recadrage](https://www.adobe.com/learn/photoshop/web/crop-straighten-to-improve-composition)
 - [Guide et tableau complet des raccourcis, notamment les tranches](https://helpx.adobe.com/content/dam/help/en/pdf/photoshop_reference.pdf)
+
+## Gomme magique
+
+Référence : [Gomme magique, documentation Adobe](https://helpx.adobe.com/photoshop/using/tool-techniques/magic-eraser-tool.html). Le groupe E contient désormais Gomme et Gomme magique ; Maj+E parcourt les variantes disponibles. Le clic droit choisit la variante.
+
+Un clic efface les couleurs proches de l’échantillon sur le calque de pixels actif. Tolérance va de 0 à 255 ; Contigu limite l’effacement à la zone connectée. Tous les calques prélève dans la composition visible, mais seul le calque actif est modifié. Opacité règle la force d’effacement ; Lissage adoucit les bords. Le calcul est asynchrone, annulable par Échap, respecte la sélection et crée une seule étape d’historique. Les masques n’ont pas de transparence à effacer : utiliser la gomme normale ou le pinceau sur un masque.
+
+La comparaison de couleurs et le lissage sont des algorithmes propres à PhotoCrap ; leurs résultats ne sont pas garantis identiques à Photoshop. Les composantes 16 bits restent à leur précision native. Le traitement des pixels est limité aux zones correspondantes ; la copie nécessaire à l’historique conserve encore un plan entier en mémoire.

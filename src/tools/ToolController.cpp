@@ -80,6 +80,12 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
                 "le menu Image."));
         return;
     }
+    if (m_magicEraserBusy)
+        return;
+    if (m_tool == "magicEraser") {
+        applyMagicEraser(QPoint(int(std::floor(_x)), int(std::floor(_y))));
+        return;
+    }
     invalidateContentMove();
     if (m_tool != "remove")
         cancelRemoval();

@@ -55,7 +55,7 @@ ApplicationWindow {
     // Qt maps ControlModifier to Command on macOS, MetaModifier to physical Control.
     readonly property bool primaryPressed: Boolean(toolInput.modifiers & Qt.ControlModifier)
     readonly property bool temporaryPickerActive: stampSourcePicking && !primaryPressed
-        && ["brush", "pencil", "eraser", "historyBrush", "artHistoryBrush", "fill", "gradient"].indexOf(editor.tool) >= 0
+        && ["brush", "pencil", "eraser", "magicEraser", "historyBrush", "artHistoryBrush", "fill", "gradient"].indexOf(editor.tool) >= 0
     readonly property bool temporaryMoveActive: primaryPressed && !stampSourcePicking
         && !window.cropToolActive && !window.sliceToolActive && !window.shapeToolActive
         && editor.tool !== "move" && editor.tool !== "hand" && editor.tool !== "rotateView" && editor.tool !== "zoomTool"
@@ -177,7 +177,7 @@ ApplicationWindow {
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                             || editor.tool === "eraser" || editor.tool === "remove" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                              || editor.tool === "eraser" || editor.tool === "fill"
+                                              || editor.tool === "eraser" || editor.tool === "magicEraser" || editor.tool === "fill"
                                               || editor.tool === "gradient" || editor.tool === "text" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || stampToolActive
     property bool layerContextMenuVisible: layerContextMenu.visible
     property real parameterSliderWidth: 0
@@ -283,7 +283,7 @@ ApplicationWindow {
         {name:"artHistoryBrush", icon:"◔", label:qsTr("Forme d’historique artistique"), implemented:true},
         {name:"eraser", icon:"▱", label:qsTr("Gomme"), implemented:true},
         {name:"backgroundEraser", icon:"◇", label:qsTr("Gomme d’arrière-plan"), implemented:false},
-        {name:"magicEraser", icon:"✧", label:qsTr("Gomme magique"), implemented:false},
+        {name:"magicEraser", icon:"✧", label:qsTr("Gomme magique"), implemented:true},
         {name:"gradient", icon:"▨", label:qsTr("Dégradé"), implemented:true},
         {name:"fill", icon:"◩", label:qsTr("Remplissage contigu"), implemented:true},
         {name:"blur", icon:"●", label:qsTr("Flou"), implemented:true},
@@ -1099,6 +1099,7 @@ ApplicationWindow {
         enabled: !window.modalOpen
         sequence: "Escape"
         onActivated: {
+            if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
             if (window.cropToolActive) { editor.cancelCrop(); return }
             if (window.sliceToolActive) { editor.endSliceGesture(true); return }
             const movingContent = editor.removeHasPending || editor.removeBusy || editor.tool === "remove" || editor.contentMoveBusy
@@ -1431,6 +1432,37 @@ ApplicationWindow {
                     text: qsTr("Améliorer le contour")
                     checked: editor.selectionEnhanceEdge
                     onToggled: editor.selectionEnhanceEdge = checked
+                }
+                Label { visible: editor.tool === "magicEraser"; text: qsTr("Tolérance"); color: "#87929e" }
+                DarkSpinBox {
+                    objectName: "magicEraserTolerance"
+                    visible: editor.tool === "magicEraser"
+                    from: 0; to: 255; value: editor.magicEraserTolerance
+                    implicitWidth: 82
+                    onValueModified: editor.magicEraserTolerance = value
+                }
+                CheckBox {
+                    objectName: "magicEraserAntialias"
+                    visible: editor.tool === "magicEraser"; text: qsTr("Lissage")
+                    checked: editor.magicEraserAntialias
+                    onToggled: editor.magicEraserAntialias = checked
+                }
+                CheckBox {
+                    objectName: "magicEraserContiguous"
+                    visible: editor.tool === "magicEraser"; text: qsTr("Pixels contigus")
+                    checked: editor.magicEraserContiguous
+                    onToggled: editor.magicEraserContiguous = checked
+                }
+                CheckBox {
+                    objectName: "magicEraserSampleAllLayers"
+                    visible: editor.tool === "magicEraser"; text: qsTr("Tous les calques")
+                    checked: editor.magicEraserSampleAllLayers
+                    onToggled: editor.magicEraserSampleAllLayers = checked
+                }
+                Label {
+                    visible: editor.magicEraserBusy
+                    text: qsTr("Effacement… Échap pour annuler")
+                    color: "#c8d0d9"
                 }
                 Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
                 DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
@@ -2200,7 +2232,7 @@ ApplicationWindow {
                                 }
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                enabled: !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
+                                enabled: !editor.magicEraserBusy && !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape

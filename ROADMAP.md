@@ -30,7 +30,7 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 - [x] Tranche et Sélection de tranche : création, déplacement, redimensionnement, division, sauvegarde et export PNG des tranches utilisateur ; repères automatiques facultatifs.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 
-- [x] Catalogue de 275 raccourcis et gestes référencés à Adobe, recherche et filtres disponibles/NYI/contextuels dans Réglages. Commandes simples de sélection, calques, couches, fusion, remplissage et affichage branchées ; inventaire des 118 entrées NYI dans [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
+- [x] Catalogue de 275 raccourcis et gestes référencés à Adobe, recherche et filtres disponibles/NYI/contextuels dans Réglages. Commandes simples de sélection, calques, couches, fusion, remplissage et affichage branchées ; inventaire des 117 entrées NYI dans [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
 - [x] Interactions communes inspirées des références Adobe : Maj/Option pour les variantes, raccourcis temporaires, contraintes de tracé, combinaisons de sélections, Maj-clic de peinture, chiffres pour opacité/débit, réglage de brosse à la souris et curseur précis. [Guide détaillé](docs/TOOL_INTERACTIONS.md).
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
 
@@ -53,6 +53,8 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [ ] Documents multiples et espaces de travail nommés/importables.
 - [ ] Accélération GPU lorsque le gain et la fidélité du résultat sont mesurés ; réduction du bruit avancée.
 
+- [x] Gomme magique : effacement par couleur avec tolérance, contiguïté, lissage, opacité et échantillonnage visible de tous les calques. Calcul asynchrone annulable, sélection respectée, pixels 8/16 bits et une étape d’annulation par clic.
+
 ## 3. Outils encore NYI
 
 Les entrées existent dans le catalogue mais sont désactivées. Elles restent des fonctions futures, sans calendrier de livraison.
@@ -62,7 +64,7 @@ Les entrées existent dans le catalogue mais sont désactivées. Elles restent d
 | Déplacement et sélection | Plan de travail, pinceau de sélection, lasso magnétique, sélection d’objet |
 | Recadrage et mise en page | Cadre |
 | Mesure et annotation | Annotation, comptage |
-| Gomme et réglage local | Gomme d’arrière-plan, gomme magique, pinceau de réglage |
+| Gomme et réglage local | Gomme d’arrière-plan, pinceau de réglage |
 | Tracés | Plume, plume libre, plume de courbure, ajout de point d’ancrage, suppression de point d’ancrage, conversion de point, sélection de tracé et sélection directe |
 | Texte et formes | Texte vertical, masque de texte horizontal, masque de texte vertical, forme personnalisée |
 

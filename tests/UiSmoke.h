@@ -718,6 +718,40 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      selectionSampleAllLayers->property("visible").toBool(),
                  "magic wand exposes tolerance, contiguous pixels and all-layer sampling"))
         return false;
+    QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "eraser"),
+                              Q_ARG(QVariant, "magicEraser"));
+    QTest::qWait(60);
+    auto magicTolerance  = _window->findChild<QObject *>("magicEraserTolerance");
+    auto magicContiguous = _window->findChild<QObject *>("magicEraserContiguous");
+    auto magicAntialias  = _window->findChild<QObject *>("magicEraserAntialias");
+    auto magicSampleAll  = _window->findChild<QObject *>("magicEraserSampleAllLayers");
+    if (!require(
+            _document.tool() == "magicEraser" && magicTolerance && magicContiguous &&
+                magicAntialias && magicSampleAll && magicTolerance->property("visible").toBool() &&
+                magicContiguous->property("visible").toBool() &&
+                magicAntialias->property("visible").toBool() &&
+                magicSampleAll->property("visible").toBool() && QGuiApplication::overrideCursor() &&
+                QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
+            "Magic Eraser exposes Adobe options and a dedicated native cursor"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_E, Qt::ShiftModifier);
+    QTest::qWait(30);
+    if (!require(_document.tool() == "eraser", "Shift+E cycles past the NYI background eraser"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_E, Qt::ShiftModifier);
+    QTest::qWait(30);
+    if (!require(_document.tool() == "magicEraser", "Shift+E returns to the Magic Eraser"))
+        return false;
+    const int beforeMagicErase = _document.historyIndex();
+    _document.setMagicEraserAntialias(false);
+    _document.beginStroke(4, 4);
+    if (!require(_document.magicEraserBusy(),
+                 "Magic Eraser schedules work without blocking the UI"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Escape);
+    if (!require(!_document.magicEraserBusy() && _document.historyIndex() == beforeMagicErase,
+                 "Escape cancels Magic Eraser without creating history"))
+        return false;
     QTest::keyClick(_window, Qt::Key_S);
     QTest::qWait(60);
     auto stampAligned    = _window->findChild<QObject *>("stampAligned");

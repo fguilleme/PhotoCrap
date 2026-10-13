@@ -17,6 +17,8 @@ Les modes de fusion s’appliquent au pinceau, crayon, gomme, tampons et formes 
 
 Tab et Maj+Tab masquent temporairement les panneaux, y compris flottants, sans changer l’organisation enregistrée. Tab masque également la barre latérale des outils. La barre supérieure des options reste affichée ; son masquage à l’identique de Photoshop est recensé en NYI.
 
+La Gomme magique est maintenant disponible dans le groupe E : Maj+E parcourt les variantes, le clic droit permet de la choisir directement. Sa combinaison suit celle du groupe Gomme personnalisable ; son entrée descriptive n’enregistre pas un second raccourci E.
+
 ## Commandes ajoutées
 
 | Action | Combinaison par défaut | Contexte |
@@ -252,7 +254,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Annotation | I | Groupe d’outils Adobe |
 | Comptage | I | Groupe d’outils Adobe |
 | Gomme d’arrière-plan | E | Groupe d’outils Adobe |
-| Gomme magique | E | Groupe d’outils Adobe |
 | Pinceau de réglage | Aucun raccourci par défaut | Groupe d’outils Adobe |
 | Plume libre | P | Groupe d’outils Adobe |
 | Plume de courbure | P | Groupe d’outils Adobe |

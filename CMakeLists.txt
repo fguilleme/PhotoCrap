@@ -25,6 +25,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentPreview.cpp
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
+    src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
@@ -194,6 +195,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentPreview.cpp
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
+    src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp

@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,12 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if(root.toolName === "slice" || root.toolName === "sliceSelect") {
+            if (root.toolName === "magicEraser") {
+                ctx.beginPath();ctx.moveTo(2,16);ctx.lineTo(10,7);ctx.lineTo(18,15)
+                ctx.lineTo(12,22);ctx.lineTo(7,22);ctx.closePath();ctx.stroke()
+                ctx.beginPath();ctx.moveTo(5,13);ctx.lineTo(14,21);ctx.stroke()
+                ctx.beginPath();ctx.moveTo(19,1);ctx.lineTo(19,9);ctx.moveTo(15,5);ctx.lineTo(23,5);ctx.stroke()
+            } else if(root.toolName === "slice" || root.toolName === "sliceSelect") {
                 ctx.setLineDash([3,2]);ctx.strokeRect(3,3,18,17);ctx.setLineDash([])
                 if(root.toolName === "sliceSelect") {
                     ctx.beginPath();ctx.moveTo(10,7);ctx.lineTo(10,20);ctx.lineTo(14,16);ctx.lineTo(19,16);ctx.closePath();ctx.fill()

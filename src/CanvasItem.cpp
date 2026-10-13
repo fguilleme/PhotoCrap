@@ -113,6 +113,41 @@ QCursor rulerCursor()
     return QCursor(pixmap, 8, 8);
 }
 
+QCursor magicEraserCursor()
+{
+    static QHash<qreal, QCursor> cache;
+    const qreal                  ratio = QGuiApplication::primaryScreen()
+                                             ? QGuiApplication::primaryScreen()->devicePixelRatio()
+                                             : 1.;
+    if (cache.contains(ratio))
+        return cache.value(ratio);
+    QPixmap pixmap(qRound(32 * ratio), qRound(32 * ratio));
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPainterPath eraser;
+    eraser.moveTo(3, 25);
+    eraser.lineTo(14, 12);
+    eraser.lineTo(24, 21);
+    eraser.lineTo(17, 29);
+    eraser.lineTo(8, 29);
+    eraser.closeSubpath();
+    eraser.moveTo(8, 19);
+    eraser.lineTo(19, 27);
+    eraser.moveTo(25, 2);
+    eraser.lineTo(25, 12);
+    eraser.moveTo(20, 7);
+    eraser.lineTo(30, 7);
+    for (const QPen pen : {QPen(Qt::black, 3.5), QPen(Qt::white, 1.5)}) {
+        painter.setPen(pen);
+        painter.drawPath(eraser);
+    }
+    const QCursor cursor(pixmap, 3, 25);
+    cache.insert(ratio, cursor);
+    return cursor;
+}
+
 QCursor magicWandCursor(int _selectionMode)
 {
     constexpr int logicalSize = 36;
@@ -210,8 +245,9 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         return;
     }
 
-    QCursor cursor = _tool == QStringLiteral("magicWand")
-                         ? magicWandCursor(_selectionMode)
+    QCursor cursor = _tool == QStringLiteral("magicWand") ? magicWandCursor(_selectionMode)
+                     : _tool == QStringLiteral("magicEraser") && !_precise
+                         ? magicEraserCursor()
                          : QCursor(static_cast<Qt::CursorShape>(_shape));
     if (_shape == Qt::CrossCursor || _shape == Qt::BlankCursor) {
         if (_tool == "picker" || _tool.startsWith("colorSampler") ||

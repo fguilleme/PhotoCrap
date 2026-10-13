@@ -58,6 +58,8 @@ class Document : public QObject
     Q_PROPERTY(int activeLayer READ activeLayer WRITE setActiveLayer NOTIFY layersChanged)
     Q_PROPERTY(quint64 documentSession READ documentSession NOTIFY documentChanged)
     Q_PROPERTY(bool rawLoading READ rawLoading NOTIFY rawLoadingChanged)
+    Q_PROPERTY(
+        bool frequencyRetouchBusy READ frequencyRetouchBusy NOTIFY frequencyRetouchBusyChanged)
     Q_PROPERTY(int selectedLayerCount READ selectedLayerCount NOTIFY layersChanged)
     Q_PROPERTY(bool canGroupSelected READ canGroupSelected NOTIFY layersChanged)
     Q_PROPERTY(bool canUngroupActive READ canUngroupActive NOTIFY layersChanged)
@@ -834,6 +836,13 @@ public:
     Q_INVOKABLE void setEditingMask(bool _enabled);
     Q_INVOKABLE void addAdjustmentLayer(const QString &_type);
     Q_INVOKABLE void addFrequencySeparation(qreal _radius = 8);
+    Q_INVOKABLE bool prepareFrequencyRetouch();
+    Q_INVOKABLE bool restoreDynamicFrequency();
+    Q_INVOKABLE void cancelFrequencyRetouch();
+    bool             frequencyRetouchBusy() const
+    {
+        return m_frequencyRetouchBusy;
+    }
     Q_INVOKABLE void beginLayerPreview();
     Q_INVOKABLE void previewLayerParameter(const QString &_key, const QVariant &_value);
     Q_INVOKABLE void
@@ -948,6 +957,7 @@ public:
     Q_INVOKABLE void createDemo();
 signals:
     void rawLoadingChanged();
+    void frequencyRetouchBusyChanged();
     void rawFileOpened(const QUrl &_url);
     void slicesChanged();
     void cropChanged();
@@ -1191,6 +1201,10 @@ private:
     QVector<Snapshot>              m_redoBeforeLayerProperties;
     Snapshot                       snapshot(const QString &_label) const;
     void                           restore(const Snapshot &_state);
+
+    bool                              m_frequencyRetouchBusy = false;
+    std::shared_ptr<std::atomic_bool> m_frequencyRetouchCancel;
+
     void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
                    bool _notifyImage = true);
     void    trimHistory();

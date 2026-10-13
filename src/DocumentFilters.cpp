@@ -509,6 +509,7 @@ QImage Document::frequencyImage(const Layer &_layer) const
                                  split(P::blue(s[x]), P::blue(l[x])), P::alpha(s[x]));
         });
         result = result.convertToFormat(P::premultiplied);
+        result.setColorSpace(_layer.source.colorSpace());
         m_frequencyCache.insert(highKey, result);
         return result;
     };

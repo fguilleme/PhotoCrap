@@ -4727,6 +4727,225 @@ private slots:
             QCOMPARE(d.composite(), original);
         }
     }
+    void frequencyRetouchMakesBothBandsEditable_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void frequencyRetouchMakesBothBandsEditable()
+    {
+        QFETCH(int, bits);
+        QTemporaryDir dir;
+        QImage        image(32, 32,
+                            bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                       : QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int texture = (x + y) % 3 == 0 ? 6000 : -3000;
+                image.setPixelColor(x, y,
+                                    QColor::fromRgba64(18001 + x * 400 + texture,
+                                                       24003 + y * 300 + texture,
+                                                       28007 + x * 100 + texture, 65535));
+            }
+        const auto input = QUrl::fromLocalFile(dir.filePath("texture.png"));
+        QVERIFY(image.save(input.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(input));
+        const QImage original = d.layerImage(0);
+        d.addFrequencySeparation(3);
+        const QImage low     = d.layerImage(1).convertToFormat(ImageUtils::workingFormat(original));
+        const QImage high    = d.layerImage(2);
+        const QImage before  = d.composite();
+        const int    history = d.historyIndex();
+        QSignalSpy   errors(&d, &Document::errorOccurred);
+        QVERIFY(d.prepareFrequencyRetouch());
+        QVERIFY(d.frequencyRetouchBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QVERIFY(errors.isEmpty());
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.layers()[0].toMap()["kind"].toString(), QString("pixel"));
+        QCOMPARE(d.layers()[1].toMap()["kind"].toString(), QString("pixel"));
+        QCOMPARE(d.layers()[0].toMap()["blend"].toInt(), 16);
+        QCOMPARE(d.layers()[0].toMap()["parameters"].toMap()["_frequencyBand"].toString(),
+                 QString("high"));
+        QCOMPARE(d.layers()[1].toMap()["parameters"].toMap()["_frequencyBand"].toString(),
+                 QString("low"));
+        QCOMPARE(d.layers()[0].toMap()["parameters"].toMap()["_frequencyRadius"].toDouble(), 3.0);
+        QCOMPARE(d.layerImage(1), low);
+        QCOMPARE(d.layerImage(2), high);
+        QCOMPARE(d.channelBits(), bits);
+        const auto rebuilt = d.composite();
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const auto a         = before.pixelColor(x, y).rgba64(),
+                           b         = rebuilt.pixelColor(x, y).rgba64();
+                const int  tolerance = bits == 16 ? 3 : 257;
+                QVERIFY(qAbs(int(a.red()) - int(b.red())) <= tolerance);
+                QVERIFY(qAbs(int(a.green()) - int(b.green())) <= tolerance);
+                QVERIFY(qAbs(int(a.blue()) - int(b.blue())) <= tolerance);
+            }
+        d.setActiveLayer(1);
+        d.setTool("brush");
+        d.setColor(Qt::red);
+        d.setBrushSize(5);
+        d.setBrushHardness(1);
+        d.setBrushOpacity(1);
+        d.setBrushFlow(1);
+        d.beginStroke(8, 8);
+        d.endStroke();
+        QCOMPARE(d.layerImage(1).pixelColor(8, 8), QColor(Qt::red));
+        QCOMPARE(d.layerImage(2), high);
+        QCOMPARE(d.layerImage(0), original);
+        const QImage editedLow = d.layerImage(1);
+        d.setActiveLayer(2);
+        d.setTool("cloneStamp");
+        d.setCloneSampleMode(0);
+        QVERIFY(high.pixelColor(8, 8) != high.pixelColor(21, 21));
+        d.setCloneSource(8, 8);
+        d.beginStroke(21, 21);
+        d.endStroke();
+        QCOMPARE(d.layerImage(2).pixelColor(21, 21).rgba64(), high.pixelColor(8, 8).rgba64());
+        QVERIFY(d.layerImage(2) != high);
+        QCOMPARE(d.layerImage(1), editedLow);
+        QCOMPARE(d.layerImage(0), original);
+        const auto project = QUrl::fromLocalFile(dir.filePath("retouch.pcr"));
+        QVERIFY(d.saveProject(project));
+        Document loaded;
+        QVERIFY(loaded.openFile(project));
+        QCOMPARE(loaded.channelBits(), bits);
+        QCOMPARE(loaded.layers()[0].toMap()["parameters"], d.layers()[0].toMap()["parameters"]);
+        QCOMPARE(loaded.layers()[1].toMap()["parameters"], d.layers()[1].toMap()["parameters"]);
+        QCOMPARE(loaded.layerImage(1), d.layerImage(1));
+        QCOMPARE(loaded.layerImage(2), d.layerImage(2));
+        QCOMPARE(loaded.composite(), d.composite());
+        // Returning to the radius works after reload, without any saved undo history.
+        loaded.setActiveLayer(1);
+        loaded.setLayerLocked(2, true);
+        QVERIFY(!loaded.restoreDynamicFrequency());
+        QCOMPARE(loaded.layers()[0].toMap()["kind"].toString(), QString("pixel"));
+        loaded.setLayerLocked(2, false);
+        const auto   preparedLayers    = loaded.layers();
+        const QImage preparedComposite = loaded.composite();
+        QVERIFY(loaded.restoreDynamicFrequency());
+        QCOMPARE(loaded.layers()[0].toMap()["kind"].toString(), QString("frequencyHigh"));
+        QCOMPARE(loaded.layers()[1].toMap()["kind"].toString(), QString("frequencyLow"));
+        QCOMPARE(loaded.layers()[1].toMap()["parameters"].toMap()["radius"].toDouble(), 3.0);
+        QCOMPARE(loaded.layerImage(1).convertToFormat(ImageUtils::workingFormat(original)), low);
+        QCOMPARE(loaded.layerImage(2), high);
+        QCOMPARE(loaded.layerImage(0), original);
+        loaded.undo();
+        QCOMPARE(loaded.layers(), preparedLayers);
+        QCOMPARE(loaded.layerImage(1), d.layerImage(1));
+        QCOMPARE(loaded.layerImage(2), d.layerImage(2));
+        QCOMPARE(loaded.composite(), preparedComposite);
+        d.undo(); // Clone stroke.
+        QCOMPARE(d.layerImage(2), high);
+        d.undo(); // Brush stroke.
+        QCOMPARE(d.layerImage(1), low);
+        d.undo(); // Retouch preparation.
+        QCOMPARE(d.layers()[0].toMap()["kind"].toString(), QString("frequencyHigh"));
+        QCOMPARE(d.layers()[1].toMap()["kind"].toString(), QString("frequencyLow"));
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.composite(), before);
+        d.redo();
+        QCOMPARE(d.layerImage(1), low);
+        QCOMPARE(d.layerImage(2), high);
+    }
+    void frequencyRetouchPreservesMasksAndLayerMetadata()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.addFrequencySeparation(4);
+        d.addLayerMask(false);
+        d.setLayerOpacity(2, .6);
+        d.setLayerBlend(2, 8);
+        d.setActiveLayer(1);
+        d.addLayerMask(true);
+        d.setLayerOpacity(1, .8);
+        d.setEditingMask(false);
+        const auto   layers  = d.layers();
+        const QImage lowMask = d.maskImage(1), highMask = d.maskImage(2);
+        QVERIFY(d.prepareFrequencyRetouch());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QCOMPARE(d.maskImage(1), lowMask);
+        QCOMPARE(d.maskImage(2), highMask);
+        QCOMPARE(d.layers()[0].toMap()["opacity"], layers[0].toMap()["opacity"]);
+        QCOMPARE(d.layers()[1].toMap()["opacity"], layers[1].toMap()["opacity"]);
+        QCOMPARE(d.layers()[0].toMap()["blend"], layers[0].toMap()["blend"]);
+        QCOMPARE(d.layers()[1].toMap()["name"], layers[1].toMap()["name"]);
+        QVERIFY(!d.layers()[1].toMap()["parameters"].toMap().contains("radius"));
+        QVERIFY(d.layers()[1].toMap()["parameters"].toMap().contains("_maskDensity"));
+        QVERIFY(d.restoreDynamicFrequency());
+        QCOMPARE(d.maskImage(1), lowMask);
+        QCOMPARE(d.maskImage(2), highMask);
+        QCOMPARE(d.layers()[0].toMap()["opacity"], layers[0].toMap()["opacity"]);
+        QCOMPARE(d.layers()[1].toMap()["opacity"], layers[1].toMap()["opacity"]);
+        QCOMPARE(d.layers()[0].toMap()["blend"], layers[0].toMap()["blend"]);
+        QCOMPARE(d.layers()[1].toMap()["name"], layers[1].toMap()["name"]);
+        QCOMPARE(d.layers()[1].toMap()["parameters"].toMap()["radius"].toDouble(), 4.0);
+    }
+    void frequencyRadiusRestoreRejectsAmbiguousOrIncompletePairs()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.addFrequencySeparation(4);
+        QVERIFY(d.prepareFrequencyRetouch());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        d.setActiveLayer(2);
+        d.duplicateLayer();
+        const auto ambiguousLayers = d.layers();
+        const int  history         = d.historyIndex();
+        QVERIFY(!d.restoreDynamicFrequency());
+        QCOMPARE(d.layers(), ambiguousLayers);
+        QCOMPARE(d.historyIndex(), history);
+        d.undo();
+        d.setActiveLayer(1);
+        d.removeLayer();
+        const auto incompleteLayers = d.layers();
+        QVERIFY(!d.restoreDynamicFrequency());
+        QCOMPARE(d.layers(), incompleteLayers);
+    }
+    void frequencyRetouchCancellationAndStaleResultsAreSafe()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.addFrequencySeparation(4);
+        const auto layers  = d.layers();
+        const auto history = d.history();
+        QVERIFY(d.prepareFrequencyRetouch());
+        d.cancelFrequencyRetouch();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QCOMPARE(d.layers(), layers);
+        QCOMPARE(d.history(), history);
+        d.beginLayerPropertiesSession();
+        QVERIFY(d.prepareFrequencyRetouch());
+        d.cancelLayerPropertiesSession();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QCOMPARE(d.layers(), layers);
+        QVERIFY(d.prepareFrequencyRetouch());
+        QVERIFY(d.newDocument(16, 16, false, 16));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QCOMPARE(d.layers().size(), 1);
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.layerImage(0).pixelColor(0, 0), QColor(Qt::white));
+    }
+    void frequencyRetouchRejectsLockedOrIncompletePairs()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32));
+        d.addFrequencySeparation(4);
+        d.setLayerLocked(1, true);
+        QVERIFY(!d.prepareFrequencyRetouch());
+        QVERIFY(!d.frequencyRetouchBusy());
+        d.setLayerLocked(1, false);
+        d.removeLayer();
+        QCOMPARE(d.layers().size(), 2);
+        QVERIFY(!d.prepareFrequencyRetouch());
+        QCOMPARE(d.layers()[0].toMap()["kind"].toString(), QString("frequencyLow"));
+    }
+
     void frequencySeparationHasRealtimePreview()
     {
         Document d;

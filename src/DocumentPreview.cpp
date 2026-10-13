@@ -229,6 +229,7 @@ void Document::cancelLayerPropertiesSession()
 {
     if (!m_layerPropertiesSession)
         return;
+    cancelFrequencyRetouch();
     cancelLayerPreview();
     const Snapshot before    = m_beforeLayerProperties;
     m_undo                   = m_undoBeforeLayerProperties;

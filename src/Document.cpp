@@ -76,6 +76,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
 Document::~Document()
 {
     cancelRawLoad();
+    cancelFrequencyRetouch();
     if (m_removeCancel)
         m_removeCancel->store(true);
     if (m_contentMoveCancel)
@@ -127,6 +128,9 @@ bool Document::editable()
                 layer.groupId == m_layers[m_active].groupId && (layer.locked || !layer.visible))
                 return fail(layer.locked ? tr("Ce groupe est verrouillé.")
                                          : tr("Ce groupe est masqué."));
+    if (!m_editingMask && m_layers[m_active].kind.startsWith(QStringLiteral("frequency")))
+        return fail(tr("Choisissez « Préparer la retouche » dans les propriétés de la séparation "
+                       "de fréquences pour modifier ses pixels."));
     if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask)
         return fail(tr("Sélectionnez le masque de ce calque pour peindre dessus."));
     return true;
@@ -268,6 +272,7 @@ void Document::resetHistory(bool _clean)
 {
     m_lastSelectionRegion = {};
     cancelRawLoad();
+    cancelFrequencyRetouch();
     cancelCrop();
     m_slices.clear();
     m_activeSlice   = -1;

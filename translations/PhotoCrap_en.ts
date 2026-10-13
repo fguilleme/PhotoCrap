@@ -4413,4 +4413,52 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Le décodeur RAW a produit une image invalide.</source><translation>The RAW decoder produced an invalid image.</translation></message>
     <message><source>Mémoire insuffisante pour ouvrir ce RAW.</source><translation>Insufficient memory to open this RAW file.</translation></message>
   </context>
+  <context>
+    <name>Document</name>
+    <message><source>Choisissez « Préparer la retouche » dans les propriétés de la séparation de fréquences pour modifier ses pixels.</source><translation>Choose “Prepare retouching” in frequency separation properties to edit its pixels.</translation></message>
+    <message><source>Cette paire est ambiguë. Conservez un seul calque de chaque fréquence avant de préparer la retouche.</source><translation>This pair is ambiguous. Keep one layer for each frequency before preparing retouching.</translation></message>
+    <message><source>La préparation nécessite les deux calques liés de la séparation de fréquences.</source><translation>Preparation requires both linked frequency separation layers.</translation></message>
+    <message><source>Source de séparation de fréquences manquante.</source><translation>Missing frequency separation source.</translation></message>
+    <message><source>Les deux fréquences doivent utiliser le même rayon.</source><translation>Both frequencies must use the same radius.</translation></message>
+    <message><source>Préparer la retouche des fréquences</source><translation>Prepare frequency retouching</translation></message>
+    <message><source>Fréquences prêtes : retouchez les couleurs sur Basses fréquences et la texture sur Hautes fréquences.</source><translation>Frequencies ready: retouch colors on Low frequencies and texture on High frequencies.</translation></message>
+    <message><source>Impossible de préparer les pixels de la séparation de fréquences.</source><translation>Unable to prepare frequency separation pixels.</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Préparation des fréquences…</source><translation>Preparing frequencies…</translation></message>
+    <message><source>Modifier le rayon des fréquences</source><translation>Change frequency radius</translation></message>
+  </context>
+  <context>
+    <name>FrequencySeparationEditor</name>
+    <message><source>Rayon du flou gaussien</source><translation>Gaussian blur radius</translation></message>
+    <message><source>Choisissez le rayon, puis préparez les pixels pour retoucher chaque fréquence. Le calcul se fait en arrière-plan. Le rayon sera figé ; Édition &gt; Annuler restaure la paire dynamique.</source><translation>Choose the radius, then prepare the pixels to retouch each frequency. Computation runs in the background. The radius will be fixed; Undo restores the dynamic pair.</translation></message>
+    <message><source>Préparer la retouche</source><translation>Prepare retouching</translation></message>
+    <message><source>Basses fréquences : couleurs et volumes, avec le pinceau ou le flou. Hautes fréquences : texture, avec le tampon de duplication en échantillonnant le calque actif. L’image d’origine reste intacte.</source><translation>Low frequencies: colors and volume, using the brush or blur. High frequencies: texture, using Clone Stamp sampling the current layer. The original image remains untouched.</translation></message>
+  </context>
+<context>
+    <name>Main</name>
+    <message><source>Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.</source><translation>These pixel layers separate colors and volumes from texture. Retouch them directly on the image.</translation></message>
+</context>
+<context>
+    <name>FrequencySeparationEditor</name>
+    <message><source>Les pixels sont prêts à être retouchés. Le rayon est figé. Pour revenir au réglage du rayon, annulez la préparation et les retouches faites depuis.</source><translation>The pixels are ready for retouching. The radius is fixed. To adjust the radius again, undo preparation and any subsequent retouches.</translation></message>
+</context>
+<context>
+    <name>Document</name>
+    <message><source>Cette paire est ambiguë. Conservez un seul calque de chaque fréquence avant de revenir au rayon.</source><translation>This pair is ambiguous. Keep only one layer of each frequency before returning to the radius.</translation></message>
+    <message><source>Le retour au rayon nécessite les deux calques préparés et leurs sources d’origine.</source><translation>Returning to the radius requires both prepared layers and their original sources.</translation></message>
+    <message><source>Revenir au réglage du rayon</source><translation>Return to radius settings</translation></message>
+</context>
+<context>
+    <name>FrequencySeparationEditor</name>
+    <message><source>Les pixels sont prêts à être retouchés. Revenir au réglage du rayon restaure les fréquences d’origine et abandonne leurs retouches. Cette opération est annulable.</source><translation>The pixels are ready for retouching. Returning to radius settings restores the original frequencies and discards their retouches. This operation can be undone.</translation></message>
+    <message><source>Revenir au réglage du rayon…</source><translation>Return to radius settings…</translation></message>
+</context>
+<context>
+    <name>Main</name>
+    <message><source>Revenir au réglage du rayon ?</source><translation>Return to radius settings?</translation></message>
+    <message><source>Les retouches des calques Basses fréquences et Hautes fréquences seront abandonnées. Leurs sources d’origine, masques et propriétés seront conservés. Vous pourrez annuler cette opération pour retrouver les retouches.</source><translation>Retouches to the Low frequencies and High frequencies layers will be discarded. Their original sources, masks and properties will be retained. You can undo this operation to recover the retouches.</translation></message>
+    <message><source>Revenir au rayon</source><translation>Return to radius</translation></message>
+</context>
 </TS>

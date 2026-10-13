@@ -19,6 +19,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
     src/DocumentFilters.cpp
+    src/DocumentFrequency.cpp
     src/DocumentIO.cpp
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
@@ -185,6 +186,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
     src/DocumentFilters.cpp
+    src/DocumentFrequency.cpp
     src/DocumentIO.cpp
     src/RawImageReader.cpp
     src/RawImageReader.h
@@ -328,6 +330,7 @@ qt_add_qml_module(PhotoCrap
         qml/BlackWhiteEditor.qml
         qml/ChannelMixerEditor.qml
         qml/GradientMapEditor.qml
+        qml/FrequencySeparationEditor.qml
         qml/LightEditor.qml
         qml/LayerPropertiesActions.qml
         qml/LevelsEditor.qml

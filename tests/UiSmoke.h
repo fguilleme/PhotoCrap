@@ -1984,6 +1984,82 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "threshold exposes an interactive histogram and numeric cutoff"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
+    _document.newDocument(64, 64);
+    _document.addFrequencySeparation(4);
+    QMetaObject::invokeMethod(layerProperties, "open");
+    QTest::qWait(100);
+    auto frequencyEditor  = _window->findChild<QObject *>("frequencySeparationEditor");
+    auto frequencyRetouch = _window->findChild<QObject *>("frequencyRetouchButton");
+    if (!require(frequencyEditor && frequencyEditor->property("visible").toBool() &&
+                     frequencyRetouch && frequencyRetouch->property("enabled").toBool(),
+                 "frequency separation exposes radius and retouch preparation"))
+        return false;
+    QMetaObject::invokeMethod(frequencyRetouch, "clicked");
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !_document.frequencyRetouchBusy() &&
+                                !layerProperties->property("visible").toBool() &&
+                                _document.layers().first().toMap()["kind"].toString() == "pixel";
+                     },
+                     10000),
+                 "retouch button closes settings and prepares editable frequency pixels"))
+        return false;
+    for (const int layerIndex : {1, 2}) {
+        _document.setActiveLayer(layerIndex);
+        QTest::qWait(50);
+        if (!require(propertiesButton->property("enabled").toBool(),
+                     "prepared frequency pixels retain their properties button"))
+            return false;
+        QMetaObject::invokeMethod(propertiesButton, "clicked");
+        QTest::qWait(100);
+        auto frequencyRadius = _window->findChild<QObject *>("frequencyRadiusValue");
+        if (!require(layerProperties->property("visible").toBool() &&
+                         frequencyEditor->property("visible").toBool() &&
+                         frequencyEditor->property("prepared").toBool() && frequencyRadius &&
+                         !frequencyRadius->property("enabled").toBool() &&
+                         frequencyRadius->property("value").toInt() == 4 &&
+                         !frequencyRetouch->property("visible").toBool(),
+                     "properties reopen on both frequency bands with a fixed radius"))
+            return false;
+        auto restoreRadius = _window->findChild<QObject *>("frequencyRestoreRadiusButton");
+        auto radiusDialog  = _window->findChild<QObject *>("frequencyRadiusDialog");
+        auto radiusCancel  = _window->findChild<QObject *>("frequencyRadiusCancelButton");
+        auto radiusConfirm = _window->findChild<QObject *>("frequencyRadiusConfirmButton");
+        if (!require(restoreRadius && restoreRadius->property("enabled").toBool() && radiusDialog &&
+                         radiusCancel && radiusConfirm,
+                     "prepared frequencies expose a return-to-radius action"))
+            return false;
+        QMetaObject::invokeMethod(restoreRadius, "clicked");
+        QTest::qWait(50);
+        if (!require(radiusDialog->property("visible").toBool(),
+                     "returning to radius asks before discarding retouches"))
+            return false;
+        QTest::keyClick(_window, Qt::Key_Return);
+        QTest::qWait(50);
+        if (!require(!radiusDialog->property("visible").toBool() &&
+                         layerProperties->property("visible").toBool() &&
+                         _document.layers().first().toMap()["kind"].toString() == "pixel",
+                     "canceling the confirmation keeps prepared pixels"))
+            return false;
+        QMetaObject::invokeMethod(restoreRadius, "clicked");
+        QTest::qWait(50);
+        QMetaObject::invokeMethod(radiusConfirm, "clicked");
+        QTest::qWait(100);
+        if (!require(layerProperties->property("visible").toBool() &&
+                         !frequencyEditor->property("prepared").toBool() &&
+                         frequencyRadius->property("enabled").toBool() &&
+                         _document.layers().first().toMap()["kind"].toString() == "frequencyHigh",
+                     "confirmed return keeps the panel open with an editable radius"))
+            return false;
+        QMetaObject::invokeMethod(layerIndex == 1 ? layerPropertiesCancel : layerPropertiesClose,
+                                  "clicked");
+        QTest::qWait(100);
+        if (!require(!layerProperties->property("visible").toBool() &&
+                         _document.layers().first().toMap()["kind"].toString() ==
+                             (layerIndex == 1 ? "pixel" : "frequencyHigh"),
+                     "Cancel restores prepared pixels while Close keeps the dynamic pair"))
+            return false;
+    }
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

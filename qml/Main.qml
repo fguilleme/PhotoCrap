@@ -218,7 +218,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -323,6 +323,15 @@ ApplicationWindow {
         const list = editor.layers
         for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) return list[i]
         return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false, groupId:"", groupCollapsed:false, selected:false}
+    }
+    readonly property bool frequencyPrepared: isPreparedFrequency(activeInfo)
+    readonly property bool frequencyProperties: frequencyPrepared || activeInfo.kind.indexOf("frequency") === 0
+    function isPreparedFrequency(info) {
+        return info.kind === "pixel" && info.parameters &&
+               (info.parameters._frequencyBand === "low" || info.parameters._frequencyBand === "high")
+    }
+    function canOpenLayerProperties(info) {
+        return info.kind !== "group" && (info.kind !== "pixel" || info.editingMask || isPreparedFrequency(info))
     }
     property string toolName: {
         for (let i=0; i<toolCatalog.length; ++i) if (toolCatalog[i].name === editor.tool) return toolCatalog[i].label
@@ -1276,7 +1285,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Supprimer le masque"); enabled: activeInfo.hasMask; onTriggered: editor.removeLayerMask() }
             }
             DarkMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
-            DarkMenuItem { text: qsTr("Propriétés…"); enabled: activeInfo.kind!=="pixel"; onTriggered: layerPropertiesDialog.open() }
+            DarkMenuItem { text: qsTr("Propriétés…"); enabled: window.canOpenLayerProperties(activeInfo); onTriggered: layerPropertiesDialog.open() }
             DarkMenuItem { text: qsTr("Fusionner vers le bas"); enabled: editor.activeLayer>0; onTriggered: editor.mergeDown() }
             DarkMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onTriggered: editor.removeLayer() }
         }
@@ -3047,7 +3056,7 @@ ApplicationWindow {
                                 onDoubleClicked: function(mouse) {
                                     if(mouse.button!==Qt.LeftButton) return
                                     editor.selectLayer(modelData.layerIndex)
-                                    if(modelData.kind!=="pixel" && modelData.kind!=="group") layerPropertiesDialog.open()
+                                    if(window.canOpenLayerProperties(modelData)) layerPropertiesDialog.open()
                                     else { layerName.text=modelData.name; renameDialog.open() }
                                 }
                             }
@@ -3172,7 +3181,7 @@ ApplicationWindow {
                         IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
                         IconButton { glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
-                        IconButton { objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: activeInfo.kind!=="group" && (activeInfo.kind!=="pixel" || activeInfo.editingMask); onClicked: layerPropertiesDialog.open() }
+                        IconButton { objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: layerPropertiesDialog.open() }
                         IconButton { glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
                         IconButton { glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
                         Item { Layout.fillWidth: true }
@@ -3443,6 +3452,25 @@ ApplicationWindow {
         ContextMenuItem { text: activeInfo.visible ? qsTr("Masquer le calque") : qsTr("Afficher le calque"); onTriggered: editor.setLayerVisible(editor.activeLayer,!activeInfo.visible) }
     }
 
+    Popup {
+        objectName: "frequencyRetouchPopup"
+        anchors.centerIn: Overlay.overlay
+        width: 330
+        padding: 20
+        modal: true
+        visible: editor.frequencyRetouchBusy
+        closePolicy: Popup.NoAutoClose
+        contentItem: ColumnLayout {
+            BusyIndicator { running: editor.frequencyRetouchBusy; Layout.alignment: Qt.AlignHCenter }
+            Label { text: qsTr("Préparation des fréquences…"); Layout.alignment: Qt.AlignHCenter }
+            DialogActionButton {
+                text: qsTr("Annuler")
+                Layout.alignment: Qt.AlignRight
+                onClicked: editor.cancelFrequencyRetouch()
+            }
+        }
+    }
+    Shortcut { sequence: "Escape"; enabled: editor.frequencyRetouchBusy; onActivated: editor.cancelFrequencyRetouch() }
     FileDialog {
         id: openDialog; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
         nameFilters: [window.importing
@@ -3771,13 +3799,13 @@ ApplicationWindow {
             spacing: 12
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: activeInfo.editingMask?qsTr("Masque de fusion"):activeInfo.kind.indexOf("frequency")===0?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
+                Label { text: activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
                 Item { Layout.fillWidth: true }
-                CheckBox { id: layerPreview; text: qsTr("Aperçu"); checked: true }
+                CheckBox { id: layerPreview; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true }
             }
             Label {
                 Layout.fillWidth: true
-                text: activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
+                text: activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : window.frequencyPrepared ? qsTr("Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
                 color: "#91a0ad"; wrapMode: Text.WordWrap
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: "#3a444d" }
@@ -3792,9 +3820,7 @@ ApplicationWindow {
                         model: activeInfo.editingMask ? [
                             {key:"_maskDensity",label:qsTr("Densité (%)"),from:0,to:100,step:1},
                             {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
-                        ] : activeInfo.kind.indexOf("frequency")===0 ? [
-                            {key:"radius",label:qsTr("Rayon du flou gaussien"),from:1,to:100,step:1}
-                        ] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter" || activeInfo.adjustmentType==="channelMixer" || activeInfo.adjustmentType==="colorLookup" || activeInfo.adjustmentType==="selectiveColor" || activeInfo.adjustmentType==="posterize" || activeInfo.adjustmentType==="threshold") ? []
+                        ] : activeInfo.kind.indexOf("frequency")===0 ? [] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter" || activeInfo.adjustmentType==="channelMixer" || activeInfo.adjustmentType==="colorLookup" || activeInfo.adjustmentType==="selectiveColor" || activeInfo.adjustmentType==="posterize" || activeInfo.adjustmentType==="threshold") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
                             required property var modelData
@@ -3836,6 +3862,29 @@ ApplicationWindow {
                                 changingSolidColor = true
                                 colorDialog.selectedColor = activeInfo.parameters.color || "#000000"
                                 colorDialog.open()
+                            }
+                        }
+                    }
+                    FrequencySeparationEditor {
+                        visible: !activeInfo.editingMask && window.frequencyProperties
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters
+                        prepared: window.frequencyPrepared
+                        busy: editor.frequencyRetouchBusy
+                        locked: activeInfo.locked
+                        onEditStarted: editor.beginLayerPreview()
+                        onPreviewed: function(key, value) {
+                            if (layerPreview.checked) window.queueLayerPreview(key, value)
+                        }
+                        onCommitted: function(key, value) { window.previewLayerValue(key, value, true) }
+                        onRadiusRestoreRequested: frequencyRadiusDialog.open()
+                        onRetouchRequested: {
+                            window.flushLayerPreview()
+                            window.cancelLayerPreviewQueue()
+                            editor.finishLayerPreview(qsTr("Modifier le rayon des fréquences"))
+                            if (editor.prepareFrequencyRetouch()) {
+                                layerPropertiesDialog.keepChanges = true
+                                layerPropertiesDialog.accept()
                             }
                         }
                     }
@@ -4120,7 +4169,7 @@ ApplicationWindow {
                 DialogActionButton {
                     objectName: "layerPropertiesCloseButton"
                     text: qsTr("Fermer")
-                    defaultButton: true
+                    defaultButton: !frequencyRadiusDialog.opened
                     onClicked: {
                         window.flushLayerPreview()
                         editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
@@ -4129,6 +4178,38 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+    }
+    Dialog {
+        id: frequencyRadiusDialog
+        objectName: "frequencyRadiusDialog"
+        title: qsTr("Revenir au réglage du rayon ?")
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(440, window.width - 40)
+        closePolicy: Popup.CloseOnEscape
+        contentItem: Label {
+            text: qsTr("Les retouches des calques Basses fréquences et Hautes fréquences seront abandonnées. Leurs sources d’origine, masques et propriétés seront conservés. Vous pourrez annuler cette opération pour retrouver les retouches.")
+            color: "#d5dbe0"
+            wrapMode: Text.WordWrap
+        }
+        footer: DialogButtonBox {
+            DialogActionButton {
+                objectName: "frequencyRadiusCancelButton"
+                text: qsTr("Annuler")
+                defaultButton: true
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+            }
+            DialogActionButton {
+                objectName: "frequencyRadiusConfirmButton"
+                text: qsTr("Revenir au rayon")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+            }
+        }
+        onAccepted: {
+            window.cancelLayerPreviewQueue()
+            editor.cancelLayerPreview()
+            editor.restoreDynamicFrequency()
         }
     }
     Dialog {

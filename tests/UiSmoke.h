@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "LayerContextMenuSmoke.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
@@ -2108,6 +2109,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      "Cancel restores prepared pixels while Close keeps the dynamic pair"))
             return false;
     }
+    if (!runLayerContextMenuSmoke(_window, _document))
+        return false;
     _document.createDemo();
     _document.setTool("brush");
     QTest::qWait(200);

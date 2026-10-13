@@ -4474,4 +4474,46 @@ Independent software, not affiliated with Adobe.</translation>
   <context><name>ShortcutManager</name>
     <message><source>E / Maj+E / clic droit dans le groupe Gomme</source><translation>E / Shift+E / right-click in the Eraser group</translation></message>
   </context>
+  <context>
+    <name>LayerContextMenu</name>
+    <message><source>Propriétés…</source><translation>Properties…</translation></message>
+    <message><source>Options de fusion… (NYI)</source><translation>Blending Options… (NYI)</translation></message>
+    <message><source>Dupliquer le calque</source><translation>Duplicate Layer</translation></message>
+    <message><source>Renommer…</source><translation>Rename…</translation></message>
+    <message><source>Supprimer le calque</source><translation>Delete Layer</translation></message>
+    <message><source>Déverrouiller le calque</source><translation>Unlock Layer</translation></message>
+    <message><source>Verrouiller le calque</source><translation>Lock Layer</translation></message>
+    <message><source>Couleur du calque… (NYI)</source><translation>Layer Color… (NYI)</translation></message>
+    <message><source>Libérer le masque d’écrêtage</source><translation>Release Clipping Mask</translation></message>
+    <message><source>Créer un masque d’écrêtage</source><translation>Create Clipping Mask</translation></message>
+    <message><source>Grouper les calques sélectionnés</source><translation>Group Selected Layers</translation></message>
+    <message><source>Sortir du groupe</source><translation>Ungroup Layers</translation></message>
+    <message><source>Ajouter un masque</source><translation>Add Mask</translation></message>
+    <message><source>Faire apparaître la sélection</source><translation>Reveal Selection</translation></message>
+    <message><source>Tout faire apparaître</source><translation>Reveal All</translation></message>
+    <message><source>Masquer la sélection</source><translation>Hide Selection</translation></message>
+    <message><source>Tout masquer</source><translation>Hide All</translation></message>
+    <message><source>Convertir en objet dynamique (NYI)</source><translation>Convert to Smart Object (NYI)</translation></message>
+    <message><source>Pixelliser le calque (NYI)</source><translation>Rasterize Layer (NYI)</translation></message>
+    <message><source>Fusionner avec le calque inférieur</source><translation>Merge Down</translation></message>
+    <message><source>Fusionner les calques sélectionnés (NYI)</source><translation>Merge Selected Layers (NYI)</translation></message>
+    <message><source>Fusionner les calques visibles (NYI)</source><translation>Merge Visible (NYI)</translation></message>
+    <message><source>Aplatir l’image (NYI)</source><translation>Flatten Image (NYI)</translation></message>
+    <message><source>Masquer le calque</source><translation>Hide Layer</translation></message>
+    <message><source>Afficher le calque</source><translation>Show Layer</translation></message>
+  </context>
+  <context>
+    <name>MaskContextMenu</name>
+    <message><source>Propriétés du masque…</source><translation>Mask Properties…</translation></message>
+    <message><source>Afficher l’image</source><translation>Show Image</translation></message>
+    <message><source>Afficher le masque</source><translation>Show Mask</translation></message>
+    <message><source>Désactiver le masque</source><translation>Disable Mask</translation></message>
+    <message><source>Activer le masque</source><translation>Enable Mask</translation></message>
+    <message><source>Inverser le masque</source><translation>Invert Mask</translation></message>
+    <message><source>Appliquer le masque (NYI)</source><translation>Apply Mask (NYI)</translation></message>
+    <message><source>Supprimer le masque</source><translation>Delete Mask</translation></message>
+    <message><source>Dissocier le masque (NYI)</source><translation>Unlink Mask (NYI)</translation></message>
+    <message><source>Charger le masque comme sélection (NYI)</source><translation>Load Mask as Selection (NYI)</translation></message>
+    <message><source>Sélectionner et masquer… (NYI)</source><translation>Select and Mask… (NYI)</translation></message>
+  </context>
 </TS>

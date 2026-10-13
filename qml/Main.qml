@@ -180,6 +180,7 @@ ApplicationWindow {
                                               || editor.tool === "eraser" || editor.tool === "magicEraser" || editor.tool === "fill"
                                               || editor.tool === "gradient" || editor.tool === "text" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || stampToolActive
     property bool layerContextMenuVisible: layerContextMenu.visible
+    property bool maskContextMenuVisible: maskContextMenu.visible
     property real parameterSliderWidth: 0
     property int preferencesPage: 0
     property string interfaceLanguage: languages.language
@@ -944,8 +945,19 @@ ApplicationWindow {
             editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
         } else if(layerPreview.checked) queueLayerPreview(key,value)
     }
-    function openLayerContextMenu() { layerContextMenu.popup() }
+    function openLayerContextMenu() {
+        maskContextMenu.close()
+        layerContextMenu.popup()
+    }
     function closeLayerContextMenu() { layerContextMenu.close() }
+    function openMaskContextMenu(layerIndex) {
+        layerContextMenu.close()
+        if(editor.activeLayer !== layerIndex || editor.selectedLayerCount !== 1)
+            editor.activeLayer = layerIndex
+        editor.setEditingMask(true)
+        maskContextMenu.popup()
+    }
+    function closeMaskContextMenu() { maskContextMenu.close() }
     function setInterfaceLanguage(code) { languages.language=code }
     property bool panelsTemporarilyHidden: false
     property bool toolsTemporarilyHidden: false
@@ -3141,7 +3153,21 @@ ApplicationWindow {
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
                                     Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
-                                    MouseArea { anchors.fill: parent; onClicked: { editor.activeLayer=modelData.layerIndex; editor.setEditingMask(false); editor.showCompositeView() } }
+                                    MouseArea {
+                                        objectName: "layerThumbnailMouse"
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        onClicked: function(mouse) {
+                                            if(mouse.button === Qt.RightButton) {
+                                                if(!modelData.selected) editor.selectLayer(modelData.layerIndex)
+                                                window.openLayerContextMenu()
+                                            } else {
+                                                editor.activeLayer=modelData.layerIndex
+                                                editor.setEditingMask(false)
+                                                editor.showCompositeView()
+                                            }
+                                        }
+                                    }
                                 }
                                 Rectangle {
                                     id: maskThumbnail
@@ -3154,13 +3180,19 @@ ApplicationWindow {
                                         id: maskDrag
                                         objectName: "maskThumbnailMouse"
                                         anchors.fill: parent
-                                        drag.target: maskDragProxy
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        drag.target: pressedButtons & Qt.RightButton ? null : maskDragProxy
                                         drag.threshold: 6
                                         onClicked: function(mouse) {
+                                            if(mouse.button === Qt.RightButton) {
+                                                window.openMaskContextMenu(modelData.layerIndex)
+                                                return
+                                            }
                                             window.activateMaskThumbnail(modelData.layerIndex,
                                                                          mouse.modifiers)
                                         }
-                                        onReleased: {
+                                        onReleased: function(mouse) {
+                                            if(mouse.button !== Qt.LeftButton) return
                                             maskDragProxy.Drag.drop()
                                             maskDragProxy.x = 0
                                             maskDragProxy.y = 0
@@ -3456,34 +3488,25 @@ ApplicationWindow {
         }
     }
 
-    DarkMenu {
+    LayerContextMenu {
         id: layerContextMenu
         objectName: "layerContextMenu"
-        ContextMenuItem { text: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onTriggered: editor.duplicateLayer() }
-        ContextMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
-        ContextMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1 && !activeInfo.locked; onTriggered: editor.removeLayer() }
-        MenuSeparator {}
-        ContextMenuItem {
-            text: activeInfo.clippingMask ? qsTr("Libérer le masque d’écrêtage")
-                                          : qsTr("Créer un masque d’écrêtage")
-            enabled: activeInfo.kind!=="group" && (activeInfo.clippingMask || editor.activeLayer>0)
-            onTriggered: editor.setClippingMask(!activeInfo.clippingMask)
+        document: editor
+        layerInfo: window.activeInfo
+        propertiesAvailable: activeInfo.kind !== "group" &&
+                             (activeInfo.kind !== "pixel" || window.isPreparedFrequency(activeInfo))
+        onPropertiesRequested: {
+            editor.setEditingMask(false)
+            layerPropertiesDialog.open()
         }
-        ContextMenuItem { text: qsTr("Grouper les calques sélectionnés"); enabled: editor.canGroupSelected; onTriggered: editor.groupSelectedLayers() }
-        ContextMenuItem { text: qsTr("Sortir du groupe"); enabled: editor.canUngroupActive; onTriggered: editor.ungroupActiveLayers() }
-        ContextMenuItem { text: qsTr("Fusionner avec le calque inférieur"); enabled: editor.activeLayer>0 && activeInfo.kind==="pixel" && !activeInfo.locked; onTriggered: editor.mergeDown() }
-        MenuSeparator {}
-        DarkMenu {
-            title: qsTr("Ajouter un masque")
-            enabled: activeInfo.kind!=="group" && !activeInfo.hasMask
-            ContextMenuItem { text: editor.hasSelection ? qsTr("Faire apparaître la sélection") : qsTr("Tout faire apparaître"); onTriggered: editor.addLayerMask(true) }
-            ContextMenuItem { text: editor.hasSelection ? qsTr("Masquer la sélection") : qsTr("Tout masquer"); onTriggered: editor.addLayerMask(false) }
-        }
-        ContextMenuItem { text: activeInfo.maskEnabled ? qsTr("Désactiver le masque") : qsTr("Activer le masque"); enabled: activeInfo.hasMask; onTriggered: editor.setMaskEnabled(!activeInfo.maskEnabled) }
-        ContextMenuItem { text: qsTr("Supprimer le masque"); enabled: activeInfo.hasMask; onTriggered: editor.removeLayerMask() }
-        ContextMenuItem { text: qsTr("Dissocier le masque"); enabled: false }
-        MenuSeparator {}
-        ContextMenuItem { text: activeInfo.visible ? qsTr("Masquer le calque") : qsTr("Afficher le calque"); onTriggered: editor.setLayerVisible(editor.activeLayer,!activeInfo.visible) }
+        onRenameRequested: { layerName.text=activeInfo.name; renameDialog.open() }
+    }
+    MaskContextMenu {
+        id: maskContextMenu
+        objectName: "maskContextMenu"
+        document: editor
+        layerInfo: window.activeInfo
+        onPropertiesRequested: layerPropertiesDialog.open()
     }
 
     Popup {

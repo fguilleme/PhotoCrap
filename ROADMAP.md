@@ -26,6 +26,8 @@ La [release v0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0
 
 ## Ajouts de la branche de développement (après 0.11.0)
 
+- [x] Menus contextuels distincts pour calques et masques, actions existantes accessibles et commandes manquantes désactivées avec mention NYI.
+
 - [x] Recadrage avec cadre indépendant, ratios, dimensions de sortie, poignées et grille ; recadrage en perspective asynchrone des calques, masques et sources.
 - [x] Tranche et Sélection de tranche : création, déplacement, redimensionnement, division, sauvegarde et export PNG des tranches utilisateur ; repères automatiques facultatifs.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.

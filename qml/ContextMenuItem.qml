@@ -4,7 +4,7 @@ import QtQuick.Controls
 MenuItem {
     id: control
 
-    implicitWidth: 310
+    implicitWidth: Math.max(310, contentItem.implicitWidth + leftPadding + rightPadding)
     implicitHeight: 36
     leftPadding: 14
     rightPadding: 14

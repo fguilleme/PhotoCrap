@@ -321,6 +321,8 @@ qt_add_qml_module(PhotoCrap
         qml/PanelTitle.qml
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml
+        qml/LayerContextMenu.qml
+        qml/MaskContextMenu.qml
         qml/DarkMenu.qml
         qml/DarkMenuItem.qml
         qml/DarkSlider.qml

@@ -13,6 +13,7 @@ Item {
     property bool panelShown: true
     property bool temporarilyHidden: false
     property bool hideOnClose: false
+    property bool applicationClosing: false
     property int dockedHeight: 150
     property int minimumContentHeight: 48
     readonly property int headerHeight: 34
@@ -64,6 +65,7 @@ Item {
 
     ApplicationWindow {
         id: floatingWindow
+        objectName: root.panelId + "FloatingWindow"
         visible: false
         width: 300
         height: Math.max(180, root.dockedHeight)
@@ -77,6 +79,7 @@ Item {
         onWidthChanged: root.layoutChanged()
         onHeightChanged: root.layoutChanged()
         onClosing: function(close) {
+            if (root.applicationClosing) return
             close.accepted = false
             if (root.hideOnClose) root.hideRequested()
             else {

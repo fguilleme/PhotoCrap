@@ -1,3 +1,4 @@
+#include "Application.h"
 #include "CanvasItem.h"
 #include "Document.h"
 #include "LanguageManager.h"
@@ -13,6 +14,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
+#include "../tests/ShutdownSmoke.h"
 #include "../tests/UiSmoke.h"
 #ifdef Q_OS_MACOS
 #include "../tests/MacApplicationMenuTest.h"
@@ -56,7 +58,7 @@ private:
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    Application app(argc, argv);
     app.setApplicationName("PhotoCrap");
     app.setOrganizationName("PhotoCrap");
     app.setApplicationVersion(PHOTOCRAP_VERSION);
@@ -95,6 +97,7 @@ int main(int argc, char *argv[])
     engine.loadFromModule("PhotoCrap", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
+    app.setMainWindow(qobject_cast<QWindow *>(engine.rootObjects().first()));
     if (args.contains("--demo") || smoke)
         document.createDemo();
     else if (args.size() > 1 && !args[1].startsWith("--")) {
@@ -109,6 +112,16 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            if (args.contains("--shutdown-test")) {
+                if (qmlWarnings) {
+                    app.exit(2);
+                    return;
+                }
+                startShutdownSmoke(window, document, workspaceSettings,
+                                   args.contains("--shutdown-save"),
+                                   args.contains("--shutdown-clean"));
+                return;
+            }
 #ifdef Q_OS_MACOS
             if (window && args.contains("--native-menu-test"))
                 passed = runMacApplicationMenuTest(window);
@@ -137,5 +150,10 @@ int main(int argc, char *argv[])
             }
         });
     }
-    return app.exec();
+    const int result = app.exec();
+#ifdef PHOTOCRAP_TESTING
+    if (args.contains("--shutdown-test") && !app.property("shutdownChecksPassed").toBool())
+        return 3;
+#endif
+    return result;
 }

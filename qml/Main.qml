@@ -1044,6 +1044,7 @@ ApplicationWindow {
     onClosing: function(event) {
         saveWorkspaceLayout()
         if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
+        else Qt.callLater(Qt.quit)
     }
     onDockWidthChanged: scheduleWorkspaceSave()
     onDockPanelOrderChanged: scheduleWorkspaceSave()
@@ -2805,6 +2806,7 @@ ApplicationWindow {
                         id: histogramDock
                         objectName: "histogramDockPanel"
                         panelId: "histogram"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Histogramme")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -2875,6 +2877,7 @@ ApplicationWindow {
                         id: navigatorDock
                         objectName: "navigatorDockPanel"
                         panelId: "navigator"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Navigateur")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -2924,6 +2927,7 @@ ApplicationWindow {
                         id: colorDock
                         objectName: "colorDockPanel"
                         panelId: "color"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Couleur")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -2981,6 +2985,7 @@ ApplicationWindow {
                         id: layersDock
                         objectName: "layersDockPanel"
                         panelId: "layers"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Calques")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -3260,6 +3265,7 @@ ApplicationWindow {
                         id: channelsDock
                         objectName: "channelsDockPanel"
                         panelId: "channels"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Couches")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -3335,6 +3341,7 @@ ApplicationWindow {
                         id: informationDock
                         objectName: "informationDockPanel"
                         panelId: "information"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Informations")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -3381,6 +3388,7 @@ ApplicationWindow {
                         id: historyDock
                         objectName: "historyDockPanel"
                         panelId: "history"
+                        applicationClosing: window.allowClose || !window.visible
                         title: qsTr("Historique")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
@@ -4644,9 +4652,9 @@ ApplicationWindow {
         closePolicy: Popup.NoAutoClose
         Label { width: parent.width; text: qsTr("Le document « %1 » contient des modifications non enregistrées.").arg(editor.name); wrapMode: Text.WordWrap }
         footer: DialogButtonBox {
-            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: unsavedDialog.close() }
-            DialogActionButton { text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }
-            DialogActionButton { text: qsTr("Enregistrer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
+            DialogActionButton { objectName: "unsavedCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: unsavedDialog.close() }
+            DialogActionButton { objectName: "unsavedDiscardButton"; text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }
+            DialogActionButton { objectName: "unsavedSaveButton"; text: qsTr("Enregistrer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
         }
     }
     Dialog {

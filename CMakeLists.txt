@@ -257,6 +257,7 @@ if(APPLE)
 endif()
 
 qt_add_executable(PhotoCrap
+    src/Application.h
     src/main.cpp
     src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h
@@ -391,13 +392,17 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
-    set_tests_properties(document qml_smoke PROPERTIES
+    add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
+    add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)
+    add_test(NAME shutdown_clean COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-clean)
+    set_tests_properties(document qml_smoke shutdown_discard shutdown_save shutdown_clean PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
     )
     # The engine suite includes multiple independent full-resolution async
     # deadlines; its aggregate timeout must be greater than their sum.
     set_tests_properties(document PROPERTIES TIMEOUT 180)
     set_tests_properties(qml_smoke PROPERTIES TIMEOUT 60)
+    set_tests_properties(shutdown_discard shutdown_save shutdown_clean PROPERTIES TIMEOUT 15)
 endif()
 
 include(GNUInstallDirs)

@@ -4,13 +4,24 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Version **0.11.0** is a working raster application, **not a complete reproduction of Photoshop**. Available features and current limitations are detailed below; work required for broader parity is tracked in [ROADMAP.md](ROADMAP.md).
+The latest published release is **v0.12.0**. This README also describes development-branch additions; features added after that release are listed below. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Download
 
-[Release 0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**. Each package includes a `.sha256` file. Qt is bundled; a Qt installation is needed only to build the project.
+[Release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0), published on **October 13, 2026**, provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**. Each package includes a `.sha256` file. Qt is bundled; a Qt installation is needed only to build the project.
 
-Status checked on **October 12, 2026**: the [tag workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/38168128564) passed builds, tests, deployment checks, and publication on all three platforms. The packaged macOS application passed ad hoc signature verification, and the four downloaded packages passed SHA-256 checks. A separate [branch workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/38168129164) still fails the native macOS cursor test after a rerun. This remains open; successful publication does not mean every check is green.
+Package filenames and the internal version still show **0.11.0**, because the CMake version was not increased when the tag was created; these packages contain the **v0.12.0** code.
+
+Status checked on **October 14, 2026**: the [v0.12.0 workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) passed builds, tests, deployment checks, packaging, and publication on all three platforms, including ad hoc signature verification of the DMG. The [latest verified branch workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/38458696477), at commit `891b688`, also passed. Previous native macOS cursor failures remain worth monitoring; this successful run does not establish that they are permanently resolved.
+
+Release v0.12.0 includes RAW opening and 16-bit pixels, crop and slice tools, the Adobe/NYI shortcut catalog, editable frequency separation, and support for up to 512 layers with compact storage and bounded caches.
+
+## Additions since v0.12.0
+
+These features are available on the development branch but are not included in the v0.12.0 release packages:
+
+- **Magic Eraser**: color-based erasing, cancellable asynchronous processing, and native 8/16-bit precision.
+- **Separate layer and mask context menus**: properties, locking, mask inversion and deletion, with missing features disabled and marked **NYI**.
 
 ![PhotoCrap demo composition](docs/screenshot.png)
 
@@ -117,7 +128,7 @@ ctest --preset release
 ## Usage
 
 1. Create a document, open an image, or load the demo.
-2. Select a layer in the list on the right. Double-click its name to rename it, or right-click for layer and mask commands. The **◐** button adds or selects its mask. The **ƒ** button opens the settings for an adjustment or frequency separation.
+2. Select a layer in the list on the right. On the development branch, right-click the layer for its commands, or right-click its **mask thumbnail** for mask commands without opening the properties dialog. The **◐** button adds or selects its mask. The **ƒ** button opens adjustment, active mask, or frequency-separation settings. Double-click opens properties when available, otherwise renaming.
 3. Select a tool on the left and draw on the canvas. Text options appear in the bar below the canvas; each click rasterizes the text into the active layer.
 4. To crop, draw a region and click **Crop**. Adjustments and brush strokes honor the selection; deselect it to affect the whole image.
 5. Save as `.pcr` to preserve layers, then export a flattened image for sharing.
@@ -196,12 +207,25 @@ Cropping removes pixels outside the frame; Undo recovers them. Nondestructive re
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Startup, QML exposure, languages, recent files, shortcuts, and persistent workspace settings |
 | `qml/Main.qml`, `qml/*Editor.qml`, `qml/*Options.qml` | Window, menus, dialogs, adjustment editors, and specialized tool option bars |
 | `qml/DockablePanel.qml`, `qml/InformationPanel.qml` | Shared panel container and measurement display |
+| `qml/LayerContextMenu.qml`, `qml/MaskContextMenu.qml`, `tests/LayerContextMenuSmoke.h` | Target-specific context menus and right-click/action tests |
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h`, `tests/Mac*Test.*` | Engine, QML interaction, and native macOS menu/cursor tests |
 | `.github/workflows/build.yml`, `cmake/*`, `packaging/*` | Builds, tests, deployment, packaging, signature checks, and release publication |
 
 Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied` (8-bit channels) or `QImage::Format_RGBA64_Premultiplied` (16-bit channels). Masks remain 8-bit; screen proxies may use 8-bit pixels without changing the working images. The composite and frequency-separation renders are cached. During a stroke, only affected regions are recomposed, so frequency blur is not recalculated when a mask changes. History snapshots use QImage implicit sharing; one continuous gesture becomes one operation. History is limited to 40 operations and approximately 256 MiB of image data retained in addition to the current document, with at least one undo preserved even when it exceeds that budget.
 
 The `.pcr` file is a versioned JSON document. Version 7 stores channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–6. Empty pixel layers and uniform masks use compact storage in this version, expanding only when locally edited. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 512 layers, and 2 GiB of uncompressed layer data. The budget separately counts color pixels, frequency-separation sources, and 8-bit masks; adjustments reserve only their masks, and groups reserve no image. Nonuniform shared images are reserved independently for each layer so they can be edited and reloaded. Empty layers and uniform masks do not reserve full-sized planes; painting checks the budget before expanding them. The frequency cache uses LRU eviction with a 128 MiB budget, and frequency thumbnails render at display size. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
+
+### Magic Eraser (development branch)
+
+Right-click the **E** group and choose **Magic Eraser**, then click the color to erase on an unlocked pixel layer. **Tolerance** controls the accepted color difference. **Contiguous** restricts erasing to the connected area around the click; disabling it matches colors throughout the selection or image. **Anti-alias** softens edges, and **Opacity** controls how much is erased.
+
+**All layers** samples the visible composite but modifies only the active layer. Processing runs in the background and **Escape** cancels it. A selection restricts the affected area, and each applied click creates one undo step. Working pixels retain 8- or 16-bit precision. The tool operates on pixel layers and does not act on fully transparent samples; Background Eraser remains **NYI**.
+
+### Layer and mask context menus (development branch)
+
+The **layer** menu provides available properties, duplication, renaming, deletion, locking, clipping, grouping, merge down, and visibility. Single-layer actions are disabled when multiple layers are selected; grouping uses the multiple selection.
+
+Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
 ## Validation and limitations
 
@@ -212,7 +236,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
   ./build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --screenshot /tmp/photocrap.png
 ```
 
-On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) and the [roadmap](ROADMAP.md) for the verified release status and the remaining cursor failure.
+On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) for verified workflow status and the [roadmap](ROADMAP.md) for remaining validation and features.
 
 Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, vector masks, smart objects, Bézier paths, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
 

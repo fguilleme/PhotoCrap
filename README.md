@@ -4,13 +4,24 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La version **0.11.0** est une application raster fonctionnelle, **pas une reproduction complète de Photoshop**. Les fonctions disponibles et les limites sont détaillées ci-dessous ; les développements nécessaires à une parité plus large sont dans [ROADMAP.md](ROADMAP.md).
+La dernière release publiée est **v0.12.0**. Ce README décrit aussi les ajouts de la branche de développement ; les fonctions postérieures à cette release sont indiquées ci-dessous. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
 
 ## Télécharger
 
-La [release 0.11.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.11.0) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**. Chaque paquet est accompagné d’un fichier `.sha256`. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+La [release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0), publiée le **13 octobre 2026**, fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**. Chaque paquet est accompagné d’un fichier `.sha256`. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
 
-État vérifié le **12 octobre 2026** : le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/38168128564) a réussi les builds, tests, déploiements et la publication sur les trois plateformes. Le DMG a passé le contrôle de signature ad hoc ; les sommes SHA-256 des quatre paquets téléchargés ont été vérifiées. Un [workflow de branche](https://github.com/fguilleme/PhotoCrap/actions/runs/38168129164) échoue toutefois au test du curseur natif macOS, même après relance. Ce défaut reste ouvert ; la réussite de la publication ne signifie pas que tous les contrôles sont verts.
+Les noms des paquets et la version interne affichent encore **0.11.0**, car la version CMake n’a pas été augmentée lors du tag ; ils correspondent bien au code de **v0.12.0**.
+
+État vérifié le **14 octobre 2026** : le [workflow de v0.12.0](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) a réussi les builds, tests, contrôles de déploiement, création des paquets et publication sur les trois plateformes, ainsi que le contrôle de signature ad hoc du DMG. Le [dernier workflow de branche vérifié](https://github.com/fguilleme/PhotoCrap/actions/runs/38458696477), au commit `891b688`, est également vert. Les précédents échecs du curseur natif macOS restent un point de vigilance ; ce résultat ne suffit pas à établir leur résolution définitive.
+
+La release v0.12.0 inclut l’ouverture RAW et les pixels 16 bits, les outils de recadrage et de tranches, le catalogue de raccourcis Adobe/NYI, la séparation de fréquences retouchable et la gestion de documents jusqu’à 512 calques avec stockage compact et caches bornés.
+
+## Ajouts depuis v0.12.0
+
+Ces fonctions sont disponibles dans la branche de développement, mais ne sont pas incluses dans les paquets du tag v0.12.0 :
+
+- **Gomme magique** : effacement par couleur, calcul asynchrone annulable et précision 8/16 bits.
+- **Menus contextuels distincts pour calques et masques** : propriétés, verrouillage, inversion et suppression du masque, avec les fonctions manquantes désactivées et marquées **NYI**.
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
 
@@ -127,7 +138,7 @@ ctest --preset release
 ## Utilisation
 
 1. Créer un document, ouvrir une image ou charger la démonstration.
-2. Sélectionner le calque dans la liste à droite ; double-cliquer son nom pour le renommer ou faire un clic droit pour accéder aux commandes du calque et de son masque. Le bouton **◐** ajoute ou sélectionne son masque. Le bouton **ƒ** ouvre les paramètres d’un réglage ou d’une séparation de fréquences.
+2. Sélectionner le calque dans la liste à droite. Sur la branche de développement, le clic droit sur le calque ouvre ses commandes ; le clic droit sur sa **vignette de masque** ouvre celles du masque sans ouvrir le dialogue de propriétés. Le bouton **◐** ajoute ou sélectionne le masque. Le bouton **ƒ** ouvre les paramètres du réglage, du masque actif ou d’une séparation de fréquences. Le double-clic ouvre les propriétés lorsqu’elles existent, sinon le renommage.
 3. Choisir un outil à gauche et dessiner sur le canevas. Le texte se règle dans la barre sous le canevas ; chaque clic le rasterise dans le calque actif.
 4. Pour un recadrage, tracer une zone puis cliquer **Recadrer**. Les réglages et les coups de pinceau respectent la sélection ; la désélectionner pour agir sur toute l’image.
 5. Enregistrer en `.pcr` pour conserver les calques, puis exporter une image pour la partager.
@@ -191,12 +202,25 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Démarrage, exposition QML, langues, fichiers récents, raccourcis et espace de travail persistant |
 | `qml/Main.qml`, `qml/*Editor.qml`, `qml/*Options.qml` | Fenêtre, menus, dialogues, éditeurs de réglage et barres d’options spécialisées |
 | `qml/DockablePanel.qml`, `qml/InformationPanel.qml` | Conteneur commun des panneaux et affichage des mesures |
+| `qml/LayerContextMenu.qml`, `qml/MaskContextMenu.qml`, `tests/LayerContextMenuSmoke.h` | Menus contextuels par cible et tests de clic droit/actions |
 | `tests/DocumentTest.cpp`, `tests/UiSmoke.h`, `tests/Mac*Test.*` | Tests du moteur, des interactions QML et des menus/curseurs natifs macOS |
 | `.github/workflows/build.yml`, `cmake/*`, `packaging/*` | Builds, tests, déploiement, paquets, contrôles de signature et publication des releases |
 
 Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied` (8 bits par canal) ou `QImage::Format_RGBA64_Premultiplied` (16 bits par canal). Les masques restent en 8 bits ; les proxies écran peuvent être réduits en 8 bits sans changer les pixels de travail. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images supplémentaires retenues par rapport au document courant, avec au moins une annulation conservée même si elle dépasse ce budget.
 
 Le `.pcr` est un document JSON versionné. Sa version 7 conserve la profondeur des couleurs et les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 6. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
+
+### Gomme magique (branche de développement)
+
+Dans le groupe **E**, faire un clic droit sur l’icône puis choisir **Gomme magique**. Cliquer sur la couleur à effacer dans un calque de pixels déverrouillé. **Tolérance** règle l’écart de couleur accepté ; **Contigus** limite l’effacement à la zone connectée au clic, tandis que sa désactivation recherche les couleurs correspondantes dans toute la sélection ou l’image. **Lissage** adoucit les bords et **Opacité** règle la quantité effacée.
+
+**Tous les calques** prélève la composition visible, mais seul le calque actif est modifié. Le calcul s’effectue en arrière-plan ; **Échap** l’annule. Une sélection limite la zone traitée et chaque clic appliqué crée une étape d’annulation. Les pixels de travail restent en 8 ou 16 bits. L’outil est réservé aux calques de pixels et ne fonctionne pas sur un échantillon entièrement transparent ; la Gomme d’arrière-plan reste **NYI**.
+
+### Menus contextuels des calques et masques (branche de développement)
+
+Le menu du **calque** donne accès aux propriétés disponibles, à la duplication, au renommage, à la suppression, au verrouillage, à l’écrêtage, au regroupement, à la fusion vers le bas et à la visibilité. Les actions portant sur un seul calque sont désactivées lorsque plusieurs calques sont sélectionnés ; le regroupement utilise la sélection multiple.
+
+Le menu de la **vignette de masque** cible le masque cliqué : propriétés, affichage isolé, activation/désactivation, inversion et suppression. Inversion et suppression sont annulables ; les commandes de modification du menu sont désactivées sur un calque verrouillé. Les fonctions manquantes restent visibles avec **NYI**, notamment appliquer/dissocier le masque, le charger comme sélection, les fusions sélectionnée/visible, l’aplatissement, les objets dynamiques et les options de fusion avancées.
 
 ### Suppression
 
@@ -247,7 +271,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
   ./build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --screenshot /tmp/photocrap.png
 ```
 
-Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut de publication et l’échec de curseur restant sont détaillés dans [Télécharger](#télécharger) et dans la [roadmap](ROADMAP.md).
+Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut des workflows vérifiés est détaillé dans [Télécharger](#télécharger) ; les essais et fonctions restant à compléter sont suivis dans la [roadmap](ROADMAP.md).
 
 Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels, objets dynamiques, tracés Bézier, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 

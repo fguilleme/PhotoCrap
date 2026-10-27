@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État du projet au **14 octobre 2026**, dernière release publiée **v0.12.0**. Cette feuille de route distingue les fonctions incluses dans cette release, les ajouts de la branche de développement et les travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **27 octobre 2026**, dernière release publiée **v0.12.0**. Cette feuille de route distingue les fonctions incluses dans cette release, les ajouts de la branche de développement et les travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
 La [release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0) est publiée pour macOS arm64, Linux x86_64 et Windows x64. Son [workflow de tag](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) a réussi les builds, tests, déploiements, paquets et publication. Le [workflow de branche vérifié au commit `9303970`](https://github.com/fguilleme/PhotoCrap/actions/runs/38522922351) est également vert. Les précédents échecs intermittents du curseur natif macOS restent à surveiller.
 
@@ -33,8 +33,10 @@ Les paquets de v0.12.0 portent encore le numéro **0.11.0** dans leur nom et leu
 
 ## Ajouts de la branche de développement (après v0.12.0)
 
-Ces fonctions sont committées et poussées, mais ne sont pas incluses dans les paquets du tag v0.12.0. Le catalogue actuel contient 275 entrées de raccourcis et gestes, dont 117 NYI après l’implémentation de la Gomme magique.
+Cette section décrit la branche de développement ; ces ajouts ne sont pas inclus dans les paquets du tag v0.12.0. Le catalogue actuel contient 282 entrées de raccourcis et gestes, dont 113 NYI après l’implémentation de la Gomme magique et de la Plume.
 
+- [x] Plume en mode Tracé : Bézier, poignées, ajout/suppression/conversion de points, contraintes, reprise, fermeture, annulation et sauvegarde des tracés en projet v8. Conversion en sélection, remplissage et contour raster avec sélection et profondeur 8/16 bits conservées.
+- [ ] Modes Forme et masque vectoriel, opérations booléennes et panneau Tracés complet. Plume libre/de courbure et sélections de tracés restent NYI.
 - [x] Gomme magique : effacement par couleur avec tolérance, contiguïté, lissage, opacité et échantillonnage visible de tous les calques. Calcul asynchrone annulable, sélection respectée, pixels 8/16 bits et une étape d’annulation par clic ; outil réservé aux calques de pixels.
 - [x] Menus contextuels distincts pour calques et vignettes de masque : propriétés et verrouillage côté calque, affichage/activation/inversion/suppression côté masque. Les actions portant sur un seul calque sont désactivées pour une sélection multiple ; les fonctions manquantes sont marquées NYI. Tests de clic droit ciblant un autre masque, d’annulation et de verrouillage.
 
@@ -50,7 +52,7 @@ Ces fonctions sont committées et poussées, mais ne sont pas incluses dans les 
 
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 
-- [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Tests de charge de 301 calques sur une image 24 Mpx en 16 bits et liste de calques virtualisée.
+- [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7 et suivants, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Tests de charge de 301 calques sur une image 24 Mpx en 16 bits et liste de calques virtualisée.
 - [ ] Composition et stockage par tuiles, invalidation fine des caches et traitements régionaux plus systématiques.
 - [ ] Généraliser le calcul asynchrone avec annulation des résultats périmés aux opérations complètes de calques, masques, transformations et filtres directs.
 - [ ] Mesures de latence, mémoire et précision des aperçus par outil/filtre, notamment lorsque le rayon d’un flou est ramené à la résolution du proxy.
@@ -68,7 +70,7 @@ Les entrées existent dans le catalogue mais sont désactivées. Elles restent d
 | Recadrage et mise en page | Cadre |
 | Mesure et annotation | Annotation, comptage |
 | Gomme et réglage local | Gomme d’arrière-plan, pinceau de réglage |
-| Tracés | Plume, plume libre, plume de courbure, ajout de point d’ancrage, suppression de point d’ancrage, conversion de point, sélection de tracé et sélection directe |
+| Tracés | Plume libre, plume de courbure, sélection de tracé et sélection directe |
 | Texte et formes | Texte vertical, masque de texte horizontal, masque de texte vertical, forme personnalisée |
 
 Améliorations des outils déjà disponibles :

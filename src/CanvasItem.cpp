@@ -13,6 +13,73 @@
 
 namespace
 {
+QCursor penCursor(const QString &_tool)
+{
+    static QHash<QString, QCursor> cache;
+    const qreal   ratio = QGuiApplication::primaryScreen()
+                              ? QGuiApplication::primaryScreen()->devicePixelRatio()
+                              : 1.;
+    const QString key   = _tool + QString::number(ratio, 'f', 2);
+    if (cache.contains(key))
+        return cache.value(key);
+    QPixmap pixmap(qRound(36 * ratio), qRound(36 * ratio));
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+    QPainter p(&pixmap);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPainterPath nib;
+    if (_tool == "penMove") {
+        // Align the visible arrow tip with its hotspot, rather than retaining
+        // the nib's hotspot twenty pixels below the arrow tip.
+        nib.moveTo(3, 3);
+        nib.lineTo(3, 23);
+        nib.lineTo(9, 18);
+        nib.lineTo(13, 27);
+        nib.lineTo(18, 25);
+        nib.lineTo(13, 16);
+        nib.lineTo(21, 16);
+        nib.closeSubpath();
+    } else {
+        nib.moveTo(3, 29);
+        nib.lineTo(6, 15);
+        nib.lineTo(21, 3);
+        nib.lineTo(29, 11);
+        nib.lineTo(17, 26);
+        nib.closeSubpath();
+    }
+    p.setPen(QPen(Qt::black, 3));
+    p.setBrush(Qt::white);
+    p.drawPath(nib);
+    p.setPen(QPen(Qt::white, 1));
+    p.drawPath(nib);
+    p.setPen(QPen(Qt::black, 1.2));
+    if (_tool != "penMove") {
+        p.drawLine(QPointF(3, 29), QPointF(16, 16));
+        p.drawEllipse(QPointF(17, 15), 2, 2);
+    }
+    for (const QPen pen : {QPen(Qt::black, 3.5), QPen(Qt::white, 1.5)}) {
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        if (_tool == "penAdd" || _tool == "penStart") {
+            p.drawLine(25, 28, 33, 28);
+            p.drawLine(29, 24, 29, 32);
+        }
+        if (_tool == "penDelete")
+            p.drawLine(25, 28, 33, 28);
+        if (_tool == "penClose")
+            p.drawEllipse(QPointF(29, 28), 3, 3);
+        if (_tool == "penResume")
+            p.drawLine(25, 32, 32, 25);
+        if (_tool == "penConvert") {
+            p.drawLine(25, 25, 29, 31);
+            p.drawLine(29, 31, 33, 25);
+        }
+    }
+    const QCursor cursor(pixmap, 3, _tool == "penMove" ? 3 : 29);
+    cache.insert(key, cursor);
+    return cursor;
+}
+
 QCursor eyedropperCursor(const QString &_tool)
 {
     constexpr int                  size = 36;
@@ -245,7 +312,8 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         return;
     }
 
-    QCursor cursor = _tool == QStringLiteral("magicWand") ? magicWandCursor(_selectionMode)
+    QCursor cursor = _tool.startsWith("pen") && !_precise   ? penCursor(_tool)
+                     : _tool == QStringLiteral("magicWand") ? magicWandCursor(_selectionMode)
                      : _tool == QStringLiteral("magicEraser") && !_precise
                          ? magicEraserCursor()
                          : QCursor(static_cast<Qt::CursorShape>(_shape));

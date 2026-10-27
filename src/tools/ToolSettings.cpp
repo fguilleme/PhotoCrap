@@ -5,7 +5,11 @@
 
 void Document::setTool(const QString &_value)
 {
-    static const QStringList tools{"brush",
+    static const QStringList tools{"pen",
+                                   "addAnchor",
+                                   "deleteAnchor",
+                                   "convertPoint",
+                                   "brush",
                                    "pencil",
                                    "colorReplacement",
                                    "mixerBrush",
@@ -57,6 +61,9 @@ void Document::setTool(const QString &_value)
                                    "ruler"};
     if (!tools.contains(_value))
         return;
+    if (m_tool != _value && (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
+                             m_tool == "convertPoint"))
+        finishPenPath();
     if (m_polygonLassoActive)
         cancelPolygonLasso();
     else

@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["pen", "addAnchor", "deleteAnchor", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,16 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "magicEraser") {
+            if (["pen","addAnchor","deleteAnchor","convertPoint"].indexOf(root.toolName)>=0) {
+                ctx.beginPath();ctx.moveTo(3,21);ctx.lineTo(6,10);ctx.lineTo(16,3);ctx.lineTo(22,9);ctx.lineTo(14,18);ctx.closePath();ctx.stroke()
+                ctx.beginPath();ctx.moveTo(3,21);ctx.lineTo(12,12);ctx.stroke()
+                ctx.beginPath();ctx.arc(13,11,1.5,0,Math.PI*2);ctx.stroke()
+                if(root.toolName==="addAnchor" || root.toolName==="deleteAnchor") {
+                    ctx.beginPath();ctx.moveTo(16,21);ctx.lineTo(23,21)
+                    if(root.toolName==="addAnchor"){ctx.moveTo(19.5,17.5);ctx.lineTo(19.5,24)}ctx.stroke()
+                }
+                if(root.toolName==="convertPoint"){ctx.beginPath();ctx.moveTo(16,19);ctx.lineTo(20,23);ctx.lineTo(23,19);ctx.stroke()}
+            } else if (root.toolName === "magicEraser") {
                 ctx.beginPath();ctx.moveTo(2,16);ctx.lineTo(10,7);ctx.lineTo(18,15)
                 ctx.lineTo(12,22);ctx.lineTo(7,22);ctx.closePath();ctx.stroke()
                 ctx.beginPath();ctx.moveTo(5,13);ctx.lineTo(14,21);ctx.stroke()

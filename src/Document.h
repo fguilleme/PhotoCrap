@@ -1,5 +1,6 @@
 #pragma once
 #include "RawImageReader.h"
+#include "tools/PenPath.h"
 #include <QCache>
 #include <QColor>
 #include <QFutureWatcher>
@@ -70,6 +71,14 @@ class Document : public QObject
         int displayChannel READ displayChannel WRITE setDisplayChannel NOTIFY displayChannelChanged)
     Q_PROPERTY(int maskOnlyLayer READ maskOnlyLayer NOTIFY displayChannelChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList penPaths READ penPaths NOTIFY penPathsChanged)
+    Q_PROPERTY(int activePenPath READ activePenPath WRITE setActivePenPath NOTIFY penPathsChanged)
+    Q_PROPERTY(bool penDrawing READ penDrawing NOTIFY penPathsChanged)
+    Q_PROPERTY(QPointF penHover READ penHover NOTIFY penHoverChanged)
+    Q_PROPERTY(
+        bool penRubberBand READ penRubberBand WRITE setPenRubberBand NOTIFY penOptionsChanged)
+    Q_PROPERTY(bool penAutoAddDelete READ penAutoAddDelete WRITE setPenAutoAddDelete NOTIFY
+                   penOptionsChanged)
     Q_PROPERTY(QVariantList slices READ slices NOTIFY slicesChanged)
     Q_PROPERTY(int activeSlice READ activeSlice NOTIFY slicesChanged)
     Q_PROPERTY(QRectF sliceDraft READ sliceDraft NOTIFY slicesChanged)
@@ -246,6 +255,48 @@ class Document : public QObject
 public:
     explicit Document(QObject *_parent = nullptr);
     ~Document() override;
+    QVariantList penPaths() const;
+    int          activePenPath() const
+    {
+        return m_activePenPath;
+    }
+    bool penDrawing() const
+    {
+        return m_penDrawing;
+    }
+    QPointF penHover() const
+    {
+        return m_penHover;
+    }
+    bool penRubberBand() const
+    {
+        return m_penRubberBand;
+    }
+    bool penAutoAddDelete() const
+    {
+        return m_penAutoAddDelete;
+    }
+    void             setPenRubberBand(bool _value);
+    void             setPenAutoAddDelete(bool _value);
+    Q_INVOKABLE void setActivePenPath(int _index);
+    Q_INVOKABLE void newPenPath();
+    Q_INVOKABLE void renamePenPath(const QString &_name);
+    Q_INVOKABLE void deletePenPath();
+    Q_INVOKABLE void deletePenPoints();
+    Q_INVOKABLE void nudgePenPoints(int _dx, int _dy);
+    Q_INVOKABLE void finishPenPath();
+    Q_INVOKABLE void closePenPath();
+    Q_INVOKABLE void beginPenGesture(qreal _x, qreal _y, qreal _tolerance = 6, bool _direct = false,
+                                     bool _alternate = false, bool _shift = false);
+    Q_INVOKABLE void updatePenGesture(qreal _x, qreal _y, bool _shift = false,
+                                      bool _alternate = false, bool _space = false);
+    Q_INVOKABLE void endPenGesture(bool _cancel = false);
+    Q_INVOKABLE void updatePenHover(qreal _x, qreal _y);
+    Q_INVOKABLE QString penCursorAt(qreal _x, qreal _y, qreal _tolerance, bool _direct,
+                                    bool _alternate) const;
+    Q_INVOKABLE void    penPathToSelection(int _mode = 0);
+    Q_INVOKABLE void    fillPenPath();
+    Q_INVOKABLE void    strokePenPath();
     Q_PROPERTY(int channelBits READ channelBits NOTIFY documentChanged)
     int channelBits() const
     {
@@ -994,6 +1045,9 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void penPathsChanged();
+    void penHoverChanged();
+    void penOptionsChanged();
     void rawLoadingChanged();
     void frequencyRetouchBusyChanged();
     void rawFileOpened(const QUrl &_url);
@@ -1017,42 +1071,56 @@ signals:
 
 private:
     struct Snapshot {
-        QVector<Layer> layers;
-        QSize          size;
-        int            active;
-        QRect          selection;
-        QRegion        selectionRegion;
-        int            selectionShape;
-        QPolygonF      selectionPath;
-        QSet<int>      selectedLayers;
-        int            layerSelectionAnchor;
-        bool           editingMask;
-        quint64        id;
-        QString        label;
-        QVector<QRect> slices;
-        int            activeSlice = -1;
-        int            channelBits = 8;
+        QVector<Layer>   layers;
+        QSize            size;
+        int              active;
+        QRect            selection;
+        QRegion          selectionRegion;
+        int              selectionShape;
+        QPolygonF        selectionPath;
+        QSet<int>        selectedLayers;
+        int              layerSelectionAnchor;
+        bool             editingMask;
+        quint64          id;
+        QString          label;
+        QVector<QRect>   slices;
+        int              activeSlice = -1;
+        int              channelBits = 8;
+        QVector<PenPath> penPaths;
+        int              activePenPath = -1;
+        QSet<int>        selectedPenPoints;
+        bool             penDrawing = false;
+        bool             penOnly    = false;
     };
-    QVector<QRect> m_slices;
-    int            m_activeSlice = -1, m_sliceHandle = -2;
-    bool           m_sliceBusy = false, m_sliceDragging = false, m_sliceCreating = false,
-                   m_sliceShowAuto = false;
-    QRectF         m_sliceDraft, m_sliceBefore;
-    QPointF        m_sliceAnchor;
-    void           commitSlices(const Snapshot &_before, const QString &_label);
-    int            m_channelBits = 8;
-    QSize          m_size{1280, 800};
-    QVector<Layer> m_layers;
-    int            m_active = 0;
-    QSet<int>      m_selectedLayers{0};
-    int            m_layerSelectionAnchor = 0;
-    QVector<bool>  m_visibilityBeforeIsolation;
-    int            m_isolatedLayer = -1;
-    QString        m_name          = QStringLiteral("Sans titre");
-    QUrl           m_projectUrl;
-    QString        m_tool = QStringLiteral("brush");
-    QColor         m_color{Qt::black}, m_secondary{Qt::white};
-    qreal          m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
+    QVector<PenPath> m_penPaths;
+    int              m_activePenPath = -1, m_penGesture = 0, m_penPoint = -1;
+    bool             m_penDrawing = false, m_penWasDrawing = false, m_penBroken = false;
+    bool             m_penRubberBand = false, m_penAutoAddDelete = true;
+    QPointF          m_penHover, m_penOrigin, m_penLastPointer;
+    QSet<int>        m_selectedPenPoints, m_penSelectionBefore;
+    Snapshot         m_beforePenGesture;
+    void             commitPenEdit(const Snapshot &_before, const QString &_label);
+    QPair<int, int>  hitPenPoint(const QPointF &_point, qreal _tolerance) const;
+    QVector<QRect>   m_slices;
+    int              m_activeSlice = -1, m_sliceHandle = -2;
+    bool             m_sliceBusy = false, m_sliceDragging = false, m_sliceCreating = false,
+                     m_sliceShowAuto = false;
+    QRectF           m_sliceDraft, m_sliceBefore;
+    QPointF          m_sliceAnchor;
+    void             commitSlices(const Snapshot &_before, const QString &_label);
+    int              m_channelBits = 8;
+    QSize            m_size{1280, 800};
+    QVector<Layer>   m_layers;
+    int              m_active = 0;
+    QSet<int>        m_selectedLayers{0};
+    int              m_layerSelectionAnchor = 0;
+    QVector<bool>    m_visibilityBeforeIsolation;
+    int              m_isolatedLayer = -1;
+    QString          m_name          = QStringLiteral("Sans titre");
+    QUrl             m_projectUrl;
+    QString          m_tool = QStringLiteral("brush");
+    QColor           m_color{Qt::black}, m_secondary{Qt::white};
+    qreal            m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
     qreal   m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;
     int     m_brushBlend      = 0;
     bool    m_pencilAutoErase = false;

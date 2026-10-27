@@ -263,7 +263,7 @@ private slots:
         QVERIFY(input.open(QIODevice::ReadOnly));
         auto root = QJsonDocument::fromJson(input.readAll()).object();
         input.close();
-        QCOMPARE(root["version"].toInt(), 7);
+        QCOMPARE(root["version"].toInt(), 8);
         auto layers    = root["layers"].toArray();
         auto compact   = layers[1].toObject();
         compact["png"] = layers[0].toObject()["png"]; // Full image with a compact flag.
@@ -573,9 +573,11 @@ private slots:
         QCOMPARE(shortcuts.sequence("toolSmartSelection"), QString("W"));
         QCOMPARE(shortcuts.sequence("toolStamp"), QString("S"));
         QCOMPARE(shortcuts.sequence("toolHealing"), QString("J"));
-        QVERIFY(shortcuts.setSequence("toolBrush", "P"));
-        QCOMPARE(shortcuts.sequence("toolBrush"), QString("P"));
-        QVERIFY(!shortcuts.setSequence("toolMove", "P"));
+        QCOMPARE(shortcuts.sequence("toolPen"), QString("P"));
+        QVERIFY(!shortcuts.setSequence("toolBrush", "P"));
+        QVERIFY(shortcuts.setSequence("toolBrush", "Q"));
+        QCOMPARE(shortcuts.sequence("toolBrush"), QString("Q"));
+        QVERIFY(!shortcuts.setSequence("toolMove", "Q"));
         QCOMPARE(shortcuts.sequence("toolMove"), QString("V"));
         QVERIFY(shortcuts.setSequence("toolBrush", ""));
         QVERIFY(shortcuts.sequence("toolBrush").isEmpty());
@@ -634,11 +636,15 @@ private slots:
         QCOMPARE(migrated.sequence("toolBrush"), QString("Ctrl+K"));
         QVERIFY(migrated.sequence("preferencesAdobe").isEmpty());
         QVERIFY(!QSettings().contains("shortcuts/preferencesAdobe"));
-        QVERIFY(migrated.setSequence("toolBrush", "P"));
+        QVERIFY(migrated.setSequence("toolBrush", "Q"));
         QVERIFY(migrated.setSequence("preferencesAdobe", "Ctrl+K"));
         ShortcutManager reloaded;
-        QCOMPARE(reloaded.sequence("toolBrush"), QString("P"));
+        QCOMPARE(reloaded.sequence("toolBrush"), QString("Q"));
         QCOMPARE(reloaded.sequence("preferencesAdobe"), QString("Ctrl+K"));
+        QSettings().setValue("shortcuts/toolBrush", "P");
+        ShortcutManager penMigration;
+        QCOMPARE(penMigration.sequence("toolBrush"), QString("P"));
+        QVERIFY(penMigration.sequence("toolPen").isEmpty());
     }
     void selectionsCanBeInvertedAndReselectedWithoutChangingPixels()
     {

@@ -159,10 +159,25 @@ Document::Snapshot Document::snapshot(const QString &_label) const
             _label,
             m_slices,
             m_activeSlice,
-            m_channelBits};
+            m_channelBits,
+            m_penPaths,
+            m_activePenPath,
+            m_selectedPenPoints,
+            m_penDrawing};
 }
 void Document::restore(const Snapshot &_state)
 {
+    m_penPaths          = _state.penPaths;
+    m_activePenPath     = _state.activePenPath;
+    m_penGesture        = 0;
+    m_penDrawing        = _state.penDrawing && m_tool == "pen";
+    m_selectedPenPoints = _state.selectedPenPoints;
+    emit penPathsChanged();
+    if (_state.penOnly) {
+        m_stateId = _state.id;
+        emit historyChanged();
+        return;
+    }
     cancelCrop();
     const bool sizeChanged = m_size != _state.size;
     m_layers               = _state.layers;
@@ -319,6 +334,13 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    m_penPaths.clear();
+    m_activePenPath = -1;
+    m_penDrawing    = false;
+    m_penGesture    = 0;
+    m_selectedPenPoints.clear();
+    m_beforePenGesture = {};
+    emit penPathsChanged();
     m_lastSelectionRegion = {};
     cancelRawLoad();
     cancelFrequencyRetouch();

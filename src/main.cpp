@@ -127,6 +127,8 @@ int main(int argc, char *argv[])
                 passed = runMacApplicationMenuTest(window);
             else if (window && args.contains("--native-cursor-test"))
                 passed = runMacToolCursorTest(window);
+            else if (window && args.contains("--native-pen-test"))
+                passed = runMacPenInputTest(window, document);
             else
 #endif
                 passed = window && runUiSmoke(window, document, recentFilesManager,

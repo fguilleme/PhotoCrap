@@ -20,6 +20,8 @@ Release v0.12.0 includes RAW opening and 16-bit pixels, crop and slice tools, th
 
 These features are available on the development branch but are not included in the v0.12.0 release packages:
 
+- **Pen (P)**: editable Bézier paths and handles, corner/smooth points, add/delete/convert point tools, selection, fill, stroke, and v8 project persistence. [Interactions and limitations](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
+
 - **Magic Eraser**: color-based erasing, cancellable asynchronous processing, and native 8/16-bit precision.
 - **Separate layer and mask context menus**: properties, locking, mask inversion and deletion, with missing features disabled and marked **NYI**.
 
@@ -152,6 +154,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | E | Eraser |
 | G | Gradient, contiguous fill |
 | O | Dodge, burn, sponge |
+| P | Pen, Add/Delete Anchor Point, Convert Point |
 | T | Rasterized horizontal text |
 | U | Rectangle, ellipse, triangle, polygon, star, line |
 | H / R / Z | Hand / rotate view / zoom |
@@ -160,7 +163,7 @@ On the development branch, **Y** selects history brushes. **Shift + key** and **
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 
-The catalog contains **275 entries**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
+The catalog contains **282 entries**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
 
 Customize shortcuts and the toolbar in **Settings**: **PhotoCrap → Preferences…** or **⌘,** on macOS, **Edit → Settings…** on other platforms. Shortcuts are suspended during text entry or modal dialogs. Empty combinations disable commands, duplicates are rejected, and customizations persist between launches.
 
@@ -202,6 +205,7 @@ Cropping removes pixels outside the frame; Undo recovers them. Nondestructive re
 | `src/DocumentLayers.cpp`, `src/DocumentEditing.cpp`, `src/DocumentIO.cpp` | Layers/masks, editing/transforms, and project I/O |
 | `src/DocumentCompositor.cpp`, `src/DocumentPreview.cpp` | Composition, proxy caches, full-resolution renders, and asynchronous scheduling |
 | `src/DocumentAdjustments.cpp`, `src/DocumentFilters.cpp`, `src/filters/*` | Adjustment orchestration and specialized calculation modules |
+| `src/tools/PenTool.cpp`, `src/tools/PenPath.*`, `qml/PenOptions.qml`, `qml/PenOverlay.qml` | Bézier geometry, editing, and display |
 | `src/tools/*` | Gesture controller, settings, and tool implementations split by family |
 | `src/CanvasItem.*` | Qt Quick rendering, checkerboard, selection contours, and native cursors |
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Startup, QML exposure, languages, recent files, shortcuts, and persistent workspace settings |
@@ -213,7 +217,7 @@ Cropping removes pixels outside the frame; Undo recovers them. Nondestructive re
 
 Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied` (8-bit channels) or `QImage::Format_RGBA64_Premultiplied` (16-bit channels). Masks remain 8-bit; screen proxies may use 8-bit pixels without changing the working images. The composite and frequency-separation renders are cached. During a stroke, only affected regions are recomposed, so frequency blur is not recalculated when a mask changes. History snapshots use QImage implicit sharing; one continuous gesture becomes one operation. History is limited to 40 operations and approximately 256 MiB of image data retained in addition to the current document, with at least one undo preserved even when it exceeds that budget.
 
-The `.pcr` file is a versioned JSON document. Version 7 stores channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–6. Empty pixel layers and uniform masks use compact storage in this version, expanding only when locally edited. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 512 layers, and 2 GiB of uncompressed layer data. The budget separately counts color pixels, frequency-separation sources, and 8-bit masks; adjustments reserve only their masks, and groups reserve no image. Nonuniform shared images are reserved independently for each layer so they can be edited and reloaded. Empty layers and uniform masks do not reserve full-sized planes; painting checks the budget before expanding them. The frequency cache uses LRU eviction with a 128 MiB budget, and frequency thumbnails render at display size. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
+The `.pcr` file is a versioned JSON document. Version 8 stores Bézier paths, channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–7. Empty pixel layers and uniform masks use compact storage in this version, expanding only when locally edited. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 512 layers, and 2 GiB of uncompressed layer data. The budget separately counts color pixels, frequency-separation sources, and 8-bit masks; adjustments reserve only their masks, and groups reserve no image. Nonuniform shared images are reserved independently for each layer so they can be edited and reloaded. Empty layers and uniform masks do not reserve full-sized planes; painting checks the budget before expanding them. The frequency cache uses LRU eviction with a 128 MiB budget, and frequency thumbnails render at display size. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
 
 ### Magic Eraser (development branch)
 
@@ -238,7 +242,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) for verified workflow status and the [roadmap](ROADMAP.md) for remaining validation and features.
 
-Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, vector masks, smart objects, Bézier paths, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
+Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, vector masks, smart objects, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
 
 ## Technical references
 

@@ -226,10 +226,12 @@ bool Document::saveProject(const QUrl &_url)
                                   {"groupCollapsed", layer.groupCollapsed},
                                   {"source", source}});
     }
-    QJsonObject root{{"format", "PhotoCrap"},   {"version", 7},
+    QJsonObject root{{"format", "PhotoCrap"},   {"version", 8},
                      {"width", width()},        {"height", height()},
                      {"activeLayer", m_active}, {"layers", layers}};
-    root["channelBits"] = m_channelBits;
+    root["channelBits"]   = m_channelBits;
+    root["penPaths"]      = PenGeometry::encode(m_penPaths);
+    root["activePenPath"] = m_activePenPath;
     QJsonArray slices;
     for (const auto &rect : m_slices)
         slices.append(QJsonObject{
@@ -261,7 +263,7 @@ bool Document::loadProject(const QString &_path)
     const auto      root    = json.object();
     const int       version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 7))
+        (version < 1 || version > 8))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
@@ -358,7 +360,14 @@ bool Document::loadProject(const QString &_path)
             return fail(tr("Tranche de projet invalide."));
         slices.append(QRect(x, y, sw, sh));
     }
-    // Only replace the current document after validating every layer.
+    QVector<PenPath> penPaths;
+    if (version >= 8 &&
+        (!root["penPaths"].isArray() || !PenGeometry::decode(root["penPaths"].toArray(), penPaths)))
+        return fail(tr("Tracés du projet invalides."));
+    const int activePenPath = version >= 8 ? root["activePenPath"].toInt(-1) : -1;
+    if (activePenPath < -1 || activePenPath >= penPaths.size())
+        return fail(tr("Tracé actif invalide."));
+    // Only replace the current document after validating every layer and path.
     m_channelBits = bits;
     m_layers      = layers;
     m_size        = {w, h};
@@ -366,6 +375,9 @@ bool Document::loadProject(const QString &_path)
     m_projectUrl  = QUrl::fromLocalFile(_path);
     m_name        = QFileInfo(_path).completeBaseName();
     resetHistory(true);
+    m_penPaths      = penPaths;
+    m_activePenPath = activePenPath;
+    emit penPathsChanged();
     m_slices      = slices;
     m_activeSlice = slices.isEmpty() ? -1 : 0;
     emit slicesChanged();

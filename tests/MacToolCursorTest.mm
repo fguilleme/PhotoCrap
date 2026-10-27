@@ -1,12 +1,106 @@
 #include "MacToolCursorTest.h"
+#include "Document.h"
 
 #include <QCursor>
 #include <QGuiApplication>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QScopeGuard>
 #include <QtTest>
 
 #import <AppKit/AppKit.h>
+
+bool runMacPenInputTest(QQuickWindow *_window, Document &_document)
+{
+    if (QGuiApplication::platformName() != QStringLiteral("cocoa"))
+        return false;
+    const QPoint previousPointer = QCursor::pos();
+    const auto   restorePointer  = qScopeGuard([&] { QCursor::setPos(previousPointer); });
+    _window->requestActivate();
+    [NSApp activateIgnoringOtherApps:YES];
+    _document.newDocument(300, 200, true);
+    _document.setTool("pen");
+    _window->setProperty("zoom", 1.);
+    auto area = _window->findChild<QQuickItem *>("drawingArea");
+    if (!area)
+        return false;
+    area->forceActiveFocus();
+    QTest::qWait(100);
+    NSView   *view         = reinterpret_cast<NSView *>(_window->winId());
+    NSWindow *nativeWindow = [view window];
+    auto      pointer      = [&](NSEventType _type, QPointF _point, NSEventModifierFlags _flags) {
+        const auto    scene = area->mapToScene(_point);
+        const NSPoint point =
+            [view convertPoint:NSMakePoint(scene.x(), [view isFlipped]
+                                                          ? scene.y()
+                                                          : [view bounds].size.height - scene.y())
+                        toView:nil];
+        NSEvent *event = [NSEvent mouseEventWithType:_type
+                                            location:point
+                                       modifierFlags:_flags
+                                           timestamp:NSProcessInfo.processInfo.systemUptime
+                                        windowNumber:[nativeWindow windowNumber]
+                                             context:nil
+                                         eventNumber:0
+                                          clickCount:1
+                                            pressure:1];
+        [NSApp sendEvent:event];
+        QTest::qWait(20);
+    };
+    auto command = [&](bool _down) {
+        NSEvent *event = [NSEvent keyEventWithType:NSEventTypeFlagsChanged
+                                          location:NSZeroPoint
+                                     modifierFlags:_down ? NSEventModifierFlagCommand : 0
+                                         timestamp:NSProcessInfo.processInfo.systemUptime
+                                      windowNumber:[nativeWindow windowNumber]
+                                           context:nil
+                                        characters:@""
+                       charactersIgnoringModifiers:@""
+                                         isARepeat:NO
+                                           keyCode:55];
+        [NSApp sendEvent:event];
+        QTest::qWait(20);
+    };
+    for (const QPointF point : {QPointF(30, 40), QPointF(130, 40), QPointF(130, 140)}) {
+        pointer(NSEventTypeLeftMouseDown, point, 0);
+        pointer(NSEventTypeLeftMouseUp, point, 0);
+    }
+    _document.finishPenPath();
+    QCursor::setPos(_window->mapToGlobal(area->mapToScene(QPointF(130, 40)).toPoint()));
+    pointer(NSEventTypeMouseMoved, QPointF(130, 40), 0);
+    if (!QGuiApplication::overrideCursor()) {
+        qWarning("Pen cursor missing before native Command test");
+        return false;
+    }
+    const auto cursorBefore = QGuiApplication::overrideCursor()->pixmap().cacheKey();
+    command(true);
+    if (!QGuiApplication::overrideCursor()) {
+        command(false);
+        qWarning("Pen cursor missing after native Command test");
+        return false;
+    }
+    const NSPoint nativeTip = [[NSCursor currentCursor] hotSpot];
+    const bool    changedCursor =
+        QGuiApplication::overrideCursor()->pixmap().cacheKey() != cursorBefore;
+    const bool alignedTip = QGuiApplication::overrideCursor()->hotSpot() == QPoint(3, 3) &&
+                            qAbs(nativeTip.x - 3) < .1 && qAbs(nativeTip.y - 3) < .1;
+    pointer(NSEventTypeLeftMouseDown, QPointF(130, 40), NSEventModifierFlagCommand);
+    pointer(NSEventTypeLeftMouseDragged, QPointF(160, 60), NSEventModifierFlagCommand);
+    pointer(NSEventTypeLeftMouseUp, QPointF(160, 60), NSEventModifierFlagCommand);
+    command(false);
+    const auto paths       = _document.penPaths();
+    const auto points      = paths.isEmpty() ? QVariantList{} : paths[0].toMap()["points"].toList();
+    const auto moved       = points.size() > 1 ? points[1].toMap() : QVariantMap{};
+    const bool movedAnchor = points.size() == 3 && qAbs(moved["x"].toReal() - 160) < 1 &&
+                             qAbs(moved["y"].toReal() - 60) < 1;
+    if (!changedCursor || !alignedTip || !movedAnchor)
+        qWarning() << "Native Command Pen input" << "cursor changed" << changedCursor
+                   << "visible arrow tip aligned" << alignedTip << "Cocoa hotspot" << nativeTip.x
+                   << nativeTip.y << "anchor moved" << movedAnchor << "points" << points
+                   << "modifiers"
+                   << _window->findChild<QObject *>("toolInput")->property("modifiers");
+    return changedCursor && alignedTip && movedAnchor;
+}
 
 bool runMacToolCursorTest(QQuickWindow *_window)
 {

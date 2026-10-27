@@ -54,7 +54,7 @@ QVariantList WorkspaceSettings::defaultToolLayout()
         group("blur", "", "", "blur", {"blur", "sharpen", "smudge"}),
         group("adjustmentBrush", "", "", "adjustmentBrush", {"adjustmentBrush"}),
         group("dodge", "toolDodge", "O", "dodge", {"dodge", "burn", "sponge"}),
-        group("pen", "", "P", "pen",
+        group("pen", "toolPen", "P", "pen",
               {"pen", "freeformPen", "curvaturePen", "addAnchor", "deleteAnchor", "convertPoint"}),
         group("type", "toolText", "T", "text",
               {"text", "verticalText", "verticalTypeMask", "horizontalTypeMask"}),

@@ -20,6 +20,8 @@ La release v0.12.0 inclut l’ouverture RAW et les pixels 16 bits, les outils de
 
 Ces fonctions sont disponibles dans la branche de développement, mais ne sont pas incluses dans les paquets du tag v0.12.0 :
 
+- **Plume (P)** : tracés Bézier modifiables, poignées, points anguleux/lisses, ajout/suppression/conversion de points, sélection, remplissage, contour et sauvegarde dans les projets v8. [Gestes et limites](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
+
 - **Gomme magique** : effacement par couleur, calcul asynchrone annulable et précision 8/16 bits.
 - **Menus contextuels distincts pour calques et masques** : propriétés, verrouillage, inversion et suppression du masque, avec les fonctions manquantes désactivées et marquées **NYI**.
 
@@ -162,6 +164,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | E | Gomme |
 | G | Dégradé, remplissage contigu |
 | O | Densité −, densité +, éponge |
+| P | Plume, Ajout/Suppression de point, Conversion de point |
 | T | Texte horizontal rasterisé |
 | U | Rectangle, ellipse, triangle, polygone, étoile, ligne |
 | H / R / Z | Main / rotation de l’affichage / zoom |
@@ -170,7 +173,7 @@ Sur la branche de développement, **Y** active les formes d’historique. **Maj 
 
 `[` / `]` règlent la taille du pinceau, `Maj+[` / `Maj+]` sa dureté, `D` rétablit noir/blanc et `X` échange les couleurs. `Ctrl/⌘ + 0` adapte l’image ; `Ctrl/⌘ + 1` affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace la toile. Annuler/Rétablir conserve le zoom de navigation.
 
-Le catalogue contient **275 entrées**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
+Le catalogue contient **282 entrées**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
 
 Les raccourcis et la barre d’outils se personnalisent dans **Réglages** : **menu PhotoCrap → Préférences…** ou **⌘,** sur macOS, **Édition → Réglages…** sur les autres plateformes. Les raccourcis sont suspendus pendant une saisie ou une boîte de dialogue modale ; une combinaison vide désactive une commande, les doublons sont refusés et les personnalisations sont conservées entre les lancements.
 
@@ -197,6 +200,7 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 | `src/DocumentLayers.cpp`, `src/DocumentEditing.cpp`, `src/DocumentIO.cpp` | Calques/masques, édition/transformation et lecture/écriture des projets |
 | `src/DocumentCompositor.cpp`, `src/DocumentPreview.cpp` | Composition, caches de proxies, rendus complets et ordonnanceur asynchrone |
 | `src/DocumentAdjustments.cpp`, `src/DocumentFilters.cpp`, `src/filters/*` | Gestion des réglages et modules de calcul spécialisés |
+| `src/tools/PenTool.cpp`, `src/tools/PenPath.*`, `qml/PenOptions.qml`, `qml/PenOverlay.qml` | Tracés Bézier, édition, géométrie et affichage |
 | `src/tools/*` | Contrôleur de gestes, paramètres et implémentations d’outils séparées par famille |
 | `src/CanvasItem.*` | Affichage Qt Quick, damier, contours de sélection et curseurs natifs |
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Démarrage, exposition QML, langues, fichiers récents, raccourcis et espace de travail persistant |
@@ -208,7 +212,7 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 
 Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied` (8 bits par canal) ou `QImage::Format_RGBA64_Premultiplied` (16 bits par canal). Les masques restent en 8 bits ; les proxies écran peuvent être réduits en 8 bits sans changer les pixels de travail. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images supplémentaires retenues par rapport au document courant, avec au moins une annulation conservée même si elle dépasse ce budget.
 
-Le `.pcr` est un document JSON versionné. Sa version 7 conserve la profondeur des couleurs et les pixels, masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 6. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
+Le `.pcr` est un document JSON versionné. Sa version 8 conserve les tracés Bézier, la profondeur des couleurs, les pixels, les masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 7. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
 ### Gomme magique (branche de développement)
 
@@ -273,7 +277,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut des workflows vérifiés est détaillé dans [Télécharger](#télécharger) ; les essais et fonctions restant à compléter sont suivis dans la [roadmap](ROADMAP.md).
 
-Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels, objets dynamiques, tracés Bézier, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; texte non éditable après rasterisation ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels, objets dynamiques, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références techniques
 

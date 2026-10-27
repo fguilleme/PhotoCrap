@@ -246,6 +246,11 @@ void Document::applyCrop()
     const QSize   outputSize(w, h);
     const QString label =
         m_tool == "perspectiveCrop" ? tr("Recadrer en perspective") : tr("Recadrer");
+    auto transformedPaths = m_penPaths;
+    if (!PenGeometry::transform(transformedPaths, transform)) {
+        fail(tr("Transformation des tracés impossible."));
+        return;
+    }
     const Snapshot before            = snapshot(label);
     const quint64  session           = m_documentSession;
     const quint64  contentGeneration = m_previewRequestGeneration;
@@ -253,44 +258,47 @@ void Document::applyCrop()
     emit  cropChanged();
     emit  statusMessage(tr("Recadrage en cours…"));
     auto *watcher = new QFutureWatcher<CropResult>(this);
-    connect(watcher, &QFutureWatcher<CropResult>::finished, this,
-            [this, watcher, before, outputSize, session, label, contentGeneration] {
-                CropResult result = watcher->result();
-                watcher->deleteLater();
-                // Discard work if an external caller edited or replaced the document meanwhile.
-                if (result.valid && session == m_documentSession && before.id == m_stateId &&
-                    contentGeneration == m_previewRequestGeneration && !m_drawing) {
-                    m_layers = std::move(result.layers);
-                    m_size   = outputSize;
-                    m_slices.clear();
-                    m_activeSlice = -1;
-                    emit slicesChanged();
-                    m_selection       = {};
-                    m_selectionRegion = {};
-                    m_selectionPath.clear();
-                    m_selectionShape     = 0;
-                    m_polygonLassoActive = false;
-                    commit(before, label, true, false);
-                    {
-                        QMutexLocker lock(&m_previewImageMutex);
-                        m_composite = result.composite;
-                        m_previewComposite =
-                            result.composite.scaled(m_previewTargetSize.boundedTo(outputSize),
-                                                    Qt::KeepAspectRatio, Qt::FastTransformation);
-                    }
-                    m_cacheDirty = m_fullCompositeDirty = false;
-                    m_dirtyRegion                       = {};
-                    cancelCrop();
-                    emit canvasSizeChanged();
-                    emit selectionChanged();
-                    emit documentChanged();
-                    emit imageChanged();
-                    emit statusMessage(tr("Recadrage appliqué"));
-                } else if (!result.valid)
-                    fail(tr("Impossible de calculer le recadrage."));
-                m_cropBusy = false;
-                emit cropChanged();
-            });
+    connect(
+        watcher, &QFutureWatcher<CropResult>::finished, this,
+        [this, watcher, before, outputSize, session, label, contentGeneration, transformedPaths] {
+            CropResult result = watcher->result();
+            watcher->deleteLater();
+            // Discard work if an external caller edited or replaced the document meanwhile.
+            if (result.valid && session == m_documentSession && before.id == m_stateId &&
+                contentGeneration == m_previewRequestGeneration && !m_drawing) {
+                m_layers   = std::move(result.layers);
+                m_penPaths = transformedPaths;
+                emit penPathsChanged();
+                m_size = outputSize;
+                m_slices.clear();
+                m_activeSlice = -1;
+                emit slicesChanged();
+                m_selection       = {};
+                m_selectionRegion = {};
+                m_selectionPath.clear();
+                m_selectionShape     = 0;
+                m_polygonLassoActive = false;
+                commit(before, label, true, false);
+                {
+                    QMutexLocker lock(&m_previewImageMutex);
+                    m_composite = result.composite;
+                    m_previewComposite =
+                        result.composite.scaled(m_previewTargetSize.boundedTo(outputSize),
+                                                Qt::KeepAspectRatio, Qt::FastTransformation);
+                }
+                m_cacheDirty = m_fullCompositeDirty = false;
+                m_dirtyRegion                       = {};
+                cancelCrop();
+                emit canvasSizeChanged();
+                emit selectionChanged();
+                emit documentChanged();
+                emit imageChanged();
+                emit statusMessage(tr("Recadrage appliqué"));
+            } else if (!result.valid)
+                fail(tr("Impossible de calculer le recadrage."));
+            m_cropBusy = false;
+            emit cropChanged();
+        });
     watcher->setFuture(QtConcurrent::run([layers = m_layers, transform, outputSize]() mutable {
         CropResult result;
         const auto warp = [&transform, outputSize, &result](QImage &_image) {

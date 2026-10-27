@@ -75,6 +75,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
+    if (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
+        m_tool == "convertPoint") {
+        beginPenGesture(_x, _y, 6, false, _alternate, _straight);
+        return;
+    }
     if (!toolSupportsDepth(m_tool)) {
         fail(tr("Cet outil nécessite actuellement un document 8 bits. Changez la profondeur dans "
                 "le menu Image."));
@@ -278,6 +283,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
 }
 void Document::continueStroke(qreal _x, qreal _y)
 {
+    if (m_penGesture) {
+        updatePenGesture(_x, _y, m_toolShift, m_toolAlternate, m_toolSpace);
+        return;
+    }
     if (m_sliceDragging) {
         updateSliceGesture(_x, _y);
         return;
@@ -369,6 +378,10 @@ void Document::continueStroke(qreal _x, qreal _y)
 }
 void Document::endStroke()
 {
+    if (m_penGesture) {
+        endPenGesture();
+        return;
+    }
     if (m_sliceDragging) {
         endSliceGesture();
         return;
@@ -464,6 +477,10 @@ void Document::endStroke()
 }
 void Document::cancelStroke()
 {
+    if (m_penGesture) {
+        endPenGesture(true);
+        return;
+    }
     if (m_sliceDragging) {
         endSliceGesture(true);
         return;

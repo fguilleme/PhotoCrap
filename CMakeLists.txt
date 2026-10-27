@@ -24,6 +24,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
     src/tools/BrushTool.cpp
+    src/tools/PenTool.cpp
+    src/tools/PenPath.cpp
     src/tools/FillTool.cpp
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
@@ -83,6 +85,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/ImageUtils.h
     src/tools/RegionHealing.h
     src/tools/ContentFill.h
+    src/tools/PenPath.h
     src/filters/BlackWhiteFilter.h
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.h
@@ -181,6 +184,8 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 qt_add_library(photocrap_core STATIC
+    src/tools/PenTool.cpp
+    src/tools/PenPath.cpp src/tools/PenPath.h
     src/Document.cpp
     src/Document.h
     src/DocumentAdjustments.cpp
@@ -306,6 +311,8 @@ qt_add_qml_module(PhotoCrap
         qml/HealingBrushOptions.qml
         qml/SpotHealingOptions.qml
         qml/PatchOptions.qml
+        qml/PenOptions.qml
+        qml/PenOverlay.qml
         qml/ContentAwareMoveOptions.qml
         qml/RemoveOptions.qml
         qml/HistoryBrushOptions.qml
@@ -371,6 +378,11 @@ if(BUILD_TESTING)
         target_sources(PhotoCrap PRIVATE tests/MacApplicationMenuTest.h tests/MacApplicationMenuTest.mm
             tests/MacToolCursorTest.h tests/MacToolCursorTest.mm)
         add_test(NAME macos_tool_cursors COMMAND PhotoCrap --smoke-test --native-cursor-test)
+        add_test(NAME macos_pen_input COMMAND PhotoCrap --smoke-test --native-pen-test)
+        set_tests_properties(macos_pen_input PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_QUICK_BACKEND=software"
+            TIMEOUT 30
+        )
         set_tests_properties(macos_tool_cursors PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_QUICK_BACKEND=software"
             TIMEOUT 30
@@ -391,6 +403,11 @@ if(BUILD_TESTING)
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
+    qt_add_executable(photocrap_pen_tests tests/PenToolTest.cpp)
+    target_link_libraries(photocrap_pen_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME pen_tool COMMAND photocrap_pen_tests)
+    set_tests_properties(pen_tool PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)

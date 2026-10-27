@@ -11,8 +11,10 @@ void Document::undo()
     endStroke();
     if (m_undo.isEmpty())
         return;
-    auto state = m_undo.takeLast();
-    m_redo.append(snapshot(state.label));
+    auto state      = m_undo.takeLast();
+    auto current    = snapshot(state.label);
+    current.penOnly = state.penOnly;
+    m_redo.append(current);
     restore(state);
 }
 void Document::redo()
@@ -20,8 +22,10 @@ void Document::redo()
     endStroke();
     if (m_redo.isEmpty())
         return;
-    auto state = m_redo.takeLast();
-    m_undo.append(snapshot(state.label));
+    auto state      = m_redo.takeLast();
+    auto current    = snapshot(state.label);
+    current.penOnly = state.penOnly;
+    m_undo.append(current);
     restore(state);
 }
 void Document::selectAll()
@@ -214,6 +218,13 @@ void Document::cropToSelection()
 {
     if (!hasSelection())
         return;
+    endStroke();
+    auto paths = m_penPaths;
+    if (!PenGeometry::transform(paths,
+                                QTransform::fromTranslate(-m_selection.x(), -m_selection.y()))) {
+        fail(tr("Transformation des tracés impossible."));
+        return;
+    }
     edit(tr("Recadrer"), [&] {
         for (auto &layer : m_layers) {
             if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
@@ -223,6 +234,8 @@ void Document::cropToSelection()
             if (!layer.source.isNull())
                 layer.source = layer.source.copy(m_selection);
         }
+        m_penPaths = paths;
+        emit penPathsChanged();
         m_size            = m_selection.size();
         m_selection       = {};
         m_selectionRegion = {};
@@ -238,6 +251,13 @@ void Document::resizeImage(int _w, int _h)
     if (!validSize(_w, _h, int(m_layers.size())) || !validLayerStorage(_w, _h) ||
         m_size == QSize(_w, _h))
         return;
+    endStroke();
+    auto paths = m_penPaths;
+    if (!PenGeometry::transform(paths,
+                                QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height()))) {
+        fail(tr("Transformation des tracés impossible."));
+        return;
+    }
     edit(tr("Redimensionner l’image"), [&] {
         for (auto &layer : m_layers) {
             if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
@@ -250,6 +270,8 @@ void Document::resizeImage(int _w, int _h)
                 layer.source =
                     layer.source.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         }
+        m_penPaths = paths;
+        emit penPathsChanged();
         m_size            = {_w, _h};
         m_selection       = {};
         m_selectionRegion = {};
@@ -265,7 +287,24 @@ void Document::transformImage(const QString &_operation)
     if (_operation != "rotateLeft" && _operation != "rotateRight" && _operation != "flipH" &&
         _operation != "flipV")
         return;
+    QTransform pathTransform;
+    if (_operation == "flipH")
+        pathTransform = QTransform(-1, 0, 0, 1, width(), 0);
+    else if (_operation == "flipV")
+        pathTransform = QTransform(1, 0, 0, -1, 0, height());
+    else if (_operation == "rotateRight")
+        pathTransform = QTransform(0, 1, -1, 0, height(), 0);
+    else
+        pathTransform = QTransform(0, -1, 1, 0, 0, width());
+    endStroke();
+    auto paths = m_penPaths;
+    if (!PenGeometry::transform(paths, pathTransform)) {
+        fail(tr("Transformation des tracés impossible."));
+        return;
+    }
     edit(tr("Transformer l’image"), [&] {
+        m_penPaths = paths;
+        emit penPathsChanged();
         for (auto &layer : m_layers) {
             auto transform = [&](QImage &_image) {
                 if (_image.isNull())

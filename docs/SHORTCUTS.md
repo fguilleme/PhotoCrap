@@ -203,7 +203,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Activer l’aérographe | Alt+Shift+P | Document |
 | Arrière (pinceau) | Alt+Shift+Q | Pinceau |
 | Effacer (pinceau) | Alt+Shift+R | Pinceau |
-| Plume et variantes | P | Document |
 | Sélection de tracé et sélection directe | A | Document |
 | Cadre | K | Document |
 | Adapter à la fenêtre | Double-clic sur Main | Barre d’outils |
@@ -257,9 +256,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Pinceau de réglage | Aucun raccourci par défaut | Groupe d’outils Adobe |
 | Plume libre | P | Groupe d’outils Adobe |
 | Plume de courbure | P | Groupe d’outils Adobe |
-| Ajout de point d’ancrage | Aucun raccourci par défaut | Groupe d’outils Adobe |
-| Suppression de point d’ancrage | Aucun raccourci par défaut | Groupe d’outils Adobe |
-| Conversion de point | Aucun raccourci par défaut | Groupe d’outils Adobe |
 | Texte vertical | T | Groupe d’outils Adobe |
 | Masque de texte vertical | T | Groupe d’outils Adobe |
 | Masque de texte horizontal | T | Groupe d’outils Adobe |
@@ -267,3 +263,9 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Forme personnalisée | U | Groupe d’outils Adobe |
 | Masquer aussi la barre supérieure des options | Tab | Masquage intégral des panneaux Photoshop |
 | Dialogue Remplir complet (motif, historique, contenu) | Shift+Backspace | Le sélecteur de couleur PhotoCrap est déjà disponible |
+
+## Plume disponible dans la branche de développement
+
+P active le groupe Plume ; les outils Ajout/Suppression de point et Conversion de point sont accessibles par son clic droit. Les réglages répertorient aussi les gestes contextuels : Commande/Ctrl-glisser pour déplacer, Option/Alt pour convertir ou séparer une poignée, Maj pour contraindre, Retour/Échap pour terminer, clic sur l’origine pour fermer, Commande/Ctrl-Retour pour créer une sélection et Retour arrière/Suppr pour supprimer les points. Voir [les interactions détaillées](TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
+
+Le catalogue contient désormais 282 entrées, dont 113 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.

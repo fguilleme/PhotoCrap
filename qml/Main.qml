@@ -57,11 +57,11 @@ ApplicationWindow {
     readonly property bool temporaryPickerActive: stampSourcePicking && !primaryPressed
         && ["brush", "pencil", "eraser", "magicEraser", "historyBrush", "artHistoryBrush", "fill", "gradient"].indexOf(editor.tool) >= 0
     readonly property bool temporaryMoveActive: primaryPressed && !stampSourcePicking
-        && !window.cropToolActive && !window.sliceToolActive && !window.shapeToolActive
+        && !window.cropToolActive && !window.sliceToolActive && !window.shapeToolActive && !window.penToolActive
         && editor.tool !== "move" && editor.tool !== "hand" && editor.tool !== "rotateView" && editor.tool !== "zoomTool"
     readonly property bool repositioningGesture: drawingArea.pressed
         && (window.cropToolActive || window.sliceToolActive || window.closedShapeToolActive
-            || editor.tool === "line" || editor.tool === "gradient" || window.selectionToolActive)
+            || editor.tool === "line" || editor.tool === "gradient" || window.selectionToolActive || window.penToolActive)
     function toolBindings() {
         const result = []
         for (let i = 0; i < toolLayout.length; ++i) {
@@ -148,6 +148,7 @@ ApplicationWindow {
                                                  || editor.tool === "magicWand"
     readonly property bool sliceToolActive: editor.tool === "slice" || editor.tool === "sliceSelect"
     readonly property bool cropToolActive: editor.tool === "crop" || editor.tool === "perspectiveCrop"
+    readonly property bool penToolActive: ["pen","addAnchor","deleteAnchor","convertPoint"].indexOf(editor.tool)>=0
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
     readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "healing" || editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
@@ -219,7 +220,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -294,12 +295,12 @@ ApplicationWindow {
         {name:"dodge", icon:"●", label:qsTr("Densité −"), implemented:true},
         {name:"burn", icon:"◒", label:qsTr("Densité +"), implemented:true},
         {name:"sponge", icon:"◉", label:qsTr("Éponge"), implemented:true},
-        {name:"pen", icon:"◇", label:qsTr("Plume"), implemented:false},
+        {name:"pen", icon:"◇", label:qsTr("Plume"), implemented:true},
         {name:"freeformPen", icon:"♢", label:qsTr("Plume libre"), implemented:false},
         {name:"curvaturePen", icon:"♧", label:qsTr("Plume de courbure"), implemented:false},
-        {name:"addAnchor", icon:"+◇", label:qsTr("Ajout de point d’ancrage"), implemented:false},
-        {name:"deleteAnchor", icon:"−◇", label:qsTr("Suppression de point d’ancrage"), implemented:false},
-        {name:"convertPoint", icon:"⌞", label:qsTr("Conversion de point"), implemented:false},
+        {name:"addAnchor", icon:"+◇", label:qsTr("Ajout de point d’ancrage"), implemented:true},
+        {name:"deleteAnchor", icon:"−◇", label:qsTr("Suppression de point d’ancrage"), implemented:true},
+        {name:"convertPoint", icon:"⌞", label:qsTr("Conversion de point"), implemented:true},
         {name:"text", icon:"T", label:qsTr("Texte horizontal rasterisé"), implemented:true},
         {name:"verticalText", icon:"↕T", label:qsTr("Texte vertical"), implemented:false},
         {name:"verticalTypeMask", icon:"↕T", label:qsTr("Masque de texte vertical"), implemented:false},
@@ -1042,6 +1043,7 @@ ApplicationWindow {
     }
     function openPreferences() { preferencesDialog.open() }
     onClosing: function(event) {
+        editor.endStroke()
         saveWorkspaceLayout()
         if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
         else Qt.callLater(Qt.quit)
@@ -1095,7 +1097,7 @@ ApplicationWindow {
     Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
     Action { id: selectAction; text: qsTr("Tout sélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
     Action { id: deselectAction; text: qsTr("Désélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("deselect")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.deselect() }
-    Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: { if(window.sliceToolActive) editor.deleteActiveSlice(); else editor.clearSelected() } }
+    Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: { if(window.penToolActive)editor.deletePenPoints();else if(window.sliceToolActive) editor.deleteActiveSlice(); else editor.clearSelected() } }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
     Action { id: duplicateAction; text: qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
     Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
@@ -1112,6 +1114,7 @@ ApplicationWindow {
         enabled: !window.modalOpen
         sequence: "Escape"
         onActivated: {
+            if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else editor.finishPenPath();return}
             if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
             if (window.cropToolActive) { editor.cancelCrop(); return }
             if (window.sliceToolActive) { editor.endSliceGesture(true); return }
@@ -1785,6 +1788,14 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        PenOptions {
+            id:penOptionsControl
+            objectName: "penOptions"
+            Layout.fillWidth:true
+            visible:window.penToolActive
+            document:editor
+            onEditCommitted:workspace.forceActiveFocus()
+        }
         SliceOptions {
             objectName: "sliceOptions"
             Layout.fillWidth: true
@@ -1934,6 +1945,21 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if(window.penToolActive && !window.editingText && !window.modalOpen) {
+                            if(event.key===Qt.Key_Return || event.key===Qt.Key_Enter) {
+                                if(event.modifiers & Qt.ControlModifier)editor.penPathToSelection((event.modifiers & Qt.ShiftModifier)?((event.modifiers & Qt.AltModifier)?3:1):(event.modifiers & Qt.AltModifier)?2:0)
+                                else editor.finishPenPath()
+                                event.accepted=true;return
+                            }
+                            if(event.key===Qt.Key_Backspace || event.key===Qt.Key_Delete) {
+                                editor.deletePenPoints();event.accepted=true;return
+                            }
+                            if([Qt.Key_Left,Qt.Key_Right,Qt.Key_Up,Qt.Key_Down].indexOf(event.key)>=0) {
+                                const step=(event.modifiers & Qt.ShiftModifier)?10:1
+                                editor.nudgePenPoints(event.key===Qt.Key_Left?-step:event.key===Qt.Key_Right?step:0,event.key===Qt.Key_Up?-step:event.key===Qt.Key_Down?step:0)
+                                event.accepted=true;return
+                            }
+                        }
                         if (!window.editingText && !window.modalOpen && !window.primaryPressed && (!window.stampSourcePicking || editor.tool === "mixerBrush")
                                 && event.key >= Qt.Key_0 && event.key <= Qt.Key_9
                                 && (window.paintToolActive || window.opacityToolActive || editor.tool === "move")) {
@@ -2220,6 +2246,13 @@ ApplicationWindow {
                                     function onZoomChanged() { lassoSelectionOverlay.requestPaint() }
                                 }
                             }
+                            PenOverlay {
+                                id:penOverlay;objectName:"penOverlay"
+                                viewportItem:viewport
+                                document:editor;zoom:window.zoom
+                                visible:window.penToolActive
+                                z:3
+                            }
                             MouseArea {
                                 id: drawingArea
                                 objectName: "drawingArea"
@@ -2254,7 +2287,8 @@ ApplicationWindow {
                                     const measuring=measureToolArea.enabled && measureToolArea.containsMouse
                                     const tool=calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
                                               : measuring && editor.tool==="colorSampler" && measureToolArea.deleteHovered ? "colorSamplerDelete"
-                                              : window.temporaryPickerActive ? "picker" : editor.tool
+                                              : window.temporaryPickerActive ? "picker"
+                                              : window.penToolActive ? editor.penCursorAt(pointerX/zoom,pointerY/zoom,7/zoom,window.primaryPressed,window.stampSourcePicking) : editor.tool
                                     imageCanvas.setSystemCursor(calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
                                                                 (containsMouse || calibration || measuring) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
                                                                 tool, editor.selectionMode, window.stampSourcePicking, toolInput.precise)
@@ -2284,11 +2318,16 @@ ApplicationWindow {
                                         return
                                     }
                                     if (mouse.button===Qt.RightButton) {
-                                        if (window.paintToolActive) brushSettingsDialog.open()
+                                        if(window.penToolActive)penContextMenu.popup()
+                                        else if (window.paintToolActive) brushSettingsDialog.open()
                                         else mouse.accepted=false
                                         return
                                     }
                                     editor.setToolModifiers(Boolean(mouse.modifiers & Qt.ShiftModifier),Boolean(mouse.modifiers & Qt.AltModifier),false)
+                                    if(window.penToolActive) {
+                                        editor.beginPenGesture(mouse.x/zoom,mouse.y/zoom,7/zoom,window.primaryPressed || Boolean(mouse.modifiers & Qt.ControlModifier),Boolean(mouse.modifiers & Qt.AltModifier),Boolean(mouse.modifiers & Qt.ShiftModifier))
+                                        refreshSystemCursor();return
+                                    }
                                     if (window.temporaryMoveActive) {
                                         window.gesturePreviousTool=editor.tool
                                         editor.tool="move"
@@ -2341,6 +2380,11 @@ ApplicationWindow {
                                     pointerX = mouse.x
                                     pointerY = mouse.y
                                     window.updateInformationPointer(mouse.x / zoom, mouse.y / zoom)
+                                    if(window.penToolActive) {
+                                        editor.updatePenHover(mouse.x/zoom,mouse.y/zoom)
+                                        if(pressed)editor.updatePenGesture(mouse.x/zoom,mouse.y/zoom,Boolean(mouse.modifiers & Qt.ShiftModifier),Boolean(mouse.modifiers & Qt.AltModifier),window.spacePressed)
+                                        refreshSystemCursor();return
+                                    }
                                     if(brushAdjusting) {
                                         editor.brushSize=brushAdjustSize+(mouse.x-brushAdjustX)
                                         editor.brushHardness=brushAdjustHardness-(mouse.y-brushAdjustY)/100
@@ -2437,6 +2481,7 @@ ApplicationWindow {
                                 function onCurvePickerModeChanged() { drawingArea.refreshSystemCursor() }
                                 function onColorPickerModeChanged() { drawingArea.refreshSystemCursor() }
                                 function onStampSourcePickingChanged() { drawingArea.syncSystemCursor() }
+                                function onPrimaryPressedChanged() { drawingArea.refreshSystemCursor() }
                             }
                             Connections {
                                 target: toolInput
@@ -3496,6 +3541,18 @@ ApplicationWindow {
         }
     }
 
+    DarkMenu {
+        id:penContextMenu;objectName:"penContextMenu"
+        ContextMenuItem {text:qsTr("Terminer le tracé");enabled:editor.penDrawing;onTriggered:editor.finishPenPath()}
+        ContextMenuItem {text:qsTr("Fermer le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.closePenPath()}
+        MenuSeparator {}
+        ContextMenuItem {text:qsTr("Définir une sélection");enabled:editor.activePenPath>=0;onTriggered:editor.penPathToSelection()}
+        ContextMenuItem {text:qsTr("Remplir le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.fillPenPath()}
+        ContextMenuItem {text:qsTr("Contour du tracé avec le pinceau");enabled:editor.activePenPath>=0;onTriggered:editor.strokePenPath()}
+        MenuSeparator {}
+        ContextMenuItem {text:qsTr("Supprimer les points sélectionnés");enabled:editor.activePenPath>=0;onTriggered:editor.deletePenPoints()}
+        ContextMenuItem {text:qsTr("Supprimer le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.deletePenPath()}
+    }
     LayerContextMenu {
         id: layerContextMenu
         objectName: "layerContextMenu"

@@ -112,7 +112,22 @@
     </message>
   </context>
   <context>
-    <name>Document</name><message><source>Forme d’historique</source><translation>History Brush</translation></message><message><source>La source d’historique a des dimensions différentes. Choisissez un état compatible.</source><translation>The history source has different dimensions. Choose a compatible state.</translation></message><message><source>Ce calque n’existe pas dans l’état source. Choisissez un autre état dans l’Historique.</source><translation>This layer does not exist in the source state. Choose another state in History.</translation></message>
+    <name>Document</name>
+    <message><source>Contour du tracé</source><translation>Stroke Path</translation></message>
+    <message><source>Déplacer les points d’ancrage</source><translation>Move Anchor Points</translation></message>
+    <message><source>Fermer le tracé</source><translation>Close Path</translation></message>
+    <message><source>Limite de points du tracé atteinte.</source><translation>Path point limit reached.</translation></message>
+    <message><source>Limite de tracés atteinte.</source><translation>Path limit reached.</translation></message>
+    <message><source>Modifier le tracé</source><translation>Edit Path</translation></message>
+    <message><source>Remplir le tracé</source><translation>Fill Path</translation></message>
+    <message><source>Renommer le tracé</source><translation>Rename Path</translation></message>
+    <message><source>Supprimer le tracé</source><translation>Delete Path</translation></message>
+    <message><source>Supprimer un point d’ancrage</source><translation>Delete Anchor Point</translation></message>
+    <message><source>Tracé %1</source><translation>Path %1</translation></message>
+    <message><source>Tracé actif invalide.</source><translation>Invalid active path.</translation></message>
+    <message><source>Tracés du projet invalides.</source><translation>Invalid project paths.</translation></message>
+    <message><source>Transformation des tracés impossible.</source><translation>Unable to transform paths.</translation></message>
+<message><source>Forme d’historique</source><translation>History Brush</translation></message><message><source>La source d’historique a des dimensions différentes. Choisissez un état compatible.</source><translation>The history source has different dimensions. Choose a compatible state.</translation></message><message><source>Ce calque n’existe pas dans l’état source. Choisissez un autre état dans l’Historique.</source><translation>This layer does not exist in the source state. Choose another state in History.</translation></message>
 <message><source>Suppression</source><translation>Remove</translation></message>
     <message><source>Déplacement basé sur le contenu</source><translation>Content-Aware Move</translation></message>
     <message><source>Pas assez de pixels voisins pour reconstruire cette zone.</source><translation>Not enough neighbouring pixels to reconstruct this area.</translation></message>
@@ -740,6 +755,14 @@
   </context>
   <context>
     <name>Main</name>
+    <message><source>Contour du tracé avec le pinceau</source><translation>Stroke Path with Brush</translation></message>
+    <message><source>Définir une sélection</source><translation>Make Selection</translation></message>
+    <message><source>Fermer le tracé</source><translation>Close Path</translation></message>
+    <message><source>Remplir le tracé</source><translation>Fill Path</translation></message>
+    <message><source>Supprimer le tracé</source><translation>Delete Path</translation></message>
+    <message><source>Supprimer les points sélectionnés</source><translation>Delete Selected Points</translation></message>
+    <message><source>Terminer le tracé</source><translation>Finish Path</translation></message>
+
     <message><source>Informations</source><translation>Info</translation></message>
 <message><source>Utiliser cet état comme source de la forme d’historique</source><translation>Use this state as the History Brush source</translation></message>
     <message>
@@ -2560,6 +2583,23 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>ShortcutManager</name>
+    <message><source>Clic droit dans le groupe Plume</source><translation>Right-click the Pen group</translation></message>
+    <message><source>Clic sur le premier point</source><translation>Click the starting anchor</translation></message>
+    <message><source>Commande/Ctrl + Retour</source><translation>Command/Ctrl + Return</translation></message>
+    <message><source>Commande/Ctrl + glisser</source><translation>Command/Ctrl + drag</translation></message>
+    <message><source>Contraindre un segment ou une poignée</source><translation>Constrain a segment or direction handle</translation></message>
+    <message><source>Convertir le tracé en sélection</source><translation>Load path as selection</translation></message>
+    <message><source>Convertir un point / casser une tangente</source><translation>Convert a point / break a tangent</translation></message>
+    <message><source>Déplacer un point ou une poignée</source><translation>Move an anchor or direction handle</translation></message>
+    <message><source>Fermer le tracé</source><translation>Close Path</translation></message>
+    <message><source>Maj + clic ou glisser</source><translation>Shift + click or drag</translation></message>
+    <message><source>Option/Alt + clic ou glisser</source><translation>Option/Alt + click or drag</translation></message>
+    <message><source>Plume</source><translation>Pen</translation></message>
+    <message><source>Retour / Échap</source><translation>Return / Escape</translation></message>
+    <message><source>Retour arrière / Suppr</source><translation>Backspace / Delete</translation></message>
+    <message><source>Supprimer les points sélectionnés</source><translation>Delete Selected Points</translation></message>
+    <message><source>Terminer le tracé ouvert</source><translation>Finish an open path</translation></message>
+
     <message>
       <location filename="../src/ShortcutManager.cpp" line="11" />
       <source>Fichier</source>
@@ -4515,5 +4555,29 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Dissocier le masque (NYI)</source><translation>Unlink Mask (NYI)</translation></message>
     <message><source>Charger le masque comme sélection (NYI)</source><translation>Load Mask as Selection (NYI)</translation></message>
     <message><source>Sélectionner et masquer… (NYI)</source><translation>Select and Mask… (NYI)</translation></message>
+  </context>
+  <context>
+    <name>PenOptions</name>
+    <message><source>Contour progressif de sélection (NYI)</source><translation>Selection Feathering (NYI)</translation></message>
+    <message><source>Simulation de pression (NYI)</source><translation>Simulate Pressure (NYI)</translation></message>
+    <message><source>Ajout/Suppression auto</source><translation>Auto Add/Delete</translation></message>
+    <message><source>Annuler</source><translation>Cancel</translation></message>
+    <message><source>Aperçu</source><translation>Rubber Band</translation></message>
+    <message><source>Calque de forme vectorielle (NYI)</source><translation>Vector Shape Layer (NYI)</translation></message>
+    <message><source>Contour</source><translation>Stroke</translation></message>
+    <message><source>Fermer le tracé</source><translation>Close Path</translation></message>
+    <message><source>Masque vectoriel (NYI)</source><translation>Vector Mask (NYI)</translation></message>
+    <message><source>Nouveau tracé</source><translation>New Path</translation></message>
+    <message><source>OK</source><translation>OK</translation></message>
+    <message><source>Opérations booléennes de tracés (NYI)</source><translation>Path Boolean Operations (NYI)</translation></message>
+    <message><source>Prévisualiser le prochain segment (élastique)</source><translation>Preview the next path segment (Rubber Band)</translation></message>
+    <message><source>Remplir</source><translation>Fill</translation></message>
+    <message><source>Remplir avec le premier plan et l’opacité de peinture</source><translation>Fill with the foreground color and painting opacity</translation></message>
+    <message><source>Renommer le tracé</source><translation>Rename Path</translation></message>
+    <message><source>Supprimer le tracé</source><translation>Delete Path</translation></message>
+    <message><source>Sélection</source><translation>Selection</translation></message>
+    <message><source>Terminer</source><translation>Finish</translation></message>
+    <message><source>Tracer avec les réglages actuels du pinceau</source><translation>Stroke with the current brush settings</translation></message>
+    <message><source>Tracé</source><translation>Path</translation></message>
   </context>
 </TS>

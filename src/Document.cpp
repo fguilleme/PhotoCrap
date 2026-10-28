@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "storage/ScratchImageCache.h"
 
 #include <QFont>
 #include <QPainter>
@@ -402,6 +403,43 @@ QVariantMap Document::memoryUsage() const
              DocumentStorage::estimateBytes(width(), height(), colors, masks, m_channelBits)},
             {"frequencyCacheBytes", qint64(m_frequencyCache.totalCost()) * 1024}};
 }
+void Document::configureScratchCache(const QString &_directory, qint64 _maxBytes)
+{
+    ScratchImageCache::Options options;
+    options.directory = _directory;
+    options.maxBytes  = qBound(qint64(0), _maxBytes, 64LL * 1024 * 1024 * 1024);
+    m_frequencyCache.clear();
+    m_scratchCache = std::make_shared<ScratchImageCache>(std::move(options));
+}
+QVariantMap Document::scratchCacheUsage() const
+{
+    return m_scratchCache ? m_scratchCache->statistics()
+                          : QVariantMap{{"diskBytes", qint64(0)},
+                                        {"mappedBytes", qint64(0)},
+                                        {"entries", 0},
+                                        {"hits", 0},
+                                        {"misses", 0},
+                                        {"budgetBytes", qint64(0)},
+                                        {"directory", QString{}},
+                                        {"error", QString{}}};
+}
+void Document::clearScratchCache()
+{
+    auto retired = std::make_shared<QVector<QImage>>();
+    retired->reserve(m_frequencyCache.size());
+    for (const QString &key : m_frequencyCache.keys()) {
+        std::unique_ptr<QImage> image(m_frequencyCache.take(key));
+        if (image)
+            retired->append(std::move(*image));
+    }
+    const auto cache = m_scratchCache;
+    (void)QtConcurrent::run([cache, retired] {
+        if (cache)
+            cache->clear();
+        // Retired RAM entries may own file mappings; release those on this
+        // worker too, keeping unlink/unmap work out of the settings button.
+    });
+}
 void Document::commit(const Snapshot &_before, const QString &_label, bool _invalidateFull,
                       bool _notifyImage)
 {
@@ -494,6 +532,8 @@ void Document::resetHistory(bool _clean)
     m_sliceDraft    = {};
     emit slicesChanged();
     ++m_documentSession;
+    if (m_scratchCache)
+        m_scratchCache = std::make_shared<ScratchImageCache>(m_scratchCache->options());
     invalidateContentMove();
     cancelRemoval();
     m_undo.clear();

@@ -23,6 +23,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentIO.cpp
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
+    src/storage/ScratchImageCache.cpp
     src/tools/BrushTool.cpp
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp
@@ -77,6 +78,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/main.cpp
 )
 set(PHOTOCRAP_FORMAT_SOURCES
+    src/storage/ScratchImageCache.h
+    tests/ScratchImageCacheTest.cpp
     src/ImagePixels.h
     src/DocumentStorage.h
     src/RawImageReader.h
@@ -193,6 +196,7 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 qt_add_library(photocrap_core STATIC
+    src/storage/ScratchImageCache.cpp src/storage/ScratchImageCache.h
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp src/tools/PenPath.h
     src/Document.cpp
@@ -315,6 +319,7 @@ qt_add_qml_module(PhotoCrap
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES
         qml/Main.qml
+        qml/ScratchCachePreferences.qml
         qml/DialogActionButton.qml
         qml/DockablePanel.qml
         qml/IconButton.qml
@@ -420,6 +425,10 @@ if(BUILD_TESTING)
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
+    qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
+    target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)
+    set_tests_properties(scratch_cache PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_pen_tests tests/PenToolTest.cpp)
     target_link_libraries(photocrap_pen_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME pen_tool COMMAND photocrap_pen_tests)

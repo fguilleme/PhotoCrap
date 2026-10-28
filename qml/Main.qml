@@ -4509,6 +4509,13 @@ ApplicationWindow {
                         Accessible.name: qsTr("Barre d’outils")
                         onClicked: window.preferencesPage=2
                     }
+                    ItemDelegate {
+                        Layout.fillWidth: true
+                        highlighted: window.preferencesPage===3
+                        text: qsTr("Cache de travail")
+                        Accessible.name: qsTr("Cache de travail")
+                        onClicked: window.preferencesPage=3
+                    }
                     Item { Layout.fillHeight: true }
                     Label {
                         Layout.fillWidth: true
@@ -4806,6 +4813,10 @@ ApplicationWindow {
                         }
                     }
                 }
+                ScratchCachePreferences {
+                    document: editor
+                    settings: workspaceSettings
+                }
             }
         }
 
@@ -4816,6 +4827,10 @@ ApplicationWindow {
                 onClicked: {
                     if (window.preferencesPage === 0) shortcuts.resetDefaults()
                     else if (window.preferencesPage === 2) window.resetToolLayout()
+                    else if (window.preferencesPage === 3) {
+                        workspaceSettings.scratchDirectory = ""
+                        workspaceSettings.scratchDiskGiB = 4
+                    }
                 }
             }
             DialogActionButton {

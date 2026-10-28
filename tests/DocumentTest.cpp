@@ -315,6 +315,63 @@ private slots:
         QCOMPARE(d.layerImage(2).cacheKey(), highKey);
         QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), 128LL * 1024 * 1024);
     }
+    void frequencyWorkersReuseDiskBlocksAcrossPreviewRenders_data()
+    {
+        QTest::addColumn<bool>("cacheAvailable");
+        QTest::newRow("disk-cache") << true;
+        QTest::newRow("unavailable-disk-falls-back-to-rendering") << false;
+    }
+    void frequencyWorkersReuseDiskBlocksAcrossPreviewRenders()
+    {
+        QFETCH(bool, cacheAvailable);
+        QTemporaryDir root;
+        Document      d;
+        QVERIFY(d.newDocument(2048, 2048));
+        QString directory = root.path();
+        if (!cacheAvailable) {
+            directory = root.filePath("not-a-directory");
+            QFile blocker(directory);
+            QVERIFY(blocker.open(QIODevice::WriteOnly));
+        }
+        d.configureScratchCache(directory, 128LL * 1024 * 1024);
+        d.fillSelectedWithColor(QColor("#4a6a8b"));
+        d.addFrequencySeparation(3);
+        d.addLayerMask(); // Prevent the untouched pair shortcut from hiding the bands.
+        d.setEditingMask(false);
+        d.setPreviewSize(320, 320);
+        QSignalSpy rendered(&d, &Document::imageChanged);
+        d.addAdjustmentLayer("brightnessContrast");
+        QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 3, 20000);
+        const auto usage = d.scratchCacheUsage();
+        if (cacheAvailable) {
+            QVERIFY2(usage["entries"].toInt() >= 2, qPrintable(usage["error"].toString()));
+            QVERIFY(usage["diskBytes"].toLongLong() >= 32LL * 1024 * 1024);
+        } else {
+            QCOMPARE(usage["entries"].toInt(), 0);
+            QVERIFY(!usage["error"].toString().isEmpty());
+        }
+        const int beforeHistory = d.historyIndex();
+        rendered.clear();
+        d.beginLayerPreview();
+        d.previewLayerParameter("brightness", 10);
+        d.finishLayerPreview();
+        QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 2, 20000);
+        if (cacheAvailable)
+            QVERIFY(d.scratchCacheUsage()["hits"].toULongLong() >= 2);
+        QCOMPARE(d.historyIndex(), beforeHistory + 1);
+        const QColor color = d.composite().pixelColor(100, 100);
+        QVERIFY(color.red() > 74 && color.green() > 106 && color.blue() > 139);
+        d.setActiveLayer(2);
+        QVERIFY(d.prepareFrequencyRetouch());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 20000);
+        QCOMPARE(d.scratchCacheUsage()["mappedBytes"].toLongLong(), qint64(0));
+        const QImage pixels = d.layerImage(0);
+        d.clearScratchCache();
+        QTRY_COMPARE_WITH_TIMEOUT(d.scratchCacheUsage()["entries"].toInt(), 0, 5000);
+        QCOMPARE(d.layerImage(0), pixels);
+        QVERIFY(d.newDocument(24, 16));
+        QCOMPARE(d.scratchCacheUsage()["diskBytes"].toLongLong(), qint64(0));
+    }
     void frequencyCacheIsByteBoundedAndThumbnailsAvoidNativeRendering()
     {
         Document d;
@@ -814,6 +871,33 @@ private slots:
             restored.resetToolLayout();
             QCOMPARE(restored.toolLayout().first().toMap().value("id").toString(), QString("move"));
         }
+    }
+    void scratchSettingsAreBoundedAndPersistent()
+    {
+        QTemporaryDir root;
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root.path());
+        QCoreApplication::setOrganizationName("PhotoCrapTests");
+        QCoreApplication::setApplicationName("ScratchSettingsTest");
+        QSettings().clear();
+        WorkspaceSettings settings;
+        QCOMPARE(settings.scratchDiskGiB(), 4);
+        QVERIFY(settings.scratchDirectory().isEmpty());
+        settings.setScratchDiskGiB(7);
+        settings.setScratchDirectoryUrl(QUrl::fromLocalFile(root.path()));
+        WorkspaceSettings restored;
+        QCOMPARE(restored.scratchDiskGiB(), 7);
+        QCOMPARE(restored.scratchDirectory(), root.path());
+        restored.setScratchDirectory("relative/path");
+        QCOMPARE(restored.scratchDirectory(), root.path());
+        restored.setScratchDiskGiB(1000);
+        QCOMPARE(restored.scratchDiskGiB(), 64);
+        restored.setScratchDiskGiB(-1);
+        QCOMPARE(restored.scratchDiskGiB(), 0);
+        WorkspaceSettings temporary(nullptr, false);
+        temporary.setScratchDiskGiB(9);
+        temporary.setScratchDirectory(root.path());
+        QCOMPARE(QSettings().value("cache/diskGiB").toInt(), 0);
     }
     void foregroundAndBackgroundColorsCanResetAndSwap()
     {

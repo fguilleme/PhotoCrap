@@ -1,5 +1,6 @@
 #include "WorkspaceSettings.h"
 
+#include <QDir>
 #include <QMap>
 #include <QSet>
 #include <QSettings>
@@ -12,6 +13,10 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
         m_springLoadedTools    = QSettings().value("tools/springLoaded", true).toBool();
         m_layout               = QSettings().value(QStringLiteral("workspace/layout")).toMap();
         m_toolLayout           = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
+        m_scratchDiskGiB       = qBound(0, QSettings().value("cache/diskGiB", 4).toInt(), 64);
+        m_scratchDirectory     = QSettings().value("cache/directory").toString();
+        if (!m_scratchDirectory.isEmpty() && !QDir::isAbsolutePath(m_scratchDirectory))
+            m_scratchDirectory.clear();
     }
     m_toolLayout = normalizedToolLayout(m_toolLayout);
 }
@@ -162,4 +167,32 @@ void WorkspaceSettings::setSpringLoadedTools(bool _value)
     if (m_persist)
         QSettings().setValue("tools/springLoaded", _value);
     emit toolBehaviorChanged();
+}
+
+void WorkspaceSettings::setScratchDiskGiB(int _value)
+{
+    _value = qBound(0, _value, 64);
+    if (_value == m_scratchDiskGiB)
+        return;
+    m_scratchDiskGiB = _value;
+    if (m_persist)
+        QSettings().setValue("cache/diskGiB", _value);
+    emit scratchCacheChanged();
+}
+void WorkspaceSettings::setScratchDirectory(const QString &_value)
+{
+    if (!_value.isEmpty() && !QDir::isAbsolutePath(_value))
+        return;
+    const QString directory = _value.isEmpty() ? QString{} : QDir::cleanPath(_value);
+    if (directory == m_scratchDirectory)
+        return;
+    m_scratchDirectory = directory;
+    if (m_persist)
+        QSettings().setValue("cache/directory", directory);
+    emit scratchCacheChanged();
+}
+void WorkspaceSettings::setScratchDirectoryUrl(const QUrl &_url)
+{
+    if (_url.isLocalFile())
+        setScratchDirectory(_url.toLocalFile());
 }

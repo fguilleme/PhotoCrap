@@ -66,7 +66,8 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Écarter les plans invisibles de la préparation des proxies, sans casser les chaînes d’écrêtage ni la précision du rendu complet.
 - [x] Réutiliser une bande haute encore dans le LRU sans recalculer sa bande basse évincée ; conserver le plafond de 128 Mio.
 - [x] Ajouter une pile de 64 calques remplis en 8/16 bits, comparée à une référence de rendu, avec retouche locale et Annuler/Rétablir ; tester l’éviction des fréquences et les calques/groupes masqués.
-- [ ] Implémenter le cache disque de travail et le stockage par tuiles décrits dans [docs/LAYER_MEMORY.md](docs/LAYER_MEMORY.md). Les optimisations ci-dessus ne relèvent pas la limite de 2 Gio.
+- [x] Première étape du cache disque : blocs natifs 8/16 bits vérifiés par SHA-256, mappings en lecture seule, budgets, éviction, nettoyage et protection des sessions actives. Branché sur les bandes de fréquences d’au moins 16 Mio, dans les workers ; configuration et vidage depuis Réglages → Cache de travail.
+- [ ] Étendre ce stockage aux pixels éditables, masques et historique, avec accès par tuiles et éviction réelle de leurs allocations RAM. Le cache de rendus ne relève pas la limite de 2 Gio. [Détails et limites](docs/LAYER_MEMORY.md).
 
 ## 1. Fiabilité et validation à terminer
 
@@ -85,7 +86,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [ ] Composition et stockage par tuiles, invalidation fine des caches et traitements régionaux plus systématiques.
 - [ ] Généraliser le calcul asynchrone avec annulation des résultats périmés aux opérations complètes de calques, masques, transformations et filtres directs.
 - [ ] Mesures de latence, mémoire et précision des aperçus par outil/filtre, notamment lorsque le rayon d’un flou est ramené à la résolution du proxy.
-- [ ] Stockage de travail par tuiles avec cache disque configurable pour les pixels, masques et versions d’historique ; éviction réelle de RAM, calculs asynchrones et contrôle d’espace libre. Le cache disque n’est pas encore implémenté. [Audit et architecture proposée](docs/LAYER_MEMORY.md).
+- [ ] Stockage de travail par tuiles avec cache disque configurable pour les pixels, masques et versions d’historique ; éviction réelle de RAM, calculs asynchrones et contrôle d’espace libre. Une première étape existe pour les rendus de fréquences ; les plans éditables et l’historique ne sont pas encore déchargés sur disque. [Audit, implémentation et suite](docs/LAYER_MEMORY.md).
 - [ ] Historique par différences, récupération après fermeture anormale et autosauvegarde, distincts du cache temporaire de travail.
 - [ ] Documents multiples et espaces de travail nommés/importables.
 - [ ] Accélération GPU lorsque le gain et la fidélité du résultat sont mesurés ; réduction du bruit avancée.

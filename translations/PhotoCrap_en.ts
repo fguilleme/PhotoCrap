@@ -2557,6 +2557,7 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Aucun par défaut</source>
         <translation>No default shortcut</translation>
     </message>
+    <message><source>Cache de travail</source><translation>Scratch cache</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -4722,5 +4723,32 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Molette : zoom · Glisser : déplacer</source><translation>Wheel: zoom · Drag: pan</translation></message>
     <message><source>Zones contiguës</source><translation>Contiguous Areas</translation></message>
     <message><source>Zoom :</source><translation>Zoom:</translation></message>
+  </context>
+  <context>
+    <name>ScratchCachePreferences</name>
+    <message><source>Cache de travail</source><translation>Scratch cache</translation></message>
+    <message><source>Conserve les rendus de fréquences sur disque pour éviter de les recalculer. Les pixels des calques et l’historique ne sont pas encore déchargés sur disque.</source><translation>Stores frequency renders on disk to avoid recalculating them. Layer pixels and history are not offloaded to disk yet.</translation></message>
+    <message><source>Budget disque</source><translation>Disk budget</translation></message>
+    <message><source>Gio</source><translation>GiB</translation></message>
+    <message><source>Budget du cache disque</source><translation>Disk cache budget</translation></message>
+    <message><source>0 désactive le cache. Une réserve de 512 Mio d’espace libre est conservée. Le cache RAM de fréquences reste limité à 128 Mio.</source><translation>0 disables the cache. A reserve of 512 MiB of free space is maintained. The frequency RAM cache remains limited to 128 MiB.</translation></message>
+    <message><source>Dossier de travail</source><translation>Scratch folder</translation></message>
+    <message><source>Dossier de cache système</source><translation>System cache folder</translation></message>
+    <message><source>Choisir…</source><translation>Choose…</translation></message>
+    <message><source>Dossier par défaut</source><translation>Default folder</translation></message>
+    <message><source>Utilisé : %1 Mio · %2 blocs · %3 réutilisations</source><translation>Used: %1 MiB · %2 blocks · %3 cache hits</translation></message>
+    <message><source>Vider le cache</source><translation>Clear cache</translation></message>
+    <message><source>Les blocs encore utilisés par un rendu restent disponibles jusqu’à sa fin. Ce cache temporaire n’est pas une sauvegarde ; les projets .pcr restent indépendants.</source><translation>Blocks still used by a render remain available until it finishes. This temporary cache is not a backup; .pcr projects remain separate.</translation></message>
+    <message><source>Choisir le dossier du cache de travail</source><translation>Choose the scratch cache folder</translation></message>
+  </context>
+  <context>
+    <name>ScratchImageCache</name>
+    <message><source>Bloc de cache illisible ou endommagé ; rendu recalculé.</source><translation>Cache block unreadable or damaged; render recalculated.</translation></message>
+    <message><source>Ce bloc dépasse le budget du cache disque.</source><translation>This block exceeds the disk cache budget.</translation></message>
+    <message><source>Le dossier du cache disque est inaccessible.</source><translation>The disk cache folder is inaccessible.</translation></message>
+    <message><source>Impossible de créer la session de cache.</source><translation>Cannot create the cache session.</translation></message>
+    <message><source>Impossible d’initialiser la session de cache.</source><translation>Cannot initialize the cache session.</translation></message>
+    <message><source>Le cache disque est encore utilisé par des rendus.</source><translation>The disk cache is still in use by renders.</translation></message>
+    <message><source>Espace libre insuffisant pour le cache disque.</source><translation>Insufficient free space for the disk cache.</translation></message>
   </context>
 </TS>

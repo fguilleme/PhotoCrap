@@ -22,6 +22,8 @@
 #include <functional>
 #include <memory>
 
+class ScratchImageCache;
+
 struct Layer {
     Layer() = default;
     Layer(const QString &_layerName, const QImage &_layerImage, bool _layerVisible = true,
@@ -892,6 +894,9 @@ public:
         return !m_customStampPattern.isNull();
     }
     Q_INVOKABLE QVariantMap memoryUsage() const;
+    Q_INVOKABLE void        configureScratchCache(const QString &_directory, qint64 _maxBytes);
+    Q_INVOKABLE QVariantMap scratchCacheUsage() const;
+    Q_INVOKABLE void        clearScratchCache();
 
     void             setStampAligned(bool _value);
     void             setCloneSampleMode(int _value);
@@ -1368,33 +1373,34 @@ private:
     QImage  m_strokeBase, m_strokeCoverage;
     QColor  m_strokeInkColor;
     QRectF  m_strokeBounds;
-    mutable QCache<QString, QImage> m_frequencyCache{128 * 1024};
-    QFutureWatcher<QImage>          m_previewRenderWatcher;
-    QVector<Layer>                  m_pendingPreviewLayers;
-    QSize                           m_pendingPreviewSize;
-    QSize                           m_pendingPreviewTargetSize;
-    QSize                           m_previewTargetSize;
-    QImage                          m_previewComposite;
-    bool                            m_pendingPreviewDraft  = false;
-    bool                            m_pendingPreviewRefine = false;
-    bool                            m_runningPreviewDraft  = false;
-    bool                            m_runningPreviewRefine = false;
-    QSize                           m_runningPreviewTargetSize;
-    quint64                         m_previewRequestGeneration = 0;
-    quint64                         m_runningPreviewGeneration = 0;
-    bool                            m_previewRenderPending     = false;
-    std::atomic_bool                m_previewRenderActive{false};
-    mutable QMutex                  m_previewImageMutex;
-    Snapshot                        m_beforeContentMove;
-    Snapshot                        m_beforeStroke;
-    Snapshot                        m_beforeLayerPreview;
-    QImage                          m_beforeLayerPreviewComposite;
-    bool                            m_layerPropertiesSession = false;
-    Snapshot                        m_beforeLayerProperties;
-    QVector<Snapshot>               m_undoBeforeLayerProperties;
-    QVector<Snapshot>               m_redoBeforeLayerProperties;
-    Snapshot                        snapshot(const QString &_label) const;
-    void                            restore(const Snapshot &_state);
+    mutable QCache<QString, QImage>    m_frequencyCache{128 * 1024};
+    std::shared_ptr<ScratchImageCache> m_scratchCache;
+    QFutureWatcher<QImage>             m_previewRenderWatcher;
+    QVector<Layer>                     m_pendingPreviewLayers;
+    QSize                              m_pendingPreviewSize;
+    QSize                              m_pendingPreviewTargetSize;
+    QSize                              m_previewTargetSize;
+    QImage                             m_previewComposite;
+    bool                               m_pendingPreviewDraft  = false;
+    bool                               m_pendingPreviewRefine = false;
+    bool                               m_runningPreviewDraft  = false;
+    bool                               m_runningPreviewRefine = false;
+    QSize                              m_runningPreviewTargetSize;
+    quint64                            m_previewRequestGeneration = 0;
+    quint64                            m_runningPreviewGeneration = 0;
+    bool                               m_previewRenderPending     = false;
+    std::atomic_bool                   m_previewRenderActive{false};
+    mutable QMutex                     m_previewImageMutex;
+    Snapshot                           m_beforeContentMove;
+    Snapshot                           m_beforeStroke;
+    Snapshot                           m_beforeLayerPreview;
+    QImage                             m_beforeLayerPreviewComposite;
+    bool                               m_layerPropertiesSession = false;
+    Snapshot                           m_beforeLayerProperties;
+    QVector<Snapshot>                  m_undoBeforeLayerProperties;
+    QVector<Snapshot>                  m_redoBeforeLayerProperties;
+    Snapshot                           snapshot(const QString &_label) const;
+    void                               restore(const Snapshot &_state);
 
     bool                              m_frequencyRetouchBusy = false;
     std::shared_ptr<std::atomic_bool> m_frequencyRetouchCancel;
@@ -1480,5 +1486,6 @@ private:
     void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
-                                        const QSize &_targetSize, bool _draft);
+                                        const QSize &_targetSize, bool _draft,
+                                        std::shared_ptr<ScratchImageCache> _scratch = {});
 };

@@ -80,11 +80,19 @@ int main(int argc, char *argv[])
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");
-    LanguageManager       languageManager(nullptr, !smoke);
-    RecentFilesManager    recentFilesManager(nullptr, !smoke);
-    Document              document;
-    ShortcutManager       shortcutManager(nullptr, !smoke);
-    WorkspaceSettings     workspaceSettings(nullptr, !smoke);
+    LanguageManager    languageManager(nullptr, !smoke);
+    RecentFilesManager recentFilesManager(nullptr, !smoke);
+    Document           document;
+    ShortcutManager    shortcutManager(nullptr, !smoke);
+    WorkspaceSettings  workspaceSettings(nullptr, !smoke);
+    const auto         configureScratch = [&] {
+        document.configureScratchCache(
+            workspaceSettings.scratchDirectory(),
+            smoke ? 0 : qint64(workspaceSettings.scratchDiskGiB()) * 1024 * 1024 * 1024);
+    };
+    configureScratch();
+    QObject::connect(&workspaceSettings, &WorkspaceSettings::scratchCacheChanged, &document,
+                     configureScratch);
     int                   qmlWarnings = 0;
     QQmlApplicationEngine engine;
 #if QT_VERSION < QT_VERSION_CHECK(6, 9, 0)

@@ -99,27 +99,39 @@ bool Document::prepareFrequencyRetouch()
             m_frequencyRetouchCancel.reset();
             emit frequencyRetouchBusyChanged();
         });
-    // Only native image data and a numeric radius cross the thread boundary.
-    watcher->setFuture(QtConcurrent::run([lowSource, highSource, radius, cancel] {
-        QVector<QImage> images;
-        if (cancel->load())
+    // Only native data and the thread-safe scratch cache cross the thread boundary.
+    watcher->setFuture(
+        QtConcurrent::run([lowSource, highSource, radius, cancel, scratch = m_scratchCache] {
+            QVector<QImage> images;
+            if (cancel->load())
+                return images;
+            Document renderer;
+            renderer.m_scratchCache       = scratch;
+            renderer.m_historyBrushSource = {};
+            Layer layer;
+            layer.source     = lowSource;
+            layer.kind       = QStringLiteral("frequencyLow");
+            layer.parameters = {{"radius", radius}};
+            images.append(renderer.frequencyImage(layer).convertToFormat(
+                ImageUtils::workingFormat(layer.source)));
+            if (cancel->load())
+                return QVector<QImage>{};
+            layer.source = highSource;
+            layer.kind   = QStringLiteral("frequencyHigh");
+            images.append(renderer.frequencyImage(layer).convertToFormat(
+                ImageUtils::workingFormat(layer.source)));
+            // Prepared bands become editable document pixels, not disposable cache
+            // results. Release RAM cache aliases first, then detach read-only file
+            // mappings without copying results that already own writable pixels.
+            renderer.m_frequencyCache.clear();
+            for (QImage &image : images) {
+                if (cancel->load())
+                    return QVector<QImage>{};
+                if (!image.bits())
+                    return QVector<QImage>{};
+            }
             return images;
-        Document renderer;
-        renderer.m_historyBrushSource = {};
-        Layer layer;
-        layer.source     = lowSource;
-        layer.kind       = QStringLiteral("frequencyLow");
-        layer.parameters = {{"radius", radius}};
-        images.append(renderer.frequencyImage(layer).convertToFormat(
-            ImageUtils::workingFormat(layer.source)));
-        if (cancel->load())
-            return QVector<QImage>{};
-        layer.source = highSource;
-        layer.kind   = QStringLiteral("frequencyHigh");
-        images.append(renderer.frequencyImage(layer).convertToFormat(
-            ImageUtils::workingFormat(layer.source)));
-        return images;
-    }));
+        }));
     return true;
 }
 

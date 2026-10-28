@@ -1,8 +1,9 @@
 # Calques, mémoire et cache de travail disque
 
-Audit du 28 octobre 2026, après v0.14. Les optimisations décrites dans la section
-« Passe en cours » sont distinctes de la release v0.14. Le cache disque décrit plus
-bas est une architecture proposée, **pas une fonction déjà disponible**.
+Audit du 28 octobre 2026, après v0.14. Les optimisations préparatoires sont committées
+séparément dans `862e505`. Une première étape du cache disque est implémentée pour les
+rendus de fréquences. Le déchargement des pixels de calques, masques et historique
+reste à réaliser ; l’architecture par tuiles ci-dessous décrit cette suite.
 
 ## Ce que les limites actuelles signifient
 
@@ -54,7 +55,7 @@ diagnostic n’est pas une mesure de la mémoire résidente du processus.
   lorsque sa bande basse a été évincée. Quatre autres cas vérifient les proxies avec
   un calque masqué, un groupe masqué, une opacité nulle ou tous les calques de pixels masqués.
 
-## Passe en cours
+## Optimisations préparatoires
 
 - Composition en mode Normal directement dans l’accumulateur du rendu, au lieu
   de recopier ce composite pour chaque calque.
@@ -78,7 +79,55 @@ environ 315 Mio de mémoire résidente maximale, pour 256 Mio de plans couleur.
 Ces exécutions locales ne constituent pas un seuil de performance garanti ni une
 mesure du pic complet de l’application avec son interface et ses autres caches.
 
-## Cache disque : architecture proposée
+## Cache disque : première étape implémentée
+
+La section **Réglages → Cache de travail** permet de choisir le dossier, fixer un budget
+entre 0 et 64 Gio (4 Gio par défaut) ou vider le cache. Zéro désactive le stockage ; les
+rendus restent calculables sans lui. Les réglages sont persistants et appliqués à chaud.
+
+- Les bandes de fréquences d’au moins 16 Mio sont stockées par les workers, en précision
+  native et sans recompression. Les petits proxies et les demandes de vignettes sur le
+  thread d’interface restent en RAM, sans lecture/écriture disque.
+- Chaque document et ses workers partagent une session. Un nouveau document reçoit une
+  nouvelle session ; les anciennes restent valides tant qu’un worker ou une image s’en sert.
+- Le LRU RAM de 128 Mio reste le premier niveau. Lorsqu’une bande n’y est plus, le rendu
+  cherche son bloc sur disque avant de recalculer. Une bande trop grosse pour ce LRU peut
+  donc quand même être réutilisée depuis le disque.
+- Le stockage utilise des blocs immuables avec en-tête versionné, métadonnées couleur,
+  lignes natives et SHA-256. QSaveFile publie atomiquement les écritures complètes.
+  Les lectures vérifient l’intégrité et renvoient une QImage sur un mapping en lecture
+  seule ; une modification de cette image provoque une copie, sans modifier le bloc.
+- Le budget compte aussi les fichiers encore retenus par des images après leur éviction
+  de l’index. S’ils empêchent une nouvelle insertion, celle-ci est refusée sans perdre le
+  rendu. Une réserve de 512 Mio d’espace libre est vérifiée avant chaque écriture.
+- Un dossier inaccessible, une écriture impossible ou un bloc endommagé n’interrompt pas
+  l’édition : le rendu est calculé et un diagnostic apparaît dans les réglages du cache.
+- Vider le cache libère les blocs inutilisés. Les mappings encore utilisés conservent
+  leur fichier jusqu’à la fin du rendu. La fermeture nettoie la session après sa dernière
+  référence ; les sessions abandonnées sont nettoyées au prochain usage, avec marqueur
+  PhotoCrap et verrou d’instance pour protéger les sessions actives et dossiers étrangers.
+
+`scratchCacheUsage()` expose volume disque, blocs indexés, mappings, réutilisations et
+dernier diagnostic. Le volume mappé n’est pas une mesure de RAM résidente. Une nouvelle
+session ou un changement de dossier peut temporairement coexister avec une ancienne
+session encore utilisée : le budget s’applique à chaque session, pas à la somme de ces
+transitions ni aux autres applications.
+
+La suite `scratch_cache` couvre formats 8/16 bits et masques, fidélité des octets et des
+métadonnées, copie à l’écriture, durée de vie des mappings, LRU, blocs retenus, corruption,
+stockage indisponible, réserve d’espace et concurrence avec vidage. Les tests du document
+vérifient la réutilisation entre workers de prévisualisation et le repli sans cache ; le
+smoke test QML couvre la page de réglages. La réserve insuffisante est simulée ; les essais
+sur un disque réellement saturé et les mesures sur disques lents restent à compléter.
+
+Ce premier usage conserve des rendus recalculables. Il ne décharge pas encore les plans
+éditables ni l’historique et ne relève aucune limite du document. Le même stockage de
+blocs pourra recevoir des tuiles quand l’accès aux pixels aura été adapté.
+
+Références des contrats Qt utilisés : [QImage et buffers externes](https://doc.qt.io/qt-6/qimage.html),
+[mapping de fichiers](https://doc.qt.io/qt-6/qfiledevice.html#map).
+
+## Étape suivante : stockage de travail par tuiles
 
 Un cache d’aperçus seul ne suffit pas : les plans éditables et les versions de l’historique
 resteraient en mémoire. La cible est un stockage de travail par tuiles, réutilisé par
@@ -132,7 +181,8 @@ indépendante à la résolution d’affichage.
    ou sérialiser simultanément.
 2. Porter pinceau, gomme, masques et remplissages sur les tuiles modifiées, puis la
    composition et les filtres, avec gestion des voisinages et de l’écrêtage.
-3. Ajouter le stockage disque et l’éviction réelle de RAM, puis l’historique partagé.
+3. Raccorder les plans de tuiles au stockage disque déjà introduit, avec éviction réelle
+   de leurs allocations RAM, puis l’historique partagé.
 4. Mesurer mémoire résidente et pics d’allocation, latence des traits, temps de rendu,
    volume disque et précision sur des piles remplies en 24 Mpx/16 bits.
 5. Tester Annuler/Rétablir après éviction, sauvegarde/rechargement, annulation d’un worker,

@@ -13,6 +13,7 @@
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
+#include "storage/ScratchImageCache.h"
 
 #include <QCache>
 #include <QColorSpace>
@@ -460,6 +461,25 @@ QImage Document::frequencyImage(const Layer &_layer) const
 {
     if (_layer.source.isNull())
         return {};
+    // Only render workers use disk. Small previews and UI thumbnail requests
+    // stay in RAM and never perform filesystem work on the input thread.
+    const bool useScratch = m_scratchCache && _layer.source.sizeInBytes() >= 16LL * 1024 * 1024 &&
+                            QThreadPool::globalInstance()->contains(QThread::currentThread());
+    const auto cachedBand = [&](const QString &_key) {
+        if (const auto cached = m_frequencyCache.object(_key))
+            return *cached;
+        QImage image = useScratch ? m_scratchCache->find(_key) : QImage{};
+        if (!image.isNull())
+            m_frequencyCache.insert(_key, new QImage(image),
+                                    int((image.sizeInBytes() + 1023) / 1024));
+        return image;
+    };
+    const auto storeBand = [&](const QString &_key, const QImage &_image) {
+        m_frequencyCache.insert(_key, new QImage(_image),
+                                int((_image.sizeInBytes() + 1023) / 1024));
+        if (useScratch)
+            m_scratchCache->insert(_key, _image);
+    };
     const auto render = [&]<typename Pixel>() -> QImage {
         using P                = ImageUtils::PixelAccess<Pixel>;
         const int radius       = qBound(1, _layer.parameters.value("radius", 8).toInt(), 100);
@@ -476,11 +496,12 @@ QImage Document::frequencyImage(const Layer &_layer) const
         const QString highKey = QStringLiteral("high/") + cacheBase;
         // A cached high band is complete on its own. Looking up/rebuilding its
         // low band first can evict this very result from the byte-bounded LRU.
-        if (_layer.kind != QStringLiteral("frequencyLow"))
-            if (const auto cachedHigh = m_frequencyCache.object(highKey))
-                return *cachedHigh;
-        const auto cachedLow = m_frequencyCache.object(lowKey);
-        QImage     low       = cachedLow ? *cachedLow : QImage{};
+        if (_layer.kind != QStringLiteral("frequencyLow")) {
+            const QImage cachedHigh = cachedBand(highKey);
+            if (!cachedHigh.isNull())
+                return cachedHigh;
+        }
+        QImage low = cachedBand(lowKey);
         if (low.isNull()) {
             QImage source = _layer.source.convertToFormat(P::format);
             if (previewScale < 1)
@@ -492,8 +513,7 @@ QImage Document::frequencyImage(const Layer &_layer) const
             if (previewScale < 1)
                 low = low.scaled(_layer.source.size(), Qt::IgnoreAspectRatio,
                                  Qt::SmoothTransformation);
-            m_frequencyCache.insert(lowKey, new QImage(low),
-                                    int((low.sizeInBytes() + 1023) / 1024));
+            storeBand(lowKey, low);
         }
         if (_layer.kind == QStringLiteral("frequencyLow"))
             return low;
@@ -518,8 +538,7 @@ QImage Document::frequencyImage(const Layer &_layer) const
         });
         result = result.convertToFormat(P::premultiplied);
         result.setColorSpace(_layer.source.colorSpace());
-        m_frequencyCache.insert(highKey, new QImage(result),
-                                int((result.sizeInBytes() + 1023) / 1024));
+        storeBand(highKey, result);
         return result;
     };
     return ImageUtils::is16Bit(_layer.source) ? render.template operator()<QRgba64>()

@@ -417,6 +417,21 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(toolSettingsList && toolSettingsList->property("visible").toBool(),
                  "toolbar settings page is available"))
         return false;
+    _window->setProperty("preferencesPage", 3);
+    QTest::qWait(50);
+    auto scratchBudget = _window->findChild<QObject *>("scratchDiskBudget");
+    auto clearScratch  = _window->findChild<QObject *>("clearScratchCacheButton");
+    if (!require(scratchBudget && clearScratch && scratchBudget->property("visible").toBool() &&
+                     scratchBudget->property("value").toInt() == 4,
+                 "scratch cache settings expose the disk budget"))
+        return false;
+    _workspaceSettings.setScratchDiskGiB(3);
+    QTest::qWait(20);
+    if (!require(scratchBudget->property("value").toInt() == 3,
+                 "scratch cache budget follows settings changes"))
+        return false;
+    QMetaObject::invokeMethod(clearScratch, "clicked");
+    _workspaceSettings.setScratchDiskGiB(4);
     QMetaObject::invokeMethod(preferences, "close");
     QTest::qWait(80);
     _window->requestActivate();

@@ -136,14 +136,16 @@ void Document::startPendingPreviewRender()
     m_runningPreviewDraft      = draft;
     m_runningPreviewRefine     = refine;
     m_runningPreviewTargetSize = targetSize;
+    const auto scratch         = m_scratchCache;
     m_previewRenderWatcher.setFuture(
-        QtConcurrent::run([layers = std::move(layers), size, targetSize, draft]() mutable {
-            return renderPreviewSnapshot(std::move(layers), size, targetSize, draft);
+        QtConcurrent::run([layers = std::move(layers), size, targetSize, draft, scratch]() mutable {
+            return renderPreviewSnapshot(std::move(layers), size, targetSize, draft, scratch);
         }));
 }
 
 QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
-                                       const QSize &_targetSize, bool _draft)
+                                       const QSize &_targetSize, bool _draft,
+                                       std::shared_ptr<ScratchImageCache> _scratch)
 {
     int                  channelBits = 8;
     QHash<QString, bool> groupVisibility;
@@ -192,6 +194,7 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
         }
     }
     Document renderer;
+    renderer.m_scratchCache       = std::move(_scratch);
     renderer.m_historyBrushSource = {}; // Render helpers need no retained initial state.
     renderer.m_layers             = std::move(_layers);
     renderer.m_size               = renderSize;

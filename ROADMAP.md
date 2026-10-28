@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État du projet au **28 octobre 2026**, version courante **v0.13.0**. Cette feuille de route distingue les fonctions de v0.12.0, les ajouts de v0.13.0 et les travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **28 octobre 2026**, version courante **v0.13.1**. Cette feuille de route distingue les fonctions de v0.12.0, les ajouts de v0.13.1 et les travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
 La [release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0) est publiée pour macOS arm64, Linux x86_64 et Windows x64. Son [workflow de tag](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) a réussi les builds, tests, déploiements, paquets et publication. Le [workflow de branche vérifié au commit `9303970`](https://github.com/fguilleme/PhotoCrap/actions/runs/38522922351) est également vert. Les précédents échecs intermittents du curseur natif macOS restent à surveiller.
 
@@ -31,9 +31,9 @@ Les paquets de v0.12.0 portent encore le numéro **0.11.0** dans leur nom et leu
 - [x] Interactions communes inspirées des références Adobe : Maj/Option pour les variantes, raccourcis temporaires, contraintes de tracé, combinaisons de sélections, Maj-clic de peinture, chiffres pour opacité/débit, réglage de brosse à la souris et curseur précis. [Guide détaillé](docs/TOOL_INTERACTIONS.md).
 - [x] Jusqu’à 512 calques, budget de 2 Gio de données de calques, stockage compact des calques vides et masques uniformes, historique comptant les pixels supplémentaires, cache de fréquences borné à 128 Mio et liste de calques virtualisée.
 
-## Ajouts de v0.13.0
+## Ajouts de v0.13.1
 
-Ces ajouts sont inclus dans le tag v0.13.0. La publication des paquets est automatique après validation des trois plateformes : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le catalogue actuel contient 282 entrées de raccourcis et gestes, dont 113 NYI après l’implémentation de la Gomme magique et de la Plume.
+Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est automatique après validation des trois plateformes : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le catalogue actuel contient 282 entrées de raccourcis et gestes, dont 113 NYI après l’implémentation de la Gomme magique et de la Plume.
 
 - [x] Plume en mode Tracé : Bézier, poignées, ajout/suppression/conversion de points, contraintes, reprise, fermeture, annulation et sauvegarde des tracés en projet v8. Conversion en sélection, remplissage et contour raster avec sélection et profondeur 8/16 bits conservées.
 - [ ] Modes Forme et masque vectoriel, opérations booléennes et panneau Tracés complet. Plume libre/de courbure et sélections de tracés restent NYI.
@@ -47,7 +47,7 @@ Ces ajouts sont inclus dans le tag v0.13.0. La publication des paquets est autom
 - [ ] Confirmer la stabilité du premier affichage du curseur natif macOS : des tests ont relevé une flèche Cocoa malgré une pipette correcte dans l’état Qt. Les derniers workflows passent ; vérifier aussi les transitions de focus, de fenêtres flottantes et de survol sur Qt 6.8.3 avant de considérer ce défaut définitivement résolu.
 - [ ] Étendre les tests d’espaces de travail : déplacements entre colonnes, sorties de groupes, dépôt avant le premier panneau, écrans multiples, changement de résolution et restauration de fenêtres hors écran.
 - [ ] Étendre les essais au clavier, l’accessibilité, les curseurs, la haute densité et les tablettes sur les trois plateformes.
-- [x] Version CMake et noms des paquets alignés sur v0.13.0 ; l’AppImage reprend automatiquement la version configurée.
+- [x] Version CMake et noms des paquets alignés sur v0.13.1 ; l’AppImage reprend automatiquement la version configurée.
 - [ ] Signature Developer ID et notarisation macOS ; signature Authenticode Windows. Les signatures de distribution ne sont pas encore configurées.
 
 ## 2. Grands documents et performance
@@ -106,4 +106,4 @@ Améliorations des outils déjà disponibles :
 - [ ] Intégration facultative de modèles locaux après validation des licences, des ressources nécessaires et de la qualité réelle des masques/rendus.
 - [ ] Comparaisons de rendu et mesures de performance avant toute revendication de compatibilité avec une version précise de Photoshop.
 
-Les fonctions déjà réalisées restent détaillées dans [README.md](README.md) et [README.en.md](README.en.md). Les cases cochées sous « Disponible dans v0.12.0 » appartiennent à la release ; celles de la section « Ajouts de v0.13.0 » appartiennent à la nouvelle version. Les cases non cochées sont des travaux restants.
+Les fonctions déjà réalisées restent détaillées dans [README.md](README.md) et [README.en.md](README.en.md). Les cases cochées sous « Disponible dans v0.12.0 » appartiennent à la release ; celles de la section « Ajouts de v0.13.1 » appartiennent à la nouvelle version. Les cases non cochées sont des travaux restants.

@@ -34,4 +34,7 @@ private:
     QPointer<Document> m_document;
     qreal              m_selectionPhase     = 0;
     bool               m_systemCursorActive = false;
+#ifdef Q_OS_MACOS
+    bool m_nativeCursorRefreshPending = false;
+#endif
 };

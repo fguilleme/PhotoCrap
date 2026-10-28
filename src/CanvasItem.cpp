@@ -9,6 +9,7 @@
 #include <QPixmap>
 #include <QQuickWindow>
 #include <QScreen>
+#include <QTimer>
 #include <QtMath>
 
 namespace
@@ -369,6 +370,18 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
     }
 #ifdef Q_OS_MACOS
     reapplyMacToolCursor(cursor);
+    // Cocoa can reset its tracking cursor after Qt's hover/focus handler returns,
+    // including when a floating Info panel opens. Reapply the latest override
+    // once that event has finished; coalesce pointer updates and discard stale ones.
+    if (!m_nativeCursorRefreshPending) {
+        m_nativeCursorRefreshPending = true;
+        QTimer::singleShot(0, this, [this] {
+            m_nativeCursorRefreshPending = false;
+            if (m_systemCursorActive && window() && window()->isActive())
+                if (const auto current = QGuiApplication::overrideCursor())
+                    reapplyMacToolCursor(*current);
+        });
+    }
 #endif
 }
 void CanvasItem::paint(QPainter *_painter)

@@ -4,15 +4,17 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Version courante : **v0.13.0**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
+Version courante : **v0.13.1**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
 
 ## Télécharger
 
-La [release v0.13.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.0) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+La [release v0.13.1](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.1) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
 
-La version interne et les noms des paquets sont désormais alignés sur **0.13.0**. Les anciens paquets du tag v0.12.0 portaient encore le numéro 0.11.0.
+La version interne et les noms des paquets sont désormais alignés sur **0.13.1**. Les anciens paquets du tag v0.12.0 portaient encore le numéro 0.11.0.
 
-## Nouveautés de v0.13.0
+## Nouveautés de v0.13.1
+
+Le tag de préparation v0.13.0 n’a publié aucun paquet : un test de curseur macOS bloquait le workflow. v0.13.1 réapplique le curseur après les événements natifs et attend les actualisations des échantillons de couleur dans les tests.
 
 Cette version reprend les fonctions de v0.12.0 (RAW, pixels 16 bits, recadrage et tranches, séparation de fréquences retouchable et jusqu’à 512 calques) et ajoute :
 

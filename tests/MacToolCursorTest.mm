@@ -1,4 +1,5 @@
 #include "MacToolCursorTest.h"
+#include "CanvasItem.h"
 #include "Document.h"
 
 #include <QCursor>
@@ -108,7 +109,8 @@ bool runMacToolCursorTest(QQuickWindow *_window)
         return false;
     auto artboard = _window->findChild<QQuickItem *>("artboard");
     auto info     = _window->findChild<QObject *>("informationDockPanel");
-    if (!artboard || !info)
+    auto canvas   = _window->findChild<CanvasItem *>("imageCanvas");
+    if (!artboard || !info || !canvas)
         return false;
     const QPoint previousPosition = QCursor::pos();
     _window->requestActivate();
@@ -125,6 +127,8 @@ bool runMacToolCursorTest(QQuickWindow *_window)
         QTest::qWait(40);
         QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "measure"),
                                   Q_ARG(QVariant, tool));
+        // Reproduce AppKit overwriting the cursor at the end of the input event.
+        [[NSCursor crosshairCursor] set];
         QTest::qWait(100);
         const QPoint  expected      = tool == "ruler" ? QPoint(8, 8) : QPoint(3, 29);
         const NSPoint nativeHotspot = [[NSCursor currentCursor] hotSpot];
@@ -143,10 +147,23 @@ bool runMacToolCursorTest(QQuickWindow *_window)
             passed = false;
             break;
         }
+        // Isolate a reset occurring after our handler but before the event loop
+        // resumes, without relying on a subsequent hover or QML callback.
+        canvas->setSystemCursor(Qt::CrossCursor, true, tool, 0);
+        [[NSCursor crosshairCursor] set];
+        QTest::qWait(40);
+        const NSPoint recovered = [[NSCursor currentCursor] hotSpot];
+        if (qAbs(recovered.x - expected.x()) > .1 || qAbs(recovered.y - expected.y()) > .1) {
+            qWarning() << "Native cursor did not recover after AppKit reset:" << tool << recovered.x
+                       << recovered.y;
+            passed = false;
+            break;
+        }
         // Close and show Info while the pointer stays over the image.
         QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "information"),
                                   Q_ARG(QVariant, false));
         QMetaObject::invokeMethod(_window, "showInformationPanel");
+        [[NSCursor crosshairCursor] set];
         QTest::qWait(150);
         const NSPoint reopenedHotspot = [[NSCursor currentCursor] hotSpot];
         if (!_window->isActive() || qAbs(reopenedHotspot.x - expected.x()) > 0.1 ||

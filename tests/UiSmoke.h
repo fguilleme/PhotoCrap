@@ -1475,23 +1475,15 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _document.setColor(Qt::red);
     _document.fillWithColor(true);
-    QTest::qWait(90);
-    if (!require(_window->property("colorSamples").toList().size() == 1 &&
-                     _window->property("colorSamples")
-                             .toList()[0]
-                             .toMap()
-                             .value("color")
-                             .value<QColor>() == QColor(Qt::red),
+    const auto sampleMatches = [&](const QColor &_color) {
+        const auto samples = _window->property("colorSamples").toList();
+        return samples.size() == 1 && samples[0].toMap().value("color").value<QColor>() == _color;
+    };
+    if (!require(QTest::qWaitFor([&] { return sampleMatches(Qt::red); }, 2000),
                  "Sampler readouts follow image changes"))
         return false;
     _document.undo();
-    QTest::qWait(90);
-    if (!require(_window->property("colorSamples").toList().size() == 1 &&
-                     _window->property("colorSamples")
-                             .toList()[0]
-                             .toMap()
-                             .value("color")
-                             .value<QColor>() == QColor(Qt::blue),
+    if (!require(QTest::qWaitFor([&] { return sampleMatches(Qt::blue); }, 2000),
                  "Undo updates a sampler without deleting its non-destructive marker"))
         return false;
     QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, patchPoint(25, 0));

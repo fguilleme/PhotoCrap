@@ -4,15 +4,17 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Current version: **v0.13.0**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
+Current version: **v0.13.1**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Download
 
-[Release v0.13.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.0) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
+[Release v0.13.1](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.1) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
 
-The internal version and package filenames now use **0.13.0**. Older v0.12.0 packages still used the 0.11.0 version number.
+The internal version and package filenames now use **0.13.1**. Older v0.12.0 packages still used the 0.11.0 version number.
 
-## New in v0.13.0
+## New in v0.13.1
+
+The preparation tag v0.13.0 did not publish packages because a native macOS cursor test failed. v0.13.1 reapplies the cursor after native events and waits for color sampler updates in tests.
 
 This release retains the v0.12.0 features (RAW, 16-bit pixels, crop and slice tools, editable frequency separation, and up to 512 layers) and adds:
 

@@ -4,30 +4,25 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Version courante : **v0.13.1**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
+Version courante : **v0.14**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
 
 ## Télécharger
 
-La [release v0.13.1](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.1) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
 
-La version interne et les noms des paquets sont désormais alignés sur **0.13.1**. Les anciens paquets du tag v0.12.0 portaient encore le numéro 0.11.0.
+Le tag est **v0.14** ; la version interne et les noms des paquets utilisent **0.14.0**.
 
-## Nouveautés de v0.13.1
+## Nouveautés de v0.14
 
-Le tag de préparation v0.13.0 n’a publié aucun paquet : un test de curseur macOS bloquait le workflow. v0.13.1 réapplique le curseur après les événements natifs et attend les actualisations des échantillons de couleur dans les tests.
+- **Plage de couleurs** : prélèvement sur le canevas sans fermer le dialogue, pipettes ajouter/retirer, tolérance, portée localisée, zones contiguës facultatives et inversion. Les aperçus image et masque partagent un zoom à résolution native et le déplacement.
+- **Contour progressif (Maj+F6)** : rayon de 1 à 1 000 px et couverture partielle respectée par la peinture, les remplissages, la copie et les masques. Frange, Lisser, Dilater et Contracter complètent le menu Sélection avec un calcul régional en arrière-plan, annulable.
+- **Historique des sélections** : annulation, rétablissement et resélection sans rendre les pixels sauvegardés « modifiés ». **Affichage → Afficher → Contour de la sélection** masque les fourmis sans désélectionner.
+- **Dialogues de fichiers lisibles sous Linux** : palette sombre complète et correction du repli Qt Quick sur Qt 6.8, avec test d’ouverture, d’enregistrement, d’export et de choix de dossier.
+- **298 raccourcis et gestes recensés**, dont **121 NYI** désactivés. Les commandes disponibles sont configurables ; les fonctions encore manquantes restent explicitement identifiées.
 
-Cette version reprend les fonctions de v0.12.0 (RAW, pixels 16 bits, recadrage et tranches, séparation de fréquences retouchable et jusqu’à 512 calques) et ajoute :
-
-- **Plume (P)** : tracés Bézier modifiables, poignées, points anguleux/lisses, ajout/suppression/conversion de points, remplissage, contour et sauvegarde dans les projets v8. Après conversion en sélection, seules les fourmis restent affichées ; le tracé peut être réactivé dans la barre d’options. Déplacement des points avec Commande/Ctrl et curseur à pointe précise. [Gestes et limites](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
-- **Gomme magique** : effacement par couleur, calcul asynchrone annulable et précision 8/16 bits.
-- **Menus contextuels distincts pour calques et masques** : propriétés, verrouillage, inversion et suppression du masque, avec les fonctions manquantes désactivées et marquées **NYI**.
-- **Fermeture de l’application** corrigée avec les panneaux flottants ou masqués, en conservant la confirmation de sauvegarde.
+Le [guide Sélections](docs/SELECTIONS.md) décrit les paramètres, les références Adobe et les limites. Cette version conserve la Plume, les RAW, les pixels 16 bits et la séparation de fréquences retouchable. Le format `.pcr` reste en version 8 : la sélection temporaire n’est pas enregistrée dans le projet. L’historique des versions est dans [CHANGELOG.md](CHANGELOG.md).
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
-
-## En développement après v0.13.1
-
-Le menu **Sélection** suit désormais un [inventaire de la documentation Adobe](docs/SELECTIONS.md), avec paramètres et limites : Plage de couleurs avec prélèvement sur le canevas, aperçus zoomables et option Zones contiguës, Contour progressif (Maj+F6), Frange, Lisser, Dilater et Contracter fonctionnent en arrière-plan et sont annulables. Les couvertures progressives sont respectées par la peinture, les remplissages et les masques. Les modifications de sélection ont leur historique sans modifier les pixels sauvegardés. **Affichage → Afficher → Contour de la sélection** masque les fourmis sans désélectionner. Les fonctions avancées manquantes sont visibles et désactivées avec la mention **NYI** ; leurs options sont recensées pour les prochaines étapes.
 
 ## Fonctionnalités
 
@@ -142,7 +137,7 @@ ctest --preset release
 ## Utilisation
 
 1. Créer un document, ouvrir une image ou charger la démonstration.
-2. Sélectionner le calque dans la liste à droite. Sur la branche de développement, le clic droit sur le calque ouvre ses commandes ; le clic droit sur sa **vignette de masque** ouvre celles du masque sans ouvrir le dialogue de propriétés. Le bouton **◐** ajoute ou sélectionne le masque. Le bouton **ƒ** ouvre les paramètres du réglage, du masque actif ou d’une séparation de fréquences. Le double-clic ouvre les propriétés lorsqu’elles existent, sinon le renommage.
+2. Sélectionner le calque dans la liste à droite. Le clic droit sur le calque ouvre ses commandes ; le clic droit sur sa **vignette de masque** ouvre celles du masque sans ouvrir le dialogue de propriétés. Le bouton **◐** ajoute ou sélectionne le masque. Le bouton **ƒ** ouvre les paramètres du réglage, du masque actif ou d’une séparation de fréquences. Le double-clic ouvre les propriétés lorsqu’elles existent, sinon le renommage.
 3. Choisir un outil à gauche et dessiner sur le canevas. Le texte se règle dans la barre sous le canevas ; chaque clic le rasterise dans le calque actif.
 4. Pour un recadrage, tracer une zone puis cliquer **Recadrer**. Les réglages et les coups de pinceau respectent la sélection ; la désélectionner pour agir sur toute l’image.
 5. Enregistrer en `.pcr` pour conserver les calques, puis exporter une image pour la partager.
@@ -162,7 +157,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | J | Correcteur localisé, suppression, correcteur, pièce, déplacement basé sur le contenu, œil rouge |
 | B | Pinceau, crayon, remplacement de couleur, pinceau mélangeur |
 | S | Tampon de duplication, tampon de motif |
-| Y | Forme d’historique, forme d’historique artistique (branche de développement) |
+| Y | Forme d’historique, forme d’historique artistique |
 | E | Gomme |
 | G | Dégradé, remplissage contigu |
 | O | Densité −, densité +, éponge |
@@ -171,11 +166,11 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | U | Rectangle, ellipse, triangle, polygone, étoile, ligne |
 | H / R / Z | Main / rotation de l’affichage / zoom |
 
-Sur la branche de développement, **Y** active les formes d’historique. **Maj + touche** et **Option/Alt-clic** parcourent les variantes ; maintenir une lettre utilise temporairement son outil. Les préférences permettent de modifier ces comportements. Flou, Netteté et Doigt partagent un groupe sans lettre par défaut. Les entrées **NYI** restent désactivées. Voir le [guide souris et clavier](docs/TOOL_INTERACTIONS.md), avec les références Adobe et les limites actuelles.
+**Y** active les formes d’historique. **Maj + touche** et **Option/Alt-clic** parcourent les variantes ; maintenir une lettre utilise temporairement son outil. Les préférences permettent de modifier ces comportements. Flou, Netteté et Doigt partagent un groupe sans lettre par défaut. Les entrées **NYI** restent désactivées. Voir le [guide souris et clavier](docs/TOOL_INTERACTIONS.md), avec les références Adobe et les limites actuelles.
 
 `[` / `]` règlent la taille du pinceau, `Maj+[` / `Maj+]` sa dureté, `D` rétablit noir/blanc et `X` échange les couleurs. `Ctrl/⌘ + 0` adapte l’image ; `Ctrl/⌘ + 1` affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace la toile. Annuler/Rétablir conserve le zoom de navigation.
 
-Le catalogue contient **282 entrées**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
+Le catalogue contient **298 entrées, dont 121 NYI**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
 
 Les raccourcis et la barre d’outils se personnalisent dans **Réglages** : **menu PhotoCrap → Préférences…** ou **⌘,** sur macOS, **Édition → Réglages…** sur les autres plateformes. Les raccourcis sont suspendus pendant une saisie ou une boîte de dialogue modale ; une combinaison vide désactive une commande, les doublons sont refusés et les personnalisations sont conservées entre les lancements.
 
@@ -184,9 +179,9 @@ L’outil **Pièce** se trouve dans le groupe de correction (`J`). En mode **Sou
 
 Le **Déplacement basé sur le contenu** partage le groupe `J`. Entourez un objet, puis faites glisser la sélection. Le mode **Déplacement** reconstruit l’ancien emplacement depuis les textures voisines ; **Extension** garde aussi l’original. **Structure** (1–7) règle la recherche de motifs et le raccord de bord, **Couleur** (0–10) l’adaptation au fond ; à zéro, la couleur copiée reste intacte. **Tous les calques** prélève le composite visible et écrit uniquement sur le calque de pixels actif. Le calcul final et la recomposition se font en arrière-plan, avec une seule étape d’annulation. Cette version utilise une recherche locale de texture et un raccord de couleur : les fonds complexes peuvent demander une retouche complémentaire. La transformation au dépôt n’est pas encore implémentée.
 
-### Recadrage et tranches (branche de développement)
+### Recadrage et tranches
 
-Le groupe **C** propose désormais Recadrage, Recadrage en perspective, Tranche et Sélection de tranche, accessibles par clic droit sur son icône. Ces ajouts sont postérieurs à la release 0.11.0.
+Le groupe **C** propose désormais Recadrage, Recadrage en perspective, Tranche et Sélection de tranche, accessibles par clic droit sur son icône.
 
 - **Recadrage** : tracez un cadre, déplacez-le ou ajustez ses huit poignées ; choisissez un ratio, inversez son orientation ou saisissez les dimensions de sortie en pixels. La grille et l’assombrissement extérieur aident au cadrage. Entrée applique, Échap abandonne.
 - **Perspective** : tracez un cadre puis ajustez ses quatre coins sur les bords du sujet. Entrée redresse le quadrilatère et recadre tous les calques, masques et sources en arrière-plan. Annuler restaure l’image d’origine.
@@ -203,6 +198,7 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 | `src/DocumentCompositor.cpp`, `src/DocumentPreview.cpp` | Composition, caches de proxies, rendus complets et ordonnanceur asynchrone |
 | `src/DocumentAdjustments.cpp`, `src/DocumentFilters.cpp`, `src/filters/*` | Gestion des réglages et modules de calcul spécialisés |
 | `src/tools/PenTool.cpp`, `src/tools/PenPath.*`, `qml/PenOptions.qml`, `qml/PenOverlay.qml` | Tracés Bézier, édition, géométrie et affichage |
+| `src/selection/*`, `qml/Selection*.qml`, `qml/ColorSelection*.qml` | Géométrie et couverture des sélections, prélèvement par couleur, dialogues et aperçus |
 | `src/tools/*` | Contrôleur de gestes, paramètres et implémentations d’outils séparées par famille |
 | `src/CanvasItem.*` | Affichage Qt Quick, damier, contours de sélection et curseurs natifs |
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Démarrage, exposition QML, langues, fichiers récents, raccourcis et espace de travail persistant |
@@ -216,13 +212,13 @@ Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premulti
 
 Le `.pcr` est un document JSON versionné. Sa version 8 conserve les tracés Bézier, la profondeur des couleurs, les pixels, les masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 7. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
-### Gomme magique (branche de développement)
+### Gomme magique
 
 Dans le groupe **E**, faire un clic droit sur l’icône puis choisir **Gomme magique**. Cliquer sur la couleur à effacer dans un calque de pixels déverrouillé. **Tolérance** règle l’écart de couleur accepté ; **Contigus** limite l’effacement à la zone connectée au clic, tandis que sa désactivation recherche les couleurs correspondantes dans toute la sélection ou l’image. **Lissage** adoucit les bords et **Opacité** règle la quantité effacée.
 
 **Tous les calques** prélève la composition visible, mais seul le calque actif est modifié. Le calcul s’effectue en arrière-plan ; **Échap** l’annule. Une sélection limite la zone traitée et chaque clic appliqué crée une étape d’annulation. Les pixels de travail restent en 8 ou 16 bits. L’outil est réservé aux calques de pixels et ne fonctionne pas sur un échantillon entièrement transparent ; la Gomme d’arrière-plan reste **NYI**.
 
-### Menus contextuels des calques et masques (branche de développement)
+### Menus contextuels des calques et masques
 
 Le menu du **calque** donne accès aux propriétés disponibles, à la duplication, au renommage, à la suppression, au verrouillage, à l’écrêtage, au regroupement, à la fusion vers le bas et à la visibilité. Les actions portant sur un seul calque sont désactivées lorsque plusieurs calques sont sélectionnés ; le regroupement utilise la sélection multiple.
 
@@ -269,6 +265,14 @@ Référence : [Panneau Informations Adobe](https://helpx.adobe.com/photoshop/des
 Le curseur des outils est synchronisé immédiatement, puis après la stabilisation des fenêtres et du focus. Un test Cocoa contrôle la pointe réelle de la pipette, de l’échantillonneur et de la règle dès leur première activation, sans nouveau mouvement de souris, ainsi qu’après la réouverture d’Informations.
 
 ## Validation et limites
+
+La suite `selection` vérifie notamment les contours troués/disjoints, la couverture progressive et le rejet des résultats obsolètes, avec des contrôles d’interface complémentaires pour Plage de couleurs. `file_dialog_fallback` force les dialogues Qt Quick, vérifie leur contraste et ouvre réellement une image. Ces tests s’ajoutent aux suites document, Plume, QML et fermeture.
+
+```sh
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Sur macOS, les tests natifs de curseur, Plume et menu prennent brièvement la souris ; la laisser immobile pendant leur exécution.
 
 Les tests vérifient notamment peinture/annulation, opacité, visibilité, verrouillage, sélection, recadrage, déplacements, remplissage, filtres, transformations, fusion, sauvegarde/réouverture, export, sauvegarde en échec et rejet des fichiers corrompus. Un test démarre également le moteur QML, dessine par événements souris, vérifie la saisie de texte et la protection des modifications, puis produit un rendu hors écran sans erreurs QML. Les vérifications d’interaction sont compilées lorsque `BUILD_TESTING=ON`.
 

@@ -264,13 +264,13 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Masquer aussi la barre supérieure des options | Tab | Masquage intégral des panneaux Photoshop |
 | Dialogue Remplir complet (motif, historique, contenu) | Shift+Backspace | Le sélecteur de couleur PhotoCrap est déjà disponible |
 
-## Plume disponible dans la branche de développement
+## Plume disponible depuis v0.13.1
 
 P active le groupe Plume ; les outils Ajout/Suppression de point et Conversion de point sont accessibles par son clic droit. Les réglages répertorient aussi les gestes contextuels : Commande/Ctrl-glisser pour déplacer, Option/Alt pour convertir ou séparer une poignée, Maj pour contraindre, Retour/Échap pour terminer, clic sur l’origine pour fermer, Commande/Ctrl-Retour pour créer une sélection et Retour arrière/Suppr pour supprimer les points. Voir [les interactions détaillées](TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
 
-Le catalogue de développement contient désormais 298 entrées, dont 121 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.
+Le catalogue de v0.14 contient 298 entrées, dont 121 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.
 
-## Commandes de sélection ajoutées après v0.13.1
+## Commandes de sélection ajoutées dans v0.14
 
 Frange, Lisser, Dilater, Contracter, Sélectionner les calques similaires et Afficher/masquer le contour de sélection sont configurables, sans combinaison imposée par défaut. Resélectionner (Commande/Ctrl+Maj+D) et Intervertir (Commande/Ctrl+Maj+I) passent par les actions du menu, même lorsqu’il est fermé.
 

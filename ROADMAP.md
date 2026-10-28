@@ -1,10 +1,8 @@
 # Roadmap PhotoCrap
 
-État du projet au **28 octobre 2026**, version courante **v0.13.1**. Cette feuille de route distingue les fonctions de v0.12.0, les ajouts de v0.13.1 et les travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **28 octobre 2026**, version courante **v0.14** (version interne **0.14.0**). Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1 et v0.14 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
-La [release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0) est publiée pour macOS arm64, Linux x86_64 et Windows x64. Son [workflow de tag](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) a réussi les builds, tests, déploiements, paquets et publication. Le [workflow de branche vérifié au commit `9303970`](https://github.com/fguilleme/PhotoCrap/actions/runs/38522922351) est également vert. Les précédents échecs intermittents du curseur natif macOS restent à surveiller.
-
-Les paquets de v0.12.0 portent encore le numéro **0.11.0** dans leur nom et leur version interne, la version CMake n’ayant pas été augmentée lors du tag.
+La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) est publiée automatiquement après les builds, tests, contrôles de déploiement et paquets macOS arm64, Linux x86_64 et Windows x64. Consulter l’[état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) et les [notes de version](CHANGELOG.md). Les paquets portent le numéro **0.14.0**.
 
 ## Disponible dans v0.12.0
 
@@ -42,11 +40,11 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Gomme magique : effacement par couleur avec tolérance, contiguïté, lissage, opacité et échantillonnage visible de tous les calques. Calcul asynchrone annulable, sélection respectée, pixels 8/16 bits et une étape d’annulation par clic ; outil réservé aux calques de pixels.
 - [x] Menus contextuels distincts pour calques et vignettes de masque : propriétés et verrouillage côté calque, affichage/activation/inversion/suppression côté masque. Les actions portant sur un seul calque sont désactivées pour une sélection multiple ; les fonctions manquantes sont marquées NYI. Tests de clic droit ciblant un autre masque, d’annulation et de verrouillage.
 
-## En développement après v0.13.1 : sélections
+## Ajouts de v0.14 : sélections et dialogues
 
 - [x] Menu Sélection structuré selon la référence Adobe, au-delà des entrées visibles dans la capture. [Inventaire des comportements, options et écarts](docs/SELECTIONS.md).
 - [x] Frange (1–200 px), Lisser, Dilater et Contracter (1–100 px), calcul asynchrone régional annulable, rejet des résultats obsolètes et historique des sélections sans modifier les pixels sauvegardés.
-- [x] Contour de sélection masquable depuis Affichage, réaffiché à la création suivante ; Calques similaires par nature du calque ; raccourcis configurables. Catalogue de développement : **298 entrées, dont 121 NYI**.
+- [x] Contour de sélection masquable depuis Affichage, réaffiché à la création suivante ; Calques similaires par nature du calque ; raccourcis configurables. Catalogue de v0.14 : **298 entrées, dont 121 NYI**.
 - [x] Comptabilisation des régions et contours partagés dans le budget mémoire de l’historique.
 - [x] Couverture progressive 0–255, Contour progressif (rayon 1–1 000 px, Maj+F6), conservation dans l’historique et Resélectionner ; prise en compte par les opérations de pixels et les masques.
 - [ ] Anticrénelage fractionnaire des outils, Mode Masque et chargement depuis un calque/masque/couche.
@@ -55,13 +53,14 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [ ] Zone de mise au point, Sujet, Ciel et espace Sélectionner et masquer, avec validation des détails fins et calculs asynchrones.
 - [ ] Transformation du contour indépendante des pixels ; mémorisation/récupération dans des couches alpha persistantes.
 - [ ] Aucun calque actif, recherche et isolation par filtrage du panneau Calques.
+- [x] Dialogues de fichiers Qt Quick lisibles en thème sombre : palette complète, repli adapté à Qt 6.8 et test `file_dialog_fallback` pour ouvrir, enregistrer, exporter et choisir un dossier. Les dialogues natifs restent utilisés lorsqu’ils sont disponibles.
 
 ## 1. Fiabilité et validation à terminer
 
 - [ ] Confirmer la stabilité du premier affichage du curseur natif macOS : des tests ont relevé une flèche Cocoa malgré une pipette correcte dans l’état Qt. Les derniers workflows passent ; vérifier aussi les transitions de focus, de fenêtres flottantes et de survol sur Qt 6.8.3 avant de considérer ce défaut définitivement résolu.
 - [ ] Étendre les tests d’espaces de travail : déplacements entre colonnes, sorties de groupes, dépôt avant le premier panneau, écrans multiples, changement de résolution et restauration de fenêtres hors écran.
 - [ ] Étendre les essais au clavier, l’accessibilité, les curseurs, la haute densité et les tablettes sur les trois plateformes.
-- [x] Version CMake et noms des paquets alignés sur v0.13.1 ; l’AppImage reprend automatiquement la version configurée.
+- [x] Version CMake et noms des paquets alignés sur 0.14.0 (tag v0.14) ; l’AppImage reprend automatiquement la version configurée.
 - [ ] Signature Developer ID et notarisation macOS ; signature Authenticode Windows. Les signatures de distribution ne sont pas encore configurées.
 
 ## 2. Grands documents et performance
@@ -121,4 +120,4 @@ Améliorations des outils déjà disponibles :
 - [ ] Intégration facultative de modèles locaux après validation des licences, des ressources nécessaires et de la qualité réelle des masques/rendus.
 - [ ] Comparaisons de rendu et mesures de performance avant toute revendication de compatibilité avec une version précise de Photoshop.
 
-Les fonctions déjà réalisées restent détaillées dans [README.md](README.md) et [README.en.md](README.en.md). Les cases cochées sous « Disponible dans v0.12.0 » appartiennent à la release ; celles de la section « Ajouts de v0.13.1 » appartiennent à la nouvelle version. Les cases non cochées sont des travaux restants.
+Les fonctions déjà réalisées restent détaillées dans [README.md](README.md) et [README.en.md](README.en.md). Les cases cochées sont livrées dans la version indiquée par leur section et conservées dans v0.14. Les cases non cochées sont des travaux restants.

@@ -4,30 +4,25 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Current version: **v0.13.1**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
+Current version: **v0.14**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Download
 
-[Release v0.13.1](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.1) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
+[Release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
 
-The internal version and package filenames now use **0.13.1**. Older v0.12.0 packages still used the 0.11.0 version number.
+The tag is **v0.14**; the internal version and package filenames use **0.14.0**.
 
-## New in v0.13.1
+## New in v0.14
 
-The preparation tag v0.13.0 did not publish packages because a native macOS cursor test failed. v0.13.1 reapplies the cursor after native events and waits for color sampler updates in tests.
+- **Color Range**: sample directly on the canvas without closing the dialog, add/subtract samples, adjust fuzziness and localized range, optionally restrict to contiguous areas, and invert. Image and mask previews share native-resolution zoom and panning.
+- **Feather (Shift+F6)**: a 1–1,000 px radius and partial coverage honored by painting, filling, copying, and masks. Border, Smooth, Expand, and Contract complete the Select menu with cancellable regional background processing.
+- **Selection history**: undo, redo, and reselect without marking saved pixels as modified. **View → Show → Selection Edges** hides marching ants without deselecting.
+- **Readable file dialogs on Linux**: a complete dark palette and a Qt 6.8 Quick fallback correction, tested for opening, saving, exporting, and choosing folders.
+- **298 catalogued shortcuts and gestures**, including **121 disabled NYI entries**. Available commands are configurable; missing features remain explicitly identified.
 
-This release retains the v0.12.0 features (RAW, 16-bit pixels, crop and slice tools, editable frequency separation, and up to 512 layers) and adds:
-
-- **Pen (P)**: editable Bézier paths and handles, corner/smooth points, add/delete/convert point tools, fill, stroke, and v8 project persistence. Converting to a selection hides the path overlay; choose the saved path in the options bar to edit it again. Command/Ctrl moves anchors, with an accurately aligned cursor tip. [Interactions and limitations](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
-- **Magic Eraser**: color-based erasing, cancellable asynchronous processing, and native 8/16-bit precision.
-- **Separate layer and mask context menus**: properties, locking, mask inversion and deletion, with missing features disabled and marked **NYI**.
-- **Application shutdown** fixed with floating or hidden panels, while preserving the unsaved-document confirmation.
+The [selection guide](docs/SELECTIONS.md) (French) describes parameters, Adobe references, and limitations. This release retains the Pen, RAW import, 16-bit pixels, and editable frequency separation. The `.pcr` format remains at version 8: temporary selections are not saved in projects. Version history is in [CHANGELOG.md](CHANGELOG.md) (French).
 
 ![PhotoCrap demo composition](docs/screenshot.png)
-
-## In development after v0.13.1
-
-The **Select** menu now follows an [inventory of Adobe documentation](docs/SELECTIONS.md) (French), including options and limitations. Color Range with canvas sampling, zoomable previews and a Contiguous Areas option, Feather (Shift+F6), Border, Smooth, Expand and Contract run in the background with cancellation and undo. Painting, filling and masks honor fractional selection coverage. Selection changes have their own history without making saved pixels dirty. **View → Show → Selection Edges** hides the outline without deselecting. Missing advanced features are visibly disabled and marked **NYI**, with their requirements recorded for future work.
 
 ## Features
 
@@ -132,7 +127,7 @@ ctest --preset release
 ## Usage
 
 1. Create a document, open an image, or load the demo.
-2. Select a layer in the list on the right. On the development branch, right-click the layer for its commands, or right-click its **mask thumbnail** for mask commands without opening the properties dialog. The **◐** button adds or selects its mask. The **ƒ** button opens adjustment, active mask, or frequency-separation settings. Double-click opens properties when available, otherwise renaming.
+2. Select a layer in the list on the right. Right-click the layer for its commands, or right-click its **mask thumbnail** for mask commands without opening the properties dialog. The **◐** button adds or selects its mask. The **ƒ** button opens adjustment, active mask, or frequency-separation settings. Double-click opens properties when available, otherwise renaming.
 3. Select a tool on the left and draw on the canvas. Text options appear in the bar below the canvas; each click rasterizes the text into the active layer.
 4. To crop, draw a region and click **Crop**. Adjustments and brush strokes honor the selection; deselect it to affect the whole image.
 5. Save as `.pcr` to preserve layers, then export a flattened image for sharing.
@@ -152,7 +147,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | J | Spot healing, remove, healing, patch, content-aware move, red eye |
 | B | Brush, pencil, color replacement, mixer brush |
 | S | Clone stamp, pattern stamp |
-| Y | History brush, Art History Brush (development branch) |
+| Y | History brush, Art History Brush |
 | E | Eraser |
 | G | Gradient, contiguous fill |
 | O | Dodge, burn, sponge |
@@ -161,11 +156,11 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | U | Rectangle, ellipse, triangle, polygon, star, line |
 | H / R / Z | Hand / rotate view / zoom |
 
-On the development branch, **Y** selects history brushes. **Shift + key** and **Option/Alt-click** cycle variants; holding a letter temporarily selects its tool. These behaviors are configurable in Settings. Blur, Sharpen, and Smudge share a group without a default letter. **NYI** entries remain disabled. The [mouse and keyboard guide](docs/TOOL_INTERACTIONS.md) (French) lists Adobe references and current limitations.
+**Y** selects history brushes. **Shift + key** and **Option/Alt-click** cycle variants; holding a letter temporarily selects its tool. These behaviors are configurable in Settings. Blur, Sharpen, and Smudge share a group without a default letter. **NYI** entries remain disabled. The [mouse and keyboard guide](docs/TOOL_INTERACTIONS.md) (French) lists Adobe references and current limitations.
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 
-The catalog contains **298 entries**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
+The catalog contains **298 entries, including 121 NYI**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
 
 Customize shortcuts and the toolbar in **Settings**: **PhotoCrap → Preferences…** or **⌘,** on macOS, **Edit → Settings…** on other platforms. Shortcuts are suspended during text entry or modal dialogs. Empty combinations disable commands, duplicates are rejected, and customizations persist between launches.
 
@@ -189,9 +184,9 @@ Tool cursors have precise native hotspots, including Curves and white-balance ey
 
 Adobe references: [pixel values and color samplers](https://helpx.adobe.com/photoshop/desktop/adjust-color/selective-color-adjustments/view-pixel-color-values-in-an-image.html), [Ruler](https://helpx.adobe.com/photoshop/using/positioning-ruler-tool.html), [Info panel](https://helpx.adobe.com/photoshop/desktop/get-started/settings-and-preferences/use-the-info-panel-and-document-status-bar.html).
 
-### Crop and slices (development branch)
+### Crop and slices
 
-The **C** group now contains Crop, Perspective Crop, Slice, and Slice Select, accessed by right-clicking its icon. These additions are newer than release 0.11.0.
+The **C** group now contains Crop, Perspective Crop, Slice, and Slice Select, accessed by right-clicking its icon.
 
 - **Crop**: draw a frame, move it, or adjust its eight handles. Select an aspect ratio, swap its orientation, or enter output dimensions in pixels. A grid and shaded exterior help framing. Return applies; Escape discards.
 - **Perspective Crop**: draw a frame and align its four corners with the subject’s edges. Return rectifies the quadrilateral and crops all layers, masks, and sources in the background. Undo restores the original image.
@@ -208,6 +203,7 @@ Cropping removes pixels outside the frame; Undo recovers them. Nondestructive re
 | `src/DocumentCompositor.cpp`, `src/DocumentPreview.cpp` | Composition, proxy caches, full-resolution renders, and asynchronous scheduling |
 | `src/DocumentAdjustments.cpp`, `src/DocumentFilters.cpp`, `src/filters/*` | Adjustment orchestration and specialized calculation modules |
 | `src/tools/PenTool.cpp`, `src/tools/PenPath.*`, `qml/PenOptions.qml`, `qml/PenOverlay.qml` | Bézier geometry, editing, and display |
+| `src/selection/*`, `qml/Selection*.qml`, `qml/ColorSelection*.qml` | Selection geometry and coverage, color sampling, dialogs, and previews |
 | `src/tools/*` | Gesture controller, settings, and tool implementations split by family |
 | `src/CanvasItem.*` | Qt Quick rendering, checkerboard, selection contours, and native cursors |
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Startup, QML exposure, languages, recent files, shortcuts, and persistent workspace settings |
@@ -221,19 +217,27 @@ Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied` (8
 
 The `.pcr` file is a versioned JSON document. Version 8 stores Bézier paths, channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–7. Empty pixel layers and uniform masks use compact storage in this version, expanding only when locally edited. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 512 layers, and 2 GiB of uncompressed layer data. The budget separately counts color pixels, frequency-separation sources, and 8-bit masks; adjustments reserve only their masks, and groups reserve no image. Nonuniform shared images are reserved independently for each layer so they can be edited and reloaded. Empty layers and uniform masks do not reserve full-sized planes; painting checks the budget before expanding them. The frequency cache uses LRU eviction with a 128 MiB budget, and frequency thumbnails render at display size. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
 
-### Magic Eraser (development branch)
+### Magic Eraser
 
 Right-click the **E** group and choose **Magic Eraser**, then click the color to erase on an unlocked pixel layer. **Tolerance** controls the accepted color difference. **Contiguous** restricts erasing to the connected area around the click; disabling it matches colors throughout the selection or image. **Anti-alias** softens edges, and **Opacity** controls how much is erased.
 
 **All layers** samples the visible composite but modifies only the active layer. Processing runs in the background and **Escape** cancels it. A selection restricts the affected area, and each applied click creates one undo step. Working pixels retain 8- or 16-bit precision. The tool operates on pixel layers and does not act on fully transparent samples; Background Eraser remains **NYI**.
 
-### Layer and mask context menus (development branch)
+### Layer and mask context menus
 
 The **layer** menu provides available properties, duplication, renaming, deletion, locking, clipping, grouping, merge down, and visibility. Single-layer actions are disabled when multiple layers are selected; grouping uses the multiple selection.
 
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
 ## Validation and limitations
+
+The `selection` suite covers holed/disjoint contours, partial coverage, and stale-result rejection, with additional Color Range interface checks. `file_dialog_fallback` forces Qt Quick dialogs, checks their contrast, and opens a real image. These complement document, Pen, QML, and shutdown tests.
+
+```sh
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Native macOS cursor, Pen, and menu tests briefly control the pointer; keep the mouse still while they run.
 
 Tests cover painting/undo, opacity, visibility, locking, selection, cropping, movement, fill, filters, transforms, merging, save/reopen, export, failed saves, and rejection of corrupted files. A separate test starts the QML engine, draws through mouse events, verifies text entry and unsaved-change protection, and produces an offscreen render without QML errors. Interaction checks are compiled when `BUILD_TESTING=ON`.
 

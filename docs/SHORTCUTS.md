@@ -27,6 +27,8 @@ La Gomme magique est maintenant disponible dans le groupe E : Maj+E parcourt les
 | Copier avec fusion | Ctrl+Shift+C | Document |
 | Intervertir la sélection | Ctrl+Shift+I | Document |
 | Resélectionner | Ctrl+Shift+D | Document |
+| Contour progressif | Shift+F6 | Document |
+| Plage de couleurs | Aucun raccourci par défaut | Document |
 | Intervertir (touche de fonction) | Shift+F7 | Document |
 | Grouper les calques | Ctrl+G | Document |
 | Dissocier les calques | Ctrl+Shift+G | Document |
@@ -160,10 +162,8 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Transformer une copie | Ctrl+Alt+T | Document |
 | Répéter avec une copie | Ctrl+Alt+Shift+T | Document |
 | Déformation | Aucun raccourci par défaut | Transformation manuelle |
-| Contour progressif | Shift+F6 | Document |
 | Sélectionner et masquer | Ctrl+Alt+R | Document |
 | Mode masque rapide | Q | Document |
-| Plage de couleurs | Aucun raccourci par défaut | Document |
 | Transformer la sélection | Aucun raccourci par défaut | Document |
 | Fusionner les calques sélectionnés | Ctrl+E | Document |
 | Fusionner les calques visibles | Ctrl+Shift+E | Document |
@@ -268,4 +268,10 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 
 P active le groupe Plume ; les outils Ajout/Suppression de point et Conversion de point sont accessibles par son clic droit. Les réglages répertorient aussi les gestes contextuels : Commande/Ctrl-glisser pour déplacer, Option/Alt pour convertir ou séparer une poignée, Maj pour contraindre, Retour/Échap pour terminer, clic sur l’origine pour fermer, Commande/Ctrl-Retour pour créer une sélection et Retour arrière/Suppr pour supprimer les points. Voir [les interactions détaillées](TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
 
-Le catalogue contient désormais 282 entrées, dont 113 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.
+Le catalogue de développement contient désormais 298 entrées, dont 121 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.
+
+## Commandes de sélection ajoutées après v0.13.1
+
+Frange, Lisser, Dilater, Contracter, Sélectionner les calques similaires et Afficher/masquer le contour de sélection sont configurables, sans combinaison imposée par défaut. Resélectionner (Commande/Ctrl+Maj+D) et Intervertir (Commande/Ctrl+Maj+I) passent par les actions du menu, même lorsqu’il est fermé.
+
+Le catalogue recense aussi les entrées NYI Étendre, Généraliser, Zone de mise au point, Sujet, Ciel, Mémoriser/Récupérer la sélection, Désélectionner les calques, Rechercher et Isoler les calques dans le panneau. Plage de couleurs est maintenant configurable (sans combinaison par défaut) ; Contour progressif utilise Maj+F6 et devient configurable. Sélectionner et masquer, Mode Masque et Transformer la sélection restent NYI. L’inventaire ne réserve pas les touches de ces fonctions manquantes. Voir [SELECTIONS.md](SELECTIONS.md) pour leurs options et les prérequis du moteur.

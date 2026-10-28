@@ -58,10 +58,19 @@ void Document::renderShape(const QPointF &_to)
             selectedPainter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
             selectedPainter.drawImage(-m_selection.topLeft(), source);
             selectedPainter.end();
+            SelectionCoverage::attenuate(selected, m_selectionMask, m_selection.topLeft());
             if (!m_moveCopy) {
                 painter.setClipRegion(m_selectionRegion);
-                painter.setCompositionMode(QPainter::CompositionMode_Clear);
-                painter.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
+                if (m_selectionMask.isNull()) {
+                    painter.setCompositionMode(QPainter::CompositionMode_Clear);
+                    painter.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
+                } else {
+                    QImage removal(m_selection.size(), workingFormat());
+                    removal.fill(Qt::white);
+                    SelectionCoverage::attenuate(removal, m_selectionMask, m_selection.topLeft());
+                    painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+                    painter.drawImage(m_selection.topLeft(), removal);
+                }
                 painter.setClipping(false);
             }
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
@@ -118,6 +127,14 @@ void Document::renderShape(const QPointF &_to)
             gradient.setColorAt(1, m_secondary);
             painter.fillRect(QRect(QPoint{}, m_size), gradient);
         }
+    }
+    if (m_tool != "move") {
+        const int   margin = qCeil(qMax(m_shapeStrokeWidth, m_brushSize)) + 2;
+        const QRect bounds = m_tool == "gradient" ? QRect(QPoint{}, m_size)
+                                                  : toolRectangle(m_anchor, _to, m_toolAlternate)
+                                                        .toAlignedRect()
+                                                        .adjusted(-margin, -margin, margin, margin);
+        SelectionCoverage::blend(m_layers[m_active].image, sourceImage, m_selectionMask, bounds);
     }
     m_strokeChanged      = true;
     m_fullCompositeDirty = true;

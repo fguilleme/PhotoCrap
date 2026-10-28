@@ -97,7 +97,8 @@ void Document::renderHistoryBrushStroke()
             const auto *mask   = reinterpret_cast<const QRgb *>(m_strokeCoverage.constScanLine(y));
             const auto *old    = reinterpret_cast<const QRgb *>(target->constScanLine(y));
             for (int x = span.left(); x <= span.right(); ++x) {
-                const int amount = (qAlpha(mask[x]) * opacity + 127) / 255;
+                const int amount =
+                    (qAlpha(mask[x]) * opacity * selectionCoverage(x, y) + 32512) / 65025;
                 if (amount == 0)
                     continue;
                 const int  column = x - work.x();

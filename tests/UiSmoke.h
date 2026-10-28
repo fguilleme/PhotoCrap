@@ -4,6 +4,7 @@
 #include "PenUiSmoke.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
+#include "SelectionUiSmoke.h"
 #include "ShortcutManager.h"
 #include "WorkspaceSettings.h"
 #include <QFile>
@@ -2105,6 +2106,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!runLayerContextMenuSmoke(_window, _document))
         return false;
     if (!runPenUiSmoke(_window, _document))
+        return false;
+    if (!runSelectionUiSmoke(_window, _document))
         return false;
     _document.createDemo();
     _document.setTool("brush");

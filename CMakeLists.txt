@@ -31,6 +31,10 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/ShapeTools.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
+    src/selection/SelectionCommands.cpp
+    src/selection/SelectionGeometry.cpp
+    src/selection/SelectionCoverage.cpp
+    src/selection/ColorSelection.cpp
     src/tools/SmartSelectionTools.cpp
     src/tools/StampTools.cpp
     src/tools/SmudgeTool.cpp
@@ -86,6 +90,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/tools/RegionHealing.h
     src/tools/ContentFill.h
     src/tools/PenPath.h
+    src/selection/SelectionGeometry.h
+    src/selection/SelectionCoverage.h
     src/filters/BlackWhiteFilter.h
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.h
@@ -108,6 +114,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/DocumentTest.cpp
     tests/RawTestImage.h
     tests/UiSmoke.h
+    tests/SelectionTest.cpp
+    tests/SelectionUiSmoke.h
 )
 
 find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
@@ -204,6 +212,10 @@ qt_add_library(photocrap_core STATIC
     src/tools/ShapeTools.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
+    src/selection/SelectionCommands.cpp
+    src/selection/SelectionGeometry.cpp
+    src/selection/SelectionCoverage.cpp
+    src/selection/ColorSelection.cpp
     src/tools/SmartSelectionTools.cpp
     src/tools/StampTools.cpp
     src/tools/SmudgeTool.cpp
@@ -312,6 +324,10 @@ qt_add_qml_module(PhotoCrap
         qml/SpotHealingOptions.qml
         qml/PatchOptions.qml
         qml/PenOptions.qml
+        qml/ColorSelectionPreview.qml
+        qml/ColorSelectionDialog.qml
+        qml/SelectionMenu.qml
+        qml/SelectionModifyDialog.qml
         qml/PenOverlay.qml
         qml/ContentAwareMoveOptions.qml
         qml/RemoveOptions.qml
@@ -408,6 +424,11 @@ if(BUILD_TESTING)
     add_test(NAME pen_tool COMMAND photocrap_pen_tests)
     set_tests_properties(pen_tool PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    qt_add_executable(photocrap_selection_tests tests/SelectionTest.cpp)
+    target_link_libraries(photocrap_selection_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME selection COMMAND photocrap_selection_tests)
+    set_tests_properties(selection PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)

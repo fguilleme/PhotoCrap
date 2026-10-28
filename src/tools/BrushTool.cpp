@@ -138,6 +138,7 @@ void Document::renderBrushStroke()
     maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
     maskPainter.drawImage(0, 0, m_strokeCoverage.copy(region));
     maskPainter.end();
+    SelectionCoverage::attenuate(overlay, m_selectionMask, region.topLeft());
     QImage canvas =
         m_strokeBase.copy(region).convertToFormat(ImageUtils::workingFormat(m_strokeBase));
     if ((m_tool == "brush" || m_tool == "pencil") && !m_editingMask) {

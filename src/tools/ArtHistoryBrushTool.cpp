@@ -138,6 +138,7 @@ void Document::renderArtHistoryStroke()
             }
         }
     }
+    SelectionCoverage::attenuate(paint, m_selectionMask, work.topLeft());
     const QImage output = blendImages(base, paint, m_brushBlend, m_brushOpacity);
     QRect        dirty;
     for (const QRect &span : region)

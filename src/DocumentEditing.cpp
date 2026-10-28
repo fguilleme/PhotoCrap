@@ -8,70 +8,35 @@
 
 void Document::undo()
 {
+    if (selectionBusy()) {
+        cancelSelectionOperation();
+        return;
+    }
     endStroke();
     if (m_undo.isEmpty())
         return;
-    auto state      = m_undo.takeLast();
-    auto current    = snapshot(state.label);
-    current.penOnly = state.penOnly;
+    auto state            = m_undo.takeLast();
+    auto current          = snapshot(state.label);
+    current.penOnly       = state.penOnly;
+    current.selectionOnly = state.selectionOnly;
     m_redo.append(current);
     restore(state);
 }
 void Document::redo()
 {
+    if (selectionBusy()) {
+        cancelSelectionOperation();
+        return;
+    }
     endStroke();
     if (m_redo.isEmpty())
         return;
-    auto state      = m_redo.takeLast();
-    auto current    = snapshot(state.label);
-    current.penOnly = state.penOnly;
+    auto state            = m_redo.takeLast();
+    auto current          = snapshot(state.label);
+    current.penOnly       = state.penOnly;
+    current.selectionOnly = state.selectionOnly;
     m_undo.append(current);
     restore(state);
-}
-void Document::selectAll()
-{
-    endStroke();
-    m_selection       = QRect(QPoint{}, m_size);
-    m_selectionRegion = QRegion(m_selection);
-    m_selectionShape  = 0;
-    m_selectionPath.clear();
-    m_polygonLassoActive = false;
-    emit selectionChanged();
-}
-void Document::deselect()
-{
-    endStroke();
-    if (!m_selectionRegion.isEmpty())
-        m_lastSelectionRegion = m_selectionRegion;
-    m_selection       = {};
-    m_selectionRegion = {};
-    m_selectionShape  = 0;
-    m_selectionPath.clear();
-    m_polygonLassoActive = false;
-    emit selectionChanged();
-}
-void Document::reselect()
-{
-    endStroke();
-    if (m_lastSelectionRegion.isEmpty())
-        return;
-    m_selectionRegion = m_lastSelectionRegion & QRegion(QRect(QPoint{}, m_size));
-    m_selection       = m_selectionRegion.boundingRect();
-    m_selectionShape  = m_selectionRegion.isEmpty() ? 0 : 6;
-    m_selectionPath.clear();
-    m_polygonLassoActive = false;
-    emit selectionChanged();
-}
-void Document::invertSelection()
-{
-    endStroke();
-    m_lastSelectionRegion = m_selectionRegion;
-    m_selectionRegion     = QRegion(QRect(QPoint{}, m_size)).subtracted(m_selectionRegion);
-    m_selection           = m_selectionRegion.boundingRect();
-    m_selectionShape      = m_selectionRegion.isEmpty() ? 0 : 6;
-    m_selectionPath.clear();
-    m_polygonLassoActive = false;
-    emit selectionChanged();
 }
 void Document::clearSelected()
 {
@@ -88,7 +53,8 @@ void Document::clearSelected()
         QImage *target = paintTarget();
         if (!target)
             return;
-        QPainter p(target);
+        const QImage before = *target;
+        QPainter     p(target);
         if (hasSelection())
             p.setClipRegion(m_selectionRegion);
         if (m_editingMask)
@@ -97,6 +63,8 @@ void Document::clearSelected()
             p.setCompositionMode(QPainter::CompositionMode_Clear);
             p.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
         }
+        p.end();
+        blendSelectionEdit(*target, before);
     });
 }
 void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
@@ -114,7 +82,8 @@ void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
              QImage *target = paintTarget();
              if (!target)
                  return;
-             QPainter painter(target);
+             const QImage before = *target;
+             QPainter     painter(target);
              if (hasSelection())
                  painter.setClipRegion(m_selectionRegion);
              if (_preserveTransparency && !m_editingMask)
@@ -123,6 +92,8 @@ void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
              painter.fillRect(QRect(QPoint{}, m_size),
                               m_editingMask ? QColor::fromRgb(maskValue, maskValue, maskValue)
                                             : color);
+             painter.end();
+             blendSelectionEdit(*target, before);
          });
 }
 void Document::invertSelectedPixels()
@@ -142,7 +113,8 @@ void Document::invertSelectedPixels()
             auto *row = target->scanLine(y);
             for (int x = area.left(); x <= area.right(); ++x)
                 if (!hasSelection() || m_selectionRegion.contains(QPoint(x, y)))
-                    row[x] = 255 - row[x];
+                    row[x] =
+                        uchar(qRound(row[x] + (255 - 2 * row[x]) * selectionCoverage(x, y) / 255.));
         }
     });
 }
@@ -154,12 +126,15 @@ void Document::fillSelectedWithColor(const QColor &_color)
         QImage *target = paintTarget();
         if (!target)
             return;
-        QPainter painter(target);
+        const QImage before = *target;
+        QPainter     painter(target);
         if (hasSelection())
             painter.setClipRegion(m_selectionRegion);
         const int gray = qGray(_color.rgb());
         painter.fillRect(QRect(QPoint{}, m_size),
                          m_editingMask ? QColor(gray, gray, gray) : _color);
+        painter.end();
+        blendSelectionEdit(*target, before);
     });
 }
 void Document::fillMaskWithColor(const QColor &_color)
@@ -174,11 +149,14 @@ void Document::fillMaskWithColor(const QColor &_color)
         QImage *target = paintTarget();
         if (!target)
             return;
-        const int value = qGray(_color.rgb());
-        QPainter  painter(target);
+        const int    value  = qGray(_color.rgb());
+        const QImage before = *target;
+        QPainter     painter(target);
         if (hasSelection())
             painter.setClipRegion(m_selectionRegion);
         painter.fillRect(QRect(QPoint{}, m_size), QColor::fromRgb(value, value, value));
+        painter.end();
+        blendSelectionEdit(*target, before);
     });
 }
 void Document::copy()
@@ -190,6 +168,7 @@ void Document::copy()
         painter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
         painter.drawImage(-m_selection.topLeft(), composite());
         painter.end();
+        SelectionCoverage::attenuate(selection, m_selectionMask, m_selection.topLeft());
         QGuiApplication::clipboard()->setImage(selection);
     } else
         QGuiApplication::clipboard()->setImage(composite());
@@ -236,10 +215,14 @@ void Document::cropToSelection()
         }
         m_penPaths = paths;
         emit penPathsChanged();
-        m_size            = m_selection.size();
-        m_selection       = {};
-        m_selectionRegion = {};
-        m_selectionShape  = 0;
+        m_size                 = m_selection.size();
+        m_selection            = {};
+        m_selectionRegion      = {};
+        m_selectionMask        = {};
+        m_lastSelectionMask    = {};
+        m_lastSelectionRegion  = {};
+        m_lastSelectionOutline = {};
+        m_selectionShape       = 0;
         m_selectionPath.clear();
         m_polygonLassoActive = false;
     });
@@ -272,10 +255,14 @@ void Document::resizeImage(int _w, int _h)
         }
         m_penPaths = paths;
         emit penPathsChanged();
-        m_size            = {_w, _h};
-        m_selection       = {};
-        m_selectionRegion = {};
-        m_selectionShape  = 0;
+        m_size                 = {_w, _h};
+        m_selection            = {};
+        m_selectionRegion      = {};
+        m_selectionMask        = {};
+        m_lastSelectionMask    = {};
+        m_lastSelectionRegion  = {};
+        m_lastSelectionOutline = {};
+        m_selectionShape       = 0;
         m_selectionPath.clear();
         m_polygonLassoActive = false;
     });
@@ -325,9 +312,13 @@ void Document::transformImage(const QString &_operation)
         }
         if (_operation.startsWith("rotate"))
             m_size.transpose();
-        m_selection       = {};
-        m_selectionRegion = {};
-        m_selectionShape  = 0;
+        m_selection            = {};
+        m_selectionRegion      = {};
+        m_selectionMask        = {};
+        m_lastSelectionMask    = {};
+        m_lastSelectionRegion  = {};
+        m_lastSelectionOutline = {};
+        m_selectionShape       = 0;
         m_selectionPath.clear();
         m_polygonLassoActive = false;
     });

@@ -216,8 +216,9 @@ void Document::colorReplacementDab(const QPointF &_point)
                 effect = withLuminosity(ink, luminosity(original));
                 break;
             }
-            const qreal weight = amount / 255.;
-            const auto  mix    = [&](int _channel) {
+            const qreal weight =
+                amount / 255. * selectionCoverage(region.x() + x, region.y() + y) / 255.;
+            const auto mix = [&](int _channel) {
                 return qBound(0,
                               qRound(255 * (original[_channel] +
                                             (effect[_channel] - original[_channel]) * weight)),

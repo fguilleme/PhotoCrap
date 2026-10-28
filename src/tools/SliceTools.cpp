@@ -52,7 +52,7 @@ void Document::commitSlices(const Snapshot &_before, const QString &_label)
     before.label    = _label;
     m_undo.append(before);
     m_redo.clear();
-    m_stateId = m_nextId++;
+    m_stateId = m_contentId = m_nextId++;
     trimHistory();
     // Slice metadata does not invalidate any image or layer cache.
     emit historyChanged();

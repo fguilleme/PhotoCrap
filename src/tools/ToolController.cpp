@@ -72,6 +72,7 @@ QString toolLabel(const QString &_tool)
 
 void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
 {
+    cancelSelectionOperation();
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
@@ -160,8 +161,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_selectionMoving = m_selectionMode == 0 && !_alternate && !_straight &&
                             m_selectionRegion.contains(QPoint(qRound(_x), qRound(_y)));
         m_drawing         = true;
-        if (m_selectionMoving)
+        if (m_selectionMoving) {
+            m_selectionMask = m_beforeSelectionGesture.selectionMask;
             return;
+        }
         m_selection       = {};
         m_selectionRegion = {};
         m_selectionShape  = m_tool == "ellipticalSelect"     ? 1
@@ -276,6 +279,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             painter.setOpacity(m_brushOpacity);
             painter.drawText(m_anchor + QPointF(0, m_textSize), m_text);
             painter.end();
+            blendSelectionEdit(*paintTarget(), m_editingMask
+                                                   ? m_beforeStroke.layers[m_active].mask
+                                                   : m_beforeStroke.layers[m_active].image);
             m_strokeChanged = true;
         }
         endStroke();
@@ -331,6 +337,7 @@ void Document::continueStroke(qreal _x, qreal _y)
             const QPoint offset = (point - m_anchor).toPoint();
             m_selectionRegion =
                 m_selectionRegionBeforeStroke.translated(offset) & QRegion(QRect(QPoint{}, m_size));
+            translateSelectionCoverage(m_beforeSelectionGesture, offset);
             m_selection     = m_selectionRegion.boundingRect();
             m_selectionPath = m_selectionPathBeforeStroke.translated(offset);
             emit selectionChanged();
@@ -356,6 +363,7 @@ void Document::continueStroke(qreal _x, qreal _y)
                 m_selectionRegionBeforeStroke.translated(
                     m_tool == "singleRowSelect" ? QPoint(0, delta.y()) : QPoint(delta.x(), 0)) &
                 QRegion(QRect(QPoint{}, m_size));
+            translateSelectionCoverage(m_beforeSelectionGesture, (point - m_anchor).toPoint());
             m_selection = m_selectionRegion.boundingRect();
         } else {
             m_selection = m_tool == "singleRowSelect"
@@ -433,6 +441,7 @@ void Document::endStroke()
         m_tool == "singleColumnSelect") {
         if (!m_selectionMoving)
             combineGestureSelection();
+        finishSelectionGesture();
         return;
     }
     if (m_strokeChanged) {
@@ -441,6 +450,7 @@ void Document::endStroke()
             m_selection = m_selection.translated(offset).intersected(QRect(QPoint{}, m_size));
             m_selectionRegion =
                 m_selectionRegion.translated(offset) & QRegion(QRect(QPoint{}, m_size));
+            translateSelectionCoverage(m_beforeStroke, offset);
             m_selectionPath.translate(offset);
             emit selectionChanged();
         }

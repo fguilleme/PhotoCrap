@@ -243,7 +243,7 @@ bool Document::saveProject(const QUrl &_url)
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit())
         return fail(file.errorString());
-    m_savedId    = m_stateId;
+    m_savedId    = m_contentId;
     m_projectUrl = QUrl::fromLocalFile(path);
     m_name       = QFileInfo(path).completeBaseName();
     emit documentChanged();

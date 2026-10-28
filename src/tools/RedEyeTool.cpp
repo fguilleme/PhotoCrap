@@ -141,7 +141,9 @@ void Document::correctRedEye()
         auto       *line     = reinterpret_cast<QRgb *>(patch.scanLine(point.y()));
         const QRgb  original = line[point.x()], colour = qUnpremultiply(original);
         const int   r = qRed(colour), g = qGreen(colour), b = qBlue(colour);
-        const qreal strength  = qBound(0., (r - qMax(g, b) - 15.) / 45., 1.);
+        const qreal strength  = qBound(0., (r - qMax(g, b) - 15.) / 45., 1.) *
+                                selectionCoverage(region.x() + point.x(), region.y() + point.y()) /
+                                255.;
         const int   neutral   = qRound((g + b) / 2. * (1. - .9 * m_redEyeDarken));
         const QRgb  corrected = qPremultiply(
             qRgba(qRound(r + (neutral - r) * strength), qRound(g + (neutral - g) * strength),

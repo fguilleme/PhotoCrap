@@ -229,6 +229,8 @@ void Document::applyRemoval()
                 painter.setCompositionMode(QPainter::CompositionMode_Source);
                 painter.drawImage(bounds.topLeft(), work);
                 painter.end();
+                SelectionCoverage::blend(*target, before.layers[m_active].image,
+                                         before.selectionMask, bounds);
                 m_dirtyRegion = m_dirtyRegion.united(bounds);
                 commit(before, tr("Suppression"), false, false);
                 ++m_thumbnailRevision;

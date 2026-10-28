@@ -284,7 +284,8 @@ void Document::applyHealingDab(const QPointF &_point, const QImage &_sample, con
             if (!qAlpha(source[x]) ||
                 (hasSelection() && !m_selectionRegion.contains(region.topLeft() + QPoint(x, y))))
                 continue;
-            const qreal amount = qAlpha(tip[offset.x() + x]) / 255. * m_brushFlow * m_brushOpacity;
+            const qreal amount = qAlpha(tip[offset.x() + x]) / 255. * m_brushFlow * m_brushOpacity *
+                                 selectionCoverage(region.x() + x, region.y() + y) / 255.;
             if (amount <= 0)
                 continue;
             const QRgb before = destination[x];

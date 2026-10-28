@@ -300,7 +300,8 @@ void Document::mixerDab(const QPointF &_point)
                 const int gray  = qGray(ink);
                 ink             = qRgba(gray, gray, gray, alpha);
             }
-            dst[x] = attenuate(ink, coverage * m_mixerFlow);
+            dst[x] = attenuate(ink, coverage * m_mixerFlow *
+                                        selectionCoverage(region.x() + x, region.y() + y) / 255.);
         }
     }
     const QImage before = patch(*target, region);

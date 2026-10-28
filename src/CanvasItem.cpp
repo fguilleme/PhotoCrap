@@ -286,6 +286,7 @@ void CanvasItem::setDocument(Document *_document)
         connect(_document, &Document::imageChanged, this, [this] { update(); });
         connect(_document, &Document::documentChanged, this, [this] { update(); });
         connect(_document, &Document::selectionChanged, this, [this] { update(); });
+        connect(_document, &Document::selectionDisplayChanged, this, [this] { update(); });
         connect(_document, &Document::removeRegionChanged, this, [this] { update(); });
         connect(_document, &Document::patchPreviewChanged, this, [this] { update(); });
     }
@@ -416,12 +417,13 @@ void CanvasItem::paint(QPainter *_painter)
         _painter->fillRect(m_document->removeRegion().boundingRect(), QColor(235, 70, 180, 110));
         _painter->restore();
     }
-    if (m_document->selectionShape() < 6 || !m_document->hasSelection())
+    if (m_document->selectionShape() < 6 || !m_document->hasSelection() ||
+        !m_document->selectionEdgesVisible())
         return;
 
     QPainterPath outline;
     outline.setFillRule(Qt::WindingFill);
-    outline.addRegion(m_document->selectionRegion());
+    outline.addRegion(m_document->selectionOutline());
     outline = outline.simplified();
     _painter->save();
     _painter->setRenderHint(QPainter::Antialiasing, false);

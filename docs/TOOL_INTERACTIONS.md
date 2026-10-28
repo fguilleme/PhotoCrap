@@ -26,7 +26,9 @@ Dans **Réglages → Barre d’outils**, les options de cycle avec Maj et de ret
 - Rangée/colonne : le glisser positionne la sélection d’un pixel d’épaisseur.
 - Lasso polygonal : clics pour les sommets, Maj pour les angles multiples de 45°, double-clic/Retour pour terminer, Retour arrière pour retirer un sommet, Échap pour abandonner. Option/Alt + glisser ajoute une partie libre.
 - Lasso libre : Option/Alt maintenu après le début permet de poursuivre par segments au relâchement de la souris ; les clics ajoutent des sommets. Reprendre un glisser sans Option/Alt revient au tracé libre ; double-clic/Retour termine.
-- Échap pendant une création restaure la sélection précédente. Les modifications du contour ne changent pas les pixels ni l’historique des calques.
+- Échap pendant une création restaure la sélection précédente. Les modifications du contour ne changent pas les pixels ; elles ont maintenant une étape annulable sans rendre le contenu sauvegardé modifié.
+
+Les commandes **Sélection → Modifier** offrent Contour progressif (Maj+F6), Frange, Lisser, Dilater et Contracter avec paramètres et calcul en arrière-plan ; Échap annule un calcul en cours. **Affichage → Afficher → Contour de la sélection** cache les fourmis sans supprimer la sélection. Une nouvelle sélection réaffiche le contour. **Sélection → Plage de couleurs** prélève dans l’aperçu ou sur le canevas, sans fermer le dialogue ; Maj ajoute et Option/Alt retire une couleur. Tolérance, portée localisée, zones contiguës et inversion actualisent l’aperçu du masque. Les deux aperçus partagent zoom et déplacement : molette, −/+, 100 %, Adapter et glisser. Le dialogue se déplace par son en-tête ; les raccourcis de zoom du canevas restent actifs et Échap annule. Les bords progressifs influencent réellement les opérations sur les pixels et les masques. Voir [l’inventaire Adobe, options et limites](SELECTIONS.md).
 
 ## Peinture et retouche
 

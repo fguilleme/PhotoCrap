@@ -116,12 +116,8 @@ void Document::addAdjustmentLayer(const QString &_type)
         layer.mask           = ImageUtils::uniformMask(hasSelection() ? 0 : 255);
         layer.parameters.insert("_maskDensity", 100.);
         layer.parameters.insert("_maskFeather", 0.);
-        if (hasSelection()) {
-            layer.mask = ImageUtils::expandedPlane(layer.mask, m_size);
-            QPainter painter(&layer.mask);
-            painter.setClipRegion(m_selectionRegion);
-            painter.fillRect(QRect(QPoint{}, m_size), Qt::white);
-        }
+        if (hasSelection())
+            layer.mask = selectionMask();
         m_layers.insert(++m_active, layer);
         m_editingMask = false;
         selectOnly(m_active);
@@ -303,6 +299,7 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
                         p.setClipRect(area);
                     p.drawImage(0, 0, blurred);
                     p.end();
+                    blendSelectionEdit(result, original);
                     m_layers[m_active].image = result;
                     return;
                 }
@@ -362,7 +359,9 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
                                     qBound(0., P::round(b), 255.), P::alpha(pixel));
                     }
                 }
-            m_layers[m_active].image = result.convertToFormat(P::premultiplied);
+            result = result.convertToFormat(P::premultiplied);
+            blendSelectionEdit(result, original);
+            m_layers[m_active].image = result;
         };
         if (m_channelBits == 16)
             render.template operator()<QRgba64>();

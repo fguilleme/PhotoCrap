@@ -294,7 +294,7 @@ private slots:
         QCOMPARE(d.activePenPath(), -1);
         QCOMPARE(d.penPaths().size(), 1);
         QCOMPARE(position(d, 0), QPointF(20, 20));
-        QCOMPARE(d.historyIndex(), historyBeforeSelection);
+        QCOMPARE(d.historyIndex(), historyBeforeSelection + 1);
         d.setActivePenPath(0);
         QCOMPARE(position(d, 0), QPointF(20, 20));
         QVERIFY(d.selectionContains(40, 40));

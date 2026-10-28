@@ -1,5 +1,6 @@
 #pragma once
 #include "RawImageReader.h"
+#include "selection/SelectionCoverage.h"
 #include "tools/PenPath.h"
 #include <QCache>
 #include <QColor>
@@ -215,6 +216,15 @@ class Document : public QObject
         qreal shapeStarRatio READ shapeStarRatio WRITE setShapeStarRatio NOTIFY settingsChanged)
     Q_PROPERTY(QRect selection READ selection NOTIFY selectionChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
+    Q_PROPERTY(bool canReselect READ canReselect NOTIFY selectionChanged)
+    Q_PROPERTY(bool selectionEdgesVisible READ selectionEdgesVisible WRITE setSelectionEdgesVisible
+                   NOTIFY selectionDisplayChanged)
+    Q_PROPERTY(bool selectionBusy READ selectionBusy NOTIFY selectionOperationChanged)
+    Q_PROPERTY(bool colorSelectionActive READ colorSelectionActive NOTIFY colorSelectionChanged)
+    Q_PROPERTY(bool colorSelectionReady READ colorSelectionReady NOTIFY colorSelectionChanged)
+    Q_PROPERTY(int colorSelectionRevision READ colorSelectionRevision NOTIFY colorSelectionChanged)
+    Q_PROPERTY(
+        int colorSelectionSampleCount READ colorSelectionSampleCount NOTIFY colorSelectionChanged)
     Q_PROPERTY(int selectionShape READ selectionShape NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList selectionPath READ selectionPath NOTIFY selectionChanged)
     Q_PROPERTY(bool polygonLassoActive READ polygonLassoActive NOTIFY selectionChanged)
@@ -328,7 +338,7 @@ public:
     }
     bool modified() const
     {
-        return m_stateId != m_savedId;
+        return m_contentId != m_savedId;
     }
     QVariantList             layers() const;
     Q_INVOKABLE QVariantList histogram() const;
@@ -476,7 +486,46 @@ public:
     {
         return !m_selectionRegion.isEmpty();
     }
-    int selectionShape() const
+    bool canReselect() const
+    {
+        return !(m_lastSelectionRegion & QRegion(QRect(QPoint{}, m_size))).isEmpty();
+    }
+    bool selectionEdgesVisible() const
+    {
+        return m_selectionEdgesVisible;
+    }
+    bool selectionBusy() const
+    {
+        return bool(m_selectionCancel);
+    }
+    void             setSelectionEdgesVisible(bool _visible);
+    Q_INVOKABLE void modifySelection(const QString &_operation, int _amount);
+    Q_INVOKABLE void cancelSelectionOperation();
+    bool             colorSelectionActive() const
+    {
+        return m_colorSelectionActive;
+    }
+    bool colorSelectionReady() const
+    {
+        return m_colorSelectionResult.valid && !selectionBusy();
+    }
+    int colorSelectionRevision() const
+    {
+        return m_colorSelectionRevision;
+    }
+    int colorSelectionSampleCount() const
+    {
+        return int(m_colorSamples.size());
+    }
+    Q_INVOKABLE void beginColorSelection();
+    Q_INVOKABLE void previewColorSelection(const QVariantMap &_options);
+    Q_INVOKABLE void sampleSelectionColor(int _x, int _y, int _mode,
+                                          const QVariantMap &_options = {});
+    Q_INVOKABLE void acceptColorSelection();
+    Q_INVOKABLE void cancelColorSelection();
+    QImage           colorSelectionPreview(bool _mask, const QRect &_region = {},
+                                           const QSize &_requested = {}) const;
+    int              selectionShape() const
     {
         return m_selectionShape;
     }
@@ -505,6 +554,12 @@ public:
     {
         return m_selectionEnhanceEdge;
     }
+    const QRegion &selectionOutline() const
+    {
+        return m_selectionMask.isNull() ? m_selectionRegion : m_selectionOutline;
+    }
+    QImage         selectionMask() const;
+    int            selectionCoverage(int _x, int _y) const;
     const QRegion &selectionRegion() const
     {
         return m_selectionRegion;
@@ -984,6 +1039,7 @@ public:
     Q_INVOKABLE void         invertSelection();
     Q_INVOKABLE void         invertSelectedPixels();
     Q_INVOKABLE void         selectAllLayers();
+    Q_INVOKABLE void         selectSimilarLayers();
     Q_INVOKABLE void         clearSelected();
     Q_INVOKABLE void         fillWithColor(bool _foreground, bool _preserveTransparency = false);
     Q_INVOKABLE void         fillSelectedWithColor(const QColor &_color);
@@ -1061,6 +1117,9 @@ signals:
     void displayChannelChanged();
     void settingsChanged();
     void selectionChanged();
+    void selectionDisplayChanged();
+    void selectionOperationChanged();
+    void colorSelectionChanged();
     void redEyeRegionChanged();
     void patchPreviewChanged();
     void removeRegionChanged();
@@ -1089,9 +1148,27 @@ private:
         QVector<PenPath> penPaths;
         int              activePenPath = -1;
         QSet<int>        selectedPenPoints;
-        bool             penDrawing = false;
-        bool             penOnly    = false;
+        bool             penDrawing    = false;
+        bool             penOnly       = false;
+        bool             selectionOnly = false;
+        quint64          contentId     = 0;
+        QRegion          lastSelectionRegion;
+        QImage           selectionMask, lastSelectionMask;
+        QRegion          selectionOutline, lastSelectionOutline;
     };
+    Snapshot m_beforeColorSelection;
+    bool     m_colorSelectionActive   = false;
+    int      m_colorSelectionRevision = 0;
+    QImage   m_colorSelectionSource, m_colorSelectionSourcePreview, m_colorSelectionMaskPreview;
+    QVector<SelectionCoverage::Sample> m_colorSamples;
+    QVariantMap                        m_colorSelectionOptions;
+    SelectionCoverage::Result          m_colorSelectionResult;
+    Snapshot                           m_beforeSelectionGesture;
+    bool m_selectionGestureRecorded = false, m_selectionEdgesVisible = true;
+    std::shared_ptr<std::atomic_bool> m_selectionCancel;
+    quint64                           m_selectionTaskStateId = 0;
+    void             commitSelectionEdit(const Snapshot &_before, const QString &_label);
+    void             finishSelectionGesture();
     QVector<PenPath> m_penPaths;
     int              m_activePenPath = -1, m_penGesture = 0, m_penPoint = -1;
     bool             m_penDrawing = false, m_penWasDrawing = false, m_penBroken = false;
@@ -1199,45 +1276,51 @@ private:
     int  m_eyedropperSize = 1, m_eyedropperSource = 0;
     bool m_eyedropperRing = true;
 
-    qreal             m_toolStrength   = .5;
-    bool              m_spongeSaturate = false;
-    int               m_retouchRange   = 1;
-    bool              m_protectTones   = true;
-    QString           m_text           = QStringLiteral("Votre texte");
-    int               m_textSize       = 64;
-    bool              m_filledShapes   = true;
-    QColor            m_shapeFillColor;
-    QColor            m_shapeStrokeColor;
-    bool              m_shapeStrokeEnabled = true;
-    qreal             m_shapeStrokeWidth   = 1;
-    int               m_shapeStrokeStyle   = 0;
-    qreal             m_shapeCornerRadius  = 0;
-    bool              m_shapeAlignPixels   = true;
-    int               m_shapeSides         = 5;
-    qreal             m_shapeStarRatio     = .5;
-    QPolygonF         m_cropPoints, m_cropGesturePoints;
-    QPointF           m_cropAnchor;
-    int               m_cropHandle   = -2;
-    bool              m_cropDragging = false, m_cropBusy = false;
-    qreal             m_cropRatio = 0;
-    QSize             m_cropOutputSize{0, 0};
-    void              setCropRectangle(const QRectF &_rect);
-    QRect             m_selection;
-    QRegion           m_selectionRegion;
-    QRegion           m_lastSelectionRegion;
-    int               m_selectionShape = 0;
-    QPolygonF         m_selectionPath;
-    bool              m_polygonLassoActive       = false;
-    int               m_selectionMode            = 0;
-    int               m_selectionTolerance       = 32;
-    bool              m_selectionContiguous      = true;
-    bool              m_selectionSampleAllLayers = false;
-    bool              m_selectionEnhanceEdge     = true;
-    QRegion           m_selectionRegionBeforeStroke;
-    QRect             m_selectionBoundsBeforeStroke;
-    int               m_selectionShapeBeforeStroke = 0;
-    QPolygonF         m_selectionPathBeforeStroke;
-    bool              m_quickSelectionFirstDab = false;
+    qreal     m_toolStrength   = .5;
+    bool      m_spongeSaturate = false;
+    int       m_retouchRange   = 1;
+    bool      m_protectTones   = true;
+    QString   m_text           = QStringLiteral("Votre texte");
+    int       m_textSize       = 64;
+    bool      m_filledShapes   = true;
+    QColor    m_shapeFillColor;
+    QColor    m_shapeStrokeColor;
+    bool      m_shapeStrokeEnabled = true;
+    qreal     m_shapeStrokeWidth   = 1;
+    int       m_shapeStrokeStyle   = 0;
+    qreal     m_shapeCornerRadius  = 0;
+    bool      m_shapeAlignPixels   = true;
+    int       m_shapeSides         = 5;
+    qreal     m_shapeStarRatio     = .5;
+    QPolygonF m_cropPoints, m_cropGesturePoints;
+    QPointF   m_cropAnchor;
+    int       m_cropHandle   = -2;
+    bool      m_cropDragging = false, m_cropBusy = false;
+    qreal     m_cropRatio = 0;
+    QSize     m_cropOutputSize{0, 0};
+    void      setCropRectangle(const QRectF &_rect);
+    QRect     m_selection;
+    QRegion   m_selectionRegion;
+    QImage    m_selectionMask, m_lastSelectionMask;
+    QRegion   m_selectionOutline, m_lastSelectionOutline, m_selectionMaskRegion;
+    void      applySelectionCoverage(const SelectionCoverage::Result &_result);
+    void      blendSelectionEdit(QImage &_image, const QImage &_before);
+    void      translateSelectionCoverage(const Snapshot &_before, const QPoint &_offset);
+    void      combineSoftSelection(const QRegion &_candidate, int _mode, const Snapshot &_before);
+    QRegion   m_lastSelectionRegion;
+    int       m_selectionShape = 0;
+    QPolygonF m_selectionPath;
+    bool      m_polygonLassoActive       = false;
+    int       m_selectionMode            = 0;
+    int       m_selectionTolerance       = 32;
+    bool      m_selectionContiguous      = true;
+    bool      m_selectionSampleAllLayers = false;
+    bool      m_selectionEnhanceEdge     = true;
+    QRegion   m_selectionRegionBeforeStroke;
+    QRect     m_selectionBoundsBeforeStroke;
+    int       m_selectionShapeBeforeStroke = 0;
+    QPolygonF m_selectionPathBeforeStroke;
+    bool      m_quickSelectionFirstDab = false;
     QVector<Snapshot> m_undo, m_redo;
     Snapshot          m_historyBrushSource;
     QString           m_historyBrushSourceLabel;
@@ -1248,7 +1331,7 @@ private:
     void              renderArtHistoryStroke();
     int               m_artHistoryStyle = 0, m_artHistoryArea = 50, m_artHistoryTolerance = 0;
     quint32           m_artHistoryDabIndex = 0;
-    quint64           m_stateId = 1, m_savedId = 1, m_nextId = 2;
+    quint64           m_stateId = 1, m_contentId = 1, m_savedId = 1, m_nextId = 2;
     int               m_revision          = 0;
     int               m_thumbnailRevision = 0;
     int               m_displayChannel    = 0;

@@ -32,7 +32,12 @@ public:
     QImage requestImage(const QString &_id, QSize *_size, const QSize &_requested) override
     {
         QImage image;
-        if (_id.startsWith("composite"))
+        if (_id.startsWith("colorSelection/")) {
+            const QRect region(_id.section('/', 3, 3).toInt(), _id.section('/', 4, 4).toInt(),
+                               _id.section('/', 5, 5).toInt(), _id.section('/', 6, 6).toInt());
+            image = m_document->colorSelectionPreview(_id.section('/', 1, 1) == "mask", region,
+                                                      _requested);
+        } else if (_id.startsWith("composite"))
             image = m_document->composite();
         else if (_id.startsWith("mask/"))
             image = m_document->maskImage(_id.section('/', 1, 1).toInt(),

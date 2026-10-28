@@ -51,10 +51,13 @@ void Document::invalidateContentMove(bool _restoreSelection)
     m_contentMoveCancel.reset();
     clearPatch();
     if (restoreSelection) {
-        m_selection       = m_beforeContentMove.selection;
-        m_selectionRegion = m_beforeContentMove.selectionRegion;
-        m_selectionShape  = m_beforeContentMove.selectionShape;
-        m_selectionPath   = m_beforeContentMove.selectionPath;
+        m_selection           = m_beforeContentMove.selection;
+        m_selectionRegion     = m_beforeContentMove.selectionRegion;
+        m_selectionShape      = m_beforeContentMove.selectionShape;
+        m_selectionPath       = m_beforeContentMove.selectionPath;
+        m_selectionMask       = m_beforeContentMove.selectionMask;
+        m_selectionOutline    = m_beforeContentMove.selectionOutline;
+        m_selectionMaskRegion = m_selectionRegion;
         emit selectionChanged();
     }
     m_beforeContentMove = {};
@@ -164,6 +167,15 @@ void Document::finishContentMove(bool _cancel)
                 dirty = sourceBounds;
             if (targetChanged)
                 dirty |= targetBounds;
+            if (!before.selectionMask.isNull()) {
+                QImage coverage = before.selectionMask;
+                {
+                    QPainter p(&coverage);
+                    p.setCompositionMode(QPainter::CompositionMode_Lighten);
+                    p.drawImage(m_patchOffset, before.selectionMask);
+                }
+                SelectionCoverage::blend(*target, before.layers[m_active].image, coverage, dirty);
+            }
             m_dirtyRegion = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
             commit(before, tr("Déplacement basé sur le contenu"), false, false);
             ++m_thumbnailRevision;

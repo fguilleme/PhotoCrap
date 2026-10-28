@@ -67,6 +67,7 @@ void Document::floodFill(QPoint _point)
             if (selected[x])
                 overlay.setPixelColor(x, y, replacement);
     }
+    SelectionCoverage::attenuate(overlay, m_selectionMask);
     QPainter painter(&image);
     painter.setOpacity(m_brushOpacity);
     painter.drawImage(0, 0, overlay);

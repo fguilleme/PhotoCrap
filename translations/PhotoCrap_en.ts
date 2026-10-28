@@ -4580,4 +4580,147 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Tracer avec les réglages actuels du pinceau</source><translation>Stroke with the current brush settings</translation></message>
     <message><source>Tracé</source><translation>Path</translation></message>
   </context>
+  <context>
+    <name>SelectionMenu</name>
+    <message><source>Calques similaires</source><translation>Similar Layers</translation></message>
+    <message><source>Ciel (NYI)</source><translation>Sky (NYI)</translation></message>
+    <message><source>Contour de la sélection</source><translation>Selection Edges</translation></message>
+    <message><source>Contour progressif… (NYI)</source><translation>Feather… (NYI)</translation></message>
+    <message><source>Contracter…</source><translation>Contract…</translation></message>
+    <message><source>Dilater…</source><translation>Expand…</translation></message>
+    <message><source>Désélectionner les calques (NYI)</source><translation>Deselect Layers (NYI)</translation></message>
+    <message><source>Frange…</source><translation>Border…</translation></message>
+    <message><source>Généraliser (NYI)</source><translation>Similar (NYI)</translation></message>
+    <message><source>Intervertir</source><translation>Inverse</translation></message>
+    <message><source>Isoler les calques (NYI)</source><translation>Isolate Layers (NYI)</translation></message>
+    <message><source>Lisser…</source><translation>Smooth…</translation></message>
+    <message><source>Mode Masque (NYI)</source><translation>Edit in Quick Mask Mode (NYI)</translation></message>
+    <message><source>Modifier</source><translation>Modify</translation></message>
+    <message><source>Mémoriser la sélection… (NYI)</source><translation>Save Selection… (NYI)</translation></message>
+    <message><source>Plage de couleurs… (NYI)</source><translation>Color Range… (NYI)</translation></message>
+    <message><source>Rechercher les calques… (NYI)</source><translation>Find Layers… (NYI)</translation></message>
+    <message><source>Resélectionner</source><translation>Reselect</translation></message>
+    <message><source>Récupérer la sélection… (NYI)</source><translation>Load Selection… (NYI)</translation></message>
+    <message><source>Sujet (NYI)</source><translation>Subject (NYI)</translation></message>
+    <message><source>Sélection</source><translation>Select</translation></message>
+    <message><source>Sélectionner et masquer… (NYI)</source><translation>Select and Mask… (NYI)</translation></message>
+    <message><source>Tous les calques</source><translation>All Layers</translation></message>
+    <message><source>Transformer la sélection (NYI)</source><translation>Transform Selection (NYI)</translation></message>
+    <message><source>Zone de mise au point… (NYI)</source><translation>Focus Area… (NYI)</translation></message>
+    <message><source>Étendre (NYI)</source><translation>Grow (NYI)</translation></message>
+  </context>
+  <context>
+    <name>SelectionModifyDialog</name>
+    <message><source>Annuler</source><translation>Cancel</translation></message>
+    <message><source>Cette opération modifie uniquement le contour de la sélection.</source><translation>This operation changes only the selection boundary.</translation></message>
+    <message><source>Contracter la sélection</source><translation>Contract Selection</translation></message>
+    <message><source>Dilater la sélection</source><translation>Expand Selection</translation></message>
+    <message><source>Frange de sélection</source><translation>Selection Border</translation></message>
+    <message><source>Frange à bords francs. Le contour progressif reste NYI.</source><translation>Hard-edged border. Feathering remains NYI.</translation></message>
+    <message><source>Largeur :</source><translation>Width:</translation></message>
+    <message><source>Lisser la sélection</source><translation>Smooth Selection</translation></message>
+    <message><source>OK</source><translation>OK</translation></message>
+    <message><source>Rayon :</source><translation>Radius:</translation></message>
+  </context>
+  <context>
+    <name>Document</name>
+    <message><source>Contracter la sélection</source><translation>Contract Selection</translation></message>
+    <message><source>Dilater la sélection</source><translation>Expand Selection</translation></message>
+    <message><source>Désélectionner</source><translation>Deselect</translation></message>
+    <message><source>Frange de sélection</source><translation>Selection Border</translation></message>
+    <message><source>Intervertir la sélection</source><translation>Inverse Selection</translation></message>
+    <message><source>Lisser la sélection</source><translation>Smooth Selection</translation></message>
+    <message><source>Modifier la sélection</source><translation>Modify Selection</translation></message>
+    <message><source>Mémoire insuffisante pour modifier la sélection.</source><translation>Not enough memory to modify the selection.</translation></message>
+    <message><source>Paramètres de modification de sélection invalides.</source><translation>Invalid selection modification parameters.</translation></message>
+    <message><source>Resélectionner</source><translation>Reselect</translation></message>
+    <message><source>Sélection trop complexe pour cette opération.</source><translation>Selection is too complex for this operation.</translation></message>
+    <message><source>Tout sélectionner</source><translation>Select All</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Afficher</source><translation>Show</translation></message>
+    <message><source>Calcul de la sélection…</source><translation>Calculating selection…</translation></message>
+  </context>
+  <context>
+    <name>ShortcutManager</name>
+    <message><source>Afficher/masquer le contour de sélection</source><translation>Show/Hide Selection Edges</translation></message>
+    <message><source>Contracter la sélection</source><translation>Contract Selection</translation></message>
+    <message><source>Dilater la sélection</source><translation>Expand Selection</translation></message>
+    <message><source>Désélectionner les calques</source><translation>Deselect Layers</translation></message>
+    <message><source>Frange de sélection</source><translation>Selection Border</translation></message>
+    <message><source>Généraliser la sélection</source><translation>Select Similar</translation></message>
+    <message><source>Isoler les calques dans le panneau</source><translation>Isolate Layers in Panel</translation></message>
+    <message><source>Lisser la sélection</source><translation>Smooth Selection</translation></message>
+    <message><source>Mémoriser une sélection</source><translation>Save Selection</translation></message>
+    <message><source>Rechercher les calques</source><translation>Find Layers</translation></message>
+    <message><source>Récupérer une sélection</source><translation>Load Selection</translation></message>
+    <message><source>Sélectionner le ciel</source><translation>Select Sky</translation></message>
+    <message><source>Sélectionner le sujet</source><translation>Select Subject</translation></message>
+    <message><source>Sélectionner les calques similaires</source><translation>Select Similar Layers</translation></message>
+    <message><source>Zone de mise au point</source><translation>Focus Area</translation></message>
+    <message><source>Étendre la sélection</source><translation>Grow Selection</translation></message>
+  </context>
+  <context><name>Document</name>
+    <message><source>Déplacer le contour de sélection</source><translation>Move Selection Boundary</translation></message>
+    <message><source>Sélection depuis le tracé</source><translation>Selection from Path</translation></message>
+  </context>
+  <context><name>ColorSelectionDialog</name>
+    <message><source>%1 échantillon(s)</source><translation>%1 sample(s)</translation></message>
+    <message><source>Ajouter (+)</source><translation>Add (+)</translation></message>
+    <message><source>Annuler</source><translation>Cancel</translation></message>
+    <message><source>Bleus</source><translation>Blues</translation></message>
+    <message><source>Calcul en arrière-plan…</source><translation>Calculating in background…</translation></message>
+    <message><source>Cliquez sur l’image ci-dessous. Maj ajoute une couleur, Option/Alt la retire.</source><translation>Click the image below. Shift adds a color; Option/Alt removes it.</translation></message>
+    <message><source>Couleurs prélevées</source><translation>Sampled Colors</translation></message>
+    <message><source>Cyans</source><translation>Cyans</translation></message>
+    <message><source>Groupes de couleurs localisés</source><translation>Localized Color Clusters</translation></message>
+    <message><source>Hautes lumières</source><translation>Highlights</translation></message>
+    <message><source>Image — pipette</source><translation>Image — eyedropper</translation></message>
+    <message><source>Inverser</source><translation>Invert</translation></message>
+    <message><source>Jaunes</source><translation>Yellows</translation></message>
+    <message><source>Les gris sont partiellement sélectionnés.</source><translation>Gray pixels are partially selected.</translation></message>
+    <message><source>Magentas</source><translation>Magentas</translation></message>
+    <message><source>OK</source><translation>OK</translation></message>
+    <message><source>Ombres</source><translation>Shadows</translation></message>
+    <message><source>Pipette :</source><translation>Eyedropper:</translation></message>
+    <message><source>Plage de couleurs</source><translation>Color Range</translation></message>
+    <message><source>Portée :</source><translation>Range:</translation></message>
+    <message><source>Remplacer</source><translation>Replace</translation></message>
+    <message><source>Retirer (−)</source><translation>Subtract (−)</translation></message>
+    <message><source>Rouges</source><translation>Reds</translation></message>
+    <message><source>Sélection — blanc : sélectionné</source><translation>Selection — white: selected</translation></message>
+    <message><source>Sélectionner :</source><translation>Select:</translation></message>
+    <message><source>Tolérance :</source><translation>Fuzziness:</translation></message>
+    <message><source>Tons moyens</source><translation>Midtones</translation></message>
+    <message><source>Verts</source><translation>Greens</translation></message>
+  </context>
+  <context><name>SelectionMenu</name>
+    <message><source>Contour progressif…</source><translation>Feather…</translation></message>
+    <message><source>Plage de couleurs…</source><translation>Color Range…</translation></message>
+  </context>
+  <context><name>SelectionModifyDialog</name>
+    <message><source>Contour progressif</source><translation>Feather</translation></message>
+    <message><source>La frange crée une bande autour du contour.</source><translation>Border creates a band around the selection boundary.</translation></message>
+  </context>
+  <context><name>Document</name>
+    <message><source>Aucun pixel ne correspond aux couleurs choisies.</source><translation>No pixels match the selected colors.</translation></message>
+    <message><source>Impossible de calculer cette sélection par couleur.</source><translation>Unable to calculate this color selection.</translation></message>
+    <message><source>Impossible de préparer la sélection par couleur.</source><translation>Unable to prepare the color selection.</translation></message>
+    <message><source>Maximum : 64 échantillons de couleur.</source><translation>Maximum: 64 color samples.</translation></message>
+    <message><source>Sélection par plage de couleurs</source><translation>Color Range Selection</translation></message>
+  </context>
+  <context><name>Document</name>
+    <message><source>Aucun pixel n’est sélectionné à plus de 50 %. La sélection reste active.</source><translation>No pixels are more than 50% selected. The selection remains active.</translation></message>
+    <message><source>Contour progressif</source><translation>Feather</translation></message>
+    <message><source>Impossible d’adoucir cette sélection.</source><translation>Unable to soften this selection.</translation></message>
+  </context>
+  <context><name>ColorSelectionDialog</name>
+    <message><source>Adapter</source><translation>Fit</translation></message>
+    <message><source>Cliquez sur l’aperçu ou sur le canevas. Maj ajoute une couleur, Option/Alt la retire.</source><translation>Click the preview or the canvas. Shift adds a color; Option/Alt removes it.</translation></message>
+    <message><source>Limiter aux zones reliées par leurs bords aux points prélevés</source><translation>Restrict to areas connected by their edges to sampled points</translation></message>
+    <message><source>Molette : zoom · Glisser : déplacer</source><translation>Wheel: zoom · Drag: pan</translation></message>
+    <message><source>Zones contiguës</source><translation>Contiguous Areas</translation></message>
+    <message><source>Zoom :</source><translation>Zoom:</translation></message>
+  </context>
 </TS>

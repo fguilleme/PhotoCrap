@@ -65,6 +65,7 @@ void Document::finishLasso()
     m_selectionCombined = false;
     combineGestureSelection();
     emit selectionChanged();
+    finishSelectionGesture();
 }
 
 void Document::addPolygonLassoPoint(qreal _x, qreal _y)
@@ -122,6 +123,7 @@ void Document::finishPolygonLasso()
     m_selectionCombined = false;
     combineGestureSelection();
     emit selectionChanged();
+    finishSelectionGesture();
 }
 
 void Document::removeLastPolygonLassoPoint()

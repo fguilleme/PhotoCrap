@@ -33,7 +33,7 @@ Les paquets de v0.12.0 portent encore le numéro **0.11.0** dans leur nom et leu
 
 ## Ajouts de v0.13.1
 
-Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est automatique après validation des trois plateformes : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le catalogue actuel contient 282 entrées de raccourcis et gestes, dont 113 NYI après l’implémentation de la Gomme magique et de la Plume.
+Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est automatique après validation des trois plateformes : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le catalogue de v0.13.1 contient 282 entrées de raccourcis et gestes, dont 113 NYI après l’implémentation de la Gomme magique et de la Plume.
 
 - [x] Plume en mode Tracé : Bézier, poignées, ajout/suppression/conversion de points, contraintes, reprise, fermeture, annulation et sauvegarde des tracés en projet v8. Conversion en sélection, remplissage et contour raster avec sélection et profondeur 8/16 bits conservées.
 - [ ] Modes Forme et masque vectoriel, opérations booléennes et panneau Tracés complet. Plume libre/de courbure et sélections de tracés restent NYI.
@@ -41,6 +41,20 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Fermeture de l’application avec panneaux flottants/masqués et protection des documents non sauvegardés.
 - [x] Gomme magique : effacement par couleur avec tolérance, contiguïté, lissage, opacité et échantillonnage visible de tous les calques. Calcul asynchrone annulable, sélection respectée, pixels 8/16 bits et une étape d’annulation par clic ; outil réservé aux calques de pixels.
 - [x] Menus contextuels distincts pour calques et vignettes de masque : propriétés et verrouillage côté calque, affichage/activation/inversion/suppression côté masque. Les actions portant sur un seul calque sont désactivées pour une sélection multiple ; les fonctions manquantes sont marquées NYI. Tests de clic droit ciblant un autre masque, d’annulation et de verrouillage.
+
+## En développement après v0.13.1 : sélections
+
+- [x] Menu Sélection structuré selon la référence Adobe, au-delà des entrées visibles dans la capture. [Inventaire des comportements, options et écarts](docs/SELECTIONS.md).
+- [x] Frange (1–200 px), Lisser, Dilater et Contracter (1–100 px), calcul asynchrone régional annulable, rejet des résultats obsolètes et historique des sélections sans modifier les pixels sauvegardés.
+- [x] Contour de sélection masquable depuis Affichage, réaffiché à la création suivante ; Calques similaires par nature du calque ; raccourcis configurables. Catalogue de développement : **298 entrées, dont 121 NYI**.
+- [x] Comptabilisation des régions et contours partagés dans le budget mémoire de l’historique.
+- [x] Couverture progressive 0–255, Contour progressif (rayon 1–1 000 px, Maj+F6), conservation dans l’historique et Resélectionner ; prise en compte par les opérations de pixels et les masques.
+- [ ] Anticrénelage fractionnaire des outils, Mode Masque et chargement depuis un calque/masque/couche.
+- [x] Plage de couleurs : pipettes remplacer/ajouter/retirer sur l’aperçu et le canevas, tolérance, groupes localisés, zones contiguës, inversion et aperçus image/masque synchronisés avec zoom natif et déplacement ; familles de couleurs et de tons.
+- [ ] Tons chair/visages, hors gamut CMJN, réglages tonals détaillés, aperçus et préréglages Adobe complémentaires ; Étendre/Généraliser selon la tolérance de la Baguette magique.
+- [ ] Zone de mise au point, Sujet, Ciel et espace Sélectionner et masquer, avec validation des détails fins et calculs asynchrones.
+- [ ] Transformation du contour indépendante des pixels ; mémorisation/récupération dans des couches alpha persistantes.
+- [ ] Aucun calque actif, recherche et isolation par filtrage du panneau Calques.
 
 ## 1. Fiabilité et validation à terminer
 
@@ -79,7 +93,8 @@ Améliorations des outils déjà disponibles :
 
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
-- [ ] Contour progressif, affinage des sélections et traitement fiable des détails fins.
+- [x] Contour progressif appliqué à une couverture réelle, conservée par les opérations de pixels et les masques.
+- [ ] Espace d’affinage des sélections et traitement fiable des détails fins.
 - [ ] Tolérance et options supplémentaires du remplissage contigu ; modes plus avancés de réparation et de pièce.
 - [ ] Transformation au dépôt pour le déplacement basé sur le contenu ; meilleurs raccords sur les fonds complexes.
 - [ ] Pression/inclinaison du stylet, pointes texturées, dynamiques de brosse et bibliothèque de motifs/pointes.

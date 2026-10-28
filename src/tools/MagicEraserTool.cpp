@@ -241,7 +241,10 @@ void Document::applyMagicEraser(const QPoint &_seed)
                     m_active != before.active || m_editingMask || m_tool != "magicEraser" ||
                     result.image.isNull())
                     return;
-                m_layers[m_active].image = result.image;
+                QImage image = result.image;
+                SelectionCoverage::blend(image, before.layers[m_active].image, before.selectionMask,
+                                         result.dirty);
+                m_layers[m_active].image = image;
                 m_dirtyRegion            = m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Gomme magique"), false, false);
                 ++m_thumbnailRevision;

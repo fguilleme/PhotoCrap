@@ -16,6 +16,33 @@ namespace
 {
 constexpr qint64 MaxPixels = 32LL * 1024 * 1024;
 constexpr int    MaxLayers = 512;
+
+// Regions and paths share their backing storage across snapshots, like QImage.
+// Account for each retained allocation once, without counting live selection data twice.
+struct SelectionMemory {
+    QSet<quintptr> seen;
+    qint64         bytes = 0;
+    void           add(const QRegion &_region)
+    {
+        if (_region.isEmpty())
+            return;
+        const auto key = reinterpret_cast<quintptr>(_region.begin());
+        if (!seen.contains(key)) {
+            seen.insert(key);
+            bytes += qint64(_region.rectCount()) * sizeof(QRect);
+        }
+    }
+    void add(const QPolygonF &_path)
+    {
+        if (_path.isEmpty())
+            return;
+        const auto key = reinterpret_cast<quintptr>(_path.constData());
+        if (!seen.contains(key)) {
+            seen.insert(key);
+            bytes += qint64(_path.size()) * sizeof(QPointF);
+        }
+    }
+};
 } // namespace
 
 Document::Document(QObject *_parent) : QObject(_parent)
@@ -63,20 +90,37 @@ Document::Document(QObject *_parent) : QObject(_parent)
             m_previewRenderActive.store(false);
     });
     connect(this, &Document::selectionChanged, this, [this] {
+        cancelSelectionOperation();
+        if (!m_selectionMask.isNull() && m_selectionMaskRegion != m_selectionRegion) {
+            m_selectionMask       = {};
+            m_selectionOutline    = {};
+            m_selectionMaskRegion = {};
+        }
+        if (!m_selectionEdgesVisible) {
+            m_selectionEdgesVisible = true;
+            emit selectionDisplayChanged();
+        }
         invalidateContentMove();
         cancelRemoval();
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, [this] {
+        cancelSelectionOperation();
         invalidateContentMove();
         cancelRemoval();
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, &Document::historyBrushSourceChanged);
+    connect(this, &Document::imageChanged, this, [this] {
+        if (m_selectionCancel &&
+            (m_drawing || m_previewingLayer || m_selectionTaskStateId != m_stateId))
+            cancelSelectionOperation();
+    });
     newDocument(1280, 800);
 }
 Document::~Document()
 {
+    cancelSelectionOperation();
     cancelRawLoad();
     cancelFrequencyRetouch();
     cancelMagicErase();
@@ -145,28 +189,61 @@ bool Document::editable(bool _materialize)
 }
 Document::Snapshot Document::snapshot(const QString &_label) const
 {
-    return {m_layers,
-            m_size,
-            m_active,
-            m_selection,
-            m_selectionRegion,
-            m_selectionShape,
-            m_selectionPath,
-            m_selectedLayers,
-            m_layerSelectionAnchor,
-            m_editingMask,
-            m_stateId,
-            _label,
-            m_slices,
-            m_activeSlice,
-            m_channelBits,
-            m_penPaths,
-            m_activePenPath,
-            m_selectedPenPoints,
-            m_penDrawing};
+    Snapshot state;
+    state.layers               = m_layers;
+    state.size                 = m_size;
+    state.active               = m_active;
+    state.selection            = m_selection;
+    state.selectionRegion      = m_selectionRegion;
+    state.selectionShape       = m_selectionShape;
+    state.selectionPath        = m_selectionPath;
+    state.selectedLayers       = m_selectedLayers;
+    state.layerSelectionAnchor = m_layerSelectionAnchor;
+    state.editingMask          = m_editingMask;
+    state.id                   = m_stateId;
+    state.label                = _label;
+    state.slices               = m_slices;
+    state.activeSlice          = m_activeSlice;
+    state.channelBits          = m_channelBits;
+    state.penPaths             = m_penPaths;
+    state.activePenPath        = m_activePenPath;
+    state.selectedPenPoints    = m_selectedPenPoints;
+    state.penDrawing           = m_penDrawing;
+    state.selectionMask        = m_selectionMask;
+    state.lastSelectionMask    = m_lastSelectionMask;
+    state.selectionOutline     = m_selectionOutline;
+    state.lastSelectionOutline = m_lastSelectionOutline;
+    state.contentId            = m_contentId;
+    state.lastSelectionRegion  = m_lastSelectionRegion;
+    return state;
 }
 void Document::restore(const Snapshot &_state)
 {
+    cancelSelectionOperation();
+    m_selectionMask            = _state.selectionMask;
+    m_lastSelectionMask        = _state.lastSelectionMask;
+    m_selectionOutline         = _state.selectionOutline;
+    m_lastSelectionOutline     = _state.lastSelectionOutline;
+    m_selectionMaskRegion      = _state.selectionRegion;
+    m_contentId                = _state.contentId;
+    m_lastSelectionRegion      = _state.lastSelectionRegion;
+    m_selectionGestureRecorded = false;
+    m_beforeSelectionGesture   = {};
+    if (_state.selectionOnly) {
+        m_stateId            = _state.id;
+        m_selection          = _state.selection;
+        m_selectionRegion    = _state.selectionRegion;
+        m_selectionShape     = _state.selectionShape;
+        m_selectionPath      = _state.selectionPath;
+        m_polygonLassoActive = false;
+        m_activePenPath      = _state.activePenPath;
+        m_selectedPenPoints  = _state.selectedPenPoints;
+        m_penDrawing         = _state.penDrawing && m_tool == "pen";
+        emit penPathsChanged();
+        emit selectionChanged();
+        emit historyChanged();
+        return;
+    }
     m_penPaths          = _state.penPaths;
     m_activePenPath     = _state.activePenPath;
     m_penGesture        = 0;
@@ -211,13 +288,33 @@ void Document::trimHistory()
 {
     if (m_undo.size() > 40)
         m_undo.remove(0, m_undo.size() - 40);
-    QSet<qint64> seen;
+    QSet<qint64>    seen;
+    SelectionMemory selections;
+    selections.add(m_selectionOutline);
+    selections.add(m_lastSelectionOutline);
+    selections.add(m_selectionRegion);
+    selections.add(m_lastSelectionRegion);
+    selections.add(m_selectionPath);
+    const qint64 currentSelectionBytes = selections.bytes;
     for (const auto &layer : std::as_const(m_layers))
         for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
             if (!image->isNull())
                 seen.insert(image->cacheKey());
+    for (const QImage *mask : {&m_selectionMask, &m_lastSelectionMask})
+        if (!mask->isNull())
+            seen.insert(mask->cacheKey());
     qint64     bytes = 0;
     const auto count = [&](const Snapshot &_state) {
+        selections.add(_state.selectionOutline);
+        selections.add(_state.lastSelectionOutline);
+        selections.add(_state.selectionRegion);
+        selections.add(_state.lastSelectionRegion);
+        selections.add(_state.selectionPath);
+        for (const QImage *mask : {&_state.selectionMask, &_state.lastSelectionMask})
+            if (!mask->isNull() && !seen.contains(mask->cacheKey())) {
+                seen.insert(mask->cacheKey());
+                bytes += mask->sizeInBytes();
+            }
         for (const auto &layer : _state.layers)
             for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
                 if (!image->isNull() && !seen.contains(image->cacheKey())) {
@@ -230,7 +327,8 @@ void Document::trimHistory()
     // newest to oldest once, retaining at least the most recent undo operation.
     for (int i = m_undo.size() - 1; i >= 0; --i) {
         count(m_undo[i]);
-        if (bytes > 256LL * 1024 * 1024 && i < m_undo.size() - 1) {
+        if (bytes + selections.bytes - currentSelectionBytes > 256LL * 1024 * 1024 &&
+            i < m_undo.size() - 1) {
             m_undo.remove(0, i + 1);
             break;
         }
@@ -238,10 +336,24 @@ void Document::trimHistory()
 }
 QVariantMap Document::memoryUsage() const
 {
-    QSet<qint64> seen;
-    qint64       layerBytes = 0, historyBytes = 0;
-    int          colors = 0, masks = 0, compactPlanes = 0;
-    const auto   count = [&](const QVector<Layer> &_layers, qint64 &_bytes) {
+    QSet<qint64>    seen;
+    SelectionMemory selections;
+    selections.add(m_selectionOutline);
+    selections.add(m_lastSelectionOutline);
+    selections.add(m_selectionRegion);
+    selections.add(m_lastSelectionRegion);
+    selections.add(m_selectionPath);
+    const qint64 selectionRegionBytes = selections.bytes;
+    qint64       selectionBytes       = selections.bytes;
+    qint64       retainedMaskBytes    = 0;
+    for (const QImage *mask : {&m_selectionMask, &m_lastSelectionMask})
+        if (!mask->isNull() && !seen.contains(mask->cacheKey())) {
+            seen.insert(mask->cacheKey());
+            selectionBytes += mask->sizeInBytes();
+        }
+    qint64     layerBytes = 0, historyBytes = 0;
+    int        colors = 0, masks = 0, compactPlanes = 0;
+    const auto count = [&](const QVector<Layer> &_layers, qint64 &_bytes) {
         for (const auto &layer : _layers)
             for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
                 if (!image->isNull() && !seen.contains(image->cacheKey())) {
@@ -250,11 +362,30 @@ QVariantMap Document::memoryUsage() const
                 }
     };
     count(m_layers, layerBytes);
-    for (const auto &state : m_undo)
+    const auto countSelection = [&](const Snapshot &_state) {
+        selections.add(_state.selectionOutline);
+        selections.add(_state.lastSelectionOutline);
+        selections.add(_state.selectionRegion);
+        selections.add(_state.lastSelectionRegion);
+        selections.add(_state.selectionPath);
+        for (const QImage *mask : {&_state.selectionMask, &_state.lastSelectionMask})
+            if (!mask->isNull() && !seen.contains(mask->cacheKey())) {
+                seen.insert(mask->cacheKey());
+                retainedMaskBytes += mask->sizeInBytes();
+            }
+    };
+    for (const auto &state : m_undo) {
         count(state.layers, historyBytes);
-    for (const auto &state : m_redo)
+        countSelection(state);
+    }
+    for (const auto &state : m_redo) {
         count(state.layers, historyBytes);
+        countSelection(state);
+    }
     count(m_historyBrushSource.layers, historyBytes);
+    countSelection(m_historyBrushSource);
+    const qint64 historySelectionBytes =
+        selections.bytes - selectionRegionBytes + retainedMaskBytes;
     for (const auto &layer : m_layers) {
         colors +=
             (!layer.image.isNull() && !ImageUtils::compact(layer.image)) + !layer.source.isNull();
@@ -264,7 +395,9 @@ QVariantMap Document::memoryUsage() const
     return {{"layerCount", m_layers.size()},
             {"compactPlanes", compactPlanes},
             {"layerBytes", layerBytes},
-            {"historyBytes", historyBytes},
+            {"historyBytes", historyBytes + historySelectionBytes},
+            {"selectionBytes", selectionBytes},
+            {"historySelectionBytes", historySelectionBytes},
             {"reservedLayerBytes",
              DocumentStorage::estimateBytes(width(), height(), colors, masks, m_channelBits)},
             {"frequencyCacheBytes", qint64(m_frequencyCache.totalCost()) * 1024}};
@@ -276,7 +409,7 @@ void Document::commit(const Snapshot &_before, const QString &_label, bool _inva
     state.label    = _label;
     m_undo.append(state);
     m_redo.clear();
-    m_stateId = m_nextId++;
+    m_stateId = m_contentId = m_nextId++;
     trimHistory();
     changed(_invalidateFull, _notifyImage);
     emit historyChanged();
@@ -334,6 +467,15 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    cancelSelectionOperation();
+    m_selectionGestureRecorded = false;
+    m_beforeSelectionGesture   = {};
+    cancelColorSelection();
+    m_selectionMask        = {};
+    m_lastSelectionMask    = {};
+    m_selectionOutline     = {};
+    m_lastSelectionOutline = {};
+    m_selectionMaskRegion  = {};
     m_penPaths.clear();
     m_activePenPath = -1;
     m_penDrawing    = false;
@@ -356,11 +498,11 @@ void Document::resetHistory(bool _clean)
     cancelRemoval();
     m_undo.clear();
     m_redo.clear();
-    m_stateId         = m_nextId++;
-    m_savedId         = _clean ? m_stateId : 0;
-    m_selection       = {};
-    m_selectionRegion = {};
-    m_selectionShape  = 0;
+    m_stateId = m_contentId = m_nextId++;
+    m_savedId               = _clean ? m_stateId : 0;
+    m_selection             = {};
+    m_selectionRegion       = {};
+    m_selectionShape        = 0;
     m_selectionPath.clear();
     m_polygonLassoActive = false;
     selectOnly(m_active);

@@ -112,7 +112,9 @@ void Document::smudgeDab(const QPointF &_point)
             const qreal coverage = qAlpha(mask[localX]) / 255.;
             if (coverage <= 0)
                 continue;
-            dst[x] = mixPixel(dst[x], paint[x], coverage * m_toolStrength);
+            dst[x] = mixPixel(dst[x], paint[x],
+                              coverage * m_toolStrength *
+                                  selectionCoverage(region.x() + x, region.y() + y) / 255.);
             // Pick up some of the paint encountered along the way so successive
             // dabs blend the colours rather than duplicate an unchanged patch.
             pickup[localX] =

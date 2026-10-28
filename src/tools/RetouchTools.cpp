@@ -51,7 +51,8 @@ void Document::renderRetouchStroke()
                 const int globalY = region.y() + y;
                 if (hasSelection() && !m_selectionRegion.contains(QPoint(globalX, globalY)))
                     continue;
-                qreal amount = qAlpha(coverage[globalX]) / 255. * m_brushOpacity * m_toolStrength;
+                qreal amount = qAlpha(coverage[globalX]) / 255. * m_brushOpacity * m_toolStrength *
+                               selectionCoverage(globalX, globalY) / 255.;
                 if (amount <= 0)
                     continue;
                 const Pixel pixel = src[outputOffset.x() + x];

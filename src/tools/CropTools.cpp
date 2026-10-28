@@ -273,8 +273,12 @@ void Document::applyCrop()
                 m_slices.clear();
                 m_activeSlice = -1;
                 emit slicesChanged();
-                m_selection       = {};
-                m_selectionRegion = {};
+                m_selection            = {};
+                m_selectionRegion      = {};
+                m_selectionMask        = {};
+                m_lastSelectionMask    = {};
+                m_lastSelectionRegion  = {};
+                m_lastSelectionOutline = {};
                 m_selectionPath.clear();
                 m_selectionShape     = 0;
                 m_polygonLassoActive = false;

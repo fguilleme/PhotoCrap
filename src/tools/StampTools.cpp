@@ -142,6 +142,7 @@ void Document::renderStampStroke()
     sampler.drawImage(0, 0, m_strokeCoverage.copy(region));
     sampler.end();
 
+    SelectionCoverage::attenuate(overlay, m_selectionMask, region.topLeft());
     QImage canvas =
         m_strokeBase.copy(region).convertToFormat(ImageUtils::workingFormat(m_strokeBase));
     canvas = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);

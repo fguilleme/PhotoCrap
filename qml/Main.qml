@@ -220,7 +220,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -962,7 +962,7 @@ ApplicationWindow {
     function setInterfaceLanguage(code) { languages.language=code }
     property bool panelsTemporarilyHidden: false
     property bool toolsTemporarilyHidden: false
-    readonly property var additionalShortcutIds: ["keyboardSettings", "copyMerged", "newLayerNoDialog", "preferencesAdobe", "invertSelection", "invertSelectionF7", "reselect", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "selectAllLayers", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
+    readonly property var additionalShortcutIds: ["keyboardSettings", "copyMerged", "newLayerNoDialog", "preferencesAdobe", "invertSelectionF7", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
     function openFillColor() {
         fillingMaskColor = editor.editingMask
         fillingPixelsColor = !editor.editingMask
@@ -1091,12 +1091,12 @@ ApplicationWindow {
     Action { id: saveAsAction; text: qsTr("Enregistrer sous…"); shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen; onTriggered: { resumeAfterSave=false; save(true) } }
     Action { id: exportAction; text: qsTr("Exporter l’image…"); shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen; onTriggered: exportDialog.open() }
     Action { id: importAction; text: qsTr("Importer comme calque…"); shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
-    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: editor.canUndo && !window.modalOpen; onTriggered: editor.undo() }
-    Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: editor.canRedo && !window.modalOpen; onTriggered: editor.redo() }
+    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy) && !window.modalOpen; onTriggered: editor.undo() }
+    Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy) && !window.modalOpen; onTriggered: editor.redo() }
     Action { id: copyAction; text: qsTr("Copier l’image visible"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.copy() }
     Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
     Action { id: selectAction; text: qsTr("Tout sélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
-    Action { id: deselectAction; text: qsTr("Désélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("deselect")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.deselect() }
+    Action { id: deselectAction; text: qsTr("Désélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("deselect")); enabled: (editor.hasSelection || editor.polygonLassoActive) && !window.editingText && !window.modalOpen; onTriggered: editor.deselect() }
     Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: { if(window.penToolActive)editor.deletePenPoints();else if(window.sliceToolActive) editor.deleteActiveSlice(); else editor.clearSelected() } }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
     Action { id: duplicateAction; text: qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
@@ -1114,6 +1114,7 @@ ApplicationWindow {
         enabled: !window.modalOpen
         sequence: "Escape"
         onActivated: {
+            if(editor.selectionBusy){editor.cancelSelectionOperation();return}
             if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else editor.finishPenPath();return}
             if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
             if (window.cropToolActive) { editor.cancelCrop(); return }
@@ -1306,10 +1307,13 @@ ApplicationWindow {
             DarkMenuItem { text: qsTr("Fusionner vers le bas"); enabled: editor.activeLayer>0; onTriggered: editor.mergeDown() }
             DarkMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onTriggered: editor.removeLayer() }
         }
-        DarkMenu {
-            title: qsTr("Sélection")
-            DarkMenuItem { action: selectAction }
-            DarkMenuItem { action: deselectAction }
+        SelectionMenu {
+            id: selectionMenu; objectName: "selectionMenu"
+            document: editor; manager: shortcuts
+            selectAllAction: selectAction; deselectAction: deselectAction
+            interactionEnabled: !window.editingText && !window.modalOpen
+            onColorRequested: colorSelectionDialog.start()
+            onModifyRequested: function(operation) { selectionModifyDialog.edit(operation) }
         }
         DarkMenu {
             title: qsTr("Réglages","image adjustments")
@@ -1332,6 +1336,10 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Affichage")
+            DarkMenu {
+                title: qsTr("Afficher")
+                DarkMenuItem { action: selectionMenu.edgesAction }
+            }
             DarkMenu {
                 title: qsTr("Panneaux")
                 DarkMenuItem { text: qsTr("Histogramme"); checkable: true; checked: window.dockPanelVisible("histogram"); onTriggered: window.toggleDockPanel("histogram") }
@@ -1374,6 +1382,111 @@ ApplicationWindow {
             }
             onObjectAdded: function(index, object) { toolGroupMenu.insertItem(index, object) }
             onObjectRemoved: function(index, object) { toolGroupMenu.removeItem(object) }
+        }
+    }
+
+    ColorSelectionDialog { id: colorSelectionDialog; document: editor }
+    MouseArea {
+        id: colorSelectionCanvasPicker
+        objectName: "colorSelectionCanvasPicker"
+        parent: Overlay.overlay
+        anchors.fill: parent
+        z: colorSelectionDialog.z-1
+        visible: colorSelectionDialog.visible
+        enabled: visible
+        hoverEnabled: true
+        preventStealing: true
+        acceptedButtons: Qt.LeftButton|Qt.MiddleButton|Qt.RightButton
+        property bool panning: false
+        property bool inCanvas: false
+        property point pressPoint
+        property point initialScroll
+        property point pointerPoint: Qt.point(-1,-1)
+        cursorShape: panning?Qt.ClosedHandCursor:inCanvas?Qt.CrossCursor:Qt.ArrowCursor
+        function documentPoint(x,y) {return artboard.mapFromItem(colorSelectionCanvasPicker,x,y)}
+        function insideViewport(x,y) {
+            const point=viewport.mapFromItem(colorSelectionCanvasPicker,x,y)
+            return point.x>=0 && point.y>=0 && point.x<viewport.width && point.y<viewport.height
+        }
+        function refreshCursor() {
+            const point=documentPoint(pointerPoint.x,pointerPoint.y)
+            inCanvas=containsMouse && insideViewport(pointerPoint.x,pointerPoint.y)
+                        && point.x>=0 && point.y>=0 && point.x<artboard.width && point.y<artboard.height
+            imageCanvas.setSystemCursor(panning?Qt.ClosedHandCursor:inCanvas?Qt.CrossCursor:Qt.ArrowCursor,
+                                         enabled && containsMouse && window.active,inCanvas && !panning?"picker":"hand",0)
+        }
+        onContainsMouseChanged: refreshCursor()
+        onEnabledChanged: refreshCursor()
+        onPanningChanged: refreshCursor()
+        onPressed: function(mouse) {
+            colorSelectionDialog.contentItem.forceActiveFocus()
+            pressPoint=Qt.point(mouse.x,mouse.y)
+            initialScroll=Qt.point(viewport.contentX,viewport.contentY)
+            panning=insideViewport(mouse.x,mouse.y) && mouse.button!==Qt.LeftButton
+        }
+        onPositionChanged: function(mouse) {
+            pointerPoint=Qt.point(mouse.x,mouse.y)
+            if(pressed && insideViewport(pressPoint.x,pressPoint.y)) {
+                const dx=mouse.x-pressPoint.x,dy=mouse.y-pressPoint.y
+                if(Math.abs(dx)+Math.abs(dy)>4)panning=true
+                if(panning) {
+                    viewport.contentX=clampScroll(initialScroll.x-dx,viewport.contentWidth-viewport.width)
+                    viewport.contentY=clampScroll(initialScroll.y-dy,viewport.contentHeight-viewport.height)
+                }
+            }
+            refreshCursor()
+        }
+        onReleased: function(mouse) {
+            if(!panning && mouse.button===Qt.LeftButton && insideViewport(mouse.x,mouse.y)) {
+                const point=documentPoint(mouse.x,mouse.y)
+                colorSelectionDialog.sampleAt(Math.floor(point.x/window.zoom),Math.floor(point.y/window.zoom),mouse.modifiers)
+            }
+            panning=false
+        }
+        onCanceled: panning=false
+        onWheel: function(wheel) {
+            if(insideViewport(wheel.x,wheel.y)) {
+                const point=viewport.mapFromItem(colorSelectionCanvasPicker,wheel.x,wheel.y)
+                const vertical=wheel.pixelDelta.y!==0?wheel.pixelDelta.y:wheel.angleDelta.y/2
+                const horizontal=wheel.pixelDelta.x!==0?wheel.pixelDelta.x:wheel.angleDelta.x/2
+                if(wheel.modifiers&(Qt.ControlModifier|Qt.MetaModifier)) {
+                    const steps=wheel.angleDelta.y!==0?wheel.angleDelta.y/120:vertical/40
+                    zoomAt(window.zoom*Math.pow(1.15,steps),point.x,point.y)
+                } else if(wheel.modifiers&Qt.ShiftModifier)panCanvas(-(vertical!==0?vertical:horizontal),0)
+                else panCanvas(-horizontal,-vertical)
+                refreshCursor()
+            }
+            wheel.accepted=true
+        }
+    }
+    Instantiator {
+        model: ["zoomIn","zoomOut","zoomFit","zoomActual"]
+        delegate: Shortcut {
+            required property string modelData
+            sequence: (shortcuts.revision,shortcuts.sequence(modelData))
+            enabled: colorSelectionDialog.visible && !window.editingText
+            onActivated: {
+                if(modelData==="zoomFit")fitCanvas()
+                else if(modelData==="zoomActual")setZoom(1)
+                else setZoom(window.zoom*(modelData==="zoomIn"?1.25:.8))
+                colorSelectionCanvasPicker.refreshCursor()
+            }
+        }
+    }
+
+    SelectionModifyDialog { id: selectionModifyDialog; objectName: "selectionModifyDialog"; document: editor }
+    Rectangle {
+        objectName: "selectionProgress"
+        parent: Overlay.overlay
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 48
+        width: 340; height: 48; radius: 6; color: "#29323c"; border.color: "#657383"
+        visible: editor.selectionBusy && !colorSelectionDialog.opened
+        RowLayout {
+            anchors.fill: parent; anchors.margins: 6
+            BusyIndicator { running: editor.selectionBusy; Layout.preferredWidth: 28; Layout.preferredHeight: 28 }
+            Label { text: qsTr("Calcul de la sélection…"); color: "#dbe1e8"; Layout.fillWidth: true }
+            Button { text: qsTr("Annuler"); onClicked: editor.cancelSelectionOperation() }
         }
     }
 
@@ -2116,12 +2229,12 @@ ApplicationWindow {
                                 to: 10
                                 duration: 700
                                 loops: Animation.Infinite
-                                running: editor.hasSelection || editor.polygonLassoActive
+                                running: editor.selectionEdgesVisible && (editor.hasSelection || editor.polygonLassoActive)
                             }
                             Canvas {
                                 id: rectangularSelectionOverlay
                                 objectName: "rectangularSelectionOverlay"
-                                visible: editor.hasSelection && editor.selectionShape < 4
+                                visible: editor.selectionEdgesVisible && editor.hasSelection && editor.selectionShape < 4
                                          && editor.selectionShape !== 1
                                 x: editor.selection.x * zoom - 2
                                 y: editor.selection.y * zoom - 2
@@ -2174,7 +2287,7 @@ ApplicationWindow {
                                 height: editor.selection.height * zoom + 4
                                 z: 2
                                 enabled: false
-                                visible: editor.hasSelection && editor.selectionShape === 1
+                                visible: editor.selectionEdgesVisible && editor.hasSelection && editor.selectionShape === 1
                                 onPaint: {
                                     const c = getContext("2d")
                                     c.reset()
@@ -2203,7 +2316,7 @@ ApplicationWindow {
                                 anchors.fill: parent
                                 z: 2
                                 enabled: false
-                                visible: editor.selectionShape >= 4 && editor.selectionPath.length > 0
+                                visible: editor.selectionEdgesVisible && editor.selectionShape >= 4 && editor.selectionPath.length > 0
                                 onPaint: {
                                     const points = editor.selectionPath
                                     const c = getContext("2d")

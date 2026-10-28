@@ -121,6 +121,7 @@ void Document::applySelectionCandidate(const QRegion &_candidate, bool _firstDab
         m_selectionRegion = candidate;
         break;
     }
+    combineSoftSelection(candidate, mode, _firstDab ? m_beforeSelectionGesture : snapshot({}));
     m_selection      = m_selectionRegion.boundingRect();
     m_selectionShape = m_selectionRegion.isEmpty() ? 0 : 6;
     m_selectionPath.clear();
@@ -138,14 +139,16 @@ void Document::applyMagicWand(const QPoint &_point)
         source = composite();
     else
         source = layerImage(m_active);
-    m_selectionRegionBeforeStroke = m_selectionRegion;
+    rememberSelection();
     QRegion candidate =
         colorRegion(source, _point, m_selectionTolerance, m_selectionContiguous, source.rect());
     applySelectionCandidate(candidate, true);
+    finishSelectionGesture();
 }
 
 void Document::beginQuickSelection(const QPointF &_point)
 {
+    rememberSelection();
     m_selectionRegionBeforeStroke = m_selectionRegion;
     m_selectionBoundsBeforeStroke = m_selection;
     m_selectionShapeBeforeStroke  = m_selectionShape;
@@ -180,6 +183,7 @@ void Document::continueQuickSelection(const QPointF &_point)
 
 void Document::finishQuickSelection()
 {
+    finishSelectionGesture();
     m_drawing                     = false;
     m_selectionRegionBeforeStroke = {};
     m_selectionBoundsBeforeStroke = {};
@@ -190,6 +194,11 @@ void Document::finishQuickSelection()
 
 void Document::cancelQuickSelection()
 {
+    m_selectionMask               = m_beforeSelectionGesture.selectionMask;
+    m_selectionOutline            = m_beforeSelectionGesture.selectionOutline;
+    m_selectionMaskRegion         = m_selectionRegionBeforeStroke;
+    m_selectionGestureRecorded    = false;
+    m_beforeSelectionGesture      = {};
     m_drawing                     = false;
     m_selectionRegion             = m_selectionRegionBeforeStroke;
     m_selection                   = m_selectionBoundsBeforeStroke;

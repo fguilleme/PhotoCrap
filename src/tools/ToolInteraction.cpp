@@ -32,6 +32,10 @@ QRectF Document::toolRectangle(const QPointF &_anchor, const QPointF &_point, bo
 }
 void Document::rememberSelection()
 {
+    cancelSelectionOperation();
+    m_beforeSelectionGesture      = snapshot({});
+    m_selectionGestureRecorded    = true;
+    m_selectionMask               = {};
     m_selectionCombined           = false;
     m_selectionRegionBeforeStroke = m_selectionRegion;
     m_selectionBoundsBeforeStroke = m_selection;
@@ -40,10 +44,15 @@ void Document::rememberSelection()
 }
 void Document::restoreGestureSelection()
 {
-    m_selectionRegion = m_selectionRegionBeforeStroke;
-    m_selection       = m_selectionBoundsBeforeStroke;
-    m_selectionShape  = m_selectionShapeBeforeStroke;
-    m_selectionPath   = m_selectionPathBeforeStroke;
+    m_selectionGestureRecorded = false;
+    m_selectionMask            = m_beforeSelectionGesture.selectionMask;
+    m_selectionOutline         = m_beforeSelectionGesture.selectionOutline;
+    m_selectionMaskRegion      = m_selectionRegionBeforeStroke;
+    m_beforeSelectionGesture   = {};
+    m_selectionRegion          = m_selectionRegionBeforeStroke;
+    m_selection                = m_selectionBoundsBeforeStroke;
+    m_selectionShape           = m_selectionShapeBeforeStroke;
+    m_selectionPath            = m_selectionPathBeforeStroke;
     emit selectionChanged();
 }
 void Document::combineGestureSelection()
@@ -58,6 +67,7 @@ void Document::combineGestureSelection()
         m_selectionRegion = m_selectionRegionBeforeStroke.subtracted(candidate);
     if (m_selectionMode == 3)
         m_selectionRegion = m_selectionRegionBeforeStroke.intersected(candidate);
+    combineSoftSelection(candidate, m_selectionMode, m_beforeSelectionGesture);
     m_selection      = m_selectionRegion.boundingRect();
     m_selectionShape = m_selectionRegion.isEmpty() ? 0 : 6;
     emit selectionChanged();
@@ -89,11 +99,15 @@ void Document::nudgeTool(int _dx, int _dy, bool _copy)
                (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
                 m_tool == "singleColumnSelect" || m_tool == "lasso" || m_tool == "polygonalLasso" ||
                 m_tool == "magicWand" || m_tool == "quickSelection")) {
+        cancelSelectionOperation();
+        const auto   before = snapshot({});
         const QPoint delta(qBound(-m_selection.left(), _dx, width() - 1 - m_selection.right()),
                            qBound(-m_selection.top(), _dy, height() - 1 - m_selection.bottom()));
         m_selection.translate(delta);
         m_selectionRegion.translate(delta);
         m_selectionPath.translate(delta);
+        translateSelectionCoverage(before, delta);
+        commitSelectionEdit(before, tr("Déplacer le contour de sélection"));
         emit selectionChanged();
     }
 }

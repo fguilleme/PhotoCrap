@@ -99,7 +99,7 @@ void Document::commitPenEdit(const Snapshot &_before, const QString &_label)
     before.penOnly = true;
     m_undo.append(before);
     m_redo.clear();
-    m_stateId = m_nextId++;
+    m_stateId = m_contentId = m_nextId++;
     trimHistory();
     emit penPathsChanged();
     emit historyChanged();
@@ -264,6 +264,7 @@ QString Document::penCursorAt(qreal _x, qreal _y, qreal _tolerance, bool _direct
 void Document::beginPenGesture(qreal _x, qreal _y, qreal _tolerance, bool _direct, bool _alternate,
                                bool _shift)
 {
+    cancelSelectionOperation();
     endStroke();
     if (!validPoint(_x, _y) || !std::isfinite(_tolerance) || _tolerance <= 0)
         return;
@@ -486,7 +487,7 @@ void Document::penPathToSelection(int _mode)
         return;
     const auto region = QRegion(path.toFillPolygon().toPolygon(), Qt::OddEvenFill) &
                         QRegion(QRect(QPoint{}, m_size));
-    rememberSelection();
+    const auto before = snapshot({});
     if (_mode == 1)
         m_selectionRegion |= region;
     else if (_mode == 2)
@@ -495,12 +496,14 @@ void Document::penPathToSelection(int _mode)
         m_selectionRegion &= region;
     else
         m_selectionRegion = region;
+    combineSoftSelection(region, _mode, before);
     m_selection      = m_selectionRegion.boundingRect();
     m_selectionShape = 6;
     m_selectionPath.clear();
     m_polygonLassoActive = false;
     // Keep the saved path, but leave path editing so only the selection is shown.
     setActivePenPath(-1);
+    commitSelectionEdit(before, tr("Sélection depuis le tracé"));
     emit selectionChanged();
 }
 void Document::fillPenPath()
@@ -531,6 +534,9 @@ void Document::fillPenPath()
     painter.setOpacity(m_brushOpacity);
     painter.fillPath(path, m_color);
     painter.end();
+    SelectionCoverage::blend(
+        *target, m_editingMask ? before.layers[m_active].mask : before.layers[m_active].image,
+        m_selectionMask, bounds);
     m_dirtyRegion = m_dirtyRegion.united(bounds);
     commit(before, tr("Remplir le tracé"), false);
     ++m_thumbnailRevision;

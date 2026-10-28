@@ -25,6 +25,10 @@ This release retains the v0.12.0 features (RAW, 16-bit pixels, crop and slice to
 
 ![PhotoCrap demo composition](docs/screenshot.png)
 
+## In development after v0.13.1
+
+The **Select** menu now follows an [inventory of Adobe documentation](docs/SELECTIONS.md) (French), including options and limitations. Color Range with canvas sampling, zoomable previews and a Contiguous Areas option, Feather (Shift+F6), Border, Smooth, Expand and Contract run in the background with cancellation and undo. Painting, filling and masks honor fractional selection coverage. Selection changes have their own history without making saved pixels dirty. **View → Show → Selection Edges** hides the outline without deselecting. Missing advanced features are visibly disabled and marked **NYI**, with their requirements recorded for future work.
+
 ## Features
 
 - 8- or 16-bit-per-channel sRGB RGB documents with a white or transparent background, custom dimensions, and presets.
@@ -161,7 +165,7 @@ On the development branch, **Y** selects history brushes. **Shift + key** and **
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 
-The catalog contains **282 entries**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
+The catalog contains **298 entries**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
 
 Customize shortcuts and the toolbar in **Settings**: **PhotoCrap → Preferences…** or **⌘,** on macOS, **Edit → Settings…** on other platforms. Shortcuts are suspended during text entry or modal dialogs. Empty combinations disable commands, duplicates are rejected, and customizations persist between launches.
 

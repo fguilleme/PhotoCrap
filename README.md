@@ -25,6 +25,10 @@ Cette version reprend les fonctions de v0.12.0 (RAW, pixels 16 bits, recadrage e
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
 
+## En développement après v0.13.1
+
+Le menu **Sélection** suit désormais un [inventaire de la documentation Adobe](docs/SELECTIONS.md), avec paramètres et limites : Plage de couleurs avec prélèvement sur le canevas, aperçus zoomables et option Zones contiguës, Contour progressif (Maj+F6), Frange, Lisser, Dilater et Contracter fonctionnent en arrière-plan et sont annulables. Les couvertures progressives sont respectées par la peinture, les remplissages et les masques. Les modifications de sélection ont leur historique sans modifier les pixels sauvegardés. **Affichage → Afficher → Contour de la sélection** masque les fourmis sans désélectionner. Les fonctions avancées manquantes sont visibles et désactivées avec la mention **NYI** ; leurs options sont recensées pour les prochaines étapes.
+
 ## Fonctionnalités
 
 - Documents RVB 8 ou 16 bits par canal sRGB, fond blanc ou transparent, dimensions personnalisées et préréglages.

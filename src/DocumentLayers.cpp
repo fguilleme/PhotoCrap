@@ -286,10 +286,9 @@ void Document::addLayerMask(bool _revealAll)
         QImage mask = ImageUtils::uniformMask(hasSelection() ? (_revealAll ? 0 : 255)
                                                              : (_revealAll ? 255 : 0));
         if (hasSelection()) {
-            mask = ImageUtils::expandedPlane(mask, m_size);
-            QPainter painter(&mask);
-            painter.setClipRegion(m_selectionRegion);
-            painter.fillRect(QRect(QPoint{}, m_size), _revealAll ? Qt::white : Qt::black);
+            mask = selectionMask();
+            if (!_revealAll)
+                mask.invertPixels();
         }
         m_layers[m_active].mask        = mask;
         m_layers[m_active].maskEnabled = true;

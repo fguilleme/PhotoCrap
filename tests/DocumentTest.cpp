@@ -1536,10 +1536,10 @@ private slots:
         d.endStroke();
         QCOMPARE(d.layerImage(layer).pixel(50, 40), transparent.pixel(50, 40));
         QCOMPARE(d.layerImage(layer).pixelColor(35, 40), QColor(Qt::red));
+        d.undo(); // Undo the stroke before creating a separate deselection history entry.
         d.deselect();
         d.setBrushSize(20);
         d.setBrushHardness(0);
-        d.undo();
         d.beginStroke(50, 40);
         d.endStroke();
         const int alphaCentre = d.layerImage(layer).pixelColor(50, 40).alpha();
@@ -2344,7 +2344,8 @@ private slots:
         d.beginStroke(28, 38);
         d.continueStroke(44, 54);
         d.endStroke();
-        const QRegion source = d.selectionRegion();
+        const QRegion source        = d.selectionRegion();
+        const int     sourceHistory = d.historyIndex();
         d.setTool("patch");
         d.setPatchMode(1);
         d.beginStroke(35, 45);
@@ -2352,7 +2353,7 @@ private slots:
         QCOMPARE(d.patchTargetRegion(), source.translated(50, 0));
         d.endStroke();
         QCOMPARE(d.selectionRegion(), source.translated(50, 0));
-        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.historyIndex(), sourceHistory + 1);
         QVERIFY(d.layerImage(0).pixelColor(85, 45).red() > 170);
         QCOMPARE(d.layerImage(0).copy(source.boundingRect()), original.copy(source.boundingRect()));
         d.undo();

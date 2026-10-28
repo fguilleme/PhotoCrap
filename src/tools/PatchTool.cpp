@@ -63,10 +63,11 @@ void Document::continueRegionDrag(const QPointF &_point, bool _sourceMode)
                         qBound(-original.top(), delta.y(), height() - 1 - original.bottom()));
     if (offset == m_patchOffset)
         return;
-    m_patchOffset            = offset;
-    m_selectionRegion        = m_beforeStroke.selectionRegion.translated(offset);
-    m_selection              = original.translated(offset);
-    m_selectionPath          = m_beforeStroke.selectionPath.translated(offset);
+    m_patchOffset     = offset;
+    m_selectionRegion = m_beforeStroke.selectionRegion.translated(offset);
+    m_selection       = original.translated(offset);
+    m_selectionPath   = m_beforeStroke.selectionPath.translated(offset);
+    translateSelectionCoverage(m_beforeStroke, offset);
     m_patchTarget            = _sourceMode ? m_beforeStroke.selectionRegion : m_selectionRegion;
     const QRect target       = m_patchTarget.boundingRect();
     const QRect sourceBounds = m_beforeStroke.selectionRegion.boundingRect();
@@ -118,6 +119,8 @@ void Document::applyPatch()
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.drawImage(dirty.topLeft(), repaired, modified);
     painter.end();
+    SelectionCoverage::blend(*target, m_beforeStroke.layers[m_active].image, m_selectionMask,
+                             dirty);
     m_dirtyRegion = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
     commit(m_beforeStroke, tr("Pièce"), false);
     ++m_thumbnailRevision;
@@ -135,9 +138,12 @@ void Document::finishPatch(bool _cancel)
         return;
     }
     if (_cancel || m_patchMode == 0) {
-        m_selection       = m_beforeStroke.selection;
-        m_selectionRegion = m_beforeStroke.selectionRegion;
-        m_selectionPath   = m_beforeStroke.selectionPath;
+        m_selection           = m_beforeStroke.selection;
+        m_selectionRegion     = m_beforeStroke.selectionRegion;
+        m_selectionPath       = m_beforeStroke.selectionPath;
+        m_selectionMask       = m_beforeStroke.selectionMask;
+        m_selectionOutline    = m_beforeStroke.selectionOutline;
+        m_selectionMaskRegion = m_selectionRegion;
     }
     // Hide the donor preview before imageChanged requests the final composite.
     m_patchPreview = {};

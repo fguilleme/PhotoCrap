@@ -116,6 +116,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/UiSmoke.h
     tests/SelectionTest.cpp
     tests/SelectionUiSmoke.h
+    tests/FileDialogSmoke.h
 )
 
 find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
@@ -429,6 +430,9 @@ if(BUILD_TESTING)
     add_test(NAME selection COMMAND photocrap_selection_tests)
     set_tests_properties(selection PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+    add_test(NAME file_dialog_fallback COMMAND PhotoCrap --smoke-test --file-dialog-test)
+    set_tests_properties(file_dialog_fallback PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)

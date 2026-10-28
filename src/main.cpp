@@ -9,11 +9,13 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlFileSelector>
 #include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
+#include "../tests/FileDialogSmoke.h"
 #include "../tests/ShutdownSmoke.h"
 #include "../tests/UiSmoke.h"
 #ifdef Q_OS_MACOS
@@ -70,6 +72,10 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Basic");
     const auto args  = app.arguments();
     const bool smoke = args.contains("--smoke-test");
+#ifdef PHOTOCRAP_TESTING
+    if (args.contains("--file-dialog-test"))
+        QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+#endif
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
@@ -81,6 +87,12 @@ int main(int argc, char *argv[])
     WorkspaceSettings     workspaceSettings(nullptr, !smoke);
     int                   qmlWarnings = 0;
     QQmlApplicationEngine engine;
+#if QT_VERSION < QT_VERSION_CHECK(6, 9, 0)
+    // Qt 6.8's Basic fallback breadcrumb has a fixed white background. Select
+    // Qt's desktop dialog skins without changing the application's Basic controls.
+    QQmlFileSelector dialogSelector(&engine);
+    dialogSelector.setExtraSelectors({QStringLiteral("Fusion")});
+#endif
     QObject::connect(
         &engine, &QQmlApplicationEngine::warnings, &app,
         [&](const QList<QQmlError> &_waraings) { qmlWarnings += int(_waraings.size()); });
@@ -117,6 +129,11 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            if (args.contains("--file-dialog-test")) {
+                passed = window && runFileDialogSmoke(window, document);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--shutdown-test")) {
                 if (qmlWarnings) {
                     app.exit(2);

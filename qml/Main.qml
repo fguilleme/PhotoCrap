@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+// Bundle the desktop skins used by Qt Quick fallback dialogs.
+import QtQuick.Controls.Fusion as DialogFusion
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtQml.Models
@@ -26,7 +28,13 @@ ApplicationWindow {
     palette.highlight: "#597f6b"
     palette.highlightedText: "#ffffff"
     palette.mid: "#343d48"
-    palette.dark: "#171c22"
+    palette.dark: "#657383"
+    palette.light: "#303741"
+    palette.midlight: "#3b444e"
+    palette.shadow: "#0c1015"
+    palette.toolTipBase: "#303741"
+    palette.toolTipText: "#dbe1e8"
+    palette.placeholderText: "#aab6c4"
     property real zoom: 0.6
     property real canvasRotation: 0
     property string status: qsTr("Prêt à créer")
@@ -1143,6 +1151,7 @@ ApplicationWindow {
     }
     FolderDialog {
         id: sliceFolderDialog
+        objectName: "sliceFolderDialog"
         title: qsTr("Exporter les tranches utilisateur en PNG")
         onAccepted: editor.exportSlices(selectedFolder)
     }
@@ -3707,7 +3716,7 @@ ApplicationWindow {
     }
     Shortcut { sequence: "Escape"; enabled: editor.frequencyRetouchBusy; onActivated: editor.cancelFrequencyRetouch() }
     FileDialog {
-        id: openDialog; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
+        id: openDialog; objectName: "openDialog"; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
         nameFilters: [window.importing
             ? qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns())
             : qsTr("Images et projets (%1)").arg("*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
@@ -3738,7 +3747,7 @@ ApplicationWindow {
     }
     Shortcut { sequence: "Escape"; enabled: editor.rawLoading; onActivated: editor.cancelRawLoad() }
     FileDialog {
-        id: saveDialog; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
+        id: saveDialog; objectName: "saveDialog"; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("Projet PhotoCrap (*.pcr)")]; defaultSuffix: "pcr"
         onAccepted: {
             if(editor.saveProject(selectedFile)) {
@@ -3749,7 +3758,7 @@ ApplicationWindow {
         onRejected: window.resumeAfterSave=false
     }
     FileDialog {
-        id: exportDialog; title: qsTr("Exporter l’image aplatie"); fileMode: FileDialog.SaveFile
+        id: exportDialog; objectName: "exportDialog"; title: qsTr("Exporter l’image aplatie"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("PNG (*.png)"),qsTr("JPEG (*.jpg *.jpeg)"),qsTr("BMP (*.bmp)"),qsTr("WebP (*.webp)")]
         defaultSuffix: selectedNameFilter.index===1?"jpg":selectedNameFilter.index===2?"bmp":selectedNameFilter.index===3?"webp":"png"
         onAccepted: editor.exportImage(selectedFile)

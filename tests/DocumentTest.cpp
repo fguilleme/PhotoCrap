@@ -144,6 +144,69 @@ private slots:
         QVERIFY(errors.last().first().toString().contains("513"));
     }
 
+    void populatedLayerStackComposition_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void populatedLayerStackComposition()
+    {
+        QFETCH(int, bits);
+        Document d;
+        QVERIFY(d.newDocument(1024, 512, true, bits));
+        constexpr int layerCount = 64;
+        for (int i = 0; i < layerCount; ++i) {
+            if (i)
+                d.addLayer();
+            d.fillSelectedWithColor(
+                QColor::fromRgba64(1234 + i * 997, 63212 - i * 691, 9247 + i * 811, 43111));
+            d.setLayerOpacity(i, .2 + (i % 7) * .1);
+            if (i % 2 == 0) {
+                d.addLayerMask();
+                d.setEditingMask(false);
+            }
+        }
+        const qint64 planeBytes = qint64(d.width()) * d.height() * bits / 2;
+        QCOMPARE(d.memoryUsage()["reservedLayerBytes"].toLongLong(), planeBytes * layerCount);
+        QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), layerCount / 2);
+        const auto reference = [&] {
+            QImage   expected = ImageUtils::blank(QSize(d.width(), d.height()),
+                                                  bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                             : QImage::Format_ARGB32_Premultiplied);
+            QPainter painter(&expected);
+            for (int i = 0; i < layerCount; ++i) {
+                const auto layer = d.layers()[layerCount - 1 - i].toMap();
+                painter.setOpacity(layer["opacity"].toDouble());
+                painter.drawImage(0, 0, d.layerImage(i));
+            }
+            painter.end();
+            return expected;
+        };
+        const QImage  source    = d.layerImage(layerCount - 1);
+        const auto    sourceKey = source.cacheKey();
+        QElapsedTimer timer;
+        timer.start();
+        const QImage before = d.composite();
+        qInfo() << layerCount << "populated layers /" << bits << "bit: composition"
+                << timer.elapsed() << "ms, stored bytes" << d.memoryUsage()["layerBytes"];
+        QCOMPARE(before, reference());
+        QCOMPARE(d.layerImage(layerCount - 1).cacheKey(), sourceKey);
+        d.setTool("brush");
+        d.setBrushSize(11);
+        d.setBrushHardness(1);
+        d.setColor(QColor("#f35a21"));
+        d.beginStroke(510, 250);
+        d.endStroke();
+        const QImage after = d.composite();
+        QCOMPARE(after, reference());
+        QCOMPARE(source.cacheKey(), sourceKey);
+        QVERIFY(d.layerImage(layerCount - 1).cacheKey() != sourceKey);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+        d.redo();
+        QCOMPARE(d.composite(), after);
+    }
     void hundredsOfLargeLayersStayCompactAfterReload()
     {
         QTemporaryDir dir;
@@ -232,6 +295,25 @@ private slots:
         QCOMPARE(d.historyIndex(), history);
         QCOMPARE(errors.size(), 1);
         QVERIFY(errors.last().first().toString().contains("513"));
+    }
+    void cachedHighFrequencyDoesNotRebuildAnEvictedLowBand()
+    {
+        Document d;
+        QVERIFY(d.newDocument(4096, 2048, false));
+        for (int i = 0; i < 4; ++i) {
+            d.setActiveLayer(d.layers().size() - 1);
+            d.addFrequencySeparation(i + 1);
+        }
+        const QImage high = d.layerImage(2);
+        QVERIFY(!high.isNull());
+        const auto highKey = high.cacheKey();
+        // Each native band occupies 32 MiB. Three other low bands evict
+        // the first low band while its high band still fits in the 128 MiB LRU.
+        for (const int index : {3, 5, 7})
+            QVERIFY(!d.layerImage(index).isNull());
+        QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), 128LL * 1024 * 1024);
+        QCOMPARE(d.layerImage(2).cacheKey(), highKey);
+        QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), 128LL * 1024 * 1024);
     }
     void frequencyCacheIsByteBoundedAndThumbnailsAvoidNativeRendering()
     {
@@ -4974,6 +5056,49 @@ private slots:
         QVERIFY(latest.red() >= 203 && latest.red() <= 205);
         QCOMPARE(d.historyIndex(), 1);
         d.cancelLayerPreview();
+    }
+    void hiddenLayersDoNotPromoteScreenProxiesToSixteenBits_data()
+    {
+        QTest::addColumn<QString>("hiddenBy");
+        QTest::newRow("visibility") << QStringLiteral("visibility");
+        QTest::newRow("group") << QStringLiteral("group");
+        QTest::newRow("opacity") << QStringLiteral("opacity");
+        QTest::newRow("all-pixel-layers-hidden") << QStringLiteral("all");
+    }
+    void hiddenLayersDoNotPromoteScreenProxiesToSixteenBits()
+    {
+        QFETCH(QString, hiddenBy);
+        Document d;
+        QVERIFY(d.newDocument(640, 400, true, 16));
+        d.fillSelectedWithColor(QColor("#905124"));
+        d.addLayer();
+        d.fillSelectedWithColor(QColor("#21c2e5"));
+        const auto sourceKey = d.layerImage(1).cacheKey();
+        if (hiddenBy == QStringLiteral("group")) {
+            d.groupSelectedLayers();
+            d.setLayerVisible(d.activeLayer(), false);
+        } else if (hiddenBy == QStringLiteral("opacity"))
+            d.setLayerOpacity(1, 0);
+        else
+            d.setLayerVisible(1, false);
+        if (hiddenBy == QStringLiteral("all"))
+            d.setLayerVisible(0, false);
+        d.setPreviewSize(128, 80);
+        QVector<QImage::Format> proxyFormats;
+        connect(&d, &Document::imageChanged, &d, [&] {
+            const QImage image = d.displayComposite();
+            if (image.size() == QSize(128, 80))
+                proxyFormats.append(image.format());
+        });
+        QSignalSpy rendered(&d, &Document::imageChanged);
+        d.addAdjustmentLayer("light");
+        QTRY_VERIFY_WITH_TIMEOUT(rendered.count() >= 3, 10000);
+        QVERIFY(proxyFormats.size() >= 2);
+        for (const auto format : std::as_const(proxyFormats))
+            QCOMPARE(format, QImage::Format_ARGB32_Premultiplied);
+        QCOMPARE(d.layerImage(1).cacheKey(), sourceKey);
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.composite().format(), QImage::Format_RGBA64_Premultiplied);
     }
     void addingAnAdjustmentShowsAScreenProxyBeforeTheFullRender()
     {

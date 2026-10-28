@@ -80,7 +80,22 @@ const QImage &Document::composite() const
         fullRender ? documentRect : expanded(dirtyRegion, totalMargin, documentRect);
     const QRect workRegion =
         fullRender ? documentRect : expanded(outputRegion, totalMargin, documentRect);
-    QImage               regionComposite = ImageUtils::blank(workRegion.size(), workingFormat());
+    QImage     regionComposite = ImageUtils::blank(workRegion.size(), workingFormat());
+    const auto compositeLayer  = [&](const QImage &_source, int _mode, qreal _opacity) {
+        if (_mode == 0) {
+            // The accumulator belongs to this render. Painting into it avoids
+            // allocating and copying the whole composite for every normal layer.
+            QPainter painter(&regionComposite);
+            painter.setOpacity(qBound(0., _opacity, 1.));
+            painter.drawImage(0, 0, _source);
+        } else
+            regionComposite = blendImages(regionComposite, _source, _mode, _opacity);
+    };
+    const auto regionImage = [&](const QImage &_image) {
+        // QImage keeps immutable source pixels shared. Only a partial render
+        // needs a cropped allocation; a full render can read the original.
+        return workRegion == _image.rect() ? _image : _image.copy(workRegion);
+    };
     QImage               clippingBase;
     qreal                clippingBaseOpacity = 1.;
     QHash<QString, bool> groupVisibility;
@@ -122,8 +137,7 @@ const QImage &Document::composite() const
                 layer.source.cacheKey() == high.source.cacheKey() &&
                 qFuzzyCompare(layer.opacity, 1.) && qFuzzyCompare(high.opacity, 1.) &&
                 layer.blend == 0 && high.blend == 16 && plainMasks) {
-                regionComposite =
-                    blendImages(regionComposite, layer.source.copy(workRegion), 0, 1.);
+                compositeLayer(regionImage(layer.source), 0, 1.);
                 ++layerIndex;
                 continue;
             }
@@ -155,19 +169,19 @@ const QImage &Document::composite() const
             } else
                 rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
         } else if (layer.kind.startsWith(QStringLiteral("frequency")))
-            rendered = frequencyImage(layer).copy(workRegion);
+            rendered = regionImage(frequencyImage(layer));
         else
             rendered = ImageUtils::compact(layer.image)
                            ? ImageUtils::expandedPlane(layer.image, workRegion.size())
-                           : layer.image.copy(workRegion);
+                           : regionImage(layer.image);
         if (layer.maskEnabled && !layer.mask.isNull()) {
             const qreal  density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal  feather = layer.parameters.value("_maskFeather", 0.).toDouble();
             const QImage maskRegion =
                 ImageUtils::compact(layer.mask)
                     ? layer.mask
-                    : (feather >= .5 ? blurImage(layer.mask, qRound(feather)) : layer.mask)
-                          .copy(workRegion);
+                    : regionImage(feather >= .5 ? blurImage(layer.mask, qRound(feather))
+                                                : layer.mask);
             rendered = applyMask(rendered, maskRegion, density, 0);
         }
         if (layer.clippingMask) {
@@ -178,7 +192,7 @@ const QImage &Document::composite() const
             clippingBase        = rendered;
             clippingBaseOpacity = layer.opacity;
         }
-        regionComposite = blendImages(regionComposite, rendered, layer.blend, layer.opacity);
+        compositeLayer(rendered, layer.blend, layer.opacity);
     }
     if (outputRegion == documentRect)
         m_composite = regionComposite;

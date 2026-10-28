@@ -145,6 +145,27 @@ void Document::startPendingPreviewRender()
 QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                        const QSize &_targetSize, bool _draft)
 {
+    int                  channelBits = 8;
+    QHash<QString, bool> groupVisibility;
+    for (const Layer &layer : std::as_const(_layers)) {
+        if (ImageUtils::is16Bit(layer.image) || ImageUtils::is16Bit(layer.source))
+            channelBits = 16;
+        if (layer.kind == QStringLiteral("group"))
+            groupVisibility.insert(layer.groupId, layer.visible);
+    }
+    for (Layer &layer : _layers) {
+        if (layer.kind == QStringLiteral("group"))
+            continue;
+        if (!layer.visible || layer.opacity <= 0 ||
+            (!layer.groupId.isEmpty() && !groupVisibility.value(layer.groupId, true))) {
+            // Keep the placeholder so an invisible clipping base still breaks
+            // its clipping chain, but do not scale or retain unused image planes.
+            layer.visible = false;
+            layer.image   = {};
+            layer.mask    = {};
+            layer.source  = {};
+        }
+    }
     QSize renderSize = _size;
     if (_draft) {
         if (_targetSize.isValid())
@@ -174,13 +195,13 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     renderer.m_historyBrushSource = {}; // Render helpers need no retained initial state.
     renderer.m_layers             = std::move(_layers);
     renderer.m_size               = renderSize;
-    for (const auto &layer : renderer.m_layers)
-        if (ImageUtils::is16Bit(layer.image) || ImageUtils::is16Bit(layer.source))
-            renderer.m_channelBits = 16;
+    // The full render retains document precision even when every pixel layer
+    // is invisible; reduced screen proxies always use the display format.
+    renderer.m_channelBits        = renderSize == _size ? channelBits : 8;
     renderer.m_cacheDirty         = true;
     renderer.m_fullCompositeDirty = true;
     renderer.m_dirtyRegion        = {};
-    return renderer.composite().copy();
+    return renderer.composite();
 }
 void Document::cancelLayerPreview()
 {

@@ -463,22 +463,30 @@ QImage Document::frequencyImage(const Layer &_layer) const
     const auto render = [&]<typename Pixel>() -> QImage {
         using P                = ImageUtils::PixelAccess<Pixel>;
         const int radius       = qBound(1, _layer.parameters.value("radius", 8).toInt(), 100);
-        QImage    source       = _layer.source.convertToFormat(P::format);
         qreal     previewScale = 1.;
-        if (m_frequencyPreviewDraft && qMax(source.width(), source.height()) > 960) {
-            previewScale = 960. / qreal(qMax(source.width(), source.height()));
-            source       = source.scaled(qMax(1, qRound(source.width() * previewScale)),
-                                         qMax(1, qRound(source.height() * previewScale)),
-                                         Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        }
+        if (m_frequencyPreviewDraft && qMax(_layer.source.width(), _layer.source.height()) > 960)
+            previewScale = 960. / qreal(qMax(_layer.source.width(), _layer.source.height()));
         const QString cacheBase =
             QString::number(_layer.source.cacheKey()) + QLatin1Char('/') + QString::number(radius) +
-            (previewScale < 1 ? QStringLiteral("/draft/") + QString::number(source.width())
-                              : QStringLiteral("/full"));
-        const QString lowKey    = QStringLiteral("low/") + cacheBase;
-        const auto    cachedLow = m_frequencyCache.object(lowKey);
-        QImage        low       = cachedLow ? *cachedLow : QImage{};
+            (previewScale < 1
+                 ? QStringLiteral("/draft/") +
+                       QString::number(qMax(1, qRound(_layer.source.width() * previewScale)))
+                 : QStringLiteral("/full"));
+        const QString lowKey  = QStringLiteral("low/") + cacheBase;
+        const QString highKey = QStringLiteral("high/") + cacheBase;
+        // A cached high band is complete on its own. Looking up/rebuilding its
+        // low band first can evict this very result from the byte-bounded LRU.
+        if (_layer.kind != QStringLiteral("frequencyLow"))
+            if (const auto cachedHigh = m_frequencyCache.object(highKey))
+                return *cachedHigh;
+        const auto cachedLow = m_frequencyCache.object(lowKey);
+        QImage     low       = cachedLow ? *cachedLow : QImage{};
         if (low.isNull()) {
+            QImage source = _layer.source.convertToFormat(P::format);
+            if (previewScale < 1)
+                source = source.scaled(qMax(1, qRound(source.width() * previewScale)),
+                                       qMax(1, qRound(source.height() * previewScale)),
+                                       Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             low = blurImage(source, qMax(1, qRound(radius * previewScale)))
                       .convertToFormat(P::format);
             if (previewScale < 1)
@@ -489,9 +497,6 @@ QImage Document::frequencyImage(const Layer &_layer) const
         }
         if (_layer.kind == QStringLiteral("frequencyLow"))
             return low;
-        const QString highKey = QStringLiteral("high/") + cacheBase;
-        if (const auto cachedHigh = m_frequencyCache.object(highKey))
-            return *cachedHigh;
         const QImage fullSource = _layer.source.convertToFormat(P::format);
         QImage       result(fullSource.size(), P::format);
         QVector<int> rows(fullSource.height());

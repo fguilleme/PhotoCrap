@@ -13,7 +13,7 @@ La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) es
 | Projets | Format `.pcr` **v8**, lecture des versions 1 à 7 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
 | Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
 
-Les sections par version ci-dessous constituent l’historique des fonctions livrées : leurs anciens nombres de raccourcis et formats de projet ne décrivent pas la version courante. Les sections numérotées regroupent les travaux restants et les validations à poursuivre. **NYI** signifie recensé mais non implémenté ; les gestes contextuels disponibles ne sont pas des commandes globales personnalisables.
+Les sections « Disponible » et « Ajouts » ci-dessous constituent l’historique des fonctions livrées : leurs anciens nombres de raccourcis et formats de projet ne décrivent pas la version courante. Les sections numérotées regroupent les travaux restants et les validations à poursuivre. **NYI** signifie recensé mais non implémenté ; les gestes contextuels disponibles ne sont pas des commandes globales personnalisables.
 
 ## Disponible dans v0.12.0
 
@@ -60,6 +60,14 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Plage de couleurs : pipettes remplacer/ajouter/retirer sur l’aperçu et le canevas, tolérance, groupes localisés, zones contiguës, inversion et aperçus image/masque synchronisés avec zoom natif et déplacement ; familles de couleurs et de tons.
 - [x] Dialogues de fichiers Qt Quick lisibles en thème sombre : palette complète, repli adapté à Qt 6.8 et test `file_dialog_fallback` pour ouvrir, enregistrer, exporter et choisir un dossier. Les dialogues natifs restent utilisés lorsqu’ils sont disponibles.
 
+## En cours après v0.14 : calques et mémoire
+
+- [x] Éviter les copies pleine résolution des sources et du composite à chaque calque en mode Normal, ainsi que la copie finale du résultat du worker.
+- [x] Écarter les plans invisibles de la préparation des proxies, sans casser les chaînes d’écrêtage ni la précision du rendu complet.
+- [x] Réutiliser une bande haute encore dans le LRU sans recalculer sa bande basse évincée ; conserver le plafond de 128 Mio.
+- [x] Ajouter une pile de 64 calques remplis en 8/16 bits, comparée à une référence de rendu, avec retouche locale et Annuler/Rétablir ; tester l’éviction des fréquences et les calques/groupes masqués.
+- [ ] Implémenter le cache disque de travail et le stockage par tuiles décrits dans [docs/LAYER_MEMORY.md](docs/LAYER_MEMORY.md). Les optimisations ci-dessus ne relèvent pas la limite de 2 Gio.
+
 ## 1. Fiabilité et validation à terminer
 
 - [x] Curseurs natifs macOS corrigés à la première activation des pipettes et de la règle, après réinitialisation par AppKit et après ouverture d’Informations ; gestes Commande de la Plume couverts par les tests natifs. Ces contrôles passent dans le workflow v0.14 sur Qt 6.8.3.
@@ -73,11 +81,12 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 
-- [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7 et suivants, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Tests de charge de 301 calques sur une image 24 Mpx en 16 bits et liste de calques virtualisée.
+- [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7 et suivants, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Test de stockage/rechargement de 301 calques sur une image 24 Mpx en 16 bits : les calques ajoutés sont vides et les réglages masqués ; ce n’est pas un test de 301 photos remplies. Liste de calques virtualisée.
 - [ ] Composition et stockage par tuiles, invalidation fine des caches et traitements régionaux plus systématiques.
 - [ ] Généraliser le calcul asynchrone avec annulation des résultats périmés aux opérations complètes de calques, masques, transformations et filtres directs.
 - [ ] Mesures de latence, mémoire et précision des aperçus par outil/filtre, notamment lorsque le rayon d’un flou est ramené à la résolution du proxy.
-- [ ] Historique par différences, cache disque, récupération après fermeture anormale et autosauvegarde.
+- [ ] Stockage de travail par tuiles avec cache disque configurable pour les pixels, masques et versions d’historique ; éviction réelle de RAM, calculs asynchrones et contrôle d’espace libre. Le cache disque n’est pas encore implémenté. [Audit et architecture proposée](docs/LAYER_MEMORY.md).
+- [ ] Historique par différences, récupération après fermeture anormale et autosauvegarde, distincts du cache temporaire de travail.
 - [ ] Documents multiples et espaces de travail nommés/importables.
 - [ ] Accélération GPU lorsque le gain et la fidélité du résultat sont mesurés ; réduction du bruit avancée.
 

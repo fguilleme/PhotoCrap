@@ -4,26 +4,22 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La dernière release publiée est **v0.12.0**. Ce README décrit aussi les ajouts de la branche de développement ; les fonctions postérieures à cette release sont indiquées ci-dessous. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
+Version courante : **v0.13.0**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
 
 ## Télécharger
 
-La [release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0), publiée le **13 octobre 2026**, fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**. Chaque paquet est accompagné d’un fichier `.sha256`. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+La [release v0.13.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.0) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
 
-Les noms des paquets et la version interne affichent encore **0.11.0**, car la version CMake n’a pas été augmentée lors du tag ; ils correspondent bien au code de **v0.12.0**.
+La version interne et les noms des paquets sont désormais alignés sur **0.13.0**. Les anciens paquets du tag v0.12.0 portaient encore le numéro 0.11.0.
 
-État vérifié le **14 octobre 2026** : le [workflow de v0.12.0](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) a réussi les builds, tests, contrôles de déploiement, création des paquets et publication sur les trois plateformes, ainsi que le contrôle de signature ad hoc du DMG. Le [dernier workflow de branche vérifié](https://github.com/fguilleme/PhotoCrap/actions/runs/38458696477), au commit `891b688`, est également vert. Les précédents échecs du curseur natif macOS restent un point de vigilance ; ce résultat ne suffit pas à établir leur résolution définitive.
+## Nouveautés de v0.13.0
 
-La release v0.12.0 inclut l’ouverture RAW et les pixels 16 bits, les outils de recadrage et de tranches, le catalogue de raccourcis Adobe/NYI, la séparation de fréquences retouchable et la gestion de documents jusqu’à 512 calques avec stockage compact et caches bornés.
+Cette version reprend les fonctions de v0.12.0 (RAW, pixels 16 bits, recadrage et tranches, séparation de fréquences retouchable et jusqu’à 512 calques) et ajoute :
 
-## Ajouts depuis v0.12.0
-
-Ces fonctions sont disponibles dans la branche de développement, mais ne sont pas incluses dans les paquets du tag v0.12.0 :
-
-- **Plume (P)** : tracés Bézier modifiables, poignées, points anguleux/lisses, ajout/suppression/conversion de points, sélection, remplissage, contour et sauvegarde dans les projets v8. [Gestes et limites](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
-
+- **Plume (P)** : tracés Bézier modifiables, poignées, points anguleux/lisses, ajout/suppression/conversion de points, remplissage, contour et sauvegarde dans les projets v8. Après conversion en sélection, seules les fourmis restent affichées ; le tracé peut être réactivé dans la barre d’options. Déplacement des points avec Commande/Ctrl et curseur à pointe précise. [Gestes et limites](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
 - **Gomme magique** : effacement par couleur, calcul asynchrone annulable et précision 8/16 bits.
 - **Menus contextuels distincts pour calques et masques** : propriétés, verrouillage, inversion et suppression du masque, avec les fonctions manquantes désactivées et marquées **NYI**.
+- **Fermeture de l’application** corrigée avec les panneaux flottants ou masqués, en conservant la confirmation de sauvegarde.
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
 

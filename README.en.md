@@ -4,26 +4,22 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-The latest published release is **v0.12.0**. This README also describes development-branch additions; features added after that release are listed below. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
+Current version: **v0.13.0**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Download
 
-[Release v0.12.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.12.0), published on **October 13, 2026**, provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**. Each package includes a `.sha256` file. Qt is bundled; a Qt installation is needed only to build the project.
+[Release v0.13.0](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.13.0) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
 
-Package filenames and the internal version still show **0.11.0**, because the CMake version was not increased when the tag was created; these packages contain the **v0.12.0** code.
+The internal version and package filenames now use **0.13.0**. Older v0.12.0 packages still used the 0.11.0 version number.
 
-Status checked on **October 14, 2026**: the [v0.12.0 workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/38401049787) passed builds, tests, deployment checks, packaging, and publication on all three platforms, including ad hoc signature verification of the DMG. The [latest verified branch workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/38458696477), at commit `891b688`, also passed. Previous native macOS cursor failures remain worth monitoring; this successful run does not establish that they are permanently resolved.
+## New in v0.13.0
 
-Release v0.12.0 includes RAW opening and 16-bit pixels, crop and slice tools, the Adobe/NYI shortcut catalog, editable frequency separation, and support for up to 512 layers with compact storage and bounded caches.
+This release retains the v0.12.0 features (RAW, 16-bit pixels, crop and slice tools, editable frequency separation, and up to 512 layers) and adds:
 
-## Additions since v0.12.0
-
-These features are available on the development branch but are not included in the v0.12.0 release packages:
-
-- **Pen (P)**: editable Bézier paths and handles, corner/smooth points, add/delete/convert point tools, selection, fill, stroke, and v8 project persistence. [Interactions and limitations](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
-
+- **Pen (P)**: editable Bézier paths and handles, corner/smooth points, add/delete/convert point tools, fill, stroke, and v8 project persistence. Converting to a selection hides the path overlay; choose the saved path in the options bar to edit it again. Command/Ctrl moves anchors, with an accurately aligned cursor tip. [Interactions and limitations](docs/TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
 - **Magic Eraser**: color-based erasing, cancellable asynchronous processing, and native 8/16-bit precision.
 - **Separate layer and mask context menus**: properties, locking, mask inversion and deletion, with missing features disabled and marked **NYI**.
+- **Application shutdown** fixed with floating or hidden panels, while preserving the unsaved-document confirmation.
 
 ![PhotoCrap demo composition](docs/screenshot.png)
 

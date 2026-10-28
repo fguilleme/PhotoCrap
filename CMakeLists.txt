@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCrap VERSION 0.11.0 LANGUAGES CXX)
+project(PhotoCrap VERSION 0.13.0 LANGUAGES CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()

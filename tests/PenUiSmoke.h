@@ -85,8 +85,20 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
         return false;
     _document.undo();
     QTest::keyClick(_window, Qt::Key_Return, Qt::ControlModifier);
-    if (!require(_document.hasSelection(), "Command/Ctrl+Return loads the path as a selection"))
+    if (!require(_document.hasSelection() && _document.activePenPath() == -1 &&
+                     !overlay->isVisible(),
+                 "Command/Ctrl+Return shows only the selection and retains the saved path"))
         return false;
+    _document.setActivePenPath(0);
+    if (!require(overlay->isVisible(), "choosing the saved path restores its editing overlay"))
+        return false;
+    auto selectionButton = _window->findChild<QObject *>("penSelectionButton");
+    if (!require(selectionButton && QMetaObject::invokeMethod(selectionButton, "clicked") &&
+                     _document.hasSelection() && !overlay->isVisible() &&
+                     _document.penPaths().size() == 1,
+                 "Selection button hides anchors and handles without deleting the path"))
+        return false;
+    _document.setActivePenPath(0);
     QTest::mouseClick(_window, Qt::RightButton, Qt::NoModifier, scene(70, 80));
     QTest::qWait(30);
     auto menu  = _window->findChild<QObject *>("penContextMenu");

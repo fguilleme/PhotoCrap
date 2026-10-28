@@ -482,7 +482,7 @@ void Document::penPathToSelection(int _mode)
     if (m_activePenPath < 0 || _mode < 0 || _mode > 3)
         return;
     const auto path = m_penPaths[m_activePenPath].painterPath();
-    if (path.boundingRect().isEmpty() || m_brushOpacity <= 0 || m_color.alpha() == 0)
+    if (path.boundingRect().isEmpty())
         return;
     const auto region = QRegion(path.toFillPolygon().toPolygon(), Qt::OddEvenFill) &
                         QRegion(QRect(QPoint{}, m_size));
@@ -499,6 +499,8 @@ void Document::penPathToSelection(int _mode)
     m_selectionShape = 6;
     m_selectionPath.clear();
     m_polygonLassoActive = false;
+    // Keep the saved path, but leave path editing so only the selection is shown.
+    setActivePenPath(-1);
     emit selectionChanged();
 }
 void Document::fillPenPath()

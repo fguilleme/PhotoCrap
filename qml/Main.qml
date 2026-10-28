@@ -2250,7 +2250,7 @@ ApplicationWindow {
                                 id:penOverlay;objectName:"penOverlay"
                                 viewportItem:viewport
                                 document:editor;zoom:window.zoom
-                                visible:window.penToolActive
+                                visible:window.penToolActive && editor.activePenPath>=0
                                 z:3
                             }
                             MouseArea {

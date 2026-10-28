@@ -372,10 +372,11 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
     reapplyMacToolCursor(cursor);
     // Cocoa can reset its tracking cursor after Qt's hover/focus handler returns,
     // including when a floating Info panel opens. Reapply the latest override
-    // once that event has finished; coalesce pointer updates and discard stale ones.
+    // after the pending cursor-rectangle update; coalesce pointer updates and
+    // discard stale ones. A zero-delay callback can precede that Cocoa update.
     if (!m_nativeCursorRefreshPending) {
         m_nativeCursorRefreshPending = true;
-        QTimer::singleShot(0, this, [this] {
+        QTimer::singleShot(50, this, [this] {
             m_nativeCursorRefreshPending = false;
             if (m_systemCursorActive && window() && window()->isActive())
                 if (const auto current = QGuiApplication::overrideCursor())

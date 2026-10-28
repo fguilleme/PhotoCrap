@@ -129,13 +129,16 @@ bool runMacToolCursorTest(QQuickWindow *_window)
                                   Q_ARG(QVariant, tool));
         // Reproduce AppKit overwriting the cursor at the end of the input event.
         [[NSCursor crosshairCursor] set];
-        QTest::qWait(100);
-        const QPoint  expected      = tool == "ruler" ? QPoint(8, 8) : QPoint(3, 29);
+        const QPoint expected      = tool == "ruler" ? QPoint(8, 8) : QPoint(3, 29);
+        const auto   cursorMatches = [&] {
+            const NSPoint point = [[NSCursor currentCursor] hotSpot];
+            return _window->isActive() && QGuiApplication::overrideCursor() &&
+                   QGuiApplication::overrideCursor()->hotSpot() == expected &&
+                   qAbs(point.x - expected.x()) < .1 && qAbs(point.y - expected.y()) < .1;
+        };
+        const bool    cursorReady   = QTest::qWaitFor(cursorMatches, 1000);
         const NSPoint nativeHotspot = [[NSCursor currentCursor] hotSpot];
-        if (!_window->isActive() || !QGuiApplication::overrideCursor() ||
-            QGuiApplication::overrideCursor()->hotSpot() != expected ||
-            qAbs(nativeHotspot.x - expected.x()) > 0.1 ||
-            qAbs(nativeHotspot.y - expected.y()) > 0.1) {
+        if (!cursorReady) {
             qWarning() << "First native tool cursor is incorrect:" << tool << "active"
                        << _window->isActive() << "Qt hotspot"
                        << (QGuiApplication::overrideCursor()
@@ -151,11 +154,22 @@ bool runMacToolCursorTest(QQuickWindow *_window)
         // resumes, without relying on a subsequent hover or QML callback.
         canvas->setSystemCursor(Qt::CrossCursor, true, tool, 0);
         [[NSCursor crosshairCursor] set];
-        QTest::qWait(40);
+        const bool cursorRecovered = QTest::qWaitFor(
+            [&] {
+                const NSPoint point = [[NSCursor currentCursor] hotSpot];
+                return qAbs(point.x - expected.x()) < .1 && qAbs(point.y - expected.y()) < .1;
+            },
+            1000);
         const NSPoint recovered = [[NSCursor currentCursor] hotSpot];
-        if (qAbs(recovered.x - expected.x()) > .1 || qAbs(recovered.y - expected.y()) > .1) {
+        if (!cursorRecovered) {
             qWarning() << "Native cursor did not recover after AppKit reset:" << tool << recovered.x
-                       << recovered.y;
+                       << recovered.y << "Qt hotspot"
+                       << (QGuiApplication::overrideCursor()
+                               ? QGuiApplication::overrideCursor()->hotSpot()
+                               : QPoint(-1, -1))
+                       << "active" << _window->isActive() << "canvas hover"
+                       << _window->findChild<QObject *>("drawingArea")->property("containsMouse")
+                       << "pointer" << QCursor::pos() << "target" << canvasPoint;
             passed = false;
             break;
         }
@@ -164,10 +178,9 @@ bool runMacToolCursorTest(QQuickWindow *_window)
                                   Q_ARG(QVariant, false));
         QMetaObject::invokeMethod(_window, "showInformationPanel");
         [[NSCursor crosshairCursor] set];
-        QTest::qWait(150);
+        const bool    infoCursorReady = QTest::qWaitFor(cursorMatches, 1000);
         const NSPoint reopenedHotspot = [[NSCursor currentCursor] hotSpot];
-        if (!_window->isActive() || qAbs(reopenedHotspot.x - expected.x()) > 0.1 ||
-            qAbs(reopenedHotspot.y - expected.y()) > 0.1) {
+        if (!infoCursorReady) {
             qWarning() << "Opening Info resets the native tool cursor:" << tool << reopenedHotspot.x
                        << reopenedHotspot.y << "active" << _window->isActive() << "Qt hotspot"
                        << (QGuiApplication::overrideCursor()

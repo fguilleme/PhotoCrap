@@ -2,7 +2,18 @@
 
 État du projet au **28 octobre 2026**, version courante **v0.14** (version interne **0.14.0**). Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1 et v0.14 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
-La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) est publiée automatiquement après les builds, tests, contrôles de déploiement et paquets macOS arm64, Linux x86_64 et Windows x64. Consulter l’[état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) et les [notes de version](CHANGELOG.md). Les paquets portent le numéro **0.14.0**.
+La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) est publiée. Son [workflow de tag](https://github.com/fguilleme/PhotoCrap/actions/runs/40735732946) a réussi les builds, tests, déploiements, paquets et publication sur macOS arm64, Linux x86_64 et Windows x64. Les quatre paquets et leurs quatre fichiers SHA-256 sont disponibles, en version **0.14.0**. Voir les [notes de version](CHANGELOG.md).
+
+## Repères actuels vérifiés
+
+| Élément | État dans v0.14 | Source |
+|---|---|---|
+| Barre d’outils | 71 outils recensés : **54 disponibles, 17 NYI** | Catalogue de `qml/Main.qml` |
+| Raccourcis et gestes | **298 entrées** : 123 commandes personnalisables, 54 gestes contextuels, 121 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
+| Projets | Format `.pcr` **v8**, lecture des versions 1 à 7 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
+| Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
+
+Les sections par version ci-dessous constituent l’historique des fonctions livrées : leurs anciens nombres de raccourcis et formats de projet ne décrivent pas la version courante. Les sections numérotées regroupent les travaux restants et les validations à poursuivre. **NYI** signifie recensé mais non implémenté ; les gestes contextuels disponibles ne sont pas des commandes globales personnalisables.
 
 ## Disponible dans v0.12.0
 
@@ -34,7 +45,6 @@ La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) es
 Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est automatique après validation des trois plateformes : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le catalogue de v0.13.1 contient 282 entrées de raccourcis et gestes, dont 113 NYI après l’implémentation de la Gomme magique et de la Plume.
 
 - [x] Plume en mode Tracé : Bézier, poignées, ajout/suppression/conversion de points, contraintes, reprise, fermeture, annulation et sauvegarde des tracés en projet v8. Conversion en sélection, remplissage et contour raster avec sélection et profondeur 8/16 bits conservées.
-- [ ] Modes Forme et masque vectoriel, opérations booléennes et panneau Tracés complet. Plume libre/de courbure et sélections de tracés restent NYI.
 - [x] Conversion Plume → sélection sans points ni poignées superposés ; tracé conservé et réactivable, avec curseur Commande/Ctrl corrigé et test natif macOS.
 - [x] Fermeture de l’application avec panneaux flottants/masqués et protection des documents non sauvegardés.
 - [x] Gomme magique : effacement par couleur avec tolérance, contiguïté, lissage, opacité et échantillonnage visible de tous les calques. Calcul asynchrone annulable, sélection respectée, pixels 8/16 bits et une étape d’annulation par clic ; outil réservé aux calques de pixels.
@@ -47,17 +57,13 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Contour de sélection masquable depuis Affichage, réaffiché à la création suivante ; Calques similaires par nature du calque ; raccourcis configurables. Catalogue de v0.14 : **298 entrées, dont 121 NYI**.
 - [x] Comptabilisation des régions et contours partagés dans le budget mémoire de l’historique.
 - [x] Couverture progressive 0–255, Contour progressif (rayon 1–1 000 px, Maj+F6), conservation dans l’historique et Resélectionner ; prise en compte par les opérations de pixels et les masques.
-- [ ] Anticrénelage fractionnaire des outils, Mode Masque et chargement depuis un calque/masque/couche.
 - [x] Plage de couleurs : pipettes remplacer/ajouter/retirer sur l’aperçu et le canevas, tolérance, groupes localisés, zones contiguës, inversion et aperçus image/masque synchronisés avec zoom natif et déplacement ; familles de couleurs et de tons.
-- [ ] Tons chair/visages, hors gamut CMJN, réglages tonals détaillés, aperçus et préréglages Adobe complémentaires ; Étendre/Généraliser selon la tolérance de la Baguette magique.
-- [ ] Zone de mise au point, Sujet, Ciel et espace Sélectionner et masquer, avec validation des détails fins et calculs asynchrones.
-- [ ] Transformation du contour indépendante des pixels ; mémorisation/récupération dans des couches alpha persistantes.
-- [ ] Aucun calque actif, recherche et isolation par filtrage du panneau Calques.
 - [x] Dialogues de fichiers Qt Quick lisibles en thème sombre : palette complète, repli adapté à Qt 6.8 et test `file_dialog_fallback` pour ouvrir, enregistrer, exporter et choisir un dossier. Les dialogues natifs restent utilisés lorsqu’ils sont disponibles.
 
 ## 1. Fiabilité et validation à terminer
 
-- [ ] Confirmer la stabilité du premier affichage du curseur natif macOS : des tests ont relevé une flèche Cocoa malgré une pipette correcte dans l’état Qt. Les derniers workflows passent ; vérifier aussi les transitions de focus, de fenêtres flottantes et de survol sur Qt 6.8.3 avant de considérer ce défaut définitivement résolu.
+- [x] Curseurs natifs macOS corrigés à la première activation des pipettes et de la règle, après réinitialisation par AppKit et après ouverture d’Informations ; gestes Commande de la Plume couverts par les tests natifs. Ces contrôles passent dans le workflow v0.14 sur Qt 6.8.3.
+- [ ] Étendre ces contrôles de curseurs aux autres outils, transitions de focus, écrans multiples et fenêtres flottantes, au-delà des scénarios automatisés actuels.
 - [ ] Étendre les tests d’espaces de travail : déplacements entre colonnes, sorties de groupes, dépôt avant le premier panneau, écrans multiples, changement de résolution et restauration de fenêtres hors écran.
 - [ ] Étendre les essais au clavier, l’accessibilité, les curseurs, la haute densité et les tablettes sur les trois plateformes.
 - [x] Version CMake et noms des paquets alignés sur 0.14.0 (tag v0.14) ; l’AppImage reprend automatiquement la version configurée.
@@ -75,9 +81,22 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [ ] Documents multiples et espaces de travail nommés/importables.
 - [ ] Accélération GPU lorsque le gain et la fidélité du résultat sont mesurés ; réduction du bruit avancée.
 
-## 3. Outils encore NYI
+## 3. Sélections et masques à compléter
 
-Les entrées existent dans le catalogue mais sont désactivées. Elles restent des fonctions futures, sans calendrier de livraison.
+Plage de couleurs, Contour progressif, Frange, Lisser, Dilater, Contracter, Resélectionner et l’affichage des contours sont livrés. Les étapes restantes sont :
+
+- [ ] Anticrénelage fractionnaire des outils, Mode Masque et chargement depuis un calque/masque/couche.
+- [ ] Tons chair/visages, hors gamut CMJN, réglages tonals détaillés, aperçus et préréglages Adobe complémentaires ; Étendre/Généraliser selon la tolérance de la Baguette magique.
+- [ ] Zone de mise au point, Sujet, Ciel et espace Sélectionner et masquer, avec validation des détails fins et calculs asynchrones.
+- [ ] Transformation du contour indépendante des pixels ; mémorisation/récupération dans des couches alpha persistantes.
+- [ ] Aucun calque actif, recherche et isolation par filtrage du panneau Calques.
+- [ ] Paramètres de contour progressif et d’anticrénelage lors de la conversion Plume → sélection ; le contour progressif peut déjà être appliqué après conversion.
+
+Les paramètres et écarts avec Adobe sont détaillés dans [docs/SELECTIONS.md](docs/SELECTIONS.md). Les sélections de pixels, la sélection de calques, les masques de calque et les couches alpha sont des opérations distinctes.
+
+## 4. Outils encore NYI
+
+Les **17 outils NYI** du catalogue sont tous recensés ci-dessous et désactivés dans l’interface. Ils restent des fonctions futures, sans calendrier de livraison.
 
 | Famille | Outils restant à implémenter |
 |---|---|
@@ -90,18 +109,17 @@ Les entrées existent dans le catalogue mais sont désactivées. Elles restent d
 
 Améliorations des outils déjà disponibles :
 
+- [ ] Modes Forme et masque vectoriel de la Plume, opérations booléennes et panneau Tracés complet. Le mode Tracé, les outils d’ajout/suppression/conversion de point et leur conversion en sélection sont déjà disponibles.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
-- [x] Contour progressif appliqué à une couverture réelle, conservée par les opérations de pixels et les masques.
-- [ ] Espace d’affinage des sélections et traitement fiable des détails fins.
 - [ ] Tolérance et options supplémentaires du remplissage contigu ; modes plus avancés de réparation et de pièce.
 - [ ] Transformation au dépôt pour le déplacement basé sur le contenu ; meilleurs raccords sur les fonds complexes.
 - [ ] Pression/inclinaison du stylet, pointes texturées, dynamiques de brosse et bibliothèque de motifs/pointes.
 - [ ] Rectangle de navigation interactif dans le Navigateur.
 
-## 4. Édition non destructive et couleur
+## 5. Édition non destructive et couleur
 
-- [ ] Compléter les commandes NYI des menus de calques : fusion des calques sélectionnés/visibles, aplatissement, étiquettes de couleur et options de fusion avancées.
+- [ ] Compléter les commandes NYI des calques : fusion des calques sélectionnés/visibles, calque des visibles fusionnés, aplatissement, placement direct tout en haut/en bas, verrouillage des pixels transparents, étiquettes de couleur, pixellisation et options de fusion avancées.
 - [ ] Compléter les commandes NYI des masques : appliquer le masque, associer/dissocier, charger comme sélection et Sélectionner et masquer.
 - [ ] Masques vectoriels, effets de calque et objets dynamiques.
 - [ ] Transformation libre, perspective, formes vectorielles et texte éditable.
@@ -112,12 +130,24 @@ Améliorations des outils déjà disponibles :
 - [ ] Porter les outils de réparation, Doigt, Pinceau mélangeur, Remplacement de couleur et formes d’historique en 16 bits.
 - [ ] Développement RAW réglable, corrections optiques et réduction du bruit ; validation sur des fichiers de boîtiers réels.
 
-## 5. Interopérabilité et extensibilité
+## 6. Commandes d’édition et d’affichage encore NYI
+
+Ces manques sont déjà indiqués dans le catalogue des raccourcis, même lorsque leur panneau ou une commande voisine existe :
+
+- [ ] Couper/copier les pixels du calque actif, nouveau calque par copie/couper de sélection, Coller sur place et Coller dans la sélection. Aujourd’hui Copier utilise la composition visible, Coller crée un calque et Dupliquer copie le calque entier.
+- [ ] Taille de la zone de travail indépendante du redimensionnement de l’image ; rétablissement du fichier enregistré.
+- [ ] Réglages directs Niveaux, Courbes, Teinte/Saturation, Balance des couleurs et Noir et blanc, ainsi que Tonalité/Contraste/Couleur automatiques et Désaturer. Les panneaux de calques de réglage existants ne rendent pas ces commandes directes disponibles.
+- [ ] Répéter le dernier filtre et atténuer la dernière opération ; Fluidité et filtre de développement RAW.
+- [ ] Dialogue Remplir complet (motif, historique, contenu) ; le sélecteur de couleur et les remplissages premier/arrière-plan sont déjà disponibles.
+- [ ] Grille de travail, repères, magnétisme, Extras, modes d’écran et masquage de la barre supérieure des options. Les règles, Tab/Maj+Tab et l’affichage du contour de sélection existent déjà.
+- [ ] Gestes contextuels complémentaires : source du tampon décalable/rotative/redimensionnable, rapporteur de la règle, réglage Noir et blanc sur l’image, raccourcis détaillés des points de Courbes et édition du texte. L’inventaire par geste est dans [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
+
+## 7. Interopérabilité et extensibilité
 
 - [ ] Import/export PSD/PSB sur un sous-ensemble explicitement testé : structure, pixels, masques et modes de fusion.
-- [ ] Métadonnées EXIF/XMP, export avancé et traitement par lots.
+- [ ] Métadonnées EXIF/XMP et Informations du fichier ; impression, export web avancé et traitement par lots.
 - [ ] API de plugins versionnée, scripting et actions.
 - [ ] Intégration facultative de modèles locaux après validation des licences, des ressources nécessaires et de la qualité réelle des masques/rendus.
 - [ ] Comparaisons de rendu et mesures de performance avant toute revendication de compatibilité avec une version précise de Photoshop.
 
-Les fonctions déjà réalisées restent détaillées dans [README.md](README.md) et [README.en.md](README.en.md). Les cases cochées sont livrées dans la version indiquée par leur section et conservées dans v0.14. Les cases non cochées sont des travaux restants.
+Les fonctions déjà réalisées restent détaillées dans [README.md](README.md) et [README.en.md](README.en.md). Les sections historiques et les cases cochées décrivent les fonctions livrées ; les contrôles CI attestent les scénarios testés, pas une validation exhaustive de tous les usages. Les cases non cochées sont des travaux restants.

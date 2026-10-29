@@ -4,23 +4,23 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Version courante : **v0.14**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
+Version courante : **v0.15**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
 
 ## Télécharger
 
-La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+La [release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
 
-Le tag est **v0.14** ; la version interne et les noms des paquets utilisent **0.14.0**.
+Le tag est **v0.15** ; la version interne et les noms des paquets utilisent **0.15.0**.
 
-## Nouveautés de v0.14
+## Nouveautés de v0.15
 
-- **Plage de couleurs** : prélèvement sur le canevas sans fermer le dialogue, pipettes ajouter/retirer, tolérance, portée localisée, zones contiguës facultatives et inversion. Les aperçus image et masque partagent un zoom à résolution native et le déplacement.
-- **Contour progressif (Maj+F6)** : rayon de 1 à 1 000 px et couverture partielle respectée par la peinture, les remplissages, la copie et les masques. Frange, Lisser, Dilater et Contracter complètent le menu Sélection avec un calcul régional en arrière-plan, annulable.
-- **Historique des sélections** : annulation, rétablissement et resélection sans rendre les pixels sauvegardés « modifiés ». **Affichage → Afficher → Contour de la sélection** masque les fourmis sans désélectionner.
-- **Dialogues de fichiers lisibles sous Linux** : palette sombre complète et correction du repli Qt Quick sur Qt 6.8, avec test d’ouverture, d’enregistrement, d’export et de choix de dossier.
-- **298 raccourcis et gestes recensés**, dont **121 NYI** désactivés. Les commandes disponibles sont configurables ; les fonctions encore manquantes restent explicitement identifiées.
+- **Moins de copies mémoire** pendant la composition en mode Normal, la lecture des sources et le retour des rendus en arrière-plan. Les calques invisibles ne sont plus réduits pour les aperçus.
+- **Cache de travail disque** pour les gros rendus de fréquences : réutilisation entre workers, blocs natifs 8/16 bits sans recompression, vérification SHA-256 et lecture par fichiers mappés. **Réglages → Cache de travail** permet de choisir le dossier, le budget (4 Gio par défaut, 0 pour désactiver) et de vider le cache.
+- **Couverture du pinceau, du crayon et de la gomme par tuiles de 256 × 256** : seules les tuiles touchées sont allouées, sur les pixels et les masques. Un petit trait sur un masque de document 24 Mpx/16 bits utilise 512 Kio de couverture au lieu d’environ 183 Mio.
+- **Cache LRU de fréquences corrigé** : une bande haute déjà présente est réutilisée sans recalculer sa bande basse évincée.
+- **Tests de mémoire et de rendu renforcés** : 64 calques remplis en 8/16 bits, versions de tuiles partagées, éviction, nettoyage, stockage indisponible, concurrence et Annuler/Rétablir.
 
-Le [guide Sélections](docs/SELECTIONS.md) décrit les paramètres, les références Adobe et les limites. Cette version conserve la Plume, les RAW, les pixels 16 bits et la séparation de fréquences retouchable. Le format `.pcr` reste en version 8 : la sélection temporaire n’est pas enregistrée dans le projet. L’historique des versions est dans [CHANGELOG.md](CHANGELOG.md).
+Le [guide calques et mémoire](docs/LAYER_MEMORY.md) décrit le fonctionnement et les mesures. Les plans éditables des calques et l’historique utilisent encore des images complètes en RAM ; leur migration par tuiles reste à faire. Les limites de 32 Mpx, 512 calques et 2 Gio de plans de calques restent en place. L’application conserve le format `.pcr` v8 et lit aussi les projets v1 à v7. Les [fonctions de sélection de v0.14](CHANGELOG.md#v014--28-octobre-2026) restent disponibles.
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
 
@@ -212,9 +212,9 @@ Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premulti
 
 Le `.pcr` est un document JSON versionné. Sa version 8 conserve les tracés Bézier, la profondeur des couleurs, les pixels, les masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 7. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
-Après v0.14, une première étape du cache disque de travail conserve les gros rendus de fréquences entre les workers. **Réglages → Cache de travail** permet de choisir le dossier, le budget (4 Gio par défaut, 0 pour désactiver) et de vider le cache. Les pixels éditables et l’historique restent en RAM ; leur migration par tuiles est détaillée dans l’[audit calques/mémoire](docs/LAYER_MEMORY.md).
+Depuis v0.15, une première étape du cache disque de travail conserve les gros rendus de fréquences entre les workers. **Réglages → Cache de travail** permet de choisir le dossier, le budget (4 Gio par défaut, 0 pour désactiver) et de vider le cache. Les pixels éditables et l’historique restent en RAM ; leur migration par tuiles est détaillée dans l’[audit calques/mémoire](docs/LAYER_MEMORY.md).
 
-Après cette première étape, les couvertures du pinceau, du crayon et de la gomme utilisent des tuiles de 256 × 256 : un petit trait n’alloue plus une couverture de la taille du document. Les plans des calques et l’historique restent à migrer vers ce stockage.
+Dans cette version, les couvertures du pinceau, du crayon et de la gomme utilisent des tuiles de 256 × 256 : un petit trait n’alloue plus une couverture de la taille du document. Les plans des calques et l’historique restent à migrer vers ce stockage.
 
 ### Gomme magique
 
@@ -269,6 +269,8 @@ Référence : [Panneau Informations Adobe](https://helpx.adobe.com/photoshop/des
 Le curseur des outils est synchronisé immédiatement, puis après la stabilisation des fenêtres et du focus. Un test Cocoa contrôle la pointe réelle de la pipette, de l’échantillonneur et de la règle dès leur première activation, sans nouveau mouvement de souris, ainsi qu’après la réouverture d’Informations.
 
 ## Validation et limites
+
+Les suites `scratch_cache` et `tiled_image` vérifient le stockage sans perte, les références actives, le nettoyage, la concurrence et les versions partagées. Les tests du document couvrent aussi les couvertures de traits parcimonieuses en 8/16 bits.
 
 La suite `selection` vérifie notamment les contours troués/disjoints, la couverture progressive et le rejet des résultats obsolètes, avec des contrôles d’interface complémentaires pour Plage de couleurs. `file_dialog_fallback` force les dialogues Qt Quick, vérifie leur contraste et ouvre réellement une image. Ces tests s’ajoutent aux suites document, Plume, QML et fermeture.
 

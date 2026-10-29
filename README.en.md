@@ -4,23 +4,23 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Current version: **v0.14**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
+Current version: **v0.15**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Download
 
-[Release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
+[Release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
 
-The tag is **v0.14**; the internal version and package filenames use **0.14.0**.
+The tag is **v0.15**; the internal version and package filenames use **0.15.0**.
 
-## New in v0.14
+## New in v0.15
 
-- **Color Range**: sample directly on the canvas without closing the dialog, add/subtract samples, adjust fuzziness and localized range, optionally restrict to contiguous areas, and invert. Image and mask previews share native-resolution zoom and panning.
-- **Feather (Shift+F6)**: a 1–1,000 px radius and partial coverage honored by painting, filling, copying, and masks. Border, Smooth, Expand, and Contract complete the Select menu with cancellable regional background processing.
-- **Selection history**: undo, redo, and reselect without marking saved pixels as modified. **View → Show → Selection Edges** hides marching ants without deselecting.
-- **Readable file dialogs on Linux**: a complete dark palette and a Qt 6.8 Quick fallback correction, tested for opening, saving, exporting, and choosing folders.
-- **298 catalogued shortcuts and gestures**, including **121 disabled NYI entries**. Available commands are configurable; missing features remain explicitly identified.
+- **Fewer memory copies** during Normal-mode composition, source reads, and background-render handoff. Invisible layer planes are no longer resized for previews.
+- **Disk scratch cache** for large frequency renders: reuse across workers, lossless native 8/16-bit blocks, SHA-256 validation, and memory-mapped reads. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing.
+- **256 × 256 tiled coverage for brush, pencil, and eraser strokes**: only touched tiles are allocated, for both pixels and masks. A small mask stroke in a 24 MP/16-bit document uses 512 KiB of coverage instead of about 183 MiB.
+- **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
+- **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
-The [selection guide](docs/SELECTIONS.md) (French) describes parameters, Adobe references, and limitations. This release retains the Pen, RAW import, 16-bit pixels, and editable frequency separation. The `.pcr` format remains at version 8: temporary selections are not saved in projects. Version history is in [CHANGELOG.md](CHANGELOG.md) (French).
+The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Editable layer planes and history still use full images in RAM; their tiled migration remains future work. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The `.pcr` format remains at version 8, with support for reading versions 1–7. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
 
 ![PhotoCrap demo composition](docs/screenshot.png)
 
@@ -217,9 +217,9 @@ Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied` (8
 
 The `.pcr` file is a versioned JSON document. Version 8 stores Bézier paths, channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–7. Empty pixel layers and uniform masks use compact storage in this version, expanding only when locally edited. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 512 layers, and 2 GiB of uncompressed layer data. The budget separately counts color pixels, frequency-separation sources, and 8-bit masks; adjustments reserve only their masks, and groups reserve no image. Nonuniform shared images are reserved independently for each layer so they can be edited and reloaded. Empty layers and uniform masks do not reserve full-sized planes; painting checks the budget before expanding them. The frequency cache uses LRU eviction with a 128 MiB budget, and frequency thumbnails render at display size. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
 
-After v0.14, an initial disk scratch cache retains large frequency renders across workers. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing. Editable pixels and history still remain in RAM; their planned tiled migration is described in the [layer/memory audit](docs/LAYER_MEMORY.md) (French).
+Since v0.15, an initial disk scratch cache retains large frequency renders across workers. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing. Editable pixels and history still remain in RAM; their planned tiled migration is described in the [layer/memory audit](docs/LAYER_MEMORY.md) (French).
 
-The next step introduces 256 × 256 tiles for brush, pencil, and eraser stroke coverage: a small stroke no longer allocates a document-sized coverage buffer. Layer planes and history still need to migrate to this storage.
+This version introduces 256 × 256 tiles for brush, pencil, and eraser stroke coverage: a small stroke no longer allocates a document-sized coverage buffer. Layer planes and history still need to migrate to this storage.
 
 ### Magic Eraser
 
@@ -234,6 +234,8 @@ The **layer** menu provides available properties, duplication, renaming, deletio
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
 ## Validation and limitations
+
+The `scratch_cache` and `tiled_image` suites check lossless storage, active leases, cleanup, concurrency, and shared versions. Document tests also cover sparse stroke coverage in 8/16 bits.
 
 The `selection` suite covers holed/disjoint contours, partial coverage, and stale-result rejection, with additional Color Range interface checks. `file_dialog_fallback` forces Qt Quick dialogs, checks their contrast, and opens a real image. These complement document, Pen, QML, and shutdown tests.
 

@@ -1,12 +1,12 @@
 # Roadmap PhotoCrap
 
-État du projet au **28 octobre 2026**, version courante **v0.14** (version interne **0.14.0**). Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1 et v0.14 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **29 octobre 2026**, version courante **v0.15** (version interne **0.15.0**). Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1, v0.14 et v0.15 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
-La [release v0.14](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.14) est publiée. Son [workflow de tag](https://github.com/fguilleme/PhotoCrap/actions/runs/40735732946) a réussi les builds, tests, déploiements, paquets et publication sur macOS arm64, Linux x86_64 et Windows x64. Les quatre paquets et leurs quatre fichiers SHA-256 sont disponibles, en version **0.14.0**. Voir les [notes de version](CHANGELOG.md).
+La [release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.15.0**, avec SHA-256. La publication est automatique après réussite des builds, tests et contrôles des paquets : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le [workflow de branche au commit `bcbbc18`](https://github.com/fguilleme/PhotoCrap/actions/runs/40849316101) a déjà validé ces contrôles sur les trois plateformes. Voir les [notes de version](CHANGELOG.md).
 
 ## Repères actuels vérifiés
 
-| Élément | État dans v0.14 | Source |
+| Élément | État dans v0.15 | Source |
 |---|---|---|
 | Barre d’outils | 71 outils recensés : **54 disponibles, 17 NYI** | Catalogue de `qml/Main.qml` |
 | Raccourcis et gestes | **298 entrées** : 123 commandes personnalisables, 54 gestes contextuels, 121 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
@@ -60,7 +60,7 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Plage de couleurs : pipettes remplacer/ajouter/retirer sur l’aperçu et le canevas, tolérance, groupes localisés, zones contiguës, inversion et aperçus image/masque synchronisés avec zoom natif et déplacement ; familles de couleurs et de tons.
 - [x] Dialogues de fichiers Qt Quick lisibles en thème sombre : palette complète, repli adapté à Qt 6.8 et test `file_dialog_fallback` pour ouvrir, enregistrer, exporter et choisir un dossier. Les dialogues natifs restent utilisés lorsqu’ils sont disponibles.
 
-## En cours après v0.14 : calques et mémoire
+## Ajouts de v0.15 : calques, mémoire et cache
 
 - [x] Éviter les copies pleine résolution des sources et du composite à chaque calque en mode Normal, ainsi que la copie finale du résultat du worker.
 - [x] Écarter les plans invisibles de la préparation des proxies, sans casser les chaînes d’écrêtage ni la précision du rendu complet.
@@ -68,7 +68,6 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Ajouter une pile de 64 calques remplis en 8/16 bits, comparée à une référence de rendu, avec retouche locale et Annuler/Rétablir ; tester l’éviction des fréquences et les calques/groupes masqués.
 - [x] Première étape du cache disque : blocs natifs 8/16 bits vérifiés par SHA-256, mappings en lecture seule, budgets, éviction, nettoyage et protection des sessions actives. Branché sur les bandes de fréquences d’au moins 16 Mio, dans les workers ; configuration et vidage depuis Réglages → Cache de travail.
 - [x] Moteur de plans parcimonieux par tuiles de 256 × 256, versions partagées et stockage disque avec références indépendantes de l’index du cache. Premier usage : couverture du pinceau, du crayon et de la gomme, avec tests 8/16 bits, masques, débit et annulation. Les plans de calques restent des QImage complètes.
-- [ ] Étendre ce stockage aux pixels éditables, masques et historique, avec accès par tuiles et éviction réelle de leurs allocations RAM. Le cache de rendus ne relève pas la limite de 2 Gio. [Détails et limites](docs/LAYER_MEMORY.md).
 
 ## 1. Fiabilité et validation à terminer
 
@@ -76,7 +75,7 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [ ] Étendre ces contrôles de curseurs aux autres outils, transitions de focus, écrans multiples et fenêtres flottantes, au-delà des scénarios automatisés actuels.
 - [ ] Étendre les tests d’espaces de travail : déplacements entre colonnes, sorties de groupes, dépôt avant le premier panneau, écrans multiples, changement de résolution et restauration de fenêtres hors écran.
 - [ ] Étendre les essais au clavier, l’accessibilité, les curseurs, la haute densité et les tablettes sur les trois plateformes.
-- [x] Version CMake et noms des paquets alignés sur 0.14.0 (tag v0.14) ; l’AppImage reprend automatiquement la version configurée.
+- [x] Version CMake et noms des paquets alignés sur 0.15.0 (tag v0.15) ; l’AppImage reprend automatiquement la version configurée.
 - [ ] Signature Developer ID et notarisation macOS ; signature Authenticode Windows. Les signatures de distribution ne sont pas encore configurées.
 
 ## 2. Grands documents et performance

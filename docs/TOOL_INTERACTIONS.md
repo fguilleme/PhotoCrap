@@ -1,6 +1,6 @@
 # Souris et clavier des outils
 
-Comportements disponibles dans v0.14. Les références sont les pages Adobe Photoshop pour ordinateur. Option correspond à Alt ; Commande est la touche principale sur macOS, Ctrl sur Windows/Linux.
+Comportements disponibles dans v0.15. Les références sont les pages Adobe Photoshop pour ordinateur. Option correspond à Alt ; Commande est la touche principale sur macOS, Ctrl sur Windows/Linux.
 
 ## Règles communes
 

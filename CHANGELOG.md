@@ -2,7 +2,55 @@
 
 Les fonctions disponibles et leurs limites sont détaillées dans le [README](README.md),
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
-Un [résumé en anglais](README.en.md#new-in-v014) est également disponible.
+Un [résumé en anglais](README.en.md#new-in-v015) est également disponible.
+
+## v0.15 — 29 octobre 2026
+
+Tag Git : `v0.15`. Version de l’application et des paquets : `0.15.0`.
+
+### Calques et mémoire
+
+- Réduire les copies des sources et du composite pendant les rendus en mode Normal,
+  ainsi que la copie pleine résolution au retour du worker.
+- Écarter les calques invisibles, les groupes masqués et les calques d’opacité nulle
+  de la préparation des proxies, en conservant la précision du rendu complet.
+- Réutiliser les bandes hautes encore présentes dans le LRU sans reconstruire leur
+  bande basse évincée. Le cache RAM de fréquences reste limité à 128 Mio.
+- Vérifier le rendu de 64 calques remplis en 8/16 bits, avec masques, opacités,
+  retouche locale et Annuler/Rétablir. Clarifier la portée du test des 301 calques,
+  qui valide le stockage compact et le rechargement.
+
+### Cache de travail disque
+
+- Stocker les gros rendus de fréquences dans des blocs natifs 8/16 bits sans
+  recompression, avec SHA-256, publication atomique et lectures mappées en lecture seule.
+- Réutiliser les blocs entre workers avant de recalculer ; conserver les blocs encore
+  utilisés après leur éviction de l’index et nettoyer les sessions abandonnées.
+- Ajouter Réglages → Cache de travail : dossier configurable, budget de 0 à 64 Gio
+  (4 Gio par défaut), réserve de 512 Mio d’espace libre, statistiques et vidage.
+  Zéro désactive le cache. Un stockage indisponible laisse le rendu fonctionner.
+- Garder les petits aperçus et les demandes de vignettes de l’interface en RAM.
+  Les bandes préparées pour la retouche deviennent des pixels éditables indépendants
+  des fichiers temporaires.
+
+### Couvertures de traits par tuiles
+
+- Allouer uniquement les tuiles de 256 × 256 touchées par le pinceau, le crayon ou
+  la gomme, sur les pixels et les masques, avec débit cumulatif et précision 8/16 bits.
+- Réduire la couverture d’un petit trait sur un masque de document 24 Mpx/16 bits
+  à 512 Kio, au lieu d’environ 183 Mio pour le plan complet.
+- Introduire le partage de versions de tuiles et leur stockage disque avec références
+  indépendantes de l’index du cache, pour préparer la migration des plans de calques.
+- Étendre les tests aux frontières des tuiles, à la concurrence, aux erreurs disque,
+  à l’annulation du geste et à Annuler/Rétablir.
+
+### Compatibilité et limites
+
+- Format `.pcr` v8 inchangé, lecture des versions 1 à 7 ; fonctionnalités de v0.14 conservées.
+- Les plans éditables des calques et l’historique restent des images complètes en RAM.
+  Le stockage par tuiles de ces plans n’est pas encore disponible.
+- Limites inchangées : 32 Mpx, 512 calques et 2 Gio de plans de calques.
+  Le cache de travail temporaire ne tient pas lieu d’autosauvegarde.
 
 ## v0.14 — 28 octobre 2026
 

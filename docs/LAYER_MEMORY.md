@@ -1,10 +1,10 @@
 # Calques, mémoire et cache de travail disque
 
-Audit du 28 octobre 2026, après v0.14. Les optimisations préparatoires sont committées
-séparément dans `862e505`. Une première étape du cache disque est implémentée pour les
-rendus de fréquences (`14460b2`). Le moteur de tuiles décrit ci-dessous est maintenant
-branché sur les couvertures de traits ; la migration des pixels de calques, masques
-et historique reste à réaliser.
+État vérifié pour **v0.15**, le **29 octobre 2026**, à partir de l’audit du 28 octobre.
+Cette version livre les optimisations de composition, le cache disque des rendus de
+fréquences et la couverture des traits par tuiles. Les pixels des calques, les masques
+et l’historique restent à migrer ; l’architecture de cette suite est distincte des
+fonctions déjà disponibles.
 
 ## Ce que les limites actuelles signifient
 
@@ -48,7 +48,7 @@ diagnostic n’est pas une mesure de la mémoire résidente du processus.
   structure et le refus d’un 513e calque sans modifier l’historique.
 - `paintingMaterializesOnlyTheEditedPlane` vérifie l’allocation du seul plan modifié,
   son retour à l’état compact par Annuler et la conservation de la précision.
-- La passe en cours ajoute une pile de **64 calques réellement remplis**, en 8 et
+- La suite teste une pile de **64 calques réellement remplis**, en 8 et
   16 bits, avec opacités et masques uniformes. Le résultat est comparé à une composition
   QPainter indépendante, y compris après une retouche locale et Annuler/Rétablir.
   À 1 024 × 512 pixels, les plans couleur occupent respectivement 128 et 256 Mio.

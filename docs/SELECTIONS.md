@@ -1,6 +1,6 @@
 # Sélections : référence Adobe et état PhotoCrap
 
-Audit du 28 octobre 2026, pour **v0.14**. La capture du menu sert à vérifier la présentation ; les comportements et options ci-dessous proviennent de la documentation Photoshop pour ordinateur. PhotoCrap utilise ses propres algorithmes : des commandes portant le même nom ne garantissent pas un résultat pixel pour pixel identique.
+Audit du 28 octobre 2026, applicable à **v0.15**. La capture du menu sert à vérifier la présentation ; les comportements et options ci-dessous proviennent de la documentation Photoshop pour ordinateur. PhotoCrap utilise ses propres algorithmes : des commandes portant le même nom ne garantissent pas un résultat pixel pour pixel identique.
 
 ## Trois opérations différentes
 

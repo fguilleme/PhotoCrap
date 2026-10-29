@@ -268,7 +268,7 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 
 P active le groupe Plume ; les outils Ajout/Suppression de point et Conversion de point sont accessibles par son clic droit. Les réglages répertorient aussi les gestes contextuels : Commande/Ctrl-glisser pour déplacer, Option/Alt pour convertir ou séparer une poignée, Maj pour contraindre, Retour/Échap pour terminer, clic sur l’origine pour fermer, Commande/Ctrl-Retour pour créer une sélection et Retour arrière/Suppr pour supprimer les points. Voir [les interactions détaillées](TOOL_INTERACTIONS.md#plume-et-tracés-bézier).
 
-Le catalogue de v0.14 contient 298 entrées, dont 121 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.
+Le catalogue de v0.15 contient 298 entrées, dont 121 NYI. Les tracés de la Plume et les outils d’édition de points sont disponibles ; Plume libre, Plume de courbure, Sélection de tracé et Sélection directe restent NYI.
 
 ## Commandes de sélection ajoutées dans v0.14
 

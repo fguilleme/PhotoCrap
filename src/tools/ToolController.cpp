@@ -246,10 +246,17 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             m_anchor = m_last = m_paintLastEnd;
             m_strokeConnect   = true;
         }
-        m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" || m_tool == "healing" ||
-                            m_tool == "spotHealing")
-                               ? QImage{}
-                               : ImageUtils::blank(m_size, workingFormat());
+        m_tiledStrokeCoverage  = {};
+        m_strokeCoverageFailed = false;
+        if (m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser") {
+            m_strokeCoverage       = {};
+            m_tiledStrokeCoverage  = TiledImage(m_size, workingFormat(), Qt::transparent);
+            m_strokeCoverageFailed = m_tiledStrokeCoverage.isNull();
+        } else
+            m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" ||
+                                m_tool == "healing" || m_tool == "spotHealing")
+                                   ? QImage{}
+                                   : ImageUtils::blank(m_size, workingFormat());
         if (m_tool == "spotHealing")
             prepareSpotHealingStroke();
         if (m_tool == "smudge")
@@ -474,16 +481,18 @@ void Document::endStroke()
         finishHealingStroke(false);
     if (m_tool == "spotHealing")
         finishSpotHealingStroke();
-    m_historyStrokeSource = {};
-    m_beforeStroke        = {};
-    m_strokeBase          = {};
-    m_strokeCoverage      = {};
-    m_strokeBounds        = {};
-    m_strokeInkColor      = {};
-    m_stampSource         = {};
-    m_smudgePickup        = {};
-    m_smudgeMask          = {};
-    m_smudgeSample        = {};
+    m_historyStrokeSource  = {};
+    m_beforeStroke         = {};
+    m_strokeBase           = {};
+    m_strokeCoverage       = {};
+    m_tiledStrokeCoverage  = {};
+    m_strokeCoverageFailed = false;
+    m_strokeBounds         = {};
+    m_strokeInkColor       = {};
+    m_stampSource          = {};
+    m_smudgePickup         = {};
+    m_smudgeMask           = {};
+    m_smudgeSample         = {};
 }
 void Document::cancelStroke()
 {
@@ -539,16 +548,18 @@ void Document::cancelStroke()
         finishHealingStroke(true);
     if (m_tool == "spotHealing")
         finishSpotHealingStroke();
-    m_historyStrokeSource = {};
-    m_beforeStroke        = {};
-    m_strokeBase          = {};
-    m_strokeCoverage      = {};
-    m_strokeBounds        = {};
-    m_strokeInkColor      = {};
-    m_stampSource         = {};
-    m_smudgePickup        = {};
-    m_smudgeMask          = {};
-    m_smudgeSample        = {};
+    m_historyStrokeSource  = {};
+    m_beforeStroke         = {};
+    m_strokeBase           = {};
+    m_strokeCoverage       = {};
+    m_tiledStrokeCoverage  = {};
+    m_strokeCoverageFailed = false;
+    m_strokeBounds         = {};
+    m_strokeInkColor       = {};
+    m_stampSource          = {};
+    m_smudgePickup         = {};
+    m_smudgeMask           = {};
+    m_smudgeSample         = {};
 }
 QImage *Document::paintTarget()
 {

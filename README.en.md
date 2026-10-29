@@ -219,6 +219,8 @@ The `.pcr` file is a versioned JSON document. Version 8 stores Bézier paths, ch
 
 After v0.14, an initial disk scratch cache retains large frequency renders across workers. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing. Editable pixels and history still remain in RAM; their planned tiled migration is described in the [layer/memory audit](docs/LAYER_MEMORY.md) (French).
 
+The next step introduces 256 × 256 tiles for brush, pencil, and eraser stroke coverage: a small stroke no longer allocates a document-sized coverage buffer. Layer planes and history still need to migrate to this storage.
+
 ### Magic Eraser
 
 Right-click the **E** group and choose **Magic Eraser**, then click the color to erase on an unlocked pixel layer. **Tolerance** controls the accepted color difference. **Contiguous** restricts erasing to the connected area around the click; disabling it matches colors throughout the selection or image. **Anti-alias** softens edges, and **Opacity** controls how much is erased.

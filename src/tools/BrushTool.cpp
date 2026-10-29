@@ -18,7 +18,7 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 {
     Q_UNUSED(_from)
     if (m_tool != "smudge" && m_tool != "mixerBrush" && m_tool != "healing" &&
-        m_tool != "spotHealing" && m_strokeCoverage.isNull())
+        m_tool != "spotHealing" && m_strokeCoverage.isNull() && m_tiledStrokeCoverage.isNull())
         return;
     m_strokeBounds = {};
     if (m_anchor == _to && !m_strokeChanged)
@@ -39,7 +39,17 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
         m_distanceToNextDab -= distance;
         m_smoothedLast = target;
     }
+    if (m_strokeCoverageFailed) {
+        cancelStroke();
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
     renderBrushStroke();
+    if (m_strokeCoverageFailed) {
+        cancelStroke();
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
     if ((m_tool == "colorReplacement" || m_tool == "mixerBrush" || m_tool == "healing" ||
          m_tool == "spotHealing" || (m_tool == "historyBrush" || m_tool == "artHistoryBrush")) &&
         m_strokeBounds.isEmpty())
@@ -49,6 +59,8 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 }
 void Document::stampBrush(const QPointF &_point)
 {
+    if (m_strokeCoverageFailed)
+        return;
     if (m_tool == "artHistoryBrush") {
         artHistoryDab(_point);
         return;
@@ -73,26 +85,33 @@ void Document::stampBrush(const QPointF &_point)
         colorReplacementDab(_point);
         return;
     }
-    QPainter painter(&m_strokeCoverage);
-    painter.setRenderHint(QPainter::Antialiasing, m_tool != "pencil");
-    painter.translate(_point);
-    painter.rotate(m_brushAngle);
-    painter.scale(1., m_brushRoundness);
     const qreal  radius = m_brushSize / 2.;
-    const QColor paint(255, 255, 255, qRound(m_brushFlow * 255));
-    if (m_tool == "pencil" || m_brushHardness >= .999)
-        painter.setBrush(paint);
-    else {
-        QRadialGradient gradient(QPointF{}, radius);
-        gradient.setColorAt(qBound(0., m_brushHardness, .999), paint);
-        gradient.setColorAt(1., QColor(255, 255, 255, 0));
-        painter.setBrush(gradient);
-    }
-    painter.setPen(Qt::NoPen);
-    painter.drawEllipse(QPointF{}, radius, radius);
-    painter.end();
     const QRectF dabBounds(_point.x() - radius - 2, _point.y() - radius - 2, radius * 2 + 4,
                            radius * 2 + 4);
+    const auto   paintDab = [&](QPainter &_painter) {
+        _painter.setRenderHint(QPainter::Antialiasing, m_tool != "pencil");
+        _painter.translate(_point);
+        _painter.rotate(m_brushAngle);
+        _painter.scale(1., m_brushRoundness);
+        const QColor paint(255, 255, 255, qRound(m_brushFlow * 255));
+        if (m_tool == "pencil" || m_brushHardness >= .999)
+            _painter.setBrush(paint);
+        else {
+            QRadialGradient gradient(QPointF{}, radius);
+            gradient.setColorAt(qBound(0., m_brushHardness, .999), paint);
+            gradient.setColorAt(1., QColor(255, 255, 255, 0));
+            _painter.setBrush(gradient);
+        }
+        _painter.setPen(Qt::NoPen);
+        _painter.drawEllipse(QPointF{}, radius, radius);
+    };
+    if (!m_tiledStrokeCoverage.isNull())
+        m_strokeCoverageFailed =
+            !m_tiledStrokeCoverage.paintTransient(dabBounds.toAlignedRect(), paintDab);
+    else {
+        QPainter painter(&m_strokeCoverage);
+        paintDab(painter);
+    }
     m_strokeBounds = m_strokeBounds.isEmpty() ? dabBounds : m_strokeBounds.united(dabBounds);
 }
 void Document::renderBrushStroke()
@@ -125,6 +144,12 @@ void Document::renderBrushStroke()
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
+    const QImage coverage = m_tiledStrokeCoverage.isNull() ? m_strokeCoverage.copy(region)
+                                                           : m_tiledStrokeCoverage.region(region);
+    if (coverage.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     if (!m_fullCompositeDirty)
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
     QImage overlay = ImageUtils::blank(region.size(), ImageUtils::workingFormat(m_strokeBase));
@@ -136,7 +161,7 @@ void Document::renderBrushStroke()
         maskPainter.setClipRegion(m_selectionRegion.translated(-region.topLeft()));
     maskPainter.fillRect(overlay.rect(), ink);
     maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-    maskPainter.drawImage(0, 0, m_strokeCoverage.copy(region));
+    maskPainter.drawImage(0, 0, coverage);
     maskPainter.end();
     SelectionCoverage::attenuate(overlay, m_selectionMask, region.topLeft());
     QImage canvas =

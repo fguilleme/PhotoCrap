@@ -733,6 +733,7 @@
         <source>Remplir le masque avec une couleur</source>
         <translation>Fill mask with color</translation>
     </message>
+    <message><source>Mémoire insuffisante pour la couverture du trait.</source><translation>Insufficient memory for stroke coverage.</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>

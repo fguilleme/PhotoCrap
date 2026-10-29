@@ -2,8 +2,9 @@
 
 Audit du 28 octobre 2026, après v0.14. Les optimisations préparatoires sont committées
 séparément dans `862e505`. Une première étape du cache disque est implémentée pour les
-rendus de fréquences. Le déchargement des pixels de calques, masques et historique
-reste à réaliser ; l’architecture par tuiles ci-dessous décrit cette suite.
+rendus de fréquences (`14460b2`). Le moteur de tuiles décrit ci-dessous est maintenant
+branché sur les couvertures de traits ; la migration des pixels de calques, masques
+et historique reste à réaliser.
 
 ## Ce que les limites actuelles signifient
 
@@ -127,7 +128,42 @@ blocs pourra recevoir des tuiles quand l’accès aux pixels aura été adapté.
 Références des contrats Qt utilisés : [QImage et buffers externes](https://doc.qt.io/qt-6/qimage.html),
 [mapping de fichiers](https://doc.qt.io/qt-6/qfiledevice.html#map).
 
-## Étape suivante : stockage de travail par tuiles
+## Tuiles : moteur et premier usage dans les traits
+
+`src/storage/TiledImage.*` fournit des plans parcimonieux en tuiles de 256 × 256 pixels,
+avec fond uniforme d’un pixel. Les formats pris en charge sont RVBA prémultiplié 8/16 bits
+et masque 8 bits. Lire une région ne matérialise que cette région ; les tuiles absentes
+restent implicites. Les copies partagent les versions de tuiles inchangées et peindre
+crée des versions des seules tuiles touchées. Le mode persistant publie ses modifications
+après réussite ; le mode de travail temporaire réutilise les tuiles non partagées.
+
+Le stockage disque de ces versions est également testé : un worker peut remplacer leurs
+pixels en RAM par des blocs mappés, avec une référence propre par tuile. Une éviction,
+un vidage ou la destruction de l’index du cache ne supprime pas les pixels d’une version
+encore utilisée. Une insertion refusée conserve les tuiles restantes en RAM. Cela prépare
+le stockage des plans éditables ; les calques du document n’utilisent pas encore ce plan.
+
+Le premier branchement concerne la **couverture des traits de pinceau, crayon et gomme**,
+sur les pixels comme sur les masques. Elle est calculée dans la précision du document,
+avec débit cumulatif, pointe douce/dure, angle et arrondi. Les tuiles sont gardées en RAM
+pendant le geste, sans écriture disque inutile pour ce tampon temporaire, puis libérées
+à la fin ou à l’annulation. Une allocation impossible annule le geste.
+
+Sur un masque d’un document 6 000 × 4 000 en 16 bits, un petit trait tenant dans une tuile
+réserve **512 Kio de couverture au lieu de 192 000 000 octets**, soit environ 183 Mio.
+Cela ne comprend pas le masque lui-même, les pixels du calque ni les buffers du rendu.
+`memoryUsage()` expose `strokeCoverageBytes` et `strokeCoverageTiles` pendant le geste.
+Le plan éditable et la base du trait utilisent encore des QImage de taille complète.
+
+La suite `tiled_image` vérifie régions et bordures, partage entre versions, sauvegarde
+sur disque, lectures après éviction/destruction du cache et concurrence entre édition
+et déchargement d’une autre version. La comparaison des gradients Qt autorise un écart
+d’un niveau de canal natif dû à la rasterisation avec des origines de découpage différentes ;
+la conservation des pixels et des versions est testée exactement. Les tests du document
+couvrent les trois outils en 8/16 bits, sur pixels/masques, Annuler/Rétablir, abandon du geste
+et la couverture parcimonieuse sur 24 Mpx.
+
+## Étape suivante : plans de calques et historique par tuiles
 
 Un cache d’aperçus seul ne suffit pas : les plans éditables et les versions de l’historique
 resteraient en mémoire. La cible est un stockage de travail par tuiles, réutilisé par

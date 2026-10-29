@@ -67,6 +67,7 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Réutiliser une bande haute encore dans le LRU sans recalculer sa bande basse évincée ; conserver le plafond de 128 Mio.
 - [x] Ajouter une pile de 64 calques remplis en 8/16 bits, comparée à une référence de rendu, avec retouche locale et Annuler/Rétablir ; tester l’éviction des fréquences et les calques/groupes masqués.
 - [x] Première étape du cache disque : blocs natifs 8/16 bits vérifiés par SHA-256, mappings en lecture seule, budgets, éviction, nettoyage et protection des sessions actives. Branché sur les bandes de fréquences d’au moins 16 Mio, dans les workers ; configuration et vidage depuis Réglages → Cache de travail.
+- [x] Moteur de plans parcimonieux par tuiles de 256 × 256, versions partagées et stockage disque avec références indépendantes de l’index du cache. Premier usage : couverture du pinceau, du crayon et de la gomme, avec tests 8/16 bits, masques, débit et annulation. Les plans de calques restent des QImage complètes.
 - [ ] Étendre ce stockage aux pixels éditables, masques et historique, avec accès par tuiles et éviction réelle de leurs allocations RAM. Le cache de rendus ne relève pas la limite de 2 Gio. [Détails et limites](docs/LAYER_MEMORY.md).
 
 ## 1. Fiabilité et validation à terminer

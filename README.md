@@ -214,6 +214,8 @@ Le `.pcr` est un document JSON versionné. Sa version 8 conserve les tracés Bé
 
 Après v0.14, une première étape du cache disque de travail conserve les gros rendus de fréquences entre les workers. **Réglages → Cache de travail** permet de choisir le dossier, le budget (4 Gio par défaut, 0 pour désactiver) et de vider le cache. Les pixels éditables et l’historique restent en RAM ; leur migration par tuiles est détaillée dans l’[audit calques/mémoire](docs/LAYER_MEMORY.md).
 
+Après cette première étape, les couvertures du pinceau, du crayon et de la gomme utilisent des tuiles de 256 × 256 : un petit trait n’alloue plus une couverture de la taille du document. Les plans des calques et l’historique restent à migrer vers ce stockage.
+
 ### Gomme magique
 
 Dans le groupe **E**, faire un clic droit sur l’icône puis choisir **Gomme magique**. Cliquer sur la couleur à effacer dans un calque de pixels déverrouillé. **Tolérance** règle l’écart de couleur accepté ; **Contigus** limite l’effacement à la zone connectée au clic, tandis que sa désactivation recherche les couleurs correspondantes dans toute la sélection ou l’image. **Lissage** adoucit les bords et **Opacité** règle la quantité effacée.

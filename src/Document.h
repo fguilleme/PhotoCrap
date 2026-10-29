@@ -1,6 +1,7 @@
 #pragma once
 #include "RawImageReader.h"
 #include "selection/SelectionCoverage.h"
+#include "storage/TiledImage.h"
 #include "tools/PenPath.h"
 #include <QCache>
 #include <QColor>
@@ -1362,17 +1363,19 @@ private:
     void              restoreGestureSelection();
     void              combineGestureSelection();
     QPointF           constrainedToolPoint(const QPointF &_point, bool _diagonal) const;
-    QRectF  toolRectangle(const QPointF &_anchor, const QPointF &_point, bool _center) const;
-    bool    m_editingMask           = false;
-    bool    m_previewingLayer       = false;
-    bool    m_layerPreviewChanged   = false;
-    bool    m_frequencyPreviewDraft = false;
-    QPointF m_anchor, m_last;
-    QPointF m_smoothedLast;
-    qreal   m_distanceToNextDab = 0;
-    QImage  m_strokeBase, m_strokeCoverage;
-    QColor  m_strokeInkColor;
-    QRectF  m_strokeBounds;
+    QRectF     toolRectangle(const QPointF &_anchor, const QPointF &_point, bool _center) const;
+    bool       m_editingMask           = false;
+    bool       m_previewingLayer       = false;
+    bool       m_layerPreviewChanged   = false;
+    bool       m_frequencyPreviewDraft = false;
+    QPointF    m_anchor, m_last;
+    QPointF    m_smoothedLast;
+    qreal      m_distanceToNextDab = 0;
+    QImage     m_strokeBase, m_strokeCoverage;
+    TiledImage m_tiledStrokeCoverage;
+    bool       m_strokeCoverageFailed = false;
+    QColor     m_strokeInkColor;
+    QRectF     m_strokeBounds;
     mutable QCache<QString, QImage>    m_frequencyCache{128 * 1024};
     std::shared_ptr<ScratchImageCache> m_scratchCache;
     QFutureWatcher<QImage>             m_previewRenderWatcher;

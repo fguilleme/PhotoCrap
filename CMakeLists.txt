@@ -24,6 +24,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
     src/storage/ScratchImageCache.cpp
+    src/storage/TiledImage.cpp
     src/tools/BrushTool.cpp
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp
@@ -79,7 +80,9 @@ set(PHOTOCRAP_CXX_SOURCES
 )
 set(PHOTOCRAP_FORMAT_SOURCES
     src/storage/ScratchImageCache.h
+    src/storage/TiledImage.h
     tests/ScratchImageCacheTest.cpp
+    tests/TiledImageTest.cpp
     src/ImagePixels.h
     src/DocumentStorage.h
     src/RawImageReader.h
@@ -197,6 +200,7 @@ endif()
 
 qt_add_library(photocrap_core STATIC
     src/storage/ScratchImageCache.cpp src/storage/ScratchImageCache.h
+    src/storage/TiledImage.cpp src/storage/TiledImage.h
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp src/tools/PenPath.h
     src/Document.cpp
@@ -429,6 +433,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)
     set_tests_properties(scratch_cache PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_tiled_tests tests/TiledImageTest.cpp)
+    target_link_libraries(photocrap_tiled_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME tiled_image COMMAND photocrap_tiled_tests)
+    set_tests_properties(tiled_image PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_pen_tests tests/PenToolTest.cpp)
     target_link_libraries(photocrap_pen_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME pen_tool COMMAND photocrap_pen_tests)

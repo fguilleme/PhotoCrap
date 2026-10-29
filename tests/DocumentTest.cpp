@@ -244,6 +244,76 @@ private slots:
         QCOMPARE(loaded.maskImage(1, QSize(12, 12)).pixelColor(5, 5), QColor(Qt::white));
         QCOMPARE(loaded.layerImage(1, QSize(12, 12)).pixelColor(5, 5).alpha(), 0);
     }
+    void simplePaintToolsUseSparseCoverage_data()
+    {
+        QTest::addColumn<QString>("tool");
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("mask");
+        for (const auto &tool :
+             {QStringLiteral("brush"), QStringLiteral("pencil"), QStringLiteral("eraser")})
+            for (int bits : {8, 16})
+                for (bool mask : {false, true})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3").arg(tool).arg(bits).arg(mask)))
+                        << tool << bits << mask;
+    }
+    void simplePaintToolsUseSparseCoverage()
+    {
+        QFETCH(QString, tool);
+        QFETCH(int, bits);
+        QFETCH(bool, mask);
+        Document d;
+        QVERIFY(d.newDocument(1024, 768, true, bits));
+        d.addLayer();
+        if (tool == "eraser")
+            d.fillSelectedWithColor(Qt::blue);
+        if (mask)
+            d.addLayerMask(tool != "eraser");
+        d.setTool(tool);
+        d.setColor(mask ? QColor(Qt::black) : QColor(Qt::red));
+        d.setBrushSize(13);
+        d.setBrushFlow(.45);
+        d.setBrushOpacity(.7);
+        const auto image = [&] {
+            return mask ? d.maskImage(d.activeLayer()) : d.layerImage(d.activeLayer());
+        };
+        const QImage before  = image();
+        const int    history = d.historyIndex();
+        d.beginStroke(255.5, 255.5);
+        d.continueStroke(301.5, 280.5);
+        QCOMPARE(d.memoryUsage()["strokeCoverageTiles"].toInt(), 4);
+        QVERIFY(d.memoryUsage()["strokeCoverageBytes"].toLongLong() <= 4LL * 256 * 256 * bits / 2);
+        d.cancelStroke();
+        QCOMPARE(image(), before);
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(0));
+        d.beginStroke(255.5, 255.5);
+        d.continueStroke(301.5, 280.5);
+        d.endStroke();
+        const QImage after = image();
+        QVERIFY(after != before);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.memoryUsage()["strokeCoverageTiles"].toInt(), 0);
+        d.undo();
+        QCOMPARE(image(), before);
+        d.redo();
+        QCOMPARE(image(), after);
+    }
+    void tinyMaskStrokeAtTwentyFourMegapixelsAvoidsAFullCoveragePlane()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.addLayerMask();
+        d.setTool("brush");
+        d.setColor(Qt::black);
+        d.setBrushSize(9);
+        d.beginStroke(120, 120);
+        QCOMPARE(d.memoryUsage()["strokeCoverageTiles"].toInt(), 1);
+        QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(256 * 256 * 8));
+        d.endStroke();
+        QVERIFY(d.maskImage(0).pixelColor(120, 120).red() < 255);
+        d.undo();
+        QCOMPARE(d.maskImage(0).pixelColor(120, 120).red(), 255);
+    }
     void paintingMaterializesOnlyTheEditedPlane()
     {
         Document d;

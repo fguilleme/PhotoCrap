@@ -9,6 +9,7 @@
 #include "WorkspaceSettings.h"
 #include <QFile>
 #include <QOperatingSystemVersion>
+#include <QPointingDevice>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -278,6 +279,56 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      qAbs(viewport->property("contentY").toReal() - stableVertical) < .01,
                  "Shift+wheel pans horizontally"))
         return false;
+    // Real modifier presses and non-mouse devices exercise paths that a bare
+    // synthetic Ctrl+wheel event over the image does not cover.
+    const auto   savedTool    = _document.tool();
+    const auto   savedZoom    = _window->property("zoom").toReal();
+    const auto   savedScrollX = viewport->property("contentX").toReal();
+    const auto   savedScrollY = viewport->property("contentY").toReal();
+    const QPoint marginScene  = viewport->mapToScene(QPointF(8, 8)).toPoint();
+    viewport->forceActiveFocus();
+    QTest::keyPress(_window, Qt::Key_Control);
+    const qreal beforeMarginZoom = _window->property("zoom").toReal();
+    QTest::wheelEvent(_window, marginScene, QPoint(0, 120), QPoint(), Qt::ControlModifier);
+    QTest::keyRelease(_window, Qt::Key_Control);
+    if (!require(_window->property("zoom").toReal() > beforeMarginZoom,
+                 "Ctrl+wheel zooms over the canvas margin"))
+        return false;
+    for (const QString &tool :
+         {QStringLiteral("hand"), QStringLiteral("rotateView"), QStringLiteral("zoomTool")}) {
+        _document.setTool(tool);
+        QTest::qWait(10);
+        const qreal beforeToolZoom = _window->property("zoom").toReal();
+        QTest::wheelEvent(_window, wheelScene, QPoint(0, 120), QPoint(), Qt::ControlModifier);
+        if (!require(_window->property("zoom").toReal() > beforeToolZoom,
+                     "Ctrl+wheel zoom is independent of the active navigation tool"))
+            return false;
+    }
+    _document.setTool(savedTool);
+    QPointingDevice touchpad(
+        QStringLiteral("Navigation test touchpad"), 0x504352, QInputDevice::DeviceType::TouchPad,
+        QPointingDevice::PointerType::Finger, QInputDevice::Capability::Position, 2, 0);
+    const qreal beforeTouchpadZoom = _window->property("zoom").toReal();
+    QWheelEvent touchpadWheel(wheelScene, _window->mapToGlobal(wheelScene), QPoint(0, 24),
+                              QPoint(0, 60), Qt::NoButton, Qt::ControlModifier, Qt::ScrollUpdate,
+                              false, Qt::MouseEventNotSynthesized, &touchpad);
+    QCoreApplication::sendEvent(_window, &touchpadWheel);
+    QCoreApplication::processEvents();
+    if (!require(_window->property("zoom").toReal() > beforeTouchpadZoom,
+                 "Ctrl+touchpad scroll zooms with a touchpad device"))
+        return false;
+    const qreal beforePixelZoom = _window->property("zoom").toReal();
+    QWheelEvent pixelWheel(wheelScene, _window->mapToGlobal(wheelScene), QPoint(0, -12), QPoint(),
+                           Qt::NoButton, Qt::ControlModifier, Qt::ScrollUpdate, false,
+                           Qt::MouseEventNotSynthesized, &touchpad);
+    QCoreApplication::sendEvent(_window, &pixelWheel);
+    QCoreApplication::processEvents();
+    if (!require(_window->property("zoom").toReal() < beforePixelZoom,
+                 "Ctrl+touchpad scroll also zooms with pixel-only deltas"))
+        return false;
+    _window->setProperty("zoom", savedZoom);
+    viewport->setProperty("contentX", savedScrollX);
+    viewport->setProperty("contentY", savedScrollY);
     viewport->forceActiveFocus();
     QTest::keyPress(_window, Qt::Key_Space);
     QTest::qWait(20);

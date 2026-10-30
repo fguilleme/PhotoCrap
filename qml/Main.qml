@@ -2179,6 +2179,33 @@ ApplicationWindow {
                         onHeightChanged: verticalRuler.requestPaint()
                         ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                        // Navigation covers the whole viewport and stays active with every tool.
+                        WheelHandler {
+                            id: wheelHandler
+                            objectName: "wheelHandler"
+                            target: null
+                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                            acceptedModifiers: Qt.KeyboardModifierMask
+                            onWheel: function(wheel) {
+                                // Flickable hosts handlers in content coordinates.
+                                const viewportPoint = wheelHandler.parent.mapToItem(
+                                            viewport, wheel.x, wheel.y)
+                                const pixelY=wheel.pixelDelta.y
+                                const pixelX=wheel.pixelDelta.x
+                                const vertical=pixelY!==0 ? pixelY : wheel.angleDelta.y/2
+                                const horizontal=pixelX!==0 ? pixelX : wheel.angleDelta.x/2
+                                const primaryModifier=wheel.modifiers&(Qt.ControlModifier|Qt.MetaModifier)
+                                if(primaryModifier) {
+                                    const steps=wheel.angleDelta.y!==0 ? wheel.angleDelta.y/120 : vertical/40
+                                    zoomAt(zoom*Math.pow(1.15,steps),viewportPoint.x,viewportPoint.y)
+                                } else if(wheel.modifiers&Qt.ShiftModifier) {
+                                    panCanvas(-(vertical!==0?vertical:horizontal),0)
+                                } else {
+                                    panCanvas(-horizontal,-vertical)
+                                }
+                                wheel.accepted=true
+                            }
+                        }
                         Item {
                             id: artboard
                             objectName: "artboard"
@@ -2568,29 +2595,6 @@ ApplicationWindow {
                                     if (selectionModeBeforeGesture >= 0) {
                                         editor.selectionMode = selectionModeBeforeGesture
                                         selectionModeBeforeGesture = -1
-                                    }
-                                }
-                                WheelHandler {
-                                    id: wheelHandler
-                                    objectName: "wheelHandler"
-                                    target: null
-                                    onWheel: function(wheel) {
-                                        const viewportPoint = drawingArea.mapToItem(
-                                                    viewport, wheel.x, wheel.y)
-                                        const pixelY=wheel.pixelDelta.y
-                                        const pixelX=wheel.pixelDelta.x
-                                        const vertical=pixelY!==0 ? pixelY : wheel.angleDelta.y/2
-                                        const horizontal=pixelX!==0 ? pixelX : wheel.angleDelta.x/2
-                                        const primaryModifier=wheel.modifiers&(Qt.ControlModifier|Qt.MetaModifier)
-                                        if(primaryModifier) {
-                                            const steps=wheel.angleDelta.y!==0 ? wheel.angleDelta.y/120 : vertical/40
-                                            zoomAt(zoom*Math.pow(1.15,steps),viewportPoint.x,viewportPoint.y)
-                                        } else if(wheel.modifiers&Qt.ShiftModifier) {
-                                            panCanvas(-(vertical!==0?vertical:horizontal),0)
-                                        } else {
-                                            panCanvas(-horizontal,-vertical)
-                                        }
-                                        wheel.accepted=true
                                     }
                                 }
                             }

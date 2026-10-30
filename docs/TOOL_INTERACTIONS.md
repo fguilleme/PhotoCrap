@@ -11,6 +11,8 @@ Comportements disponibles dans v0.15. Les références sont les pages Adobe Phot
 | Option/Alt-clic sur le bouton d’outil | Passe à la variante suivante |
 | Clic droit ou appui prolongé sur un groupe | Ouvre ses variantes |
 | Maintenir la lettre plus de 200 ms | Utilise l’outil temporairement ; le relâchement revient à l’outil précédent |
+| Commande/Ctrl + molette ou défilement au pavé tactile | Zoome autour du pointeur dans toute la zone du canevas, marges comprises, quel que soit l’outil |
+| Molette ; Maj + molette | Déplace la vue verticalement ; horizontalement |
 | Espace + glisser, hors tracé en cours | Déplace la vue |
 | Commande/Ctrl + Espace + clic/glisser | Zoom temporaire ; Option/Alt inverse le sens |
 | Commande/Ctrl avec un outil de sélection ou de peinture | Déplacement temporaire au prochain glisser |

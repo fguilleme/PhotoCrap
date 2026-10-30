@@ -1,6 +1,7 @@
 #include "ToneMappingTable.h"
 #include "CurvesFilter.h"
 #include "LevelsFilter.h"
+#include "LightFilter.h"
 
 namespace PhotoCrap::Filters
 {
@@ -13,6 +14,8 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
         return applyCurves(ramp, _parameters);
     if (_type == QStringLiteral("levels"))
         return applyLevels(ramp, _parameters);
+    if (_type == QStringLiteral("light"))
+        return applyLight(ramp, _parameters);
     return {};
 }
 } // namespace PhotoCrap::Filters

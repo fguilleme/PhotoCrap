@@ -1,7 +1,7 @@
 # Canevas et accélération graphique
 
 Étapes après **v0.15**, en développement : présentation du composite dans le
-canevas, puis premiers aperçus Courbes/Niveaux sur GPU. Les pixels de travail
+canevas, puis aperçus Courbes, Niveaux et Lumière sur GPU. Les pixels de travail
 et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
@@ -46,8 +46,8 @@ précédente. Les pixels de travail, projets et exports conservent leurs **8 ou 
 Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
 La composition des calques, les masques, les traits et les filtres hors aperçu
-Courbes/Niveaux restent calculés sur CPU. Les surimpressions générales utilisent encore QPainter dans une petite
-surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
+Courbes/Niveaux/Lumière restent calculés sur CPU. Les surimpressions générales
+utilisent encore QPainter dans une petite surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
 Une modification du composite remplace toutes ses textures visibles : les transferts
 régionaux et la composition GPU restent à développer.
 
@@ -56,10 +56,10 @@ VRAM configurable n’est encore implémenté. L’image source et le niveau ré
 encore en RAM ; ce travail ne migre pas les plans de calques et l’historique sur disque
 et ne relève pas la limite de 2 Gio.
 
-## Aperçus Courbes et Niveaux
+## Aperçus Courbes, Niveaux et Lumière
 
-Le premier chemin de filtre GPU est volontairement limité : le calque actif doit
-être le dernier calque, un réglage Courbes ou Niveaux visible, en mode Normal à
+Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,
+un réglage Courbes, Niveaux ou Lumière visible, en mode Normal à
 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
 blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -67,10 +67,15 @@ le backend logiciel.
 
 - Un worker compose une fois la base réduite sous le réglage. Elle est conservée
   tant que la pile sous-jacente et la résolution du proxy restent valides.
-- Chaque changement de paramètres fabrique une table RVB de **256 × 1 pixels**
+- Chaque changement de paramètres fabrique une table de **256 × 1 pixels**
   à partir des fonctions CPU de référence. Un shader du graphe de scène applique
   cette table à la base ; la photo n’est pas retransférée à chaque déplacement.
   Les calibrations des pipettes Courbes passent par la même table.
+- Pour Courbes/Niveaux, la table corrige chaque canal RVB. Pour Lumière, elle
+  transforme la luminance ; le shader reconstruit ensuite les trois canaux avec
+  les pondérations et divisions entières du moteur CPU. Exposition, Contraste,
+  Hautes lumières, Ombres, Blancs et Noirs suivent ainsi la même règle colorimétrique
+  que leur aperçu CPU. Une correction RVB indépendante donnerait un autre résultat.
 - Le Navigateur et les histogrammes reçoivent un proxy CPU auxiliaire, planifié
   à intervalles d’au moins 100 ms pendant le geste. Ils peuvent suivre avec un
   retard lié au calcul ; ils ne déclenchent pas de lecture GPU ni de composition
@@ -101,12 +106,18 @@ ctest --test-dir build -R '^(gpu_tone_preview|tone_render|canvas_render|qml_smok
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
 plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
 la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
-Courbes/Niveaux à la référence CPU ; sur GPU il vérifie également que modifier les
+Courbes/Niveaux/Lumière à la référence CPU ; sur GPU il vérifie également que modifier les
 paramètres ne recrée pas les textures photo. Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
 sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
-aperçus Courbes/Niveaux et des calibrations de pipettes. Les backends GPU Linux/Windows
+aperçus Courbes/Niveaux/Lumière et des calibrations de pipettes. Les six contrôles
+Lumière sont comparés aux deux extrêmes, sur des gris, des couleurs saturées, du noir
+et du blanc. L’historique et le rendu final Lumière sont vérifiés en 8 et 16 bits.
+Le test des trois réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
+`QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
+la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.
+Le fonctionnement normal macOS utilise Metal. Les backends GPU Linux/Windows
 restent à vérifier sur leurs plateformes. Le même scénario peut s’exécuter sur un GPU,
 sans manipulation de la souris :
 
@@ -114,8 +125,11 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
-# Comparaison des shaders Courbes/Niveaux sur le même backend
+# Comparaison des shaders Courbes/Niveaux/Lumière sur le même backend
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
+  build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
+# Vérification OpenGL sur ce Mac, avec le rendu sur le thread principal
+QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=opengl QSG_RENDER_LOOP=basic \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 
 # Linux, dans une session graphique avec Vulkan disponible

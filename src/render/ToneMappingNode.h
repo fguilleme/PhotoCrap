@@ -6,8 +6,8 @@
 class ToneMappingNode : public QSGGeometryNode
 {
 public:
-    ToneMappingNode(QSGTexture *_source, QSGTexture *_table);
-    void setTable(QSGTexture *_table);
+    ToneMappingNode(QSGTexture *_source, QSGTexture *_table, bool _luminance);
+    void setTable(QSGTexture *_table, bool _luminance);
     void setImageRect(const QRectF &_rect, const QRectF &_sourceRect);
     void setFiltering(QSGTexture::Filtering _filtering);
 

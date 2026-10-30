@@ -23,7 +23,8 @@ bool Document::gpuToneEligible() const
     return layer.kind == QStringLiteral("adjustment") && layer.visible && layer.blend == 0 &&
            qFuzzyCompare(layer.opacity, 1.) && layer.groupId.isEmpty() && !layer.clippingMask &&
            (layer.adjustmentType == QStringLiteral("curves") ||
-            layer.adjustmentType == QStringLiteral("levels")) &&
+            layer.adjustmentType == QStringLiteral("levels") ||
+            layer.adjustmentType == QStringLiteral("light")) &&
            (!layer.maskEnabled || layer.mask.isNull() ||
             (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255));
 }
@@ -31,6 +32,11 @@ bool Document::gpuToneEligible() const
 bool Document::gpuTonePreviewActive() const
 {
     return m_gpuToneActive && gpuToneEligible();
+}
+
+bool Document::gpuTonePreviewUsesLuminance() const
+{
+    return gpuTonePreviewActive() && m_layers[m_active].adjustmentType == QStringLiteral("light");
 }
 
 void Document::invalidateGpuTonePreview()

@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "filters/CurvesFilter.h"
 #include "filters/LevelsFilter.h"
+#include "filters/LightFilter.h"
 #include "filters/ToneMappingTable.h"
 #include <QSignalSpy>
 #include <QtTest>
@@ -9,6 +10,58 @@ class GpuTonePreviewTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void lightPreview_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void lightPreview()
+    {
+        QFETCH(int, bits);
+        Document doc;
+        QVERIFY(doc.newDocument(512, 384, false, bits));
+        doc.setColor(QColor(40, 110, 210));
+        doc.fillWithColor(true);
+        doc.setPreviewSize(256, 192);
+        doc.setGpuTonePreviewEnabled(true);
+        doc.addAdjustmentLayer("light");
+        const auto before  = doc.composite();
+        const int  history = doc.historyIndex();
+        doc.previewLayerParameter("exposure", .8);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QVERIFY(doc.gpuTonePreviewUsesLuminance());
+        const auto        base = doc.gpuTonePreviewBase();
+        QVariantMap       parameters{{"exposure", .8}};
+        const QVariantMap changes{{"contrast", -40},
+                                  {"highlights", -60},
+                                  {"shadows", 35},
+                                  {"whites", 25},
+                                  {"blacks", -20}};
+        for (auto it = changes.cbegin(); it != changes.cend(); ++it) {
+            parameters.insert(it.key(), it.value());
+            doc.previewLayerParameter(it.key(), it.value());
+            QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), base.cacheKey());
+            QCOMPARE(doc.gpuTonePreviewTable(),
+                     PhotoCrap::Filters::toneMappingTable("light", parameters));
+        }
+        const auto expected = PhotoCrap::Filters::applyLight(base, parameters);
+        QTRY_COMPARE_WITH_TIMEOUT(doc.displayComposite().pixelColor(100, 100),
+                                  expected.pixelColor(100, 100), 5000);
+        doc.finishLayerPreview();
+        QCOMPARE(doc.historyIndex(), history + 1);
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.composite(), PhotoCrap::Filters::applyLight(before, parameters));
+        QCOMPARE(doc.channelBits(), bits);
+        doc.previewLayerParameter("exposure", -1.);
+        QVERIFY(doc.gpuTonePreviewActive());
+        QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), base.cacheKey());
+        doc.cancelLayerPreview();
+        QVERIFY(!doc.gpuTonePreviewActive());
+        QCOMPARE(doc.composite(), PhotoCrap::Filters::applyLight(before, parameters));
+        doc.undo();
+        QCOMPARE(doc.composite(), before);
+    }
     void cachedBaseAndFinalRender()
     {
         Document doc;

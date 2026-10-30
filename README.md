@@ -268,7 +268,7 @@ Référence : [Panneau Informations Adobe](https://helpx.adobe.com/photoshop/des
 
 Le curseur des outils est synchronisé immédiatement, puis après la stabilisation des fenêtres et du focus. Un test Cocoa contrôle la pointe réelle de la pipette, de l’échantillonneur et de la règle dès leur première activation, sans nouveau mouvement de souris, ainsi qu’après la réouverture d’Informations.
 
-Le canevas en développement après v0.15 utilise des textures Qt Quick réutilisables pour les blocs visibles, avec des surimpressions séparées. Les aperçus Courbes/Niveaux éligibles utilisent une table RVB sur GPU ; les autres cas et le rendu final gardent le moteur CPU et la précision des pixels de travail. Voir [l’architecture graphique et ses limites](docs/GPU_RENDERING.md).
+Le canevas en développement après v0.15 utilise des textures Qt Quick réutilisables pour les blocs visibles, avec des surimpressions séparées. Les aperçus Courbes/Niveaux/Lumière éligibles utilisent une table de correction sur GPU ; les autres cas et le rendu final gardent le moteur CPU et la précision des pixels de travail. Voir [l’architecture graphique et ses limites](docs/GPU_RENDERING.md).
 
 ## Validation et limites
 

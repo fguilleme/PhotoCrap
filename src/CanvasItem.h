@@ -73,6 +73,7 @@ private:
     QPainterPath           m_selectionPath;
     QImage                 m_textureImage, m_overlayImage, m_toneTable;
     bool                   m_gpuTonePreviewEnabled = false;
+    bool                   m_toneLuminance         = false;
     QHash<quint64, QImage> m_tileImages;
     qint64                 m_textureSourceKey = 0;
     qint64                 m_textureRevision  = 0;

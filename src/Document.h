@@ -909,6 +909,7 @@ public:
     QImage           displayComposite() const;
     void             setGpuTonePreviewEnabled(bool _enabled);
     bool             gpuTonePreviewActive() const;
+    bool             gpuTonePreviewUsesLuminance() const;
     QImage           gpuTonePreviewBase() const
     {
         return m_gpuToneBase;

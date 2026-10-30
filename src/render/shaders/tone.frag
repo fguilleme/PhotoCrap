@@ -29,6 +29,14 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
+    if (ubuf.mode == 6) {
+        // Threshold has a different luminance rule from Light/Gradient Map.
+        // Keep the CPU's integer coefficients and rounding before the comparison.
+        ivec3 channels = ivec3(index);
+        int level = (2126 * channels.r + 7152 * channels.g + 722 * channels.b + 5000) / 10000;
+        fragColor = texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)) * ubuf.opacity;
+        return;
+    }
     if (ubuf.mode == 5) {
         // Photo Filter (including luminosity preservation) and Channel Mixer.
         vec4 pixel = vec4(index, 1.0);

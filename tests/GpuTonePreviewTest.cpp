@@ -8,6 +8,8 @@
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
+#include "filters/PosterizeFilter.h"
+#include "filters/ThresholdFilter.h"
 #include "filters/ToneMappingTable.h"
 #include <QSignalSpy>
 #include <QtTest>
@@ -23,7 +25,8 @@ private slots:
         for (const QString &type :
              {QStringLiteral("light"), QStringLiteral("color"), QStringLiteral("colorBalance"),
               QStringLiteral("blackWhite"), QStringLiteral("gradientMap"),
-              QStringLiteral("photoFilter"), QStringLiteral("channelMixer")})
+              QStringLiteral("photoFilter"), QStringLiteral("channelMixer"),
+              QStringLiteral("posterize"), QStringLiteral("threshold")})
             for (int bits : {8, 16})
                 QTest::newRow(qPrintable(type + QString::number(bits))) << type << bits;
     }
@@ -47,9 +50,12 @@ private slots:
                                  : type == "blackWhite"   ? "reds"
                                  : type == "photoFilter"  ? "density"
                                  : type == "channelMixer" ? "redGreen"
+                                 : type == "posterize"    ? "levels"
+                                 : type == "threshold"    ? "level"
                                                           : "shadowColor";
         const QVariant initial = type == "gradientMap" ? QVariant("#301050")
                                  : type == "light"     ? QVariant(.8)
+                                 : type == "posterize" ? QVariant(5)
                                                        : QVariant(65.);
         QVariantMap    parameters;
         for (const auto &entry : doc.layers())
@@ -78,7 +84,9 @@ private slots:
             : type == "channelMixer"
                 ? QVariantMap{{"blueRed", -25}, {"greenBlue", 35},   {"redConstant", -10},
                               {"monoBlue", 60}, {"monoConstant", 5}, {"monochrome", true}}
-                : QVariantMap{{"highlightColor", "#c5e5b0"}};
+            : type == "posterize" ? QVariantMap{{"levels", 11}}
+            : type == "threshold" ? QVariantMap{{"level", 100}}
+                                  : QVariantMap{{"highlightColor", "#c5e5b0"}};
         const auto reference = [&](const QImage &_source) {
             if (type == "light")
                 return PhotoCrap::Filters::applyLight(_source, parameters);
@@ -92,6 +100,10 @@ private slots:
                 return PhotoCrap::Filters::applyPhotoFilter(_source, parameters);
             if (type == "channelMixer")
                 return PhotoCrap::Filters::applyChannelMixer(_source, parameters);
+            if (type == "posterize")
+                return PhotoCrap::Filters::applyPosterize(_source, parameters);
+            if (type == "threshold")
+                return PhotoCrap::Filters::applyThreshold(_source, parameters);
             return PhotoCrap::Filters::applyGradientMap(_source, parameters);
         };
         for (auto it = changes.cbegin(); it != changes.cend(); ++it) {

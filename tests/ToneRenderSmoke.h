@@ -10,6 +10,8 @@
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
+#include "filters/PosterizeFilter.h"
+#include "filters/ThresholdFilter.h"
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTemporaryDir>
@@ -68,10 +70,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         QTest::qWait(40);
         return _window->grabWindow();
     };
-    const auto check = [&](const QImage &_frame, const QImage &_expected) {
+    const auto check = [&](const QImage &_frame, const QImage &_expected, bool _dense = false) {
         const qreal ratio = qreal(_frame.width()) / _window->width();
-        for (int y = 0; y < 256; y += 37)
-            for (int x = 0; x < 500; x += 13) {
+        for (int y = 0; y < (_dense ? 112 : 256); y += 37)
+            for (int x = 0; x < (_dense ? 512 : 500); x += _dense ? 1 : 13) {
                 const QPointF scene = canvas.mapToScene({x + .5, y + .5});
                 const QPoint  point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
                 if (!_frame.rect().contains(point))
@@ -91,7 +93,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
          {QStringLiteral("levels"), QStringLiteral("light"), QStringLiteral("color"),
           QStringLiteral("colorBalance"), QStringLiteral("blackWhite"),
           QStringLiteral("gradientMap"), QStringLiteral("photoFilter"),
-          QStringLiteral("channelMixer"), QStringLiteral("curves")}) {
+          QStringLiteral("channelMixer"), QStringLiteral("posterize"), QStringLiteral("threshold"),
+          QStringLiteral("curves")}) {
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open reference photo"))
             return false;
         document.addAdjustmentLayer(type);
@@ -114,6 +117,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyPhotoFilter(original, parameters);
             if (type == "channelMixer")
                 return PhotoCrap::Filters::applyChannelMixer(original, parameters);
+            if (type == "posterize")
+                return PhotoCrap::Filters::applyPosterize(original, parameters);
+            if (type == "threshold")
+                return PhotoCrap::Filters::applyThreshold(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
         };
         auto preview = [&](double _value) {
@@ -167,6 +174,11 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                               {"redConstant", (_value - 1.) * 10}};
                 for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
                     document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "posterize" || type == "threshold") {
+                const QString key = type == "posterize" ? "levels" : "level";
+                parameters        = {
+                    {key, type == "posterize" ? qRound(_value * 10) : qRound(_value * 80)}};
+                document.previewLayerParameter(key, parameters.value(key));
             } else {
                 const QVariantList points{
                     QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 80}, {"y", 20 * _value}},
@@ -324,6 +336,22 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                      "and monochrome"))
                             return false;
                     }
+            }
+            if (type == "posterize" || type == "threshold") {
+                const QString    key = type == "posterize" ? "levels" : "level";
+                const QList<int> controls =
+                    type == "posterize"
+                        ? QList<int>{2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+                                     18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+                        : QList<int>{0, 1, 2, 64, 127, 128, 129, 192, 253, 254, 255};
+                for (int value : controls) {
+                    parameters = {{key, value}};
+                    document.previewLayerParameter(key, value);
+                    if (!require(check(frame(), reference(), true) &&
+                                     canvas.imageTextureUploads() == uploads,
+                                 "posterization plateaus and threshold transitions match the CPU"))
+                        return false;
+                }
             }
             if (type == "curves") {
                 parameters.insert("graySample", QVariantList{120, 145, 110});

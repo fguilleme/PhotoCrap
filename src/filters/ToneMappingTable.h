@@ -13,7 +13,8 @@ enum class ToneMappingMode : qint32 {
     Color       = 2,
     GradientMap = 3,
     BlackWhite  = 4,
-    Matrix      = 5
+    Matrix      = 5,
+    Threshold   = 6
 };
 struct ToneMappingSettings {
     ToneMappingMode          mode = ToneMappingMode::Channels;

@@ -6,11 +6,15 @@
 #include "LevelsFilter.h"
 #include "LightFilter.h"
 #include "PhotoFilterFilter.h"
+#include "PosterizeFilter.h"
+#include "ThresholdFilter.h"
 
 namespace PhotoCrap::Filters
 {
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters)
 {
+    if (_type == QStringLiteral("threshold"))
+        return {ToneMappingMode::Threshold, {}};
     if (_type == QStringLiteral("photoFilter")) {
         ToneMappingSettings result;
         result.mode           = ToneMappingMode::Matrix;
@@ -99,6 +103,10 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
         return applyGradientMap(ramp, _parameters);
     if (_type == QStringLiteral("blackWhite"))
         return applyBlackWhite(ramp, _parameters);
+    if (_type == QStringLiteral("posterize"))
+        return applyPosterize(ramp, _parameters);
+    if (_type == QStringLiteral("threshold"))
+        return applyThreshold(ramp, _parameters);
     return {};
 }
 } // namespace PhotoCrap::Filters

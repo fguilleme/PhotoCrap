@@ -233,6 +233,8 @@ The **layer** menu provides available properties, duplication, renaming, deletio
 
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
+The canvas under development after v0.15 uses reusable Qt Quick textures for visible tiles, with separate overlays. Filter calculations remain on the CPU and working pixels keep their precision. See the [graphics architecture and limitations](docs/GPU_RENDERING.md) (French).
+
 ## Validation and limitations
 
 The `scratch_cache` and `tiled_image` suites check lossless storage, active leases, cleanup, concurrency, and shared versions. Document tests also cover sparse stroke coverage in 8/16 bits.

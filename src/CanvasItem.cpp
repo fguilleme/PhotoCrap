@@ -266,9 +266,10 @@ QCursor magicWandCursor(int _selectionMode)
 }
 } // namespace
 
-CanvasItem::CanvasItem(QQuickItem *_parent) : QQuickPaintedItem(_parent)
+CanvasItem::CanvasItem(QQuickItem *_parent) : QQuickItem(_parent)
 {
-    setAntialiasing(true);
+    setFlag(ItemHasContents);
+    connect(this, &QQuickItem::windowChanged, this, [this] { queueFrame(false, true); });
 }
 CanvasItem::~CanvasItem()
 {
@@ -283,14 +284,18 @@ void CanvasItem::setDocument(Document *_document)
         disconnect(m_document, nullptr, this, nullptr);
     m_document = _document;
     if (_document) {
-        connect(_document, &Document::imageChanged, this, [this] { update(); });
-        connect(_document, &Document::documentChanged, this, [this] { update(); });
-        connect(_document, &Document::selectionChanged, this, [this] { update(); });
-        connect(_document, &Document::selectionDisplayChanged, this, [this] { update(); });
-        connect(_document, &Document::removeRegionChanged, this, [this] { update(); });
-        connect(_document, &Document::patchPreviewChanged, this, [this] { update(); });
+        connect(_document, &Document::imageChanged, this, [this] { queueFrame(true, false); });
+        connect(_document, &Document::documentChanged, this, [this] { queueFrame(true, true); });
+        connect(_document, &Document::selectionChanged, this, [this] { queueFrame(false, true); });
+        connect(_document, &Document::selectionDisplayChanged, this,
+                [this] { queueFrame(false, true); });
+        connect(_document, &Document::removeRegionChanged, this,
+                [this] { queueFrame(false, true); });
+        connect(_document, &Document::patchPreviewChanged, this,
+                [this] { queueFrame(false, true); });
+        connect(_document, &QObject::destroyed, this, [this] { queueFrame(true, true); });
     }
-    update();
+    queueFrame(true, true);
     emit documentChanged();
 }
 void CanvasItem::setSelectionPhase(qreal _phase)
@@ -299,7 +304,7 @@ void CanvasItem::setSelectionPhase(qreal _phase)
         return;
     m_selectionPhase = _phase;
     if (m_document && m_document->selectionShape() >= 6)
-        update();
+        queueFrame(false, true);
     emit selectionPhaseChanged();
 }
 void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool, int _selectionMode,
@@ -385,58 +390,4 @@ void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool,
         });
     }
 #endif
-}
-void CanvasItem::paint(QPainter *_painter)
-{
-    if (!m_document)
-        return;
-    // A small tiled texture keeps transparent canvases inexpensive at any zoom.
-    static const QImage checker = [] {
-        QImage tile(24, 24, QImage::Format_RGB32);
-        tile.fill(QColor("#d6d6d6"));
-        QPainter p(&tile);
-        p.fillRect(0, 0, 12, 12, QColor("#eeeeee"));
-        p.fillRect(12, 12, 12, 12, QColor("#eeeeee"));
-        return tile;
-    }();
-    _painter->fillRect(boundingRect(), QBrush(checker));
-    _painter->setRenderHint(QPainter::SmoothPixmapTransform, width() < m_document->width());
-    _painter->drawImage(boundingRect(), m_document->displayComposite());
-    if (m_document->patchDragging() && !m_document->patchPreviewImage().isNull()) {
-        // This is a donor-texture preview; colour adaptation is applied on release.
-        _painter->save();
-        _painter->scale(width() / m_document->width(), height() / m_document->height());
-        _painter->setClipRegion(m_document->patchTargetRegion());
-        _painter->drawImage(m_document->patchTargetRect(), m_document->patchPreviewImage());
-        _painter->restore();
-    }
-    if (m_document->removeHasPending()) {
-        _painter->save();
-        _painter->scale(width() / m_document->width(), height() / m_document->height());
-        _painter->setClipRegion(m_document->removeRegion());
-        _painter->fillRect(m_document->removeRegion().boundingRect(), QColor(235, 70, 180, 110));
-        _painter->restore();
-    }
-    if (m_document->selectionShape() < 6 || !m_document->hasSelection() ||
-        !m_document->selectionEdgesVisible())
-        return;
-
-    QPainterPath outline;
-    outline.setFillRule(Qt::WindingFill);
-    outline.addRegion(m_document->selectionOutline());
-    outline = outline.simplified();
-    _painter->save();
-    _painter->setRenderHint(QPainter::Antialiasing, false);
-    _painter->scale(width() / m_document->width(), height() / m_document->height());
-    QPen pen(Qt::black, 1.5, Qt::DashLine, Qt::SquareCap, Qt::MiterJoin);
-    pen.setCosmetic(true);
-    pen.setDashPattern({5, 5});
-    pen.setDashOffset(m_selectionPhase);
-    _painter->setPen(pen);
-    _painter->drawPath(outline);
-    pen.setColor(Qt::white);
-    pen.setDashOffset(m_selectionPhase + 5);
-    _painter->setPen(pen);
-    _painter->drawPath(outline);
-    _painter->restore();
 }

@@ -15,6 +15,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
+#include "../tests/CanvasRenderSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/ShutdownSmoke.h"
 #include "../tests/UiSmoke.h"
@@ -137,6 +138,11 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            if (args.contains("--canvas-render-test")) {
+                passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--file-dialog-test")) {
                 passed = window && runFileDialogSmoke(window, document);
                 app.exit(passed && !qmlWarnings ? 0 : 3);

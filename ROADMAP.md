@@ -89,7 +89,8 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [ ] Stockage de travail par tuiles avec cache disque configurable pour les pixels, masques et versions d’historique ; éviction réelle de RAM, calculs asynchrones et contrôle d’espace libre. Une première étape existe pour les rendus de fréquences ; les plans éditables et l’historique ne sont pas encore déchargés sur disque. [Audit, implémentation et suite](docs/LAYER_MEMORY.md).
 - [ ] Historique par différences, récupération après fermeture anormale et autosauvegarde, distincts du cache temporaire de travail.
 - [ ] Documents multiples et espaces de travail nommés/importables.
-- [ ] Accélération GPU lorsque le gain et la fidélité du résultat sont mesurés ; réduction du bruit avancée.
+- [x] Première étape d’affichage après v0.15 : canevas en textures du graphe de scène Qt Quick, blocs visibles réutilisables, niveau de détail d’affichage conservé et surimpressions séparées de la photo ; repli logiciel et test `canvas_render`. [Fonctionnement et limites](docs/GPU_RENDERING.md).
+- [ ] Filtres et composition sur GPU, transferts régionaux, contours par shaders et budget de VRAM ; mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 ## 3. Sélections et masques à compléter
 

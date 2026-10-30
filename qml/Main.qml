@@ -2239,6 +2239,19 @@ ApplicationWindow {
                                 anchors.fill: parent
                                 document: editor
                                 selectionPhase: artboard.selectionAntPhase
+                                // Depend explicitly on scrolling/rotation: coordinate mapping alone
+                                // does not notify a binding when the Flickable moves its content.
+                                viewportRect: {
+                                    const scrollX=viewport.contentX, scrollY=viewport.contentY
+                                    const angle=window.canvasRotation, scale=window.zoom
+                                    const points=[viewport.mapToItem(artboard,0,0),viewport.mapToItem(artboard,viewport.width,0),
+                                                  viewport.mapToItem(artboard,viewport.width,viewport.height),viewport.mapToItem(artboard,0,viewport.height)]
+                                    const left=Math.max(0,Math.floor(Math.min.apply(null,points.map(p=>p.x))))
+                                    const top=Math.max(0,Math.floor(Math.min.apply(null,points.map(p=>p.y))))
+                                    const right=Math.min(width,Math.ceil(Math.max.apply(null,points.map(p=>p.x))))
+                                    const bottom=Math.min(height,Math.ceil(Math.max.apply(null,points.map(p=>p.y))))
+                                    return Qt.rect(left,top,Math.max(0,right-left),Math.max(0,bottom-top))
+                                }
                                 Component.onCompleted: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))

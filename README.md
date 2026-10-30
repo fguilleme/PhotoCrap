@@ -268,6 +268,8 @@ Référence : [Panneau Informations Adobe](https://helpx.adobe.com/photoshop/des
 
 Le curseur des outils est synchronisé immédiatement, puis après la stabilisation des fenêtres et du focus. Un test Cocoa contrôle la pointe réelle de la pipette, de l’échantillonneur et de la règle dès leur première activation, sans nouveau mouvement de souris, ainsi qu’après la réouverture d’Informations.
 
+Le canevas en développement après v0.15 utilise des textures Qt Quick réutilisables pour les blocs visibles, avec des surimpressions séparées. Les calculs des filtres restent CPU et les pixels de travail conservent leur précision. Voir [l’architecture graphique et ses limites](docs/GPU_RENDERING.md).
+
 ## Validation et limites
 
 Les suites `scratch_cache` et `tiled_image` vérifient le stockage sans perte, les références actives, le nettoyage, la concurrence et les versions partagées. Les tests du document couvrent aussi les couvertures de traits parcimonieuses en 8/16 bits.

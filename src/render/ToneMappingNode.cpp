@@ -68,6 +68,10 @@ public:
             return int(filtering) - int(other->filtering);
         if (settings.mode != other->settings.mode)
             return int(settings.mode) - int(other->settings.mode);
+        if (settings.effectOpacity != other->settings.effectOpacity)
+            return settings.effectOpacity < other->settings.effectOpacity ? -1 : 1;
+        if (settings.maskCoverage != other->settings.maskCoverage)
+            return settings.maskCoverage < other->settings.maskCoverage ? -1 : 1;
         const auto left = shaderParameters(settings), right = shaderParameters(other->settings);
         for (size_t vector = 0; vector < left.size(); ++vector)
             for (int channel = 0; channel < 4; ++channel)
@@ -96,6 +100,13 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
     const qint32 mode = qint32(material->settings.mode);
     if (!_old || std::memcmp(data->constData() + 68, &mode, sizeof(mode))) {
         std::memcpy(data->data() + 68, &mode, sizeof(mode));
+        changed = true;
+    }
+    // Reuse the two std140 padding slots before the first vec4.
+    const float composition[2] = {material->settings.effectOpacity,
+                                  material->settings.maskCoverage};
+    if (!_old || std::memcmp(data->constData() + 72, composition, sizeof(composition))) {
+        std::memcpy(data->data() + 72, composition, sizeof(composition));
         changed = true;
     }
     // Nine packed vec4s reuse slots between algorithms instead of growing one

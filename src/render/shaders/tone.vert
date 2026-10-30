@@ -6,6 +6,8 @@ layout(std140, binding = 0) uniform buf {
     mat4 matrix;
     float opacity;
     int mode;
+    float effectOpacity;
+    float maskCoverage;
     vec4 parameters[9];
 } ubuf;
 void main()

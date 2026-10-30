@@ -67,8 +67,8 @@ un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et b
 Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie, Seuil,
 Style colorimétrique, Correction sélective, Luminosité/Contraste, Exposition,
 Vibrance, Teinte/Saturation ou Négatif visible,
-en mode Normal à 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
-blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
+en mode Normal, sans dossier ni écrêtage, avec un masque absent, désactivé ou
+uniforme (blanc, gris ou noir). Son opacité peut varier de 0 à 100 %. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
 le backend logiciel.
 
@@ -127,6 +127,17 @@ le backend logiciel.
   et un calcul CPU par canaux mémoire sans conversion QColor. Ce réglage n’a pas
   de curseur de couleur ; son ajout et le rendu final restent asynchrones sur CPU,
   et le chemin GPU est disponible pendant une session de propriétés éligible.
+- Le shader compose le réglage avec la base opaque selon l’opacité du calque et
+  la couverture du masque uniforme. Il applique la densité du masque et la
+  prémultiplication écran en 8 bits avant l’opacité, comme le chemin CPU. Un contour
+  progressif ne change pas un masque uniforme. Ces deux constantes occupent les
+  emplacements libres avant les neuf vecteurs : le bloc reste de 224 octets.
+  Les masques peints, les modes de fusion autres que Normal et les bases
+  transparentes conservent le chemin CPU ; aucune texture de masque n’est ajoutée.
+- Les tables identiques sont conservées. Changer uniquement la densité ou le
+  contour progressif d’un masque uniforme ne retransfère ni la photo ni la table.
+  Le mélange des six familles Noir et blanc réutilise aussi sa palette quand la
+  colorisation reste identique.
 - Les paramètres du shader sont regroupés dans neuf `vec4` réutilisés entre les
   algorithmes. Le bloc complet occupe 224 octets selon la réflexion du shader,
   plutôt que de réserver un bloc différent pour chaque filtre. Changer les styles
@@ -217,6 +228,12 @@ fines en 16 bits. Teinte/Saturation est comparé sur 135 combinaisons de rotatio
 rampes et couleurs saturées/atténuées. Des valeurs connues et la formule QColor
 indépendante contrôlent aussi les primaires, les gris, l’alpha et les pixels 16 bits.
 Les comparaisons denses incluent désormais les lignes de couleurs mélangées.
+Les dix-huit shaders sont aussi comparés à la composition QPainter avec les masques
+uniformes 0/128/255, les densités 0/37/100 % et une opacité de 37 %. Niveaux couvre
+également les opacités 0/1/50/99/100 %. Les contrôles vérifient la réutilisation des
+textures quand seule la densité change et le remplacement par le rendu final CPU.
+Les tests moteur couvrent ces états en 8 et 16 bits, l’historique, l’annulation et
+la désactivation du masque.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.

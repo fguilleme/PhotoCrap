@@ -19,6 +19,7 @@
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
+#include <QPainter>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTemporaryDir>
@@ -95,6 +96,24 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 }
             }
         return true;
+    };
+    const auto composed = [&](const QImage &_filtered, double _opacity, int _mask,
+                              double _density) {
+        QImage    masked = _filtered.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        const int alpha  = qRound(255 - (255 - _mask) * _density / 100.);
+        for (int y = 0; y < masked.height(); ++y) {
+            auto *row = reinterpret_cast<QRgb *>(masked.scanLine(y));
+            for (int x = 0; x < masked.width(); ++x)
+                row[x] = qRgba(qRound(qRed(row[x]) * alpha / 255.),
+                               qRound(qGreen(row[x]) * alpha / 255.),
+                               qRound(qBlue(row[x]) * alpha / 255.), alpha);
+        }
+        QImage   result = original.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QPainter painter(&result);
+        painter.setOpacity(_opacity);
+        painter.drawImage(0, 0, masked);
+        painter.end();
+        return result;
     };
     const auto &types = PhotoCrap::Filters::gpuTonePreviewTypes();
     if (!require(types.size() == 18, "the render test covers the complete GPU filter registry"))
@@ -266,14 +285,13 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                              "changing parameters updates the shader without uploading the photo"))
                     return false;
             }
-            const bool analytic = type == "color" || type == "photoFilter" ||
-                                  type == "channelMixer" || type == "colorLookup" ||
-                                  type == "selectiveColor" || type == "vibrance" ||
-                                  type == "hueSaturation" || type == "invert";
-            if (!require(
-                    analytic ? canvas.toneTableUploads() == tables
-                             : canvas.toneTableUploads() >= tables + 3,
-                    "analytic filters only update constants; table-based filters update their LUT"))
+            const bool stableTable =
+                type == "blackWhite" || type == "color" || type == "photoFilter" ||
+                type == "channelMixer" || type == "colorLookup" || type == "selectiveColor" ||
+                type == "vibrance" || type == "hueSaturation" || type == "invert";
+            if (!require(stableTable ? canvas.toneTableUploads() == tables
+                                     : canvas.toneTableUploads() >= tables + 3,
+                         "identical palettes are reused; changed mappings update their LUT"))
                 return false;
             if (type == "color" || type == "colorBalance") {
                 const QStringList controls =
@@ -507,6 +525,47 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         const auto finalExpected = reference();
         if (!require(check(frame(), finalExpected), "the final canvas matches the CPU reference"))
             return false;
+        if (hardware) {
+            // Every shader must compose with reduced opacity and uniform masks.
+            const QList<double> opacities =
+                type == "levels" ? QList<double>{0., .01, .37, .5, .99, 1.} : QList<double>{.37};
+            for (double opacity : opacities)
+                for (int mask : {0, 128, 255}) {
+                    document.setLayerOpacity(document.activeLayer(), opacity);
+                    document.setEditingMask(true);
+                    document.fillMaskWithColor(QColor(mask, mask, mask));
+                    document.setEditingMask(false);
+                    preview(.8);
+                    document.previewLayerParameter("_maskDensity", 0.);
+                    document.previewLayerParameter("_maskFeather", 12.);
+                    if (!require(
+                            QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                            "uniform masks and reduced opacity keep GPU eligibility"))
+                        return false;
+                    frame();
+                    const auto photoUploads = canvas.imageTextureUploads();
+                    const auto tableUploads = canvas.toneTableUploads();
+                    const auto baseKey      = document.gpuTonePreviewBase().cacheKey();
+                    for (double density : {0., 37., 100.}) {
+                        document.previewLayerParameter("_maskDensity", density);
+                        if (!require(
+                                check(frame(), composed(reference(), opacity, mask, density),
+                                      true) &&
+                                    canvas.imageTextureUploads() == photoUploads &&
+                                    canvas.toneTableUploads() == tableUploads &&
+                                    document.gpuTonePreviewBase().cacheKey() == baseKey,
+                                "mask density composes like the CPU without uploading textures"))
+                            return false;
+                    }
+                    document.finishLayerPreview();
+                    if (!require(
+                            QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); },
+                                            5000) &&
+                                check(frame(), composed(reference(), opacity, mask, 100.), true),
+                            "masked final rendering replaces the shader with the CPU result"))
+                        return false;
+                }
+        }
     }
     qInfo() << "Tone render checks passed; filters:" << types.size() << "; hardware:" << hardware
             << "; API:" << _window->rendererInterface()->graphicsApi()

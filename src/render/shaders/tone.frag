@@ -5,6 +5,8 @@ layout(std140, binding = 0) uniform buf {
     mat4 matrix;
     float opacity;
     int mode;
+    float effectOpacity;
+    float maskCoverage;
     vec4 parameters[9];
 } ubuf;
 layout(binding = 1) uniform sampler2D sourceTexture;
@@ -41,6 +43,16 @@ vec3 selectiveDelta(vec3 pixel)
     delta += ubuf.parameters[8].xyz * max(0.0, (128.0 - maximum) / 128.0);
     return delta;
 }
+vec4 compositeAdjustment(vec3 base, vec4 adjusted)
+{
+    // Preserve the CPU's 8-bit mask premultiplication before layer opacity.
+    vec3 premultiplied = floor(adjusted.rgb * ubuf.maskCoverage + 0.5);
+    float opacityScale = floor(ubuf.effectOpacity * 256.0) / 256.0;
+    float alpha = floor(ubuf.maskCoverage * opacityScale + 0.5);
+    vec3 source = floor(premultiplied * opacityScale + 0.5);
+    vec3 result = source + floor(base * (255.0 - alpha) / 255.0 + 0.5);
+    return vec4(clamp(result, 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+}
 void main()
 {
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
@@ -73,7 +85,7 @@ void main()
         lightness = floor(clamp(lightness + ubuf.parameters[0].z, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
         vec3 ramp = clamp(abs(mod(vec3(hue * 6.0) + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
         vec3 mapped = vec3(lightness) + (ramp - 0.5) * ((1.0 - abs(2.0 * lightness - 1.0)) * saturation);
-        fragColor = vec4(clamp(floor(mapped * 255.0 + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped * 255.0 + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
     if (ubuf.mode == 10) {
@@ -83,7 +95,7 @@ void main()
         // Preserve the legacy negative-factor behavior instead of Color's clamp.
         float factor = 1.0 + ubuf.parameters[0].y + ubuf.parameters[0].x * (1.0 - (maximum - minimum) / 255.0);
         vec3 mapped = vec3(luminance) + (index - vec3(luminance)) * factor;
-        fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
     if (ubuf.mode == 8 || ubuf.mode == 9) {
@@ -94,7 +106,7 @@ void main()
                              delta.b >= 0.0 ? 255.0 - index.b : index.b);
             delta = delta * room / 255.0;
         }
-        fragColor = vec4(clamp(floor(index + delta + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(clamp(floor(index + delta + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
     if (ubuf.mode == 7) {
@@ -125,7 +137,7 @@ void main()
             styled += vec3(correction);
         }
         vec3 mapped = index + (styled - index) * ubuf.parameters[0].y;
-        fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
     if (ubuf.mode == 6) {
@@ -133,14 +145,14 @@ void main()
         // Keep the CPU's integer coefficients and rounding before the comparison.
         ivec3 channels = ivec3(index);
         int level = (2126 * channels.r + 7152 * channels.g + 722 * channels.b + 5000) / 10000;
-        fragColor = texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)));
         return;
     }
     if (ubuf.mode == 5) {
         // Photo Filter (including luminosity preservation) and Channel Mixer.
         vec4 pixel = vec4(index, 1.0);
         vec3 mapped = vec3(dot(ubuf.parameters[3], pixel), dot(ubuf.parameters[4], pixel), dot(ubuf.parameters[5], pixel));
-        fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
     if (ubuf.mode == 4) {
@@ -160,7 +172,7 @@ void main()
         int second = first == 5 ? 0 : first + 1;
         float adjustment = mix(familyAdjustment(first), familyAdjustment(second), fract(hue));
         float gray = clamp(floor(dot(index, vec3(0.2126, 0.7152, 0.0722)) + adjustment * chroma + 0.5), 0.0, 255.0);
-        fragColor = texture(tableTexture, vec2((gray + 0.5) / 256.0, 0.5)) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, texture(tableTexture, vec2((gray + 0.5) / 256.0, 0.5)));
         return;
     }
     if (ubuf.mode == 2) {
@@ -174,7 +186,7 @@ void main()
         float luminance = dot(balanced, vec3(0.2126, 0.7152, 0.0722));
         float factor = max(0.0, 1.0 + ubuf.parameters[0].w + ubuf.parameters[0].z * (1.0 - (maximum - minimum)));
         vec3 corrected = clamp(vec3(luminance) + (balanced - vec3(luminance)) * factor, 0.0, 1.0);
-        fragColor = vec4(floor(corrected * 255.0 + 0.5) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(floor(corrected * 255.0 + 0.5) / 255.0, 1.0));
         return;
     }
     if (ubuf.mode == 1 || ubuf.mode == 3) {
@@ -184,7 +196,7 @@ void main()
         // Positive integer division is also supported by the older GLSL targets.
         int level = (54 * channels.r + 183 * channels.g + 19 * channels.b + 128) / 256;
         if (ubuf.mode == 3) {
-            fragColor = texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)) * ubuf.opacity;
+            fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)));
             return;
         }
         int mapped = int(floor(texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)).r * 255.0 + 0.5));
@@ -194,11 +206,11 @@ void main()
                 : channels + (ivec3(255) - channels) * (mapped - level) / (255 - level);
         else
             outputChannels = level == 0 ? ivec3(mapped) : channels * mapped / level;
-        fragColor = vec4(vec3(outputChannels) / 255.0, 1.0) * ubuf.opacity;
+        fragColor = compositeAdjustment(index, vec4(vec3(outputChannels) / 255.0, 1.0));
         return;
     }
     vec3 mapped = vec3(texture(tableTexture, vec2((index.r + 0.5) / 256.0, 0.5)).r,
                        texture(tableTexture, vec2((index.g + 0.5) / 256.0, 0.5)).g,
                        texture(tableTexture, vec2((index.b + 0.5) / 256.0, 0.5)).b);
-    fragColor = vec4(mapped, 1.0) * ubuf.opacity;
+    fragColor = compositeAdjustment(index, vec4(mapped, 1.0));
 }

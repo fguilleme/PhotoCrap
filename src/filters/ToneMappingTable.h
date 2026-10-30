@@ -29,6 +29,8 @@ struct ToneMappingSettings {
     QVector4D                families0{}, families1{};
     std::array<QVector4D, 3> matrix{};
     std::array<QVector4D, 9> selective{};
+    float                    effectOpacity                                 = 1.f;
+    float                    maskCoverage                                  = 255.f;
     bool                     operator==(const ToneMappingSettings &) const = default;
 };
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters);

@@ -21,12 +21,11 @@ bool Document::gpuToneEligible() const
         return false;
     const auto &layer = m_layers[m_active];
     return layer.kind == QStringLiteral("adjustment") && layer.visible && layer.blend == 0 &&
-           qFuzzyCompare(layer.opacity, 1.) && layer.groupId.isEmpty() && !layer.clippingMask &&
+           layer.groupId.isEmpty() && !layer.clippingMask &&
            PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
            (layer.adjustmentType != QStringLiteral("selectiveColor") ||
             layer.parameters.contains(QStringLiteral("redsCyanRed"))) &&
-           (!layer.maskEnabled || layer.mask.isNull() ||
-            (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255));
+           (!layer.maskEnabled || layer.mask.isNull() || ImageUtils::compact(layer.mask));
 }
 
 bool Document::gpuTonePreviewActive() const
@@ -39,7 +38,15 @@ PhotoCrap::Filters::ToneMappingSettings Document::gpuTonePreviewSettings() const
     if (!gpuTonePreviewActive())
         return {};
     const auto &layer = m_layers[m_active];
-    return PhotoCrap::Filters::toneMappingSettings(layer.adjustmentType, layer.parameters);
+    auto settings = PhotoCrap::Filters::toneMappingSettings(layer.adjustmentType, layer.parameters);
+    settings.effectOpacity = float(qBound(0., layer.opacity, 1.));
+    if (layer.maskEnabled && !layer.mask.isNull()) {
+        const double density =
+            qBound(0., layer.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.);
+        settings.maskCoverage =
+            float(qRound(255 - (255 - layer.mask.constScanLine(0)[0]) * density));
+    }
+    return settings;
 }
 
 void Document::invalidateGpuTonePreview()
@@ -60,7 +67,10 @@ bool Document::updateGpuTonePreview()
     if (!m_previewingLayer || m_gpuToneRejected || !gpuToneEligible() || m_gpuToneBase.isNull())
         return false;
     const auto &layer = m_layers[m_active];
-    m_gpuToneTable  = PhotoCrap::Filters::toneMappingTable(layer.adjustmentType, layer.parameters);
+    const auto table = PhotoCrap::Filters::toneMappingTable(layer.adjustmentType, layer.parameters);
+    // Density and feathering of a uniform mask do not change the color lookup.
+    if (m_gpuToneTable != table)
+        m_gpuToneTable = table;
     m_gpuToneActive = !m_gpuToneTable.isNull();
     if (!m_gpuToneActive)
         return false;

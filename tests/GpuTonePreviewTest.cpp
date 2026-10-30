@@ -344,6 +344,74 @@ private slots:
         QVERIFY(!doc.gpuTonePreviewActive());
         QCOMPARE(doc.composite(), before);
     }
+    void uniformMaskAndOpacity_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<int>("coverage");
+        QTest::addColumn<double>("opacity");
+        for (int bits : {8, 16})
+            for (int coverage : {0, 128, 255})
+                for (double opacity : {0., .37, 1.})
+                    QTest::newRow(
+                        qPrintable(QString("%1-%2-%3").arg(bits).arg(coverage).arg(opacity)))
+                        << bits << coverage << opacity;
+    }
+    void uniformMaskAndOpacity()
+    {
+        QFETCH(int, bits);
+        QFETCH(int, coverage);
+        QFETCH(double, opacity);
+        Document doc, cpu;
+        for (Document *target : {&doc, &cpu}) {
+            QVERIFY(target->newDocument(256, 128, false, bits));
+            target->setColor(QColor(40, 110, 210));
+            target->fillWithColor(true);
+            target->setPreviewSize(128, 64);
+            target->addAdjustmentLayer("levels");
+            target->setLayerOpacity(target->activeLayer(), opacity);
+            target->setEditingMask(true);
+            target->fillMaskWithColor(QColor(coverage, coverage, coverage));
+            target->setEditingMask(false);
+        }
+        doc.setGpuTonePreviewEnabled(true);
+        const auto before  = doc.composite();
+        const int  history = doc.historyIndex();
+        for (Document *target : {&doc, &cpu}) {
+            target->previewLayerParameter("gamma", 2.);
+            target->previewLayerParameter("_maskDensity", 37.);
+            target->previewLayerParameter("_maskFeather", 12.);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.gpuTonePreviewSettings().effectOpacity, float(opacity));
+        QCOMPARE(doc.gpuTonePreviewSettings().maskCoverage,
+                 float(qRound(255 - (255 - coverage) * .37)));
+        const auto key   = doc.gpuTonePreviewBase().cacheKey();
+        const auto table = doc.gpuTonePreviewTable().cacheKey();
+        for (Document *target : {&doc, &cpu})
+            target->previewLayerParameter("_maskDensity", 85.);
+        QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), key);
+        QCOMPARE(doc.gpuTonePreviewTable().cacheKey(), table);
+        QCOMPARE(doc.gpuTonePreviewSettings().maskCoverage,
+                 float(qRound(255 - (255 - coverage) * .85)));
+        for (Document *target : {&doc, &cpu})
+            target->finishLayerPreview();
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.historyIndex(), history + 1);
+        QCOMPARE(doc.composite(), cpu.composite());
+        QCOMPARE(doc.channelBits(), bits);
+        doc.previewLayerParameter("_maskDensity", 15.);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        doc.cancelLayerPreview();
+        QCOMPARE(doc.composite(), cpu.composite());
+        doc.undo();
+        QCOMPARE(doc.composite(), before);
+        // An ignored mask must contribute full coverage, even if it is black.
+        doc.setMaskEnabled(false);
+        doc.previewLayerParameter("gamma", .7);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.gpuTonePreviewSettings().maskCoverage, 255.f);
+        doc.cancelLayerPreview();
+    }
     void unsupportedCasesStayOnCpu()
     {
         for (const bool transparent : {false, true}) {
@@ -353,7 +421,7 @@ private slots:
             doc.setGpuTonePreviewEnabled(true);
             doc.addAdjustmentLayer("levels");
             if (!transparent)
-                doc.setLayerOpacity(doc.activeLayer(), .5);
+                doc.setLayerBlend(doc.activeLayer(), 3);
             const int revision = doc.revision();
             doc.previewLayerParameter("gamma", 2.);
             QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);

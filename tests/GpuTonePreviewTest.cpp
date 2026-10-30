@@ -1,10 +1,12 @@
 #include "Document.h"
 #include "filters/BlackWhiteFilter.h"
+#include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
@@ -13,6 +15,7 @@
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/ToneMappingTable.h"
+#include "filters/VibranceFilter.h"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -29,14 +32,10 @@ private slots:
     {
         QTest::addColumn<QString>("type");
         QTest::addColumn<int>("bits");
-        for (const QString &type :
-             {QStringLiteral("light"), QStringLiteral("color"), QStringLiteral("colorBalance"),
-              QStringLiteral("blackWhite"), QStringLiteral("gradientMap"),
-              QStringLiteral("photoFilter"), QStringLiteral("channelMixer"),
-              QStringLiteral("posterize"), QStringLiteral("threshold"),
-              QStringLiteral("colorLookup"), QStringLiteral("selectiveColor")})
-            for (int bits : {8, 16})
-                QTest::newRow(qPrintable(type + QString::number(bits))) << type << bits;
+        for (const QString &type : PhotoCrap::Filters::gpuTonePreviewTypes())
+            if (type != "curves" && type != "levels")
+                for (int bits : {8, 16})
+                    QTest::newRow(qPrintable(type + QString::number(bits))) << type << bits;
     }
     void cachedAdjustmentPreview()
     {
@@ -52,21 +51,24 @@ private slots:
         doc.addAdjustmentLayer(type);
         const auto     before  = doc.composite();
         const int      history = doc.historyIndex();
-        const QString  key     = type == "light"            ? "exposure"
-                                 : type == "color"          ? "temperature"
-                                 : type == "colorBalance"   ? "cyanRed"
-                                 : type == "blackWhite"     ? "reds"
-                                 : type == "photoFilter"    ? "density"
-                                 : type == "channelMixer"   ? "redGreen"
-                                 : type == "posterize"      ? "levels"
-                                 : type == "threshold"      ? "level"
-                                 : type == "colorLookup"    ? "strength"
-                                 : type == "selectiveColor" ? "redsCyanRed"
-                                                            : "shadowColor";
-        const QVariant initial = type == "gradientMap" ? QVariant("#301050")
-                                 : type == "light"     ? QVariant(.8)
-                                 : type == "posterize" ? QVariant(5)
-                                                       : QVariant(65.);
+        const QString  key     = type == "light"                ? "exposure"
+                                 : type == "color"              ? "temperature"
+                                 : type == "colorBalance"       ? "cyanRed"
+                                 : type == "blackWhite"         ? "reds"
+                                 : type == "photoFilter"        ? "density"
+                                 : type == "channelMixer"       ? "redGreen"
+                                 : type == "posterize"          ? "levels"
+                                 : type == "threshold"          ? "level"
+                                 : type == "colorLookup"        ? "strength"
+                                 : type == "selectiveColor"     ? "redsCyanRed"
+                                 : type == "brightnessContrast" ? "brightness"
+                                 : type == "exposure"           ? "exposure"
+                                 : type == "vibrance"           ? "vibrance"
+                                                                : "shadowColor";
+        const QVariant initial = type == "gradientMap"                   ? QVariant("#301050")
+                                 : type == "light" || type == "exposure" ? QVariant(.8)
+                                 : type == "posterize"                   ? QVariant(5)
+                                                                         : QVariant(65.);
         QVariantMap    parameters;
         for (const auto &entry : doc.layers())
             if (entry.toMap().value("layerIndex").toInt() == doc.activeLayer())
@@ -103,7 +105,10 @@ private slots:
                               {"greensYellowBlue", 20}, {"whitesBlack", 10},
                               {"neutralsCyanRed", 15},  {"blacksMagentaGreen", -10},
                               {"relative", false}}
-                : QVariantMap{{"highlightColor", "#c5e5b0"}};
+            : type == "brightnessContrast" ? QVariantMap{{"contrast", -35}}
+            : type == "exposure"           ? QVariantMap{{"offset", -.15}, {"gamma", 1.4}}
+            : type == "vibrance"           ? QVariantMap{{"saturation", -25}}
+                                           : QVariantMap{{"highlightColor", "#c5e5b0"}};
         const auto reference = [&](const QImage &_source) {
             if (type == "light")
                 return PhotoCrap::Filters::applyLight(_source, parameters);
@@ -125,6 +130,12 @@ private slots:
                 return PhotoCrap::Filters::applyColorLookup(_source, parameters);
             if (type == "selectiveColor")
                 return PhotoCrap::Filters::applySelectiveColor(_source, parameters);
+            if (type == "brightnessContrast")
+                return PhotoCrap::Filters::applyBrightnessContrast(_source, parameters);
+            if (type == "exposure")
+                return PhotoCrap::Filters::applyExposure(_source, parameters);
+            if (type == "vibrance")
+                return PhotoCrap::Filters::applyVibrance(_source, parameters);
             return PhotoCrap::Filters::applyGradientMap(_source, parameters);
         };
         for (auto it = changes.cbegin(); it != changes.cend(); ++it) {
@@ -189,6 +200,25 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(doc.displayComposite(),
                                   PhotoCrap::Filters::applySelectiveColor(source, parameters),
                                   5000);
+    }
+    void legacyExposureAndVibranceSemantics()
+    {
+        QImage source(1, 1, QImage::Format_ARGB32);
+        source.setPixelColor(0, 0, QColor(64, 128, 192));
+        QCOMPARE(PhotoCrap::Filters::applyExposure(source, {{"exposure", 1.}}).pixelColor(0, 0),
+                 QColor(128, 255, 255));
+        source.setPixelColor(0, 0, QColor(80, 100, 120));
+        QCOMPARE(
+            PhotoCrap::Filters::applyVibrance(source, {{"vibrance", -100}, {"saturation", -100}})
+                .pixelColor(0, 0),
+            QColor(112, 95, 78));
+        QImage wide(1, 1, QImage::Format_RGBA64);
+        reinterpret_cast<QRgba64 *>(wide.scanLine(0))[0] =
+            QRgba64::fromRgba64(16465, 33019, 49544, 65535);
+        const auto exposed = PhotoCrap::Filters::applyExposure(wide, {{"exposure", 1.}});
+        QCOMPARE(exposed.format(), QImage::Format_RGBA64_Premultiplied);
+        QCOMPARE(reinterpret_cast<const QRgba64 *>(exposed.constScanLine(0))[0],
+                 QRgba64::fromRgba64(32930, 65535, 65535, 65535));
     }
     void cachedBaseAndFinalRender()
     {

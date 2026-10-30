@@ -2,11 +2,13 @@
 #include "CanvasItem.h"
 #include "Document.h"
 #include "filters/BlackWhiteFilter.h"
+#include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
@@ -14,6 +16,7 @@
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
+#include "filters/VibranceFilter.h"
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTemporaryDir>
@@ -91,12 +94,11 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             }
         return true;
     };
-    for (const QString &type :
-         {QStringLiteral("levels"), QStringLiteral("light"), QStringLiteral("color"),
-          QStringLiteral("colorBalance"), QStringLiteral("blackWhite"),
-          QStringLiteral("gradientMap"), QStringLiteral("photoFilter"),
-          QStringLiteral("channelMixer"), QStringLiteral("posterize"), QStringLiteral("threshold"),
-          QStringLiteral("curves")}) {
+    const auto &types = PhotoCrap::Filters::gpuTonePreviewTypes();
+    if (!require(types.size() == 16, "the render test covers the complete GPU filter registry"))
+        return false;
+    for (const QString &type : types) {
+        qInfo() << "Checking GPU filter:" << type;
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open reference photo"))
             return false;
         document.addAdjustmentLayer(type);
@@ -127,6 +129,12 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyColorLookup(original, parameters);
             if (type == "selectiveColor")
                 return PhotoCrap::Filters::applySelectiveColor(original, parameters);
+            if (type == "brightnessContrast")
+                return PhotoCrap::Filters::applyBrightnessContrast(original, parameters);
+            if (type == "exposure")
+                return PhotoCrap::Filters::applyExposure(original, parameters);
+            if (type == "vibrance")
+                return PhotoCrap::Filters::applyVibrance(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
         };
         auto preview = [&](double _value) {
@@ -198,6 +206,19 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 parameters.insert("blacksBlack", (_value - 1.) * 15.);
                 for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
                     document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "brightnessContrast" || type == "exposure" || type == "vibrance") {
+                if (type == "brightnessContrast")
+                    parameters = {{"brightness", (_value - 1.) * 40},
+                                  {"contrast", (_value - 1.) * -30}};
+                else if (type == "exposure")
+                    parameters = {{"exposure", (_value - 1.) * 1.5},
+                                  {"offset", (_value - 1.) * .1},
+                                  {"gamma", _value}};
+                else
+                    parameters = {{"vibrance", (_value - 1.) * 70},
+                                  {"saturation", (_value - 1.) * -40}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
             } else {
                 const QVariantList points{
                     QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 80}, {"y", 20 * _value}},
@@ -232,7 +253,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             }
             const bool analytic = type == "color" || type == "photoFilter" ||
                                   type == "channelMixer" || type == "colorLookup" ||
-                                  type == "selectiveColor";
+                                  type == "selectiveColor" || type == "vibrance";
             if (!require(
                     analytic ? canvas.toneTableUploads() == tables
                              : canvas.toneTableUploads() >= tables + 3,
@@ -409,6 +430,36 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                     return false;
                             }
             }
+            if (type == "brightnessContrast" || type == "vibrance") {
+                for (double first : {-100., 0., 100.})
+                    for (double second : {-100., 0., 100.}) {
+                        parameters = type == "brightnessContrast"
+                                         ? QVariantMap{{"brightness", first}, {"contrast", second}}
+                                         : QVariantMap{{"vibrance", first}, {"saturation", second}};
+                        for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                            document.previewLayerParameter(it.key(), it.value());
+                        if (!require(check(frame(), reference(), true) &&
+                                         canvas.imageTextureUploads() == uploads,
+                                     "legacy brightness and vibrance keep endpoint and "
+                                     "negative-factor semantics"))
+                            return false;
+                    }
+            }
+            if (type == "exposure") {
+                for (double exposure : {-5., 0., 5.})
+                    for (double offset : {-1., 0., 1.})
+                        for (double gamma : {.1, 1., 3.}) {
+                            parameters = {
+                                {"exposure", exposure}, {"offset", offset}, {"gamma", gamma}};
+                            for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                                document.previewLayerParameter(it.key(), it.value());
+                            if (!require(check(frame(), reference(), true) &&
+                                             canvas.imageTextureUploads() == uploads,
+                                         "legacy exposure EV, offset and gamma match the CPU at "
+                                         "their limits"))
+                                return false;
+                        }
+            }
             if (type == "curves") {
                 parameters.insert("graySample", QVariantList{120, 145, 110});
                 document.previewLayerParameter("graySample", parameters.value("graySample"));
@@ -425,7 +476,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         if (!require(check(frame(), finalExpected), "the final canvas matches the CPU reference"))
             return false;
     }
-    qInfo() << "Tone render checks passed; hardware:" << hardware
+    qInfo() << "Tone render checks passed; filters:" << types.size() << "; hardware:" << hardware
             << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
             << "; LUT textures:" << canvas.toneTableUploads();

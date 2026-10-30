@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État du projet au **29 octobre 2026**, version courante **v0.15** (version interne **0.15.0**). Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1, v0.14 et v0.15 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **30 octobre 2026**, version courante **v0.15** (version interne **0.15.0**). Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1, v0.14 et v0.15 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
 La [release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.15.0**, avec SHA-256. La publication est automatique après réussite des builds, tests et contrôles des paquets : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le [workflow de branche au commit `bcbbc18`](https://github.com/fguilleme/PhotoCrap/actions/runs/40849316101) a déjà validé ces contrôles sur les trois plateformes. Voir les [notes de version](CHANGELOG.md).
 
@@ -98,6 +98,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Aperçu automatique des menus de styles Noir et blanc, Filtre photo et Mélangeur de couches au survol et au clavier ; validation unique, restauration sur Échap/fermeture et respect du contrôle Aperçu. Composant commun et test d’interface `preset_preview`.
 - [x] Aperçus GPU Isohélie et Seuil : table de paliers issue du CPU et luminance entière pour le seuil noir/blanc ; base écran réutilisée, annulation et rendu final natif 8/16 bits. Comparaison dense des rampes, des 31 réglages d’Isohélie et des limites de Seuil sur Metal et OpenGL en boucle principale.
 - [x] Aperçus GPU Style colorimétrique et Correction sélective : six styles, intensité/luminosité, neuf familles et modes relatif/absolu. Paramètres de shader regroupés dans un bloc de 224 octets, textures réutilisées et rendu final natif 8/16 bits. Comparaisons Metal/OpenGL en boucle principale et repli CPU testé pour les anciens projets à correction globale.
+- [x] Aperçus GPU des anciens réglages Luminosité/Contraste, Exposition et Vibrance : tables CPU ou calcul direct conservant leurs règles propres, dont le facteur négatif de Vibrance. Calculs CPU Exposition/Vibrance séparés, rendu final 8/16 bits et alpha conservés. Registre commun au moteur et aux tests de rendu pour couvrir les seize réglages.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; transferts régionaux, contours par shaders et budget de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 ## 3. Sélections et masques à compléter

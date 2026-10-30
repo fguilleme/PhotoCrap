@@ -3,7 +3,8 @@
 Étapes après **v0.15**, en développement : présentation du composite dans le
 canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
 Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie,
-Seuil, Style colorimétrique et Correction sélective sur GPU. Les pixels de travail
+Seuil, Style colorimétrique, Correction sélective et anciens réglages
+Luminosité/Contraste, Exposition et Vibrance sur GPU. Les pixels de travail
 et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
@@ -64,7 +65,8 @@ et ne relève pas la limite de 2 Gio.
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,
 un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc,
 Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie, Seuil,
-Style colorimétrique ou Correction sélective visible,
+Style colorimétrique, Correction sélective, Luminosité/Contraste, Exposition
+ou Vibrance visible,
 en mode Normal à 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
 blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -76,7 +78,8 @@ le backend logiciel.
   de **256 × 1 pixels** à partir des fonctions CPU de référence. Un shader du graphe de scène applique
   cette table à la base ; la photo n’est pas retransférée à chaque déplacement.
   Les calibrations des pipettes Courbes passent par la même table.
-- Pour Courbes, Niveaux, Balance des couleurs et Isohélie, la table corrige chaque canal RVB.
+- Pour Courbes, Niveaux, Balance des couleurs, Isohélie, Luminosité/Contraste
+  et Exposition, la table corrige chaque canal RVB.
   Pour Lumière, elle transforme la luminance ; le shader reconstruit ensuite les trois canaux avec
   les pondérations et divisions entières du moteur CPU. Exposition, Contraste,
   Hautes lumières, Ombres, Blancs et Noirs suivent ainsi la même règle colorimétrique
@@ -111,6 +114,11 @@ le backend logiciel.
   et l’adaptation relative/absolue dans le shader. Les noms et l’ordre des familles
   sont partagés avec le CPU. Les anciens projets au réglage global, sans les neuf
   familles, gardent le rendu CPU asynchrone pour préserver leur comportement.
+- Les anciens réglages Exposition et Vibrance gardent leurs règles propres,
+  distinctes des panneaux Lumière et Couleur. Exposition utilise une table issue
+  du calcul CPU (EV, décalage, gamma). Vibrance calcule directement son facteur
+  dans le shader, y compris ses valeurs négatives. Leurs calculs CPU sont isolés
+  dans `ExposureFilter` et `VibranceFilter`, avec conservation des 8/16 bits et de l’alpha.
 - Les paramètres du shader sont regroupés dans neuf `vec4` réutilisés entre les
   algorithmes. Le bloc complet occupe 224 octets selon la réflexion du shader,
   plutôt que de réserver un bloc différent pour chaque filtre. Changer les styles
@@ -162,14 +170,16 @@ ctest --test-dir build -R '^(gpu_tone_preview|tone_render|preset_preview|canvas_
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
 plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
 la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
-les treize réglages à la référence CPU ; sur GPU il vérifie également que modifier les
+les seize réglages à la référence CPU. La liste des filtres est partagée avec
+le moteur : un nouvel aperçu éligible est automatiquement parcouru et le test
+affiche chaque filtre ainsi que leur nombre ; sur GPU il vérifie également que modifier les
 paramètres ne recrée pas les textures photo. `preset_preview` exerce survol, navigation clavier, validation, Échap, clic extérieur,
 Aperçu désactivé et annulation de la session des propriétés pour les trois menus.
 Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
 sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
-treize aperçus et des calibrations de pipettes. Les six contrôles
+seize aperçus et des calibrations de pipettes. Les six contrôles
 Lumière sont comparés aux deux extrêmes, sur des gris, des couleurs saturées, du noir
 et du blanc. Les extrêmes de Température, Teinte, Vibrance, Saturation et des trois
 canaux de Balance des couleurs sont aussi comparés à la référence. L’historique,
@@ -190,8 +200,12 @@ Les six styles sont comparés à intensité 0/35/100 %, avec et sans préservati
 luminosité. Chaque composante de chacune des neuf familles de Correction sélective
 est vérifiée à −100/+100 en relatif et en absolu ; un projet enregistré avec les
 anciens paramètres globaux vérifie le repli CPU. Les anciens aperçus sont aussi
-retestés après le regroupement des paramètres du shader.
-Le test des treize réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
+retestés après le regroupement des paramètres du shader. Les combinaisons
+extrêmes de Luminosité/Contraste et Vibrance/Saturation sont comparées sur des rampes,
+ainsi que 27 combinaisons EV/décalage/gamma d’Exposition. Des valeurs connues
+vérifient séparément les règles CPU, le facteur négatif de Vibrance et les nuances
+fines en 16 bits.
+Le test des seize réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.
 Le fonctionnement normal macOS utilise Metal. Les backends GPU Linux/Windows
@@ -202,7 +216,7 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
-# Comparaison des shaders des treize réglages sur le même backend
+# Comparaison des shaders des seize réglages sur le même backend
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 # Vérification OpenGL sur ce Mac, avec le rendu sur le thread principal

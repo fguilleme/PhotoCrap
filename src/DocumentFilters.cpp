@@ -7,6 +7,7 @@
 #include "filters/ColorFilter.h"
 #include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
@@ -14,6 +15,7 @@
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
+#include "filters/VibranceFilter.h"
 #include "storage/ScratchImageCache.h"
 
 #include <QCache>
@@ -571,6 +573,10 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return PhotoCrap::Filters::applyGradientMap(_source, _p);
         if (_type == "color")
             return PhotoCrap::Filters::applyColor(_source, _p);
+        if (_type == "exposure")
+            return PhotoCrap::Filters::applyExposure(_source, _p);
+        if (_type == "vibrance")
+            return PhotoCrap::Filters::applyVibrance(_source, _p);
         if (_type == "colorLookup")
             return PhotoCrap::Filters::applyColorLookup(_source, _p);
         if (_type == "light")
@@ -622,27 +628,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
                     QColor c = P::color(source[x]);
                     double r = P::red(source[x]), g = P::green(source[x]), b = P::blue(source[x]);
                     const double alpha = P::alpha(source[x]);
-                    const double lum   = .2126 * r + .7152 * g + .0722 * b;
-                    if (_type == "exposure") {
-                        const double exposure = std::pow(2., value("exposure", 0)),
-                                     offset   = value("offset", 0) * 255,
-                                     gamma    = qMax(.1, value("gamma", 1));
-                        auto         expose   = [&](double _v) {
-                            return std::pow(qMax(0., _v * exposure + offset) / 255., 1 / gamma) *
-                                   255.;
-                        };
-                        r = expose(r);
-                        g = expose(g);
-                        b = expose(b);
-                    } else if (_type == "vibrance") {
-                        const double mx = qMax(r, qMax(g, b)), mn = qMin(r, qMin(g, b)),
-                                     sat    = (mx - mn) / 255.;
-                        const double factor = 1 + value("saturation", 0) / 100. +
-                                              value("vibrance", 0) / 100. * (1 - sat);
-                        r                   = lum + (r - lum) * factor;
-                        g                   = lum + (g - lum) * factor;
-                        b                   = lum + (b - lum) * factor;
-                    } else if (_type == "hueSaturation") {
+                    if (_type == "hueSaturation") {
                         float h, s, l, a;
                         c.getHslF(&h, &s, &l, &a);
                         h = std::fmod(h + value("hue", 0) / 360. + 1., 1.);

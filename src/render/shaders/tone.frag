@@ -46,6 +46,16 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
+    if (ubuf.mode == 10) {
+        float maximum = max(index.r, max(index.g, index.b));
+        float minimum = min(index.r, min(index.g, index.b));
+        float luminance = dot(index, vec3(0.2126, 0.7152, 0.0722));
+        // Preserve the legacy negative-factor behavior instead of Color's clamp.
+        float factor = 1.0 + ubuf.parameters[0].y + ubuf.parameters[0].x * (1.0 - (maximum - minimum) / 255.0);
+        vec3 mapped = vec3(luminance) + (index - vec3(luminance)) * factor;
+        fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        return;
+    }
     if (ubuf.mode == 8 || ubuf.mode == 9) {
         vec3 delta = selectiveDelta(index);
         if (ubuf.mode == 8) {

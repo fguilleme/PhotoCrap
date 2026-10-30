@@ -1,7 +1,9 @@
 #include "ToneMappingTable.h"
 #include "BlackWhiteFilter.h"
+#include "BrightnessContrastFilter.h"
 #include "ColorBalanceFilter.h"
 #include "CurvesFilter.h"
+#include "ExposureFilter.h"
 #include "GradientMapFilter.h"
 #include "LevelsFilter.h"
 #include "LightFilter.h"
@@ -12,8 +14,32 @@
 
 namespace PhotoCrap::Filters
 {
+const QStringList &gpuTonePreviewTypes()
+{
+    static const QStringList types{QStringLiteral("levels"),
+                                   QStringLiteral("light"),
+                                   QStringLiteral("color"),
+                                   QStringLiteral("colorBalance"),
+                                   QStringLiteral("blackWhite"),
+                                   QStringLiteral("gradientMap"),
+                                   QStringLiteral("photoFilter"),
+                                   QStringLiteral("channelMixer"),
+                                   QStringLiteral("posterize"),
+                                   QStringLiteral("threshold"),
+                                   QStringLiteral("colorLookup"),
+                                   QStringLiteral("selectiveColor"),
+                                   QStringLiteral("brightnessContrast"),
+                                   QStringLiteral("exposure"),
+                                   QStringLiteral("vibrance"),
+                                   QStringLiteral("curves")};
+    return types;
+}
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters)
 {
+    if (_type == QStringLiteral("vibrance"))
+        return {ToneMappingMode::Vibrance,
+                {float(_parameters.value("vibrance", 0).toDouble() / 100.),
+                 float(_parameters.value("saturation", 0).toDouble() / 100.), 0.f, 0.f}};
     if (_type == QStringLiteral("colorLookup"))
         return {ToneMappingMode::ColorLookup,
                 {float(qBound(0, _parameters.value("preset", 0).toInt(), 5)),
@@ -111,7 +137,7 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
     // Analytic shaders share an identity texture that is never re-uploaded during edits.
     if (_type == QStringLiteral("color") || _type == QStringLiteral("photoFilter") ||
         _type == QStringLiteral("channelMixer") || _type == QStringLiteral("colorLookup") ||
-        _type == QStringLiteral("selectiveColor"))
+        _type == QStringLiteral("selectiveColor") || _type == QStringLiteral("vibrance"))
         return ramp;
     if (_type == QStringLiteral("curves"))
         return applyCurves(ramp, _parameters);
@@ -129,6 +155,10 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
         return applyPosterize(ramp, _parameters);
     if (_type == QStringLiteral("threshold"))
         return applyThreshold(ramp, _parameters);
+    if (_type == QStringLiteral("brightnessContrast"))
+        return applyBrightnessContrast(ramp, _parameters);
+    if (_type == QStringLiteral("exposure"))
+        return applyExposure(ramp, _parameters);
     return {};
 }
 } // namespace PhotoCrap::Filters

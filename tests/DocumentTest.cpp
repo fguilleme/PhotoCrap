@@ -11,6 +11,7 @@
 #include "filters/ColorFilter.h"
 #include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
@@ -18,6 +19,7 @@
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
+#include "filters/VibranceFilter.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -639,6 +641,8 @@ private slots:
             {"channelMixer", PhotoCrap::Filters::applyChannelMixer},
             {"color", PhotoCrap::Filters::applyColor},
             {"curves", PhotoCrap::Filters::applyCurves},
+            {"exposure", PhotoCrap::Filters::applyExposure},
+            {"vibrance", PhotoCrap::Filters::applyVibrance},
             {"levels", PhotoCrap::Filters::applyLevels},
             {"light", PhotoCrap::Filters::applyLight},
             {"selectiveColor", PhotoCrap::Filters::applySelectiveColor},

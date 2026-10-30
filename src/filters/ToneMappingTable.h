@@ -1,11 +1,13 @@
 #pragma once
 #include <QImage>
+#include <QStringList>
 #include <QVariantMap>
 #include <QVector4D>
 #include <array>
 
 namespace PhotoCrap::Filters
 {
+const QStringList &gpuTonePreviewTypes();
 // Values are shared with the shader's mode uniform.
 enum class ToneMappingMode : qint32 {
     Channels               = 0,
@@ -17,7 +19,8 @@ enum class ToneMappingMode : qint32 {
     Threshold              = 6,
     ColorLookup            = 7,
     SelectiveColorRelative = 8,
-    SelectiveColorAbsolute = 9
+    SelectiveColorAbsolute = 9,
+    Vibrance               = 10
 };
 struct ToneMappingSettings {
     ToneMappingMode          mode = ToneMappingMode::Channels;

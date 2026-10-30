@@ -22,20 +22,9 @@ bool Document::gpuToneEligible() const
     const auto &layer = m_layers[m_active];
     return layer.kind == QStringLiteral("adjustment") && layer.visible && layer.blend == 0 &&
            qFuzzyCompare(layer.opacity, 1.) && layer.groupId.isEmpty() && !layer.clippingMask &&
-           (layer.adjustmentType == QStringLiteral("curves") ||
-            layer.adjustmentType == QStringLiteral("levels") ||
-            layer.adjustmentType == QStringLiteral("light") ||
-            layer.adjustmentType == QStringLiteral("color") ||
-            layer.adjustmentType == QStringLiteral("colorBalance") ||
-            layer.adjustmentType == QStringLiteral("blackWhite") ||
-            layer.adjustmentType == QStringLiteral("gradientMap") ||
-            layer.adjustmentType == QStringLiteral("photoFilter") ||
-            layer.adjustmentType == QStringLiteral("channelMixer") ||
-            layer.adjustmentType == QStringLiteral("posterize") ||
-            layer.adjustmentType == QStringLiteral("threshold") ||
-            layer.adjustmentType == QStringLiteral("colorLookup") ||
-            (layer.adjustmentType == QStringLiteral("selectiveColor") &&
-             layer.parameters.contains(QStringLiteral("redsCyanRed")))) &&
+           PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
+           (layer.adjustmentType != QStringLiteral("selectiveColor") ||
+            layer.parameters.contains(QStringLiteral("redsCyanRed"))) &&
            (!layer.maskEnabled || layer.mask.isNull() ||
             (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255));
 }

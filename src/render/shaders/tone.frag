@@ -5,30 +5,89 @@ layout(std140, binding = 0) uniform buf {
     mat4 matrix;
     float opacity;
     int mode;
-    vec4 color;
-    vec4 families0;
-    vec4 families1;
-    vec4 row0;
-    vec4 row1;
-    vec4 row2;
+    vec4 parameters[9];
 } ubuf;
 layout(binding = 1) uniform sampler2D sourceTexture;
 layout(binding = 2) uniform sampler2D tableTexture;
 float familyAdjustment(int family)
 {
     // Explicit components keep the shader compatible with the GLSL 100 target.
-    if (family == 0) return ubuf.families0.x;
-    if (family == 1) return ubuf.families0.y;
-    if (family == 2) return ubuf.families0.z;
-    if (family == 3) return ubuf.families0.w;
-    if (family == 4) return ubuf.families1.x;
-    return ubuf.families1.y;
+    if (family == 0) return ubuf.parameters[1].x;
+    if (family == 1) return ubuf.parameters[1].y;
+    if (family == 2) return ubuf.parameters[1].z;
+    if (family == 3) return ubuf.parameters[1].w;
+    if (family == 4) return ubuf.parameters[2].x;
+    return ubuf.parameters[2].y;
+}
+vec3 filmCurve(vec3 value)
+{
+    vec3 normalized = value / 255.0;
+    return normalized * normalized * (vec3(3.0) - 2.0 * normalized) * 255.0;
+}
+vec3 selectiveDelta(vec3 pixel)
+{
+    float maximum = max(pixel.r, max(pixel.g, pixel.b));
+    float minimum = min(pixel.r, min(pixel.g, pixel.b));
+    float luminance = dot(pixel, vec3(0.2126, 0.7152, 0.0722)) / 255.0;
+    // Constant array indices also work on the GLSL 100 backend.
+    vec3 delta = ubuf.parameters[0].xyz * max(0.0, pixel.r - max(pixel.g, pixel.b)) / 255.0;
+    delta += ubuf.parameters[1].xyz * max(0.0, min(pixel.r, pixel.g) - pixel.b) / 255.0;
+    delta += ubuf.parameters[2].xyz * max(0.0, pixel.g - max(pixel.r, pixel.b)) / 255.0;
+    delta += ubuf.parameters[3].xyz * max(0.0, min(pixel.g, pixel.b) - pixel.r) / 255.0;
+    delta += ubuf.parameters[4].xyz * max(0.0, pixel.b - max(pixel.r, pixel.g)) / 255.0;
+    delta += ubuf.parameters[5].xyz * max(0.0, min(pixel.r, pixel.b) - pixel.g) / 255.0;
+    delta += ubuf.parameters[6].xyz * max(0.0, (minimum - 128.0) / 127.0);
+    delta += ubuf.parameters[7].xyz * max(0.0, 1.0 - abs(luminance - 0.5) * 2.0);
+    delta += ubuf.parameters[8].xyz * max(0.0, (128.0 - maximum) / 128.0);
+    return delta;
 }
 void main()
 {
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
+    if (ubuf.mode == 8 || ubuf.mode == 9) {
+        vec3 delta = selectiveDelta(index);
+        if (ubuf.mode == 8) {
+            vec3 room = vec3(delta.r >= 0.0 ? 255.0 - index.r : index.r,
+                             delta.g >= 0.0 ? 255.0 - index.g : index.g,
+                             delta.b >= 0.0 ? 255.0 - index.b : index.b);
+            delta = delta * room / 255.0;
+        }
+        fragColor = vec4(clamp(floor(index + delta + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        return;
+    }
+    if (ubuf.mode == 7) {
+        int preset = int(ubuf.parameters[0].x);
+        vec3 styled;
+        if (preset == 0)
+            styled = filmCurve(index) * vec3(1.04, 1.01, 0.91) + vec3(7.0, 2.0, 0.0);
+        else if (preset == 1)
+            styled = filmCurve(index) * vec3(1.06, 0.99, 0.93) + vec3(4.0, 3.0, 8.0);
+        else if (preset == 2)
+            styled = filmCurve(index) * vec3(0.90, 1.01, 1.10) + vec3(0.0, 3.0, 7.0);
+        else if (preset == 3)
+            styled = vec3(24.0, 25.0, 28.0) + index * vec3(0.80, 0.79, 0.77);
+        else if (preset == 4) {
+            float light = dot(index, vec3(0.2126, 0.7152, 0.0722)) / 255.0;
+            float shadow = 1.0 - light;
+            styled = index + vec3(22.0 * light - 12.0 * shadow, 11.0 * shadow, 24.0 * shadow - 16.0 * light);
+        } else {
+            vec3 curve = filmCurve(index);
+            styled.r = 18.0 + curve.r * 0.86 + index.g * 0.04;
+            styled.g = 15.0 + curve.g * 0.84 + index.b * 0.04;
+            // The reference deliberately uses the newly styled red channel here.
+            styled.b = 20.0 + curve.b * 0.79 + styled.r * 0.03;
+        }
+        if (ubuf.parameters[0].z != 0.0) {
+            float correction = dot(index, vec3(0.2126, 0.7152, 0.0722))
+                             - dot(styled, vec3(0.2126, 0.7152, 0.0722));
+            styled += vec3(correction);
+        }
+        vec3 mapped = index + (styled - index) * ubuf.parameters[0].y;
+        fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        return;
+    }
     if (ubuf.mode == 6) {
         // Threshold has a different luminance rule from Light/Gradient Map.
         // Keep the CPU's integer coefficients and rounding before the comparison.
@@ -40,7 +99,7 @@ void main()
     if (ubuf.mode == 5) {
         // Photo Filter (including luminosity preservation) and Channel Mixer.
         vec4 pixel = vec4(index, 1.0);
-        vec3 mapped = vec3(dot(ubuf.row0, pixel), dot(ubuf.row1, pixel), dot(ubuf.row2, pixel));
+        vec3 mapped = vec3(dot(ubuf.parameters[3], pixel), dot(ubuf.parameters[4], pixel), dot(ubuf.parameters[5], pixel));
         fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
         return;
     }
@@ -67,13 +126,13 @@ void main()
     if (ubuf.mode == 2) {
         // Temperature, tint, vibrance and saturation match applyColor().
         vec3 balanced = clamp(index / 255.0
-            + vec3(0.18 * ubuf.color.x + 0.06 * ubuf.color.y,
-                   -0.12 * ubuf.color.y,
-                   -0.18 * ubuf.color.x + 0.06 * ubuf.color.y), 0.0, 1.0);
+            + vec3(0.18 * ubuf.parameters[0].x + 0.06 * ubuf.parameters[0].y,
+                   -0.12 * ubuf.parameters[0].y,
+                   -0.18 * ubuf.parameters[0].x + 0.06 * ubuf.parameters[0].y), 0.0, 1.0);
         float maximum = max(balanced.r, max(balanced.g, balanced.b));
         float minimum = min(balanced.r, min(balanced.g, balanced.b));
         float luminance = dot(balanced, vec3(0.2126, 0.7152, 0.0722));
-        float factor = max(0.0, 1.0 + ubuf.color.w + ubuf.color.z * (1.0 - (maximum - minimum)));
+        float factor = max(0.0, 1.0 + ubuf.parameters[0].w + ubuf.parameters[0].z * (1.0 - (maximum - minimum)));
         vec3 corrected = clamp(vec3(luminance) + (balanced - vec3(luminance)) * factor, 0.0, 1.0);
         fragColor = vec4(floor(corrected * 255.0 + 0.5) / 255.0, 1.0) * ubuf.opacity;
         return;

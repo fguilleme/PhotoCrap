@@ -5,12 +5,14 @@
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
+#include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
 #include "filters/PosterizeFilter.h"
+#include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include <QQuickWindow>
 #include <QSGRendererInterface>
@@ -121,6 +123,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyPosterize(original, parameters);
             if (type == "threshold")
                 return PhotoCrap::Filters::applyThreshold(original, parameters);
+            if (type == "colorLookup")
+                return PhotoCrap::Filters::applyColorLookup(original, parameters);
+            if (type == "selectiveColor")
+                return PhotoCrap::Filters::applySelectiveColor(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
         };
         auto preview = [&](double _value) {
@@ -179,6 +185,19 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 parameters        = {
                     {key, type == "posterize" ? qRound(_value * 10) : qRound(_value * 80)}};
                 document.previewLayerParameter(key, parameters.value(key));
+            } else if (type == "colorLookup") {
+                parameters = {
+                    {"preset", 5}, {"strength", _value * 40.}, {"preserveLuminosity", true}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "selectiveColor") {
+                parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
+                parameters.insert("redsCyanRed", (_value - 1.) * 45.);
+                parameters.insert("cyansMagentaGreen", (_value - 1.) * -55.);
+                parameters.insert("neutralsYellowBlue", (_value - 1.) * 35.);
+                parameters.insert("blacksBlack", (_value - 1.) * 15.);
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
             } else {
                 const QVariantList points{
                     QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 80}, {"y", 20 * _value}},
@@ -211,8 +230,9 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                              "changing parameters updates the shader without uploading the photo"))
                     return false;
             }
-            const bool analytic =
-                type == "color" || type == "photoFilter" || type == "channelMixer";
+            const bool analytic = type == "color" || type == "photoFilter" ||
+                                  type == "channelMixer" || type == "colorLookup" ||
+                                  type == "selectiveColor";
             if (!require(
                     analytic ? canvas.toneTableUploads() == tables
                              : canvas.toneTableUploads() >= tables + 3,
@@ -352,6 +372,42 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                  "posterization plateaus and threshold transitions match the CPU"))
                         return false;
                 }
+            }
+            if (type == "colorLookup") {
+                for (int preset = 0; preset < 6; ++preset)
+                    for (double strength : {0., 35., 100.})
+                        for (bool preserve : {false, true}) {
+                            parameters = {{"preset", preset},
+                                          {"strength", strength},
+                                          {"preserveLuminosity", preserve}};
+                            for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                                document.previewLayerParameter(it.key(), it.value());
+                            if (!require(check(frame(), reference()) &&
+                                             canvas.imageTextureUploads() == uploads &&
+                                             canvas.toneTableUploads() == tables,
+                                         "all six color styles match the CPU with strength and "
+                                         "luminosity options"))
+                                return false;
+                        }
+            }
+            if (type == "selectiveColor") {
+                for (const char *range : PhotoCrap::Filters::SelectiveColorRangeNames)
+                    for (const char *component : {"CyanRed", "MagentaGreen", "YellowBlue", "Black"})
+                        for (double endpoint : {-100., 100.})
+                            for (bool relative : {false, true}) {
+                                parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
+                                parameters.insert("relative", relative);
+                                parameters.insert(QLatin1String(range) + QLatin1String(component),
+                                                  endpoint);
+                                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                                    document.previewLayerParameter(it.key(), it.value());
+                                if (!require(check(frame(), reference()) &&
+                                                 canvas.imageTextureUploads() == uploads &&
+                                                 canvas.toneTableUploads() == tables,
+                                             "all nine selective families and four controls match "
+                                             "in relative and absolute modes"))
+                                    return false;
+                            }
             }
             if (type == "curves") {
                 parameters.insert("graySample", QVariantList{120, 145, 110});

@@ -2,8 +2,8 @@
 
 Étapes après **v0.15**, en développement : présentation du composite dans le
 canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
-Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie
-et Seuil sur GPU. Les pixels de travail
+Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie,
+Seuil, Style colorimétrique et Correction sélective sur GPU. Les pixels de travail
 et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
@@ -47,9 +47,9 @@ L’affichage utilise des textures **8 bits par canal**, comme la surface d’af
 précédente. Les pixels de travail, projets et exports conservent leurs **8 ou 16 bits**.
 Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
-La composition des calques, les masques, les traits et les filtres hors aperçu
-Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc, Transfert
-de dégradé, Filtre photo, Mélangeur de couches, Isohélie et Seuil restent calculés sur CPU. Les surimpressions générales
+La composition des calques, les masques, les traits et les rendus complets des
+filtres restent calculés sur CPU. Les aperçus pris en charge sont décrits ci-dessous.
+Les surimpressions générales
 utilisent encore QPainter dans une petite surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
 Une modification du composite remplace toutes ses textures visibles : les transferts
 régionaux et la composition GPU restent à développer.
@@ -63,7 +63,8 @@ et ne relève pas la limite de 2 Gio.
 
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,
 un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc,
-Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie ou Seuil visible,
+Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie, Seuil,
+Style colorimétrique ou Correction sélective visible,
 en mode Normal à 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
 blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -103,6 +104,17 @@ le backend logiciel.
   entiers 2126/7152/722 et l’arrondi du chemin CPU 8 bits, puis indexe sa table
   noir/blanc. Le calcul utilise des entiers de précision suffisante sur les backends
   vérifiés ; le rendu final conserve le chemin natif 8/16 bits du CPU.
+- Style colorimétrique reprend les six formules internes sur GPU, avec intensité
+  et préservation de luminosité. L’ordre des opérations est conservé, y compris
+  la dépendance du bleu au rouge déjà transformé dans Pellicule passée.
+- Correction sélective calcule les pondérations des neuf familles, leurs 36 réglages
+  et l’adaptation relative/absolue dans le shader. Les noms et l’ordre des familles
+  sont partagés avec le CPU. Les anciens projets au réglage global, sans les neuf
+  familles, gardent le rendu CPU asynchrone pour préserver leur comportement.
+- Les paramètres du shader sont regroupés dans neuf `vec4` réutilisés entre les
+  algorithmes. Le bloc complet occupe 224 octets selon la réflexion du shader,
+  plutôt que de réserver un bloc différent pour chaque filtre. Changer les styles
+  ou les corrections sélectives ne retransfère ni la photo ni la texture d’identité.
 - Le Navigateur et les histogrammes reçoivent un proxy CPU auxiliaire, planifié
   à intervalles d’au moins 100 ms pendant le geste. Ils peuvent suivre avec un
   retard lié au calcul ; ils ne déclenchent pas de lecture GPU ni de composition
@@ -150,20 +162,20 @@ ctest --test-dir build -R '^(gpu_tone_preview|tone_render|preset_preview|canvas_
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
 plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
 la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
-les onze réglages à la référence CPU ; sur GPU il vérifie également que modifier les
+les treize réglages à la référence CPU ; sur GPU il vérifie également que modifier les
 paramètres ne recrée pas les textures photo. `preset_preview` exerce survol, navigation clavier, validation, Échap, clic extérieur,
 Aperçu désactivé et annulation de la session des propriétés pour les trois menus.
 Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
 sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
-onze aperçus et des calibrations de pipettes. Les six contrôles
+treize aperçus et des calibrations de pipettes. Les six contrôles
 Lumière sont comparés aux deux extrêmes, sur des gris, des couleurs saturées, du noir
 et du blanc. Les extrêmes de Température, Teinte, Vibrance, Saturation et des trois
 canaux de Balance des couleurs sont aussi comparés à la référence. L’historique,
 l’annulation et le rendu final sont vérifiés en 8 et 16 bits pour Lumière, Couleur,
 Balance des couleurs, Noir et blanc, Transfert de dégradé, Filtre photo et Mélangeur
-de couches, Isohélie et Seuil. Les six familles Noir et
+de couches, Isohélie, Seuil, Style colorimétrique et Correction sélective. Les six familles Noir et
 blanc sont comparées à −200 et +300, avec et sans teinte, ainsi que plusieurs palettes
 chaudes, froides et achromatiques. Les motifs incluent un cycle de teintes saturées
 et atténuées pour contrôler les transitions entre familles.
@@ -174,7 +186,12 @@ et en monochrome. Ces modifications ne retransfèrent pas les textures photo.
 Les 31 réglages d’Isohélie et les limites de Seuil (dont 0, 1, 127, 128, 129, 254
 et 255) sont comparés pixel par pixel sur des rampes de gris et de primaires.
 Ces contrôles couvrent les ruptures des fonctions, sans transfert des textures photo.
-Le test des onze réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
+Les six styles sont comparés à intensité 0/35/100 %, avec et sans préservation de
+luminosité. Chaque composante de chacune des neuf familles de Correction sélective
+est vérifiée à −100/+100 en relatif et en absolu ; un projet enregistré avec les
+anciens paramètres globaux vérifie le repli CPU. Les anciens aperçus sont aussi
+retestés après le regroupement des paramètres du shader.
+Le test des treize réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.
 Le fonctionnement normal macOS utilise Metal. Les backends GPU Linux/Windows
@@ -185,7 +202,7 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
-# Comparaison des shaders des onze réglages sur le même backend
+# Comparaison des shaders des treize réglages sur le même backend
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 # Vérification OpenGL sur ce Mac, avec le rendu sur le thread principal

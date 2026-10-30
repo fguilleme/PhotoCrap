@@ -6,12 +6,7 @@ layout(std140, binding = 0) uniform buf {
     mat4 matrix;
     float opacity;
     int mode;
-    vec4 color;
-    vec4 families0;
-    vec4 families1;
-    vec4 row0;
-    vec4 row1;
-    vec4 row2;
+    vec4 parameters[9];
 } ubuf;
 void main()
 {

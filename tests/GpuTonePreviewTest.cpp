@@ -3,15 +3,22 @@
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
+#include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
 #include "filters/PosterizeFilter.h"
+#include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/ToneMappingTable.h"
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QtTest>
 
 class GpuTonePreviewTest : public QObject
@@ -26,7 +33,8 @@ private slots:
              {QStringLiteral("light"), QStringLiteral("color"), QStringLiteral("colorBalance"),
               QStringLiteral("blackWhite"), QStringLiteral("gradientMap"),
               QStringLiteral("photoFilter"), QStringLiteral("channelMixer"),
-              QStringLiteral("posterize"), QStringLiteral("threshold")})
+              QStringLiteral("posterize"), QStringLiteral("threshold"),
+              QStringLiteral("colorLookup"), QStringLiteral("selectiveColor")})
             for (int bits : {8, 16})
                 QTest::newRow(qPrintable(type + QString::number(bits))) << type << bits;
     }
@@ -44,15 +52,17 @@ private slots:
         doc.addAdjustmentLayer(type);
         const auto     before  = doc.composite();
         const int      history = doc.historyIndex();
-        const QString  key     = type == "light"          ? "exposure"
-                                 : type == "color"        ? "temperature"
-                                 : type == "colorBalance" ? "cyanRed"
-                                 : type == "blackWhite"   ? "reds"
-                                 : type == "photoFilter"  ? "density"
-                                 : type == "channelMixer" ? "redGreen"
-                                 : type == "posterize"    ? "levels"
-                                 : type == "threshold"    ? "level"
-                                                          : "shadowColor";
+        const QString  key     = type == "light"            ? "exposure"
+                                 : type == "color"          ? "temperature"
+                                 : type == "colorBalance"   ? "cyanRed"
+                                 : type == "blackWhite"     ? "reds"
+                                 : type == "photoFilter"    ? "density"
+                                 : type == "channelMixer"   ? "redGreen"
+                                 : type == "posterize"      ? "levels"
+                                 : type == "threshold"      ? "level"
+                                 : type == "colorLookup"    ? "strength"
+                                 : type == "selectiveColor" ? "redsCyanRed"
+                                                            : "shadowColor";
         const QVariant initial = type == "gradientMap" ? QVariant("#301050")
                                  : type == "light"     ? QVariant(.8)
                                  : type == "posterize" ? QVariant(5)
@@ -86,7 +96,14 @@ private slots:
                               {"monoBlue", 60}, {"monoConstant", 5}, {"monochrome", true}}
             : type == "posterize" ? QVariantMap{{"levels", 11}}
             : type == "threshold" ? QVariantMap{{"level", 100}}
-                                  : QVariantMap{{"highlightColor", "#c5e5b0"}};
+            : type == "colorLookup"
+                ? QVariantMap{{"preset", 4}, {"strength", 45}, {"preserveLuminosity", true}}
+            : type == "selectiveColor"
+                ? QVariantMap{{"redsCyanRed", -40},     {"yellowsMagentaGreen", 25},
+                              {"greensYellowBlue", 20}, {"whitesBlack", 10},
+                              {"neutralsCyanRed", 15},  {"blacksMagentaGreen", -10},
+                              {"relative", false}}
+                : QVariantMap{{"highlightColor", "#c5e5b0"}};
         const auto reference = [&](const QImage &_source) {
             if (type == "light")
                 return PhotoCrap::Filters::applyLight(_source, parameters);
@@ -104,6 +121,10 @@ private slots:
                 return PhotoCrap::Filters::applyPosterize(_source, parameters);
             if (type == "threshold")
                 return PhotoCrap::Filters::applyThreshold(_source, parameters);
+            if (type == "colorLookup")
+                return PhotoCrap::Filters::applyColorLookup(_source, parameters);
+            if (type == "selectiveColor")
+                return PhotoCrap::Filters::applySelectiveColor(_source, parameters);
             return PhotoCrap::Filters::applyGradientMap(_source, parameters);
         };
         for (auto it = changes.cbegin(); it != changes.cend(); ++it) {
@@ -130,6 +151,44 @@ private slots:
         QCOMPARE(doc.composite(), reference(source));
         doc.undo();
         QCOMPARE(doc.composite(), before);
+    }
+    void legacySelectiveColorUsesCpuFallback()
+    {
+        QTemporaryDir directory;
+        const auto    url = QUrl::fromLocalFile(directory.filePath("legacy.pcr"));
+        Document      seed;
+        QVERIFY(seed.newDocument(128, 64, false));
+        seed.setColor(QColor(60, 120, 180));
+        seed.fillWithColor(true);
+        const auto source = seed.composite();
+        seed.addAdjustmentLayer("selectiveColor");
+        QVERIFY(seed.saveProject(url));
+        QFile file(url.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        auto        layers = root.value("layers").toArray();
+        auto        layer  = layers.last().toObject();
+        QVariantMap parameters{
+            {"cyanRed", 15}, {"magentaGreen", -10}, {"yellowBlue", 20}, {"black", 5}};
+        layer.insert("parameters", QJsonObject::fromVariantMap(parameters));
+        layers.replace(layers.size() - 1, layer);
+        root.insert("layers", layers);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+        file.close();
+        Document doc;
+        doc.setGpuTonePreviewEnabled(true);
+        QVERIFY(doc.openFile(url));
+        const int revision = doc.revision();
+        parameters.insert("cyanRed", 45);
+        doc.previewLayerParameter("cyanRed", 45);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
+        QVERIFY(!doc.gpuTonePreviewActive());
+        doc.finishLayerPreview();
+        QTRY_COMPARE_WITH_TIMEOUT(doc.displayComposite(),
+                                  PhotoCrap::Filters::applySelectiveColor(source, parameters),
+                                  5000);
     }
     void cachedBaseAndFinalRender()
     {

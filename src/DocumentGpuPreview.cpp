@@ -32,7 +32,10 @@ bool Document::gpuToneEligible() const
             layer.adjustmentType == QStringLiteral("photoFilter") ||
             layer.adjustmentType == QStringLiteral("channelMixer") ||
             layer.adjustmentType == QStringLiteral("posterize") ||
-            layer.adjustmentType == QStringLiteral("threshold")) &&
+            layer.adjustmentType == QStringLiteral("threshold") ||
+            layer.adjustmentType == QStringLiteral("colorLookup") ||
+            (layer.adjustmentType == QStringLiteral("selectiveColor") &&
+             layer.parameters.contains(QStringLiteral("redsCyanRed")))) &&
            (!layer.maskEnabled || layer.mask.isNull() ||
             (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255));
 }

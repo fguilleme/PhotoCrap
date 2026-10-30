@@ -11,8 +11,7 @@
 
 namespace
 {
-constexpr std::array<const char *, 9> RangeNames{
-    "reds", "yellows", "greens", "cyans", "blues", "magentas", "whites", "neutrals", "blacks"};
+constexpr auto &RangeNames = PhotoCrap::Filters::SelectiveColorRangeNames;
 
 struct RangeAdjustment {
     double cyanRed{};

@@ -7,12 +7,33 @@
 #include "LightFilter.h"
 #include "PhotoFilterFilter.h"
 #include "PosterizeFilter.h"
+#include "SelectiveColorFilter.h"
 #include "ThresholdFilter.h"
 
 namespace PhotoCrap::Filters
 {
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters)
 {
+    if (_type == QStringLiteral("colorLookup"))
+        return {ToneMappingMode::ColorLookup,
+                {float(qBound(0, _parameters.value("preset", 0).toInt(), 5)),
+                 float(qBound(0., _parameters.value("strength", 100.).toDouble() / 100., 1.)),
+                 _parameters.value("preserveLuminosity", false).toBool() ? 1.f : 0.f, 0.f}};
+    if (_type == QStringLiteral("selectiveColor")) {
+        ToneMappingSettings result;
+        result.mode = _parameters.value("relative", true).toBool()
+                          ? ToneMappingMode::SelectiveColorRelative
+                          : ToneMappingMode::SelectiveColorAbsolute;
+        for (size_t range = 0; range < SelectiveColorRangeNames.size(); ++range) {
+            const QString prefix    = QLatin1String(SelectiveColorRangeNames[range]);
+            const double  black     = _parameters.value(prefix + "Black", 0).toDouble() * 2.55;
+            result.selective[range] = {
+                float(_parameters.value(prefix + "CyanRed", 0).toDouble() * 2.55 - black),
+                float(_parameters.value(prefix + "MagentaGreen", 0).toDouble() * 2.55 - black),
+                float(_parameters.value(prefix + "YellowBlue", 0).toDouble() * 2.55 - black), 0.f};
+        }
+        return result;
+    }
     if (_type == QStringLiteral("threshold"))
         return {ToneMappingMode::Threshold, {}};
     if (_type == QStringLiteral("photoFilter")) {
@@ -89,7 +110,8 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
     }();
     // Analytic shaders share an identity texture that is never re-uploaded during edits.
     if (_type == QStringLiteral("color") || _type == QStringLiteral("photoFilter") ||
-        _type == QStringLiteral("channelMixer"))
+        _type == QStringLiteral("channelMixer") || _type == QStringLiteral("colorLookup") ||
+        _type == QStringLiteral("selectiveColor"))
         return ramp;
     if (_type == QStringLiteral("curves"))
         return applyCurves(ramp, _parameters);

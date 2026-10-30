@@ -8,19 +8,23 @@ namespace PhotoCrap::Filters
 {
 // Values are shared with the shader's mode uniform.
 enum class ToneMappingMode : qint32 {
-    Channels    = 0,
-    Luminance   = 1,
-    Color       = 2,
-    GradientMap = 3,
-    BlackWhite  = 4,
-    Matrix      = 5,
-    Threshold   = 6
+    Channels               = 0,
+    Luminance              = 1,
+    Color                  = 2,
+    GradientMap            = 3,
+    BlackWhite             = 4,
+    Matrix                 = 5,
+    Threshold              = 6,
+    ColorLookup            = 7,
+    SelectiveColorRelative = 8,
+    SelectiveColorAbsolute = 9
 };
 struct ToneMappingSettings {
     ToneMappingMode          mode = ToneMappingMode::Channels;
     QVector4D                color{};
     QVector4D                families0{}, families1{};
     std::array<QVector4D, 3> matrix{};
+    std::array<QVector4D, 9> selective{};
     bool                     operator==(const ToneMappingSettings &) const = default;
 };
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters);

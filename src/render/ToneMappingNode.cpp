@@ -2,11 +2,27 @@
 #include <QSGMaterial>
 #include <QSGMaterialShader>
 #include <cstring>
-#include <utility>
 
 namespace
 {
+using PhotoCrap::Filters::ToneMappingMode;
 using PhotoCrap::Filters::ToneMappingSettings;
+std::array<QVector4D, 9> shaderParameters(const ToneMappingSettings &_settings)
+{
+    if (_settings.mode == ToneMappingMode::SelectiveColorRelative ||
+        _settings.mode == ToneMappingMode::SelectiveColorAbsolute)
+        return _settings.selective;
+    return {_settings.color,
+            _settings.families0,
+            _settings.families1,
+            _settings.matrix[0],
+            _settings.matrix[1],
+            _settings.matrix[2],
+            {},
+            {},
+            {}};
+}
+
 class ToneShader : public QSGMaterialShader
 {
 public:
@@ -52,15 +68,11 @@ public:
             return int(filtering) - int(other->filtering);
         if (settings.mode != other->settings.mode)
             return int(settings.mode) - int(other->settings.mode);
-        for (const auto vectors : {std::pair{settings.color, other->settings.color},
-                                   std::pair{settings.families0, other->settings.families0},
-                                   std::pair{settings.families1, other->settings.families1},
-                                   std::pair{settings.matrix[0], other->settings.matrix[0]},
-                                   std::pair{settings.matrix[1], other->settings.matrix[1]},
-                                   std::pair{settings.matrix[2], other->settings.matrix[2]}})
-            for (int i = 0; i < 4; ++i)
-                if (vectors.first[i] != vectors.second[i])
-                    return vectors.first[i] < vectors.second[i] ? -1 : 1;
+        const auto left = shaderParameters(settings), right = shaderParameters(other->settings);
+        for (size_t vector = 0; vector < left.size(); ++vector)
+            for (int channel = 0; channel < 4; ++channel)
+                if (left[vector][channel] != right[vector][channel])
+                    return left[vector][channel] < right[vector][channel] ? -1 : 1;
         return 0;
     }
 };
@@ -86,21 +98,15 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
         std::memcpy(data->data() + 68, &mode, sizeof(mode));
         changed = true;
     }
-    const auto &color      = material->settings.color;
-    const auto &first      = material->settings.families0;
-    const auto &second     = material->settings.families1;
-    const float values[12] = {color.x(), color.y(), color.z(),  color.w(),  first.x(),  first.y(),
-                              first.z(), first.w(), second.x(), second.y(), second.z(), second.w()};
-    if (!_old || std::memcmp(data->constData() + 80, values, sizeof(values))) {
-        std::memcpy(data->data() + 80, values, sizeof(values));
-        changed = true;
-    }
-    for (int row = 0; row < 3; ++row) {
-        const auto &vector          = material->settings.matrix[row];
-        const float coefficients[4] = {vector.x(), vector.y(), vector.z(), vector.w()};
-        const int   offset          = 128 + row * 16;
-        if (!_old || std::memcmp(data->constData() + offset, coefficients, sizeof(coefficients))) {
-            std::memcpy(data->data() + offset, coefficients, sizeof(coefficients));
+    // Nine packed vec4s reuse slots between algorithms instead of growing one
+    // uniform block per filter. The std140 payload stays at 224 bytes in total.
+    const auto parameters = shaderParameters(material->settings);
+    for (size_t index = 0; index < parameters.size(); ++index) {
+        const auto &vector    = parameters[index];
+        const float values[4] = {vector.x(), vector.y(), vector.z(), vector.w()};
+        const int   offset    = 80 + int(index) * 16;
+        if (!_old || std::memcmp(data->constData() + offset, values, sizeof(values))) {
+            std::memcpy(data->data() + offset, values, sizeof(values));
             changed = true;
         }
     }

@@ -15,6 +15,12 @@
 
 namespace PhotoCrap::Filters
 {
+const QList<int> &gpuToneBlendModes()
+{
+    // Bounded-slope RGB modes; division, HSL and dissolve remain on CPU.
+    static const QList<int> modes{0, 2, 3, 5, 7, 8, 10, 12, 14, 16, 17, 19, 20, 21};
+    return modes;
+}
 const QStringList &gpuTonePreviewTypes()
 {
     static const QStringList types{QStringLiteral("levels"),

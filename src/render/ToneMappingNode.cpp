@@ -70,6 +70,8 @@ public:
             return maskKey < otherMaskKey ? -1 : 1;
         if (filtering != other->filtering)
             return int(filtering) - int(other->filtering);
+        if (settings.blendMode != other->settings.blendMode)
+            return settings.blendMode - other->settings.blendMode;
         if (settings.mode != other->settings.mode)
             return int(settings.mode) - int(other->settings.mode);
         if (settings.effectOpacity != other->settings.effectOpacity)
@@ -101,7 +103,8 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
     }
     const auto *material = static_cast<const ToneMaterial *>(_new);
     // Qt may pass the same material object after an in-place mode change.
-    const qint32 mode = qint32(material->settings.mode) + (material->mask ? 16 : 0);
+    const qint32 mode = qint32(material->settings.mode) + (material->mask ? 16 : 0) +
+                        material->settings.blendMode * 32;
     if (!_old || std::memcmp(data->constData() + 68, &mode, sizeof(mode))) {
         std::memcpy(data->data() + 68, &mode, sizeof(mode));
         changed = true;

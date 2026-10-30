@@ -44,15 +44,45 @@ vec3 selectiveDelta(vec3 pixel)
     delta += ubuf.parameters[8].xyz * max(0.0, (128.0 - maximum) / 128.0);
     return delta;
 }
+float blendChannel(float base, float source, int mode)
+{
+    if (mode == 2) return min(base, source);
+    if (mode == 3) return base * source;
+    if (mode == 5) return max(0.0, base + source - 1.0);
+    if (mode == 7) return max(base, source);
+    if (mode == 8) return base + source - base * source;
+    if (mode == 10) return min(1.0, base + source);
+    if (mode == 12) return base <= 0.5 ? 2.0 * base * source : 1.0 - 2.0 * (1.0 - base) * (1.0 - source);
+    if (mode == 14) return source <= 0.5 ? 2.0 * base * source : 1.0 - 2.0 * (1.0 - base) * (1.0 - source);
+    if (mode == 16) return clamp(base + 2.0 * source - 1.0, 0.0, 1.0);
+    if (mode == 17) return source <= 0.5 ? min(base, 2.0 * source) : max(base, 2.0 * source - 1.0);
+    if (mode == 19) return abs(base - source);
+    if (mode == 20) return base + source - 2.0 * base * source;
+    if (mode == 21) return max(0.0, base - source);
+    return source;
+}
 vec4 compositeAdjustment(vec3 base, vec4 adjusted)
 {
     // Preserve the CPU's 8-bit mask premultiplication before layer opacity.
     float coverage = ubuf.maskCoverage;
-    if (ubuf.mode >= 16) {
+    int blend = ubuf.mode / 32;
+    int filterFlags = ubuf.mode - blend * 32;
+    if (filterFlags >= 16) {
         float mask = floor(texture(maskTexture, uv).r * 255.0 + 0.5);
         coverage = floor(255.0 - (255.0 - mask) * ubuf.maskCoverage + 0.5);
     }
     vec3 premultiplied = floor(adjusted.rgb * coverage + 0.5);
+    if (blend != 0) {
+        // The CPU masks first, then unpremultiplies before its blend formulas.
+        vec3 straight = coverage > 0.0 ? floor(premultiplied * 255.0 / coverage + 0.5) / 255.0 : vec3(0.0);
+        vec3 normalized = base / 255.0;
+        vec3 mixed = vec3(blendChannel(normalized.r, straight.r, blend),
+                          blendChannel(normalized.g, straight.g, blend),
+                          blendChannel(normalized.b, straight.b, blend));
+        float alpha = coverage / 255.0 * ubuf.effectOpacity;
+        vec3 result = floor((normalized * (1.0 - alpha) + mixed * alpha) * 255.0 + 0.5);
+        return vec4(clamp(result, 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+    }
     float opacityScale = floor(ubuf.effectOpacity * 256.0) / 256.0;
     float alpha = floor(coverage * opacityScale + 0.5);
     vec3 source = floor(premultiplied * opacityScale + 0.5);
@@ -64,7 +94,8 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
-    int mode = ubuf.mode >= 16 ? ubuf.mode - 16 : ubuf.mode;
+    int mode = ubuf.mode - (ubuf.mode / 32) * 32;
+    if (mode >= 16) mode -= 16;
     if (mode == 11) {
         vec3 normalized = index / 255.0;
         float maximum = max(normalized.r, max(normalized.g, normalized.b));

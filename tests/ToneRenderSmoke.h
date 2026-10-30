@@ -584,7 +584,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                             "masked final rendering replaces the shader with the CPU result"))
                         return false;
                 }
-            document.setLayerOpacity(document.activeLayer(), .63);
+            document.setLayerOpacity(document.activeLayer(), type == "levels" ? 1. : .63);
             paintMask(document);
             preview(.8);
             document.previewLayerParameter("_maskFeather", 0.);
@@ -633,6 +633,21 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 if (!require(document.gpuTonePreviewMask() == stableMask,
                              "returning to a cached feather rejects an older running result"))
                     return false;
+            }
+            const auto blendPhoto = canvas.imageTextureUploads();
+            const auto blendTable = canvas.toneTableUploads();
+            const auto blendMask  = canvas.maskTextureUploads();
+            for (int blend : PhotoCrap::Filters::gpuToneBlendModes()) {
+                document.previewLayerBlend(document.activeLayer(), blend);
+                const auto blended = document.composite();
+                if (!require(document.gpuTonePreviewActive() && check(frame(), blended, true) &&
+                                 canvas.imageTextureUploads() == blendPhoto &&
+                                 canvas.toneTableUploads() == blendTable &&
+                                 canvas.maskTextureUploads() == blendMask,
+                             "supported RGB blends match the CPU without uploading textures")) {
+                    qWarning() << "Failed blend/filter:" << blend << type;
+                    return false;
+                }
             }
             const auto expected = document.composite();
             document.finishLayerPreview();
@@ -689,8 +704,9 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             return false;
         document.cancelLayerPreview();
     }
-    qInfo() << "Tone render checks passed; filters:" << types.size() << "; hardware:" << hardware
-            << "; API:" << _window->rendererInterface()->graphicsApi()
+    qInfo() << "Tone render checks passed; filters:" << types.size()
+            << "; blend modes:" << PhotoCrap::Filters::gpuToneBlendModes().size()
+            << "; hardware:" << hardware << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
             << "; LUT textures:" << canvas.toneTableUploads()
             << "; mask textures:" << canvas.maskTextureUploads();

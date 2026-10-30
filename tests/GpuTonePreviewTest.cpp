@@ -493,6 +493,96 @@ private slots:
         QCOMPARE(doc.gpuTonePreviewMask().size(), QSize(128, 64));
         doc.cancelLayerPreview();
     }
+    void supportedBlendPreview_data()
+    {
+        QTest::addColumn<int>("blend");
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("painted");
+        for (int blend : PhotoCrap::Filters::gpuToneBlendModes())
+            for (int bits : {8, 16})
+                for (bool painted : {false, true})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3").arg(blend).arg(bits).arg(painted)))
+                        << blend << bits << painted;
+    }
+    void supportedBlendPreview()
+    {
+        QFETCH(int, blend);
+        QFETCH(int, bits);
+        QFETCH(bool, painted);
+        Document doc, cpu;
+        for (Document *target : {&doc, &cpu}) {
+            QVERIFY(target->newDocument(512, 256, false, bits));
+            target->setColor(QColor(40, 110, 210));
+            target->fillWithColor(true);
+            target->setPreviewSize(256, 128);
+            target->addAdjustmentLayer("levels");
+            if (painted) {
+                target->setLayerOpacity(target->activeLayer(), .63);
+                target->setEditingMask(true);
+                target->setTool("brush");
+                target->setBrushSize(120);
+                target->setBrushHardness(.4);
+                target->setColor(Qt::black);
+                target->beginStroke(50, 80);
+                target->continueStroke(450, 160);
+                target->endStroke();
+                target->setEditingMask(false);
+            }
+        }
+        doc.setGpuTonePreviewEnabled(true);
+        const auto before  = doc.composite();
+        const int  history = doc.historyIndex();
+        for (Document *target : {&doc, &cpu}) {
+            target->previewLayerParameter("gamma", 1.7);
+            target->previewLayerBlend(target->activeLayer(), blend);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.gpuTonePreviewSettings().blendMode, blend);
+        const auto base  = doc.gpuTonePreviewBase().cacheKey();
+        const auto table = doc.gpuTonePreviewTable().cacheKey();
+        const auto mask  = doc.gpuTonePreviewMask().cacheKey();
+        const int  next  = blend == 3 ? 8 : 3;
+        for (Document *target : {&doc, &cpu})
+            target->previewLayerBlend(target->activeLayer(), next);
+        QVERIFY(doc.gpuTonePreviewActive());
+        QCOMPARE(doc.gpuTonePreviewSettings().blendMode, next);
+        QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), base);
+        QCOMPARE(doc.gpuTonePreviewTable().cacheKey(), table);
+        QCOMPARE(doc.gpuTonePreviewMask().cacheKey(), mask);
+        for (Document *target : {&doc, &cpu})
+            target->finishLayerPreview();
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.composite(), cpu.composite());
+        QCOMPARE(doc.channelBits(), bits);
+        QCOMPARE(doc.historyIndex(), history + 1);
+        doc.previewLayerBlend(doc.activeLayer(), blend);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        doc.cancelLayerPreview();
+        QCOMPARE(doc.composite(), cpu.composite());
+        doc.undo();
+        QCOMPARE(doc.composite(), before);
+    }
+    void blendFallbackAndReturn()
+    {
+        Document doc;
+        QVERIFY(doc.newDocument(256, 128, false));
+        doc.setGpuTonePreviewEnabled(true);
+        doc.addAdjustmentLayer("levels");
+        doc.previewLayerParameter("gamma", 2.);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        const auto base     = doc.gpuTonePreviewBase().cacheKey();
+        const int  revision = doc.revision();
+        doc.previewLayerBlend(doc.activeLayer(), 1);
+        QVERIFY(!doc.gpuTonePreviewActive());
+        QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
+        doc.previewLayerBlend(doc.activeLayer(), 3);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), base);
+        QCOMPARE(doc.gpuTonePreviewSettings().blendMode, 3);
+        QTest::qWait(150);
+        QVERIFY(doc.gpuTonePreviewActive());
+        doc.cancelLayerPreview();
+    }
     void unsupportedCasesStayOnCpu()
     {
         for (const bool transparent : {false, true}) {
@@ -502,12 +592,26 @@ private slots:
             doc.setGpuTonePreviewEnabled(true);
             doc.addAdjustmentLayer("levels");
             if (!transparent)
-                doc.setLayerBlend(doc.activeLayer(), 3);
+                doc.setLayerBlend(doc.activeLayer(), 1);
             const int revision = doc.revision();
             doc.previewLayerParameter("gamma", 2.);
             QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
             QVERIFY(!doc.gpuTonePreviewActive());
             doc.finishLayerPreview();
+        }
+        for (int blend = 0; blend <= 26; ++blend) {
+            if (PhotoCrap::Filters::gpuToneBlendModes().contains(blend))
+                continue;
+            Document doc;
+            QVERIFY(doc.newDocument(256, 128, false));
+            doc.setGpuTonePreviewEnabled(true);
+            doc.addAdjustmentLayer("levels");
+            doc.setLayerBlend(doc.activeLayer(), blend);
+            const int revision = doc.revision();
+            doc.previewLayerParameter("gamma", 2.);
+            QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
+            QVERIFY(!doc.gpuTonePreviewActive());
+            doc.cancelLayerPreview();
         }
         Document masked;
         QVERIFY(masked.newDocument(256, 128, false));

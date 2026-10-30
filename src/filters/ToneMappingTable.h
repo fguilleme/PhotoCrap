@@ -8,7 +8,9 @@
 namespace PhotoCrap::Filters
 {
 const QStringList &gpuTonePreviewTypes();
-// Values are shared with the shader's mode uniform.
+const QList<int>  &gpuToneBlendModes();
+// The low four bits identify the filter; bit 4 selects the mask texture.
+// Higher bits encode the blend mode in the shader uniform.
 enum class ToneMappingMode : qint32 {
     Channels               = 0,
     Luminance              = 1,
@@ -29,6 +31,7 @@ struct ToneMappingSettings {
     QVector4D                families0{}, families1{};
     std::array<QVector4D, 3> matrix{};
     std::array<QVector4D, 9> selective{};
+    qint32                   blendMode                                     = 0;
     float                    effectOpacity                                 = 1.f;
     float                    maskCoverage                                  = 255.f;
     bool                     operator==(const ToneMappingSettings &) const = default;

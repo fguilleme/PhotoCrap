@@ -20,7 +20,8 @@ bool Document::gpuToneEligible() const
         m_active != m_layers.size() - 1)
         return false;
     const auto &layer = m_layers[m_active];
-    return layer.kind == QStringLiteral("adjustment") && layer.visible && layer.blend == 0 &&
+    return layer.kind == QStringLiteral("adjustment") && layer.visible &&
+           PhotoCrap::Filters::gpuToneBlendModes().contains(layer.blend) &&
            layer.groupId.isEmpty() && !layer.clippingMask &&
            PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
            (layer.adjustmentType != QStringLiteral("selectiveColor") ||
@@ -38,6 +39,7 @@ PhotoCrap::Filters::ToneMappingSettings Document::gpuTonePreviewSettings() const
         return {};
     const auto &layer = m_layers[m_active];
     auto settings = PhotoCrap::Filters::toneMappingSettings(layer.adjustmentType, layer.parameters);
+    settings.blendMode     = layer.blend;
     settings.effectOpacity = float(qBound(0., layer.opacity, 1.));
     if (layer.maskEnabled && !layer.mask.isNull()) {
         const double density =

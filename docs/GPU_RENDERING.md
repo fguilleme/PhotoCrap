@@ -67,7 +67,7 @@ un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et b
 Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie, Seuil,
 Style colorimétrique, Correction sélective, Luminosité/Contraste, Exposition,
 Vibrance, Teinte/Saturation ou Négatif visible,
-en mode Normal, sans dossier ni écrêtage. Les masques absents, désactivés,
+avec un mode de fusion GPU pris en charge, sans dossier ni écrêtage. Les masques absents, désactivés,
 uniformes et peints sont pris en charge. Son opacité peut varier de 0 à 100 %.
 La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -133,8 +133,8 @@ le backend logiciel.
   prémultiplication écran en 8 bits avant l’opacité, comme le chemin CPU. Un contour
   progressif ne change pas un masque uniforme. Ces deux constantes occupent les
   emplacements libres avant les neuf vecteurs : le bloc reste de 224 octets.
-  Les masques uniformes ne nécessitent aucune texture supplémentaire. Les modes
-  de fusion autres que Normal et les bases transparentes conservent le chemin CPU.
+  Les masques uniformes ne nécessitent aucune texture supplémentaire. Les bases
+  transparentes conservent le chemin CPU.
 - Pour un masque peint, un worker prépare une image Grayscale8 à la résolution
   de la base écran, avec le même redimensionnement et flou CPU que l’aperçu existant.
   Le shader reçoit les blocs visibles de ce masque avec les mêmes coordonnées et
@@ -147,6 +147,19 @@ le backend logiciel.
   ancien ne supprime pas une demande de contour plus récente. Annulation, nouvelle
   pile et changement de résolution invalident les résultats en vol. Pendant ce
   calcul, le dernier masque terminé reste affiché. La peinture elle-même reste CPU.
+- Quatorze modes sont pris en charge : Normal, Obscurcir, Produit, Densité linéaire +,
+  Éclaircir, Écran, Densité linéaire − (Ajout), Incrustation, Lumière crue, Lumière
+  linéaire, Lumière ponctuelle, Différence, Exclusion et Soustraction. Le registre
+  de ces modes est partagé entre l’éligibilité du moteur et les tests.
+- Les fusions RVB reprennent les formules CPU. Le masque est appliqué avant la
+  conversion des pixels prémultipliés en couleurs droites, puis le mélange utilise
+  l’alpha du masque et l’opacité. Normal conserve les arrondis de son chemin QPainter
+  distinct. Le mode de fusion est codé dans les bits supérieurs de l’entier du
+  shader ; le bloc reste de 224 octets et aucun sampler n’est ajouté.
+- Le survol des modes de fusion d’un réglage éligible ne change que cette constante.
+  Les calques de pixels, Fondu, Couleur plus foncée/claire, Lumière tamisée/vive,
+  Mélange maximal, les modes avec division et les quatre modes HSL restent CPU.
+  Il s’agit de l’aperçu du réglage actif, pas d’une composition GPU de toute la pile.
 - Les tables identiques sont conservées. Changer uniquement la densité ou le
   contour progressif d’un masque uniforme ne retransfère ni la photo ni la table.
   Le mélange des six familles Noir et blanc réutilise aussi sa palette quand la
@@ -252,6 +265,11 @@ retransfère aucune texture ; le contour ne remplace que celle du masque. Un cas
 1 280 pixels de large vérifie la frontière à 1 024 pixels, l’éviction/relecture et
 le niveau de détail réduit. Les tests moteur vérifient aussi les contours demandés
 rapidement, l’annulation pendant le calcul et le redimensionnement, en 8/16 bits.
+Les quatorze modes de fusion sont comparés sur les dix-huit réglages avec masque
+peint, contour progressif et opacité réduite ; Niveaux est aussi vérifié à 100 %.
+Les compteurs doivent rester stables pendant le changement de mode. Les tests
+moteur couvrent chaque mode en 8/16 bits avec et sans masque peint, l’historique,
+l’annulation, le repli pour tous les modes restants et le retour au GPU après Fondu.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.

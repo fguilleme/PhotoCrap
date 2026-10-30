@@ -20,7 +20,8 @@ enum class ToneMappingMode : qint32 {
     ColorLookup            = 7,
     SelectiveColorRelative = 8,
     SelectiveColorAbsolute = 9,
-    Vibrance               = 10
+    Vibrance               = 10,
+    HueSaturation          = 11
 };
 struct ToneMappingSettings {
     ToneMappingMode          mode = ToneMappingMode::Channels;

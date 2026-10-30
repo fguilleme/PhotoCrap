@@ -8,6 +8,8 @@
 #include "filters/CurvesFilter.h"
 #include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
+#include "filters/HueSaturationFilter.h"
+#include "filters/InvertFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
@@ -16,6 +18,7 @@
 #include "filters/ThresholdFilter.h"
 #include "filters/ToneMappingTable.h"
 #include "filters/VibranceFilter.h"
+#include <QColorSpace>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -23,6 +26,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <cmath>
 
 class GpuTonePreviewTest : public QObject
 {
@@ -64,6 +68,8 @@ private slots:
                                  : type == "brightnessContrast" ? "brightness"
                                  : type == "exposure"           ? "exposure"
                                  : type == "vibrance"           ? "vibrance"
+                                 : type == "hueSaturation"      ? "hue"
+                                 : type == "invert"             ? "_maskDensity"
                                                                 : "shadowColor";
         const QVariant initial = type == "gradientMap"                   ? QVariant("#301050")
                                  : type == "light" || type == "exposure" ? QVariant(.8)
@@ -108,6 +114,8 @@ private slots:
             : type == "brightnessContrast" ? QVariantMap{{"contrast", -35}}
             : type == "exposure"           ? QVariantMap{{"offset", -.15}, {"gamma", 1.4}}
             : type == "vibrance"           ? QVariantMap{{"saturation", -25}}
+            : type == "hueSaturation"      ? QVariantMap{{"saturation", 40}, {"lightness", -15}}
+            : type == "invert"             ? QVariantMap{{"_maskDensity", 85}}
                                            : QVariantMap{{"highlightColor", "#c5e5b0"}};
         const auto reference = [&](const QImage &_source) {
             if (type == "light")
@@ -134,6 +142,10 @@ private slots:
                 return PhotoCrap::Filters::applyBrightnessContrast(_source, parameters);
             if (type == "exposure")
                 return PhotoCrap::Filters::applyExposure(_source, parameters);
+            if (type == "hueSaturation")
+                return PhotoCrap::Filters::applyHueSaturation(_source, parameters);
+            if (type == "invert")
+                return PhotoCrap::Filters::applyInvert(_source, parameters);
             if (type == "vibrance")
                 return PhotoCrap::Filters::applyVibrance(_source, parameters);
             return PhotoCrap::Filters::applyGradientMap(_source, parameters);
@@ -153,8 +165,9 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
         QCOMPARE(doc.composite(), reference(source));
         QCOMPARE(doc.channelBits(), bits);
-        doc.previewLayerParameter(key,
-                                  type == "gradientMap" ? QVariant("#202830") : QVariant(-20.));
+        doc.previewLayerParameter(key, type == "gradientMap" ? QVariant("#202830")
+                                       : type == "invert"    ? QVariant(45.)
+                                                             : QVariant(-20.));
         QVERIFY(doc.gpuTonePreviewActive());
         QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), base.cacheKey());
         doc.cancelLayerPreview();
@@ -200,6 +213,59 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(doc.displayComposite(),
                                   PhotoCrap::Filters::applySelectiveColor(source, parameters),
                                   5000);
+    }
+    void hueAndInvertKnownValues()
+    {
+        QImage source(1, 1, QImage::Format_ARGB32);
+        source.setPixelColor(0, 0, QColor(255, 0, 0));
+        QCOMPARE(PhotoCrap::Filters::applyHueSaturation(source, {{"hue", 120}}).pixelColor(0, 0),
+                 QColor(0, 255, 0));
+        QCOMPARE(PhotoCrap::Filters::applyHueSaturation(source, {{"hue", -120}}).pixelColor(0, 0),
+                 QColor(0, 0, 255));
+        QCOMPARE(
+            PhotoCrap::Filters::applyHueSaturation(source, {{"saturation", -100}}).pixelColor(0, 0),
+            QColor(128, 128, 128));
+        QCOMPARE(
+            PhotoCrap::Filters::applyHueSaturation(source, {{"lightness", -100}}).pixelColor(0, 0),
+            QColor(Qt::black));
+        QCOMPARE(
+            PhotoCrap::Filters::applyHueSaturation(source, {{"lightness", 100}}).pixelColor(0, 0),
+            QColor(Qt::white));
+        for (int gray : {0, 1, 40, 128, 254, 255}) {
+            source.setPixelColor(0, 0, QColor(gray, gray, gray));
+            QCOMPARE(
+                PhotoCrap::Filters::applyHueSaturation(source, {{"hue", -30}}).pixelColor(0, 0),
+                QColor(gray, gray, gray));
+        }
+        source.setPixelColor(0, 0, QColor(80, 100, 120, 170));
+        QImage inverted(1, 1, QImage::Format_ARGB32);
+        inverted.setPixelColor(0, 0, QColor(175, 155, 135, 170));
+        inverted.setColorSpace(QColorSpace::SRgb);
+        QCOMPARE(PhotoCrap::Filters::applyInvert(source, {}),
+                 inverted.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+        QImage wide(1, 1, QImage::Format_RGBA64);
+        reinterpret_cast<QRgba64 *>(wide.scanLine(0))[0] =
+            QRgba64::fromRgba64(16465, 33019, 49544, 65535);
+        QCOMPARE(PhotoCrap::Filters::applyInvert(wide, {}).pixelColor(0, 0).rgba64(),
+                 QRgba64::fromRgba64(49070, 32516, 15991, 65535));
+        // Preserve the former QColor conversion for arbitrary native 16-bit values and alpha.
+        for (int alpha : {17000, 40000, 65535}) {
+            const QColor original = QColor::fromRgba64(16465, 33019, 49544, alpha);
+            wide.setPixelColor(0, 0, original);
+            for (int hue : {-180, -37, 0, 91, 180}) {
+                QColor expected = original;
+                float  h, s, l, a;
+                expected.getHslF(&h, &s, &l, &a);
+                expected.setHslF(std::fmod(h + hue / 360. + 1., 1.), qBound(0., s * 1.3, 1.),
+                                 qBound(0., l - .15, 1.), a);
+                QImage reference(1, 1, QImage::Format_RGBA64);
+                reference.setPixelColor(0, 0, expected);
+                reference.setColorSpace(QColorSpace::SRgb);
+                QCOMPARE(PhotoCrap::Filters::applyHueSaturation(
+                             wide, {{"hue", hue}, {"saturation", 30}, {"lightness", -15}}),
+                         reference.convertToFormat(QImage::Format_RGBA64_Premultiplied));
+            }
+        }
     }
     void legacyExposureAndVibranceSemantics()
     {

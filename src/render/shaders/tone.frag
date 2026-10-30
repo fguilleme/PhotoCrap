@@ -46,6 +46,36 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
+    if (ubuf.mode == 11) {
+        vec3 normalized = index / 255.0;
+        float maximum = max(normalized.r, max(normalized.g, normalized.b));
+        float minimum = min(normalized.r, min(normalized.g, normalized.b));
+        float delta = maximum - minimum;
+        float lightness = (maximum + minimum) * 0.5;
+        float saturation = 0.0;
+        float hue = 0.0;
+        if (delta > 0.0) {
+            saturation = delta / (1.0 - abs(2.0 * lightness - 1.0));
+            if (maximum == normalized.r)
+                hue = (normalized.g - normalized.b) / delta;
+            else if (maximum == normalized.g)
+                hue = (normalized.b - normalized.r) / delta + 2.0;
+            else
+                hue = (normalized.r - normalized.g) / delta + 4.0;
+            hue = fract(hue / 6.0 + 1.0);
+        }
+        // Match QColor's HSL storage before and after applying the adjustment.
+        hue = floor(hue * 36000.0 + 0.5) / 36000.0;
+        saturation = floor(saturation * 65535.0 + 0.5) / 65535.0;
+        lightness = floor(lightness * 65535.0 + 0.5) / 65535.0;
+        hue = floor(fract(hue + ubuf.parameters[0].x + 1.0) * 36000.0 + 0.5) / 36000.0;
+        saturation = floor(clamp(saturation * ubuf.parameters[0].y, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
+        lightness = floor(clamp(lightness + ubuf.parameters[0].z, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
+        vec3 ramp = clamp(abs(mod(vec3(hue * 6.0) + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        vec3 mapped = vec3(lightness) + (ramp - 0.5) * ((1.0 - abs(2.0 * lightness - 1.0)) * saturation);
+        fragColor = vec4(clamp(floor(mapped * 255.0 + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        return;
+    }
     if (ubuf.mode == 10) {
         float maximum = max(index.r, max(index.g, index.b));
         float minimum = min(index.r, min(index.g, index.b));

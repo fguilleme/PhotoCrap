@@ -13,6 +13,8 @@
 #include "filters/CurvesFilter.h"
 #include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
+#include "filters/HueSaturationFilter.h"
+#include "filters/InvertFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
@@ -642,6 +644,7 @@ private slots:
             {"color", PhotoCrap::Filters::applyColor},
             {"curves", PhotoCrap::Filters::applyCurves},
             {"exposure", PhotoCrap::Filters::applyExposure},
+            {"hueSaturation", PhotoCrap::Filters::applyHueSaturation},
             {"vibrance", PhotoCrap::Filters::applyVibrance},
             {"levels", PhotoCrap::Filters::applyLevels},
             {"light", PhotoCrap::Filters::applyLight},

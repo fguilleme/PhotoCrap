@@ -4,7 +4,7 @@
 canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
 Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie,
 Seuil, Style colorimétrique, Correction sélective et anciens réglages
-Luminosité/Contraste, Exposition et Vibrance sur GPU. Les pixels de travail
+Luminosité/Contraste, Exposition, Vibrance, Teinte/Saturation et Négatif sur GPU. Les pixels de travail
 et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
@@ -65,8 +65,8 @@ et ne relève pas la limite de 2 Gio.
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,
 un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc,
 Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie, Seuil,
-Style colorimétrique, Correction sélective, Luminosité/Contraste, Exposition
-ou Vibrance visible,
+Style colorimétrique, Correction sélective, Luminosité/Contraste, Exposition,
+Vibrance, Teinte/Saturation ou Négatif visible,
 en mode Normal à 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
 blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -119,6 +119,14 @@ le backend logiciel.
   du calcul CPU (EV, décalage, gamma). Vibrance calcule directement son facteur
   dans le shader, y compris ses valeurs négatives. Leurs calculs CPU sont isolés
   dans `ExposureFilter` et `VibranceFilter`, avec conservation des 8/16 bits et de l’alpha.
+- Teinte/Saturation utilise une conversion HSL dans le shader, avec quantification
+  compatible avec les composantes de QColor. Son calcul CPU dédié conserve les
+  pixels natifs et l’alpha. Les gris utilisent une teinte neutre au lieu du marqueur
+  indéfini de QColor : une rotation négative ne les transforme plus en noir.
+- Négatif utilise une table inversée fixe, partagée entre les prévisualisations,
+  et un calcul CPU par canaux mémoire sans conversion QColor. Ce réglage n’a pas
+  de curseur de couleur ; son ajout et le rendu final restent asynchrones sur CPU,
+  et le chemin GPU est disponible pendant une session de propriétés éligible.
 - Les paramètres du shader sont regroupés dans neuf `vec4` réutilisés entre les
   algorithmes. Le bloc complet occupe 224 octets selon la réflexion du shader,
   plutôt que de réserver un bloc différent pour chaque filtre. Changer les styles
@@ -170,7 +178,7 @@ ctest --test-dir build -R '^(gpu_tone_preview|tone_render|preset_preview|canvas_
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
 plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
 la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
-les seize réglages à la référence CPU. La liste des filtres est partagée avec
+les dix-huit réglages à la référence CPU. La liste des filtres est partagée avec
 le moteur : un nouvel aperçu éligible est automatiquement parcouru et le test
 affiche chaque filtre ainsi que leur nombre ; sur GPU il vérifie également que modifier les
 paramètres ne recrée pas les textures photo. `preset_preview` exerce survol, navigation clavier, validation, Échap, clic extérieur,
@@ -179,7 +187,7 @@ Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
 sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
-seize aperçus et des calibrations de pipettes. Les six contrôles
+dix-huit aperçus et des calibrations de pipettes. Les six contrôles
 Lumière sont comparés aux deux extrêmes, sur des gris, des couleurs saturées, du noir
 et du blanc. Les extrêmes de Température, Teinte, Vibrance, Saturation et des trois
 canaux de Balance des couleurs sont aussi comparés à la référence. L’historique,
@@ -204,8 +212,12 @@ retestés après le regroupement des paramètres du shader. Les combinaisons
 extrêmes de Luminosité/Contraste et Vibrance/Saturation sont comparées sur des rampes,
 ainsi que 27 combinaisons EV/décalage/gamma d’Exposition. Des valeurs connues
 vérifient séparément les règles CPU, le facteur négatif de Vibrance et les nuances
-fines en 16 bits.
-Le test des seize réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
+fines en 16 bits. Teinte/Saturation est comparé sur 135 combinaisons de rotation
+(incluant les demi-degrés et le passage à ±180°), saturation et luminosité, sur
+rampes et couleurs saturées/atténuées. Des valeurs connues et la formule QColor
+indépendante contrôlent aussi les primaires, les gris, l’alpha et les pixels 16 bits.
+Les comparaisons denses incluent désormais les lignes de couleurs mélangées.
+Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.
 Le fonctionnement normal macOS utilise Metal. Les backends GPU Linux/Windows
@@ -216,7 +228,7 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
-# Comparaison des shaders des seize réglages sur le même backend
+# Comparaison des shaders des dix-huit réglages sur le même backend
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 # Vérification OpenGL sur ce Mac, avec le rendu sur le thread principal

@@ -68,6 +68,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/ColorBalanceFilter.cpp
     src/filters/ColorLookupFilter.cpp
     src/filters/CurvesFilter.cpp
+    src/filters/HueSaturationFilter.cpp
+    src/filters/InvertFilter.cpp
     src/filters/ExposureFilter.cpp
     src/filters/VibranceFilter.cpp
     src/filters/GradientMapFilter.cpp
@@ -113,6 +115,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/ColorBalanceFilter.h
     src/filters/ColorLookupFilter.h
     src/filters/CurvesFilter.h
+    src/filters/HueSaturationFilter.h
+    src/filters/InvertFilter.h
     src/filters/ExposureFilter.h
     src/filters/VibranceFilter.h
     src/filters/GradientMapFilter.h
@@ -277,9 +281,13 @@ qt_add_library(photocrap_core STATIC
     src/filters/ColorLookupFilter.cpp
     src/filters/ColorLookupFilter.h
     src/filters/CurvesFilter.cpp
+    src/filters/HueSaturationFilter.cpp
+    src/filters/InvertFilter.cpp
     src/filters/ExposureFilter.cpp
     src/filters/VibranceFilter.cpp
     src/filters/CurvesFilter.h
+    src/filters/HueSaturationFilter.h
+    src/filters/InvertFilter.h
     src/filters/ExposureFilter.h
     src/filters/VibranceFilter.h
     src/filters/GradientMapFilter.cpp

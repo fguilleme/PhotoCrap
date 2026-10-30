@@ -9,6 +9,8 @@
 #include "filters/CurvesFilter.h"
 #include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
+#include "filters/HueSaturationFilter.h"
+#include "filters/InvertFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
@@ -573,6 +575,10 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return PhotoCrap::Filters::applyGradientMap(_source, _p);
         if (_type == "color")
             return PhotoCrap::Filters::applyColor(_source, _p);
+        if (_type == "hueSaturation")
+            return PhotoCrap::Filters::applyHueSaturation(_source, _p);
+        if (_type == "invert")
+            return PhotoCrap::Filters::applyInvert(_source, _p);
         if (_type == "exposure")
             return PhotoCrap::Filters::applyExposure(_source, _p);
         if (_type == "vibrance")
@@ -608,47 +614,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return mosaicImage(_source, _p.value("cellSize", 12).toInt());
         if (_type == "noise")
             return noiseImage(_source, _p.value("amount", 8.).toDouble());
-        const QImage input = _source.convertToFormat(P::format);
-        QImage       result(input.size(), P::format);
-        auto         value = [&](const char *_key, double _fallback) {
-            return _p.value(QLatin1String(_key), _fallback).toDouble();
-        };
-        auto      clamp = [](double _v) { return qBound(0., P::round(_v), 255.); };
-        const int jobCount =
-            qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
-        QVector<int> jobs(jobCount);
-        std::iota(jobs.begin(), jobs.end(), 0);
-        ImageUtils::blockingMap(jobs, [&](int _job) {
-            const int firstRow = input.height() * _job / jobCount;
-            const int lastRow  = input.height() * (_job + 1) / jobCount;
-            for (int y = firstRow; y < lastRow; ++y) {
-                const auto *source = reinterpret_cast<const Pixel *>(input.constScanLine(y));
-                auto       *output = reinterpret_cast<Pixel *>(result.scanLine(y));
-                for (int x = 0; x < input.width(); ++x) {
-                    QColor c = P::color(source[x]);
-                    double r = P::red(source[x]), g = P::green(source[x]), b = P::blue(source[x]);
-                    const double alpha = P::alpha(source[x]);
-                    if (_type == "hueSaturation") {
-                        float h, s, l, a;
-                        c.getHslF(&h, &s, &l, &a);
-                        h = std::fmod(h + value("hue", 0) / 360. + 1., 1.);
-                        s = qBound(0., s * (1 + value("saturation", 0) / 100.), 1.);
-                        l = qBound(0., l + value("lightness", 0) / 100., 1.);
-                        c.setHslF(h, s, l, a);
-                        r = c.redF() * 255.;
-                        g = c.greenF() * 255.;
-                        b = c.blueF() * 255.;
-                    } else if (_type == "invert") {
-                        r = 255 - r;
-                        g = 255 - g;
-                        b = 255 - b;
-                    }
-                    output[x] = P::rgba(clamp(r), clamp(g), clamp(b), alpha);
-                }
-            }
-        });
-        result.setColorSpace(QColorSpace::SRgb);
-        return result.convertToFormat(P::premultiplied);
+        return _source;
     };
     return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()
                                         : render.template operator()<QRgb>();

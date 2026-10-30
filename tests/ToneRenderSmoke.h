@@ -10,6 +10,8 @@
 #include "filters/CurvesFilter.h"
 #include "filters/ExposureFilter.h"
 #include "filters/GradientMapFilter.h"
+#include "filters/HueSaturationFilter.h"
+#include "filters/InvertFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/PhotoFilterFilter.h"
@@ -77,7 +79,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
     };
     const auto check = [&](const QImage &_frame, const QImage &_expected, bool _dense = false) {
         const qreal ratio = qreal(_frame.width()) / _window->width();
-        for (int y = 0; y < (_dense ? 112 : 256); y += 37)
+        for (int y = 0; y < 256; y += 37)
             for (int x = 0; x < (_dense ? 512 : 500); x += _dense ? 1 : 13) {
                 const QPointF scene = canvas.mapToScene({x + .5, y + .5});
                 const QPoint  point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
@@ -95,7 +97,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         return true;
     };
     const auto &types = PhotoCrap::Filters::gpuTonePreviewTypes();
-    if (!require(types.size() == 16, "the render test covers the complete GPU filter registry"))
+    if (!require(types.size() == 18, "the render test covers the complete GPU filter registry"))
         return false;
     for (const QString &type : types) {
         qInfo() << "Checking GPU filter:" << type;
@@ -133,6 +135,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyBrightnessContrast(original, parameters);
             if (type == "exposure")
                 return PhotoCrap::Filters::applyExposure(original, parameters);
+            if (type == "hueSaturation")
+                return PhotoCrap::Filters::applyHueSaturation(original, parameters);
+            if (type == "invert")
+                return PhotoCrap::Filters::applyInvert(original, parameters);
             if (type == "vibrance")
                 return PhotoCrap::Filters::applyVibrance(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
@@ -206,6 +212,15 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 parameters.insert("blacksBlack", (_value - 1.) * 15.);
                 for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
                     document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "hueSaturation") {
+                parameters = {{"hue", (_value - 1.) * 90},
+                              {"saturation", (_value - 1.) * 60},
+                              {"lightness", (_value - 1.) * -25}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "invert") {
+                parameters = {{"_maskDensity", _value * 30}};
+                document.previewLayerParameter("_maskDensity", _value * 30);
             } else if (type == "brightnessContrast" || type == "exposure" || type == "vibrance") {
                 if (type == "brightnessContrast")
                     parameters = {{"brightness", (_value - 1.) * 40},
@@ -253,7 +268,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             }
             const bool analytic = type == "color" || type == "photoFilter" ||
                                   type == "channelMixer" || type == "colorLookup" ||
-                                  type == "selectiveColor" || type == "vibrance";
+                                  type == "selectiveColor" || type == "vibrance" ||
+                                  type == "hueSaturation" || type == "invert";
             if (!require(
                     analytic ? canvas.toneTableUploads() == tables
                              : canvas.toneTableUploads() >= tables + 3,
@@ -457,6 +473,22 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                              canvas.imageTextureUploads() == uploads,
                                          "legacy exposure EV, offset and gamma match the CPU at "
                                          "their limits"))
+                                return false;
+                        }
+            }
+            if (type == "hueSaturation") {
+                for (double hue : {-180., -120., -60., -.5, 0., .5, 60., 120., 180.})
+                    for (double saturation : {-100., 0., 100.})
+                        for (double lightness : {-100., -35., 0., 35., 100.}) {
+                            parameters = {
+                                {"hue", hue}, {"saturation", saturation}, {"lightness", lightness}};
+                            for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                                document.previewLayerParameter(it.key(), it.value());
+                            if (!require(check(frame(), reference(), true) &&
+                                             canvas.imageTextureUploads() == uploads &&
+                                             canvas.toneTableUploads() == tables,
+                                         "HSL hue wrap, saturation and lightness match the CPU "
+                                         "without texture uploads"))
                                 return false;
                         }
             }

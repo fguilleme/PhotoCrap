@@ -5,6 +5,7 @@
 #include "CurvesFilter.h"
 #include "ExposureFilter.h"
 #include "GradientMapFilter.h"
+#include "InvertFilter.h"
 #include "LevelsFilter.h"
 #include "LightFilter.h"
 #include "PhotoFilterFilter.h"
@@ -31,11 +32,18 @@ const QStringList &gpuTonePreviewTypes()
                                    QStringLiteral("brightnessContrast"),
                                    QStringLiteral("exposure"),
                                    QStringLiteral("vibrance"),
+                                   QStringLiteral("hueSaturation"),
+                                   QStringLiteral("invert"),
                                    QStringLiteral("curves")};
     return types;
 }
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters)
 {
+    if (_type == QStringLiteral("hueSaturation"))
+        return {ToneMappingMode::HueSaturation,
+                {float(_parameters.value("hue", 0).toDouble() / 360.),
+                 float(1 + _parameters.value("saturation", 0).toDouble() / 100.),
+                 float(_parameters.value("lightness", 0).toDouble() / 100.), 0.f}};
     if (_type == QStringLiteral("vibrance"))
         return {ToneMappingMode::Vibrance,
                 {float(_parameters.value("vibrance", 0).toDouble() / 100.),
@@ -134,10 +142,15 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
             image.setPixel(value, 0, qRgb(value, value, value));
         return image;
     }();
+    if (_type == QStringLiteral("invert")) {
+        static const QImage inverted = applyInvert(ramp, {});
+        return inverted;
+    }
     // Analytic shaders share an identity texture that is never re-uploaded during edits.
     if (_type == QStringLiteral("color") || _type == QStringLiteral("photoFilter") ||
         _type == QStringLiteral("channelMixer") || _type == QStringLiteral("colorLookup") ||
-        _type == QStringLiteral("selectiveColor") || _type == QStringLiteral("vibrance"))
+        _type == QStringLiteral("selectiveColor") || _type == QStringLiteral("vibrance") ||
+        _type == QStringLiteral("hueSaturation"))
         return ramp;
     if (_type == QStringLiteral("curves"))
         return applyCurves(ramp, _parameters);

@@ -27,11 +27,14 @@ QImage displaySource(Document *_document)
 class PhotoTileNode : public QSGTransformNode
 {
 public:
-    QQuickWindow    *owner;
-    QSGTexture      *texture;
-    QSGImageNode    *image   = nullptr;
-    ToneMappingNode *mapping = nullptr;
-    QRectF           sourceRect;
+    QQuickWindow       *owner;
+    QSGTexture         *texture;
+    QSGTexture         *mask = nullptr, *lookup = nullptr;
+    ToneMappingSettings settings;
+    qint64              maskRevision = -1;
+    QSGImageNode       *image        = nullptr;
+    ToneMappingNode    *mapping      = nullptr;
+    QRectF              sourceRect;
     PhotoTileNode(QQuickWindow *_window, const QImage &_image, QSGTexture *_table,
                   const ToneMappingSettings &_settings)
         : owner(_window), texture(_window->createTextureFromImage(
@@ -47,9 +50,24 @@ public:
             delete child;
         }
         delete texture;
+        delete mask;
+    }
+    void setMask(const QImage &_mask, qint64 _revision)
+    {
+        if (maskRevision == _revision)
+            return;
+        auto *previous = mask;
+        mask = _mask.isNull()
+                   ? nullptr
+                   : owner->createTextureFromImage(_mask.convertToFormat(QImage::Format_RGB32));
+        maskRevision = _revision;
+        setMapping(lookup, settings);
+        delete previous;
     }
     void setMapping(QSGTexture *_table, const ToneMappingSettings &_settings)
     {
+        lookup   = _table;
+        settings = _settings;
         if (_table) {
             if (image) {
                 removeChildNode(image);
@@ -57,10 +75,10 @@ public:
                 image = nullptr;
             }
             if (!mapping) {
-                mapping = new ToneMappingNode(texture, _table, _settings);
+                mapping = new ToneMappingNode(texture, _table, _settings, mask);
                 appendChildNode(mapping);
             } else
-                mapping->setTable(_table, _settings);
+                mapping->setTable(_table, _settings, mask);
         } else {
             if (mapping) {
                 removeChildNode(mapping);
@@ -198,14 +216,19 @@ void CanvasItem::itemChange(ItemChange _change, const ItemChangeData &_value)
 void CanvasItem::updatePolish()
 {
     QImage source;
-    bool   changed = false;
+    bool   changed = false, maskChanged = false;
     if (m_imageDirty) {
-        source         = displaySource(m_document);
-        m_toneTable    = m_document && m_document->gpuTonePreviewActive()
-                             ? m_document->gpuTonePreviewTable()
-                             : QImage{};
-        m_toneSettings = m_document ? m_document->gpuTonePreviewSettings() : ToneMappingSettings{};
-        changed        = m_textureSourceKey != source.cacheKey();
+        source          = displaySource(m_document);
+        m_toneTable     = m_document && m_document->gpuTonePreviewActive()
+                              ? m_document->gpuTonePreviewTable()
+                              : QImage{};
+        m_toneSettings  = m_document ? m_document->gpuTonePreviewSettings() : ToneMappingSettings{};
+        const auto mask = m_document && m_document->gpuTonePreviewActive()
+                              ? m_document->gpuTonePreviewMask()
+                              : QImage{};
+        maskChanged     = m_toneMask.cacheKey() != mask.cacheKey();
+        m_toneMask      = mask;
+        changed         = m_textureSourceKey != source.cacheKey();
         m_textureSourceKey = source.cacheKey();
         m_sourceSize       = source.size();
         m_documentSize = m_document ? QSize(m_document->width(), m_document->height()) : QSize{};
@@ -217,6 +240,8 @@ void CanvasItem::updatePolish()
     if (m_sourceSize.isEmpty() || width() <= 0 || height() <= 0) {
         m_textureImage = {};
         m_tileImages.clear();
+        m_maskTileImages.clear();
+        m_textureMaskImage = {};
         m_textureSize      = {};
         m_textureLevel     = -1;
         m_selectionOutline = {};
@@ -226,6 +251,11 @@ void CanvasItem::updatePolish()
         const qreal scale =
             qMin(width() * ratio / m_sourceSize.width(), height() * ratio / m_sourceSize.height());
         const int level = qBound(0, int(std::floor(std::log2(1. / scale))), 30);
+        if (maskChanged || changed || m_textureLevel != level) {
+            m_maskTileImages.clear();
+            m_textureMaskImage = {};
+            ++m_maskRevision;
+        }
         if (changed || m_textureLevel != level) {
             m_textureSize  = QSize(qMax(1, m_sourceSize.width() >> level),
                                    qMax(1, m_sourceSize.height() >> level));
@@ -247,17 +277,25 @@ void CanvasItem::updatePolish()
             QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
                 .toAlignedRect()
                 .intersected(imageRect);
+        if (!m_toneMask.isNull() && level > 0 && m_textureMaskImage.isNull())
+            m_textureMaskImage =
+                m_toneMask.scaled(m_textureSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         QSet<quint64> used;
         if (!region.isEmpty()) {
             for (int y = region.top() / tileSize; y <= region.bottom() / tileSize; ++y)
                 for (int x = region.left() / tileSize; x <= region.right() / tileSize; ++x) {
                     const quint64 key = (quint64(quint32(y)) << 32) | quint32(x);
                     used.insert(key);
-                    if (m_tileImages.contains(key))
-                        continue;
                     const QRect tile   = QRect(x * tileSize, y * tileSize, tileSize, tileSize)
                                              .intersected(imageRect);
                     const QRect padded = tile.adjusted(-1, -1, 1, 1).intersected(imageRect);
+                    if (!m_toneMask.isNull() && !m_maskTileImages.contains(key)) {
+                        // Copy only visible mask tiles; density changes reuse these snapshots.
+                        const QImage &mask = level == 0 ? m_toneMask : m_textureMaskImage;
+                        m_maskTileImages.insert(key, mask.copy(padded));
+                    }
+                    if (m_tileImages.contains(key))
+                        continue;
                     if (level == 0) {
                         if (source.isNull() && m_document)
                             source = displaySource(m_document);
@@ -265,6 +303,12 @@ void CanvasItem::updatePolish()
                     } else
                         m_tileImages.insert(key, m_textureImage.copy(padded));
                 }
+        }
+        for (auto it = m_maskTileImages.begin(); it != m_maskTileImages.end();) {
+            if (!used.contains(it.key()))
+                it = m_maskTileImages.erase(it);
+            else
+                ++it;
         }
         for (auto it = m_tileImages.begin(); it != m_tileImages.end();) {
             if (!used.contains(it.key()))
@@ -471,6 +515,19 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                 node->tiles.insert(key, tile);
 #ifdef PHOTOCRAP_TESTING
                 ++m_imageTextureUploads;
+#endif
+            }
+            if (tile->maskRevision != m_maskRevision) {
+                const auto mask = m_maskTileImages.value(key);
+                tile->setMask(mask, m_maskRevision);
+                if (!mask.isNull() && !tile->mask) {
+                    QMetaObject::invokeMethod(
+                        this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);
+                    return node;
+                }
+#ifdef PHOTOCRAP_TESTING
+                if (tile->mask)
+                    ++m_maskTextureUploads;
 #endif
             }
             used.insert(key);

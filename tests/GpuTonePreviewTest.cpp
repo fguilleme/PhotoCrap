@@ -412,6 +412,87 @@ private slots:
         QCOMPARE(doc.gpuTonePreviewSettings().maskCoverage, 255.f);
         doc.cancelLayerPreview();
     }
+    void paintedMaskPreview_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8") << 8;
+        QTest::newRow("16") << 16;
+    }
+    void paintedMaskPreview()
+    {
+        QFETCH(int, bits);
+        Document doc, cpu;
+        for (Document *target : {&doc, &cpu}) {
+            QVERIFY(target->newDocument(512, 256, false, bits));
+            target->setColor(QColor(40, 110, 210));
+            target->fillWithColor(true);
+            target->setPreviewSize(256, 128);
+            target->addAdjustmentLayer("levels");
+            target->setLayerOpacity(target->activeLayer(), .63);
+            target->setEditingMask(true);
+            target->setTool("brush");
+            target->setBrushSize(120);
+            target->setBrushHardness(.4);
+            target->setColor(Qt::black);
+            target->beginStroke(50, 80);
+            target->continueStroke(450, 160);
+            target->endStroke();
+            target->setEditingMask(false);
+        }
+        doc.setGpuTonePreviewEnabled(true);
+        const auto before  = doc.composite();
+        const int  history = doc.historyIndex();
+        for (Document *target : {&doc, &cpu}) {
+            target->previewLayerParameter("gamma", 2.);
+            target->previewLayerParameter("_maskDensity", 37.);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.gpuTonePreviewMask().size(), QSize(256, 128));
+        QCOMPARE(doc.gpuTonePreviewMask().format(), QImage::Format_Grayscale8);
+        const auto baseKey  = doc.gpuTonePreviewBase().cacheKey();
+        const auto maskKey  = doc.gpuTonePreviewMask().cacheKey();
+        const auto tableKey = doc.gpuTonePreviewTable().cacheKey();
+        doc.previewLayerParameter("_maskDensity", 85.);
+        QCOMPARE(doc.gpuTonePreviewMask().cacheKey(), maskKey);
+        QCOMPARE(doc.gpuTonePreviewTable().cacheKey(), tableKey);
+        // Queue several feather requests before the worker returns: only the last wins.
+        for (double feather : {3., 12., 5.})
+            doc.previewLayerParameter("_maskFeather", feather);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewMask().cacheKey() != maskKey, 5000);
+        QTest::qWait(150);
+        QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), baseKey);
+        QCOMPARE(doc.gpuTonePreviewTable().cacheKey(), tableKey);
+        const auto stableMask = doc.gpuTonePreviewMask();
+        for (double feather : {3., 12., 5.})
+            doc.previewLayerParameter("_maskFeather", feather);
+        QTest::qWait(150);
+        QCOMPARE(doc.gpuTonePreviewMask(), stableMask);
+        cpu.previewLayerParameter("_maskDensity", 85.);
+        cpu.previewLayerParameter("_maskFeather", 5.);
+        // Auxiliary previews must match the independently scheduled CPU path.
+        QTRY_COMPARE_WITH_TIMEOUT(doc.displayComposite(), cpu.displayComposite(), 5000);
+        for (Document *target : {&doc, &cpu})
+            target->finishLayerPreview();
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.historyIndex(), history + 1);
+        QCOMPARE(doc.composite(), cpu.composite());
+        QCOMPARE(doc.channelBits(), bits);
+        doc.previewLayerParameter("_maskFeather", 20.);
+        doc.cancelLayerPreview();
+        QTest::qWait(150);
+        QVERIFY(!doc.gpuTonePreviewActive());
+        QVERIFY(doc.gpuTonePreviewMask().isNull());
+        QCOMPARE(doc.composite(), cpu.composite());
+        doc.undo();
+        QCOMPARE(doc.composite(), before);
+        doc.previewLayerParameter("gamma", 2.);
+        doc.previewLayerParameter("_maskFeather", 15.);
+        doc.setPreviewSize(128, 64);
+        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QCOMPARE(doc.gpuTonePreviewBase().size(), QSize(128, 64));
+        QCOMPARE(doc.gpuTonePreviewMask().size(), QSize(128, 64));
+        doc.cancelLayerPreview();
+    }
     void unsupportedCasesStayOnCpu()
     {
         for (const bool transparent : {false, true}) {
@@ -441,7 +522,8 @@ private slots:
         const int revision = masked.revision();
         masked.previewLayerParameter("blackSample", QVariantList{20, 30, 40});
         QTRY_VERIFY_WITH_TIMEOUT(masked.revision() > revision, 5000);
-        QVERIFY(!masked.gpuTonePreviewActive());
+        QTRY_VERIFY_WITH_TIMEOUT(masked.gpuTonePreviewActive(), 5000);
+        QVERIFY(!masked.gpuTonePreviewMask().isNull());
         masked.cancelLayerPreview();
     }
     void sixteenBitDocumentsKeepNativeFinal()

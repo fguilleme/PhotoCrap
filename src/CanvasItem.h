@@ -51,6 +51,10 @@ public:
     {
         return m_toneTableUploads.load();
     }
+    quint64 maskTextureUploads() const
+    {
+        return m_maskTextureUploads.load();
+    }
     QSize overlayPixelSize() const
     {
         return m_overlayImage.size();
@@ -67,14 +71,15 @@ signals:
     void viewportRectChanged();
 
 private:
-    void                                    queueFrame(bool _image, bool _overlay);
-    QPointer<Document>                      m_document;
-    QRegion                                 m_selectionOutline;
-    QPainterPath                            m_selectionPath;
-    QImage                                  m_textureImage, m_overlayImage, m_toneTable;
-    bool                                    m_gpuTonePreviewEnabled = false;
+    void               queueFrame(bool _image, bool _overlay);
+    QPointer<Document> m_document;
+    QRegion            m_selectionOutline;
+    QPainterPath       m_selectionPath;
+    QImage             m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
+    bool               m_gpuTonePreviewEnabled = false;
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
-    QHash<quint64, QImage>                  m_tileImages;
+    QHash<quint64, QImage>                  m_tileImages, m_maskTileImages;
+    qint64                                  m_maskRevision     = 0;
     qint64                                  m_textureSourceKey = 0;
     qint64                                  m_textureRevision  = 0;
     int                                     m_textureLevel     = -1;
@@ -84,6 +89,7 @@ private:
 #ifdef PHOTOCRAP_TESTING
     std::atomic<quint64> m_imageTextureUploads{0};
     std::atomic<quint64> m_toneTableUploads{0};
+    std::atomic<quint64> m_maskTextureUploads{0};
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

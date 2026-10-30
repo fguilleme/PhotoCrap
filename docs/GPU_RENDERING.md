@@ -67,8 +67,9 @@ un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et b
 Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie, Seuil,
 Style colorimétrique, Correction sélective, Luminosité/Contraste, Exposition,
 Vibrance, Teinte/Saturation ou Négatif visible,
-en mode Normal, sans dossier ni écrêtage, avec un masque absent, désactivé ou
-uniforme (blanc, gris ou noir). Son opacité peut varier de 0 à 100 %. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
+en mode Normal, sans dossier ni écrêtage. Les masques absents, désactivés,
+uniformes et peints sont pris en charge. Son opacité peut varier de 0 à 100 %.
+La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
 le backend logiciel.
 
@@ -132,8 +133,20 @@ le backend logiciel.
   prémultiplication écran en 8 bits avant l’opacité, comme le chemin CPU. Un contour
   progressif ne change pas un masque uniforme. Ces deux constantes occupent les
   emplacements libres avant les neuf vecteurs : le bloc reste de 224 octets.
-  Les masques peints, les modes de fusion autres que Normal et les bases
-  transparentes conservent le chemin CPU ; aucune texture de masque n’est ajoutée.
+  Les masques uniformes ne nécessitent aucune texture supplémentaire. Les modes
+  de fusion autres que Normal et les bases transparentes conservent le chemin CPU.
+- Pour un masque peint, un worker prépare une image Grayscale8 à la résolution
+  de la base écran, avec le même redimensionnement et flou CPU que l’aperçu existant.
+  Le shader reçoit les blocs visibles de ce masque avec les mêmes coordonnées et
+  pixels de bordure que la photo. La texture utilise le format d’affichage RGB
+  standard pour rester portable ; le masque de travail et son proxy restent en 8 bits.
+  Les blocs de masque quittant la vue sont libérés et rechargés au retour.
+- Changer la densité du masque peint modifie uniquement une constante du shader.
+  Le contour progressif prépare un nouveau masque en arrière-plan, en réutilisant
+  la base écran. Les demandes successives remplacent celles en attente ; un résultat
+  ancien ne supprime pas une demande de contour plus récente. Annulation, nouvelle
+  pile et changement de résolution invalident les résultats en vol. Pendant ce
+  calcul, le dernier masque terminé reste affiché. La peinture elle-même reste CPU.
 - Les tables identiques sont conservées. Changer uniquement la densité ou le
   contour progressif d’un masque uniforme ne retransfère ni la photo ni la table.
   Le mélange des six familles Noir et blanc réutilise aussi sa palette quand la
@@ -233,7 +246,12 @@ uniformes 0/128/255, les densités 0/37/100 % et une opacité de 37 %. Niveaux c
 également les opacités 0/1/50/99/100 %. Les contrôles vérifient la réutilisation des
 textures quand seule la densité change et le remplacement par le rendu final CPU.
 Les tests moteur couvrent ces états en 8 et 16 bits, l’historique, l’annulation et
-la désactivation du masque.
+la désactivation du masque. Les masques peints sont exercés sur les dix-huit
+réglages avec densités 0/37/100 % et contours progressifs 2/8 pixels. La densité ne
+retransfère aucune texture ; le contour ne remplace que celle du masque. Un cas de
+1 280 pixels de large vérifie la frontière à 1 024 pixels, l’éviction/relecture et
+le niveau de détail réduit. Les tests moteur vérifient aussi les contours demandés
+rapidement, l’annulation pendant le calcul et le redimensionnement, en 8/16 bits.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.

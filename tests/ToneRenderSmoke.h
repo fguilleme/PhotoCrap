@@ -80,12 +80,16 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
     };
     const auto check = [&](const QImage &_frame, const QImage &_expected, bool _dense = false) {
         const qreal ratio = qreal(_frame.width()) / _window->width();
-        for (int y = 0; y < 256; y += 37)
-            for (int x = 0; x < (_dense ? 512 : 500); x += _dense ? 1 : 13) {
-                const QPointF scene = canvas.mapToScene({x + .5, y + .5});
-                const QPoint  point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
-                if (!_frame.rect().contains(point))
+        for (int y = 0; y < _expected.height(); y += 37)
+            for (int x = 0; x < (_dense ? _expected.width() : 500); x += _dense ? 1 : 13) {
+                const QPointF scene =
+                    canvas.mapToScene({(x + .5) * canvas.width() / _expected.width(),
+                                       (y + .5) * canvas.height() / _expected.height()});
+                const QPoint point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
+                if (!_frame.rect().contains(point)) {
+                    qWarning() << "Tone sample outside frame" << point << _frame.size();
                     return false;
+                }
                 const auto actual = _frame.pixelColor(point), expected = _expected.pixelColor(x, y);
                 if (qAbs(actual.red() - expected.red()) > 2 ||
                     qAbs(actual.green() - expected.green()) > 2 ||
@@ -114,6 +118,21 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         painter.drawImage(0, 0, masked);
         painter.end();
         return result;
+    };
+    const auto paintMask = [](Document &_document) {
+        _document.setEditingMask(true);
+        _document.fillMaskWithColor(Qt::white);
+        _document.setTool("brush");
+        _document.setBrushSize(128);
+        _document.setBrushHardness(.4);
+        _document.setColor(Qt::black);
+        _document.beginStroke(20, 80);
+        _document.continueStroke(_document.width() - 20, 160);
+        _document.endStroke();
+        _document.setColor(QColor(128, 128, 128));
+        _document.beginStroke(_document.width() / 2, 200);
+        _document.endStroke();
+        _document.setEditingMask(false);
     };
     const auto &types = PhotoCrap::Filters::gpuTonePreviewTypes();
     if (!require(types.size() == 18, "the render test covers the complete GPU filter registry"))
@@ -565,11 +584,115 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                             "masked final rendering replaces the shader with the CPU result"))
                         return false;
                 }
+            document.setLayerOpacity(document.activeLayer(), .63);
+            paintMask(document);
+            preview(.8);
+            document.previewLayerParameter("_maskFeather", 0.);
+            document.previewLayerParameter("_maskDensity", 37.);
+            if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000) &&
+                             !document.gpuTonePreviewMask().isNull(),
+                         "painted masks keep GPU eligibility"))
+                return false;
+            frame();
+            const auto photoUploads = canvas.imageTextureUploads();
+            const auto tableUploads = canvas.toneTableUploads();
+            const auto maskUploads  = canvas.maskTextureUploads();
+            const auto baseKey      = document.gpuTonePreviewBase().cacheKey();
+            for (double density : {0., 37., 100.}) {
+                document.previewLayerParameter("_maskDensity", density);
+                const auto expected = document.composite();
+                if (!require(check(frame(), expected, true) &&
+                                 canvas.imageTextureUploads() == photoUploads &&
+                                 canvas.toneTableUploads() == tableUploads &&
+                                 canvas.maskTextureUploads() == maskUploads,
+                             "painted mask density matches the CPU without uploading any textures"))
+                    return false;
+            }
+            for (double feather : {2., 8.}) {
+                const auto previous = document.gpuTonePreviewMask().cacheKey();
+                document.previewLayerParameter("_maskFeather", feather);
+                if (!require(
+                        QTest::qWaitFor(
+                            [&] { return document.gpuTonePreviewMask().cacheKey() != previous; },
+                            5000),
+                        "feathered mask arrives asynchronously"))
+                    return false;
+                const auto expected = document.composite();
+                if (!require(check(frame(), expected, true) &&
+                                 document.gpuTonePreviewBase().cacheKey() == baseKey &&
+                                 canvas.imageTextureUploads() == photoUploads &&
+                                 canvas.toneTableUploads() == tableUploads,
+                             "feathering uploads only the mask and keeps the photo"))
+                    return false;
+            }
+            if (type == "levels") {
+                const auto stableMask = document.gpuTonePreviewMask();
+                for (double feather : {2., 4., 8.})
+                    document.previewLayerParameter("_maskFeather", feather);
+                QTest::qWait(150);
+                if (!require(document.gpuTonePreviewMask() == stableMask,
+                             "returning to a cached feather rejects an older running result"))
+                    return false;
+            }
+            const auto expected = document.composite();
+            document.finishLayerPreview();
+            if (!require(QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000) &&
+                             check(frame(), expected, true),
+                         "painted mask final rendering matches the CPU"))
+                return false;
         }
+    }
+    if (hardware) {
+        // Mask/photo tile padding must agree at 1024 pixels and across display LODs.
+        QImage wide(1280, 256, QImage::Format_ARGB32);
+        wide.fill(QColor(40, 110, 210));
+        const auto widePath = directory.filePath("wide.png");
+        if (!require(wide.save(widePath) && document.openFile(QUrl::fromLocalFile(widePath)),
+                     "open tiled mask reference"))
+            return false;
+        const qreal ratio = _window->effectiveDevicePixelRatio();
+        _window->setMinimumWidth(qCeil(1280 / ratio + 80));
+        canvas.setSize({1280 / ratio, 256 / ratio});
+        canvas.setViewportRect(canvas.boundingRect());
+        document.setPreviewSize(1280, 256);
+        document.addAdjustmentLayer("levels");
+        paintMask(document);
+        document.previewLayerParameter("gamma", 2.);
+        if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                     "tiled mask preview starts"))
+            return false;
+        const auto expected = document.composite();
+        if (!require(check(frame(), expected, true), "mask padding matches across adjacent tiles"))
+            return false;
+        const auto uploaded = canvas.maskTextureUploads();
+        canvas.setViewportRect({1100 / ratio, 0, 180 / ratio, 256 / ratio});
+        frame();
+        canvas.setViewportRect(canvas.boundingRect());
+        if (!require(check(frame(), expected, true) && canvas.maskTextureUploads() > uploaded,
+                     "evicted mask tiles reload with the photo"))
+            return false;
+        canvas.setSize({0, 0});
+        frame();
+        canvas.setSize({1280 / ratio, 256 / ratio});
+        canvas.setViewportRect(canvas.boundingRect());
+        if (!require(check(frame(), expected, true), "mask survives an empty canvas geometry"))
+            return false;
+        canvas.setSize({320 / ratio, 64 / ratio});
+        canvas.setViewportRect(canvas.boundingRect());
+        const QSize displaySize(qRound(canvas.width() * _window->effectiveDevicePixelRatio()),
+                                qRound(canvas.height() * _window->effectiveDevicePixelRatio()));
+        if (!require(
+                check(frame(),
+                      expected.scaled(displaySize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation),
+                      true),
+                "mask coordinates follow the photo at a reduced display level"))
+            return false;
+        document.cancelLayerPreview();
     }
     qInfo() << "Tone render checks passed; filters:" << types.size() << "; hardware:" << hardware
             << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
-            << "; LUT textures:" << canvas.toneTableUploads();
+            << "; LUT textures:" << canvas.toneTableUploads()
+            << "; mask textures:" << canvas.maskTextureUploads();
     return true;
 }

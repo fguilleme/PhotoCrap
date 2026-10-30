@@ -8,8 +8,10 @@ class ToneMappingNode : public QSGGeometryNode
 {
 public:
     ToneMappingNode(QSGTexture *_source, QSGTexture *_table,
-                    const PhotoCrap::Filters::ToneMappingSettings &_settings);
-    void setTable(QSGTexture *_table, const PhotoCrap::Filters::ToneMappingSettings &_settings);
+                    const PhotoCrap::Filters::ToneMappingSettings &_settings,
+                    QSGTexture                                    *_mask = nullptr);
+    void setTable(QSGTexture *_table, const PhotoCrap::Filters::ToneMappingSettings &_settings,
+                  QSGTexture *_mask = nullptr);
     void setImageRect(const QRectF &_rect, const QRectF &_sourceRect);
     void setFiltering(QSGTexture::Filtering _filtering);
 

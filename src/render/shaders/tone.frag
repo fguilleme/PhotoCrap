@@ -11,6 +11,7 @@ layout(std140, binding = 0) uniform buf {
 } ubuf;
 layout(binding = 1) uniform sampler2D sourceTexture;
 layout(binding = 2) uniform sampler2D tableTexture;
+layout(binding = 3) uniform sampler2D maskTexture;
 float familyAdjustment(int family)
 {
     // Explicit components keep the shader compatible with the GLSL 100 target.
@@ -46,9 +47,14 @@ vec3 selectiveDelta(vec3 pixel)
 vec4 compositeAdjustment(vec3 base, vec4 adjusted)
 {
     // Preserve the CPU's 8-bit mask premultiplication before layer opacity.
-    vec3 premultiplied = floor(adjusted.rgb * ubuf.maskCoverage + 0.5);
+    float coverage = ubuf.maskCoverage;
+    if (ubuf.mode >= 16) {
+        float mask = floor(texture(maskTexture, uv).r * 255.0 + 0.5);
+        coverage = floor(255.0 - (255.0 - mask) * ubuf.maskCoverage + 0.5);
+    }
+    vec3 premultiplied = floor(adjusted.rgb * coverage + 0.5);
     float opacityScale = floor(ubuf.effectOpacity * 256.0) / 256.0;
-    float alpha = floor(ubuf.maskCoverage * opacityScale + 0.5);
+    float alpha = floor(coverage * opacityScale + 0.5);
     vec3 source = floor(premultiplied * opacityScale + 0.5);
     vec3 result = source + floor(base * (255.0 - alpha) / 255.0 + 0.5);
     return vec4(clamp(result, 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
@@ -58,7 +64,8 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
-    if (ubuf.mode == 11) {
+    int mode = ubuf.mode >= 16 ? ubuf.mode - 16 : ubuf.mode;
+    if (mode == 11) {
         vec3 normalized = index / 255.0;
         float maximum = max(normalized.r, max(normalized.g, normalized.b));
         float minimum = min(normalized.r, min(normalized.g, normalized.b));
@@ -88,7 +95,7 @@ void main()
         fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped * 255.0 + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
-    if (ubuf.mode == 10) {
+    if (mode == 10) {
         float maximum = max(index.r, max(index.g, index.b));
         float minimum = min(index.r, min(index.g, index.b));
         float luminance = dot(index, vec3(0.2126, 0.7152, 0.0722));
@@ -98,9 +105,9 @@ void main()
         fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
-    if (ubuf.mode == 8 || ubuf.mode == 9) {
+    if (mode == 8 || mode == 9) {
         vec3 delta = selectiveDelta(index);
-        if (ubuf.mode == 8) {
+        if (mode == 8) {
             vec3 room = vec3(delta.r >= 0.0 ? 255.0 - index.r : index.r,
                              delta.g >= 0.0 ? 255.0 - index.g : index.g,
                              delta.b >= 0.0 ? 255.0 - index.b : index.b);
@@ -109,7 +116,7 @@ void main()
         fragColor = compositeAdjustment(index, vec4(clamp(floor(index + delta + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
-    if (ubuf.mode == 7) {
+    if (mode == 7) {
         int preset = int(ubuf.parameters[0].x);
         vec3 styled;
         if (preset == 0)
@@ -140,7 +147,7 @@ void main()
         fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
-    if (ubuf.mode == 6) {
+    if (mode == 6) {
         // Threshold has a different luminance rule from Light/Gradient Map.
         // Keep the CPU's integer coefficients and rounding before the comparison.
         ivec3 channels = ivec3(index);
@@ -148,14 +155,14 @@ void main()
         fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)));
         return;
     }
-    if (ubuf.mode == 5) {
+    if (mode == 5) {
         // Photo Filter (including luminosity preservation) and Channel Mixer.
         vec4 pixel = vec4(index, 1.0);
         vec3 mapped = vec3(dot(ubuf.parameters[3], pixel), dot(ubuf.parameters[4], pixel), dot(ubuf.parameters[5], pixel));
         fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }
-    if (ubuf.mode == 4) {
+    if (mode == 4) {
         float maximum = max(index.r, max(index.g, index.b));
         float minimum = min(index.r, min(index.g, index.b));
         float chroma = maximum - minimum;
@@ -175,7 +182,7 @@ void main()
         fragColor = compositeAdjustment(index, texture(tableTexture, vec2((gray + 0.5) / 256.0, 0.5)));
         return;
     }
-    if (ubuf.mode == 2) {
+    if (mode == 2) {
         // Temperature, tint, vibrance and saturation match applyColor().
         vec3 balanced = clamp(index / 255.0
             + vec3(0.18 * ubuf.parameters[0].x + 0.06 * ubuf.parameters[0].y,
@@ -189,13 +196,13 @@ void main()
         fragColor = compositeAdjustment(index, vec4(floor(corrected * 255.0 + 0.5) / 255.0, 1.0));
         return;
     }
-    if (ubuf.mode == 1 || ubuf.mode == 3) {
+    if (mode == 1 || mode == 3) {
         // Match the CPU's integer luminance and truncating channel arithmetic.
         // Applying the curve separately to R/G/B would change color balance.
         ivec3 channels = ivec3(index);
         // Positive integer division is also supported by the older GLSL targets.
         int level = (54 * channels.r + 183 * channels.g + 19 * channels.b + 128) / 256;
-        if (ubuf.mode == 3) {
+        if (mode == 3) {
             fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)));
             return;
         }

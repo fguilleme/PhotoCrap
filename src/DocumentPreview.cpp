@@ -151,26 +151,50 @@ void Document::startPendingPreviewRender()
     m_runningPreviewGpuAux     = m_pendingPreviewGpuAux;
     m_runningGpuToneEpoch      = m_gpuToneEpoch;
     const bool gpuBase         = m_runningPreviewGpuBase;
-    if (gpuBase)
+    QImage     mask;
+    int        feather = 0;
+    if (gpuBase) {
+        const auto &layer = layers.constLast();
+        if (layer.maskEnabled && !layer.mask.isNull() && !ImageUtils::compact(layer.mask)) {
+            mask = layer.mask;
+            feather =
+                qRound(qBound(0., layer.parameters.value("_maskFeather", 0.).toDouble(), 100.));
+        }
         layers.removeLast();
-    m_previewRenderWatcher.setFuture(QtConcurrent::run(
-        [layers = std::move(layers), size, targetSize, draft, scratch, gpuBase]() mutable {
-            QImage result =
-                renderPreviewSnapshot(std::move(layers), size, targetSize, draft, scratch);
+    }
+    // Mask feathering changes no pixels in the stack below the adjustment.
+    const QImage cachedBase = gpuBase ? m_gpuToneBase : QImage{};
+    m_previewRenderWatcher.setFuture(
+        QtConcurrent::run([layers = std::move(layers), size, targetSize, draft, scratch, gpuBase,
+                           mask, feather, cachedBase]() mutable -> PreviewRenderResult {
+            QImage result = cachedBase.isNull() ? renderPreviewSnapshot(std::move(layers), size,
+                                                                        targetSize, draft, scratch)
+                                                : cachedBase;
             if (gpuBase) {
                 if (ImageUtils::is16Bit(result))
-                    return QImage{};
-                // Only opaque bases take the first GPU path. Transparency retains
-                // the CPU compositor's existing source-over/rounding semantics.
-                const QImage image = result.convertToFormat(QImage::Format_ARGB32);
-                for (int y = 0; y < image.height(); ++y) {
-                    const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
-                    for (int x = 0; x < image.width(); ++x)
-                        if (qAlpha(row[x]) != 255)
-                            return QImage{};
+                    return {};
+                // Transparent bases retain the CPU compositor's existing semantics.
+                if (cachedBase.isNull()) {
+                    const QImage image = result.convertToFormat(QImage::Format_ARGB32);
+                    for (int y = 0; y < image.height(); ++y) {
+                        const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+                        for (int x = 0; x < image.width(); ++x)
+                            if (qAlpha(row[x]) != 255)
+                                return {};
+                    }
+                }
+                if (!mask.isNull()) {
+                    const qint64 key = mask.cacheKey();
+                    if (mask.size() != result.size())
+                        mask = cachedScreenProxy(mask, result.size(), QImage::Format_Grayscale8);
+                    if (feather > 0)
+                        mask = blurImage(mask, feather).convertToFormat(QImage::Format_Grayscale8);
+                    if (mask.isNull())
+                        return {};
+                    return {result, mask, key, feather};
                 }
             }
-            return result;
+            return {result, {}};
         }));
 }
 

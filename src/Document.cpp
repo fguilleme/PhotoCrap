@@ -56,10 +56,11 @@ Document::Document(QObject *_parent) : QObject(_parent)
         if (m_previewingLayer && gpuTonePreviewActive())
             requestPreviewRender(true, false, false);
     });
-    connect(&m_previewRenderWatcher, &QFutureWatcher<QImage>::finished, this, [this] {
-        const QImage result = m_previewRenderWatcher.result();
+    connect(&m_previewRenderWatcher, &QFutureWatcher<PreviewRenderResult>::finished, this, [this] {
+        const auto   output = m_previewRenderWatcher.result();
+        const QImage result = output.image;
         if (m_runningPreviewGpuBase) {
-            finishGpuToneBase(result, m_runningGpuToneEpoch);
+            finishGpuToneBase(output, m_runningGpuToneEpoch);
             if (m_previewRenderPending)
                 QTimer::singleShot(0, this, &Document::startPendingPreviewRender);
             else

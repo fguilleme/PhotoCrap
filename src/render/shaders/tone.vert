@@ -7,6 +7,8 @@ layout(std140, binding = 0) uniform buf {
     float opacity;
     int mode;
     vec4 color;
+    vec4 families0;
+    vec4 families1;
 } ubuf;
 void main()
 {

@@ -6,14 +6,21 @@
 namespace PhotoCrap::Filters
 {
 // Values are shared with the shader's mode uniform.
-enum class ToneMappingMode : qint32 { Channels = 0, Luminance = 1, Color = 2 };
+enum class ToneMappingMode : qint32 {
+    Channels    = 0,
+    Luminance   = 1,
+    Color       = 2,
+    GradientMap = 3,
+    BlackWhite  = 4
+};
 struct ToneMappingSettings {
     ToneMappingMode mode = ToneMappingMode::Channels;
-    QVector4D       color;
+    QVector4D       color{};
+    QVector4D       families0{}, families1{};
     bool            operator==(const ToneMappingSettings &) const = default;
 };
 ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap &_parameters);
 // CPU reference lookup: RGB channels for Curves/Levels/Balance, luminance for Light,
-// and a reused identity table for the analytic Color shader.
+// palettes for BlackWhite/GradientMap, and a reused identity table for Color.
 QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters);
 } // namespace PhotoCrap::Filters

@@ -2,6 +2,7 @@
 #include <QSGMaterial>
 #include <QSGMaterialShader>
 #include <cstring>
+#include <utility>
 
 namespace
 {
@@ -51,9 +52,12 @@ public:
             return int(filtering) - int(other->filtering);
         if (settings.mode != other->settings.mode)
             return int(settings.mode) - int(other->settings.mode);
-        for (int i = 0; i < 4; ++i)
-            if (settings.color[i] != other->settings.color[i])
-                return settings.color[i] < other->settings.color[i] ? -1 : 1;
+        for (const auto vectors : {std::pair{settings.color, other->settings.color},
+                                   std::pair{settings.families0, other->settings.families0},
+                                   std::pair{settings.families1, other->settings.families1}})
+            for (int i = 0; i < 4; ++i)
+                if (vectors.first[i] != vectors.second[i])
+                    return vectors.first[i] < vectors.second[i] ? -1 : 1;
         return 0;
     }
 };
@@ -79,8 +83,11 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
         std::memcpy(data->data() + 68, &mode, sizeof(mode));
         changed = true;
     }
-    const auto &color     = material->settings.color;
-    const float values[4] = {color.x(), color.y(), color.z(), color.w()};
+    const auto &color      = material->settings.color;
+    const auto &first      = material->settings.families0;
+    const auto &second     = material->settings.families1;
+    const float values[12] = {color.x(), color.y(), color.z(),  color.w(),  first.x(),  first.y(),
+                              first.z(), first.w(), second.x(), second.y(), second.z(), second.w()};
     if (!_old || std::memcmp(data->constData() + 80, values, sizeof(values))) {
         std::memcpy(data->data() + 80, values, sizeof(values));
         changed = true;

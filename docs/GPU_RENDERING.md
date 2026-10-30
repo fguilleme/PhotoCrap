@@ -1,8 +1,8 @@
 # Canevas et accélération graphique
 
 Étapes après **v0.15**, en développement : présentation du composite dans le
-canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur et Balance des couleurs
-sur GPU. Les pixels de travail
+canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
+Noir et blanc et Transfert de dégradé sur GPU. Les pixels de travail
 et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
@@ -47,7 +47,8 @@ précédente. Les pixels de travail, projets et exports conservent leurs **8 ou 
 Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
 La composition des calques, les masques, les traits et les filtres hors aperçu
-Courbes, Niveaux, Lumière, Couleur et Balance des couleurs restent calculés sur CPU. Les surimpressions générales
+Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc et Transfert
+de dégradé restent calculés sur CPU. Les surimpressions générales
 utilisent encore QPainter dans une petite surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
 Une modification du composite remplace toutes ses textures visibles : les transferts
 régionaux et la composition GPU restent à développer.
@@ -60,7 +61,8 @@ et ne relève pas la limite de 2 Gio.
 ## Aperçus de réglages sur GPU
 
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,
-un réglage Courbes, Niveaux, Lumière, Couleur ou Balance des couleurs visible,
+un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc
+ou Transfert de dégradé visible,
 en mode Normal à 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
 blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -83,6 +85,12 @@ le backend logiciel.
   texture photo ni une table. La table d’identité liée au matériau est réutilisée.
 - Le calcul CPU de Balance des couleurs est partagé avec la génération de sa table,
   sans changement de ses règles d’arrondi et de précision 8/16 bits.
+- Noir et blanc calcule les six familles de teintes sur GPU, avec les valeurs
+  et défauts du moteur CPU, puis indexe une palette de gris ou de colorisation.
+  Cette palette est produite par `applyBlackWhite` : la couleur de teinte garde
+  les conversions HSL de QColor, sans réimplémentation approximative dans le shader.
+- Transfert de dégradé indexe la palette CPU à partir de la luminance entière arrondie
+  comme dans `applyGradientMap`. Modifier les deux couleurs ne retransfère pas la photo.
 - Le Navigateur et les histogrammes reçoivent un proxy CPU auxiliaire, planifié
   à intervalles d’au moins 100 ms pendant le geste. Ils peuvent suivre avec un
   retard lié au calcul ; ils ne déclenchent pas de lecture GPU ni de composition
@@ -113,17 +121,21 @@ ctest --test-dir build -R '^(gpu_tone_preview|tone_render|canvas_render|qml_smok
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
 plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
 la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
-les cinq réglages à la référence CPU ; sur GPU il vérifie également que modifier les
+les sept réglages à la référence CPU ; sur GPU il vérifie également que modifier les
 paramètres ne recrée pas les textures photo. Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
 sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
-cinq aperçus et des calibrations de pipettes. Les six contrôles
+sept aperçus et des calibrations de pipettes. Les six contrôles
 Lumière sont comparés aux deux extrêmes, sur des gris, des couleurs saturées, du noir
 et du blanc. Les extrêmes de Température, Teinte, Vibrance, Saturation et des trois
 canaux de Balance des couleurs sont aussi comparés à la référence. L’historique,
-l’annulation et le rendu final Lumière/Couleur/Balance sont vérifiés en 8 et 16 bits.
-Le test des cinq réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
+l’annulation et le rendu final sont vérifiés en 8 et 16 bits pour Lumière, Couleur,
+Balance des couleurs, Noir et blanc et Transfert de dégradé. Les six familles Noir et
+blanc sont comparées à −200 et +300, avec et sans teinte, ainsi que plusieurs palettes
+chaudes, froides et achromatiques. Les motifs incluent un cycle de teintes saturées
+et atténuées pour contrôler les transitions entre familles.
+Le test des sept réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.
 Le fonctionnement normal macOS utilise Metal. Les backends GPU Linux/Windows
@@ -134,7 +146,7 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
-# Comparaison des shaders des cinq réglages sur le même backend
+# Comparaison des shaders des sept réglages sur le même backend
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 # Vérification OpenGL sur ce Mac, avec le rendu sur le thread principal

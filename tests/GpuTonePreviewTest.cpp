@@ -1,7 +1,9 @@
 #include "Document.h"
+#include "filters/BlackWhiteFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include "filters/ToneMappingTable.h"
@@ -17,7 +19,8 @@ private slots:
         QTest::addColumn<QString>("type");
         QTest::addColumn<int>("bits");
         for (const QString &type :
-             {QStringLiteral("light"), QStringLiteral("color"), QStringLiteral("colorBalance")})
+             {QStringLiteral("light"), QStringLiteral("color"), QStringLiteral("colorBalance"),
+              QStringLiteral("blackWhite"), QStringLiteral("gradientMap")})
             for (int bits : {8, 16})
                 QTest::newRow(qPrintable(type + QString::number(bits))) << type << bits;
     }
@@ -31,21 +34,24 @@ private slots:
         doc.fillWithColor(true);
         doc.setPreviewSize(256, 192);
         doc.setGpuTonePreviewEnabled(true);
+        const auto source = doc.composite();
         doc.addAdjustmentLayer(type);
-        const auto    before  = doc.composite();
-        const int     history = doc.historyIndex();
-        const QString key     = type == "light"   ? "exposure"
-                                : type == "color" ? "temperature"
-                                                  : "cyanRed";
-        const double  initial = type == "light" ? .8 : 20.;
+        const auto     before  = doc.composite();
+        const int      history = doc.historyIndex();
+        const QString  key     = type == "light"          ? "exposure"
+                                 : type == "color"        ? "temperature"
+                                 : type == "colorBalance" ? "cyanRed"
+                                 : type == "blackWhite"   ? "reds"
+                                                          : "shadowColor";
+        const QVariant initial = type == "gradientMap" ? QVariant("#301050")
+                                 : type == "light"     ? QVariant(.8)
+                                                       : QVariant(65.);
+        QVariantMap    parameters{{key, initial}};
         doc.previewLayerParameter(key, initial);
         QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
         QCOMPARE(doc.gpuTonePreviewSettings().mode,
-                 type == "light"   ? PhotoCrap::Filters::ToneMappingMode::Luminance
-                 : type == "color" ? PhotoCrap::Filters::ToneMappingMode::Color
-                                   : PhotoCrap::Filters::ToneMappingMode::Channels);
+                 PhotoCrap::Filters::toneMappingSettings(type, parameters).mode);
         const auto        base = doc.gpuTonePreviewBase();
-        QVariantMap       parameters{{key, initial}};
         const QVariantMap changes =
             type == "light"   ? QVariantMap{{"contrast", -40},
                                             {"highlights", -60},
@@ -53,11 +59,22 @@ private slots:
                                             {"whites", 25},
                                             {"blacks", -20}}
             : type == "color" ? QVariantMap{{"tint", -15}, {"vibrance", 60}, {"saturation", -35}}
-                              : QVariantMap{{"magentaGreen", -15}, {"yellowBlue", 30}};
+            : type == "colorBalance" ? QVariantMap{{"magentaGreen", -15}, {"yellowBlue", 30}}
+            : type == "blackWhite"
+                ? QVariantMap{{"yellows", 80},         {"greens", 15},   {"cyans", 40},
+                              {"blues", 50},           {"magentas", 25}, {"tintEnabled", true},
+                              {"tintColor", "#ba7351"}}
+                : QVariantMap{{"highlightColor", "#c5e5b0"}};
         const auto reference = [&](const QImage &_source) {
-            return type == "light"   ? PhotoCrap::Filters::applyLight(_source, parameters)
-                   : type == "color" ? PhotoCrap::Filters::applyColor(_source, parameters)
-                                     : PhotoCrap::Filters::applyColorBalance(_source, parameters);
+            if (type == "light")
+                return PhotoCrap::Filters::applyLight(_source, parameters);
+            if (type == "color")
+                return PhotoCrap::Filters::applyColor(_source, parameters);
+            if (type == "colorBalance")
+                return PhotoCrap::Filters::applyColorBalance(_source, parameters);
+            if (type == "blackWhite")
+                return PhotoCrap::Filters::applyBlackWhite(_source, parameters);
+            return PhotoCrap::Filters::applyGradientMap(_source, parameters);
         };
         for (auto it = changes.cbegin(); it != changes.cend(); ++it) {
             parameters.insert(it.key(), it.value());
@@ -72,14 +89,15 @@ private slots:
         doc.finishLayerPreview();
         QCOMPARE(doc.historyIndex(), history + 1);
         QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
-        QCOMPARE(doc.composite(), reference(before));
+        QCOMPARE(doc.composite(), reference(source));
         QCOMPARE(doc.channelBits(), bits);
-        doc.previewLayerParameter(key, -initial);
+        doc.previewLayerParameter(key,
+                                  type == "gradientMap" ? QVariant("#202830") : QVariant(-20.));
         QVERIFY(doc.gpuTonePreviewActive());
         QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), base.cacheKey());
         doc.cancelLayerPreview();
         QVERIFY(!doc.gpuTonePreviewActive());
-        QCOMPARE(doc.composite(), reference(before));
+        QCOMPARE(doc.composite(), reference(source));
         doc.undo();
         QCOMPARE(doc.composite(), before);
     }

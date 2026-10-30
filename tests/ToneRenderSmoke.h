@@ -1,9 +1,11 @@
 #pragma once
 #include "CanvasItem.h"
 #include "Document.h"
+#include "filters/BlackWhiteFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
+#include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
 #include <QQuickWindow>
@@ -47,6 +49,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 pixel = qRgb(0, x % 256, 0);
             else if (y < 128)
                 pixel = qRgb(0, 0, x % 256);
+            else if (y < 160)
+                pixel = QColor::fromHsv(x % 360, 255, 180).rgb();
+            else if (y < 192)
+                pixel = QColor::fromHsv(x % 360, 80, 160).rgb();
             if (x == 0)
                 pixel = qRgb(0, 0, 0);
             else if (x == 13)
@@ -81,7 +87,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
     };
     for (const QString &type :
          {QStringLiteral("levels"), QStringLiteral("light"), QStringLiteral("color"),
-          QStringLiteral("colorBalance"), QStringLiteral("curves")}) {
+          QStringLiteral("colorBalance"), QStringLiteral("blackWhite"),
+          QStringLiteral("gradientMap"), QStringLiteral("curves")}) {
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open reference photo"))
             return false;
         document.addAdjustmentLayer(type);
@@ -96,6 +103,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyColor(original, parameters);
             if (type == "colorBalance")
                 return PhotoCrap::Filters::applyColorBalance(original, parameters);
+            if (type == "blackWhite")
+                return PhotoCrap::Filters::applyBlackWhite(original, parameters);
+            if (type == "gradientMap")
+                return PhotoCrap::Filters::applyGradientMap(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
         };
         auto preview = [&](double _value) {
@@ -116,6 +127,24 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                              : QVariantMap{{"cyanRed", (_value - 1.) * 60},
                                                            {"magentaGreen", (_value - 1.) * -40},
                                                            {"yellowBlue", (_value - 1.) * 30}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "blackWhite") {
+                parameters = {{"reds", 40 + (_value - 1.) * 60},
+                              {"yellows", 60 - (_value - 1.) * 40},
+                              {"greens", 40 + (_value - 1.) * 20},
+                              {"cyans", 60 + (_value - 1.) * 50},
+                              {"blues", 20 - (_value - 1.) * 30},
+                              {"magentas", 80 + (_value - 1.) * 10},
+                              {"tintEnabled", true},
+                              {"tintColor", "#ba7351"}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "gradientMap") {
+                parameters = {
+                    {"shadowColor", QColor::fromHsv(qRound(_value * 60) % 360, 180, 80).name()},
+                    {"highlightColor",
+                     QColor::fromHsv(qRound(210 + _value * 30) % 360, 120, 240).name()}};
                 for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
                     document.previewLayerParameter(it.key(), it.value());
             } else {
@@ -185,6 +214,51 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                      "each Light control matches the CPU at both endpoints"))
                             return false;
                     }
+                }
+            }
+            if (type == "blackWhite") {
+                const QVariantMap defaults{{"reds", 40},  {"yellows", 60}, {"greens", 40},
+                                           {"cyans", 60}, {"blues", 20},   {"magentas", 80}};
+                for (auto it = defaults.cbegin(); it != defaults.cend(); ++it)
+                    for (double endpoint : {-200., 300.}) {
+                        parameters = defaults;
+                        parameters.insert(it.key(), endpoint);
+                        parameters.insert("tintEnabled", true);
+                        parameters.insert("tintColor", "#5375bb");
+                        for (auto entry = parameters.cbegin(); entry != parameters.cend(); ++entry)
+                            document.previewLayerParameter(entry.key(), entry.value());
+                        if (!require(
+                                check(frame(), reference()) &&
+                                    canvas.imageTextureUploads() == uploads,
+                                "each Black and White family matches the CPU at both endpoints"))
+                            return false;
+                    }
+                parameters.insert("tintEnabled", false);
+                document.previewLayerParameter("tintEnabled", false);
+                if (!require(check(frame(), reference()),
+                             "disabling tint restores neutral grayscale"))
+                    return false;
+                for (const QString &tint : {QStringLiteral("#000000"), QStringLiteral("#ffffff"),
+                                            QStringLiteral("invalid")}) {
+                    parameters.insert("tintEnabled", true);
+                    parameters.insert("tintColor", tint);
+                    document.previewLayerParameter("tintEnabled", true);
+                    document.previewLayerParameter("tintColor", tint);
+                    if (!require(check(frame(), reference()),
+                                 "tint palettes match QColor including invalid-color fallback"))
+                        return false;
+                }
+            }
+            if (type == "gradientMap") {
+                for (const QString &shadow : {QStringLiteral("#000000"), QStringLiteral("#ffffff"),
+                                              QStringLiteral("#ff00ff")}) {
+                    parameters = {{"shadowColor", shadow}, {"highlightColor", "#00ff00"}};
+                    for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                        document.previewLayerParameter(it.key(), it.value());
+                    if (!require(check(frame(), reference()) &&
+                                     canvas.imageTextureUploads() == uploads,
+                                 "gradient palettes use the CPU's rounded luminance"))
+                        return false;
                 }
             }
             if (type == "curves") {

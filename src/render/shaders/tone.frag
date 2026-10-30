@@ -6,14 +6,46 @@ layout(std140, binding = 0) uniform buf {
     float opacity;
     int mode;
     vec4 color;
+    vec4 families0;
+    vec4 families1;
 } ubuf;
 layout(binding = 1) uniform sampler2D sourceTexture;
 layout(binding = 2) uniform sampler2D tableTexture;
+float familyAdjustment(int family)
+{
+    // Explicit components keep the shader compatible with the GLSL 100 target.
+    if (family == 0) return ubuf.families0.x;
+    if (family == 1) return ubuf.families0.y;
+    if (family == 2) return ubuf.families0.z;
+    if (family == 3) return ubuf.families0.w;
+    if (family == 4) return ubuf.families1.x;
+    return ubuf.families1.y;
+}
 void main()
 {
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
+    if (ubuf.mode == 4) {
+        float maximum = max(index.r, max(index.g, index.b));
+        float minimum = min(index.r, min(index.g, index.b));
+        float chroma = maximum - minimum;
+        float hue = 0.0;
+        if (chroma > 0.0) {
+            if (maximum == index.r)
+                hue = mod((index.g - index.b) / chroma + 6.0, 6.0);
+            else if (maximum == index.g)
+                hue = (index.b - index.r) / chroma + 2.0;
+            else
+                hue = (index.r - index.g) / chroma + 4.0;
+        }
+        int first = int(floor(hue));
+        int second = first == 5 ? 0 : first + 1;
+        float adjustment = mix(familyAdjustment(first), familyAdjustment(second), fract(hue));
+        float gray = clamp(floor(dot(index, vec3(0.2126, 0.7152, 0.0722)) + adjustment * chroma + 0.5), 0.0, 255.0);
+        fragColor = texture(tableTexture, vec2((gray + 0.5) / 256.0, 0.5)) * ubuf.opacity;
+        return;
+    }
     if (ubuf.mode == 2) {
         // Temperature, tint, vibrance and saturation match applyColor().
         vec3 balanced = clamp(index / 255.0
@@ -28,12 +60,16 @@ void main()
         fragColor = vec4(floor(corrected * 255.0 + 0.5) / 255.0, 1.0) * ubuf.opacity;
         return;
     }
-    if (ubuf.mode == 1) {
+    if (ubuf.mode == 1 || ubuf.mode == 3) {
         // Match the CPU's integer luminance and truncating channel arithmetic.
         // Applying the curve separately to R/G/B would change color balance.
         ivec3 channels = ivec3(index);
         // Positive integer division is also supported by the older GLSL targets.
         int level = (54 * channels.r + 183 * channels.g + 19 * channels.b + 128) / 256;
+        if (ubuf.mode == 3) {
+            fragColor = texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)) * ubuf.opacity;
+            return;
+        }
         int mapped = int(floor(texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)).r * 255.0 + 0.5));
         ivec3 outputChannels;
         if (mapped >= level)

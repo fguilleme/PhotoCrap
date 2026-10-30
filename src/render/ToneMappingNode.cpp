@@ -54,7 +54,10 @@ public:
             return int(settings.mode) - int(other->settings.mode);
         for (const auto vectors : {std::pair{settings.color, other->settings.color},
                                    std::pair{settings.families0, other->settings.families0},
-                                   std::pair{settings.families1, other->settings.families1}})
+                                   std::pair{settings.families1, other->settings.families1},
+                                   std::pair{settings.matrix[0], other->settings.matrix[0]},
+                                   std::pair{settings.matrix[1], other->settings.matrix[1]},
+                                   std::pair{settings.matrix[2], other->settings.matrix[2]}})
             for (int i = 0; i < 4; ++i)
                 if (vectors.first[i] != vectors.second[i])
                     return vectors.first[i] < vectors.second[i] ? -1 : 1;
@@ -91,6 +94,15 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
     if (!_old || std::memcmp(data->constData() + 80, values, sizeof(values))) {
         std::memcpy(data->data() + 80, values, sizeof(values));
         changed = true;
+    }
+    for (int row = 0; row < 3; ++row) {
+        const auto &vector          = material->settings.matrix[row];
+        const float coefficients[4] = {vector.x(), vector.y(), vector.z(), vector.w()};
+        const int   offset          = 128 + row * 16;
+        if (!_old || std::memcmp(data->constData() + offset, coefficients, sizeof(coefficients))) {
+            std::memcpy(data->data() + offset, coefficients, sizeof(coefficients));
+            changed = true;
+        }
     }
     return changed;
 }

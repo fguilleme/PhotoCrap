@@ -11,6 +11,8 @@ ColumnLayout {
     signal previewed(string key, var value)
     signal committed(string key, var value)
     signal presetRequested(int index, string color)
+    signal presetPreviewed(int index, string color)
+    signal presetPreviewCancelled()
     signal colorRequested()
     spacing: 10
 
@@ -43,7 +45,7 @@ ColumnLayout {
             onClicked: root.presetRequested(presetBox.currentIndex,
                                              root.presets[presetBox.currentIndex].color)
         }
-        ComboBox {
+        PresetComboBox {
             id: presetBox
             objectName: "photoFilterPreset"
             Layout.fillWidth: true
@@ -51,9 +53,9 @@ ColumnLayout {
             model: root.presets
             currentIndex: Math.max(0, Math.min(root.presets.length - 1,
                                                Number(root.parameters.preset || 0)))
-            onActivated: {
-                root.presetRequested(currentIndex, root.presets[currentIndex].color)
-            }
+            onPreviewRequested: function(index) { root.presetPreviewed(index, root.presets[index].color) }
+            onPreviewCancelled: root.presetPreviewCancelled()
+            onPresetChosen: function(index) { root.presetRequested(index, root.presets[index].color) }
         }
         Rectangle {
             width: 25; height: 25; radius: 5

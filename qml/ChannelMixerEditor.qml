@@ -18,6 +18,8 @@ ColumnLayout {
     signal previewed(string key, var value)
     signal committed(string key, var value)
     signal presetRequested(var values)
+    signal presetPreviewed(var values)
+    signal presetPreviewCancelled()
     spacing: 9
 
     function sourceKey(index) {
@@ -49,7 +51,14 @@ ColumnLayout {
                 "monoBlue":blue, "monoConstant":0}
     }
 
-    ComboBox {
+    function presetAt(index) {
+        const mixes = [[false,40,40,20], [true,-70,200,-30], [true,0,0,100],
+                       [true,0,100,0], [true,50,50,0], [true,100,0,0],
+                       [true,34,66,0]]
+        const mix = mixes[index]
+        return presetValues(mix[0], mix[1], mix[2], mix[3])
+    }
+    PresetComboBox {
         id: presetBox
         objectName: "channelMixerPreset"
         Layout.fillWidth: true
@@ -57,13 +66,9 @@ ColumnLayout {
                 qsTr("Noir et blanc · filtre bleu"), qsTr("Noir et blanc · filtre vert"),
                 qsTr("Noir et blanc · filtre orange"), qsTr("Noir et blanc · filtre rouge"),
                 qsTr("Noir et blanc · filtre jaune")]
-        onActivated: {
-            const mixes = [[false,40,40,20], [true,-70,200,-30], [true,0,0,100],
-                           [true,0,100,0], [true,50,50,0], [true,100,0,0],
-                           [true,34,66,0]]
-            const mix = mixes[currentIndex]
-            root.presetRequested(root.presetValues(mix[0], mix[1], mix[2], mix[3]))
-        }
+        onPreviewRequested: function(index) { root.presetPreviewed(root.presetAt(index)) }
+        onPreviewCancelled: root.presetPreviewCancelled()
+        onPresetChosen: function(index) { root.presetRequested(root.presetAt(index)) }
     }
 
     RowLayout {

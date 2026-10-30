@@ -954,6 +954,17 @@ ApplicationWindow {
             editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
         } else if(layerPreview.checked) queueLayerPreview(key,value)
     }
+    function previewPresetParameters(values) {
+        if (!layerPreview.checked) return
+        cancelLayerPreviewQueue()
+        editor.beginLayerPreview()
+        for (const key in values)
+            editor.previewLayerParameter(key, values[key])
+    }
+    function cancelPresetPreview() {
+        cancelLayerPreviewQueue()
+        editor.cancelLayerPreview()
+    }
     function openLayerContextMenu() {
         maskContextMenu.close()
         layerContextMenu.popup()
@@ -4065,7 +4076,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Label { text: activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
                 Item { Layout.fillWidth: true }
-                CheckBox { id: layerPreview; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true }
+                CheckBox { id: layerPreview; objectName: "layerPreviewCheck"; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true }
             }
             Label {
                 Layout.fillWidth: true
@@ -4211,6 +4222,13 @@ ApplicationWindow {
                         onEditStarted: editor.beginLayerPreview()
                         onPreviewed: function(key,value) { if (layerPreview.checked) window.queueLayerPreview(key,value) }
                         onCommitted: function(key,value) { window.previewLayerValue(key,value,true) }
+                        onPresetPreviewed: function(values) {
+                            const keys = ["reds","yellows","greens","cyans","blues","magentas"]
+                            const parameters = {}
+                            for (let i=0; i<keys.length; ++i) parameters[keys[i]] = values[i]
+                            window.previewPresetParameters(parameters)
+                        }
+                        onPresetPreviewCancelled: window.cancelPresetPreview()
                         onPresetRequested: function(values) {
                             window.cancelLayerPreviewQueue()
                             editor.beginLayerPreview()
@@ -4251,6 +4269,10 @@ ApplicationWindow {
                         onCommitted: function(key,value) {
                             window.previewLayerValue(key,value,true)
                         }
+                        onPresetPreviewed: function(index,color) {
+                            window.previewPresetParameters({preset:index, color:color, useCustomColor:false})
+                        }
+                        onPresetPreviewCancelled: window.cancelPresetPreview()
                         onPresetRequested: function(index,color) {
                             window.cancelLayerPreviewQueue()
                             editor.beginLayerPreview()
@@ -4278,6 +4300,8 @@ ApplicationWindow {
                         onCommitted: function(key,value) {
                             window.previewLayerValue(key,value,true)
                         }
+                        onPresetPreviewed: function(values) { window.previewPresetParameters(values) }
+                        onPresetPreviewCancelled: window.cancelPresetPreview()
                         onPresetRequested: function(values) {
                             window.cancelLayerPreviewQueue()
                             editor.beginLayerPreview()

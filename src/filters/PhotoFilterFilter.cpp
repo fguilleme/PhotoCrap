@@ -10,6 +10,16 @@
 
 namespace PhotoCrap::Filters
 {
+QColor photoFilterColor(const QVariantMap &_parameters)
+{
+    QColor filter;
+    if (_parameters.contains("color"))
+        filter = QColor(_parameters.value("color").toString());
+    if (!filter.isValid())
+        filter.setHslF(std::fmod(_parameters.value("hue", 35.).toDouble() / 360. + 1., 1.), .8,
+                       .55);
+    return filter;
+}
 template <typename Pixel>
 QImage applyPhotoFilterPixels(const QImage &_source, const QVariantMap &_parameters)
 {
@@ -17,12 +27,7 @@ QImage applyPhotoFilterPixels(const QImage &_source, const QVariantMap &_paramet
     if (_source.isNull())
         return _source;
 
-    QColor filter;
-    if (_parameters.contains("color"))
-        filter = QColor(_parameters.value("color").toString());
-    if (!filter.isValid())
-        filter.setHslF(std::fmod(_parameters.value("hue", 35.).toDouble() / 360. + 1., 1.), .8,
-                       .55);
+    const QColor filter  = photoFilterColor(_parameters);
     const double density = qBound(0., _parameters.value("density", 25.).toDouble() / 100., 1.);
     const bool   preserveLuminosity = _parameters.value("preserveLuminosity", true).toBool();
     const double filterRed = filter.red(), filterGreen = filter.green(), filterBlue = filter.blue();

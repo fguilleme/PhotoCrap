@@ -130,6 +130,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/UiSmoke.h
     tests/CanvasRenderSmoke.h
     tests/ToneRenderSmoke.h
+    tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
     tests/SelectionTest.cpp
     tests/SelectionUiSmoke.h
@@ -388,6 +389,7 @@ qt_add_qml_module(PhotoCrap
         qml/ColorLookupEditor.qml
         qml/ColorBalanceEditor.qml
         qml/BlackWhiteEditor.qml
+        qml/PresetComboBox.qml
         qml/ChannelMixerEditor.qml
         qml/GradientMapEditor.qml
         qml/FrequencySeparationEditor.qml
@@ -478,6 +480,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME tone_render COMMAND PhotoCrap --smoke-test --tone-render-test)
     set_tests_properties(tone_render PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME preset_preview COMMAND PhotoCrap --smoke-test --preset-preview-test)
+    set_tests_properties(preset_preview PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME canvas_render COMMAND PhotoCrap --smoke-test --canvas-render-test)
     set_tests_properties(canvas_render PROPERTIES

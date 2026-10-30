@@ -2,12 +2,14 @@
 #include "CanvasItem.h"
 #include "Document.h"
 #include "filters/BlackWhiteFilter.h"
+#include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
+#include "filters/PhotoFilterFilter.h"
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTemporaryDir>
@@ -88,7 +90,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
     for (const QString &type :
          {QStringLiteral("levels"), QStringLiteral("light"), QStringLiteral("color"),
           QStringLiteral("colorBalance"), QStringLiteral("blackWhite"),
-          QStringLiteral("gradientMap"), QStringLiteral("curves")}) {
+          QStringLiteral("gradientMap"), QStringLiteral("photoFilter"),
+          QStringLiteral("channelMixer"), QStringLiteral("curves")}) {
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open reference photo"))
             return false;
         document.addAdjustmentLayer(type);
@@ -107,6 +110,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyBlackWhite(original, parameters);
             if (type == "gradientMap")
                 return PhotoCrap::Filters::applyGradientMap(original, parameters);
+            if (type == "photoFilter")
+                return PhotoCrap::Filters::applyPhotoFilter(original, parameters);
+            if (type == "channelMixer")
+                return PhotoCrap::Filters::applyChannelMixer(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
         };
         auto preview = [&](double _value) {
@@ -147,6 +154,19 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                      QColor::fromHsv(qRound(210 + _value * 30) % 360, 120, 240).name()}};
                 for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
                     document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "photoFilter") {
+                parameters = {
+                    {"color", "#ec8a00"}, {"density", _value * 30.}, {"preserveLuminosity", true}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "channelMixer") {
+                parameters = {{"redRed", 100 + (_value - 1.) * 40},
+                              {"redGreen", (_value - 1.) * -60},
+                              {"greenBlue", (_value - 1.) * 50},
+                              {"blueRed", (_value - 1.) * -30},
+                              {"redConstant", (_value - 1.) * 10}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
             } else {
                 const QVariantList points{
                     QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 80}, {"y", 20 * _value}},
@@ -179,9 +199,12 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                              "changing parameters updates the shader without uploading the photo"))
                     return false;
             }
-            if (!require(type == "color" ? canvas.toneTableUploads() == tables
-                                         : canvas.toneTableUploads() >= tables + 3,
-                         "Color only updates uniforms; table-based filters update their LUT"))
+            const bool analytic =
+                type == "color" || type == "photoFilter" || type == "channelMixer";
+            if (!require(
+                    analytic ? canvas.toneTableUploads() == tables
+                             : canvas.toneTableUploads() >= tables + 3,
+                    "analytic filters only update constants; table-based filters update their LUT"))
                 return false;
             if (type == "color" || type == "colorBalance") {
                 const QStringList controls =
@@ -260,6 +283,47 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                  "gradient palettes use the CPU's rounded luminance"))
                         return false;
                 }
+            }
+            if (type == "photoFilter") {
+                for (const QString &color : {QStringLiteral("#ec8a00"), QStringLiteral("#00b5ff"),
+                                             QStringLiteral("#000000"), QStringLiteral("#ffffff"),
+                                             QStringLiteral("invalid")})
+                    for (bool preserve : {false, true})
+                        for (double density : {0., 25., 100.}) {
+                            parameters = {{"color", color},
+                                          {"density", density},
+                                          {"preserveLuminosity", preserve},
+                                          {"hue", 220.}};
+                            for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                                document.previewLayerParameter(it.key(), it.value());
+                            if (!require(check(frame(), reference()) &&
+                                             canvas.imageTextureUploads() == uploads &&
+                                             canvas.toneTableUploads() == tables,
+                                         "Photo Filter matches CPU density, luminosity and legacy "
+                                         "hue fallback"))
+                                return false;
+                        }
+            }
+            if (type == "channelMixer") {
+                const QVariantMap defaults{
+                    {"redRed", 100}, {"redGreen", 0},     {"redBlue", 0},    {"redConstant", 0},
+                    {"greenRed", 0}, {"greenGreen", 100}, {"greenBlue", 0},  {"greenConstant", 0},
+                    {"blueRed", 0},  {"blueGreen", 0},    {"blueBlue", 100}, {"blueConstant", 0},
+                    {"monoRed", 40}, {"monoGreen", 40},   {"monoBlue", 20},  {"monoConstant", 0}};
+                for (auto control = defaults.cbegin(); control != defaults.cend(); ++control)
+                    for (double endpoint : {-200., 200.}) {
+                        parameters = defaults;
+                        parameters.insert(control.key(), endpoint);
+                        parameters.insert("monochrome", control.key().startsWith("mono"));
+                        for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                            document.previewLayerParameter(it.key(), it.value());
+                        if (!require(check(frame(), reference()) &&
+                                         canvas.imageTextureUploads() == uploads &&
+                                         canvas.toneTableUploads() == tables,
+                                     "each mixer coefficient and constant matches the CPU in RGB "
+                                     "and monochrome"))
+                            return false;
+                    }
             }
             if (type == "curves") {
                 parameters.insert("graySample", QVariantList{120, 145, 110});

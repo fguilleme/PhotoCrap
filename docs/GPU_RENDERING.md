@@ -2,7 +2,7 @@
 
 Étapes après **v0.15**, en développement : présentation du composite dans le
 canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
-Noir et blanc et Transfert de dégradé sur GPU. Les pixels de travail
+Noir et blanc, Transfert de dégradé, Filtre photo et Mélangeur de couches sur GPU. Les pixels de travail
 et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
@@ -47,8 +47,8 @@ précédente. Les pixels de travail, projets et exports conservent leurs **8 ou 
 Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
 La composition des calques, les masques, les traits et les filtres hors aperçu
-Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc et Transfert
-de dégradé restent calculés sur CPU. Les surimpressions générales
+Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc, Transfert
+de dégradé, Filtre photo et Mélangeur de couches restent calculés sur CPU. Les surimpressions générales
 utilisent encore QPainter dans une petite surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
 Une modification du composite remplace toutes ses textures visibles : les transferts
 régionaux et la composition GPU restent à développer.
@@ -61,8 +61,8 @@ et ne relève pas la limite de 2 Gio.
 ## Aperçus de réglages sur GPU
 
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,
-un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc
-ou Transfert de dégradé visible,
+un réglage Courbes, Niveaux, Lumière, Couleur, Balance des couleurs, Noir et blanc,
+Transfert de dégradé, Filtre photo ou Mélangeur de couches visible,
 en mode Normal à 100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
 blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
 Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
@@ -91,6 +91,12 @@ le backend logiciel.
   les conversions HSL de QColor, sans réimplémentation approximative dans le shader.
 - Transfert de dégradé indexe la palette CPU à partir de la luminance entière arrondie
   comme dans `applyGradientMap`. Modifier les deux couleurs ne retransfère pas la photo.
+- Filtre photo et Mélangeur de couches utilisent une matrice RVB avec une constante
+  par canal. Le Filtre photo inclut la densité et la correction de luminosité dans
+  cette matrice ; sa résolution de couleur et son ancien paramètre de teinte sont
+  partagés avec le CPU. Le Mélangeur conserve ses coefficients, constantes et
+  valeurs monochromes. Seuls les coefficients changent pendant le geste, sans
+  retransfert de la photo ni de la table d’identité liée au matériau.
 - Le Navigateur et les histogrammes reçoivent un proxy CPU auxiliaire, planifié
   à intervalles d’au moins 100 ms pendant le geste. Ils peuvent suivre avec un
   retard lié au calcul ; ils ne déclenchent pas de lecture GPU ni de composition
@@ -106,6 +112,23 @@ la composition pleine résolution, et ne généralise pas les shaders aux autres
 Les shaders sont précompilés avec Qt Shader Tools, avec une variante compatible
 avec le regroupement des géométries Qt Quick (`BATCHABLE`).
 
+## Aperçu des menus de styles
+
+Les menus Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent
+le style survolé, y compris la ligne déjà sélectionnée. Les flèches du clavier
+font aussi varier l’aperçu dans le menu ouvert. Ils utilisent le même rendu de
+calque que les curseurs : GPU dans les cas éligibles, sinon proxy CPU asynchrone.
+
+Le survol ne crée pas d’historique. Échap ou un clic extérieur restaure les valeurs
+présentes à l’ouverture, y compris une couleur personnalisée. Un clic ou Entrée
+valide une seule étape d’annulation. Annuler dans les propriétés restaure encore
+l’ensemble de la session, même après la validation d’un style. Le contrôle Aperçu
+reste respecté lorsqu’il est désactivé.
+
+Le composant commun `PresetComboBox.qml` distingue surbrillance et activation,
+avec un délégué de survol pour la ligne courante. Voir les signaux
+[highlighted et activated de ComboBox](https://doc.qt.io/qt-6.8/qml-qtquick-controls-combobox.html#signals).
+
 ## Vérification
 
 Le test `canvas_render` couvre les couleurs et la transparence d’images 8/16 bits,
@@ -115,27 +138,34 @@ Il vérifie aussi l’éviction/relecture des blocs hors écran, l’absence de 
 persistante au composite complet et la taille de la surface des sélections à fort zoom.
 
 ```sh
-ctest --test-dir build -R '^(gpu_tone_preview|tone_render|canvas_render|qml_smoke)$' --output-on-failure
+ctest --test-dir build -R '^(gpu_tone_preview|tone_render|preset_preview|canvas_render|qml_smoke)$' --output-on-failure
 ```
 
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
 plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
 la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
-les sept réglages à la référence CPU ; sur GPU il vérifie également que modifier les
-paramètres ne recrée pas les textures photo. Ces tests comptent les créations de textures par le canevas, pas les octets ou
+les neuf réglages à la référence CPU ; sur GPU il vérifie également que modifier les
+paramètres ne recrée pas les textures photo. `preset_preview` exerce survol, navigation clavier, validation, Échap, clic extérieur,
+Aperçu désactivé et annulation de la session des propriétés pour les trois menus.
+Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
 sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
-sept aperçus et des calibrations de pipettes. Les six contrôles
+neuf aperçus et des calibrations de pipettes. Les six contrôles
 Lumière sont comparés aux deux extrêmes, sur des gris, des couleurs saturées, du noir
 et du blanc. Les extrêmes de Température, Teinte, Vibrance, Saturation et des trois
 canaux de Balance des couleurs sont aussi comparés à la référence. L’historique,
 l’annulation et le rendu final sont vérifiés en 8 et 16 bits pour Lumière, Couleur,
-Balance des couleurs, Noir et blanc et Transfert de dégradé. Les six familles Noir et
+Balance des couleurs, Noir et blanc, Transfert de dégradé, Filtre photo et Mélangeur
+de couches. Les six familles Noir et
 blanc sont comparées à −200 et +300, avec et sans teinte, ainsi que plusieurs palettes
 chaudes, froides et achromatiques. Les motifs incluent un cycle de teintes saturées
 et atténuées pour contrôler les transitions entre familles.
-Le test des sept réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
+Les essais Filtre photo couvrent densités 0/25/100 %, couleurs chaudes/froides,
+noir/blanc et repli sur l’ancienne teinte, avec et sans préservation de luminosité.
+Les coefficients et constantes du Mélangeur sont comparés à −200/+200 en RVB
+et en monochrome. Ces modifications ne retransfèrent pas les textures photo.
+Le test des neuf réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.
 Le fonctionnement normal macOS utilise Metal. Les backends GPU Linux/Windows
@@ -146,7 +176,7 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
-# Comparaison des shaders des sept réglages sur le même backend
+# Comparaison des shaders des neuf réglages sur le même backend
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 # Vérification OpenGL sur ce Mac, avec le rendu sur le thread principal

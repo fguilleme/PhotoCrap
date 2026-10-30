@@ -11,26 +11,31 @@ ColumnLayout {
     signal previewed(string key, real value)
     signal committed(string key, real value)
     signal presetRequested(var values)
+    signal presetPreviewed(var values)
+    signal presetPreviewCancelled()
     signal autoRequested()
     signal tintToggled(bool enabled)
     signal tintColorRequested()
     spacing: 7
 
-    ComboBox {
+    function presetValues(index) {
+        const presets = [
+            [40,60,40,60,20,80], [70,90,20,30,-20,60], [120,80,20,20,-20,60],
+            [70,120,40,30,0,50], [20,50,120,70,10,40], [20,30,20,80,140,80],
+            [140,110,-20,30,-40,100]
+        ]
+        return presets[index]
+    }
+    PresetComboBox {
         id: presetBox
         objectName: "blackWhitePreset"
         Layout.fillWidth: true
         model: [qsTr("Par défaut"), qsTr("Contraste fort"), qsTr("Filtre rouge"),
                 qsTr("Filtre jaune"), qsTr("Filtre vert"), qsTr("Filtre bleu"),
                 qsTr("Infrarouge")]
-        onActivated: {
-            const presets = [
-                [40,60,40,60,20,80], [70,90,20,30,-20,60], [120,80,20,20,-20,60],
-                [70,120,40,30,0,50], [20,50,120,70,10,40], [20,30,20,80,140,80],
-                [140,110,-20,30,-40,100]
-            ]
-            root.presetRequested(presets[currentIndex])
-        }
+        onPreviewRequested: function(index) { root.presetPreviewed(root.presetValues(index)) }
+        onPreviewCancelled: root.presetPreviewCancelled()
+        onPresetChosen: function(index) { root.presetRequested(root.presetValues(index)) }
     }
     RowLayout {
         Layout.fillWidth: true

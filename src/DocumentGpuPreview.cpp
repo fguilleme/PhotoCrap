@@ -28,7 +28,9 @@ bool Document::gpuToneEligible() const
             layer.adjustmentType == QStringLiteral("color") ||
             layer.adjustmentType == QStringLiteral("colorBalance") ||
             layer.adjustmentType == QStringLiteral("blackWhite") ||
-            layer.adjustmentType == QStringLiteral("gradientMap")) &&
+            layer.adjustmentType == QStringLiteral("gradientMap") ||
+            layer.adjustmentType == QStringLiteral("photoFilter") ||
+            layer.adjustmentType == QStringLiteral("channelMixer")) &&
            (!layer.maskEnabled || layer.mask.isNull() ||
             (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255));
 }

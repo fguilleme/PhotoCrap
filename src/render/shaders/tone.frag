@@ -8,6 +8,9 @@ layout(std140, binding = 0) uniform buf {
     vec4 color;
     vec4 families0;
     vec4 families1;
+    vec4 row0;
+    vec4 row1;
+    vec4 row2;
 } ubuf;
 layout(binding = 1) uniform sampler2D sourceTexture;
 layout(binding = 2) uniform sampler2D tableTexture;
@@ -26,6 +29,13 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
+    if (ubuf.mode == 5) {
+        // Photo Filter (including luminosity preservation) and Channel Mixer.
+        vec4 pixel = vec4(index, 1.0);
+        vec3 mapped = vec3(dot(ubuf.row0, pixel), dot(ubuf.row1, pixel), dot(ubuf.row2, pixel));
+        fragColor = vec4(clamp(floor(mapped + 0.5), 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
+        return;
+    }
     if (ubuf.mode == 4) {
         float maximum = max(index.r, max(index.g, index.b));
         float minimum = min(index.r, min(index.g, index.b));

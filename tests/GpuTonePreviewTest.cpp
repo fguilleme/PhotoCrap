@@ -1,11 +1,13 @@
 #include "Document.h"
 #include "filters/BlackWhiteFilter.h"
+#include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/GradientMapFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
+#include "filters/PhotoFilterFilter.h"
 #include "filters/ToneMappingTable.h"
 #include <QSignalSpy>
 #include <QtTest>
@@ -20,7 +22,8 @@ private slots:
         QTest::addColumn<int>("bits");
         for (const QString &type :
              {QStringLiteral("light"), QStringLiteral("color"), QStringLiteral("colorBalance"),
-              QStringLiteral("blackWhite"), QStringLiteral("gradientMap")})
+              QStringLiteral("blackWhite"), QStringLiteral("gradientMap"),
+              QStringLiteral("photoFilter"), QStringLiteral("channelMixer")})
             for (int bits : {8, 16})
                 QTest::newRow(qPrintable(type + QString::number(bits))) << type << bits;
     }
@@ -42,11 +45,17 @@ private slots:
                                  : type == "color"        ? "temperature"
                                  : type == "colorBalance" ? "cyanRed"
                                  : type == "blackWhite"   ? "reds"
+                                 : type == "photoFilter"  ? "density"
+                                 : type == "channelMixer" ? "redGreen"
                                                           : "shadowColor";
         const QVariant initial = type == "gradientMap" ? QVariant("#301050")
                                  : type == "light"     ? QVariant(.8)
                                                        : QVariant(65.);
-        QVariantMap    parameters{{key, initial}};
+        QVariantMap    parameters;
+        for (const auto &entry : doc.layers())
+            if (entry.toMap().value("layerIndex").toInt() == doc.activeLayer())
+                parameters = entry.toMap().value("parameters").toMap();
+        parameters.insert(key, initial);
         doc.previewLayerParameter(key, initial);
         QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
         QCOMPARE(doc.gpuTonePreviewSettings().mode,
@@ -64,6 +73,11 @@ private slots:
                 ? QVariantMap{{"yellows", 80},         {"greens", 15},   {"cyans", 40},
                               {"blues", 50},           {"magentas", 25}, {"tintEnabled", true},
                               {"tintColor", "#ba7351"}}
+            : type == "photoFilter"
+                ? QVariantMap{{"color", "#4d7fc1"}, {"preserveLuminosity", false}}
+            : type == "channelMixer"
+                ? QVariantMap{{"blueRed", -25}, {"greenBlue", 35},   {"redConstant", -10},
+                              {"monoBlue", 60}, {"monoConstant", 5}, {"monochrome", true}}
                 : QVariantMap{{"highlightColor", "#c5e5b0"}};
         const auto reference = [&](const QImage &_source) {
             if (type == "light")
@@ -74,6 +88,10 @@ private slots:
                 return PhotoCrap::Filters::applyColorBalance(_source, parameters);
             if (type == "blackWhite")
                 return PhotoCrap::Filters::applyBlackWhite(_source, parameters);
+            if (type == "photoFilter")
+                return PhotoCrap::Filters::applyPhotoFilter(_source, parameters);
+            if (type == "channelMixer")
+                return PhotoCrap::Filters::applyChannelMixer(_source, parameters);
             return PhotoCrap::Filters::applyGradientMap(_source, parameters);
         };
         for (auto it = changes.cbegin(); it != changes.cend(); ++it) {

@@ -17,6 +17,7 @@
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/FileDialogSmoke.h"
+#include "../tests/PresetPreviewSmoke.h"
 #include "../tests/ShutdownSmoke.h"
 #include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
@@ -139,6 +140,11 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            if (args.contains("--preset-preview-test")) {
+                passed = window && runPresetPreviewSmoke(window, document);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--tone-render-test")) {
                 passed = window && runToneRenderSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);

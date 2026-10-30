@@ -9,6 +9,9 @@ layout(std140, binding = 0) uniform buf {
     vec4 color;
     vec4 families0;
     vec4 families1;
+    vec4 row0;
+    vec4 row1;
+    vec4 row2;
 } ubuf;
 void main()
 {

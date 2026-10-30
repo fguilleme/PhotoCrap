@@ -1,4 +1,5 @@
 #pragma once
+#include "../filters/ToneMappingTable.h"
 #include <QSGGeometryNode>
 #include <QSGTexture>
 
@@ -6,8 +7,9 @@
 class ToneMappingNode : public QSGGeometryNode
 {
 public:
-    ToneMappingNode(QSGTexture *_source, QSGTexture *_table, bool _luminance);
-    void setTable(QSGTexture *_table, bool _luminance);
+    ToneMappingNode(QSGTexture *_source, QSGTexture *_table,
+                    const PhotoCrap::Filters::ToneMappingSettings &_settings);
+    void setTable(QSGTexture *_table, const PhotoCrap::Filters::ToneMappingSettings &_settings);
     void setImageRect(const QRectF &_rect, const QRectF &_sourceRect);
     void setFiltering(QSGTexture::Filtering _filtering);
 

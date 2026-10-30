@@ -4,7 +4,8 @@ layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
     mat4 matrix;
     float opacity;
-    int luminance;
+    int mode;
+    vec4 color;
 } ubuf;
 layout(binding = 1) uniform sampler2D sourceTexture;
 layout(binding = 2) uniform sampler2D tableTexture;
@@ -13,7 +14,21 @@ void main()
     // Opaque 8-bit screen proxies only. The CPU supplies the exact reference LUT.
     vec3 rgb = clamp(texture(sourceTexture, uv).rgb, 0.0, 1.0);
     vec3 index = floor(rgb * 255.0 + 0.5);
-    if (ubuf.luminance != 0) {
+    if (ubuf.mode == 2) {
+        // Temperature, tint, vibrance and saturation match applyColor().
+        vec3 balanced = clamp(index / 255.0
+            + vec3(0.18 * ubuf.color.x + 0.06 * ubuf.color.y,
+                   -0.12 * ubuf.color.y,
+                   -0.18 * ubuf.color.x + 0.06 * ubuf.color.y), 0.0, 1.0);
+        float maximum = max(balanced.r, max(balanced.g, balanced.b));
+        float minimum = min(balanced.r, min(balanced.g, balanced.b));
+        float luminance = dot(balanced, vec3(0.2126, 0.7152, 0.0722));
+        float factor = max(0.0, 1.0 + ubuf.color.w + ubuf.color.z * (1.0 - (maximum - minimum)));
+        vec3 corrected = clamp(vec3(luminance) + (balanced - vec3(luminance)) * factor, 0.0, 1.0);
+        fragColor = vec4(floor(corrected * 255.0 + 0.5) / 255.0, 1.0) * ubuf.opacity;
+        return;
+    }
+    if (ubuf.mode == 1) {
         // Match the CPU's integer luminance and truncating channel arithmetic.
         // Applying the curve separately to R/G/B would change color balance.
         ivec3 channels = ivec3(index);

@@ -15,6 +15,7 @@
 namespace
 {
 constexpr int tileSize = 1024;
+using PhotoCrap::Filters::ToneMappingSettings;
 
 QImage displaySource(Document *_document)
 {
@@ -31,12 +32,13 @@ public:
     QSGImageNode    *image   = nullptr;
     ToneMappingNode *mapping = nullptr;
     QRectF           sourceRect;
-    PhotoTileNode(QQuickWindow *_window, const QImage &_image, QSGTexture *_table, bool _luminance)
+    PhotoTileNode(QQuickWindow *_window, const QImage &_image, QSGTexture *_table,
+                  const ToneMappingSettings &_settings)
         : owner(_window), texture(_window->createTextureFromImage(
                               _image.convertToFormat(QImage::Format_ARGB32_Premultiplied)))
     {
         if (texture)
-            setMapping(_table, _luminance);
+            setMapping(_table, _settings);
     }
     ~PhotoTileNode() override
     {
@@ -46,7 +48,7 @@ public:
         }
         delete texture;
     }
-    void setMapping(QSGTexture *_table, bool _luminance)
+    void setMapping(QSGTexture *_table, const ToneMappingSettings &_settings)
     {
         if (_table) {
             if (image) {
@@ -55,10 +57,10 @@ public:
                 image = nullptr;
             }
             if (!mapping) {
-                mapping = new ToneMappingNode(texture, _table, _luminance);
+                mapping = new ToneMappingNode(texture, _table, _settings);
                 appendChildNode(mapping);
             } else
-                mapping->setTable(_table, _luminance);
+                mapping->setTable(_table, _settings);
         } else {
             if (mapping) {
                 removeChildNode(mapping);
@@ -105,7 +107,7 @@ struct CanvasNode : QSGTransformNode {
     QSGSimpleTextureNode           *repeatedChecker = nullptr;
     QSGTexture                     *toneTable       = nullptr;
     qint64                          toneTableKey    = 0;
-    bool                            toneLuminance   = false;
+    ToneMappingSettings             toneSettings;
 
     ~CanvasNode() override
     {
@@ -198,12 +200,12 @@ void CanvasItem::updatePolish()
     QImage source;
     bool   changed = false;
     if (m_imageDirty) {
-        source             = displaySource(m_document);
-        m_toneTable        = m_document && m_document->gpuTonePreviewActive()
-                                 ? m_document->gpuTonePreviewTable()
-                                 : QImage{};
-        m_toneLuminance    = m_document && m_document->gpuTonePreviewUsesLuminance();
-        changed            = m_textureSourceKey != source.cacheKey();
+        source         = displaySource(m_document);
+        m_toneTable    = m_document && m_document->gpuTonePreviewActive()
+                             ? m_document->gpuTonePreviewTable()
+                             : QImage{};
+        m_toneSettings = m_document ? m_document->gpuTonePreviewSettings() : ToneMappingSettings{};
+        changed        = m_textureSourceKey != source.cacheKey();
         m_textureSourceKey = source.cacheKey();
         m_sourceSize       = source.size();
         m_documentSize = m_document ? QSize(m_document->width(), m_document->height()) : QSize{};
@@ -414,22 +416,25 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         node->checker->setSourceRect(QRectF(QPointF{}, checkerSize));
     }
 
-    if (node->toneTableKey != m_toneTable.cacheKey() || node->toneLuminance != m_toneLuminance) {
-        QSGTexture *table =
-            m_toneTable.isNull() ? nullptr : window()->createTextureFromImage(m_toneTable);
+    if (node->toneTableKey != m_toneTable.cacheKey() || node->toneSettings != m_toneSettings) {
+        const bool  newTable = node->toneTableKey != m_toneTable.cacheKey();
+        QSGTexture *table = !newTable              ? node->toneTable
+                            : m_toneTable.isNull() ? nullptr
+                                                   : window()->createTextureFromImage(m_toneTable);
         if (!m_toneTable.isNull() && !table) {
             QMetaObject::invokeMethod(
                 this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);
             return node;
         }
         for (auto *tile : std::as_const(node->tiles))
-            tile->setMapping(table, m_toneLuminance);
-        delete node->toneTable;
-        node->toneTable     = table;
-        node->toneTableKey  = m_toneTable.cacheKey();
-        node->toneLuminance = m_toneLuminance;
+            tile->setMapping(table, m_toneSettings);
+        if (newTable)
+            delete node->toneTable;
+        node->toneTable    = table;
+        node->toneTableKey = m_toneTable.cacheKey();
+        node->toneSettings = m_toneSettings;
 #ifdef PHOTOCRAP_TESTING
-        if (table)
+        if (table && newTable)
             ++m_toneTableUploads;
 #endif
     }
@@ -456,7 +461,7 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
             auto *tile = node->tiles.value(key, nullptr);
             if (!tile) {
                 tile = new PhotoTileNode(window(), m_tileImages.value(key), node->toneTable,
-                                         node->toneLuminance);
+                                         node->toneSettings);
                 if (!tile->texture) {
                     delete tile;
                     continue;

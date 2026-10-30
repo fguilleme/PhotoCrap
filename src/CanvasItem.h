@@ -67,20 +67,20 @@ signals:
     void viewportRectChanged();
 
 private:
-    void                   queueFrame(bool _image, bool _overlay);
-    QPointer<Document>     m_document;
-    QRegion                m_selectionOutline;
-    QPainterPath           m_selectionPath;
-    QImage                 m_textureImage, m_overlayImage, m_toneTable;
-    bool                   m_gpuTonePreviewEnabled = false;
-    bool                   m_toneLuminance         = false;
-    QHash<quint64, QImage> m_tileImages;
-    qint64                 m_textureSourceKey = 0;
-    qint64                 m_textureRevision  = 0;
-    int                    m_textureLevel     = -1;
-    QSize                  m_documentSize, m_sourceSize, m_textureSize;
-    QRectF                 m_viewportRect{-1, -1, -1, -1}, m_overlayRect;
-    bool                   m_imageDirty = true, m_overlayDirty = true;
+    void                                    queueFrame(bool _image, bool _overlay);
+    QPointer<Document>                      m_document;
+    QRegion                                 m_selectionOutline;
+    QPainterPath                            m_selectionPath;
+    QImage                                  m_textureImage, m_overlayImage, m_toneTable;
+    bool                                    m_gpuTonePreviewEnabled = false;
+    PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
+    QHash<quint64, QImage>                  m_tileImages;
+    qint64                                  m_textureSourceKey = 0;
+    qint64                                  m_textureRevision  = 0;
+    int                                     m_textureLevel     = -1;
+    QSize                                   m_documentSize, m_sourceSize, m_textureSize;
+    QRectF                                  m_viewportRect{-1, -1, -1, -1}, m_overlayRect;
+    bool                                    m_imageDirty = true, m_overlayDirty = true;
 #ifdef PHOTOCRAP_TESTING
     std::atomic<quint64> m_imageTextureUploads{0};
     std::atomic<quint64> m_toneTableUploads{0};

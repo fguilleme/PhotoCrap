@@ -3,6 +3,7 @@
 #include "filters/BlackWhiteFilter.h"
 #include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
+#include "filters/ColorBalanceFilter.h"
 #include "filters/ColorFilter.h"
 #include "filters/ColorLookupFilter.h"
 #include "filters/CurvesFilter.h"
@@ -582,33 +583,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return PhotoCrap::Filters::applySelectiveColor(_source, _p);
         if (_type == "threshold")
             return PhotoCrap::Filters::applyThreshold(_source, _p);
-        if (_type == "colorBalance") {
-            const QImage input = _source.convertToFormat(P::format);
-            QImage       result(input.size(), P::format);
-            const double redShift   = P::round(_p.value("cyanRed").toDouble() * 2.55);
-            const double greenShift = P::round(_p.value("magentaGreen").toDouble() * 2.55);
-            const double blueShift  = P::round(_p.value("yellowBlue").toDouble() * 2.55);
-            const int    jobCount =
-                qMin(input.height(), qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
-            QVector<int> jobs(jobCount);
-            std::iota(jobs.begin(), jobs.end(), 0);
-            ImageUtils::blockingMap(jobs, [&](int _job) {
-                for (int y = input.height() * _job / jobCount;
-                     y < input.height() * (_job + 1) / jobCount; ++y) {
-                    const auto *source = reinterpret_cast<const Pixel *>(input.constScanLine(y));
-                    auto       *output = reinterpret_cast<Pixel *>(result.scanLine(y));
-                    for (int x = 0; x < input.width(); ++x) {
-                        const Pixel pixel = source[x];
-                        output[x] =
-                            P::rgba(qBound(0., P::red(pixel) + redShift, 255.),
-                                    qBound(0., P::green(pixel) + greenShift, 255.),
-                                    qBound(0., P::blue(pixel) + blueShift, 255.), P::alpha(pixel));
-                    }
-                }
-            });
-            result.setColorSpace(QColorSpace::SRgb);
-            return result.convertToFormat(P::premultiplied);
-        }
+        if (_type == "colorBalance")
+            return PhotoCrap::Filters::applyColorBalance(_source, _p);
         if (_type == "gaussianBlur")
             return gaussianBlurImage(_source, _p.value("radius", 8.).toDouble());
         if (_type == "motionBlur")

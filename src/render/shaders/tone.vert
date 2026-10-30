@@ -5,7 +5,8 @@ layout(location = 0) out vec2 uv;
 layout(std140, binding = 0) uniform buf {
     mat4 matrix;
     float opacity;
-    int luminance;
+    int mode;
+    vec4 color;
 } ubuf;
 void main()
 {

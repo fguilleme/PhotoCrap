@@ -65,6 +65,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/BrightnessContrastFilter.cpp
     src/filters/ChannelMixerFilter.cpp
     src/filters/ColorFilter.cpp
+    src/filters/ColorBalanceFilter.cpp
     src/filters/ColorLookupFilter.cpp
     src/filters/CurvesFilter.cpp
     src/filters/GradientMapFilter.cpp
@@ -107,6 +108,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.h
+    src/filters/ColorBalanceFilter.h
     src/filters/ColorLookupFilter.h
     src/filters/CurvesFilter.h
     src/filters/GradientMapFilter.h
@@ -264,7 +266,9 @@ qt_add_library(photocrap_core STATIC
     src/filters/ChannelMixerFilter.cpp
     src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.cpp
+    src/filters/ColorBalanceFilter.cpp
     src/filters/ColorFilter.h
+    src/filters/ColorBalanceFilter.h
     src/filters/ColorLookupFilter.cpp
     src/filters/ColorLookupFilter.h
     src/filters/CurvesFilter.cpp

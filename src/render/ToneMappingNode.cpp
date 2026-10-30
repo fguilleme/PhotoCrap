@@ -5,6 +5,7 @@
 
 namespace
 {
+using PhotoCrap::Filters::ToneMappingSettings;
 class ToneShader : public QSGMaterialShader
 {
 public:
@@ -25,7 +26,7 @@ class ToneMaterial : public QSGMaterial
 public:
     QSGTexture           *source = nullptr, *table = nullptr;
     QSGTexture::Filtering filtering = QSGTexture::Linear;
-    bool                  luminance = false;
+    ToneMappingSettings   settings;
     ToneMaterial()
     {
         setFlag(Blending);
@@ -48,7 +49,12 @@ public:
             return table->comparisonKey() < other->table->comparisonKey() ? -1 : 1;
         if (filtering != other->filtering)
             return int(filtering) - int(other->filtering);
-        return int(luminance) - int(other->luminance);
+        if (settings.mode != other->settings.mode)
+            return int(settings.mode) - int(other->settings.mode);
+        for (int i = 0; i < 4; ++i)
+            if (settings.color[i] != other->settings.color[i])
+                return settings.color[i] < other->settings.color[i] ? -1 : 1;
+        return 0;
     }
 };
 
@@ -68,9 +74,15 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
     }
     const auto *material = static_cast<const ToneMaterial *>(_new);
     // Qt may pass the same material object after an in-place mode change.
-    const qint32 luminance = material->luminance;
-    if (!_old || std::memcmp(data->constData() + 68, &luminance, sizeof(luminance))) {
-        std::memcpy(data->data() + 68, &luminance, sizeof(luminance));
+    const qint32 mode = qint32(material->settings.mode);
+    if (!_old || std::memcmp(data->constData() + 68, &mode, sizeof(mode))) {
+        std::memcpy(data->data() + 68, &mode, sizeof(mode));
+        changed = true;
+    }
+    const auto &color     = material->settings.color;
+    const float values[4] = {color.x(), color.y(), color.z(), color.w()};
+    if (!_old || std::memcmp(data->constData() + 80, values, sizeof(values))) {
+        std::memcpy(data->data() + 80, values, sizeof(values));
         changed = true;
     }
     return changed;
@@ -92,24 +104,25 @@ void ToneShader::updateSampledImage(RenderState &_state, int _binding, QSGTextur
 }
 } // namespace
 
-ToneMappingNode::ToneMappingNode(QSGTexture *_source, QSGTexture *_table, bool _luminance)
+ToneMappingNode::ToneMappingNode(QSGTexture *_source, QSGTexture *_table,
+                                 const ToneMappingSettings &_settings)
     : m_geometry(QSGGeometry::defaultAttributes_TexturedPoint2D(), 4)
 {
     m_geometry.setDrawingMode(QSGGeometry::DrawTriangleStrip);
     setGeometry(&m_geometry);
-    auto *mapping      = new ToneMaterial;
-    mapping->source    = _source;
-    mapping->table     = _table;
-    mapping->luminance = _luminance;
+    auto *mapping     = new ToneMaterial;
+    mapping->source   = _source;
+    mapping->table    = _table;
+    mapping->settings = _settings;
     setMaterial(mapping);
     setFlag(OwnsMaterial);
 }
-void ToneMappingNode::setTable(QSGTexture *_table, bool _luminance)
+void ToneMappingNode::setTable(QSGTexture *_table, const ToneMappingSettings &_settings)
 {
     auto *mapping = static_cast<ToneMaterial *>(material());
-    if (mapping->table != _table || mapping->luminance != _luminance) {
-        mapping->table     = _table;
-        mapping->luminance = _luminance;
+    if (mapping->table != _table || mapping->settings != _settings) {
+        mapping->table    = _table;
+        mapping->settings = _settings;
         markDirty(DirtyMaterial);
     }
 }

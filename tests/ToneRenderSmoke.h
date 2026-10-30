@@ -1,6 +1,8 @@
 #pragma once
 #include "CanvasItem.h"
 #include "Document.h"
+#include "filters/ColorBalanceFilter.h"
+#include "filters/ColorFilter.h"
 #include "filters/CurvesFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
@@ -78,7 +80,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         return true;
     };
     for (const QString &type :
-         {QStringLiteral("levels"), QStringLiteral("light"), QStringLiteral("curves")}) {
+         {QStringLiteral("levels"), QStringLiteral("light"), QStringLiteral("color"),
+          QStringLiteral("colorBalance"), QStringLiteral("curves")}) {
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open reference photo"))
             return false;
         document.addAdjustmentLayer(type);
@@ -89,6 +92,10 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return PhotoCrap::Filters::applyLevels(original, parameters);
             if (type == "light")
                 return PhotoCrap::Filters::applyLight(original, parameters);
+            if (type == "color")
+                return PhotoCrap::Filters::applyColor(original, parameters);
+            if (type == "colorBalance")
+                return PhotoCrap::Filters::applyColorBalance(original, parameters);
             return PhotoCrap::Filters::applyCurves(original, parameters);
         };
         auto preview = [&](double _value) {
@@ -99,6 +106,16 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 parameters = {{"exposure", (_value - 1.) * 1.2},   {"contrast", (_value - 1.) * 30},
                               {"highlights", (_value - 1.) * -70}, {"shadows", (_value - 1.) * 60},
                               {"whites", (_value - 1.) * 40},      {"blacks", (_value - 1.) * -40}};
+                for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
+                    document.previewLayerParameter(it.key(), it.value());
+            } else if (type == "color" || type == "colorBalance") {
+                parameters = type == "color" ? QVariantMap{{"temperature", (_value - 1.) * 60},
+                                                           {"tint", (_value - 1.) * -40},
+                                                           {"vibrance", (_value - 1.) * 70},
+                                                           {"saturation", (_value - 1.) * -30}}
+                                             : QVariantMap{{"cyanRed", (_value - 1.) * 60},
+                                                           {"magentaGreen", (_value - 1.) * -40},
+                                                           {"yellowBlue", (_value - 1.) * 30}};
                 for (auto it = parameters.cbegin(); it != parameters.cend(); ++it)
                     document.previewLayerParameter(it.key(), it.value());
             } else {
@@ -129,14 +146,29 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 preview(value);
                 const auto image = frame();
                 const auto cpu   = reference();
-                if (!require(
-                        check(image, cpu) && canvas.imageTextureUploads() == uploads,
-                        "changing tone parameters updates the LUT without uploading the photo"))
+                if (!require(check(image, cpu) && canvas.imageTextureUploads() == uploads,
+                             "changing parameters updates the shader without uploading the photo"))
                     return false;
             }
-            if (!require(canvas.toneTableUploads() >= tables + 3,
-                         "each change uploads its small lookup table"))
+            if (!require(type == "color" ? canvas.toneTableUploads() == tables
+                                         : canvas.toneTableUploads() >= tables + 3,
+                         "Color only updates uniforms; table-based filters update their LUT"))
                 return false;
+            if (type == "color" || type == "colorBalance") {
+                const QStringList controls =
+                    type == "color" ? QStringList{"temperature", "tint", "vibrance", "saturation"}
+                                    : QStringList{"cyanRed", "magentaGreen", "yellowBlue"};
+                for (const QString &key : controls)
+                    for (double endpoint : {-100., 100.}) {
+                        parameters = {{key, endpoint}};
+                        for (const QString &control : controls)
+                            document.previewLayerParameter(control, parameters.value(control, 0.));
+                        if (!require(check(frame(), reference()) &&
+                                         canvas.imageTextureUploads() == uploads,
+                                     "each color control matches the CPU at both endpoints"))
+                            return false;
+                    }
+            }
             if (type == "light") {
                 for (const QString &key : {QStringLiteral("exposure"), QStringLiteral("contrast"),
                                            QStringLiteral("highlights"), QStringLiteral("shadows"),

@@ -1,5 +1,6 @@
 #pragma once
 #include "RawImageReader.h"
+#include "filters/ToneMappingTable.h"
 #include "selection/SelectionCoverage.h"
 #include "storage/TiledImage.h"
 #include "tools/PenPath.h"
@@ -900,17 +901,17 @@ public:
     Q_INVOKABLE QVariantMap scratchCacheUsage() const;
     Q_INVOKABLE void        clearScratchCache();
 
-    void             setStampAligned(bool _value);
-    void             setCloneSampleMode(int _value);
-    void             setStampPattern(int _value);
-    Q_INVOKABLE void setCloneSource(qreal _x, qreal _y);
-    Q_INVOKABLE bool defineStampPattern();
-    const QImage    &composite() const;
-    QImage           displayComposite() const;
-    void             setGpuTonePreviewEnabled(bool _enabled);
-    bool             gpuTonePreviewActive() const;
-    bool             gpuTonePreviewUsesLuminance() const;
-    QImage           gpuTonePreviewBase() const
+    void                                    setStampAligned(bool _value);
+    void                                    setCloneSampleMode(int _value);
+    void                                    setStampPattern(int _value);
+    Q_INVOKABLE void                        setCloneSource(qreal _x, qreal _y);
+    Q_INVOKABLE bool                        defineStampPattern();
+    const QImage                           &composite() const;
+    QImage                                  displayComposite() const;
+    void                                    setGpuTonePreviewEnabled(bool _enabled);
+    bool                                    gpuTonePreviewActive() const;
+    PhotoCrap::Filters::ToneMappingSettings gpuTonePreviewSettings() const;
+    QImage                                  gpuTonePreviewBase() const
     {
         return m_gpuToneBase;
     }

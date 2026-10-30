@@ -233,7 +233,7 @@ The **layer** menu provides available properties, duplication, renaming, deletio
 
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
-The canvas under development after v0.15 uses reusable Qt Quick textures for visible tiles, with separate overlays. Eligible Curves/Levels/Light previews use a correction lookup table on the GPU; unsupported cases and final rendering retain the CPU engine and working pixel precision. See the [graphics architecture and limitations](docs/GPU_RENDERING.md) (French).
+The canvas under development after v0.15 uses reusable Qt Quick textures for visible tiles, with separate overlays. Eligible Curves, Levels, Light, Color and Color Balance previews use correction lookup tables or direct calculations on the GPU; unsupported cases and final rendering retain the CPU engine and working pixel precision. See the [graphics architecture and limitations](docs/GPU_RENDERING.md) (French).
 
 ## Validation and limitations
 

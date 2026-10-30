@@ -1,7 +1,8 @@
 # Canevas et accélération graphique
 
-Première étape après **v0.15**, en développement. Le moteur de pixels reste CPU ;
-ce changement concerne la présentation du composite dans le canevas.
+Étapes après **v0.15**, en développement : présentation du composite dans le
+canevas, puis premiers aperçus Courbes/Niveaux sur GPU. Les pixels de travail
+et le rendu final restent calculés sur CPU.
 
 ## Ce qui change
 
@@ -44,8 +45,8 @@ L’affichage utilise des textures **8 bits par canal**, comme la surface d’af
 précédente. Les pixels de travail, projets et exports conservent leurs **8 ou 16 bits**.
 Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
-Les filtres, la composition des calques, les masques et les traits restent calculés
-sur CPU. Les surimpressions générales utilisent encore QPainter dans une petite
+La composition des calques, les masques, les traits et les filtres hors aperçu
+Courbes/Niveaux restent calculés sur CPU. Les surimpressions générales utilisent encore QPainter dans une petite
 surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
 Une modification du composite remplace toutes ses textures visibles : les transferts
 régionaux et la composition GPU restent à développer.
@@ -54,6 +55,36 @@ La résidence graphique des blocs est limitée à la vue, mais aucun budget glob
 VRAM configurable n’est encore implémenté. L’image source et le niveau réduit sont
 encore en RAM ; ce travail ne migre pas les plans de calques et l’historique sur disque
 et ne relève pas la limite de 2 Gio.
+
+## Aperçus Courbes et Niveaux
+
+Le premier chemin de filtre GPU est volontairement limité : le calque actif doit
+être le dernier calque, un réglage Courbes ou Niveaux visible, en mode Normal à
+100 %, sans dossier ni écrêtage, avec un masque absent, désactivé ou uniformément
+blanc. La vue doit être RVB et le composite réduit sous le réglage entièrement opaque.
+Les autres situations utilisent automatiquement l’aperçu CPU existant, y compris
+le backend logiciel.
+
+- Un worker compose une fois la base réduite sous le réglage. Elle est conservée
+  tant que la pile sous-jacente et la résolution du proxy restent valides.
+- Chaque changement de paramètres fabrique une table RVB de **256 × 1 pixels**
+  à partir des fonctions CPU de référence. Un shader du graphe de scène applique
+  cette table à la base ; la photo n’est pas retransférée à chaque déplacement.
+  Les calibrations des pipettes Courbes passent par la même table.
+- Le Navigateur et les histogrammes reçoivent un proxy CPU auxiliaire, planifié
+  à intervalles d’au moins 100 ms pendant le geste. Ils peuvent suivre avec un
+  retard lié au calcul ; ils ne déclenchent pas de lecture GPU ni de composition
+  complète synchrone pour suivre l’aperçu.
+- À la validation, le rendu complet CPU conserve les 8/16 bits du document et
+  remplace l’aperçu GPU quand il est prêt. Annuler ou modifier la pile invalide
+  les bases en vol ; les résultats périmés ne réactivent pas un ancien aperçu.
+
+L’aperçu GPU reste une approximation écran en 8 bits. Un document 16 bits peut
+l’utiliser si sa base est réduite au format écran ; une base encore à sa résolution
+native en 16 bits conserve le chemin CPU. Cette étape n’accélère ni l’export ni
+la composition pleine résolution, et ne généralise pas les shaders aux autres filtres.
+Les shaders sont précompilés avec Qt Shader Tools, avec une variante compatible
+avec le regroupement des géométries Qt Quick (`BATCHABLE`).
 
 ## Vérification
 
@@ -64,14 +95,18 @@ Il vérifie aussi l’éviction/relecture des blocs hors écran, l’absence de 
 persistante au composite complet et la taille de la surface des sélections à fort zoom.
 
 ```sh
-ctest --test-dir build -R '^(canvas_render|qml_smoke)$' --output-on-failure
+ctest --test-dir build -R '^(gpu_tone_preview|tone_render|canvas_render|qml_smoke)$' --output-on-failure
 ```
 
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
-plateformes. Il compte les créations de textures par le canevas, pas les octets ou
+plateformes. `gpu_tone_preview` vérifie aussi la réutilisation des bases, l’annulation,
+la résolution du proxy, les replis et le rendu final 16 bits. `tone_render` compare
+Courbes/Niveaux à la référence CPU ; sur GPU il vérifie également que modifier les
+paramètres ne recrée pas les textures photo. Ces tests comptent les créations de textures par le canevas, pas les octets ou
 les temps mesurés dans le pilote GPU. Il ne suffit donc pas à valider un backend natif.
 Ce scénario a également passé sur **Metal, Apple M2 Pro**, avec le rendu Qt Quick
-sur un thread distinct et un écran de facteur 2. Les backends GPU Linux/Windows
+sur un thread distinct et un écran de facteur 2, ainsi que la comparaison des
+aperçus Courbes/Niveaux et des calibrations de pipettes. Les backends GPU Linux/Windows
 restent à vérifier sur leurs plateformes. Le même scénario peut s’exécuter sur un GPU,
 sans manipulation de la souris :
 
@@ -79,6 +114,9 @@ sans manipulation de la souris :
 # macOS, build avec BUILD_TESTING=ON
 QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_INFO=1 \
   build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --canvas-render-test
+# Comparaison des shaders Courbes/Niveaux sur le même backend
+QT_QPA_PLATFORM=cocoa QSG_RHI_BACKEND=metal QSG_RENDER_LOOP=threaded \
+  build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --tone-render-test
 
 # Linux, dans une session graphique avec Vulkan disponible
 QSG_RHI_BACKEND=vulkan QSG_INFO=1 \
@@ -96,3 +134,5 @@ aucun facteur d’accélération n’est annoncé sans mesure comparative.
 - [QQuickPaintedItem et surface intermédiaire](https://doc.qt.io/qt-6.8/qquickpainteditem.html)
 - [Création et durée de vie des textures](https://doc.qt.io/qt-6.8/qquickwindow.html#createTextureFromImage)
 - [Nœud image indépendant du backend](https://doc.qt.io/qt-6.8/qsgimagenode.html)
+- [Matériaux et shaders du graphe de scène](https://doc.qt.io/qt-6.8/qsgmaterialshader.html)
+- [Précompilation des shaders](https://doc.qt.io/qt-6.8/qtshadertools-build.html)

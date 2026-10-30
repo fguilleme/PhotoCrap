@@ -280,11 +280,16 @@ void CanvasItem::setDocument(Document *_document)
 {
     if (m_document == _document)
         return;
-    if (m_document)
+    if (m_document) {
         disconnect(m_document, nullptr, this, nullptr);
+        m_document->setGpuTonePreviewEnabled(false);
+    }
     m_document = _document;
     if (_document) {
+        _document->setGpuTonePreviewEnabled(m_gpuTonePreviewEnabled);
         connect(_document, &Document::imageChanged, this, [this] { queueFrame(true, false); });
+        connect(_document, &Document::gpuTonePreviewChanged, this,
+                [this] { queueFrame(true, false); });
         connect(_document, &Document::documentChanged, this, [this] { queueFrame(true, true); });
         connect(_document, &Document::selectionChanged, this, [this] { queueFrame(false, true); });
         connect(_document, &Document::selectionDisplayChanged, this,
@@ -297,6 +302,15 @@ void CanvasItem::setDocument(Document *_document)
     }
     queueFrame(true, true);
     emit documentChanged();
+}
+void CanvasItem::setGpuTonePreviewEnabled(bool _enabled)
+{
+    if (m_gpuTonePreviewEnabled == _enabled)
+        return;
+    m_gpuTonePreviewEnabled = _enabled;
+    if (m_document)
+        m_document->setGpuTonePreviewEnabled(_enabled);
+    queueFrame(true, false);
 }
 void CanvasItem::setSelectionPhase(qreal _phase)
 {

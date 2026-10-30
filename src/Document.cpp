@@ -50,10 +50,26 @@ Document::Document(QObject *_parent) : QObject(_parent)
 {
     connect(&m_rawWatcher, &QFutureWatcher<RawImageResult>::finished, this,
             &Document::finishRawLoad);
+    m_gpuToneAuxTimer.setSingleShot(true);
+    m_gpuToneAuxTimer.setInterval(100);
+    connect(&m_gpuToneAuxTimer, &QTimer::timeout, this, [this] {
+        if (m_previewingLayer && gpuTonePreviewActive())
+            requestPreviewRender(true, false, false);
+    });
     connect(&m_previewRenderWatcher, &QFutureWatcher<QImage>::finished, this, [this] {
-        const QImage result  = m_previewRenderWatcher.result();
-        const bool   current = m_runningPreviewGeneration == m_previewRequestGeneration;
-        if (current && !result.isNull()) {
+        const QImage result = m_previewRenderWatcher.result();
+        if (m_runningPreviewGpuBase) {
+            finishGpuToneBase(result, m_runningGpuToneEpoch);
+            if (m_previewRenderPending)
+                QTimer::singleShot(0, this, &Document::startPendingPreviewRender);
+            else
+                m_previewRenderActive.store(m_gpuToneActive);
+            return;
+        }
+        const bool current   = m_runningPreviewGeneration == m_previewRequestGeneration;
+        const bool auxiliary = m_runningPreviewGpuAux && m_previewingLayer &&
+                               gpuTonePreviewActive() && m_runningGpuToneEpoch == m_gpuToneEpoch;
+        if ((current || auxiliary) && !result.isNull()) {
             QImage screenResult = result;
             if (!m_runningPreviewDraft && m_runningPreviewTargetSize.isValid()) {
                 const QSize target = m_runningPreviewTargetSize.boundedTo(result.size());
@@ -80,6 +96,10 @@ Document::Document(QObject *_parent) : QObject(_parent)
                 m_contentMoveAwaitingImage = false;
                 clearPatch();
             }
+            if (!m_runningPreviewDraft && m_gpuToneActive) {
+                m_gpuToneActive = false;
+                emit gpuTonePreviewChanged();
+            }
             ++m_revision;
             emit imageChanged();
         }
@@ -88,7 +108,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
         else if (current && m_runningPreviewDraft && m_runningPreviewRefine)
             requestPreviewRender(false);
         else
-            m_previewRenderActive.store(false);
+            m_previewRenderActive.store(m_gpuToneActive);
     });
     connect(this, &Document::selectionChanged, this, [this] {
         cancelSelectionOperation();
@@ -471,6 +491,8 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    if (!m_preserveGpuTonePreview)
+        invalidateGpuTonePreview();
     cancelMagicErase();
     invalidateContentMove();
     cancelRemoval();
@@ -504,7 +526,14 @@ void Document::setPreviewSize(int _width, int _height)
     QSize target(_width, _height);
     if (target.width() > 1280 || target.height() > 1280)
         target.scale(1280, 1280, Qt::KeepAspectRatio);
+    if (target == m_previewTargetSize)
+        return;
     m_previewTargetSize = target;
+    if (m_previewingLayer &&
+        (!m_gpuToneBase.isNull() || m_pendingPreviewGpuBase || m_runningPreviewGpuBase)) {
+        invalidateGpuTonePreview();
+        requestPreviewRender(true);
+    }
 }
 void Document::resetHistory(bool _clean)
 {
@@ -625,7 +654,7 @@ QVariantList Document::layers() const
 }
 QVariantList Document::histogram() const
 {
-    const QImage     image = composite().convertToFormat(QImage::Format_ARGB32);
+    const QImage     image = displayComposite().convertToFormat(QImage::Format_ARGB32);
     QVector<quint64> bins(256, 0);
     const qint64     pixels  = qint64(image.width()) * image.height();
     const int        stride  = qMax(1, int(std::sqrt(double(pixels) / 262144.)));

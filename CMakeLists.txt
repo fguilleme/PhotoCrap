@@ -15,6 +15,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ToolInput.cpp
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
+    src/render/ToneMappingNode.cpp
     src/Document.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
@@ -24,6 +25,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentIO.cpp
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
+    src/DocumentGpuPreview.cpp
     src/storage/ScratchImageCache.cpp
     src/storage/TiledImage.cpp
     src/tools/BrushTool.cpp
@@ -68,6 +70,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/GradientMapFilter.cpp
     src/filters/LightFilter.cpp
     src/filters/LevelsFilter.cpp
+    src/filters/ToneMappingTable.cpp
     src/filters/PhotoFilterFilter.cpp
     src/filters/PosterizeFilter.cpp
     src/filters/SelectiveColorFilter.cpp
@@ -92,6 +95,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/MacToolCursor.mm
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
+    src/render/ToneMappingNode.h
     src/Document.h
     src/ImageUtils.h
     src/tools/RegionHealing.h
@@ -108,6 +112,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/filters/GradientMapFilter.h
     src/filters/LightFilter.h
     src/filters/LevelsFilter.h
+    src/filters/ToneMappingTable.h
     src/filters/PhotoFilterFilter.h
     src/filters/PosterizeFilter.h
     src/filters/SelectiveColorFilter.h
@@ -122,6 +127,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/RawTestImage.h
     tests/UiSmoke.h
     tests/CanvasRenderSmoke.h
+    tests/ToneRenderSmoke.h
+    tests/GpuTonePreviewTest.cpp
     tests/SelectionTest.cpp
     tests/SelectionUiSmoke.h
     tests/FileDialogSmoke.h
@@ -194,7 +201,7 @@ else()
     message(STATUS "clang-tidy not found; lint target is disabled")
 endif()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent LinguistTools)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent LinguistTools ShaderTools)
 qt_standard_project_setup(REQUIRES 6.5)
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
@@ -217,6 +224,7 @@ qt_add_library(photocrap_core STATIC
     src/RawImageReader.h
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
+    src/DocumentGpuPreview.cpp
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
     src/tools/MagicEraserTool.cpp
@@ -266,7 +274,9 @@ qt_add_library(photocrap_core STATIC
     src/filters/LightFilter.cpp
     src/filters/LightFilter.h
     src/filters/LevelsFilter.cpp
+    src/filters/ToneMappingTable.cpp
     src/filters/LevelsFilter.h
+    src/filters/ToneMappingTable.h
     src/filters/PhotoFilterFilter.cpp
     src/filters/PhotoFilterFilter.h
     src/filters/PosterizeFilter.cpp
@@ -289,10 +299,16 @@ qt_add_executable(PhotoCrap
     src/main.cpp
     src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h src/CanvasRendering.cpp
+    src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
     src/ShortcutManager.cpp src/ShortcutManager.h
     src/LanguageManager.cpp src/LanguageManager.h
     src/RecentFilesManager.cpp src/RecentFilesManager.h
     src/WorkspaceSettings.cpp src/WorkspaceSettings.h
+)
+qt_add_shaders(PhotoCrap canvas_tone_shaders
+    BATCHABLE
+    PREFIX "/PhotoCrap"
+    FILES src/render/shaders/tone.vert src/render/shaders/tone.frag
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
@@ -431,6 +447,10 @@ if(BUILD_TESTING)
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
+    qt_add_executable(photocrap_gpu_tone_tests tests/GpuTonePreviewTest.cpp)
+    target_link_libraries(photocrap_gpu_tone_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME gpu_tone_preview COMMAND photocrap_gpu_tone_tests)
+    set_tests_properties(gpu_tone_preview PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)
@@ -452,6 +472,9 @@ if(BUILD_TESTING)
     add_test(NAME file_dialog_fallback COMMAND PhotoCrap --smoke-test --file-dialog-test)
     set_tests_properties(file_dialog_fallback PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
+    add_test(NAME tone_render COMMAND PhotoCrap --smoke-test --tone-render-test)
+    set_tests_properties(tone_render PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME canvas_render COMMAND PhotoCrap --smoke-test --canvas-render-test)
     set_tests_properties(canvas_render PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)

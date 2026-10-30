@@ -18,6 +18,7 @@
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/ShutdownSmoke.h"
+#include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
 #ifdef Q_OS_MACOS
 #include "../tests/MacApplicationMenuTest.h"
@@ -41,7 +42,7 @@ public:
             image = m_document->colorSelectionPreview(_id.section('/', 1, 1) == "mask", region,
                                                       _requested);
         } else if (_id.startsWith("composite"))
-            image = m_document->composite();
+            image = m_document->displayComposite();
         else if (_id.startsWith("mask/"))
             image = m_document->maskImage(_id.section('/', 1, 1).toInt(),
                                           _requested.isValid() ? _requested : QSize(180, 120));
@@ -138,6 +139,11 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            if (args.contains("--tone-render-test")) {
+                passed = window && runToneRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);

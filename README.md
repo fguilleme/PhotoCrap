@@ -63,7 +63,7 @@ CMake télécharge les sources LibRaw et zlib épinglées et vérifie leurs SHA-
 
 ## Compilation
 
-Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
+Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
 
 ### macOS
 
@@ -94,7 +94,7 @@ La signature Developer ID et la notarisation ne sont pas configurées.
 
 ### Linux
 
-Installer un kit **Qt 6.8.3 Desktop gcc_64** avec l’installateur Qt, incluant Qt Declarative, Qt Quick Controls et Qt Image Formats. Sur Ubuntu, installer les outils et dépendances système :
+Installer un kit **Qt 6.8.3 Desktop gcc_64** avec l’installateur Qt, incluant Qt Declarative, Qt Quick Controls, Qt Shader Tools et Qt Image Formats. Sur Ubuntu, installer les outils et dépendances système :
 
 ```sh
 sudo apt install build-essential cmake libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0
@@ -110,7 +110,7 @@ Une installation via `cmake --install build --prefix dist` utilise le déploieme
 
 ### Windows
 
-Installer Visual Studio 2022 (charge de travail C++), CMake et un kit **Qt 6.8.3 MSVC 2022 64 bits** avec Qt Declarative, Qt Quick Controls et Qt Image Formats. Dans PowerShell :
+Installer Visual Studio 2022 (charge de travail C++), CMake et un kit **Qt 6.8.3 MSVC 2022 64 bits** avec Qt Declarative, Qt Quick Controls, Qt Shader Tools et Qt Image Formats. Dans PowerShell :
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:/Qt/6.8.3/msvc2022_64"
@@ -268,7 +268,7 @@ Référence : [Panneau Informations Adobe](https://helpx.adobe.com/photoshop/des
 
 Le curseur des outils est synchronisé immédiatement, puis après la stabilisation des fenêtres et du focus. Un test Cocoa contrôle la pointe réelle de la pipette, de l’échantillonneur et de la règle dès leur première activation, sans nouveau mouvement de souris, ainsi qu’après la réouverture d’Informations.
 
-Le canevas en développement après v0.15 utilise des textures Qt Quick réutilisables pour les blocs visibles, avec des surimpressions séparées. Les calculs des filtres restent CPU et les pixels de travail conservent leur précision. Voir [l’architecture graphique et ses limites](docs/GPU_RENDERING.md).
+Le canevas en développement après v0.15 utilise des textures Qt Quick réutilisables pour les blocs visibles, avec des surimpressions séparées. Les aperçus Courbes/Niveaux éligibles utilisent une table RVB sur GPU ; les autres cas et le rendu final gardent le moteur CPU et la précision des pixels de travail. Voir [l’architecture graphique et ses limites](docs/GPU_RENDERING.md).
 
 ## Validation et limites
 

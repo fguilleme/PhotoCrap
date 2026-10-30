@@ -4,6 +4,7 @@
 #include <QCache>
 #include <QJSValue>
 #include <QMutexLocker>
+#include <QScopedValueRollback>
 #include <QSet>
 #include <QtConcurrent>
 #include <QtMath>
@@ -96,7 +97,11 @@ void Document::finishLayerPreview(const QString &_label)
             QMutexLocker locker(&m_previewImageMutex);
             screenPreview = m_previewComposite;
         }
-        commit(m_beforeLayerPreview, _label);
+        {
+            QScopedValueRollback<bool> preserve(m_preserveGpuTonePreview, gpuTonePreviewActive());
+            commit(m_beforeLayerPreview, _label);
+        }
+        m_gpuToneAuxTimer.stop();
         {
             QMutexLocker locker(&m_previewImageMutex);
             m_previewComposite = screenPreview;
@@ -108,8 +113,13 @@ void Document::finishLayerPreview(const QString &_label)
     m_layerPreviewChanged         = false;
 }
 
-void Document::requestPreviewRender(bool _draft, bool _refine)
+void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
 {
+    if (_draft && _allowGpu && updateGpuTonePreview())
+        return;
+    m_pendingPreviewGpuBase =
+        _draft && _allowGpu && m_previewingLayer && !m_gpuToneRejected && gpuToneEligible();
+    m_pendingPreviewGpuAux     = _draft && !_allowGpu && gpuTonePreviewActive();
     m_pendingPreviewLayers     = m_layers;
     m_pendingPreviewSize       = m_size;
     m_pendingPreviewTargetSize = m_previewTargetSize;
@@ -137,9 +147,30 @@ void Document::startPendingPreviewRender()
     m_runningPreviewRefine     = refine;
     m_runningPreviewTargetSize = targetSize;
     const auto scratch         = m_scratchCache;
-    m_previewRenderWatcher.setFuture(
-        QtConcurrent::run([layers = std::move(layers), size, targetSize, draft, scratch]() mutable {
-            return renderPreviewSnapshot(std::move(layers), size, targetSize, draft, scratch);
+    m_runningPreviewGpuBase    = m_pendingPreviewGpuBase;
+    m_runningPreviewGpuAux     = m_pendingPreviewGpuAux;
+    m_runningGpuToneEpoch      = m_gpuToneEpoch;
+    const bool gpuBase         = m_runningPreviewGpuBase;
+    if (gpuBase)
+        layers.removeLast();
+    m_previewRenderWatcher.setFuture(QtConcurrent::run(
+        [layers = std::move(layers), size, targetSize, draft, scratch, gpuBase]() mutable {
+            QImage result =
+                renderPreviewSnapshot(std::move(layers), size, targetSize, draft, scratch);
+            if (gpuBase) {
+                if (ImageUtils::is16Bit(result))
+                    return QImage{};
+                // Only opaque bases take the first GPU path. Transparency retains
+                // the CPU compositor's existing source-over/rounding semantics.
+                const QImage image = result.convertToFormat(QImage::Format_ARGB32);
+                for (int y = 0; y < image.height(); ++y) {
+                    const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+                    for (int x = 0; x < image.width(); ++x)
+                        if (qAlpha(row[x]) != 255)
+                            return QImage{};
+                }
+            }
+            return result;
         }));
 }
 
@@ -208,6 +239,7 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
 }
 void Document::cancelLayerPreview()
 {
+    invalidateGpuTonePreview();
     if (!m_previewingLayer)
         return;
     const bool changedPreview = m_layerPreviewChanged;

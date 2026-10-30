@@ -90,7 +90,8 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [ ] Historique par différences, récupération après fermeture anormale et autosauvegarde, distincts du cache temporaire de travail.
 - [ ] Documents multiples et espaces de travail nommés/importables.
 - [x] Première étape d’affichage après v0.15 : canevas en textures du graphe de scène Qt Quick, blocs visibles réutilisables, niveau de détail d’affichage conservé et surimpressions séparées de la photo ; repli logiciel et test `canvas_render`. [Fonctionnement et limites](docs/GPU_RENDERING.md).
-- [ ] Filtres et composition sur GPU, transferts régionaux, contours par shaders et budget de VRAM ; mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
+- [x] Premiers aperçus GPU Courbes/Niveaux : base écran opaque réutilisée et table RVB issue du moteur CPU, actualisation auxiliaire du Navigateur/histogrammes, repli CPU pour les cas non pris en charge et rendu final natif 8/16 bits. Tests de référence CPU, d’annulation et de textures sur Metal (M2 Pro) ; autres backends matériels à vérifier.
+- [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; transferts régionaux, contours par shaders et budget de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 ## 3. Sélections et masques à compléter
 

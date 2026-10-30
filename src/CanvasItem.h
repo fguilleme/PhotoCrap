@@ -15,6 +15,7 @@ class CanvasItem : public QQuickItem
                    selectionPhaseChanged)
     Q_PROPERTY(
         QRectF viewportRect READ viewportRect WRITE setViewportRect NOTIFY viewportRectChanged)
+    Q_PROPERTY(bool gpuTonePreviewEnabled READ gpuTonePreviewEnabled WRITE setGpuTonePreviewEnabled)
 public:
     explicit CanvasItem(QQuickItem *_parent = nullptr);
     ~CanvasItem() override;
@@ -36,10 +37,19 @@ public:
         return m_viewportRect;
     }
     void setViewportRect(const QRectF &_rect);
+    bool gpuTonePreviewEnabled() const
+    {
+        return m_gpuTonePreviewEnabled;
+    }
+    void setGpuTonePreviewEnabled(bool _enabled);
 #ifdef PHOTOCRAP_TESTING
     quint64 imageTextureUploads() const
     {
         return m_imageTextureUploads.load();
+    }
+    quint64 toneTableUploads() const
+    {
+        return m_toneTableUploads.load();
     }
     QSize overlayPixelSize() const
     {
@@ -61,7 +71,8 @@ private:
     QPointer<Document>     m_document;
     QRegion                m_selectionOutline;
     QPainterPath           m_selectionPath;
-    QImage                 m_textureImage, m_overlayImage;
+    QImage                 m_textureImage, m_overlayImage, m_toneTable;
+    bool                   m_gpuTonePreviewEnabled = false;
     QHash<quint64, QImage> m_tileImages;
     qint64                 m_textureSourceKey = 0;
     qint64                 m_textureRevision  = 0;
@@ -71,6 +82,7 @@ private:
     bool                   m_imageDirty = true, m_overlayDirty = true;
 #ifdef PHOTOCRAP_TESTING
     std::atomic<quint64> m_imageTextureUploads{0};
+    std::atomic<quint64> m_toneTableUploads{0};
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

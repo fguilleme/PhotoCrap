@@ -20,7 +20,7 @@ jobs:
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          modules: 'qtimageformats'
+          modules: 'qtimageformats qtshadertools'
           cache: true
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON

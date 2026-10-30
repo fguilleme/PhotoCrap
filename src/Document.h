@@ -15,6 +15,7 @@
 #include <QRect>
 #include <QRegion>
 #include <QSet>
+#include <QTimer>
 #include <QUrl>
 #include <QUuid>
 #include <QVariantList>
@@ -906,6 +907,17 @@ public:
     Q_INVOKABLE bool defineStampPattern();
     const QImage    &composite() const;
     QImage           displayComposite() const;
+    void             setGpuTonePreviewEnabled(bool _enabled);
+    bool             gpuTonePreviewActive() const;
+    QImage           gpuTonePreviewBase() const
+    {
+        return m_gpuToneBase;
+    }
+    QImage gpuTonePreviewTable() const
+    {
+        return m_gpuToneTable;
+    }
+
     QImage           layerImage(int _index, const QSize &_requested = {}) const;
     QImage           maskImage(int _index, const QSize &_requested = {}) const;
     void             setActiveLayer(int _index);
@@ -1119,6 +1131,7 @@ signals:
     void documentChanged();
     void layersChanged();
     void imageChanged();
+    void gpuTonePreviewChanged();
     void thumbnailsChanged();
     void displayChannelChanged();
     void settingsChanged();
@@ -1378,32 +1391,43 @@ private:
     QRectF     m_strokeBounds;
     mutable QCache<QString, QImage>    m_frequencyCache{128 * 1024};
     std::shared_ptr<ScratchImageCache> m_scratchCache;
-    QFutureWatcher<QImage>             m_previewRenderWatcher;
-    QVector<Layer>                     m_pendingPreviewLayers;
-    QSize                              m_pendingPreviewSize;
-    QSize                              m_pendingPreviewTargetSize;
-    QSize                              m_previewTargetSize;
-    QImage                             m_previewComposite;
-    bool                               m_pendingPreviewDraft  = false;
-    bool                               m_pendingPreviewRefine = false;
-    bool                               m_runningPreviewDraft  = false;
-    bool                               m_runningPreviewRefine = false;
-    QSize                              m_runningPreviewTargetSize;
-    quint64                            m_previewRequestGeneration = 0;
-    quint64                            m_runningPreviewGeneration = 0;
-    bool                               m_previewRenderPending     = false;
-    std::atomic_bool                   m_previewRenderActive{false};
-    mutable QMutex                     m_previewImageMutex;
-    Snapshot                           m_beforeContentMove;
-    Snapshot                           m_beforeStroke;
-    Snapshot                           m_beforeLayerPreview;
-    QImage                             m_beforeLayerPreviewComposite;
-    bool                               m_layerPropertiesSession = false;
-    Snapshot                           m_beforeLayerProperties;
-    QVector<Snapshot>                  m_undoBeforeLayerProperties;
-    QVector<Snapshot>                  m_redoBeforeLayerProperties;
-    Snapshot                           snapshot(const QString &_label) const;
-    void                               restore(const Snapshot &_state);
+    bool                               gpuToneEligible() const;
+    bool                               updateGpuTonePreview();
+    void                               invalidateGpuTonePreview();
+    void                               finishGpuToneBase(const QImage &_image, quint64 _epoch);
+    bool    m_gpuToneEnabled = false, m_gpuToneActive = false, m_gpuToneRejected = false;
+    bool    m_preserveGpuTonePreview = false;
+    bool    m_pendingPreviewGpuBase = false, m_runningPreviewGpuBase = false;
+    bool    m_pendingPreviewGpuAux = false, m_runningPreviewGpuAux = false;
+    quint64 m_gpuToneEpoch = 0, m_runningGpuToneEpoch = 0;
+    QImage  m_gpuToneBase, m_gpuToneTable;
+    QTimer  m_gpuToneAuxTimer;
+    QFutureWatcher<QImage> m_previewRenderWatcher;
+    QVector<Layer>         m_pendingPreviewLayers;
+    QSize                  m_pendingPreviewSize;
+    QSize                  m_pendingPreviewTargetSize;
+    QSize                  m_previewTargetSize;
+    QImage                 m_previewComposite;
+    bool                   m_pendingPreviewDraft  = false;
+    bool                   m_pendingPreviewRefine = false;
+    bool                   m_runningPreviewDraft  = false;
+    bool                   m_runningPreviewRefine = false;
+    QSize                  m_runningPreviewTargetSize;
+    quint64                m_previewRequestGeneration = 0;
+    quint64                m_runningPreviewGeneration = 0;
+    bool                   m_previewRenderPending     = false;
+    std::atomic_bool       m_previewRenderActive{false};
+    mutable QMutex         m_previewImageMutex;
+    Snapshot               m_beforeContentMove;
+    Snapshot               m_beforeStroke;
+    Snapshot               m_beforeLayerPreview;
+    QImage                 m_beforeLayerPreviewComposite;
+    bool                   m_layerPropertiesSession = false;
+    Snapshot               m_beforeLayerProperties;
+    QVector<Snapshot>      m_undoBeforeLayerProperties;
+    QVector<Snapshot>      m_redoBeforeLayerProperties;
+    Snapshot               snapshot(const QString &_label) const;
+    void                   restore(const Snapshot &_state);
 
     bool                              m_frequencyRetouchBusy = false;
     std::shared_ptr<std::atomic_bool> m_frequencyRetouchCancel;
@@ -1485,7 +1509,7 @@ private:
     static QImage adjustedImage(const QImage &_source, const QString &_type,
                                 const QVariantMap &_parameters);
     QImage        frequencyImage(const Layer &_layer) const;
-    void          requestPreviewRender(bool _draft, bool _refine = false);
+    void          requestPreviewRender(bool _draft, bool _refine = false, bool _allowGpu = true);
     void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,

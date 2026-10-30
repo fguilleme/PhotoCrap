@@ -1,4 +1,5 @@
 #include "CanvasItem.h"
+#include "render/ToneMappingNode.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -15,17 +16,102 @@ namespace
 {
 constexpr int tileSize = 1024;
 
+QImage displaySource(Document *_document)
+{
+    return !_document                          ? QImage{}
+           : _document->gpuTonePreviewActive() ? _document->gpuTonePreviewBase()
+                                               : _document->displayComposite();
+}
+
+class PhotoTileNode : public QSGTransformNode
+{
+public:
+    QQuickWindow    *owner;
+    QSGTexture      *texture;
+    QSGImageNode    *image   = nullptr;
+    ToneMappingNode *mapping = nullptr;
+    QRectF           sourceRect;
+    PhotoTileNode(QQuickWindow *_window, const QImage &_image, QSGTexture *_table)
+        : owner(_window), texture(_window->createTextureFromImage(
+                              _image.convertToFormat(QImage::Format_ARGB32_Premultiplied)))
+    {
+        if (texture)
+            setMapping(_table);
+    }
+    ~PhotoTileNode() override
+    {
+        while (auto *child = firstChild()) {
+            removeChildNode(child);
+            delete child;
+        }
+        delete texture;
+    }
+    void setMapping(QSGTexture *_table)
+    {
+        if (_table) {
+            if (image) {
+                removeChildNode(image);
+                delete image;
+                image = nullptr;
+            }
+            if (!mapping) {
+                mapping = new ToneMappingNode(texture, _table);
+                appendChildNode(mapping);
+            } else
+                mapping->setTable(_table);
+        } else {
+            if (mapping) {
+                removeChildNode(mapping);
+                delete mapping;
+                mapping = nullptr;
+            }
+            if (!image) {
+                image = owner->createImageNode();
+                if (image) {
+                    image->setTexture(texture);
+                    appendChildNode(image);
+                }
+            }
+        }
+    }
+    void setRect(const QRectF &_rect)
+    {
+        if (mapping)
+            mapping->setImageRect(_rect, sourceRect);
+        else if (image) {
+            image->setSourceRect(sourceRect);
+            image->setRect(_rect);
+        }
+    }
+    void setFiltering(QSGTexture::Filtering _filtering)
+    {
+        if (mapping)
+            mapping->setFiltering(_filtering);
+        else if (image)
+            image->setFiltering(_filtering);
+    }
+};
+
 // All nodes and textures live and die on the scene graph thread. No Document
 // methods are called here: updatePolish prepares immutable GUI-thread snapshots.
 struct CanvasNode : QSGTransformNode {
-    QSGTransformNode               background, photo, effects;
-    QHash<quint64, QSGImageNode *> tiles;
-    QQuickWindow                  *owner    = nullptr;
-    qint64                         imageKey = 0, overlayKey = 0;
-    QSize                          checkerSize;
-    QPoint                         checkerPhase;
-    QSGImageNode                  *checker = nullptr, *overlay = nullptr;
-    QSGSimpleTextureNode          *repeatedChecker = nullptr;
+    QSGTransformNode                background, photo, effects;
+    QHash<quint64, PhotoTileNode *> tiles;
+    QQuickWindow                   *owner    = nullptr;
+    qint64                          imageKey = 0, overlayKey = 0;
+    QSize                           checkerSize;
+    QPoint                          checkerPhase;
+    QSGImageNode                   *checker = nullptr, *overlay = nullptr;
+    QSGSimpleTextureNode           *repeatedChecker = nullptr;
+    QSGTexture                     *toneTable       = nullptr;
+    qint64                          toneTableKey    = 0;
+
+    ~CanvasNode() override
+    {
+        photo.removeAllChildNodes();
+        qDeleteAll(tiles);
+        delete toneTable;
+    }
 
     explicit CanvasNode(QQuickWindow *_window) : owner(_window)
     {
@@ -111,7 +197,10 @@ void CanvasItem::updatePolish()
     QImage source;
     bool   changed = false;
     if (m_imageDirty) {
-        source             = m_document ? m_document->displayComposite() : QImage{};
+        source             = displaySource(m_document);
+        m_toneTable        = m_document && m_document->gpuTonePreviewActive()
+                                 ? m_document->gpuTonePreviewTable()
+                                 : QImage{};
         changed            = m_textureSourceKey != source.cacheKey();
         m_textureSourceKey = source.cacheKey();
         m_sourceSize       = source.size();
@@ -139,7 +228,7 @@ void CanvasItem::updatePolish()
             m_textureImage = {};
             if (level > 0) {
                 if (source.isNull() && m_document)
-                    source = m_document->displayComposite();
+                    source = displaySource(m_document);
                 m_textureImage =
                     source.scaled(m_textureSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             }
@@ -167,7 +256,7 @@ void CanvasItem::updatePolish()
                     const QRect padded = tile.adjusted(-1, -1, 1, 1).intersected(imageRect);
                     if (level == 0) {
                         if (source.isNull() && m_document)
-                            source = m_document->displayComposite();
+                            source = displaySource(m_document);
                         m_tileImages.insert(key, source.copy(padded));
                     } else
                         m_tileImages.insert(key, m_textureImage.copy(padded));
@@ -323,6 +412,24 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         node->checker->setSourceRect(QRectF(QPointF{}, checkerSize));
     }
 
+    if (node->toneTableKey != m_toneTable.cacheKey()) {
+        QSGTexture *table =
+            m_toneTable.isNull() ? nullptr : window()->createTextureFromImage(m_toneTable);
+        if (!m_toneTable.isNull() && !table) {
+            QMetaObject::invokeMethod(
+                this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);
+            return node;
+        }
+        for (auto *tile : std::as_const(node->tiles))
+            tile->setMapping(table);
+        delete node->toneTable;
+        node->toneTable    = table;
+        node->toneTableKey = m_toneTable.cacheKey();
+#ifdef PHOTOCRAP_TESTING
+        if (table)
+            ++m_toneTableUploads;
+#endif
+    }
     if (node->imageKey != m_textureRevision) {
         node->photo.removeAllChildNodes();
         qDeleteAll(node->tiles);
@@ -345,10 +452,12 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                 source.adjusted(-1, -1, 1, 1).intersected(QRect(QPoint{}, m_textureSize));
             auto *tile = node->tiles.value(key, nullptr);
             if (!tile) {
-                tile = imageNode(window(), m_tileImages.value(key));
-                if (!tile)
+                tile = new PhotoTileNode(window(), m_tileImages.value(key), node->toneTable);
+                if (!tile->texture) {
+                    delete tile;
                     continue;
-                tile->setSourceRect(QRectF(source.translated(-padded.topLeft())));
+                }
+                tile->sourceRect = QRectF(source.translated(-padded.topLeft()));
                 node->photo.appendChildNode(tile);
                 node->tiles.insert(key, tile);
 #ifdef PHOTOCRAP_TESTING

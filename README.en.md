@@ -53,7 +53,7 @@ The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the impleme
 
 ## Building
 
-Requirements: CMake ≥ 3.24, a C++20 compiler, and **Qt ≥ 6.5** with Core, Gui, Concurrent, Qml, Quick, QuickControls2, LinguistTools, and Test (for tests). The QtQuick.Dialogs and QtQml.Models QML modules are also required. Qt Image Formats adds formats including WebP and TIFF. Blur uses Accelerate/vImage on macOS and Qt Concurrent on other platforms; each binary must be built with the Qt kit for its target platform.
+Requirements: CMake ≥ 3.24, a C++20 compiler, and **Qt ≥ 6.5** with Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools, and Test (for tests). The QtQuick.Dialogs and QtQml.Models QML modules are also required. Qt Image Formats adds formats including WebP and TIFF. Blur uses Accelerate/vImage on macOS and Qt Concurrent on other platforms; each binary must be built with the Qt kit for its target platform.
 
 ### macOS
 
@@ -84,7 +84,7 @@ Developer ID signing and notarization are not configured.
 
 ### Linux
 
-Install a **Qt 6.8.3 Desktop gcc_64** kit with the Qt installer, including Qt Declarative, Qt Quick Controls, and Qt Image Formats. On Ubuntu, install the build tools and system dependencies:
+Install a **Qt 6.8.3 Desktop gcc_64** kit with the Qt installer, including Qt Declarative, Qt Quick Controls, Qt Shader Tools, and Qt Image Formats. On Ubuntu, install the build tools and system dependencies:
 
 ```sh
 sudo apt install build-essential cmake libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0
@@ -100,7 +100,7 @@ An installation through `cmake --install build --prefix dist` uses Qt’s CMake 
 
 ### Windows
 
-Install Visual Studio 2022 with the C++ workload, CMake, and a **Qt 6.8.3 MSVC 2022 64-bit** kit with Qt Declarative, Qt Quick Controls, and Qt Image Formats. In PowerShell:
+Install Visual Studio 2022 with the C++ workload, CMake, and a **Qt 6.8.3 MSVC 2022 64-bit** kit with Qt Declarative, Qt Quick Controls, Qt Shader Tools, and Qt Image Formats. In PowerShell:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:/Qt/6.8.3/msvc2022_64"
@@ -233,7 +233,7 @@ The **layer** menu provides available properties, duplication, renaming, deletio
 
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
-The canvas under development after v0.15 uses reusable Qt Quick textures for visible tiles, with separate overlays. Filter calculations remain on the CPU and working pixels keep their precision. See the [graphics architecture and limitations](docs/GPU_RENDERING.md) (French).
+The canvas under development after v0.15 uses reusable Qt Quick textures for visible tiles, with separate overlays. Eligible Curves/Levels previews use an RGB lookup table on the GPU; unsupported cases and final rendering retain the CPU engine and working pixel precision. See the [graphics architecture and limitations](docs/GPU_RENDERING.md) (French).
 
 ## Validation and limitations
 

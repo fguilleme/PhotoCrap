@@ -70,6 +70,7 @@ void Document::setTool(const QString &_value)
         endStroke();
     if (m_tool != _value) {
         invalidatePatch(true);
+        invalidateContentMove(true);
         cancelRemoval();
     }
     if (m_tool != _value) {

@@ -631,6 +631,61 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                      "undo restores the canvas after an asynchronous repair"))
             return false;
     }
+    QImage moving(512, 320, QImage::Format_ARGB32_Premultiplied);
+    moving.fill(QColor(165, 165, 165));
+    {
+        QPainter painter(&moving);
+        painter.fillRect(102, 102, 12, 12, Qt::red);
+    }
+    const auto movingPath = directory.filePath("move-completion.png");
+    if (!require(moving.save(movingPath), "create a content move display reference"))
+        return false;
+    for (const int mode : {0, 1}) {
+        if (!require(document.openFile(QUrl::fromLocalFile(movingPath)), "open the move reference"))
+            return false;
+        document.setTool("select");
+        document.setSelectionMode(0);
+        document.beginStroke(96, 96);
+        document.continueStroke(160, 160);
+        document.endStroke();
+        document.setSelectionMode(2);
+        document.beginStroke(120, 120);
+        document.continueStroke(136, 136);
+        document.endStroke();
+        document.setSelectionMode(0);
+        document.setTool("contentAwareMove");
+        document.setContentMoveMode(mode);
+        document.setContentMoveStructure(7);
+        document.setContentMoveColor(0);
+        const int history = document.historyIndex();
+        document.beginStroke(108, 108);
+        document.continueStroke(364, 108);
+        frame();
+        document.endStroke();
+        if (!require(document.contentMoveBusy() && document.patchDragging() &&
+                         !document.patchPreviewImage().isNull() &&
+                         document.historyIndex() == history,
+                     "the move donor stays visible while final assembly runs on the worker"))
+            return false;
+        QElapsedTimer wait;
+        wait.start();
+        while ((document.contentMoveBusy() || document.patchDragging()) && wait.elapsed() < 5000)
+            QTest::qWait(10);
+        const auto finished = frame();
+        if (!require(!document.contentMoveBusy() && !document.patchDragging() &&
+                         !canvas.patchOverlayGpuActive() &&
+                         document.historyIndex() == history + 1 &&
+                         near(pixel(finished, 364.5, 108.5), QColor(Qt::red)) &&
+                         near(pixel(finished, 108.5, 108.5),
+                              mode == 0 ? QColor(165, 165, 165) : QColor(Qt::red)) &&
+                         near(pixel(finished, 384.5, 128.5), QColor(165, 165, 165)),
+                     "Move/Extend composites replace their donor and keep selection holes"))
+            return false;
+        document.undo();
+        if (!require(near(pixel(frame(), 364.5, 108.5), QColor(165, 165, 165)),
+                     "undo restores the canvas after asynchronous move assembly"))
+            return false;
+    }
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

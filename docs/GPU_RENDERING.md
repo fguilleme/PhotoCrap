@@ -273,6 +273,36 @@ la réparation locale en 4K. Le test `canvas_render` vérifie aussi le remplacem
 du donneur par l’image réparée, la conservation des trous et le retour par Annuler,
 en logiciel et sur Metal/OpenGL.
 
+## Assemblage du Déplacement basé sur le contenu
+
+Le worker de `ContentAwareMoveTool` traite désormais toute la modification :
+reconstruction de l’ancienne zone en mode Déplacement, adaptation du donneur,
+assemblage des régions et copie d’écriture du calque. Le callback GUI ne peint
+plus les pixels ; il installe l’image terminée, inscrit une étape d’historique
+et lance le composite écran asynchrone. Extension garde les pixels d’origine.
+Les calques échantillonnés par « Tous les calques » restent immuables.
+
+Les patches locaux conservent le même ordre de composition que l’ancien chemin :
+remplissage de la source, puis donneur par-dessus la destination, y compris quand
+les régions se chevauchent. La couverture douce prend le maximum du masque source
+et de sa version déplacée. Son application parcourt uniquement l’union des régions
+touchées, en évitant l’espace vide entre elles. Les pixels hors région et les trous
+restent inchangés. La copie du calque QImage complet reste nécessaire pour un état
+modifié ; déplacer ce travail hors du GUI n’en réduit pas le coût mémoire.
+
+L’aperçu donneur est conservé jusqu’au composite réparé. Échap, Annuler ou un
+changement d’outil/réglage abandonne le calcul en cours et restaure la sélection.
+Les modifications de sélection, de calque ou de document et les nouveaux gestes
+invalident aussi les réponses tardives. Le document est signalé modifié pendant
+le calcul ; sauvegarde et export attendent sa fin ou son annulation, comme Pièce.
+
+La suite `content_move` compare les modes Déplacement/Extension à une référence
+raster indépendante pour des sélections adoucies, transparentes et chevauchantes
+ou séparées. Elle contrôle les changements de réglage, Annuler/Rétablir pendant
+le calcul, les résultats tardifs et la sauvegarde après réparation. La suite moteur
+conserve les contrôles 4K et d’échantillonnage des calques. `canvas_render` vérifie
+le remplacement de l’aperçu, les trous et l’annulation en logiciel/Metal/OpenGL.
+
 ## Aperçus de réglages sur GPU
 
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,

@@ -44,7 +44,7 @@ Rectangle {
             onToggled: root.document.contentMoveSampleAllLayers = checked
         }
         Label {
-            text: root.document.contentMoveBusy ? qsTr("Reconstruction en cours…")
+            text: root.document.contentMoveBusy ? qsTr("Reconstruction en cours… (Échap pour annuler)")
                                                : qsTr("Entourez un objet, puis faites glisser la sélection")
             color: "#87929e"
             Layout.fillWidth: true; Layout.leftMargin: 12; elide: Text.ElideRight

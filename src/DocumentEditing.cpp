@@ -8,8 +8,9 @@
 
 void Document::undo()
 {
-    if (m_patchBusy) {
+    if (m_patchBusy || m_contentMoveBusy) {
         invalidatePatch(true);
+        invalidateContentMove(true);
         return;
     }
     if (selectionBusy()) {
@@ -28,8 +29,9 @@ void Document::undo()
 }
 void Document::redo()
 {
-    if (m_patchBusy) {
+    if (m_patchBusy || m_contentMoveBusy) {
         invalidatePatch(true);
+        invalidateContentMove(true);
         return;
     }
     if (selectionBusy()) {

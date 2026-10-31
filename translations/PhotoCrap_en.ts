@@ -113,7 +113,7 @@
   </context>
   <context>
     <name>Document</name>
-    <message><source>Attendez la fin de la réparation ou annulez-la avant de sauvegarder ou exporter.</source><translation>Wait for the repair to finish or cancel it before saving or exporting.</translation></message>
+    <message><source>Attendez la fin du traitement ou annulez-le avant de sauvegarder ou exporter.</source><translation>Wait for processing to finish or cancel it before saving or exporting.</translation></message>
     <message><source>Impossible de calculer la réparation de cette zone.</source><translation>Could not compute a repair for this area.</translation></message>
     <message><source>Contour du tracé</source><translation>Stroke Path</translation></message>
     <message><source>Déplacer les points d’ancrage</source><translation>Move Anchor Points</translation></message>
@@ -4283,6 +4283,7 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>ContentAwareMoveOptions</name>
+    <message><source>Reconstruction en cours… (Échap pour annuler)</source><translation>Reconstructing… (Escape to cancel)</translation></message>
     <message><source>Mode</source><translation>Mode</translation></message>
     <message><source>Déplacement</source><translation>Move</translation></message>
     <message><source>Extension</source><translation>Extend</translation></message>

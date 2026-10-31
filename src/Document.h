@@ -344,7 +344,7 @@ public:
     }
     bool modified() const
     {
-        return m_patchBusy || m_contentId != m_savedId;
+        return m_patchBusy || m_contentMoveBusy || m_contentId != m_savedId;
     }
     QVariantList             layers() const;
     Q_INVOKABLE QVariantList histogram() const;

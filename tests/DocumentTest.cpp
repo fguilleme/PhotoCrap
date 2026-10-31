@@ -2384,12 +2384,12 @@ private slots:
         d.setColor(Qt::blue);
         d.setBrushSize(5);
         d.setBrushHardness(1);
-        d.beginStroke(132, 52);
+        d.beginStroke(52, 52);
         d.endStroke();
         const QImage painted = d.layerImage(0);
         QTest::qWait(80);
         QCOMPARE(d.layerImage(0), painted);
-        QCOMPARE(d.layerImage(0).pixelColor(52, 52), QColor(Qt::red));
+        QCOMPARE(d.layerImage(0).pixelColor(52, 52), QColor(Qt::blue));
         QCOMPARE(d.historyIndex(), history + 1);
         d.undo();
         d.deselect();

@@ -188,9 +188,9 @@ bool Document::importLayer(const QUrl &_url)
 bool Document::saveProject(const QUrl &_url)
 {
     endStroke();
-    if (m_patchBusy)
+    if (m_patchBusy || m_contentMoveBusy)
         return fail(
-            tr("Attendez la fin de la réparation ou annulez-la avant de sauvegarder ou exporter."));
+            tr("Attendez la fin du traitement ou annulez-le avant de sauvegarder ou exporter."));
     QString path = localPath(_url);
     if (path.isEmpty())
         return fail(tr("Chemin de sauvegarde invalide."));
@@ -389,9 +389,9 @@ bool Document::loadProject(const QString &_path)
 bool Document::exportImage(const QUrl &_url)
 {
     endStroke();
-    if (m_patchBusy)
+    if (m_patchBusy || m_contentMoveBusy)
         return fail(
-            tr("Attendez la fin de la réparation ou annulez-la avant de sauvegarder ou exporter."));
+            tr("Attendez la fin du traitement ou annulez-le avant de sauvegarder ou exporter."));
     QString path = localPath(_url);
     if (path.isEmpty())
         return fail(tr("Chemin d’export invalide."));

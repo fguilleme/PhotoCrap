@@ -284,7 +284,8 @@ void CanvasItem::setDocument(Document *_document)
         disconnect(m_document, nullptr, this, nullptr);
         m_document->setGpuTonePreviewEnabled(false);
     }
-    m_document = _document;
+    m_document         = _document;
+    m_patchGpuRejected = false;
     if (_document) {
         _document->setGpuTonePreviewEnabled(m_gpuTonePreviewEnabled);
         connect(_document, &Document::imageChanged, this, [this] { queueFrame(true, false); });

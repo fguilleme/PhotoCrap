@@ -1,6 +1,7 @@
 #include "CanvasItem.h"
 #include "render/ClippedOverlayNode.h"
 #include "render/DisplayLevel.h"
+#include "render/PatchPreviewNode.h"
 #include "render/RegionOverlayNode.h"
 #include "render/SelectionOutlineNode.h"
 #include "render/TileCache.h"
@@ -142,6 +143,10 @@ struct CanvasNode : QSGTransformNode {
     ClippedOverlayNode             *removeRoot        = nullptr;
     RegionOverlayNode              *remove            = nullptr;
     quint64                         removeRevision    = 0;
+    ClippedOverlayNode             *patchRoot         = nullptr;
+    PatchPreviewNode               *patch             = nullptr;
+    qint64                          patchImageKey     = 0;
+    quint64                         patchRevision     = 0;
 
     ~CanvasNode() override
     {
@@ -403,6 +408,7 @@ void CanvasItem::updatePolish()
         m_overlayImage           = {};
         m_overlayRect            = visibleBounds(m_viewportRect, boundingRect());
         bool selectionMeshNeeded = false, removeMeshNeeded = false, removePending = false;
+        bool patchMeshNeeded = false, patchPending = false;
         if (m_document && !m_overlayRect.isEmpty() && m_document->width() > 0 &&
             m_document->height() > 0) {
             const bool patch =
@@ -414,6 +420,33 @@ void CanvasItem::updatePolish()
             const qreal ratio     = window() ? window()->effectiveDevicePixelRatio() : 1.;
             const bool  hardware  = window() && QSGRendererInterface::isApiRhiBased(
                                                     window()->rendererInterface()->graphicsApi());
+            patchPending          = patch;
+            if (patch && hardware && !m_patchGpuRejected) {
+                const auto   region = m_document->patchTargetRegion();
+                const auto   target = m_document->patchTargetRect();
+                const QSizeF scale(width() / m_document->width(), height() / m_document->height());
+                if (!m_patchMeshCached || region != m_patchOverlayRegion ||
+                    target != m_patchTargetRect || scale != m_patchMeshScale ||
+                    m_overlayRect != m_patchMeshViewport) {
+                    auto mesh = PhotoCrap::Render::patchMesh(region, target, scale, m_overlayRect);
+                    m_patchVertices      = std::move(mesh.vertices);
+                    m_patchMeshFallback  = mesh.fallback;
+                    m_patchOverlayRegion = region;
+                    m_patchTargetRect    = target;
+                    m_patchMeshScale     = scale;
+                    m_patchMeshViewport  = m_overlayRect;
+                    m_patchMeshCached    = true;
+                    ++m_patchGeometryRevision;
+                }
+                patchMeshNeeded = !m_patchMeshFallback;
+                if (patchMeshNeeded) {
+                    const auto image = m_document->patchPreviewImage();
+                    // Destination drags can move identical donor pixels.
+                    if (m_patchImage != image)
+                        m_patchImage = image;
+                }
+            }
+            m_gpuPatch = patchMeshNeeded;
             if (remove && hardware) {
                 const auto   region = m_document->removeRegion();
                 const QSizeF scale(width() / m_document->width(), height() / m_document->height());
@@ -461,7 +494,8 @@ void CanvasItem::updatePolish()
                 }
             }
             m_gpuSelection = selectionMeshNeeded;
-            if (patch || (remove && !m_gpuRemove) || (selection && !m_gpuSelection)) {
+            if ((patch && !m_gpuPatch) || (remove && !m_gpuRemove) ||
+                (selection && !m_gpuSelection)) {
                 m_overlayImage = QImage(QSize(qCeil(m_overlayRect.width() * ratio),
                                               qCeil(m_overlayRect.height() * ratio)),
                                         QImage::Format_ARGB32_Premultiplied);
@@ -471,7 +505,7 @@ void CanvasItem::updatePolish()
                     QPainter painter(&m_overlayImage);
                     painter.translate(-m_overlayRect.topLeft());
                     painter.scale(width() / m_document->width(), height() / m_document->height());
-                    if (patch) {
+                    if (patch && !m_gpuPatch) {
                         painter.save();
                         painter.setClipRegion(m_document->patchTargetRegion());
                         painter.drawImage(m_document->patchTargetRect(),
@@ -498,6 +532,22 @@ void CanvasItem::updatePolish()
                         painter.drawPath(m_selectionPath);
                     }
                 }
+            }
+        }
+        if (!patchMeshNeeded) {
+            m_gpuPatch   = false;
+            m_patchImage = {};
+            if (!patchPending) {
+                m_patchOverlayRegion = {};
+                m_patchMeshCached    = false;
+                m_patchMeshFallback  = false;
+                m_patchGpuRejected   = false;
+            }
+            if (!m_patchMeshFallback)
+                m_patchMeshCached = false;
+            if (!m_patchVertices.isEmpty()) {
+                m_patchVertices = {};
+                ++m_patchGeometryRevision;
             }
         }
         if (!removeMeshNeeded) {
@@ -747,6 +797,67 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
     if (node->overlay) {
         node->overlay->setRect(m_overlayRect);
         node->overlay->setFiltering(QSGTexture::Nearest);
+    }
+    if (!m_gpuPatch || m_patchVertices.isEmpty()) {
+        if (node->patchRoot) {
+            node->effects.removeChildNode(node->patchRoot);
+            delete node->patchRoot;
+            node->patchRoot     = nullptr;
+            node->patch         = nullptr;
+            node->patchImageKey = 0;
+        }
+    } else {
+        bool geometryChanged = false;
+        if (!node->patchRoot || node->patchImageKey != m_patchImage.cacheKey()) {
+            auto *texture = window()->createTextureFromImage(
+                m_patchImage.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+            if (!texture) {
+                QMetaObject::invokeMethod(
+                    this,
+                    [this] {
+                        m_patchGpuRejected = true;
+                        queueFrame(false, true);
+                    },
+                    Qt::QueuedConnection);
+                if (node->patchRoot) {
+                    node->effects.removeChildNode(node->patchRoot);
+                    delete node->patchRoot;
+                    node->patchRoot     = nullptr;
+                    node->patch         = nullptr;
+                    node->patchImageKey = 0;
+                }
+            } else {
+                if (!node->patchRoot) {
+                    node->patchRoot = new ClippedOverlayNode;
+                    node->patch     = new PatchPreviewNode(texture);
+                    node->patchRoot->appendContent(node->patch);
+                    if (node->overlay)
+                        node->effects.insertChildNodeBefore(node->patchRoot, node->overlay);
+                    else if (node->removeRoot)
+                        node->effects.insertChildNodeBefore(node->patchRoot, node->removeRoot);
+                    else if (node->selectionRoot)
+                        node->effects.insertChildNodeBefore(node->patchRoot, node->selectionRoot);
+                    else
+                        node->effects.appendChildNode(node->patchRoot);
+                    geometryChanged = true;
+                } else
+                    geometryChanged = node->patch->setTexture(texture);
+                node->patchImageKey = m_patchImage.cacheKey();
+#ifdef PHOTOCRAP_TESTING
+                ++m_patchTextureUploads;
+#endif
+            }
+        }
+        if (node->patchRoot) {
+            node->patchRoot->setViewport(m_overlayRect);
+            if (geometryChanged || node->patchRevision != m_patchGeometryRevision) {
+                node->patch->setMesh(m_patchVertices);
+                node->patchRevision = m_patchGeometryRevision;
+#ifdef PHOTOCRAP_TESTING
+                ++m_patchGeometryUploads;
+#endif
+            }
+        }
     }
     if (!m_gpuRemove || m_removeVertices.isEmpty()) {
         if (node->removeRoot) {

@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "render/PatchMesh.h"
 #include "render/RegionMesh.h"
 #include "render/SelectionMesh.h"
 #include <QPainterPath>
@@ -100,6 +101,18 @@ public:
     {
         return m_regionGeometryUploads.load();
     }
+    bool patchOverlayGpuActive() const
+    {
+        return m_gpuPatch;
+    }
+    quint64 patchTextureUploads() const
+    {
+        return m_patchTextureUploads.load();
+    }
+    quint64 patchGeometryUploads() const
+    {
+        return m_patchGeometryUploads.load();
+    }
 #endif
 protected:
     QSGNode *updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *) override;
@@ -128,7 +141,16 @@ private:
     QSizeF                                   m_removeMeshScale;
     QRectF                                   m_removeMeshViewport;
     quint64                                  m_removeGeometryRevision = 0;
-    bool   m_gpuRemove = false, m_removeMeshCached = false, m_removeMeshFallback = false;
+    bool    m_gpuRemove = false, m_removeMeshCached = false, m_removeMeshFallback = false;
+    QRegion m_patchOverlayRegion;
+    QRect   m_patchTargetRect;
+    QVector<PhotoCrap::Render::PatchVertex> m_patchVertices;
+    QSizeF                                  m_patchMeshScale;
+    QRectF                                  m_patchMeshViewport;
+    QImage                                  m_patchImage;
+    quint64                                 m_patchGeometryRevision = 0;
+    bool   m_gpuPatch = false, m_patchMeshCached = false, m_patchMeshFallback = false,
+           m_patchGpuRejected = false;
     QImage m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
     bool   m_gpuTonePreviewEnabled = false;
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
@@ -151,6 +173,7 @@ private:
     std::atomic<quint64> m_residentTextureBytes{0};
     std::atomic<quint64> m_selectionGeometryUploads{0}, m_overlayTextureUploads{0};
     std::atomic<quint64> m_regionGeometryUploads{0};
+    std::atomic<quint64> m_patchTextureUploads{0}, m_patchGeometryUploads{0};
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

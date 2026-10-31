@@ -45,8 +45,8 @@ la configuration et la disponibilité. Ce changement ne force pas Vulkan sous Li
 - Le damier de transparence utilise une texture répétée de 24 × 24 sur les backends
   RHI. Le rendu logiciel garde un fond limité à la zone visible.
 - Les contours des sélections générales, le marquage de suppression et l’aperçu
-  de Pièce sont séparés de la photo. Pièce garde une petite surface QPainter limitée
-  à la vue. Sur les backends RHI, le marquage est une géométrie translucide et les
+  de Pièce sont séparés de la photo. Sur les backends RHI, Pièce utilise directement
+  sa texture donneuse bornée, le marquage est une géométrie translucide et les
   contours généraux utilisent
   une géométrie de trait et un shader de pointillés : animer leurs fourmis ne
   recrée ni image, ni texture, ni géométrie.
@@ -64,10 +64,10 @@ Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
 La composition des calques, les masques, les traits et les rendus complets des
 filtres restent calculés sur CPU. Les aperçus pris en charge sont décrits ci-dessous.
-Pièce utilise encore QPainter dans une petite surface puis une texture.
-Les contours généraux et le marquage de Suppression utilisent les géométries
-GPU décrites plus bas, avec repli QPainter pour le backend logiciel ou les cas
-trop complexes.
+Les contours généraux, le marquage de Suppression et l’aperçu de Pièce utilisent
+les géométries GPU décrites plus bas, avec repli QPainter pour le backend logiciel
+ou les cas trop complexes. L’image donneuse de Pièce reste préparée par le moteur
+CPU ; son affichage ne passe plus par une seconde surface de la taille de la vue.
 Les transferts régionaux couvrent le composite CPU et ses niveaux réduits.
 `render/DisplayLevel` met à jour le cache réduit par portions lorsque les dimensions
 source sont divisibles par celles du niveau. Les portions sont alignées sur cette
@@ -205,6 +205,41 @@ uniformes, le découpage, les grandes coordonnées et le repli de complexité.
 `canvas_render` compare le mélange couleur, l’intérieur des trous et les zones
 non marquées, puis contrôle l’animation simultanée, le clip sous rotation,
 l’annulation et le maintien du refus en 16 bits sur Metal/OpenGL et en logiciel.
+
+## Aperçu de Pièce en texture GPU
+
+`render/PatchMesh` génère des triangles texturés suivant les rectangles disjoints
+de la région cible. Les positions sont limitées à la vue et relatives à son origine ;
+les coordonnées UV restent liées au rectangle cible entier, avant découpage.
+Les trous restent donc vides et un déplacement de vue ne décale pas la texture.
+`PatchPreviewNode` possède la texture donneuse et utilise le matériau texturé
+standard de Qt, avec transparence prémultipliée et échantillonnage au plus proche,
+comme l’affichage raster précédent.
+
+Le moteur prépare toujours son image donneuse sur CPU, limitée à 1 000 pixels
+sur chaque axe. Le canevas réutilise cette image immuable ; il ne la repeint plus
+dans une seconde image couvrant la vue. Quand les pixels donneurs changent, la
+texture bornée est retransférée entièrement. Des pixels identiques conservent
+leur clé de texture, même si le moteur a produit une nouvelle instance d’image.
+La géométrie ne change que si la région cible, son rectangle, l’échelle ou la vue
+change (ou si le sous-rectangle de texture du backend change).
+
+Ainsi, en mode Source, déplacer l’échantillon conserve généralement la géométrie ;
+en mode Destination, déplacer un donneur inchangé conserve sa texture. L’animation
+d’une sélection simultanée ne modifie aucune de ces ressources. Annuler ou terminer
+le geste libère l’aperçu. Le même chemin d’affichage sert aux aperçus de déplacement
+de région qui utilisent cette image ; aucun algorithme de réparation n’est modifié.
+
+Le repli QPainter couvre le backend logiciel, le dépassement du million de sommets
+(environ 15,3 Mio) et un échec d’allocation de texture. La préparation du donneur
+reste synchrone sur CPU pendant le geste ; cette étape n’accélère que son affichage.
+Les restrictions existantes des outils en 16 bits restent applicables.
+
+La suite `patch_mesh` vérifie les UV après découpage, les trous, le rectangle cible,
+les grandes coordonnées et le repli de complexité. `canvas_render` compare les
+modes Source/Destination sur une image donneuse à motifs et semi-transparente,
+contrôle la réutilisation des ressources, les trous, la rotation et l’annulation,
+en logiciel ainsi que sur Metal et OpenGL.
 
 ## Aperçus de réglages sur GPU
 

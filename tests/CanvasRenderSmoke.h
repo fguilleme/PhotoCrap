@@ -497,6 +497,112 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
         document.setRemoveSubtract(false);
         document.setRemoveAfterEachStroke(true);
     }
+    QImage donor(512, 320, QImage::Format_ARGB32_Premultiplied);
+    donor.fill(QColor(180, 40, 40));
+    for (int y = 0; y < donor.height(); ++y)
+        for (int x = 256; x < donor.width(); ++x)
+            donor.setPixelColor(x, y, QColor(30 + x % 100, 40 + y % 180, 100 + (x + y) % 90, 128));
+    const auto donorPath = directory.filePath("patch-preview.png");
+    if (!require(donor.save(donorPath), "create a transparent patterned donor"))
+        return false;
+    for (int mode : {0, 1}) {
+        if (!require(document.openFile(QUrl::fromLocalFile(donorPath)),
+                     "open patch preview reference"))
+            return false;
+        canvas.setSize({512, 320});
+        canvas.setViewportRect(canvas.boundingRect());
+        document.setSelectionEdgesVisible(true);
+        document.setTool("select");
+        document.setSelectionMode(0);
+        document.beginStroke(96, 96);
+        document.continueStroke(160, 160);
+        document.endStroke();
+        document.setSelectionMode(2);
+        document.beginStroke(120, 120);
+        document.continueStroke(136, 136);
+        document.endStroke();
+        document.setSelectionMode(0);
+        document.setPatchMode(mode);
+        document.setTool("patch");
+        const auto before  = frame();
+        const auto photo   = canvas.imageTextureUploads();
+        const int  history = document.historyIndex();
+        document.beginStroke(128, 100);
+        document.continueStroke(368, 100);
+        frame();
+        const auto textures = canvas.patchTextureUploads(),
+                   geometry = canvas.patchGeometryUploads();
+        document.continueStroke(384, 100);
+        const auto preview = frame();
+        const auto image   = document.patchPreviewImage();
+        const auto target  = document.patchTargetRect();
+        if (!require(document.patchDragging() && !image.isNull() &&
+                         document.historyIndex() == history &&
+                         canvas.imageTextureUploads() == photo,
+                     "donor preview does not alter native pixels or history"))
+            return false;
+        const QPoint offset(mode == 1 ? 256 : 0, 0);
+        for (const auto &p : {QPoint(106, 106), QPoint(150, 110), QPoint(110, 150)}) {
+            const auto at = p + offset;
+            const int  u =
+                qBound(0, qFloor((at.x() + .5 - target.x()) * image.width() / target.width()),
+                       image.width() - 1);
+            const int v =
+                qBound(0, qFloor((at.y() + .5 - target.y()) * image.height() / target.height()),
+                       image.height() - 1);
+            QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+            expected.fill(pixel(before, at.x() + .5, at.y() + .5));
+            QPainter paint(&expected);
+            paint.drawImage(QRect(0, 0, 1, 1), image, QRect(u, v, 1, 1));
+            paint.end();
+            if (!require(near(pixel(preview, at.x() + .5, at.y() + .5), expected.pixelColor(0, 0)),
+                         "source/destination patch texture and alpha match the raster reference"))
+                return false;
+        }
+        const auto hole = QPoint(128, 128) + offset;
+        if (!require(near(pixel(preview, hole.x() + .5, hole.y() + .5),
+                          pixel(before, hole.x() + .5, hole.y() + .5)),
+                     "patch geometry leaves selection holes untouched"))
+            return false;
+        if (shaderSelection) {
+            if (!require(canvas.patchOverlayGpuActive() && canvas.overlayPixelSize().isEmpty() &&
+                             (mode == 0 ? canvas.patchGeometryUploads() == geometry &&
+                                              canvas.patchTextureUploads() == textures + 1
+                                        : canvas.patchGeometryUploads() == geometry + 1 &&
+                                              canvas.patchTextureUploads() == textures),
+                         "source drags reuse geometry; destination drags reuse identical donor "
+                         "textures"))
+                return false;
+            const auto patchGeometry = canvas.patchGeometryUploads(),
+                       patchTextures = canvas.patchTextureUploads();
+            canvas.setSelectionPhase(canvas.selectionPhase() + .25);
+            frame();
+            if (!require(canvas.patchGeometryUploads() == patchGeometry &&
+                             canvas.patchTextureUploads() == patchTextures,
+                         "selection animation leaves donor resources unchanged"))
+                return false;
+            canvas.setViewportRect({50, 50, 400, 200});
+            frame();
+            const auto at              = QPoint(106, 106) + offset;
+            const auto expectedRotated = pixel(preview, at.x() + .5, at.y() + .5);
+            canvas.setRotation(12);
+            const auto rotated = frame();
+            if (!require(near(pixel(rotated, at.x() + .5, at.y() + .5), expectedRotated),
+                         "patch UV coordinates survive viewport clipping and rotation"))
+                return false;
+            canvas.setRotation(0);
+            canvas.setViewportRect(canvas.boundingRect());
+        }
+        document.cancelStroke();
+        const auto cancelled = frame();
+        const auto at        = QPoint(106, 106) + offset;
+        if (!require(!document.patchDragging() && !canvas.patchOverlayGpuActive() &&
+                         document.historyIndex() == history &&
+                         near(pixel(cancelled, at.x() + .5, at.y() + .5),
+                              pixel(before, at.x() + .5, at.y() + .5)),
+                     "cancelling a patch clears its texture and restores the selection"))
+            return false;
+    }
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

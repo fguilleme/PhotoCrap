@@ -71,6 +71,16 @@ vec3 hslToRgb(vec3 hsl)
 }
 float blendChannel(float base, float source, int mode)
 {
+    // Integer channel coordinates keep near-zero denominators exact.
+    if (mode == 4 || mode == 9 || mode == 22) {
+        float baseByte = floor(base * 255.0 + 0.5);
+        float sourceByte = floor(source * 255.0 + 0.5);
+        if (mode == 4)
+            return sourceByte <= 0.0 ? 0.0 : 1.0 - min(1.0, (255.0 - baseByte) / sourceByte);
+        if (mode == 9)
+            return sourceByte >= 255.0 ? 1.0 : min(1.0, baseByte / (255.0 - sourceByte));
+        return sourceByte <= 0.0 ? 1.0 : min(1.0, baseByte / sourceByte);
+    }
     if (mode == 2) return min(base, source);
     if (mode == 3) return base * source;
     if (mode == 5) return max(0.0, base + source - 1.0);

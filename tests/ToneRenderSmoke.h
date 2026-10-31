@@ -662,20 +662,21 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 preview(.8);
                 document.previewLayerBlend(document.activeLayer(), 23);
                 if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
-                             "exact unmasked sources enable HSL blending"))
+                             "exact unmasked sources enable conditional blending"))
                     return false;
                 frame();
                 const auto hslPhoto = canvas.imageTextureUploads();
                 const auto hslTable = canvas.toneTableUploads();
-                for (int blend : PhotoCrap::Filters::gpuToneHslBlendModes()) {
+                for (int blend : PhotoCrap::Filters::gpuToneConditionalBlendModes()) {
                     document.previewLayerBlend(document.activeLayer(), blend);
                     const auto expected = document.composite();
                     if (!require(check(frame(), expected, true) &&
                                      canvas.imageTextureUploads() == hslPhoto &&
                                      canvas.toneTableUploads() == hslTable &&
                                      document.gpuTonePreviewMask().isNull(),
-                                 "HSL blending matches QColor without photo or lookup uploads")) {
-                        qWarning() << "Failed HSL blend/filter:" << blend << type;
+                                 "conditional blending matches the CPU without photo or lookup "
+                                 "uploads")) {
+                        qWarning() << "Failed conditional blend/filter:" << blend << type;
                         return false;
                     }
                 }
@@ -684,12 +685,48 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 if (!require(
                         QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000) &&
                             check(frame(), expected, true),
-                        "HSL final render matches the native CPU result"))
+                        "conditional final render matches the native CPU result"))
                     return false;
             }
         }
     }
     if (hardware) {
+        // Sweep the base ramp against flat Curves outputs to test ratio boundaries.
+        if (!require(document.openFile(QUrl::fromLocalFile(path)), "open ratio boundary reference"))
+            return false;
+        document.addAdjustmentLayer("curves");
+        for (double opacity : {1., .37}) {
+            document.setLayerOpacity(document.activeLayer(), opacity);
+            document.previewLayerParameter(
+                "points",
+                QVariantList{QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 255}, {"y", 0}}});
+            document.previewLayerBlend(document.activeLayer(), 4);
+            if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                         "ratio boundary preview starts"))
+                return false;
+            frame();
+            const auto ratioPhoto = canvas.imageTextureUploads();
+            for (int source : {0, 1, 2, 63, 64, 127, 128, 191, 192, 253, 254, 255}) {
+                document.previewLayerParameter(
+                    "points", QVariantList{QVariantMap{{"x", 0}, {"y", source}},
+                                           QVariantMap{{"x", 255}, {"y", source}}});
+                for (int blend : PhotoCrap::Filters::gpuToneRatioBlendModes()) {
+                    document.previewLayerBlend(document.activeLayer(), blend);
+                    const auto expected = document.composite();
+                    if (!require(check(frame(), expected, true) &&
+                                     canvas.imageTextureUploads() == ratioPhoto,
+                                 "burn, dodge and divide preserve zero/near-zero denominator "
+                                 "semantics")) {
+                        qWarning() << "Failed ratio source/mode:" << source << blend << opacity;
+                        return false;
+                    }
+                }
+            }
+            document.finishLayerPreview();
+            if (!require(QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000),
+                         "ratio final render finishes"))
+                return false;
+        }
         // Mask/photo tile padding must agree at 1024 pixels and across display LODs.
         QImage wide(1280, 256, QImage::Format_ARGB32);
         wide.fill(QColor(40, 110, 210));
@@ -739,6 +776,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
     qInfo() << "Tone render checks passed; filters:" << types.size()
             << "; blend modes:" << PhotoCrap::Filters::gpuToneBlendModes().size()
             << "; HSL modes:" << PhotoCrap::Filters::gpuToneHslBlendModes().size()
+            << "; ratio modes:" << PhotoCrap::Filters::gpuToneRatioBlendModes().size()
             << "; hardware:" << hardware << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
             << "; LUT textures:" << canvas.toneTableUploads()

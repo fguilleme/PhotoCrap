@@ -26,12 +26,26 @@ const QList<int> &gpuToneHslBlendModes()
     static const QList<int> modes{23, 24, 25, 26};
     return modes;
 }
+const QList<int> &gpuToneRatioBlendModes()
+{
+    static const QList<int> modes{4, 9, 22};
+    return modes;
+}
+const QList<int> &gpuToneConditionalBlendModes()
+{
+    static const QList<int> modes = [] {
+        auto result = gpuToneHslBlendModes();
+        result.append(gpuToneRatioBlendModes());
+        return result;
+    }();
+    return modes;
+}
 bool gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage)
 {
     if (gpuToneBlendModes().contains(_blend))
         return true;
-    // HSL hue is unstable near gray: require exact input bytes, without mask
-    // premultiplication. Analytic color shaders can differ by one display unit.
+    // Hue near gray and division near zero amplify one-byte input errors.
+    // Require exact inputs, without visible mask premultiplication.
     static const QStringList exactTypes{QStringLiteral("curves"),
                                         QStringLiteral("levels"),
                                         QStringLiteral("brightnessContrast"),
@@ -42,7 +56,8 @@ bool gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage)
                                         QStringLiteral("gradientMap"),
                                         QStringLiteral("threshold"),
                                         QStringLiteral("invert")};
-    return _fullCoverage && gpuToneHslBlendModes().contains(_blend) && exactTypes.contains(_type);
+    return _fullCoverage && gpuToneConditionalBlendModes().contains(_blend) &&
+           exactTypes.contains(_type);
 }
 const QStringList &gpuTonePreviewTypes()
 {

@@ -155,13 +155,16 @@ le backend logiciel.
   conversion HSL commune avec Teinte/Saturation. Elle conserve les quantifications
   QColor (centièmes de degré, saturation/luminosité 16 bits), une teinte neutre
   pour les gris et les canaux mélangés 16 bits avant l’arrondi écran final.
-- Ces quatre fusions demandent des octets d’entrée exacts. Elles sont éligibles
+- Densité couleur +, Densité couleur − et Division utilisent les coordonnées
+  entières 0–255 des canaux avant de former leurs rapports. Les cas source zéro
+  ou 255 gardent les branches du CPU, sans epsilon arbitraire dans les dénominateurs.
+- Ces sept fusions demandent des octets d’entrée exacts. Elles sont éligibles
   avec Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance des couleurs,
   Isohélie, Lumière, Transfert de dégradé, Seuil et Négatif, sans atténuation du
   masque : masque absent, désactivé, uniforme blanc ou densité à zéro. L’opacité
   du calque peut rester réduite. Les autres réglages et les masques visibles restent
-  CPU, car une différence d’un seul canal près d’un gris peut changer fortement la
-  teinte HSL. Ce repli ne change pas le comportement de l’outil.
+  CPU : une différence d’un canal peut changer fortement une teinte près du gris
+  ou un rapport près d’un dénominateur nul. Ce repli ne change pas le comportement de l’outil.
 - Les fusions RVB reprennent les formules CPU. Le masque est appliqué avant la
   conversion des pixels prémultipliés en couleurs droites, puis le mélange utilise
   l’alpha du masque et l’opacité. Normal conserve les arrondis de son chemin QPainter
@@ -169,8 +172,8 @@ le backend logiciel.
   shader ; le bloc reste de 224 octets et aucun sampler n’est ajouté.
 - Le survol des modes de fusion d’un réglage éligible ne change que cette constante.
   Les calques de pixels, Fondu, Couleur plus foncée/claire, Lumière tamisée/vive,
-  Mélange maximal et les modes avec division restent CPU. Les modes HSL utilisent
-  les conditions plus strictes décrites ci-dessus.
+  Mélange maximal restent CPU. Les quatre modes HSL et les trois modes de rapport
+  utilisent les conditions plus strictes décrites ci-dessus.
   Il s’agit de l’aperçu du réglage actif, pas d’une composition GPU de toute la pile.
 - Les tables identiques sont conservées. Changer uniquement la densité ou le
   contour progressif d’un masque uniforme ne retransfère ni la photo ni la table.
@@ -221,7 +224,7 @@ Il vérifie aussi l’éviction/relecture des blocs hors écran, l’absence de 
 persistante au composite complet et la taille de la surface des sélections à fort zoom.
 
 ```sh
-ctest --test-dir build -R '^(gpu_tone_preview|gpu_hsl_blend_preview|tone_render|preset_preview|canvas_render|qml_smoke)$' --output-on-failure
+ctest --test-dir build -R '^(gpu_tone_preview|gpu_conditional_blend_preview|tone_render|preset_preview|canvas_render|qml_smoke)$' --output-on-failure
 ```
 
 Ce test CTest utilise le backend logiciel pour rester exécutable dans la CI des trois
@@ -287,10 +290,15 @@ Les quatre fusions HSL sont comparées à QColor sur chacun des dix réglages
 Le changement de fusion ne doit retransférer ni la photo ni la table. Les tests
 moteur couvrent les dix réglages en 8/16 bits, l’historique, l’annulation, le repli
 avec masque gris, le retour au GPU à densité zéro ou masque désactivé, ainsi que
-le repli de chacun des huit autres réglages pour les quatre modes. Ils sont regroupés
-dans `gpu_hsl_blend_preview`, séparé de la suite générale pour conserver des délais
+le repli de chacun des huit autres réglages pour ces sept modes. Ils sont regroupés
+dans `gpu_conditional_blend_preview`, séparé de la suite générale pour conserver des délais
 de test courts. Les images uniformes du test moteur restent petites ; le scénario
-natif conserve ses motifs couleur complets.
+natif conserve ses motifs couleur complets. Les trois modes de rapport sont
+comparés sur les dix réglages éligibles et sur chaque valeur de base 0–255, face à
+des sorties Courbes constantes 0/1/2/63/64/127/128/191/192/253/254/255, à 100 % et
+37 % d’opacité. Le changement de mode ne retransfère aucune photo. Le test moteur
+utilise `QTest::qWaitFor` pour traiter les événements sans les pauses de 50 ms de
+chaque attente générale ; les délais maximaux restent identiques.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.

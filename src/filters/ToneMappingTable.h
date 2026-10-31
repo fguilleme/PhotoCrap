@@ -10,6 +10,8 @@ namespace PhotoCrap::Filters
 const QStringList &gpuTonePreviewTypes();
 const QList<int>  &gpuToneBlendModes();
 const QList<int>  &gpuToneHslBlendModes();
+const QList<int>  &gpuToneRatioBlendModes();
+const QList<int>  &gpuToneConditionalBlendModes();
 bool               gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage);
 // The low four bits identify the filter; bit 4 selects the mask texture.
 // Higher bits encode the blend mode in the shader uniform.

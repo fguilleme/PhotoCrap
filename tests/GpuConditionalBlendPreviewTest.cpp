@@ -2,23 +2,23 @@
 #include "filters/ToneMappingTable.h"
 #include <QtTest>
 
-class GpuHslBlendPreviewTest : public QObject
+class GpuConditionalBlendPreviewTest : public QObject
 {
     Q_OBJECT
 private slots:
-    void hslBlendPreview_data()
+    void conditionalBlendPreview_data()
     {
         QTest::addColumn<QString>("type");
         QTest::addColumn<int>("blend");
         QTest::addColumn<int>("bits");
         for (const auto &type : PhotoCrap::Filters::gpuTonePreviewTypes())
-            for (int blend : PhotoCrap::Filters::gpuToneHslBlendModes())
+            for (int blend : PhotoCrap::Filters::gpuToneConditionalBlendModes())
                 if (PhotoCrap::Filters::gpuToneBlendSupported(type, blend, true))
                     for (int bits : {8, 16})
                         QTest::newRow(qPrintable(type + QString("-%1-%2").arg(blend).arg(bits)))
                             << type << blend << bits;
     }
-    void hslBlendPreview()
+    void conditionalBlendPreview()
     {
         QFETCH(QString, type);
         QFETCH(int, blend);
@@ -37,7 +37,7 @@ private slots:
         const int  history = doc.historyIndex();
         for (auto *target : {&doc, &cpu})
             target->previewLayerBlend(target->activeLayer(), blend);
-        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QVERIFY(QTest::qWaitFor([&] { return doc.gpuTonePreviewActive(); }, 5000));
         QCOMPARE(doc.gpuTonePreviewSettings().blendMode, blend);
         const auto base  = doc.gpuTonePreviewBase().cacheKey();
         const auto table = doc.gpuTonePreviewTable().cacheKey();
@@ -49,26 +49,26 @@ private slots:
         QCOMPARE(doc.gpuTonePreviewTable().cacheKey(), table);
         for (auto *target : {&doc, &cpu})
             target->finishLayerPreview();
-        QTRY_VERIFY_WITH_TIMEOUT(!doc.gpuTonePreviewActive(), 5000);
+        QVERIFY(QTest::qWaitFor([&] { return !doc.gpuTonePreviewActive(); }, 5000));
         QCOMPARE(doc.composite(), cpu.composite());
         QCOMPARE(doc.channelBits(), bits);
         QCOMPARE(doc.historyIndex(), history + 1);
         doc.previewLayerBlend(doc.activeLayer(), blend);
-        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QVERIFY(QTest::qWaitFor([&] { return doc.gpuTonePreviewActive(); }, 5000));
         doc.cancelLayerPreview();
         QCOMPARE(doc.composite(), cpu.composite());
         doc.undo();
         QCOMPARE(doc.composite(), before);
     }
-    void hslMaskCoverage_data()
+    void maskCoverage_data()
     {
         QTest::addColumn<int>("blend");
         QTest::addColumn<int>("bits");
-        for (int blend : PhotoCrap::Filters::gpuToneHslBlendModes())
+        for (int blend : PhotoCrap::Filters::gpuToneConditionalBlendModes())
             for (int bits : {8, 16})
                 QTest::newRow(qPrintable(QString("%1-%2").arg(blend).arg(bits))) << blend << bits;
     }
-    void hslMaskCoverage()
+    void maskCoverage()
     {
         QFETCH(int, blend);
         QFETCH(int, bits);
@@ -83,35 +83,35 @@ private slots:
         doc.setEditingMask(false);
         const int revision = doc.revision();
         doc.previewLayerBlend(doc.activeLayer(), blend);
-        QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
+        QVERIFY(QTest::qWaitFor([&] { return doc.revision() > revision; }, 5000));
         QVERIFY(!doc.gpuTonePreviewActive());
         doc.previewLayerParameter("_maskDensity", 0.);
-        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QVERIFY(QTest::qWaitFor([&] { return doc.gpuTonePreviewActive(); }, 5000));
         QCOMPARE(doc.gpuTonePreviewSettings().maskCoverage, 255.f);
         doc.cancelLayerPreview();
         doc.setMaskEnabled(false);
         doc.previewLayerBlend(doc.activeLayer(), blend);
-        QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
+        QVERIFY(QTest::qWaitFor([&] { return doc.gpuTonePreviewActive(); }, 5000));
         doc.cancelLayerPreview();
     }
-    void hslAnalyticSourcesStayOnCpu()
+    void analyticSourcesStayOnCpu()
     {
         for (const auto &type : PhotoCrap::Filters::gpuTonePreviewTypes()) {
             if (PhotoCrap::Filters::gpuToneBlendSupported(type, 23, true))
                 continue;
-            for (int blend : PhotoCrap::Filters::gpuToneHslBlendModes()) {
+            for (int blend : PhotoCrap::Filters::gpuToneConditionalBlendModes()) {
                 Document doc;
                 QVERIFY(doc.newDocument(128, 64, false));
                 doc.setGpuTonePreviewEnabled(true);
                 doc.addAdjustmentLayer(type);
                 const int revision = doc.revision();
                 doc.previewLayerBlend(doc.activeLayer(), blend);
-                QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
+                QVERIFY(QTest::qWaitFor([&] { return doc.revision() > revision; }, 5000));
                 QVERIFY(!doc.gpuTonePreviewActive());
                 doc.cancelLayerPreview();
             }
         }
     }
 };
-QTEST_GUILESS_MAIN(GpuHslBlendPreviewTest)
-#include "GpuHslBlendPreviewTest.moc"
+QTEST_GUILESS_MAIN(GpuConditionalBlendPreviewTest)
+#include "GpuConditionalBlendPreviewTest.moc"

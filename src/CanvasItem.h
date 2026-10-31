@@ -83,7 +83,6 @@ private:
     bool               m_gpuTonePreviewEnabled = false;
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
     QHash<quint64, QImage>                  m_tileImages, m_maskTileImages;
-    qint64                                  m_maskRevision     = 0;
     qint64                                  m_textureSourceKey = 0;
     qint64                                  m_textureRevision  = 0;
     int                                     m_textureLevel     = -1;

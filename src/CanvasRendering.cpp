@@ -1,5 +1,6 @@
 #include "CanvasItem.h"
 #include "render/DisplayLevel.h"
+#include "render/TileSnapshot.h"
 #include "render/ToneMappingNode.h"
 
 #include <QPainter>
@@ -32,9 +33,9 @@ public:
     QSGTexture         *texture;
     QSGTexture         *mask = nullptr, *lookup = nullptr;
     ToneMappingSettings settings;
-    qint64              maskRevision = -1;
-    QSGImageNode       *image        = nullptr;
-    ToneMappingNode    *mapping      = nullptr;
+    qint64              maskKey = 0;
+    QSGImageNode       *image   = nullptr;
+    ToneMappingNode    *mapping = nullptr;
     QRectF              sourceRect;
     QPointF             sourceOrigin;
     qint64              imageKey;
@@ -56,15 +57,15 @@ public:
         delete texture;
         delete mask;
     }
-    void setMask(const QImage &_mask, qint64 _revision)
+    void setMask(const QImage &_mask)
     {
-        if (maskRevision == _revision)
+        if (maskKey == _mask.cacheKey())
             return;
         auto *previous = mask;
-        mask = _mask.isNull()
-                   ? nullptr
-                   : owner->createTextureFromImage(_mask.convertToFormat(QImage::Format_RGB32));
-        maskRevision = _revision;
+        mask    = _mask.isNull()
+                      ? nullptr
+                      : owner->createTextureFromImage(_mask.convertToFormat(QImage::Format_RGB32));
+        maskKey = _mask.cacheKey();
         setMapping(lookup, settings);
         delete previous;
     }
@@ -260,12 +261,13 @@ void CanvasItem::updatePolish()
         const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1.;
         const qreal scale =
             qMin(width() * ratio / m_sourceSize.width(), height() * ratio / m_sourceSize.height());
-        const int level = qBound(0, int(std::floor(std::log2(1. / scale))), 30);
-        if (maskChanged || changed || m_textureLevel != level) {
+        const int  level           = qBound(0, int(std::floor(std::log2(1. / scale))), 30);
+        const bool maskGridChanged = previousSize != m_sourceSize || m_textureLevel != level;
+        const bool refreshMask     = maskChanged || maskGridChanged;
+        if (maskGridChanged || m_toneMask.isNull())
             m_maskTileImages.clear();
+        if (refreshMask)
             m_textureMaskImage = {};
-            ++m_maskRevision;
-        }
         const bool regional = changed && level == m_textureLevel && previousSize == m_sourceSize &&
                               !updateRegion.isEmpty();
         if (regional) {
@@ -326,10 +328,13 @@ void CanvasItem::updatePolish()
                     const QRect tile   = QRect(x * tileSize, y * tileSize, tileSize, tileSize)
                                              .intersected(imageRect);
                     const QRect padded = tile.adjusted(-1, -1, 1, 1).intersected(imageRect);
-                    if (!m_toneMask.isNull() && !m_maskTileImages.contains(key)) {
-                        // Copy only visible mask tiles; density changes reuse these snapshots.
+                    if (!m_toneMask.isNull() && (refreshMask || !m_maskTileImages.contains(key))) {
+                        // Feathering may leave entire tiles unchanged. Preserve
+                        // those snapshots without copying or uploading them again.
                         const QImage &mask = level == 0 ? m_toneMask : m_textureMaskImage;
-                        m_maskTileImages.insert(key, mask.copy(padded));
+                        m_maskTileImages.insert(
+                            key, PhotoCrap::Render::tileSnapshot(mask, padded,
+                                                                 m_maskTileImages.value(key)));
                     }
                     if (m_tileImages.contains(key))
                         continue;
@@ -561,9 +566,9 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                 ++m_imageTextureUploads;
 #endif
             }
-            if (tile->maskRevision != m_maskRevision) {
-                const auto mask = m_maskTileImages.value(key);
-                tile->setMask(mask, m_maskRevision);
+            const auto mask = m_maskTileImages.value(key);
+            if (tile->maskKey != mask.cacheKey()) {
+                tile->setMask(mask);
                 if (!mask.isNull() && !tile->mask) {
                     QMetaObject::invokeMethod(
                         this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);

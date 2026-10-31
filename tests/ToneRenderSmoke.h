@@ -924,6 +924,131 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             return false;
         document.cancelLayerPreview();
     }
+    if (hardware) {
+        const qreal ratio = _window->effectiveDevicePixelRatio();
+        _window->setMinimumHeight(qCeil(1280 / ratio + 160));
+        canvas.setSize({1280 / ratio, 1280 / ratio});
+        canvas.setViewportRect(canvas.boundingRect());
+        document.setPreviewSize(1280, 1280);
+        for (int bits : {8, 16})
+            for (bool boundary : {false, true}) {
+                const int factor = bits == 16 ? 2 : 1;
+                if (!require(document.newDocument(1280 * factor, 1280 * factor, false, bits),
+                             "create a sparse mask reference"))
+                    return false;
+                document.setColor(QColor(40, 110, 210));
+                document.fillWithColor(true);
+                document.addAdjustmentLayer("levels");
+                document.setEditingMask(true);
+                document.fillMaskWithColor(Qt::white);
+                document.setTool("brush");
+                document.setBrushSize(64 * factor);
+                document.setBrushHardness(1.);
+                document.setColor(Qt::black);
+                document.beginStroke((boundary ? 1024 : 100) * factor, 100 * factor);
+                document.endStroke();
+                document.setEditingMask(false);
+                document.previewLayerParameter("gamma", 2.);
+                document.previewLayerParameter("_maskFeather", 2.);
+                if (!require(QTest::qWaitFor(
+                                 [&] {
+                                     return document.gpuTonePreviewActive() &&
+                                            !document.gpuTonePreviewMask().isNull();
+                                 },
+                                 5000),
+                             "sparse mask preview starts"))
+                    return false;
+                frame();
+                const auto photo = canvas.imageTextureUploads(), lookup = canvas.toneTableUploads();
+                const auto maskUploads     = canvas.maskTextureUploads();
+                const auto maskKey         = document.gpuTonePreviewMask().cacheKey();
+                const auto maskedReference = [&] {
+                    const auto base     = document.gpuTonePreviewBase();
+                    auto       result   = base.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+                    auto       adjusted = PhotoCrap::Filters::applyLevels(base, {{"gamma", 2.}})
+                                              .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+                    const auto mask     = document.gpuTonePreviewMask();
+                    const auto settings = document.gpuTonePreviewSettings();
+                    for (int y = 0; y < adjusted.height(); ++y) {
+                        auto       *row      = reinterpret_cast<QRgb *>(adjusted.scanLine(y));
+                        const auto *coverage = mask.constScanLine(y);
+                        for (int x = 0; x < adjusted.width(); ++x) {
+                            const int alpha =
+                                qRound(255 - (255 - coverage[x]) * settings.maskCoverage);
+                            row[x] = qRgba(qRound(qRed(row[x]) * alpha / 255.),
+                                           qRound(qGreen(row[x]) * alpha / 255.),
+                                           qRound(qBlue(row[x]) * alpha / 255.), alpha);
+                        }
+                    }
+                    QPainter painter(&result);
+                    painter.setOpacity(settings.effectOpacity);
+                    painter.drawImage(0, 0, adjusted);
+                    painter.end();
+                    return result;
+                };
+                document.previewLayerParameter("_maskFeather", 8.);
+                if (!require(QTest::qWaitFor(
+                                 [&] {
+                                     return document.gpuTonePreviewActive() &&
+                                            document.gpuTonePreviewMask().cacheKey() != maskKey;
+                                 },
+                                 5000),
+                             "new sparse feather is ready"))
+                    return false;
+                if (!require(check(frame(), maskedReference(), true) &&
+                                 canvas.imageTextureUploads() == photo &&
+                                 canvas.toneTableUploads() == lookup &&
+                                 canvas.maskTextureUploads() == maskUploads + (boundary ? 2 : 1),
+                             "feather uploads only the changed mask tiles, including both sides of "
+                             "a boundary"))
+                    return false;
+                const auto afterFeather = canvas.maskTextureUploads();
+                document.previewLayerParameter("_maskDensity", 37.);
+                if (!require(check(frame(), maskedReference(), true) &&
+                                 canvas.maskTextureUploads() == afterFeather &&
+                                 canvas.imageTextureUploads() == photo,
+                             "mask density changes preserve every mask texture"))
+                    return false;
+                // Reduced mask snapshots obey the same pixel identity rule.
+                canvas.setSize({320 / ratio, 320 / ratio});
+                canvas.setViewportRect(canvas.boundingRect());
+                frame();
+                const auto reducedMask    = document.gpuTonePreviewMask().cacheKey();
+                const auto reducedUploads = canvas.maskTextureUploads();
+                document.previewLayerParameter("_maskFeather", 12.);
+                if (!require(QTest::qWaitFor(
+                                 [&] {
+                                     return document.gpuTonePreviewActive() &&
+                                            document.gpuTonePreviewMask().cacheKey() != reducedMask;
+                                 },
+                                 5000),
+                             "reduced sparse feather is ready"))
+                    return false;
+                if (!require(check(frame(),
+                                   maskedReference().scaled(320, 320, Qt::IgnoreAspectRatio,
+                                                            Qt::SmoothTransformation),
+                                   true) &&
+                                 canvas.maskTextureUploads() == reducedUploads + 1,
+                             "reduced mask pixels and texture invalidation stay aligned"))
+                    return false;
+                canvas.setSize({1280 / ratio, 1280 / ratio});
+                canvas.setViewportRect(canvas.boundingRect());
+                frame();
+                document.cancelLayerPreview();
+                document.setMaskEnabled(false);
+                document.previewLayerParameter("gamma", 2.);
+                if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                             "unmasked preview returns"))
+                    return false;
+                if (!require(check(frame(),
+                                   PhotoCrap::Filters::applyLevels(document.gpuTonePreviewBase(),
+                                                                   {{"gamma", 2.}}),
+                                   true),
+                             "disabling the mask removes all old mask bindings"))
+                    return false;
+                document.cancelLayerPreview();
+            }
+    }
     qInfo() << "Tone render checks passed; filters:" << types.size()
             << "; blend modes:" << PhotoCrap::Filters::gpuToneBlendModes().size()
             << "; HSL modes:" << PhotoCrap::Filters::gpuToneHslBlendModes().size()

@@ -191,6 +191,17 @@ le backend logiciel.
   pixels de bordure que la photo. La texture utilise le format d’affichage RGB
   standard pour rester portable ; le masque de travail et son proxy restent en 8 bits.
   Les blocs de masque quittant la vue sont libérés et rechargés au retour.
+- Après un changement de contour progressif, les tuiles visibles sont comparées
+  à leurs snapshots précédents, bordures comprises. `render/TileSnapshot` compare
+  les octets utiles des lignes, sans inclure le remplissage d’alignement. Quand
+  les pixels et métadonnées sont identiques, il conserve la copie indépendante
+  et sa clé ; aucun nouveau bloc mémoire ni texture n’est créé pour cette tuile.
+  Les autres tuiles sont recopiées et retransférées individuellement. Le nœud de
+  rendu suit la clé de chaque masque plutôt qu’une révision globale.
+  Les changements de niveau/dimensions reconstruisent la grille ; la suppression
+  ou désactivation du masque retire ses anciennes textures et leur liaison au shader.
+  Le proxy de masque et son flou sont encore calculés intégralement par le worker :
+  cette étape réduit les copies de tuiles et les transferts, sans régionaliser ce calcul.
 - Changer la densité du masque peint modifie uniquement une constante du shader.
   Le contour progressif prépare un nouveau masque en arrière-plan, en réutilisant
   la base écran. Les demandes successives remplacent celles en attente ; un résultat
@@ -348,7 +359,8 @@ textures quand seule la densité change et le remplacement par le rendu final CP
 Les tests moteur couvrent ces états en 8 et 16 bits, l’historique, l’annulation et
 la désactivation du masque. Les masques peints sont exercés sur les dix-huit
 réglages avec densités 0/37/100 % et contours progressifs 2/8 pixels. La densité ne
-retransfère aucune texture ; le contour ne remplace que celle du masque. Un cas de
+retransfère aucune texture ; le contour ne remplace que les textures de masque
+ayant des pixels différents. Un cas de
 1 280 pixels de large vérifie la frontière à 1 024 pixels, l’éviction/relecture et
 le niveau de détail réduit. Les tests moteur vérifient aussi les contours demandés
 rapidement, l’annulation pendant le calcul et le redimensionnement, en 8/16 bits.
@@ -381,6 +393,14 @@ Le test natif compare Fondu avec six opacités sur Niveaux/Négatif et 37 % sur 
 seize autres réglages ; il contrôle aussi les rares hachages 0/65534/65535.
 Il parcourt les 256 frontières complémentaires de Mélange maximal et leurs
 voisins, puis vérifie Fondu sur plusieurs tuiles et après leur rechargement.
+Un masque localisé sur une base écran 1 280 × 1 280 vérifie aussi qu’un changement
+de contour ne retransfère qu’une tuile sur quatre, ou deux quand il traverse la
+frontière. Les compteurs de photo et de table doivent rester stables. Ces contrôles
+sont exécutés depuis des documents 8/16 bits, avec densité, niveau réduit et retrait
+du masque, et comparent les pixels à une composition QPainter indépendante.
+La suite `tile_snapshot` contrôle les gris 8 bits, le RVB, le RGBA prémultiplié
+8/16 bits, les modifications hors tuile, les derniers pixels/lignes et les changements
+de métadonnées, format et dimensions. Les snapshots ne retiennent pas le plan source.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.

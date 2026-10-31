@@ -15,6 +15,7 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
         m_toolLayout           = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
         m_scratchDiskGiB       = qBound(0, QSettings().value("cache/diskGiB", 4).toInt(), 64);
         m_scratchDirectory     = QSettings().value("cache/directory").toString();
+        m_textureCacheMiB      = qBound(0, QSettings().value("cache/textureMiB", 64).toInt(), 1024);
         if (!m_scratchDirectory.isEmpty() && !QDir::isAbsolutePath(m_scratchDirectory))
             m_scratchDirectory.clear();
     }
@@ -178,6 +179,16 @@ void WorkspaceSettings::setScratchDiskGiB(int _value)
     if (m_persist)
         QSettings().setValue("cache/diskGiB", _value);
     emit scratchCacheChanged();
+}
+void WorkspaceSettings::setTextureCacheMiB(int _value)
+{
+    _value = qBound(0, _value, 1024);
+    if (_value == m_textureCacheMiB)
+        return;
+    m_textureCacheMiB = _value;
+    if (m_persist)
+        QSettings().setValue("cache/textureMiB", _value);
+    emit textureCacheChanged();
 }
 void WorkspaceSettings::setScratchDirectory(const QString &_value)
 {

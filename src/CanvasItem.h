@@ -16,6 +16,8 @@ class CanvasItem : public QQuickItem
     Q_PROPERTY(
         QRectF viewportRect READ viewportRect WRITE setViewportRect NOTIFY viewportRectChanged)
     Q_PROPERTY(bool gpuTonePreviewEnabled READ gpuTonePreviewEnabled WRITE setGpuTonePreviewEnabled)
+    Q_PROPERTY(int textureCacheMiB READ textureCacheMiB WRITE setTextureCacheMiB NOTIFY
+                   textureCacheChanged)
 public:
     explicit CanvasItem(QQuickItem *_parent = nullptr);
     ~CanvasItem() override;
@@ -42,6 +44,11 @@ public:
         return m_gpuTonePreviewEnabled;
     }
     void setGpuTonePreviewEnabled(bool _enabled);
+    int  textureCacheMiB() const
+    {
+        return m_textureCacheMiB;
+    }
+    void setTextureCacheMiB(int _value);
 #ifdef PHOTOCRAP_TESTING
     quint64 imageTextureUploads() const
     {
@@ -63,6 +70,10 @@ public:
     {
         return m_displayLevelSourcePixels;
     }
+    quint64 residentTextureBytes() const
+    {
+        return m_residentTextureBytes.load();
+    }
 #endif
 protected:
     QSGNode *updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *) override;
@@ -73,6 +84,7 @@ signals:
     void documentChanged();
     void selectionPhaseChanged();
     void viewportRectChanged();
+    void textureCacheChanged();
 
 private:
     void               queueFrame(bool _image, bool _overlay);
@@ -83,6 +95,10 @@ private:
     bool               m_gpuTonePreviewEnabled = false;
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
     QHash<quint64, QImage>                  m_tileImages, m_maskTileImages;
+    QHash<quint64, quint64>                 m_tileLastUse;
+    QHash<quint64, qint64>                  m_maskTileSourceKeys;
+    quint64                                 m_tileClock        = 0;
+    int                                     m_textureCacheMiB  = 64;
     qint64                                  m_textureSourceKey = 0;
     qint64                                  m_textureRevision  = 0;
     int                                     m_textureLevel     = -1;
@@ -94,6 +110,7 @@ private:
     std::atomic<quint64> m_toneTableUploads{0};
     std::atomic<quint64> m_maskTextureUploads{0};
     quint64              m_displayLevelSourcePixels = 0;
+    std::atomic<quint64> m_residentTextureBytes{0};
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

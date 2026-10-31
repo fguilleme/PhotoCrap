@@ -959,11 +959,18 @@ private slots:
         QSettings().clear();
         WorkspaceSettings settings;
         QCOMPARE(settings.scratchDiskGiB(), 4);
+        QCOMPARE(settings.textureCacheMiB(), 64);
+        settings.setTextureCacheMiB(128);
         QVERIFY(settings.scratchDirectory().isEmpty());
         settings.setScratchDiskGiB(7);
         settings.setScratchDirectoryUrl(QUrl::fromLocalFile(root.path()));
         WorkspaceSettings restored;
         QCOMPARE(restored.scratchDiskGiB(), 7);
+        QCOMPARE(restored.textureCacheMiB(), 128);
+        restored.setTextureCacheMiB(2048);
+        QCOMPARE(restored.textureCacheMiB(), 1024);
+        restored.setTextureCacheMiB(-1);
+        QCOMPARE(restored.textureCacheMiB(), 0);
         QCOMPARE(restored.scratchDirectory(), root.path());
         restored.setScratchDirectory("relative/path");
         QCOMPARE(restored.scratchDirectory(), root.path());
@@ -973,6 +980,8 @@ private slots:
         QCOMPARE(restored.scratchDiskGiB(), 0);
         WorkspaceSettings temporary(nullptr, false);
         temporary.setScratchDiskGiB(9);
+        temporary.setTextureCacheMiB(512);
+        QCOMPARE(QSettings().value("cache/textureMiB").toInt(), 0);
         temporary.setScratchDirectory(root.path());
         QCOMPARE(QSettings().value("cache/diskGiB").toInt(), 0);
     }

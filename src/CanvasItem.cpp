@@ -321,6 +321,15 @@ void CanvasItem::setSelectionPhase(qreal _phase)
         queueFrame(false, true);
     emit selectionPhaseChanged();
 }
+void CanvasItem::setTextureCacheMiB(int _value)
+{
+    _value = qBound(0, _value, 1024);
+    if (_value == m_textureCacheMiB)
+        return;
+    m_textureCacheMiB = _value;
+    queueFrame(false, false);
+    emit textureCacheChanged();
+}
 void CanvasItem::setSystemCursor(int _shape, bool _active, const QString &_tool, int _selectionMode,
                                  bool _sourcePicking, bool _precise)
 {

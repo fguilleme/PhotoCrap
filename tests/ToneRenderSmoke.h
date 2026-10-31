@@ -41,6 +41,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         return false;
     Document   document;
     CanvasItem canvas(_window->contentItem());
+    canvas.setTextureCacheMiB(0);
     canvas.setZ(1000);
     canvas.setPosition({40, 120});
     canvas.setSize({512, 256});
@@ -1009,6 +1010,33 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                                  canvas.imageTextureUploads() == photo,
                              "mask density changes preserve every mask texture"))
                     return false;
+                canvas.setTextureCacheMiB(32);
+                canvas.setViewportRect({1050 / ratio, 1050 / ratio, 200 / ratio, 200 / ratio});
+                frame();
+                const auto cachedMasks = canvas.maskTextureUploads();
+                const auto oldMask     = document.gpuTonePreviewMask().cacheKey();
+                document.previewLayerParameter("_maskFeather", 10.);
+                if (!require(QTest::qWaitFor(
+                                 [&] {
+                                     return document.gpuTonePreviewActive() &&
+                                            document.gpuTonePreviewMask().cacheKey() != oldMask;
+                                 },
+                                 5000),
+                             "offscreen feather change is ready"))
+                    return false;
+                frame();
+                if (!require(canvas.maskTextureUploads() == cachedMasks &&
+                                 canvas.imageTextureUploads() == photo,
+                             "unchanged visible mask tile keeps cached offscreen resources"))
+                    return false;
+                canvas.setViewportRect(canvas.boundingRect());
+                if (!require(check(frame(), maskedReference(), true) &&
+                                 canvas.maskTextureUploads() == cachedMasks + (boundary ? 2 : 1) &&
+                                 canvas.imageTextureUploads() == photo &&
+                                 canvas.residentTextureBytes() <= 32 * 1048576,
+                             "cached mask tiles refresh deferred changes when revisited"))
+                    return false;
+                canvas.setTextureCacheMiB(0);
                 // Reduced mask snapshots obey the same pixel identity rule.
                 canvas.setSize({320 / ratio, 320 / ratio});
                 canvas.setViewportRect(canvas.boundingRect());

@@ -25,8 +25,8 @@ la configuration et la disponibilité. Ce changement ne force pas Vulkan sous Li
   les pixels d’origine à faible zoom. Ce n’est pas encore une pyramide calculée sur GPU.
 - Le niveau est découpé en blocs de **1 024 × 1 024**, avec un pixel voisin de bordure
   pour l’interpolation. Seuls les blocs intersectant la partie visible sont chargés ;
-  ceux qui sortent de la vue sont libérés. Il n’y a pas de texture unique de la taille
-  d’un grand document.
+  ceux qui sortent de la vue peuvent rester dans le cache graphique borné.
+  Il n’y a pas de texture unique de la taille d’un grand document.
 - Les textures sont réutilisées tant que l’image, le niveau et les blocs visibles
   restent identiques. Changer le zoom dans le même niveau ne fait que modifier la
   géométrie des nœuds ; déplacer la vue réutilise les blocs encore présents.
@@ -84,10 +84,34 @@ Fondu, Bruit et Mosaïque demandent une recomposition CPU complète, car leur r�
 dépend des coordonnées absolues. Les masques adoucis élargissent le rectangle de
 recomposition de leur rayon ; les halos des filtres s’additionnent.
 
-La résidence graphique des blocs est limitée à la vue, mais aucun budget global de
-VRAM configurable n’est encore implémenté. L’image source et le niveau réduit sont
-encore en RAM ; ce travail ne migre pas les plans de calques et l’historique sur disque
-et ne relève pas la limite de 2 Gio.
+## Cache graphique de navigation
+
+Préférences → Cache de travail propose un **Cache graphique** de 0 à 1 024 Mio,
+avec 64 Mio par défaut. La valeur est enregistrée dans `cache/textureMiB` et
+appliquée immédiatement au canevas ; 0 retrouve l’éviction immédiate hors champ.
+
+Les tuiles visibles sont prioritaires. L’espace restant conserve les tuiles hors
+champ les plus récemment affichées, avec un coût estimé de 4 octets par pixel
+pour la photo et autant pour son masque éventuel, bordures comprises. Les tuiles
+les moins récentes sont libérées en premier. Si la zone visible dépasse le budget,
+elle reste complète et aucune réserve hors champ n’est conservée. Ce budget est
+une cible pour les textures photo/masque du canevas, pas une limite de la VRAM
+totale du processus : tables, surimpressions, allocations du pilote et ressources
+en cours de libération ne sont pas comptées.
+
+Les nœuds hors champ sont détachés du dessin mais gardés en cache. Revenir sur
+une tuile valide réutilise sa texture. Une retouche régionale invalide aussi ses
+tuiles en cache ; les changements globaux, de résolution ou de document les
+recréent. Chaque snapshot de masque retient la version source qu’il représente :
+une modification hors champ est comparée et appliquée lorsque sa tuile revient.
+Désactiver le masque libère également les textures de masque conservées hors champ.
+
+Les copies CPU des tuiles suivent les mêmes décisions de conservation. Elles
+restent indépendantes du composite et conservent sa précision (donc jusqu’à
+8 octets par pixel pour une copie couleur 16 bits) ; leur RAM s’ajoute au budget
+des textures 8 bits. L’image source et le niveau réduit sont encore en RAM ; ce
+travail ne migre pas les plans de calques et l’historique sur disque et ne relève
+pas la limite de 2 Gio.
 
 ## Vérification des transferts régionaux
 
@@ -101,6 +125,12 @@ avec dimensions régulières ou irrégulières. Des compteurs distincts contrôl
 transferts de textures et la surface source rééchantillonnée : les petites retouches
 sur une grille entière traitent moins de 1 % de l’image dans ce scénario. Les
 retouches hors champ doivent aussi apparaître correctement lors du déplacement.
+Le scénario de navigation teste aussi un retour sans transfert, l’éviction en
+baissant le budget, la réactualisation d’une tuile retouchée hors champ et le
+maintien de toute la zone visible avec un budget inférieur à sa taille.
+La suite `tile_cache` contrôle l’ordre LRU, les coûts photo/masque différents,
+les égalités et les budgets nuls ou dépassés. Les tests de réglages vérifient
+la persistance, les bornes et la liaison bidirectionnelle entre préférence et canevas.
 La suite `display_level` compare exactement le cache partiel à la réduction
 complète Qt sur des motifs à haute fréquence, avec transparence, formats 8/16 bits,
 bords, changements de format/niveau et dimensions irrégulières. Elle vérifie aussi
@@ -190,7 +220,8 @@ le backend logiciel.
   Le shader reçoit les blocs visibles de ce masque avec les mêmes coordonnées et
   pixels de bordure que la photo. La texture utilise le format d’affichage RGB
   standard pour rester portable ; le masque de travail et son proxy restent en 8 bits.
-  Les blocs de masque quittant la vue sont libérés et rechargés au retour.
+  Les blocs de masque hors champ suivent le même cache de navigation que la photo.
+  Leur version est vérifiée avant le retour à l’écran.
 - Après un changement de contour progressif, les tuiles visibles sont comparées
   à leurs snapshots précédents, bordures comprises. `render/TileSnapshot` compare
   les octets utiles des lignes, sans inclure le remplissage d’alignement. Quand

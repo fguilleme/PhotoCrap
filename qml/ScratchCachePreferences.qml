@@ -23,6 +23,21 @@ ScrollView {
     width: panel.availableWidth
     spacing: 14
     Label { text: qsTr("Cache de travail"); color: "#eef2f5"; font.pixelSize: 20; font.bold: true }
+    RowLayout {
+        Layout.fillWidth: true
+        Label { text: qsTr("Cache graphique"); color: "#d3dbe2"; Layout.fillWidth: true }
+        DarkSpinBox {
+            objectName: "textureCacheBudget"
+            from: 0; to: 1024; value: panel.settings.textureCacheMiB; suffix: qsTr("Mio")
+            Accessible.name: qsTr("Budget du cache graphique")
+            onValueModified: panel.settings.textureCacheMiB = value
+        }
+    }
+    Label {
+        Layout.fillWidth: true
+        text: qsTr("Conserve les zones récemment affichées pour accélérer les déplacements. 0 désactive cette réserve. La zone visible reste prioritaire et peut dépasser le budget.")
+        color: "#a8b5c1"; wrapMode: Text.WordWrap
+    }
     Label {
         Layout.fillWidth: true
         text: qsTr("Conserve les rendus de fréquences sur disque pour éviter de les recalculer. Les pixels des calques et l’historique ne sont pas encore déchargés sur disque.")

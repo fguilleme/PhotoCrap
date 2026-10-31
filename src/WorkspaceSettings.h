@@ -18,6 +18,8 @@ class WorkspaceSettings final : public QObject
         int scratchDiskGiB READ scratchDiskGiB WRITE setScratchDiskGiB NOTIFY scratchCacheChanged)
     Q_PROPERTY(QString scratchDirectory READ scratchDirectory WRITE setScratchDirectory NOTIFY
                    scratchCacheChanged)
+    Q_PROPERTY(int textureCacheMiB READ textureCacheMiB WRITE setTextureCacheMiB NOTIFY
+                   textureCacheChanged)
 
 public:
     explicit WorkspaceSettings(QObject *_parent = nullptr, bool _persist = true);
@@ -54,12 +56,18 @@ public:
     void             setScratchDiskGiB(int _value);
     void             setScratchDirectory(const QString &_value);
     Q_INVOKABLE void setScratchDirectoryUrl(const QUrl &_url);
+    int              textureCacheMiB() const
+    {
+        return m_textureCacheMiB;
+    }
+    void setTextureCacheMiB(int _value);
 
 signals:
     void toolBehaviorChanged();
     void layoutChanged();
     void toolLayoutChanged();
     void scratchCacheChanged();
+    void textureCacheChanged();
 
 private:
     static QVariantList defaultToolLayout();
@@ -69,6 +77,7 @@ private:
     QVariantList m_toolLayout;
     bool         m_persist              = true;
     bool         m_useShiftToCycleTools = true, m_springLoadedTools = true;
-    int          m_scratchDiskGiB = 4;
+    int          m_scratchDiskGiB  = 4;
+    int          m_textureCacheMiB = 64;
     QString      m_scratchDirectory;
 };

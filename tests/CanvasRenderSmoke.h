@@ -16,6 +16,7 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
     };
     Document   document;
     CanvasItem canvas(_window->contentItem());
+    canvas.setTextureCacheMiB(0);
     canvas.setZ(1000);
     canvas.setPosition({40, 120});
     constexpr qreal initialScale = .4;
@@ -296,6 +297,71 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                     return false;
             }
     canvas.setX(40);
+    canvas.setSize({2176, 256});
+    canvas.setViewportRect(canvas.boundingRect());
+    canvas.setTextureCacheMiB(4);
+    for (int bits : {8, 16}) {
+        QImage stripes(2176, 256,
+                       bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                  : QImage::Format_ARGB32_Premultiplied);
+        stripes.fill(Qt::red);
+        QPainter paint(&stripes);
+        paint.fillRect(QRect(1024, 0, 1024, 256), Qt::green);
+        paint.fillRect(QRect(2048, 0, 128, 256), Qt::blue);
+        paint.end();
+        const auto path = directory.filePath(QString("cache-%1.png").arg(bits));
+        if (!require(stripes.save(path) && document.openFile(QUrl::fromLocalFile(path)),
+                     "create a cached navigation reference"))
+            return false;
+        canvas.setX(40);
+        canvas.setViewportRect(canvas.boundingRect());
+        frame();
+        auto previous = canvas.imageTextureUploads();
+        canvas.setViewportRect({0, 0, 800, 256});
+        frame();
+        canvas.setX(40 - 1100);
+        canvas.setViewportRect({1100, 0, 800, 256});
+        if (!require(near(pixel(frame(), 1500.5, 100.5), Qt::green) &&
+                         canvas.imageTextureUploads() == previous &&
+                         canvas.residentTextureBytes() <= 4 * 1048576,
+                     "cached 8/16-bit navigation reuses textures within its budget"))
+            return false;
+        canvas.setTextureCacheMiB(0);
+        frame();
+        canvas.setX(40);
+        canvas.setViewportRect({0, 0, 800, 256});
+        if (!require(near(pixel(frame(), 100.5, 100.5), Qt::red) &&
+                         canvas.imageTextureUploads() == previous + 1,
+                     "disabling the reserve evicts offscreen textures"))
+            return false;
+        canvas.setTextureCacheMiB(4);
+        canvas.setX(40 - 1100);
+        canvas.setViewportRect({1100, 0, 800, 256});
+        frame();
+        previous = canvas.imageTextureUploads();
+        stroke(100, 100, Qt::black, 32);
+        frame();
+        if (!require(canvas.imageTextureUploads() == previous,
+                     "editing a cached offscreen tile leaves visible textures intact"))
+            return false;
+        canvas.setX(40);
+        canvas.setViewportRect({0, 0, 800, 256});
+        if (!require(near(pixel(frame(), 100.5, 100.5), Qt::black) &&
+                         canvas.imageTextureUploads() == previous + 1,
+                     "returning to an edited cached tile uploads fresh pixels"))
+            return false;
+        canvas.setTextureCacheMiB(1);
+        if (!require(near(pixel(frame(), 100.5, 100.5), Qt::black) &&
+                         canvas.residentTextureBytes() > 1048576 &&
+                         canvas.residentTextureBytes() < 2 * 1048576,
+                     "visible content stays complete when its footprint exceeds the reserve"))
+            return false;
+        if (!require(document.composite().isDetached(),
+                     "navigation snapshots do not retain the full composite"))
+            return false;
+        canvas.setTextureCacheMiB(4);
+    }
+    canvas.setTextureCacheMiB(0);
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

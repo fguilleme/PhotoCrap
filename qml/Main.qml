@@ -2249,6 +2249,7 @@ ApplicationWindow {
                                 objectName: "imageCanvas"
                                 anchors.fill: parent
                                 document: editor
+                                textureCacheMiB: workspaceSettings.textureCacheMiB
                                 selectionPhase: artboard.selectionAntPhase
                                 gpuTonePreviewEnabled: GraphicsInfo.api === GraphicsInfo.Metal
                                     || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
@@ -4874,6 +4875,7 @@ ApplicationWindow {
                     else if (window.preferencesPage === 3) {
                         workspaceSettings.scratchDirectory = ""
                         workspaceSettings.scratchDiskGiB = 4
+                        workspaceSettings.textureCacheMiB = 64
                     }
                 }
             }

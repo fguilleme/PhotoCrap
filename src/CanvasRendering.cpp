@@ -1,5 +1,6 @@
 #include "CanvasItem.h"
 #include "render/DisplayLevel.h"
+#include "render/TileCache.h"
 #include "render/TileSnapshot.h"
 #include "render/ToneMappingNode.h"
 
@@ -251,7 +252,9 @@ void CanvasItem::updatePolish()
     if (m_sourceSize.isEmpty() || width() <= 0 || height() <= 0) {
         m_textureImage = {};
         m_tileImages.clear();
+        m_tileLastUse.clear();
         m_maskTileImages.clear();
+        m_maskTileSourceKeys.clear();
         m_textureMaskImage = {};
         m_textureSize      = {};
         m_textureLevel     = -1;
@@ -264,8 +267,10 @@ void CanvasItem::updatePolish()
         const int  level           = qBound(0, int(std::floor(std::log2(1. / scale))), 30);
         const bool maskGridChanged = previousSize != m_sourceSize || m_textureLevel != level;
         const bool refreshMask     = maskChanged || maskGridChanged;
-        if (maskGridChanged || m_toneMask.isNull())
+        if (maskGridChanged || m_toneMask.isNull()) {
             m_maskTileImages.clear();
+            m_maskTileSourceKeys.clear();
+        }
         if (refreshMask)
             m_textureMaskImage = {};
         const bool regional = changed && level == m_textureLevel && previousSize == m_sourceSize &&
@@ -306,6 +311,7 @@ void CanvasItem::updatePolish()
 #endif
             }
             m_tileImages.clear();
+            m_tileLastUse.clear();
             m_textureLevel = level;
             ++m_textureRevision;
         }
@@ -320,21 +326,26 @@ void CanvasItem::updatePolish()
             m_textureMaskImage =
                 m_toneMask.scaled(m_textureSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         QSet<quint64> used;
+        const quint64 use = ++m_tileClock;
         if (!region.isEmpty()) {
             for (int y = region.top() / tileSize; y <= region.bottom() / tileSize; ++y)
                 for (int x = region.left() / tileSize; x <= region.right() / tileSize; ++x) {
                     const quint64 key = (quint64(quint32(y)) << 32) | quint32(x);
                     used.insert(key);
+                    m_tileLastUse.insert(key, use);
                     const QRect tile   = QRect(x * tileSize, y * tileSize, tileSize, tileSize)
                                              .intersected(imageRect);
                     const QRect padded = tile.adjusted(-1, -1, 1, 1).intersected(imageRect);
-                    if (!m_toneMask.isNull() && (refreshMask || !m_maskTileImages.contains(key))) {
+                    if (!m_toneMask.isNull() &&
+                        (!m_maskTileImages.contains(key) ||
+                         m_maskTileSourceKeys.value(key) != m_toneMask.cacheKey())) {
                         // Feathering may leave entire tiles unchanged. Preserve
                         // those snapshots without copying or uploading them again.
                         const QImage &mask = level == 0 ? m_toneMask : m_textureMaskImage;
                         m_maskTileImages.insert(
                             key, PhotoCrap::Render::tileSnapshot(mask, padded,
                                                                  m_maskTileImages.value(key)));
+                        m_maskTileSourceKeys.insert(key, m_toneMask.cacheKey());
                     }
                     if (m_tileImages.contains(key))
                         continue;
@@ -346,15 +357,33 @@ void CanvasItem::updatePolish()
                         m_tileImages.insert(key, m_textureImage.copy(padded));
                 }
         }
+        QList<PhotoCrap::Render::TileCacheEntry> entries;
+        for (auto it = m_tileImages.cbegin(); it != m_tileImages.cend(); ++it) {
+            const auto   size = it.value().size();
+            const qint64 bytes =
+                qint64(size.width()) * size.height() * (m_toneMask.isNull() ? 4 : 8);
+            entries.append(
+                {it.key(), bytes, m_tileLastUse.value(it.key()), used.contains(it.key())});
+        }
+        const auto retained =
+            PhotoCrap::Render::retainedTiles(entries, qint64(m_textureCacheMiB) * 1024 * 1024);
         for (auto it = m_maskTileImages.begin(); it != m_maskTileImages.end();) {
-            if (!used.contains(it.key()))
+            if (!retained.contains(it.key())) {
+                m_maskTileSourceKeys.remove(it.key());
                 it = m_maskTileImages.erase(it);
-            else
+            } else
                 ++it;
         }
         for (auto it = m_tileImages.begin(); it != m_tileImages.end();) {
-            if (!used.contains(it.key()))
+            if (!retained.contains(it.key())) {
+                m_tileLastUse.remove(it.key());
                 it = m_tileImages.erase(it);
+            } else
+                ++it;
+        }
+        for (auto it = m_tileLastUse.begin(); it != m_tileLastUse.end();) {
+            if (!retained.contains(it.key()))
+                it = m_tileLastUse.erase(it);
             else
                 ++it;
         }
@@ -429,6 +458,9 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
     const QRectF visible = visibleBounds(m_viewportRect, boundingRect());
     if (!window() || m_textureSize.isEmpty() || visible.isEmpty()) {
         delete node;
+#ifdef PHOTOCRAP_TESTING
+        m_residentTextureBytes = 0;
+#endif
         return nullptr;
     }
     if (node && node->owner != window()) {
@@ -530,6 +562,20 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         node->tiles.clear();
         node->imageKey = m_textureRevision;
     }
+    // Drop evicted snapshots before uploading replacements. Cached nodes are
+    // detached while offscreen so their old geometry cannot cover the image.
+    for (auto it = node->tiles.begin(); it != node->tiles.end();) {
+        if (!m_tileImages.contains(it.key())) {
+            if (it.value()->parent())
+                node->photo.removeChildNode(it.value());
+            delete it.value();
+            it = node->tiles.erase(it);
+        } else {
+            if (m_toneMask.isNull())
+                it.value()->setMask({});
+            ++it;
+        }
+    }
     const qreal sx = width() / m_textureSize.width(), sy = height() / m_textureSize.height();
     const QRect sourceVisible =
         QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
@@ -546,7 +592,8 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                 source.adjusted(-1, -1, 1, 1).intersected(QRect(QPoint{}, m_textureSize));
             auto *tile = node->tiles.value(key, nullptr);
             if (tile && tile->imageKey != m_tileImages.value(key).cacheKey()) {
-                node->photo.removeChildNode(tile);
+                if (tile->parent())
+                    node->photo.removeChildNode(tile);
                 node->tiles.remove(key);
                 delete tile;
                 tile = nullptr;
@@ -566,6 +613,8 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                 ++m_imageTextureUploads;
 #endif
             }
+            if (!tile->parent())
+                node->photo.appendChildNode(tile);
             const auto mask = m_maskTileImages.value(key);
             if (tile->maskKey != mask.cacheKey()) {
                 tile->setMask(mask);
@@ -586,14 +635,21 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                                                                 : QSGTexture::Nearest);
         }
     }
-    for (auto it = node->tiles.begin(); it != node->tiles.end();) {
-        if (!used.contains(it.key())) {
+    for (auto it = node->tiles.cbegin(); it != node->tiles.cend(); ++it)
+        if (it.value()->parent() && !used.contains(it.key()))
             node->photo.removeChildNode(it.value());
-            delete it.value();
-            it = node->tiles.erase(it);
-        } else
-            ++it;
+#ifdef PHOTOCRAP_TESTING
+    quint64 resident = 0;
+    for (auto *tile : std::as_const(node->tiles)) {
+        const auto size = tile->texture->textureSize();
+        resident += quint64(size.width()) * size.height() * 4;
+        if (tile->mask) {
+            const auto maskSize = tile->mask->textureSize();
+            resident += quint64(maskSize.width()) * maskSize.height() * 4;
+        }
     }
+    m_residentTextureBytes = resident;
+#endif
     const qint64 overlayKey = m_overlayImage.cacheKey();
     if (node->overlayKey != overlayKey) {
         removeImage(node->effects, node->overlay);

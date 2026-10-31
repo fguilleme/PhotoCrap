@@ -18,6 +18,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/ToneMappingNode.cpp
     src/render/DisplayLevel.cpp
     src/render/TileSnapshot.cpp
+    src/render/TileCache.cpp
     src/Document.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
@@ -105,6 +106,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/ToneMappingNode.h
     src/render/DisplayLevel.h
     src/render/TileSnapshot.h
+    src/render/TileCache.h
     src/Document.h
     src/ImageUtils.h
     src/tools/RegionHealing.h
@@ -144,6 +146,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/CanvasRenderSmoke.h
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
+    tests/TileCacheTest.cpp
     tests/ToneRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
@@ -230,6 +233,7 @@ endif()
 qt_add_library(photocrap_core STATIC
     src/render/DisplayLevel.cpp src/render/DisplayLevel.h
     src/render/TileSnapshot.cpp src/render/TileSnapshot.h
+    src/render/TileCache.cpp src/render/TileCache.h
     src/storage/ScratchImageCache.cpp src/storage/ScratchImageCache.h
     src/storage/TiledImage.cpp src/storage/TiledImage.h
     src/tools/PenTool.cpp
@@ -501,6 +505,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_tile_snapshot_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME tile_snapshot COMMAND photocrap_tile_snapshot_tests)
     set_tests_properties(tile_snapshot PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_tile_cache_tests tests/TileCacheTest.cpp)
+    target_link_libraries(photocrap_tile_cache_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME tile_cache COMMAND photocrap_tile_cache_tests)
+    set_tests_properties(tile_cache PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)

@@ -481,6 +481,18 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(scratchBudget->property("value").toInt() == 3,
                  "scratch cache budget follows settings changes"))
         return false;
+    auto textureBudget = _window->findChild<QObject *>("textureCacheBudget");
+    auto cacheCanvas   = _window->findChild<CanvasItem *>("imageCanvas");
+    if (!require(textureBudget && cacheCanvas && textureBudget->property("value").toInt() == 64 &&
+                     cacheCanvas->textureCacheMiB() == 64,
+                 "graphics cache preference binds to the canvas"))
+        return false;
+    textureBudget->setProperty("value", 16);
+    QMetaObject::invokeMethod(textureBudget, "valueModified");
+    if (!require(_workspaceSettings.textureCacheMiB() == 16 && cacheCanvas->textureCacheMiB() == 16,
+                 "graphics cache edits apply immediately"))
+        return false;
+    _workspaceSettings.setTextureCacheMiB(64);
     QMetaObject::invokeMethod(clearScratch, "clicked");
     _workspaceSettings.setScratchDiskGiB(4);
     QMetaObject::invokeMethod(preferences, "close");

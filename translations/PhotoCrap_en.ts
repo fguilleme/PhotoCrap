@@ -4727,6 +4727,11 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>ScratchCachePreferences</name>
+    <message><source>Mio</source><translation>MiB</translation></message>
+    <message><source>Cache graphique</source><translation>Graphics cache</translation></message>
+    <message><source>Budget du cache graphique</source><translation>Graphics cache budget</translation></message>
+    <message><source>Conserve les zones récemment affichées pour accélérer les déplacements. 0 désactive cette réserve. La zone visible reste prioritaire et peut dépasser le budget.</source><translation>Keeps recently displayed areas to speed up panning. 0 disables this reserve. The visible area has priority and may exceed the budget.</translation></message>
+
     <message><source>Cache de travail</source><translation>Scratch cache</translation></message>
     <message><source>Conserve les rendus de fréquences sur disque pour éviter de les recalculer. Les pixels des calques et l’historique ne sont pas encore déchargés sur disque.</source><translation>Stores frequency renders on disk to avoid recalculating them. Layer pixels and history are not offloaded to disk yet.</translation></message>
     <message><source>Budget disque</source><translation>Disk budget</translation></message>

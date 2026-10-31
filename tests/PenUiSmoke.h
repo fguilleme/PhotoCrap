@@ -18,6 +18,10 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     auto viewport = _window->findChild<QQuickItem *>("viewport");
     if (!require(area && overlay && options && viewport, "pen controls and overlay exist"))
         return false;
+    auto handles = overlay->findChild<QQuickItem *>("penHandlesOverlay");
+    auto band    = overlay->findChild<QQuickItem *>("penRubberBandOverlay");
+    if (!require(handles && band, "pen handles and provisional curve use separate layers"))
+        return false;
     _document.newDocument(300, 200, true);
     _document.setTool("brush");
     _window->setProperty("zoom", 1.);
@@ -121,10 +125,25 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     _document.setTool("pen");
     _document.newPenPath();
     QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, scene(20, 160));
+    _document.setPenRubberBand(true);
+    QTest::qWait(50);
+    QSignalSpy pathPaints(overlay, SIGNAL(painted()));
+    QSignalSpy handlePaints(handles, SIGNAL(painted()));
+    QSignalSpy bandPaints(band, SIGNAL(painted()));
+    QTest::mouseMove(_window, scene(60, 150));
+    QTest::qWait(60);
+    if (!require(
+            band->isVisible() && pathPaints.isEmpty() && handlePaints.isEmpty() &&
+                !bandPaints.isEmpty(),
+            "pointer hover updates the provisional curve without repainting the retained path"))
+        return false;
     QTest::keyClick(_window, Qt::Key_Escape);
     if (!require(!_document.penDrawing() && _document.penPaths().size() == 2,
                  "Escape finishes an open path without deleting it"))
         return false;
+    if (!require(!band->isVisible(), "Escape hides the provisional curve"))
+        return false;
+    _document.setPenRubberBand(false);
     _document.newDocument(100, 80, true);
     _document.setTool("pen");
     _document.beginPenGesture(20, 20);

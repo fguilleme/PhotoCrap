@@ -813,3 +813,37 @@ déplacement et à la rotation de la vue. Une empreinte de 32 000 pixels affich�
 est vérifiée dans une vue 512 × 320, sur logiciel, Metal et OpenGL ; aucun document
 complet de cette taille n’est alloué par ce test. Le smoke test QML contrôle aussi
 la liaison au pointeur, au zoom et au mode de Sélection rapide de l’application.
+
+## Plume : tracé conservé pendant le survol
+
+`PenOverlay.qml` sépare le dessin de la courbe, le segment provisoire pointillé et
+les ancres/poignées, dans le même ordre que le dessin combiné précédent. Le
+snapshot QML du tracé actif dépend des notifications de chemins, sans dépendre
+de la position de survol : déplacer la souris ne redemande pas la liste native
+de tous les chemins.
+
+La courbe et les poignées conservent leur dessin tant que leurs points ne changent
+pas. Seul le Canvas du segment provisoire est repeint au survol. Chaque surface
+est limitée à l’intersection de son enveloppe (points de contrôle inclus pour les
+courbes, tangentes sélectionnées pour les poignées), avec marge de trait, et de
+la vue. Les enveloppes sont conservatrices : elles ne coupent pas une courbe qui
+sort du rectangle de ses seules ancres. Les éléments raster restent séparés du
+composite photo ; cette étape ne déplace pas l’édition des tracés sur GPU. Le cache
+peut conserver trois surfaces bornées, au lieu du dessin combiné précédent, afin
+d’éviter de repeindre les éléments fixes. Ces surfaces QML restent distinctes du
+budget LRU des tuiles photo.
+
+Une modification des ancres, des tangentes, du chemin actif ou une annulation
+invalide les dessins fixes. Zoom et défilement ajustent les surfaces visibles.
+Fermer le chemin, terminer sa construction ou désactiver le segment provisoire
+le masque ; le survol d’un chemin terminé ne provoque plus de repeint.
+
+Le test `pen_overlay` conserve l’ancien Canvas comme référence indépendante et
+compare les pixels du dessin séparé en 8/16 bits, avec/sans guide, après édition
+et annulation, aux différents zooms et après défilement. Les signaux `painted`
+vérifient que le survol ne repeint ni courbe ni poignées et ne modifie pas le
+snapshot actif ; pixels et historique du document restent intacts. La rotation
+est aussi contrôlée pour les bornes des surfaces, ainsi que le guide visible
+quand le tracé fixe est hors champ. Le smoke test QML déplace la
+souris dans l’application pour vérifier le branchement réel et le masquage par
+Échap. Ces scénarios de rendu sont vérifiés sur logiciel, Metal et OpenGL.

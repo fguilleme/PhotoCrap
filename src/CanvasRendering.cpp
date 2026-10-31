@@ -36,10 +36,12 @@ public:
     ToneMappingNode    *mapping      = nullptr;
     QRectF              sourceRect;
     QPointF             sourceOrigin;
+    qint64              imageKey;
     PhotoTileNode(QQuickWindow *_window, const QImage &_image, QSGTexture *_table,
                   const ToneMappingSettings &_settings)
         : owner(_window), texture(_window->createTextureFromImage(
-                              _image.convertToFormat(QImage::Format_ARGB32_Premultiplied)))
+                              _image.convertToFormat(QImage::Format_ARGB32_Premultiplied))),
+          imageKey(_image.cacheKey())
     {
         if (texture)
             setMapping(_table, _settings);
@@ -218,8 +220,10 @@ void CanvasItem::updatePolish()
 {
     if (m_document)
         m_document->setGpuToneNearestSampling(width() >= m_document->width());
-    QImage source;
-    bool   changed = false, maskChanged = false;
+    QImage      source;
+    QRect       updateRegion;
+    const QSize previousSize = m_sourceSize;
+    bool        changed = false, maskChanged = false;
     if (m_imageDirty) {
         source          = displaySource(m_document);
         m_toneTable     = m_document && m_document->gpuTonePreviewActive()
@@ -232,6 +236,8 @@ void CanvasItem::updatePolish()
         maskChanged     = m_toneMask.cacheKey() != mask.cacheKey();
         m_toneMask      = mask;
         changed         = m_textureSourceKey != source.cacheKey();
+        if (changed && m_document && !m_document->gpuTonePreviewActive())
+            updateRegion = m_document->compositeUpdateRegion(m_textureSourceKey, source.cacheKey());
         m_textureSourceKey = source.cacheKey();
         m_sourceSize       = source.size();
         m_documentSize = m_document ? QSize(m_document->width(), m_document->height()) : QSize{};
@@ -259,7 +265,21 @@ void CanvasItem::updatePolish()
             m_textureMaskImage = {};
             ++m_maskRevision;
         }
-        if (changed || m_textureLevel != level) {
+        const bool regional = changed && level == 0 && m_textureLevel == 0 &&
+                              previousSize == m_sourceSize && !updateRegion.isEmpty();
+        if (regional) {
+            // Retain independent snapshots of untouched tiles. Include their
+            // one-pixel filtering halo when deciding which snapshots to replace.
+            const QRect bounds(QPoint{}, m_sourceSize);
+            for (auto it = m_tileImages.begin(); it != m_tileImages.end();) {
+                const QRect tile(int(quint32(it.key())) * tileSize,
+                                 int(quint32(it.key() >> 32)) * tileSize, tileSize, tileSize);
+                if (tile.adjusted(-1, -1, 1, 1).intersected(bounds).intersects(updateRegion))
+                    it = m_tileImages.erase(it);
+                else
+                    ++it;
+            }
+        } else if (changed || m_textureLevel != level) {
             m_textureSize  = QSize(qMax(1, m_sourceSize.width() >> level),
                                    qMax(1, m_sourceSize.height() >> level));
             m_textureImage = {};
@@ -506,6 +526,12 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
             const QRect padded =
                 source.adjusted(-1, -1, 1, 1).intersected(QRect(QPoint{}, m_textureSize));
             auto *tile = node->tiles.value(key, nullptr);
+            if (tile && tile->imageKey != m_tileImages.value(key).cacheKey()) {
+                node->photo.removeChildNode(tile);
+                node->tiles.remove(key);
+                delete tile;
+                tile = nullptr;
+            }
             if (!tile) {
                 tile = new PhotoTileNode(window(), m_tileImages.value(key), node->toneTable,
                                          node->toneSettings);

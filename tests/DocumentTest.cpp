@@ -5656,6 +5656,69 @@ private slots:
         QVERIFY(qAbs(d.composite().pixelColor(12, 12).red() - original.pixelColor(12, 12).red()) <=
                 1);
     }
+    void compositeUpdateBounds_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<QString>("effect");
+        for (int bits : {8, 16})
+            for (const QString &effect : {QStringLiteral("plain"), QStringLiteral("gaussianBlur"),
+                                          QStringLiteral("maskFeather"), QStringLiteral("dissolve"),
+                                          QStringLiteral("noise"), QStringLiteral("mosaic")})
+                QTest::newRow(qPrintable(effect + QString::number(bits))) << bits << effect;
+    }
+    void compositeUpdateBounds()
+    {
+        QFETCH(int, bits);
+        QFETCH(QString, effect);
+        Document d;
+        QVERIFY(d.newDocument(256, 192, false, bits));
+        if (effect == "dissolve") {
+            d.setLayerBlend(0, 1);
+            d.setLayerOpacity(0, .37);
+        } else if (effect == "maskFeather") {
+            d.addLayerMask(true);
+            d.previewLayerParameter("_maskFeather", 12.);
+            d.finishLayerPreview();
+            d.setEditingMask(true);
+        } else if (effect != "plain") {
+            d.addAdjustmentLayer(effect);
+            d.setActiveLayer(0);
+        }
+        const QImage before = d.composite();
+        d.setColor(Qt::black);
+        d.setBrushSize(8);
+        d.setBrushHardness(1.);
+        d.beginStroke(128, 96);
+        d.endStroke();
+        const QImage regional = d.composite();
+        const QRect  bounds   = d.compositeUpdateRegion(before.cacheKey(), regional.cacheKey());
+        QVERIFY(bounds.contains(QPoint(128, 96)));
+        if (effect == "dissolve" || effect == "noise" || effect == "mosaic")
+            QCOMPARE(bounds, regional.rect());
+        else {
+            QVERIFY(bounds.width() < regional.width());
+            QVERIFY(bounds.height() < regional.height());
+            if (effect == "maskFeather")
+                QVERIFY(bounds.width() >= 24);
+            for (int y = 0; y < regional.height(); ++y)
+                for (int x = 0; x < regional.width(); ++x)
+                    if (!bounds.contains(x, y))
+                        QCOMPARE(regional.pixelColor(x, y), before.pixelColor(x, y));
+        }
+        // Force a full rebuild: regional output and its filtering halo must agree.
+        d.setLayerVisible(0, false);
+        d.setLayerVisible(0, true);
+        const QImage rebuilt = d.composite();
+        QCOMPARE(regional, rebuilt);
+        QVERIFY(d.compositeUpdateRegion(before.cacheKey(), rebuilt.cacheKey()).isEmpty());
+        QCOMPARE(d.compositeUpdateRegion(regional.cacheKey(), rebuilt.cacheKey()), rebuilt.rect());
+        d.setBrushSize(4);
+        d.beginStroke(30, 30);
+        d.endStroke();
+        const auto next = d.composite().cacheKey();
+        QVERIFY(d.compositeUpdateRegion(regional.cacheKey(), next).isEmpty());
+        QVERIFY(!d.compositeUpdateRegion(rebuilt.cacheKey(), next).isEmpty());
+    }
     void highFrequencyMaskUsesRegionalCompositeWithoutChangingResult()
     {
         QTemporaryDir dir;

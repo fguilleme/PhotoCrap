@@ -14,26 +14,33 @@ bool requiresFullComposite(const Layer &_layer)
     // These filters currently depend on absolute image coordinates. The blur
     // family is local and can be recomputed from a padded dirty rectangle.
     static const QStringList filters{QStringLiteral("mosaic"), QStringLiteral("noise")};
-    return _layer.visible && _layer.kind == QStringLiteral("adjustment") &&
-           filters.contains(_layer.adjustmentType);
+    return _layer.visible && (_layer.blend == 1 || (_layer.kind == QStringLiteral("adjustment") &&
+                                                    filters.contains(_layer.adjustmentType)));
 }
 
 int effectMargin(const Layer &_layer)
 {
-    if (!_layer.visible || _layer.kind != QStringLiteral("adjustment"))
+    if (!_layer.visible)
         return 0;
+    const int maskMargin =
+        _layer.maskEnabled && !_layer.mask.isNull()
+            ? qBound(0, qRound(_layer.parameters.value("_maskFeather").toDouble()), 100)
+            : 0;
+    if (_layer.kind != QStringLiteral("adjustment"))
+        return maskMargin;
     const auto radius = [&] {
         return qBound(0, qCeil(_layer.parameters.value("radius").toDouble()), 100);
     };
     if (_layer.adjustmentType == QStringLiteral("gaussianBlur") ||
         _layer.adjustmentType == QStringLiteral("unsharpMask") ||
         _layer.adjustmentType == QStringLiteral("highPass"))
-        return radius() * 3;
+        return maskMargin + radius() * 3;
     if (_layer.adjustmentType == QStringLiteral("boxBlur"))
-        return radius();
+        return maskMargin + radius();
     if (_layer.adjustmentType == QStringLiteral("motionBlur"))
-        return qBound(0, qCeil(_layer.parameters.value("distance").toDouble() / 2.) + 2, 102);
-    return 0;
+        return maskMargin +
+               qBound(0, qCeil(_layer.parameters.value("distance").toDouble() / 2.) + 2, 102);
+    return maskMargin;
 }
 
 QRect expanded(const QRect &_region, int _margin, const QRect &_bounds)
@@ -194,6 +201,7 @@ const QImage &Document::composite() const
         }
         compositeLayer(rendered, layer.blend, layer.opacity);
     }
+    const qint64 before = m_composite.cacheKey();
     if (outputRegion == documentRect)
         m_composite = regionComposite;
     else {
@@ -202,10 +210,20 @@ const QImage &Document::composite() const
         const QRect sourceRect(outputRegion.topLeft() - workRegion.topLeft(), outputRegion.size());
         painter.drawImage(outputRegion.topLeft(), regionComposite, sourceRect);
     }
-    m_cacheDirty         = false;
-    m_fullCompositeDirty = false;
-    m_dirtyRegion        = {};
+    m_compositeUpdateBefore = before;
+    m_compositeUpdateAfter  = m_composite.cacheKey();
+    m_compositeUpdateRegion = outputRegion;
+    m_cacheDirty            = false;
+    m_fullCompositeDirty    = false;
+    m_dirtyRegion           = {};
     return m_composite;
+}
+
+QRect Document::compositeUpdateRegion(qint64 _before, qint64 _after) const
+{
+    return _before == m_compositeUpdateBefore && _after == m_compositeUpdateAfter
+               ? m_compositeUpdateRegion
+               : QRect{};
 }
 
 QImage Document::displayComposite() const

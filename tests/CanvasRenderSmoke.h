@@ -154,6 +154,88 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                      canvas.overlayPixelSize().height() <= qCeil(300 * ratio),
                  "high zoom does not allocate a document-sized selection surface"))
         return false;
+    // At the full display level, only the modified tile and its filtering halo
+    // are copied/uploaded. The explicit viewport covers all three tile slots.
+    _window->setMinimumWidth(1200);
+    _window->resize(qMax(1200, _window->width()), _window->height());
+    canvas.setX(40);
+    canvas.setSize({2176, 256});
+    canvas.setViewportRect(canvas.boundingRect());
+    const auto stroke = [&](qreal x, qreal y, const QColor &color, int size = 8) {
+        document.setTool("brush");
+        document.setBrushSize(size);
+        document.setBrushHardness(1.);
+        document.setColor(color);
+        document.beginStroke(x, y);
+        document.endStroke();
+    };
+    for (int bits : {8, 16}) {
+        if (!require(document.newDocument(2176, 256, false, bits),
+                     "create a regional edit reference"))
+            return false;
+        frame();
+        auto previous = canvas.imageTextureUploads();
+        stroke(100, 100, Qt::red);
+        const auto local = frame();
+        if (!require(canvas.imageTextureUploads() == previous + 1 &&
+                         near(pixel(local, 100.5, 100.5), Qt::red) &&
+                         near(pixel(local, 1100.5, 100.5), Qt::white),
+                     "a local 8/16-bit stroke replaces only its tile"))
+            return false;
+        previous = canvas.imageTextureUploads();
+        stroke(1024, 100, Qt::green);
+        const auto boundary = frame();
+        if (!require(canvas.imageTextureUploads() == previous + 2 &&
+                         near(pixel(boundary, 1023.5, 100.5), Qt::green) &&
+                         near(pixel(boundary, 1024.5, 100.5), Qt::green),
+                     "a boundary stroke refreshes both tile halos"))
+            return false;
+        canvas.setViewportRect({0, 0, 800, 256});
+        frame();
+        previous = canvas.imageTextureUploads();
+        stroke(2100, 100, Qt::blue);
+        frame();
+        if (!require(canvas.imageTextureUploads() == previous,
+                     "offscreen edits retain the resident tile"))
+            return false;
+        canvas.setX(40 - 2050);
+        canvas.setViewportRect({2050, 0, 126, 256});
+        if (!require(near(pixel(frame(), 2100.5, 100.5), Qt::blue) &&
+                         canvas.imageTextureUploads() == previous + 1,
+                     "panning loads the edited offscreen tile"))
+            return false;
+        canvas.setX(40);
+        canvas.setViewportRect(canvas.boundingRect());
+        frame();
+        previous = canvas.imageTextureUploads();
+        document.undo();
+        const auto undone = frame();
+        if (!require(canvas.imageTextureUploads() == previous + 3 &&
+                         near(pixel(undone, 100.5, 100.5), Qt::red),
+                     "undo fully refreshes the visible tiles"))
+            return false;
+        previous = canvas.imageTextureUploads();
+        // Another consumer can compose several times between two canvas frames.
+        stroke(100, 160, Qt::blue);
+        (void)document.composite();
+        stroke(1100, 160, Qt::red);
+        (void)document.composite();
+        if (!require(near(pixel(frame(), 100.5, 160.5), Qt::blue) &&
+                         canvas.imageTextureUploads() == previous + 3,
+                     "missing composite generations conservatively refresh all tiles"))
+            return false;
+        canvas.setSize({2176 * .2, 256 * .2});
+        canvas.setViewportRect(canvas.boundingRect());
+        frame();
+        previous = canvas.imageTextureUploads();
+        stroke(300, 100, Qt::blue, 32);
+        if (!require(near(pixel(frame(), 300.5 * .2, 100.5 * .2), Qt::blue) &&
+                         canvas.imageTextureUploads() > previous,
+                     "reduced display levels retain the full refresh path"))
+            return false;
+        canvas.setSize({2176, 256});
+        canvas.setViewportRect(canvas.boundingRect());
+    }
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

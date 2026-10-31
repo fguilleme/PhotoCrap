@@ -30,6 +30,18 @@ la configuration et la disponibilité. Ce changement ne force pas Vulkan sous Li
 - Les textures sont réutilisées tant que l’image, le niveau et les blocs visibles
   restent identiques. Changer le zoom dans le même niveau ne fait que modifier la
   géométrie des nœuds ; déplacer la vue réutilise les blocs encore présents.
+- Au niveau de détail entier, une recomposition régionale ne remplace que les
+  tuiles touchées. Le moteur transmet le rectangle réellement recomposé, incluant
+  l’influence des filtres et du contour progressif des masques. Le canevas inclut
+  aussi le pixel voisin de chaque tuile pour préserver les raccords interpolés.
+  Une retouche hors champ ne retransfère aucune tuile résidente ; son résultat
+  est chargé lorsque la vue se déplace.
+- Le rectangle est lié aux clés exactes du composite avant/après. Si un autre
+  consommateur a déjà calculé plusieurs versions entre deux images du canevas,
+  les clés ne correspondent plus et l’affichage recharge toutes les tuiles.
+  Il ne conserve pas une référence au composite pour effectuer ce contrôle.
+  Les nœuds comparent les clés des copies de tuiles et gardent leurs textures
+  lorsque leurs pixels n’ont pas été invalidés.
 - Le damier de transparence utilise une texture répétée de 24 × 24 sur les backends
   RHI. Le rendu logiciel garde un fond limité à la zone visible.
 - Les contours des sélections générales, le marquage de suppression et l’aperçu de
@@ -52,13 +64,29 @@ La composition des calques, les masques, les traits et les rendus complets des
 filtres restent calculés sur CPU. Les aperçus pris en charge sont décrits ci-dessous.
 Les surimpressions générales
 utilisent encore QPainter dans une petite surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
-Une modification du composite remplace toutes ses textures visibles : les transferts
-régionaux et la composition GPU restent à développer.
+Les transferts régionaux couvrent le niveau de détail entier du composite CPU.
+Les niveaux réduits recalculent encore leur image de détail et remplacent toutes
+leurs textures visibles. Un changement de dimensions, un rendu asynchrone complet,
+une vue de couche/masque ou une annulation sans rectangle fiable conserve également
+le rechargement complet. La composition GPU de la pile reste à développer.
+Fondu, Bruit et Mosaïque demandent une recomposition CPU complète, car leur résultat
+dépend des coordonnées absolues. Les masques adoucis élargissent le rectangle de
+recomposition de leur rayon ; les halos des filtres s’additionnent.
 
 La résidence graphique des blocs est limitée à la vue, mais aucun budget global de
 VRAM configurable n’est encore implémenté. L’image source et le niveau réduit sont
 encore en RAM ; ce travail ne migre pas les plans de calques et l’historique sur disque
 et ne relève pas la limite de 2 Gio.
+
+## Vérification des transferts régionaux
+
+Le test `canvas_render` contrôle en 8/16 bits qu’un trait local remplace une seule
+texture sur trois, qu’un trait à la frontière en remplace deux, et qu’un trait hors
+champ ne crée aucune texture avant le déplacement de la vue. Il vérifie aussi
+l’annulation, le rechargement complet lorsque des versions intermédiaires manquent,
+les niveaux réduits et les couleurs effectivement lues dans la fenêtre.
+Les tests moteur comparent le résultat régional à une reconstruction complète avec
+un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosaïque.
 
 ## Aperçus de réglages sur GPU
 

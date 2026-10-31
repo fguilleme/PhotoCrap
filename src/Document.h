@@ -901,16 +901,19 @@ public:
     Q_INVOKABLE QVariantMap scratchCacheUsage() const;
     Q_INVOKABLE void        clearScratchCache();
 
-    void                                    setStampAligned(bool _value);
-    void                                    setCloneSampleMode(int _value);
-    void                                    setStampPattern(int _value);
-    Q_INVOKABLE void                        setCloneSource(qreal _x, qreal _y);
-    Q_INVOKABLE bool                        defineStampPattern();
-    const QImage                           &composite() const;
-    QImage                                  displayComposite() const;
-    void                                    setGpuTonePreviewEnabled(bool _enabled);
-    bool                                    gpuTonePreviewActive() const;
-    void                                    setGpuToneNearestSampling(bool _nearest);
+    void             setStampAligned(bool _value);
+    void             setCloneSampleMode(int _value);
+    void             setStampPattern(int _value);
+    Q_INVOKABLE void setCloneSource(qreal _x, qreal _y);
+    Q_INVOKABLE bool defineStampPattern();
+    const QImage    &composite() const;
+    QImage           displayComposite() const;
+    // Empty means the caller must refresh the whole image. Keys identify the
+    // exact before/after composite, even if another consumer rendered first.
+    QRect compositeUpdateRegion(qint64 _before, qint64 _after) const;
+    void  setGpuTonePreviewEnabled(bool _enabled);
+    bool  gpuTonePreviewActive() const;
+    void  setGpuToneNearestSampling(bool _nearest);
     PhotoCrap::Filters::ToneMappingSettings gpuTonePreviewSettings() const;
     QImage                                  gpuTonePreviewBase() const
     {
@@ -1366,6 +1369,8 @@ private:
     mutable qint64    m_channelDisplaySourceKey  = 0;
     mutable int       m_channelDisplayCacheIndex = 0;
     mutable QImage    m_composite;
+    mutable qint64    m_compositeUpdateBefore = 0, m_compositeUpdateAfter = 0;
+    mutable QRect     m_compositeUpdateRegion;
     mutable bool      m_cacheDirty         = true;
     mutable bool      m_fullCompositeDirty = true;
     mutable QRect     m_dirtyRegion;

@@ -13,6 +13,7 @@ const QList<int>  &gpuToneHslBlendModes();
 const QList<int>  &gpuToneRatioBlendModes();
 const QList<int>  &gpuToneContrastBlendModes();
 const QList<int>  &gpuToneColorSelectionBlendModes();
+const QList<int>  &gpuToneHardMixBlendModes();
 const QList<int>  &gpuToneConditionalBlendModes();
 bool               gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage);
 // The low four bits identify the filter; bit 4 selects the mask texture.

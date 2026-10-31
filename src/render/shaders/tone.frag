@@ -71,6 +71,17 @@ vec3 hslToRgb(vec3 hsl)
 }
 float blendChannel(float base, float source, int mode)
 {
+    if (mode == 18) {
+        float baseByte = floor(base * 255.0 + 0.5);
+        float sourceByte = floor(source * 255.0 + 0.5);
+        if (sourceByte <= 0.0) return 0.0;
+        if (sourceByte >= 255.0) return 1.0;
+        float total = baseByte + sourceByte;
+        if (total < 255.0) return 0.0;
+        if (total > 255.0) return 1.0;
+        // Preserve the native CPU's floating-point decisions exactly at the seam.
+        return texture(tableTexture, vec2((sourceByte + 0.5) / 256.0, 0.75)).r;
+    }
     // Integer channel coordinates keep near-zero denominators exact.
     if (mode == 4 || mode == 9 || mode == 15 || mode == 22) {
         float baseByte = floor(base * 255.0 + 0.5);
@@ -104,12 +115,49 @@ float blendChannel(float base, float source, int mode)
     if (mode == 21) return max(0.0, base - source);
     return source;
 }
+float xorByte(float left, float right)
+{
+    float result = 0.0;
+    float bit = 1.0;
+    // GLSL 100 has no bitwise operators. These byte operations are exact in highp floats.
+    for (int index = 0; index < 8; ++index) {
+        float a = left - 2.0 * floor(left * 0.5);
+        float b = right - 2.0 * floor(right * 0.5);
+        result += (a + b - 2.0 * floor((a + b) * 0.5)) * bit;
+        left = floor(left * 0.5);
+        right = floor(right * 0.5);
+        bit *= 2.0;
+    }
+    return result;
+}
+vec2 productBytes(float coordinate, float low, float high)
+{
+    float first = coordinate - 256.0 * floor(coordinate / 256.0);
+    float second = floor(coordinate / 256.0);
+    float product = first * low;
+    return vec2(product - 256.0 * floor(product / 256.0),
+                mod(floor(product / 256.0) + first * high + second * low, 256.0));
+}
+float dissolveHash()
+{
+    vec2 size = vec2(ubuf.parameters[7].w, ubuf.parameters[8].w);
+    vec2 origin = vec2(ubuf.parameters[2].w, ubuf.parameters[6].w);
+    vec2 pixel = floor(clamp(uv * size, vec2(0.0), size - 1.0) + origin);
+    // Low sixteen bits of x*73856093 XOR y*19349663, without wide float products.
+    vec2 x = productBytes(pixel.x, 93.0, 244.0);
+    vec2 y = productBytes(pixel.y, 159.0, 64.0);
+    return xorByte(x.x, y.x) + 256.0 * xorByte(x.y, y.y);
+}
 vec4 compositeAdjustment(vec3 base, vec4 adjusted)
 {
     // Preserve the CPU's 8-bit mask premultiplication before layer opacity.
     float coverage = ubuf.maskCoverage;
     int blend = ubuf.mode / 32;
     int filterFlags = ubuf.mode - blend * 32;
+    if (blend == 1) {
+        vec3 selected = dissolveHash() < ubuf.maskCoverage ? adjusted.rgb : base / 255.0;
+        return vec4(selected, 1.0) * ubuf.opacity;
+    }
     if (filterFlags >= 16) {
         float mask = floor(texture(maskTexture, uv).r * 255.0 + 0.5);
         coverage = floor(255.0 - (255.0 - mask) * ubuf.maskCoverage + 0.5);
@@ -224,7 +272,7 @@ void main()
         // Keep the CPU's integer coefficients and rounding before the comparison.
         ivec3 channels = ivec3(index);
         int level = (2126 * channels.r + 7152 * channels.g + 722 * channels.b + 5000) / 10000;
-        fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)));
+        fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.25)));
         return;
     }
     if (mode == 5) {
@@ -251,7 +299,7 @@ void main()
         int second = first == 5 ? 0 : first + 1;
         float adjustment = mix(familyAdjustment(first), familyAdjustment(second), fract(hue));
         float gray = clamp(floor(dot(index, vec3(0.2126, 0.7152, 0.0722)) + adjustment * chroma + 0.5), 0.0, 255.0);
-        fragColor = compositeAdjustment(index, texture(tableTexture, vec2((gray + 0.5) / 256.0, 0.5)));
+        fragColor = compositeAdjustment(index, texture(tableTexture, vec2((gray + 0.5) / 256.0, 0.25)));
         return;
     }
     if (mode == 2) {
@@ -275,10 +323,10 @@ void main()
         // Positive integer division is also supported by the older GLSL targets.
         int level = (54 * channels.r + 183 * channels.g + 19 * channels.b + 128) / 256;
         if (mode == 3) {
-            fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)));
+            fragColor = compositeAdjustment(index, texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.25)));
             return;
         }
-        int mapped = int(floor(texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.5)).r * 255.0 + 0.5));
+        int mapped = int(floor(texture(tableTexture, vec2((float(level) + 0.5) / 256.0, 0.25)).r * 255.0 + 0.5));
         ivec3 outputChannels;
         if (mapped >= level)
             outputChannels = level == 255 ? ivec3(mapped)
@@ -288,8 +336,8 @@ void main()
         fragColor = compositeAdjustment(index, vec4(vec3(outputChannels) / 255.0, 1.0));
         return;
     }
-    vec3 mapped = vec3(texture(tableTexture, vec2((index.r + 0.5) / 256.0, 0.5)).r,
-                       texture(tableTexture, vec2((index.g + 0.5) / 256.0, 0.5)).g,
-                       texture(tableTexture, vec2((index.b + 0.5) / 256.0, 0.5)).b);
+    vec3 mapped = vec3(texture(tableTexture, vec2((index.r + 0.5) / 256.0, 0.25)).r,
+                       texture(tableTexture, vec2((index.g + 0.5) / 256.0, 0.25)).g,
+                       texture(tableTexture, vec2((index.b + 0.5) / 256.0, 0.25)).b);
     fragColor = compositeAdjustment(index, vec4(mapped, 1.0));
 }

@@ -44,6 +44,7 @@ public:
     QSGTexture           *source = nullptr, *table = nullptr, *mask = nullptr;
     QSGTexture::Filtering filtering = QSGTexture::Linear;
     ToneMappingSettings   settings;
+    QVector4D             sampleCoordinates;
     ToneMaterial()
     {
         setFlag(Blending);
@@ -74,6 +75,11 @@ public:
             return settings.blendMode - other->settings.blendMode;
         if (settings.mode != other->settings.mode)
             return int(settings.mode) - int(other->settings.mode);
+        if (settings.blendMode == 1)
+            for (int component = 0; component < 4; ++component)
+                if (sampleCoordinates[component] != other->sampleCoordinates[component])
+                    return sampleCoordinates[component] < other->sampleCoordinates[component] ? -1
+                                                                                              : 1;
         if (settings.effectOpacity != other->settings.effectOpacity)
             return settings.effectOpacity < other->settings.effectOpacity ? -1 : 1;
         if (settings.maskCoverage != other->settings.maskCoverage)
@@ -118,7 +124,13 @@ bool ToneShader::updateUniformData(RenderState &_state, QSGMaterial *_new, QSGMa
     }
     // Nine packed vec4s reuse slots between algorithms instead of growing one
     // uniform block per filter. The std140 payload stays at 224 bytes in total.
-    const auto parameters = shaderParameters(material->settings);
+    auto parameters = shaderParameters(material->settings);
+    if (material->settings.blendMode == 1) {
+        parameters[2].setW(material->sampleCoordinates.x());
+        parameters[6].setW(material->sampleCoordinates.y());
+        parameters[7].setW(material->sampleCoordinates.z());
+        parameters[8].setW(material->sampleCoordinates.w());
+    }
     for (size_t index = 0; index < parameters.size(); ++index) {
         const auto &vector    = parameters[index];
         const float values[4] = {vector.x(), vector.y(), vector.z(), vector.w()};
@@ -176,9 +188,17 @@ void ToneMappingNode::setTable(QSGTexture *_table, const ToneMappingSettings &_s
         markDirty(DirtyMaterial);
     }
 }
-void ToneMappingNode::setImageRect(const QRectF &_rect, const QRectF &_sourceRect)
+void ToneMappingNode::setImageRect(const QRectF &_rect, const QRectF &_sourceRect,
+                                   const QPointF &_origin)
 {
-    const auto *mapping = static_cast<const ToneMaterial *>(material());
+    auto           *mapping = static_cast<ToneMaterial *>(material());
+    const auto      size    = mapping->source->textureSize();
+    const QVector4D coordinates(float(_origin.x()), float(_origin.y()), float(size.width()),
+                                float(size.height()));
+    if (mapping->sampleCoordinates != coordinates) {
+        mapping->sampleCoordinates = coordinates;
+        markDirty(DirtyMaterial);
+    }
     QSGGeometry::updateTexturedRectGeometry(
         &m_geometry, _rect, mapping->source->convertToNormalizedSourceRect(_sourceRect));
     markDirty(DirtyGeometry);

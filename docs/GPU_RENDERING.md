@@ -76,7 +76,9 @@ le backend logiciel.
 - Un worker compose une fois la base réduite sous le réglage. Elle est conservée
   tant que la pile sous-jacente et la résolution du proxy restent valides.
 - Pour les réglages à table, chaque changement de paramètres fabrique une table
-  de **256 × 1 pixels** à partir des fonctions CPU de référence. Un shader du graphe de scène applique
+  de **256 × 2 pixels** (2 Kio) à partir des fonctions CPU de référence.
+  La première ligne contient la correction ou palette ; la seconde conserve les
+  décisions binaires de Mélange maximal aux frontières complémentaires. Un shader du graphe de scène applique
   cette table à la base ; la photo n’est pas retransférée à chaque déplacement.
   Les calibrations des pipettes Courbes passent par la même table.
 - Pour Courbes, Niveaux, Balance des couleurs, Isohélie, Luminosité/Contraste
@@ -164,22 +166,38 @@ le backend logiciel.
 - Couleur plus foncée et Couleur plus claire comparent les sommes RVB entières,
   puis choisissent une couleur complète. En cas d’égalité, elles gardent la base,
   même si la couleur du réglage a une teinte différente.
-- Ces onze fusions demandent des octets d’entrée exacts. Elles sont éligibles
+- Ces douze fusions (avec Mélange maximal) demandent des octets d’entrée exacts. Elles sont éligibles
   avec Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance des couleurs,
   Isohélie, Lumière, Transfert de dégradé, Seuil et Négatif, sans atténuation du
   masque : masque absent, désactivé, uniforme blanc ou densité à zéro. L’opacité
   du calque peut rester réduite. Les autres réglages et les masques visibles restent
   CPU : une différence d’un canal peut changer fortement une teinte près du gris
   ou un rapport près d’un dénominateur nul. Ce repli ne change pas le comportement de l’outil.
+- Mélange maximal reprend la décision binaire de Lumière vive. Hors frontière,
+  la somme des canaux entiers suffit ; lorsque base + source vaut 255, une ligne
+  de la table contient le résultat exact de la fonction CPU partagée `BlendMath.h`.
+  Cela conserve ses décisions en double précision, y compris celles sensibles à
+  l’arrondi flottant. Les formules du moteur natif restent inchangées.
+- Fondu utilise le même hachage des coordonnées du proxy que le CPU :
+  `(x * 73856093 XOR y * 19349663) & 65535`, comparé strictement au seuil
+  entier `opacity * 65535`. Le calcul par octets reste exact en GLSL 100 sans
+  opérateurs binaires. L’origine de chaque tuile et ses dimensions occupent
+  quatre composantes inutilisées du bloc existant ; le motif reste continu
+  lors du déplacement et du rechargement des tuiles.
+  Fondu accepte les dix-huit réglages, avec couverture de masque complète.
+- Fondu et Mélange maximal demandent aussi un affichage sans interpolation.
+  Le canevas transmet son mode d’échantillonnage au moteur avant de préparer
+  le snapshot. Un zoom interpolé replie ces deux modes sur le CPU ; revenir à
+  l’échantillonnage au plus proche réactive leur aperçu GPU.
 - Les fusions RVB reprennent les formules CPU. Le masque est appliqué avant la
   conversion des pixels prémultipliés en couleurs droites, puis le mélange utilise
   l’alpha du masque et l’opacité. Normal conserve les arrondis de son chemin QPainter
   distinct. Le mode de fusion est codé dans les bits supérieurs de l’entier du
   shader ; le bloc reste de 224 octets et aucun sampler n’est ajouté.
 - Le survol des modes de fusion d’un réglage éligible ne change que cette constante.
-  Les calques de pixels, Fondu et Mélange maximal restent CPU. Les onze modes
-  conditionnels utilisent les règles plus strictes décrites ci-dessus. Cela porte
-  à 25 les modes éligibles pour certains aperçus de réglage.
+  Les calques de pixels restent CPU. Les modes conditionnels utilisent les
+  règles plus strictes décrites ci-dessus. Cela porte à 27 les modes éligibles
+  pour certains aperçus de réglage.
   Il s’agit de l’aperçu du réglage actif, pas d’une composition GPU de toute la pile.
 - Les tables identiques sont conservées. Changer uniquement la densité ou le
   contour progressif d’un masque uniforme ne retransfère ni la photo ni la table.
@@ -290,13 +308,13 @@ Les quatorze modes de fusion sont comparés sur les dix-huit réglages avec masq
 peint, contour progressif et opacité réduite ; Niveaux est aussi vérifié à 100 %.
 Les compteurs doivent rester stables pendant le changement de mode. Les tests
 moteur couvrent chaque mode en 8/16 bits avec et sans masque peint, l’historique,
-l’annulation, le repli pour tous les modes restants et le retour au GPU après Fondu.
+l’annulation, le repli de Fondu interpolé et le retour au GPU après ce repli.
 Les quatre fusions HSL sont comparées à QColor sur chacun des dix réglages
 éligibles, avec des rampes grises/primaires et des couleurs saturées ou atténuées.
 Le changement de fusion ne doit retransférer ni la photo ni la table. Les tests
 moteur couvrent les dix réglages en 8/16 bits, l’historique, l’annulation, le repli
 avec masque gris, le retour au GPU à densité zéro ou masque désactivé, ainsi que
-le repli de chacun des huit autres réglages pour ces onze modes. Ils sont regroupés
+le repli de chacun des huit autres réglages pour ces douze modes. Ils sont regroupés
 dans `gpu_conditional_blend_preview`, séparé de la suite générale pour conserver des délais
 de test courts. Les images uniformes du test moteur restent petites ; le scénario
 natif conserve ses motifs couleur complets. Les trois modes de rapport et les deux
@@ -309,6 +327,12 @@ Les deux sélections de couleur sont aussi vérifiées avec des décalages oppos
 rouge/vert, pour exercer les sommes égales et celles modifiées par l’écrêtage. Le changement de mode ne retransfère aucune photo. Le test moteur
 utilise `QTest::qWaitFor` pour traiter les événements sans les pauses de 50 ms de
 chaque attente générale ; les délais maximaux restent identiques.
+La suite `gpu_dissolve_preview` couvre les dix-huit réglages en 8/16 bits,
+la conservation des textures, l’annulation et les replis liés au masque ou au zoom.
+Le test natif compare Fondu avec six opacités sur Niveaux/Négatif et 37 % sur les
+seize autres réglages ; il contrôle aussi les rares hachages 0/65534/65535.
+Il parcourt les 256 frontières complémentaires de Mélange maximal et leurs
+voisins, puis vérifie Fondu sur plusieurs tuiles et après leur rechargement.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec
 `QSG_RENDER_LOOP=basic`. Le mode OpenGL multithread s’arrête dans Qt/AppKit lors de
 la création du contexte, avant le chargement du shader ; ce mode n’est pas validé.

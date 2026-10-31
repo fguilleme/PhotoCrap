@@ -1,5 +1,6 @@
 #include "ToneMappingTable.h"
 #include "BlackWhiteFilter.h"
+#include "BlendMath.h"
 #include "BrightnessContrastFilter.h"
 #include "ColorBalanceFilter.h"
 #include "CurvesFilter.h"
@@ -12,6 +13,8 @@
 #include "PosterizeFilter.h"
 #include "SelectiveColorFilter.h"
 #include "ThresholdFilter.h"
+#include <QColorSpace>
+#include <cstring>
 
 namespace PhotoCrap::Filters
 {
@@ -41,6 +44,11 @@ const QList<int> &gpuToneColorSelectionBlendModes()
     static const QList<int> modes{6, 11};
     return modes;
 }
+const QList<int> &gpuToneHardMixBlendModes()
+{
+    static const QList<int> modes{18};
+    return modes;
+}
 const QList<int> &gpuToneConditionalBlendModes()
 {
     static const QList<int> modes = [] {
@@ -48,12 +56,15 @@ const QList<int> &gpuToneConditionalBlendModes()
         result.append(gpuToneRatioBlendModes());
         result.append(gpuToneContrastBlendModes());
         result.append(gpuToneColorSelectionBlendModes());
+        result.append(gpuToneHardMixBlendModes());
         return result;
     }();
     return modes;
 }
 bool gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage)
 {
+    if (_blend == 1)
+        return _fullCoverage;
     if (gpuToneBlendModes().contains(_blend))
         return true;
     // Hue, near-zero divisions and whole-color decisions amplify one-byte errors.
@@ -190,6 +201,28 @@ ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap 
     }
     return {};
 }
+namespace
+{
+QImage withHardMixBoundary(const QImage &_row)
+{
+    if (_row.isNull())
+        return {};
+    static const QImage boundary = [] {
+        QImage row(256, 1, QImage::Format_ARGB32);
+        for (int source = 0; source < 256; ++source) {
+            const int high = blendChannel((255 - source) / 255., source / 255., 18) >= .5 ? 255 : 0;
+            row.setPixel(source, 0, qRgb(high, high, high));
+        }
+        return row;
+    }();
+    const QImage color = _row.convertToFormat(QImage::Format_ARGB32);
+    QImage       table(256, 2, QImage::Format_ARGB32);
+    std::memcpy(table.scanLine(0), color.constScanLine(0), 256 * 4);
+    std::memcpy(table.scanLine(1), boundary.constScanLine(0), 256 * 4);
+    table.setColorSpace(color.colorSpace());
+    return table;
+}
+} // namespace
 QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
 {
     static const QImage ramp = [] {
@@ -199,35 +232,37 @@ QImage toneMappingTable(const QString &_type, const QVariantMap &_parameters)
         return image;
     }();
     if (_type == QStringLiteral("invert")) {
-        static const QImage inverted = applyInvert(ramp, {});
+        static const QImage inverted = withHardMixBoundary(applyInvert(ramp, {}));
         return inverted;
     }
     // Analytic shaders share an identity texture that is never re-uploaded during edits.
     if (_type == QStringLiteral("color") || _type == QStringLiteral("photoFilter") ||
         _type == QStringLiteral("channelMixer") || _type == QStringLiteral("colorLookup") ||
         _type == QStringLiteral("selectiveColor") || _type == QStringLiteral("vibrance") ||
-        _type == QStringLiteral("hueSaturation"))
-        return ramp;
+        _type == QStringLiteral("hueSaturation")) {
+        static const QImage identity = withHardMixBoundary(ramp);
+        return identity;
+    }
     if (_type == QStringLiteral("curves"))
-        return applyCurves(ramp, _parameters);
+        return withHardMixBoundary(applyCurves(ramp, _parameters));
     if (_type == QStringLiteral("levels"))
-        return applyLevels(ramp, _parameters);
+        return withHardMixBoundary(applyLevels(ramp, _parameters));
     if (_type == QStringLiteral("light"))
-        return applyLight(ramp, _parameters);
+        return withHardMixBoundary(applyLight(ramp, _parameters));
     if (_type == QStringLiteral("colorBalance"))
-        return applyColorBalance(ramp, _parameters);
+        return withHardMixBoundary(applyColorBalance(ramp, _parameters));
     if (_type == QStringLiteral("gradientMap"))
-        return applyGradientMap(ramp, _parameters);
+        return withHardMixBoundary(applyGradientMap(ramp, _parameters));
     if (_type == QStringLiteral("blackWhite"))
-        return applyBlackWhite(ramp, _parameters);
+        return withHardMixBoundary(applyBlackWhite(ramp, _parameters));
     if (_type == QStringLiteral("posterize"))
-        return applyPosterize(ramp, _parameters);
+        return withHardMixBoundary(applyPosterize(ramp, _parameters));
     if (_type == QStringLiteral("threshold"))
-        return applyThreshold(ramp, _parameters);
+        return withHardMixBoundary(applyThreshold(ramp, _parameters));
     if (_type == QStringLiteral("brightnessContrast"))
-        return applyBrightnessContrast(ramp, _parameters);
+        return withHardMixBoundary(applyBrightnessContrast(ramp, _parameters));
     if (_type == QStringLiteral("exposure"))
-        return applyExposure(ramp, _parameters);
+        return withHardMixBoundary(applyExposure(ramp, _parameters));
     return {};
 }
 } // namespace PhotoCrap::Filters

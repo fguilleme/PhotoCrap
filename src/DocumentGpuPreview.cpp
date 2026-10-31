@@ -14,6 +14,19 @@ void Document::setGpuTonePreviewEnabled(bool _enabled)
     }
 }
 
+void Document::setGpuToneNearestSampling(bool _nearest)
+{
+    if (m_gpuToneNearestSampling == _nearest)
+        return;
+    m_gpuToneNearestSampling = _nearest;
+    if (m_active >= 0 && m_active < m_layers.size() &&
+        (m_layers[m_active].blend == 1 || m_layers[m_active].blend == 18)) {
+        invalidateGpuTonePreview();
+        if (m_previewingLayer)
+            requestPreviewRender(true);
+    }
+}
+
 bool Document::gpuToneEligible() const
 {
     if (!m_gpuToneEnabled || m_displayChannel != 0 || m_maskOnlyView || m_active < 0 ||
@@ -25,6 +38,7 @@ bool Document::gpuToneEligible() const
         layer.parameters.value("_maskDensity", 100.).toDouble() <= 0 ||
         (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255);
     return layer.kind == QStringLiteral("adjustment") && layer.visible &&
+           ((layer.blend != 1 && layer.blend != 18) || m_gpuToneNearestSampling) &&
            PhotoCrap::Filters::gpuToneBlendSupported(layer.adjustmentType, layer.blend,
                                                      fullCoverage) &&
            layer.groupId.isEmpty() && !layer.clippingMask &&
@@ -54,6 +68,8 @@ PhotoCrap::Filters::ToneMappingSettings Document::gpuTonePreviewSettings() const
                 ? float(qRound(255 - (255 - layer.mask.constScanLine(0)[0]) * density))
                 : float(density);
     }
+    if (layer.blend == 1)
+        settings.maskCoverage = float(quint32(qBound(0., layer.opacity, 1.) * 65535.));
     return settings;
 }
 

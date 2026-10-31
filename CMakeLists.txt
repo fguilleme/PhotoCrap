@@ -109,6 +109,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/selection/SelectionGeometry.h
     src/selection/SelectionCoverage.h
     src/filters/BlackWhiteFilter.h
+    src/filters/BlendMath.h
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.h
     src/filters/ColorFilter.h
@@ -140,6 +141,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/ToneRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
+    tests/GpuDissolvePreviewTest.cpp
     tests/GpuConditionalBlendPreviewTest.cpp
     tests/SelectionTest.cpp
     tests/SelectionUiSmoke.h
@@ -271,6 +273,7 @@ qt_add_library(photocrap_core STATIC
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h
+    src/filters/BlendMath.h
     src/filters/BrightnessContrastFilter.cpp
     src/filters/BrightnessContrastFilter.h
     src/filters/ChannelMixerFilter.cpp
@@ -478,6 +481,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_gpu_conditional_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME gpu_conditional_blend_preview COMMAND photocrap_gpu_conditional_tests)
     set_tests_properties(gpu_conditional_blend_preview PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_gpu_dissolve_tests tests/GpuDissolvePreviewTest.cpp)
+    target_link_libraries(photocrap_gpu_dissolve_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME gpu_dissolve_preview COMMAND photocrap_gpu_dissolve_tests)
+    set_tests_properties(gpu_dissolve_preview PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)

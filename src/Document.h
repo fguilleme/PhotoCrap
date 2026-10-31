@@ -910,6 +910,7 @@ public:
     QImage                                  displayComposite() const;
     void                                    setGpuTonePreviewEnabled(bool _enabled);
     bool                                    gpuTonePreviewActive() const;
+    void                                    setGpuToneNearestSampling(bool _nearest);
     PhotoCrap::Filters::ToneMappingSettings gpuTonePreviewSettings() const;
     QImage                                  gpuTonePreviewBase() const
     {
@@ -1407,6 +1408,7 @@ private:
     void    invalidateGpuTonePreview();
     void    finishGpuToneBase(const PreviewRenderResult &_result, quint64 _epoch);
     bool    m_gpuToneEnabled = false, m_gpuToneActive = false, m_gpuToneRejected = false;
+    bool    m_gpuToneNearestSampling = true;
     bool    m_preserveGpuTonePreview = false;
     bool    m_pendingPreviewGpuBase = false, m_runningPreviewGpuBase = false;
     bool    m_pendingPreviewGpuAux = false, m_runningPreviewGpuAux = false;

@@ -35,6 +35,7 @@ public:
     QSGImageNode       *image        = nullptr;
     ToneMappingNode    *mapping      = nullptr;
     QRectF              sourceRect;
+    QPointF             sourceOrigin;
     PhotoTileNode(QQuickWindow *_window, const QImage &_image, QSGTexture *_table,
                   const ToneMappingSettings &_settings)
         : owner(_window), texture(_window->createTextureFromImage(
@@ -97,7 +98,7 @@ public:
     void setRect(const QRectF &_rect)
     {
         if (mapping)
-            mapping->setImageRect(_rect, sourceRect);
+            mapping->setImageRect(_rect, sourceRect, sourceOrigin);
         else if (image) {
             image->setSourceRect(sourceRect);
             image->setRect(_rect);
@@ -215,6 +216,8 @@ void CanvasItem::itemChange(ItemChange _change, const ItemChangeData &_value)
 
 void CanvasItem::updatePolish()
 {
+    if (m_document)
+        m_document->setGpuToneNearestSampling(width() >= m_document->width());
     QImage source;
     bool   changed = false, maskChanged = false;
     if (m_imageDirty) {
@@ -510,7 +513,8 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
                     delete tile;
                     continue;
                 }
-                tile->sourceRect = QRectF(source.translated(-padded.topLeft()));
+                tile->sourceRect   = QRectF(source.translated(-padded.topLeft()));
+                tile->sourceOrigin = padded.topLeft();
                 node->photo.appendChildNode(tile);
                 node->tiles.insert(key, tile);
 #ifdef PHOTOCRAP_TESTING

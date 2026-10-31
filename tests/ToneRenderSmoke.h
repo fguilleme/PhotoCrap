@@ -2,6 +2,7 @@
 #include "CanvasItem.h"
 #include "Document.h"
 #include "filters/BlackWhiteFilter.h"
+#include "filters/BlendMath.h"
 #include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorBalanceFilter.h"
@@ -79,26 +80,38 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         return _window->grabWindow();
     };
     const auto check = [&](const QImage &_frame, const QImage &_expected, bool _dense = false) {
-        const qreal ratio = qreal(_frame.width()) / _window->width();
-        for (int y = 0; y < _expected.height(); y += 37)
-            for (int x = 0; x < (_dense ? _expected.width() : 500); x += _dense ? 1 : 13) {
-                const QPointF scene =
-                    canvas.mapToScene({(x + .5) * canvas.width() / _expected.width(),
-                                       (y + .5) * canvas.height() / _expected.height()});
-                const QPoint point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
-                if (!_frame.rect().contains(point)) {
-                    qWarning() << "Tone sample outside frame" << point << _frame.size();
-                    return false;
-                }
-                const auto actual = _frame.pixelColor(point), expected = _expected.pixelColor(x, y);
-                if (qAbs(actual.red() - expected.red()) > 2 ||
-                    qAbs(actual.green() - expected.green()) > 2 ||
-                    qAbs(actual.blue() - expected.blue()) > 2) {
-                    qWarning() << "Tone pixel mismatch" << QPoint(x, y) << actual << expected;
-                    _frame.save("/tmp/photocrap-tone-render-failure.png");
-                    return false;
-                }
+        const qreal ratio  = qreal(_frame.width()) / _window->width();
+        const auto  sample = [&](int x, int y) {
+            const QPointF scene =
+                canvas.mapToScene({(x + .5) * canvas.width() / _expected.width(),
+                                   (y + .5) * canvas.height() / _expected.height()});
+            const QPoint point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
+            if (!_frame.rect().contains(point)) {
+                qWarning() << "Tone sample outside frame" << point << _frame.size();
+                return false;
             }
+            const auto actual = _frame.pixelColor(point), expected = _expected.pixelColor(x, y);
+            if (qAbs(actual.red() - expected.red()) > 2 ||
+                qAbs(actual.green() - expected.green()) > 2 ||
+                qAbs(actual.blue() - expected.blue()) > 2) {
+                qWarning() << "Tone pixel mismatch" << QPoint(x, y) << actual << expected;
+                _frame.save("/tmp/photocrap-tone-render-failure.png");
+                return false;
+            }
+            return true;
+        };
+        for (int y = 0; y < _expected.height(); y += 37)
+            for (int x = 0; x < (_dense ? _expected.width() : 500); x += _dense ? 1 : 13)
+                if (!sample(x, y))
+                    return false;
+        if (document.gpuTonePreviewActive() && document.gpuTonePreviewSettings().blendMode == 1)
+            for (int y = 0; y < _expected.height(); ++y)
+                for (int x = 0; x < _expected.width(); ++x) {
+                    const quint32 hash =
+                        (quint32(x) * 73856093u ^ quint32(y) * 19349663u) & 0xffffu;
+                    if ((hash == 0 || hash >= 65534) && !sample(x, y))
+                        return false;
+                }
         return true;
     };
     const auto composed = [&](const QImage &_filtered, double _opacity, int _mask,
@@ -688,9 +701,68 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                         "conditional final render matches the native CPU result"))
                     return false;
             }
+            document.setEditingMask(true);
+            document.fillMaskWithColor(Qt::white);
+            document.setEditingMask(false);
+            const QList<double> dissolveOpacities =
+                type == "levels" || type == "invert"
+                    ? QList<double>{0., 1. / 65535., .125, .37, .63, 1.}
+                    : QList<double>{.37};
+            for (double opacity : dissolveOpacities) {
+                document.setLayerOpacity(document.activeLayer(), opacity);
+                preview(.8);
+                document.previewLayerBlend(document.activeLayer(), 1);
+                if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                             "nearest unmasked view enables dissolve"))
+                    return false;
+                frame();
+                const auto photoUploads = canvas.imageTextureUploads();
+                for (double value : {.9, 1.1}) {
+                    preview(value);
+                    const auto expected = document.composite();
+                    if (!require(check(frame(), expected, true) &&
+                                     canvas.imageTextureUploads() == photoUploads,
+                                 "dissolve preserves the exact proxy-coordinate hash without photo "
+                                 "uploads")) {
+                        qWarning() << "Failed dissolve filter/opacity:" << type << opacity;
+                        return false;
+                    }
+                }
+                const auto expected = document.composite();
+                document.finishLayerPreview();
+                if (!require(
+                        QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000) &&
+                            check(frame(), expected, true),
+                        "dissolve final render matches CPU"))
+                    return false;
+            }
         }
     }
     if (hardware) {
+        // Interpolation must use the existing CPU path for discrete modes.
+        document.previewLayerParameter("points", QVariantList{QVariantMap{{"x", 0}, {"y", 50}},
+                                                              QVariantMap{{"x", 255}, {"y", 200}}});
+        if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                     "discrete view transition starts"))
+            return false;
+        const int revision = document.revision();
+        canvas.setSize({384, 192});
+        canvas.setViewportRect(canvas.boundingRect());
+        frame();
+        if (!require(QTest::qWaitFor(
+                         [&] {
+                             return !document.gpuTonePreviewActive() &&
+                                    document.revision() > revision;
+                         },
+                         5000),
+                     "linear sampling falls back to CPU for dissolve"))
+            return false;
+        canvas.setSize({512, 256});
+        canvas.setViewportRect(canvas.boundingRect());
+        if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                     "nearest sampling restores GPU dissolve"))
+            return false;
+        document.cancelLayerPreview();
         // Sweep the base ramp against flat Curves outputs to test ratio boundaries.
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open ratio boundary reference"))
             return false;
@@ -729,6 +801,35 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                          "ratio final render finishes"))
                 return false;
         }
+        document.setLayerOpacity(document.activeLayer(), 1.);
+        document.previewLayerBlend(document.activeLayer(), 18);
+        if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                     "hard-mix seam sweep starts"))
+            return false;
+        for (int source = 0; source < 256; ++source) {
+            document.previewLayerParameter("points",
+                                           QVariantList{QVariantMap{{"x", 0}, {"y", source}},
+                                                        QVariantMap{{"x", 255}, {"y", source}}});
+            const auto  image = frame();
+            const qreal ratio = qreal(image.width()) / _window->width();
+            for (int base : {qMax(0, 254 - source), 255 - source, qMin(255, 256 - source)}) {
+                const auto scene = canvas.mapToScene({base + 256.5, .5});
+                const auto actual =
+                    image.pixelColor(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
+                const int expected =
+                    PhotoCrap::Filters::blendChannel(base / 255., source / 255., 18) >= .5 ? 255
+                                                                                           : 0;
+                if (!require(actual == QColor(expected, expected, expected),
+                             "all complementary hard-mix decisions match the native CPU seam")) {
+                    qWarning() << "Hard-mix seam mismatch:" << base << source << actual << expected;
+                    return false;
+                }
+            }
+        }
+        document.finishLayerPreview();
+        if (!require(QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000),
+                     "hard-mix seam final finishes"))
+            return false;
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open color-decision reference"))
             return false;
         document.addAdjustmentLayer("colorBalance");
@@ -800,6 +901,28 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 "mask coordinates follow the photo at a reduced display level"))
             return false;
         document.cancelLayerPreview();
+        // Hash coordinates must include the tile origin, even after tile eviction.
+        _window->setMinimumWidth(1360);
+        _window->resize(qMax(1360, _window->width()), _window->height());
+        canvas.setSize({1280, 256});
+        canvas.setViewportRect(canvas.boundingRect());
+        document.setMaskEnabled(false);
+        document.setLayerOpacity(document.activeLayer(), .37);
+        document.previewLayerParameter("gamma", 2.);
+        document.previewLayerBlend(document.activeLayer(), 1);
+        if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                     "tiled dissolve starts"))
+            return false;
+        const auto expectedDissolve = document.composite();
+        if (!require(check(frame(), expectedDissolve, true),
+                     "dissolve hash stays continuous across tile borders"))
+            return false;
+        canvas.setViewportRect({1100, 0, 180, 256});
+        frame();
+        canvas.setViewportRect(canvas.boundingRect());
+        if (!require(check(frame(), expectedDissolve, true), "dissolve hash survives tile reload"))
+            return false;
+        document.cancelLayerPreview();
     }
     qInfo() << "Tone render checks passed; filters:" << types.size()
             << "; blend modes:" << PhotoCrap::Filters::gpuToneBlendModes().size()
@@ -807,6 +930,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             << "; ratio modes:" << PhotoCrap::Filters::gpuToneRatioBlendModes().size()
             << "; contrast modes:" << PhotoCrap::Filters::gpuToneContrastBlendModes().size()
             << "; color selectors:" << PhotoCrap::Filters::gpuToneColorSelectionBlendModes().size()
+            << "; discrete modes: 2"
             << "; hardware:" << hardware << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
             << "; LUT textures:" << canvas.toneTableUploads()

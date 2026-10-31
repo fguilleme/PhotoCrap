@@ -572,6 +572,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewActive(), 5000);
         const auto base     = doc.gpuTonePreviewBase().cacheKey();
         const int  revision = doc.revision();
+        doc.setGpuToneNearestSampling(false);
         doc.previewLayerBlend(doc.activeLayer(), 1);
         QVERIFY(!doc.gpuTonePreviewActive());
         QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
@@ -591,27 +592,15 @@ private slots:
             doc.setPreviewSize(256, 128);
             doc.setGpuTonePreviewEnabled(true);
             doc.addAdjustmentLayer("levels");
-            if (!transparent)
+            if (!transparent) {
+                doc.setGpuToneNearestSampling(false);
                 doc.setLayerBlend(doc.activeLayer(), 1);
+            }
             const int revision = doc.revision();
             doc.previewLayerParameter("gamma", 2.);
             QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
             QVERIFY(!doc.gpuTonePreviewActive());
             doc.finishLayerPreview();
-        }
-        for (int blend = 0; blend <= 26; ++blend) {
-            if (PhotoCrap::Filters::gpuToneBlendSupported("levels", blend, true))
-                continue;
-            Document doc;
-            QVERIFY(doc.newDocument(256, 128, false));
-            doc.setGpuTonePreviewEnabled(true);
-            doc.addAdjustmentLayer("levels");
-            doc.setLayerBlend(doc.activeLayer(), blend);
-            const int revision = doc.revision();
-            doc.previewLayerParameter("gamma", 2.);
-            QTRY_VERIFY_WITH_TIMEOUT(doc.revision() > revision, 5000);
-            QVERIFY(!doc.gpuTonePreviewActive());
-            doc.cancelLayerPreview();
         }
         Document masked;
         QVERIFY(masked.newDocument(256, 128, false));

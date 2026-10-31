@@ -418,7 +418,7 @@ void CanvasItem::updatePolish()
                 m_document->patchDragging() && !m_document->patchPreviewImage().isNull();
             const bool remove  = m_document->removeHasPending();
             const int  shape   = m_document->selectionShape();
-            const bool marquee = shape == 0 || shape == 1;
+            const bool marquee = shape >= 0 && shape <= 3;
             const bool closedLasso =
                 (shape == 4 || shape == 5) && !m_document->lassoPreviewActive();
             const bool  selection = (marquee || closedLasso || shape >= 6) &&
@@ -501,7 +501,7 @@ void CanvasItem::updatePolish()
                     m_selectionPath    = {};
                     if (shape == 1)
                         m_selectionPath.addEllipse(QRectF(bounds));
-                    else if (shape == 0)
+                    else if (marquee)
                         m_selectionPath.addRect(QRectF(bounds));
                     else if (closedLasso) {
                         m_selectionPath.addPolygon(points);

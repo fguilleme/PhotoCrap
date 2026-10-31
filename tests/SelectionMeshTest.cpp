@@ -65,6 +65,26 @@ private slots:
             }
         }
     }
+    void longSinglePixelBandsStayBounded()
+    {
+        for (bool row : {true, false})
+            for (qreal scale : {.25, 1., 8.}) {
+                QPainterPath path;
+                path.addRect(row ? QRectF(0, 40, 16384, 1) : QRectF(80, 0, 1, 16384));
+                const QRectF viewport = row ? QRectF(500 * scale, 35 * scale, 300, 50)
+                                            : QRectF(75 * scale, 500 * scale, 50, 300);
+                const auto   mesh =
+                    PhotoCrap::Render::selectionMesh(path, {scale, scale}, viewport, 2);
+                QVERIFY(!mesh.fallback);
+                QVERIFY(!mesh.vertices.isEmpty());
+                QVERIFY(mesh.vertices.size() <= 24);
+                for (const auto &v : mesh.vertices) {
+                    QVERIFY(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.distance));
+                    QVERIFY(v.x >= -4 && v.x <= viewport.width() + 4);
+                    QVERIFY(v.y >= -4 && v.y <= viewport.height() + 4);
+                }
+            }
+    }
     void boundedComplexityAndLargeCoordinates()
     {
         QPainterPath path;

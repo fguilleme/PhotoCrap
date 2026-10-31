@@ -1012,6 +1012,106 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
             document.setSelectionEdgesVisible(true);
         }
     }
+    for (int bits : {8, 16}) {
+        if (!require(document.newDocument(512, 320, false, bits),
+                     "create a single-pixel selection reference"))
+            return false;
+        const QColor base(90, 120, 150);
+        document.setColor(base);
+        document.fillWithColor(true);
+        const auto original = document.layerImage(0);
+        for (bool row : {true, false}) {
+            document.deselect();
+            document.setSelectionMode(0);
+            document.setTool(row ? "singleRowSelect" : "singleColumnSelect");
+            document.beginStroke(80, 40);
+            document.endStroke();
+            if (!require(document.selectionShape() == (row ? 2 : 3) &&
+                             document.selection().size() == (row ? QSize(512, 1) : QSize(1, 320)) &&
+                             document.selectionRegion() == QRegion(document.selection()),
+                         "row/column selection retains exactly one native pixel of coverage"))
+                return false;
+            for (qreal scale : {.5, 1., 4.}) {
+                canvas.setSize({512 * scale, 320 * scale});
+                const QRectF view(0, 0, qMin(512., canvas.width()), qMin(320., canvas.height()));
+                canvas.setViewportRect(view);
+                document.setSelectionEdgesVisible(true);
+                canvas.setSelectionPhase(0);
+                const auto    first        = frame();
+                const auto    photoUploads = canvas.imageTextureUploads();
+                const QPointF at =
+                    row ? QPointF(120 * scale, 40 * scale) : QPointF(80 * scale, 60 * scale);
+                bool marked = false;
+                for (int y = -2; y <= 2; ++y)
+                    for (int x = -2; x <= 2; ++x)
+                        marked |= !near(pixel(first, at.x() + x + .5, at.y() + y + .5), base);
+                if (!require(
+                        marked && near(pixel(first, at.x() + (row ? 0 : 10 * scale) + .5,
+                                             at.y() + (row ? 10 * scale : 0) + .5),
+                                       base),
+                        "single-pixel selections show a thin contour without filling the image"))
+                    return false;
+                const auto geometry = canvas.selectionGeometryUploads();
+                const auto textures = canvas.overlayTextureUploads();
+                canvas.setSelectionPhase(3);
+                const auto animated = frame();
+                if (!require(
+                        animated != first && canvas.imageTextureUploads() == photoUploads,
+                        "single-pixel selection contours animate without reuploading the photo"))
+                    return false;
+                if (shaderSelection) {
+                    canvas.setSelectionPhase(3.25);
+                    if (!require(frame() != animated && canvas.selectionShaderActive() &&
+                                     canvas.selectionGeometryUploads() == geometry &&
+                                     canvas.overlayTextureUploads() == textures &&
+                                     canvas.overlayPixelSize().isEmpty(),
+                                 "row/column contours update only their fractional shader phase"))
+                        return false;
+                } else if (!require(row ? canvas.overlayPixelSize().height() <
+                                              qCeil(view.height() * ratio)
+                                        : canvas.overlayPixelSize().width() <
+                                              qCeil(view.width() * ratio),
+                                    "software row/column backing storage stays a thin strip"))
+                    return false;
+                canvas.setSelectionPhase(3);
+                frame();
+                const QRectF clippedView =
+                    row ? view.adjusted(37, 0, 0, 0) : view.adjusted(0, 23, 0, 0);
+                canvas.setViewportRect(clippedView);
+                const auto  clipped = frame();
+                const QRect compare = row ? QRect(42, qFloor(at.y()) - 3,
+                                                  int(clippedView.right()) - 47, qCeil(scale) + 6)
+                                          : QRect(qFloor(at.x()) - 3, 28, qCeil(scale) + 6,
+                                                  int(clippedView.bottom()) - 33);
+                for (int y = compare.top(); y <= compare.bottom(); ++y)
+                    for (int x = compare.left(); x <= compare.right(); ++x)
+                        if (!require(near(pixel(clipped, x + .5, y + .5),
+                                          pixel(animated, x + .5, y + .5)),
+                                     "thin selection dash phase survives viewport clipping"))
+                            return false;
+                if (scale == 1) {
+                    const auto clippedGeometry = canvas.selectionGeometryUploads();
+                    canvas.setRotation(12);
+                    const auto rotated = frame();
+                    canvas.setSelectionPhase(4);
+                    if (!require(frame() != rotated &&
+                                     (!shaderSelection ||
+                                      canvas.selectionGeometryUploads() == clippedGeometry),
+                                 "single-pixel contours follow canvas rotation"))
+                        return false;
+                    canvas.setRotation(0);
+                }
+                document.setSelectionEdgesVisible(false);
+                frame();
+                if (!require(!canvas.selectionShaderActive() &&
+                                 canvas.imageTextureUploads() == photoUploads &&
+                                 document.layerImage(0) == original &&
+                                 document.channelBits() == bits,
+                             "thin contour display preserves pixels, precision and photo textures"))
+                    return false;
+            }
+        }
+    }
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

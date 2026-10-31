@@ -145,10 +145,11 @@ un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosa
 ## Contours de sélection animés sur GPU
 
 Les sélections générales (`selectionShape >= 6`, dont les sélections combinées ou
-issues d’un masque), les rectangles, les ellipses et les lassos terminés passent
-par `render/SelectionMesh` et `SelectionOutlineNode`. Les lignes/colonnes uniques
-et les guides de lasso pendant le geste conservent leur affichage QML. Les Canvas
-QML ne repeignent donc plus ces contours validés à chaque phase de l’animation.
+issues d’un masque), les rectangles, les ellipses, les rangées/colonnes uniques et
+les lassos terminés passent par `render/SelectionMesh` et `SelectionOutlineNode`.
+Seuls les guides de lasso pendant le geste conservent leur affichage QML. Les
+Canvas QML ne repeignent donc plus les contours de sélection à chaque phase de
+l’animation, une fois le geste terminé.
 
 Les rectangles et ellipses créent directement un chemin de la taille de la sélection,
 avec une vraie courbe elliptique. Le type et le rectangle font partie de la clé du
@@ -160,6 +161,14 @@ Sur le backend logiciel, ce chemin est peint dans la surface de surimpression
 limitée à la vue, avec le même repli QPainter que les sélections générales. Sans
 autre surimpression raster simultanée, cette surface est aussi limitée à l’emprise
 du contour et sa marge : une petite sélection ne repeint pas toute la vue.
+
+Les sélections de rangée/colonne uniques (`selectionShape` 2/3) dessinent le rectangle
+exact de leur bande d’un pixel natif. Le zoom agrandit cette bande mais conserve un
+trait cosmétique, comme les autres contours. Seuls ses segments visibles produisent
+de la géométrie ; une rangée de 16 384 pixels à fort zoom ne crée plus de texture
+QML de cette longueur. Sur le backend logiciel, la surface est réduite à la bande
+visible et à sa marge. Les pixels sélectionnés et l’historique restent ceux du
+moteur de sélection existant.
 
 Pour les lassos libre et polygonal terminés (`selectionShape` 4/5), le chemin est
 construit directement depuis une copie partagée des points natifs `QPolygonF`,
@@ -209,6 +218,10 @@ courbure à plusieurs échelles, y compris non uniformes. Les tests des lassos
 vérifient aussi fermeture, concavités, transitions en cours/terminé, points déplacés,
 conservation des pixels, phases fractionnaires, découpage et rotation. Le smoke
 test QML contrôle la limite de la vue et la disparition du guide à la validation.
+Les rangées et colonnes sont contrôlées en 8/16 bits aux zooms 0,5×, 1× et 4× :
+visibilité, absence de remplissage hors bande, phases fractionnaires, découpage,
+rotation et absence de modification des pixels. Le test de maillage utilise aussi
+une bande de 16 384 pixels à 8× et vérifie une quantité de sommets bornée à la vue.
 
 ## Marquage de Suppression sur GPU
 

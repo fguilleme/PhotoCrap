@@ -2222,7 +2222,6 @@ ApplicationWindow {
                             objectName: "artboard"
                             property real selectionAntPhase: 0
                             onSelectionAntPhaseChanged: {
-                                if (rectangularSelectionOverlay.visible) rectangularSelectionOverlay.requestPaint()
                                 if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint()
                             }
                             function strokeSelectionPath(context) {
@@ -2293,36 +2292,6 @@ ApplicationWindow {
                                 duration: 700
                                 loops: Animation.Infinite
                                 running: editor.selectionEdgesVisible && (editor.hasSelection || editor.polygonLassoActive)
-                            }
-                            Canvas {
-                                id: rectangularSelectionOverlay
-                                objectName: "rectangularSelectionOverlay"
-                                visible: editor.selectionEdgesVisible && editor.hasSelection
-                                         && (editor.selectionShape === 2 || editor.selectionShape === 3)
-                                x: editor.selection.x * zoom - 2
-                                y: editor.selection.y * zoom - 2
-                                width: editor.selection.width * zoom + 4
-                                height: editor.selection.height * zoom + 4
-                                z: 2
-                                enabled: false
-                                onPaint: {
-                                    const c = getContext("2d")
-                                    c.reset()
-                                    c.clearRect(0, 0, width, height)
-                                    if (width <= 4 || height <= 4) return
-                                    c.beginPath()
-                                    c.rect(2, 2, width - 4, height - 4)
-                                    artboard.strokeSelectionPath(c)
-                                }
-                                onWidthChanged: requestPaint()
-                                onHeightChanged: requestPaint()
-                                onVisibleChanged: if (visible) requestPaint()
-                                Connections {
-                                    target: editor
-                                    function onSelectionChanged() {
-                                        rectangularSelectionOverlay.requestPaint()
-                                    }
-                                }
                             }
                             Rectangle {
                                 objectName: "redEyeRegionOverlay"

@@ -1837,6 +1837,20 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_document.hasCrop() && cropOverlay->isVisible() && !_document.hasSelection(),
                  "drawing a crop frame leaves the pixel selection separate"))
         return false;
+    QTest::qWait(60);
+    QSignalSpy cropPaints(cropOverlay, SIGNAL(painted()));
+    QSignalSpy cropSnapshots(cropOverlay, SIGNAL(pointsChanged()));
+    QTest::mouseMove(_window, cropScene(100, 80), 20);
+    if (!require(_window->property("canvasCursorShape").toInt() == int(Qt::SizeAllCursor),
+                 "crop hover uses the retained interior for the move cursor"))
+        return false;
+    QTest::mouseMove(_window, cropScene(20, 20), 20);
+    QTest::qWait(60);
+    if (!require(
+            _window->property("canvasCursorShape").toInt() == int(Qt::SizeFDiagCursor) &&
+                cropPaints.isEmpty() && cropSnapshots.isEmpty(),
+            "crop corner hover updates the real cursor without repainting or rereading points"))
+        return false;
     QTest::keyClick(_window, Qt::Key_Escape);
     if (!require(!_document.hasCrop() && _document.width() == 300,
                  "Escape discards a crop without touching image pixels"))

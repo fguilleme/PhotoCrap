@@ -914,3 +914,42 @@ les automatiques, les étiquettes débordantes, les poignées, les curseurs, les
 gestes provisoires, le zoom, le défilement et la rotation. Les scénarios de rendu
 sont exécutés sur logiciel, Metal et OpenGL. Le smoke test QML vérifie aussi les
 contrôles de tranche réellement affichés dans l’application.
+
+## Recadrage : voile GPU et guides raster bornés
+
+`CropOverlay.qml` partage un snapshot des quatre points entre le test du curseur,
+le dessin des guides et le voile natif `CropShadeItem`. Le survol n’appelle plus
+le getter `Document::cropPoints()` à chaque déplacement. Les points sont convertis
+en `QPolygonF` sur le thread GUI ; le thread de rendu ne consulte aucun objet
+JavaScript.
+
+Sur un backend RHI, `CropShadeNode` conserve un rectangle de quatre sommets couvrant
+la partie visible du document. Son shader produit le voile noir d’opacité 55 %
+à l’extérieur du quadrilatère, sans texture intermédiaire. Les quatre plans de
+bord sont normalisés sur CPU en double précision dans les coordonnées locales
+de la vue, puis transmis comme constantes en flottants. Un cadre déplacé change
+ces paramètres et la matrice, sans recharger les sommets si la vue ne change pas.
+Une ouverture dégénérée produit un voile plein, comme au début d’un geste.
+
+Les coordonnées locales du fragment utilisent un attribut distinct de la position
+du sommet : Qt peut prétransformer cette dernière lors du regroupement des nœuds
+ou du découpage d’une vue tournée. La transformation et le clipping restent ceux
+du graphe de scène. Même si les guides sont entièrement hors champ, le voile
+reste visible dans la vue par son nœud enfant.
+
+Le cadre, la grille et les poignées gardent leur dessin Canvas en une seule passe,
+limité à l’enveloppe visible du quadrilatère avec une marge de 16 pixels logiques
+pour les traits, joints en onglet et poignées. Leur raster est repeint quand le
+cadre change ; cette étape ne les passe pas sur GPU. Le backend logiciel conserve
+le Canvas complet d’origine pour le voile et les guides. Le recadrage final reste
+asynchrone sur CPU en précision native 8/16 bits.
+
+`crop_shade` vérifie les plans, le sens du quadrilatère, les ouvertures invalides,
+les grandes coordonnées et les origines de vue. `crop_overlay` compare les pixels
+à l’ancien Canvas sur documents 8/16 bits : recadrage classique et perspective,
+zoom, défilement, rotation, grilles, fonds clairs/colorés, cadre hors champ,
+début de geste et annulation. Des compteurs contrôlent la conservation des sommets
+et la mise à jour des seules constantes au déplacement. Ces scénarios sont
+exécutés sur logiciel, Metal et OpenGL ; les autres backends RHI restent à valider
+sur leur matériel. Le smoke test QML contrôle aussi le curseur réel du recadrage
+et l’absence de repeint/snapshot pendant son survol.

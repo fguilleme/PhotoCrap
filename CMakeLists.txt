@@ -15,6 +15,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ToolInput.cpp
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
+    src/CropShadeItem.cpp
+    src/render/CropShade.cpp
+    src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
     src/render/SelectionOutlineNode.cpp
     src/render/RegionOverlayNode.cpp
@@ -111,6 +114,9 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/MacToolCursor.mm
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
+    src/CropShadeItem.h
+    src/render/CropShade.h
+    src/render/CropShadeNode.h
     src/render/ToneMappingNode.h
     src/render/SelectionOutlineNode.h
     src/render/RegionOverlayNode.h
@@ -166,6 +172,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/LassoGuideSmoke.h
     tests/SliceOverlaySmoke.h
     tests/SliceDescriptionCacheTest.cpp
+    tests/CropShadeTest.cpp
+    tests/CropOverlaySmoke.h
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
@@ -366,6 +374,9 @@ qt_add_executable(PhotoCrap
     src/main.cpp
     src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h src/CanvasRendering.cpp
+    src/CropShadeItem.cpp src/CropShadeItem.h
+    src/render/CropShade.cpp src/render/CropShade.h
+    src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
     src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
     src/render/RegionOverlayNode.cpp src/render/RegionOverlayNode.h
@@ -381,6 +392,7 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
     PREFIX "/PhotoCrap"
     FILES src/render/shaders/tone.vert src/render/shaders/tone.frag
         src/render/shaders/selection.vert src/render/shaders/selection.frag
+        src/render/shaders/crop.vert src/render/shaders/crop.frag
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
@@ -529,6 +541,11 @@ if(BUILD_TESTING)
     add_test(NAME slice_cache COMMAND photocrap_slice_cache_tests)
     set_tests_properties(slice_cache PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 30)
+    qt_add_executable(photocrap_crop_shade_tests tests/CropShadeTest.cpp src/render/CropShade.cpp)
+    target_include_directories(photocrap_crop_shade_tests PRIVATE src)
+    target_link_libraries(photocrap_crop_shade_tests PRIVATE Qt6::Gui Qt6::Test)
+    add_test(NAME crop_shade COMMAND photocrap_crop_shade_tests)
+    set_tests_properties(crop_shade PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_content_move_tests tests/ContentMoveFinalizationTest.cpp)
     target_link_libraries(photocrap_content_move_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME content_move COMMAND photocrap_content_move_tests)
@@ -623,6 +640,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME slice_overlay COMMAND PhotoCrap --smoke-test --slice-overlay-test)
     set_tests_properties(slice_overlay PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME crop_overlay COMMAND PhotoCrap --smoke-test --crop-overlay-test)
+    set_tests_properties(crop_overlay PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

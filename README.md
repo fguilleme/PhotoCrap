@@ -280,6 +280,8 @@ Les guides du lasso conservent leurs points en cache pendant le survol et limite
 
 Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises.
 
+Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées conservent leur dessin, limité à leur emprise visible ; le backend logiciel garde le rendu raster complet. Le survol réutilise les points du cadre pour choisir le curseur.
+
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.
 
 ## Validation et limites

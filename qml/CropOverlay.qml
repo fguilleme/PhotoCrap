@@ -1,15 +1,31 @@
 import QtQuick
+import PhotoCrap.Native 1.0
 
 ScreenOverlayCanvas {
     id: root
     required property var document
     property bool showGrid: true
     property bool perspective: document.tool === "perspectiveCrop"
+    readonly property var points: document.cropPoints
+    readonly property bool gpuShade: GraphicsInfo.api === GraphicsInfo.Metal
+        || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
+        || GraphicsInfo.api === GraphicsInfo.Direct3D11 || GraphicsInfo.api === GraphicsInfo.Direct3D12
+    readonly property rect guideBounds: {
+        if (points.length!==4) return Qt.rect(0,0,0,0)
+        const left=Math.max(screenBounds.x,Math.floor(Math.min.apply(null,points.map(p=>p.x*zoom))-16))
+        const top=Math.max(screenBounds.y,Math.floor(Math.min.apply(null,points.map(p=>p.y*zoom))-16))
+        const right=Math.min(screenBounds.x+screenBounds.width,Math.ceil(Math.max.apply(null,points.map(p=>p.x*zoom))+16))
+        const bottom=Math.min(screenBounds.y+screenBounds.height,Math.ceil(Math.max.apply(null,points.map(p=>p.y*zoom))+16))
+        return Qt.rect(left,top,Math.max(0,right-left),Math.max(0,bottom-top))
+    }
+    x: gpuShade ? guideBounds.x : screenBounds.x
+    y: gpuShade ? guideBounds.y : screenBounds.y
+    width: gpuShade ? guideBounds.width : screenBounds.width
+    height: gpuShade ? guideBounds.height : screenBounds.height
     enabled: false
-    visible: document.cropPoints.length === 4
+    visible: points.length === 4
     antialiasing: true
     function cursorAt(x,y) {
-        const points=document.cropPoints
         if(points.length!==4) return Qt.CrossCursor
         for(let i=0;i<4;i++) {
             if(Math.hypot(x-points[i].x*zoom,y-points[i].y*zoom)<=10)
@@ -28,15 +44,16 @@ ScreenOverlayCanvas {
         return inside ? Qt.SizeAllCursor : Qt.CrossCursor
     }
     onPaint: {
-        const points=document.cropPoints
         const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
         if(points.length!==4) return
         const p=points.map(function(pt){return {x:pt.x*zoom-root.x,y:pt.y*zoom-root.y}})
         // The reverse-wound frame leaves the retained area unobscured.
-        c.beginPath();c.rect(0,0,width,height)
-        c.moveTo(p[3].x,p[3].y)
-        for(let i=2;i>=0;i--) c.lineTo(p[i].x,p[i].y)
-        c.closePath();c.fillStyle="rgba(0,0,0,.55)";c.fill()
+        if(!gpuShade) {
+            c.beginPath();c.rect(0,0,width,height)
+            c.moveTo(p[3].x,p[3].y)
+            for(let i=2;i>=0;i--) c.lineTo(p[i].x,p[i].y)
+            c.closePath();c.fillStyle="rgba(0,0,0,.55)";c.fill()
+        }
         c.beginPath();c.moveTo(p[0].x,p[0].y)
         for(let i=1;i<4;i++) c.lineTo(p[i].x,p[i].y)
         c.closePath();c.lineWidth=3;c.strokeStyle="rgba(0,0,0,.9)";c.stroke()
@@ -60,6 +77,19 @@ ScreenOverlayCanvas {
             c.lineWidth=1;c.strokeStyle="#111111";c.strokeRect(pt.x-4,pt.y-4,8,8)
         }
     }
+    CropShade {
+        id: shade
+        objectName: "cropShade"
+        visible: root.gpuShade
+        enabled: false
+        z: -1
+        x: root.screenBounds.x-root.x; y: root.screenBounds.y-root.y
+        width: root.screenBounds.width; height: root.screenBounds.height
+        points: root.points
+        zoom: root.zoom
+        origin: Qt.point(root.screenBounds.x,root.screenBounds.y)
+    }
+    onGpuShadeChanged: if(visible)requestPaint()
     onZoomChanged: requestPaint()
     onShowGridChanged: requestPaint()
     onPerspectiveChanged: requestPaint()

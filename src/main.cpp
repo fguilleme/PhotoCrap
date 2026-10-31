@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "CanvasItem.h"
+#include "CropShadeItem.h"
 #include "Document.h"
 #include "LanguageManager.h"
 #include "RecentFilesManager.h"
@@ -17,6 +18,7 @@
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/BrushCursorSmoke.h"
 #include "../tests/CanvasRenderSmoke.h"
+#include "../tests/CropOverlaySmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
@@ -86,6 +88,7 @@ int main(int argc, char *argv[])
 #endif
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
+    qmlRegisterType<CropShadeItem>("PhotoCrap.Native", 1, 0, "CropShade");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");
     LanguageManager    languageManager(nullptr, !smoke);
@@ -182,6 +185,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--slice-overlay-test")) {
                 passed = window && runSliceOverlaySmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--crop-overlay-test")) {
+                passed = window && runCropOverlaySmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

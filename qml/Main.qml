@@ -170,7 +170,7 @@ ApplicationWindow {
                                              : window.sliceToolActive
                                                ? (editor.slices, sliceOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY))
                                              : window.cropToolActive
-                                               ? (editor.cropPoints, cropOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY))
+                                               ? cropOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY)
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
                                              : window.paintToolActive

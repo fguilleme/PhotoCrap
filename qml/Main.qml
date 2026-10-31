@@ -2343,16 +2343,21 @@ ApplicationWindow {
                             }
                             Canvas {
                                 id: lassoSelectionOverlay
-                                anchors.fill: parent
+                                objectName: "lassoSelectionOverlay"
+                                x: imageCanvas.viewportRect.x
+                                y: imageCanvas.viewportRect.y
+                                width: imageCanvas.viewportRect.width
+                                height: imageCanvas.viewportRect.height
                                 z: 2
                                 enabled: false
-                                visible: editor.selectionEdgesVisible && editor.selectionShape >= 4 && editor.selectionPath.length > 0
+                                visible: editor.selectionEdgesVisible && editor.lassoPreviewActive && editor.selectionPath.length > 0
                                 onPaint: {
                                     const points = editor.selectionPath
                                     const c = getContext("2d")
                                     c.reset()
                                     c.clearRect(0, 0, width, height)
                                     if (!points || points.length < 1) return
+                                    c.translate(-x, -y)
                                     c.beginPath()
                                     c.moveTo(points[0].x * zoom, points[0].y * zoom)
                                     for (let i = 1; i < points.length; ++i)
@@ -2380,13 +2385,20 @@ ApplicationWindow {
                                         }
                                     }
                                 }
+                                onXChanged: if (visible) requestPaint()
+                                onYChanged: if (visible) requestPaint()
+                                onWidthChanged: if (visible) requestPaint()
+                                onHeightChanged: if (visible) requestPaint()
+                                onVisibleChanged: if (visible) requestPaint()
                                 Connections {
                                     target: editor
-                                    function onSelectionChanged() { lassoSelectionOverlay.requestPaint() }
+                                    function onSelectionChanged() {
+                                        if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint()
+                                    }
                                 }
                                 Connections {
                                     target: window
-                                    function onZoomChanged() { lassoSelectionOverlay.requestPaint() }
+                                    function onZoomChanged() { if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint() }
                                 }
                             }
                             PenOverlay {

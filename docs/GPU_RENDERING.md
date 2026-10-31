@@ -145,10 +145,10 @@ un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosa
 ## Contours de sélection animés sur GPU
 
 Les sélections générales (`selectionShape >= 6`, dont les sélections combinées ou
-issues d’un masque), les rectangles et les ellipses passent par
-`render/SelectionMesh` et `SelectionOutlineNode`. Les lignes/colonnes uniques et les
-lassos conservent leur affichage QML. Les Canvas QML ne repeignent donc plus le
-rectangle ou l’ellipse à chaque phase de l’animation.
+issues d’un masque), les rectangles, les ellipses et les lassos terminés passent
+par `render/SelectionMesh` et `SelectionOutlineNode`. Les lignes/colonnes uniques
+et les guides de lasso pendant le geste conservent leur affichage QML. Les Canvas
+QML ne repeignent donc plus ces contours validés à chaque phase de l’animation.
 
 Les rectangles et ellipses créent directement un chemin de la taille de la sélection,
 avec une vraie courbe elliptique. Le type et le rectangle font partie de la clé du
@@ -160,6 +160,20 @@ Sur le backend logiciel, ce chemin est peint dans la surface de surimpression
 limitée à la vue, avec le même repli QPainter que les sélections générales. Sans
 autre surimpression raster simultanée, cette surface est aussi limitée à l’emprise
 du contour et sa marge : une petite sélection ne repeint pas toute la vue.
+
+Pour les lassos libre et polygonal terminés (`selectionShape` 4/5), le chemin est
+construit directement depuis une copie partagée des points natifs `QPolygonF`,
+sans conversion en `QVariantList` ni en contour de masque pixellisé. Le tracé est
+fermé et conserve les concavités. Ses points font partie de la clé du cache : un
+déplacement de sélection remplace la géométrie, sans transférer la photo.
+
+`lassoPreviewActive` distingue un geste en cours d’une sélection terminée, y
+compris quand Pièce ou Déplacement crée sa sélection temporaire. Pendant le geste,
+le Canvas QML affiche le guide, le segment provisoire et les sommets du polygonal.
+Sa surface est limitée à `imageCanvas.viewportRect` ; les points et la position du
+pointeur sont translatés vers cette origine locale. Après validation ou annulation,
+ce guide disparaît. Une sélection combinée ne garde donc plus le tracé candidat
+QML par-dessus son contour final. La création du masque de sélection reste CPU.
 
 Le chemin de région est conservé tant que le contour ne change pas. Le maillage
 ne contient que les segments utiles à la vue, avec jointures en onglet bornées et
@@ -191,7 +205,10 @@ fractionnaires, la stabilité des compteurs de géométrie/textures, le déplace
 la rotation et l’absence de remplissage de la sélection sur Metal et OpenGL. Il
 contrôle aussi les courbes elliptiques, le changement de forme à dimensions égales,
 le masquage et les pixels de travail 8/16 bits ; `selection_mesh` vérifie la
-courbure à plusieurs échelles, y compris non uniformes.
+courbure à plusieurs échelles, y compris non uniformes. Les tests des lassos
+vérifient aussi fermeture, concavités, transitions en cours/terminé, points déplacés,
+conservation des pixels, phases fractionnaires, découpage et rotation. Le smoke
+test QML contrôle la limite de la vue et la disparition du guide à la validation.
 
 ## Marquage de Suppression sur GPU
 

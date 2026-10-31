@@ -772,6 +772,28 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "lasso menu lists its two tools and the two NYI entries"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");
+    auto lassoGuide  = _window->findChild<QQuickItem *>("lassoSelectionOverlay");
+    auto lassoCanvas = _window->findChild<QQuickItem *>("imageCanvas");
+    if (!require(lassoGuide && lassoCanvas, "lasso guide and canvas exist"))
+        return false;
+    _document.setTool("lasso");
+    _document.beginStroke(10, 10);
+    _document.continueStroke(70, 10);
+    _document.continueStroke(50, 70);
+    QTest::qWait(30);
+    const auto lassoView = lassoCanvas->property("viewportRect").toRectF();
+    if (!require(_document.lassoPreviewActive() && lassoGuide->isVisible() &&
+                     lassoGuide->width() <= lassoView.width() &&
+                     lassoGuide->height() <= lassoView.height(),
+                 "active lasso guides are confined to the visible document bounds"))
+        return false;
+    _document.endStroke();
+    QTest::qWait(30);
+    if (!require(!_document.lassoPreviewActive() && !lassoGuide->isVisible() &&
+                     _document.hasSelection(),
+                 "finishing a lasso removes the QML guide and keeps its selection"))
+        return false;
+    _document.deselect();
     QTest::keyClick(_window, Qt::Key_W);
     QTest::qWait(30);
     if (!require(_document.tool() == "quickSelection",

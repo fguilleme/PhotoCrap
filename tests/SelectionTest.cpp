@@ -52,6 +52,55 @@ class SelectionTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void lassoGuidesFollowOnlyActiveSelectionGestures()
+    {
+        Document doc;
+        QVERIFY(doc.newDocument(120, 100));
+        for (const auto &tool : {QString("lasso"), QString("patch"), QString("contentAwareMove")}) {
+            doc.deselect();
+            doc.setTool(tool);
+            doc.beginStroke(10, 10);
+            QVERIFY(doc.lassoPreviewActive());
+            doc.continueStroke(70, 10);
+            doc.continueStroke(50, 70);
+            QVERIFY(doc.hasSelection());
+            QVERIFY(doc.lassoPreviewActive());
+            doc.endStroke();
+            QVERIFY(!doc.lassoPreviewActive());
+            QVERIFY(doc.hasSelection());
+            doc.setTool("brush");
+            doc.beginStroke(35, 30);
+            QVERIFY(!doc.lassoPreviewActive());
+            doc.cancelStroke();
+        }
+        doc.deselect();
+        doc.setTool("polygonalLasso");
+        doc.addPolygonLassoPoint(10, 10);
+        doc.addPolygonLassoPoint(70, 10);
+        doc.addPolygonLassoPoint(50, 70);
+        QVERIFY(doc.lassoPreviewActive());
+        doc.finishPolygonLasso();
+        QVERIFY(!doc.lassoPreviewActive());
+        const auto completed = doc.selectionPoints();
+        doc.nudgeTool(1, 0);
+        QVERIFY(!doc.lassoPreviewActive());
+        QCOMPARE(doc.selectionPoints(), completed.translated(1, 0));
+        doc.setSelectionMode(1);
+        doc.setTool("lasso");
+        doc.beginStroke(80, 10);
+        doc.continueStroke(100, 10);
+        doc.continueStroke(100, 40);
+        QVERIFY(doc.lassoPreviewActive());
+        doc.endStroke();
+        QCOMPARE(doc.selectionShape(), 6);
+        QVERIFY(!doc.lassoPreviewActive());
+        doc.setSelectionMode(0);
+        doc.setTool("polygonalLasso");
+        doc.addPolygonLassoPoint(10, 10);
+        QVERIFY(doc.lassoPreviewActive());
+        doc.cancelPolygonLasso();
+        QVERIFY(!doc.lassoPreviewActive());
+    }
     void geometryMatchesPixelReference()
     {
         const QSize   size(17, 13);

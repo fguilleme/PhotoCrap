@@ -277,6 +277,7 @@ void CanvasItem::updatePolish()
         m_selectionBounds  = {};
         m_selectionShape   = -1;
         m_selectionPath    = {};
+        m_lassoPoints      = {};
     } else {
         const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1.;
         const qreal scale =
@@ -415,24 +416,29 @@ void CanvasItem::updatePolish()
             m_document->height() > 0) {
             const bool patch =
                 m_document->patchDragging() && !m_document->patchPreviewImage().isNull();
-            const bool  remove    = m_document->removeHasPending();
-            const int   shape     = m_document->selectionShape();
-            const bool  marquee   = shape == 0 || shape == 1;
-            const bool  selection = (marquee || shape >= 6) && m_document->hasSelection() &&
+            const bool remove  = m_document->removeHasPending();
+            const int  shape   = m_document->selectionShape();
+            const bool marquee = shape == 0 || shape == 1;
+            const bool closedLasso =
+                (shape == 4 || shape == 5) && !m_document->lassoPreviewActive();
+            const bool  selection = (marquee || closedLasso || shape >= 6) &&
+                                    m_document->hasSelection() &&
                                     m_document->selectionEdgesVisible();
             const qreal ratio     = window() ? window()->effectiveDevicePixelRatio() : 1.;
             const bool  hardware  = window() && QSGRendererInterface::isApiRhiBased(
                                                     window()->rendererInterface()->graphicsApi());
-            if (selection && marquee && !hardware && !patch && !remove) {
-                const QRectF bounds(m_document->selection());
-                const qreal  sx = width() / m_document->width();
-                const qreal  sy = height() / m_document->height();
+            if (selection && (marquee || closedLasso) && !hardware && !patch && !remove) {
+                const QRectF bounds = closedLasso ? m_document->selectionPoints().boundingRect()
+                                                  : QRectF(m_document->selection());
+                const qreal  sx     = width() / m_document->width();
+                const qreal  sy     = height() / m_document->height();
                 const QRectF projected(bounds.x() * sx, bounds.y() * sy, bounds.width() * sx,
                                        bounds.height() * sy);
-                // Keep small software marquees as small as their former QML
-                // surface, while clipping huge selections to the viewport.
-                const QRectF local(projected.adjusted(-2 / ratio, -2 / ratio, 2 / ratio, 2 / ratio)
-                                       .toAlignedRect());
+                // Keep small software contours local, while clipping huge
+                // selections and acute lasso joins to the viewport.
+                const qreal  margin = (closedLasso ? 6 : 2) / ratio;
+                const QRectF local(
+                    projected.adjusted(-margin, -margin, margin, margin).toAlignedRect());
                 m_overlayRect = m_overlayRect.intersected(local);
             }
             patchPending = patch;
@@ -481,20 +487,26 @@ void CanvasItem::updatePolish()
             removePending = remove;
             m_gpuRemove   = removeMeshNeeded;
             if (selection) {
-                const QRect   bounds   = marquee ? m_document->selection() : QRect{};
-                const QRegion outline  = marquee ? QRegion{} : m_document->selectionOutline();
+                const QRect   bounds = marquee ? m_document->selection() : QRect{};
+                const QRegion outline =
+                    (marquee || closedLasso) ? QRegion{} : m_document->selectionOutline();
+                const QPolygonF points = closedLasso ? m_document->selectionPoints() : QPolygonF{};
                 const bool pathChanged = m_selectionShape != shape || m_selectionBounds != bounds ||
-                                         m_selectionOutline != outline;
+                                         m_selectionOutline != outline || m_lassoPoints != points;
                 if (pathChanged) {
                     m_selectionShape   = shape;
                     m_selectionBounds  = bounds;
                     m_selectionOutline = outline;
+                    m_lassoPoints      = points;
                     m_selectionPath    = {};
                     if (shape == 1)
                         m_selectionPath.addEllipse(QRectF(bounds));
                     else if (shape == 0)
                         m_selectionPath.addRect(QRectF(bounds));
-                    else {
+                    else if (closedLasso) {
+                        m_selectionPath.addPolygon(points);
+                        m_selectionPath.closeSubpath();
+                    } else {
                         m_selectionPath.setFillRule(Qt::WindingFill);
                         m_selectionPath.addRegion(outline);
                         m_selectionPath = m_selectionPath.simplified();

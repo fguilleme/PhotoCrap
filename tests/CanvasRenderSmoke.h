@@ -898,6 +898,120 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
             document.setSelectionEdgesVisible(true);
         }
     }
+    for (const int bits : {8, 16}) {
+        if (!require(document.newDocument(512, 320, false, bits),
+                     "create a lasso display reference"))
+            return false;
+        canvas.setSize({512, 320});
+        canvas.setViewportRect(canvas.boundingRect());
+        const QColor base(90, 120, 150);
+        document.setColor(base);
+        document.fillWithColor(true);
+        const auto      original = document.layerImage(0);
+        const QPolygonF points(
+            {{110.25, 80.5}, {310.5, 80.5}, {280.5, 200.25}, {180.25, 140.5}, {110.25, 200.25}});
+        document.setSelectionEdgesVisible(true);
+        frame();
+        const auto photoUploads = canvas.imageTextureUploads();
+        for (const QString tool : {QString("lasso"), QString("polygonalLasso")}) {
+            document.deselect();
+            document.setSelectionMode(0);
+            document.setTool(tool);
+            const int history = document.historyIndex();
+            if (tool == "lasso") {
+                document.beginStroke(points.first().x(), points.first().y());
+                for (qsizetype i = 1; i < points.size(); ++i)
+                    document.continueStroke(points[i].x(), points[i].y());
+            } else {
+                for (const auto point : points)
+                    document.addPolygonLassoPoint(point.x(), point.y());
+            }
+            frame();
+            if (!require(
+                    document.lassoPreviewActive() && !canvas.selectionShaderActive(),
+                    "unfinished lasso gestures keep their live guide rather than a final contour"))
+                return false;
+            if (tool == "lasso")
+                document.endStroke();
+            else
+                document.finishPolygonLasso();
+            canvas.setSelectionPhase(0);
+            const auto first       = frame();
+            const auto changedNear = [&](const QImage &_frame, QPointF _point) {
+                for (int y = -2; y <= 2; ++y)
+                    for (int x = -2; x <= 2; ++x)
+                        if (!near(pixel(_frame, qFloor(_point.x()) + x + .5,
+                                        qFloor(_point.y()) + y + .5),
+                                  base))
+                            return true;
+                return false;
+            };
+            if (!require(
+                    !document.lassoPreviewActive() && document.historyIndex() == history + 1 &&
+                        changedNear(first, {110.25, 120.5}) && changedNear(first, points[3]) &&
+                        !changedNear(first, {150, 120}) && document.layerImage(0) == original,
+                    "completed freehand and polygon lassos close their contour without a fill"))
+                return false;
+            const auto geometry = canvas.selectionGeometryUploads();
+            const auto textures = canvas.overlayTextureUploads();
+            canvas.setSelectionPhase(3);
+            const auto animated = frame();
+            if (!require(animated != first && canvas.imageTextureUploads() == photoUploads,
+                         "completed lasso contours animate without uploading the photograph"))
+                return false;
+            if (shaderSelection) {
+                canvas.setSelectionPhase(3.25);
+                if (!require(frame() != animated && canvas.selectionShaderActive() &&
+                                 canvas.selectionGeometryUploads() == geometry &&
+                                 canvas.overlayTextureUploads() == textures &&
+                                 canvas.overlayPixelSize().isEmpty(),
+                             "lasso phases update no geometry or raster texture"))
+                    return false;
+            } else if (!require(canvas.overlayPixelSize().width() < qCeil(canvas.width() * ratio) &&
+                                    canvas.overlayPixelSize().height() <
+                                        qCeil(canvas.height() * ratio),
+                                "software lasso contours allocate only their visible extent"))
+                return false;
+            canvas.setSelectionPhase(3);
+            frame();
+            canvas.setViewportRect({90, 60, 200, 180});
+            const auto clipped = frame();
+            for (int y = 65; y < 225; ++y)
+                for (int x = 95; x < 285; ++x)
+                    if (!require(
+                            near(pixel(clipped, x + .5, y + .5), pixel(animated, x + .5, y + .5)),
+                            "lasso contours keep their phase through viewport clipping"))
+                        return false;
+            const auto clippedGeometry = canvas.selectionGeometryUploads();
+            canvas.setRotation(12);
+            const auto rotated = frame();
+            canvas.setSelectionPhase(4);
+            if (!require(
+                    frame() != rotated &&
+                        (!shaderSelection || canvas.selectionGeometryUploads() == clippedGeometry),
+                    "completed lasso contours inherit the rotated scene transform"))
+                return false;
+            canvas.setRotation(0);
+            canvas.setViewportRect(canvas.boundingRect());
+            frame();
+            const auto beforeNudge  = canvas.selectionGeometryUploads();
+            const auto beforePoints = document.selectionPoints();
+            document.nudgeTool(1, 0);
+            frame();
+            if (!require(
+                    document.selectionPoints() == beforePoints.translated(1, 0) &&
+                        (!shaderSelection || canvas.selectionGeometryUploads() > beforeNudge) &&
+                        canvas.imageTextureUploads() == photoUploads,
+                    "moving a lasso updates its typed points and geometry without editing pixels"))
+                return false;
+            document.setSelectionEdgesVisible(false);
+            const auto hidden = frame();
+            if (!require(!changedNear(hidden, points[3]) && !canvas.selectionShaderActive(),
+                         "hiding a completed lasso removes its contour"))
+                return false;
+            document.setSelectionEdgesVisible(true);
+        }
+    }
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

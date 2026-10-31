@@ -132,6 +132,7 @@ private:
     QRect                                       m_selectionBounds;
     int                                         m_selectionShape = -1;
     QPainterPath                                m_selectionPath;
+    QPolygonF                                   m_lassoPoints;
     QVector<PhotoCrap::Render::SelectionVertex> m_selectionVertices;
     QRectF                                      m_selectionMeshViewport;
     QSizeF                                      m_selectionMeshScale;

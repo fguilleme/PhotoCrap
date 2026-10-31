@@ -233,6 +233,7 @@ class Document : public QObject
         int colorSelectionSampleCount READ colorSelectionSampleCount NOTIFY colorSelectionChanged)
     Q_PROPERTY(int selectionShape READ selectionShape NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList selectionPath READ selectionPath NOTIFY selectionChanged)
+    Q_PROPERTY(bool lassoPreviewActive READ lassoPreviewActive NOTIFY selectionChanged)
     Q_PROPERTY(bool polygonLassoActive READ polygonLassoActive NOTIFY selectionChanged)
     Q_PROPERTY(int selectionMode READ selectionMode WRITE setSelectionMode NOTIFY settingsChanged)
     Q_PROPERTY(int selectionTolerance READ selectionTolerance WRITE setSelectionTolerance NOTIFY
@@ -537,7 +538,17 @@ public:
         return m_selectionShape;
     }
     QVariantList selectionPath() const;
-    bool         polygonLassoActive() const
+    QPolygonF    selectionPoints() const
+    {
+        return m_selectionPath;
+    }
+    bool lassoPreviewActive() const
+    {
+        return m_polygonLassoActive ||
+               (m_drawing && !m_patchDragging &&
+                (m_tool == "lasso" || m_tool == "patch" || m_tool == "contentAwareMove"));
+    }
+    bool polygonLassoActive() const
     {
         return m_polygonLassoActive;
     }

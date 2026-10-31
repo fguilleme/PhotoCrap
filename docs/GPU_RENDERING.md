@@ -54,7 +54,8 @@ la configuration et la disponibilité. Ce changement ne force pas Vulkan sous Li
   reconstruction après suppression du nœud ou changement de fenêtre.
 
 Les curseurs natifs et les événements clavier/souris restent sur les mêmes objets
-QML. Les rectangles, ellipses et lassos conservent leurs surimpressions QML existantes.
+QML. Les contours de sélection passent par le canevas commun ; seuls les guides
+ouverts initiaux, polygonaux et de combinaison conservent une surimpression QML.
 
 ## Précision et limites
 
@@ -147,9 +148,10 @@ un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosa
 Les sélections générales (`selectionShape >= 6`, dont les sélections combinées ou
 issues d’un masque), les rectangles, les ellipses, les rangées/colonnes uniques et
 les lassos terminés passent par `render/SelectionMesh` et `SelectionOutlineNode`.
-Seuls les guides de lasso pendant le geste conservent leur affichage QML. Les
-Canvas QML ne repeignent donc plus les contours de sélection à chaque phase de
-l’animation, une fois le geste terminé.
+Le lasso libre utilise aussi ce chemin pendant le geste, dès que son candidat
+forme une zone (`selectionShape == 4` et `hasSelection`). Sa phase animée ne
+repeint plus de texture QML, même avant le relâchement. Les guides ouverts initiaux,
+polygonaux et de combinaison conservent leur affichage QML.
 
 Les rectangles et ellipses créent directement un chemin de la taille de la sélection,
 avec une vraie courbe elliptique. Le type et le rectangle font partie de la clé du
@@ -170,15 +172,20 @@ QML de cette longueur. Sur le backend logiciel, la surface est réduite à la ba
 visible et à sa marge. Les pixels sélectionnés et l’historique restent ceux du
 moteur de sélection existant.
 
-Pour les lassos libre et polygonal terminés (`selectionShape` 4/5), le chemin est
-construit directement depuis une copie partagée des points natifs `QPolygonF`,
+Pour le lasso libre, en cours ou terminé, et le polygonal terminé (`selectionShape`
+4/5), le chemin est construit directement depuis une copie partagée des points
+natifs `QPolygonF`,
 sans conversion en `QVariantList` ni en contour de masque pixellisé. Le tracé est
 fermé et conserve les concavités. Ses points font partie de la clé du cache : un
 déplacement de sélection remplace la géométrie, sans transférer la photo.
 
 `lassoPreviewActive` distingue un geste en cours d’une sélection terminée, y
-compris quand Pièce ou Déplacement crée sa sélection temporaire. Pendant le geste,
-le Canvas QML affiche le guide, le segment provisoire et les sommets du polygonal.
+compris quand Pièce ou Déplacement crée sa sélection temporaire : leur détourage
+libre passe lui aussi sur le contour commun dès qu’il forme une zone. Le relâchement
+réutilise le dernier maillage si les points restent identiques. Le Canvas QML
+affiche seulement la ligne initiale sans zone, les guides polygonaux avec leur
+segment provisoire et leurs sommets, et le candidat des sélections combinées
+(la sélection combinée possède déjà son propre contour).
 Sa surface est limitée à `imageCanvas.viewportRect` ; les points et la position du
 pointeur sont translatés vers cette origine locale. Après validation ou annulation,
 ce guide disparaît. Une sélection combinée ne garde donc plus le tracé candidat
@@ -217,7 +224,12 @@ le masquage et les pixels de travail 8/16 bits ; `selection_mesh` vérifie la
 courbure à plusieurs échelles, y compris non uniformes. Les tests des lassos
 vérifient aussi fermeture, concavités, transitions en cours/terminé, points déplacés,
 conservation des pixels, phases fractionnaires, découpage et rotation. Le smoke
-test QML contrôle la limite de la vue et la disparition du guide à la validation.
+test QML contrôle la limite de la vue, le transfert du candidat libre vers le
+canevas sans doublon et la conservation des guides polygonaux/combinés. Les tests
+de rendu vérifient aussi les phases pendant le geste, la mise à jour des points,
+la réutilisation du maillage au relâchement, le masquage et l’annulation dans les
+trois outils de détourage libre, sans modification des pixels ni retransfert photo
+(lasso en 8/16 bits, Pièce et Déplacement encore réservés aux documents 8 bits).
 Les rangées et colonnes sont contrôlées en 8/16 bits aux zooms 0,5×, 1× et 4× :
 visibilité, absence de remplissage hors bande, phases fractionnaires, découpage,
 rotation et absence de modification des pixels. Le test de maillage utilise aussi

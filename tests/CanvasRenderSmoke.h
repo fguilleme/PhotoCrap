@@ -920,7 +920,7 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
             const int history = document.historyIndex();
             if (tool == "lasso") {
                 document.beginStroke(points.first().x(), points.first().y());
-                for (qsizetype i = 1; i < points.size(); ++i)
+                for (qsizetype i = 1; i < points.size() - 1; ++i)
                     document.continueStroke(points[i].x(), points[i].y());
             } else {
                 for (const auto point : points)
@@ -928,12 +928,38 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
             }
             frame();
             if (!require(
-                    document.lassoPreviewActive() && !canvas.selectionShaderActive(),
-                    "unfinished lasso gestures keep their live guide rather than a final contour"))
+                    document.lassoPreviewActive() &&
+                        canvas.selectionShaderActive() == (shaderSelection && tool == "lasso"),
+                    "freehand candidates use the shared contour while polygon guides stay QML"))
                 return false;
-            if (tool == "lasso")
+            if (tool == "lasso") {
+                const auto liveGeometry = canvas.selectionGeometryUploads();
+                const auto liveTextures = canvas.overlayTextureUploads();
+                const auto live         = frame();
+                canvas.setSelectionPhase(2.25);
+                if (!require(
+                        frame() != live && canvas.imageTextureUploads() == photoUploads &&
+                            document.layerImage(0) == original &&
+                            document.historyIndex() == history &&
+                            (!shaderSelection ||
+                             (canvas.selectionGeometryUploads() == liveGeometry &&
+                              canvas.overlayTextureUploads() == liveTextures &&
+                              canvas.overlayPixelSize().isEmpty())),
+                        "live freehand animation preserves geometry, textures, pixels and history"))
+                    return false;
+                document.continueStroke(points.last().x(), points.last().y());
+                frame();
+                if (!require(!shaderSelection || canvas.selectionGeometryUploads() > liveGeometry,
+                             "moving the freehand pointer updates the contour geometry"))
+                    return false;
+                const auto beforeFinishGeometry = canvas.selectionGeometryUploads();
                 document.endStroke();
-            else
+                frame();
+                if (!require(!shaderSelection ||
+                                 canvas.selectionGeometryUploads() == beforeFinishGeometry,
+                             "finishing the freehand gesture reuses its last candidate geometry"))
+                    return false;
+            } else
                 document.finishPolygonLasso();
             canvas.setSelectionPhase(0);
             const auto first       = frame();
@@ -1010,6 +1036,42 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                          "hiding a completed lasso removes its contour"))
                 return false;
             document.setSelectionEdgesVisible(true);
+        }
+        for (const QString tool :
+             {QString("lasso"), QString("patch"), QString("contentAwareMove")}) {
+            if (!document.toolSupportsDepth(tool))
+                continue;
+            document.deselect();
+            document.setSelectionMode(0);
+            document.setTool(tool);
+            document.beginStroke(100, 80);
+            document.continueStroke(250, 80);
+            document.continueStroke(220, 180);
+            frame();
+            if (!document.lassoPreviewActive() || !document.hasSelection() ||
+                canvas.selectionShaderActive() != shaderSelection)
+                qWarning() << "Live lasso transition" << bits << tool << document.selectionShape()
+                           << document.lassoPreviewActive() << document.hasSelection()
+                           << canvas.selectionShaderActive() << document.activeLayer();
+            if (!require(document.lassoPreviewActive() && document.hasSelection() &&
+                             canvas.selectionShaderActive() == shaderSelection,
+                         "freehand selection gestures share the contour for lasso, patch and move"))
+                return false;
+            document.setSelectionEdgesVisible(false);
+            frame();
+            if (!require(!canvas.selectionShaderActive(),
+                         "hiding selection edges also hides a live freehand contour"))
+                return false;
+            document.setSelectionEdgesVisible(true);
+            frame();
+            document.cancelStroke();
+            frame();
+            if (!require(
+                    !document.lassoPreviewActive() && !document.hasSelection() &&
+                        !canvas.selectionShaderActive() && document.layerImage(0) == original &&
+                        canvas.imageTextureUploads() == photoUploads,
+                    "cancelling a freehand guide leaves no contour and preserves the photograph"))
+                return false;
         }
     }
     for (int bits : {8, 16}) {

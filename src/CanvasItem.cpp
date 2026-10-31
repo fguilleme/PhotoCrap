@@ -317,10 +317,10 @@ void CanvasItem::setSelectionPhase(qreal _phase)
 {
     if (qFuzzyCompare(m_selectionPhase + 1, _phase + 1))
         return;
-    m_selectionPhase       = _phase;
-    const int  shape       = m_document ? m_document->selectionShape() : -1;
-    const bool closedLasso = (shape == 4 || shape == 5) && !m_document->lassoPreviewActive();
-    if ((shape >= 0 && shape <= 3) || closedLasso || shape >= 6) {
+    m_selectionPhase     = _phase;
+    const int  shape     = m_document ? m_document->selectionShape() : -1;
+    const bool pathLasso = shape == 4 || (shape == 5 && !m_document->lassoPreviewActive());
+    if ((shape >= 0 && shape <= 3) || pathLasso || shape >= 6) {
         if (m_gpuSelection)
             polish();
         else

@@ -779,19 +779,45 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.setTool("lasso");
     _document.beginStroke(10, 10);
     _document.continueStroke(70, 10);
-    _document.continueStroke(50, 70);
     QTest::qWait(30);
     const auto lassoView = lassoCanvas->property("viewportRect").toRectF();
-    if (!require(_document.lassoPreviewActive() && lassoGuide->isVisible() &&
-                     lassoGuide->width() <= lassoView.width() &&
+    if (!require(_document.lassoPreviewActive() && !_document.hasSelection() &&
+                     lassoGuide->isVisible() && lassoGuide->width() <= lassoView.width() &&
                      lassoGuide->height() <= lassoView.height(),
-                 "active lasso guides are confined to the visible document bounds"))
+                 "the initial open lasso guide is confined to the visible document bounds"))
+        return false;
+    _document.continueStroke(50, 70);
+    QTest::qWait(30);
+    if (!require(
+            _document.lassoPreviewActive() && _document.hasSelection() && !lassoGuide->isVisible(),
+            "a freehand candidate transfers to the shared canvas without a duplicate QML guide"))
         return false;
     _document.endStroke();
     QTest::qWait(30);
     if (!require(!_document.lassoPreviewActive() && !lassoGuide->isVisible() &&
                      _document.hasSelection(),
                  "finishing a lasso removes the QML guide and keeps its selection"))
+        return false;
+    _document.setSelectionMode(1);
+    _document.beginStroke(80, 10);
+    _document.continueStroke(110, 10);
+    _document.continueStroke(110, 50);
+    QTest::qWait(30);
+    if (!require(_document.selectionShape() == 6 && lassoGuide->isVisible(),
+                 "combined selections retain their separate candidate guide"))
+        return false;
+    _document.endStroke();
+    _document.setSelectionMode(0);
+    _document.setTool("polygonalLasso");
+    _document.addPolygonLassoPoint(10, 10);
+    _document.addPolygonLassoPoint(70, 10);
+    QTest::qWait(30);
+    if (!require(_document.polygonLassoActive() && lassoGuide->isVisible(),
+                 "polygon lasso handles and rubber band keep their QML guide"))
+        return false;
+    _document.cancelPolygonLasso();
+    QTest::qWait(30);
+    if (!require(!lassoGuide->isVisible(), "cancelling the polygon guide hides it"))
         return false;
     _document.deselect();
     QTest::keyClick(_window, Qt::Key_W);

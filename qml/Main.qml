@@ -2319,7 +2319,12 @@ ApplicationWindow {
                                 height: imageCanvas.viewportRect.height
                                 z: 2
                                 enabled: false
-                                visible: editor.selectionEdgesVisible && editor.lassoPreviewActive && editor.selectionPath.length > 0
+                                // Closed freehand candidates use the shared canvas contour even during
+                                // the gesture. Keep the initial open line, polygon handles/rubber
+                                // band and combined-selection candidate guide here.
+                                visible: editor.selectionEdgesVisible && editor.lassoPreviewActive
+                                         && (editor.polygonLassoActive || editor.selectionShape !== 4 || !editor.hasSelection)
+                                         && editor.selectionPath.length > 0
                                 onPaint: {
                                     const points = editor.selectionPath
                                     const c = getContext("2d")

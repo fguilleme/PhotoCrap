@@ -15,6 +15,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
+#include "../tests/BrushCursorSmoke.h"
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
@@ -158,6 +159,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--measurement-overlay-test")) {
                 passed = window && runMeasurementOverlaySmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--brush-cursor-test")) {
+                passed = window && runBrushCursorSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

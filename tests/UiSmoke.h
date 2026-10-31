@@ -825,6 +825,24 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_document.tool() == "quickSelection",
                  "W activates the current smart-selection tool"))
         return false;
+    auto brushCursor = _window->findChild<QQuickItem *>("brushCursor");
+    QTest::mouseMove(_window,
+                     area->mapToScene(QPointF(area->width() / 2, area->height() / 2)).toPoint());
+    QTest::qWait(30);
+    if (!require(
+            brushCursor && brushCursor->isVisible() &&
+                brushCursor->property("selectionSign").toInt() == 1 &&
+                qAbs(brushCursor->property("diameter").toReal() -
+                     _document.brushSize() * _window->property("zoom").toReal()) < .01 &&
+                brushCursor->property("pointerX") == area->property("pointerX") &&
+                brushCursor->property("pointerY") == area->property("pointerY"),
+            "quick selection binds the bounded brush footprint to its actual pointer and zoom"))
+        return false;
+    _document.setSelectionMode(2);
+    if (!require(brushCursor->property("selectionSign").toInt() == -1,
+                 "quick selection subtraction updates its cursor sign"))
+        return false;
+    _document.setSelectionMode(0);
     QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "smartSelection"),
                               Q_ARG(QVariant, QVariant()));
     QTest::qWait(100);

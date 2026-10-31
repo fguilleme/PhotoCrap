@@ -272,6 +272,8 @@ Le canevas en développement après v0.15 utilise des textures Qt Quick réutili
 
 Les surimpressions de mesure sont bornées : l’anneau de pipette conserve un dessin de 84 × 84 pixels logiques et se déplace sans repeindre tant que ses couleurs ne changent pas. La règle ne réserve que l’emprise de son segment et de ses poignées, limitée à la vue ; zoom, défilement et rotation conservent les mêmes coordonnées de mesure.
 
+Le contour du pinceau garde aussi une surface limitée à la vue, même avec une grosse brosse au zoom fort. Son déplacement réutilise le dessin tant que le contour reste entièrement visible ; angle, aplatissement et signes +/− de Sélection rapide sont pris en compte.
+
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.
 
 ## Validation et limites

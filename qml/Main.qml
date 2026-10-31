@@ -2523,9 +2523,6 @@ ApplicationWindow {
                                     window.stampSourcePicking = Boolean(mouse.modifiers & Qt.AltModifier)
                                     editor.setToolModifiers(Boolean(mouse.modifiers & Qt.ShiftModifier),Boolean(mouse.modifiers & Qt.AltModifier),window.spacePressed)
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
-                                    if (brushCursor.visible) {
-                                        brushCursor.pointerX=mouse.x;brushCursor.pointerY=mouse.y;brushCursor.requestPaint()
-                                    }
                                     if (window.temporaryPickerActive && window.pickerDragging) {
                                         editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),false)
                                     } else if (editor.tool === "picker" && window.pickerDragging) {
@@ -2751,32 +2748,19 @@ ApplicationWindow {
                                     c.lineWidth = 1; c.strokeStyle = "#ffffff"; c.stroke()
                                 }
                             }
-                            Canvas {
+                            BrushCursor {
                                 id: brushCursor
-                                property real pointerX: 0
-                                property real pointerY: 0
+                                objectName: "brushCursor"
+                                viewportItem: viewport
+                                zoom: window.zoom
+                                pointerX: drawingArea.pointerX
+                                pointerY: drawingArea.pointerY
+                                diameter: editor.brushSize*zoom
+                                roundness: editor.brushRoundness
+                                angle: editor.brushAngle
+                                selectionSign: editor.tool === "quickSelection" ? (editor.selectionMode === 2 ? -1 : 1) : 0
                                 visible: drawingArea.containsMouse && !toolInput.precise && !window.temporaryPickerActive && !window.temporaryMoveActive && !window.spacePressed && !window.stampToolActive && editor.tool !== "remove" && editor.tool !== "historyBrush" && editor.tool !== "artHistoryBrush" && editor.tool !== "smudge" && editor.tool !== "healing" && editor.tool !== "spotHealing" && editor.tool !== "colorReplacement" && editor.tool !== "mixerBrush" && (window.paintToolActive || editor.tool === "quickSelection")
-                                enabled: false; z: 5
-                                width: Math.max(8,editor.brushSize*zoom+8); height: width
-                                x: pointerX-width/2; y: pointerY-height/2
-                                onPaint: {
-                                    const c=getContext("2d");c.reset();c.clearRect(0,0,width,height);c.translate(width/2,height/2)
-                                    c.rotate(editor.brushAngle*Math.PI/180);c.scale(1,editor.brushRoundness)
-                                    const radius=editor.brushSize*zoom/2;c.beginPath();c.arc(0,0,radius,0,Math.PI*2)
-                                    c.lineWidth=2/editor.brushRoundness;c.strokeStyle="rgba(0,0,0,.75)";c.stroke()
-                                    c.lineWidth=1/editor.brushRoundness;c.strokeStyle="rgba(255,255,255,.95)";c.stroke()
-                                    if (editor.tool === "quickSelection") {
-                                        const sign = editor.selectionMode === 2 ? -1 : 1
-                                        const px = Math.min(width - 5, width / 2 + radius * .7)
-                                        const py = Math.max(5, height / 2 - radius * .7)
-                                        c.beginPath();c.moveTo(px-3,py);c.lineTo(px+3,py)
-                                        if(sign>0){c.moveTo(px,py-3);c.lineTo(px,py+3)}
-                                        c.lineWidth=3;c.strokeStyle="rgba(0,0,0,.85)";c.stroke()
-                                        c.lineWidth=1;c.strokeStyle="#ffffff";c.stroke()
-                                    }
-                                }
-                                Connections { target: editor; function onSettingsChanged() { brushCursor.requestPaint() } }
-                                Connections { target: window; function onZoomChanged() { brushCursor.requestPaint() } }
+                                z: 5
                             }
                         }
                     }

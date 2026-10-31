@@ -783,3 +783,33 @@ la réutilisation au déplacement, et contrôle la règle courte, longue, défil
 tournée et masquée. Les mêmes scénarios sont exécutés sur le backend logiciel,
 Metal et OpenGL. Le smoke test QML vérifie aussi leur branchement dans l’interface
 règle/pipette, en conservant les curseurs natifs et le panneau Informations.
+
+## Contour du pinceau borné
+
+`BrushCursor.qml` remplace le Canvas du curseur dont la surface grandissait avec le
+diamètre zoomé et qui était repeint à chaque mouvement. Le diamètre reste exprimé
+en coordonnées d’affichage ; le dessin conserve l’ellipse, son angle, son
+aplatissement et les deux traits contrastés existants. Les signes +/− de Sélection
+rapide sont placés dans l’empreinte locale, sans subir la rotation ni l’aplatissement
+de l’ellipse.
+
+Le rectangle du curseur est limité à la vue, calculée dans le repère du document
+après défilement et rotation. Cette vue inclut les marges autour de l’image : un
+pinceau près du bord de la photo garde son contour hors image si cette portion
+reste visible à l’écran. Une empreinte énorme ne réserve donc pas une texture
+proportionnelle au carré de son diamètre zoomé.
+
+Tant que le contour reste entièrement dans la vue, son centre local et sa taille
+ne changent pas : déplacer le pointeur déplace seulement la texture existante
+dans le graphe de scène. En cas de découpage, le centre local et les dimensions
+changent ; seule cette surface bornée est repeinte. Les changements de diamètre,
+angle, aplatissement, signe ou visibilité demandent aussi un repeint. La peinture
+des pixels du document et les curseurs natifs restent sur leurs chemins existants.
+
+Le test `brush_cursor` compare les pixels avec/sans découpage, vérifie le centre
+transparent, l’ellipse tournée, les signes +/−, le défilement, le repositionnement
+du document et le masquage. Le signal réel `painted` contrôle la réutilisation au
+déplacement et à la rotation de la vue. Une empreinte de 32 000 pixels affichés
+est vérifiée dans une vue 512 × 320, sur logiciel, Metal et OpenGL ; aucun document
+complet de cette taille n’est alloué par ce test. Le smoke test QML contrôle aussi
+la liaison au pointeur, au zoom et au mode de Sélection rapide de l’application.

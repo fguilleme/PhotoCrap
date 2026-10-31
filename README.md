@@ -276,6 +276,8 @@ Le contour du pinceau garde aussi une surface limitée à la vue, même avec une
 
 La Plume conserve les dessins du tracé et des poignées pendant le survol : seul le segment provisoire est redessiné dans sa zone visible. Les modifications des points et des tangentes invalident ces dessins ; zoom et défilement restent limités à la vue.
 
+Les guides du lasso conservent leurs points en cache pendant le survol et limitent leur dessin à leur emprise visible. L’animation des fourmis s’arrête lorsqu’aucune sélection n’a de pointillés à afficher. Les guides combinés gardent leur animation avec un snapshot de points réutilisé.
+
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.
 
 ## Validation et limites

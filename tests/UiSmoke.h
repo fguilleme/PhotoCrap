@@ -776,6 +776,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto lassoCanvas = _window->findChild<QQuickItem *>("imageCanvas");
     if (!require(lassoGuide && lassoCanvas, "lasso guide and canvas exist"))
         return false;
+    auto selectionAnimation = _window->findChild<QObject *>("selectionAntAnimation");
+    if (!require(selectionAnimation, "shared selection animation exists"))
+        return false;
     _document.setTool("lasso");
     _document.beginStroke(10, 10);
     _document.continueStroke(70, 10);
@@ -814,6 +817,19 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::qWait(30);
     if (!require(_document.polygonLassoActive() && lassoGuide->isVisible(),
                  "polygon lasso handles and rubber band keep their QML guide"))
+        return false;
+    if (!require(!selectionAnimation->property("running").toBool(),
+                 "an unfinished solid polygon does not animate invisible dashes"))
+        return false;
+    QTest::qWait(40);
+    QSignalSpy guidePaints(lassoGuide, SIGNAL(painted()));
+    QTest::qWait(80);
+    if (!require(guidePaints.isEmpty(), "solid polygon guides remain idle without pointer motion"))
+        return false;
+    QTest::mouseMove(
+        _window, area->mapToScene(QPointF(90, 50) * _window->property("zoom").toReal()).toPoint());
+    QTest::qWait(60);
+    if (!require(!guidePaints.isEmpty(), "polygon hover repaints its cached guide on demand"))
         return false;
     _document.cancelPolygonLasso();
     QTest::qWait(30);

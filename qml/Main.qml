@@ -2221,20 +2221,6 @@ ApplicationWindow {
                             id: artboard
                             objectName: "artboard"
                             property real selectionAntPhase: 0
-                            onSelectionAntPhaseChanged: {
-                                if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint()
-                            }
-                            function strokeSelectionPath(context) {
-                                context.lineWidth = 1.5
-                                context.setLineDash([5, 5])
-                                context.lineDashOffset = selectionAntPhase
-                                context.strokeStyle = "#111111"
-                                context.stroke()
-                                context.lineDashOffset = selectionAntPhase + 5
-                                context.strokeStyle = "#ffffff"
-                                context.stroke()
-                                context.setLineDash([])
-                            }
                             x: (viewport.contentWidth-width)/2; y: (viewport.contentHeight-height)/2
                             width: editor.width*zoom; height: editor.height*zoom
                             rotation: window.canvasRotation
@@ -2287,11 +2273,12 @@ ApplicationWindow {
                                 showGrid: cropOptions.showGrid
                             }
                             NumberAnimation on selectionAntPhase {
+                                objectName: "selectionAntAnimation"
                                 from: 0
                                 to: 10
                                 duration: 700
                                 loops: Animation.Infinite
-                                running: editor.selectionEdgesVisible && (editor.hasSelection || editor.polygonLassoActive)
+                                running: editor.selectionEdgesVisible && editor.hasSelection
                             }
                             Rectangle {
                                 objectName: "redEyeRegionOverlay"
@@ -2310,70 +2297,17 @@ ApplicationWindow {
                                     color: "transparent"; border.color: "#172028"; border.width: 1
                                 }
                             }
-                            Canvas {
+                            LassoGuide {
                                 id: lassoSelectionOverlay
                                 objectName: "lassoSelectionOverlay"
-                                x: imageCanvas.viewportRect.x
-                                y: imageCanvas.viewportRect.y
-                                width: imageCanvas.viewportRect.width
-                                height: imageCanvas.viewportRect.height
+                                viewportItem: viewport
+                                document: editor
+                                zoom: window.zoom
+                                phase: artboard.selectionAntPhase
+                                pointerX: drawingArea.pointerX
+                                pointerY: drawingArea.pointerY
+                                pointerInside: drawingArea.containsMouse
                                 z: 2
-                                enabled: false
-                                // Closed freehand candidates use the shared canvas contour even during
-                                // the gesture. Keep the initial open line, polygon handles/rubber
-                                // band and combined-selection candidate guide here.
-                                visible: editor.selectionEdgesVisible && editor.lassoPreviewActive
-                                         && (editor.polygonLassoActive || editor.selectionShape !== 4 || !editor.hasSelection)
-                                         && editor.selectionPath.length > 0
-                                onPaint: {
-                                    const points = editor.selectionPath
-                                    const c = getContext("2d")
-                                    c.reset()
-                                    c.clearRect(0, 0, width, height)
-                                    if (!points || points.length < 1) return
-                                    c.translate(-x, -y)
-                                    c.beginPath()
-                                    c.moveTo(points[0].x * zoom, points[0].y * zoom)
-                                    for (let i = 1; i < points.length; ++i)
-                                        c.lineTo(points[i].x * zoom, points[i].y * zoom)
-                                    if (editor.polygonLassoActive && drawingArea.containsMouse)
-                                        c.lineTo(drawingArea.pointerX, drawingArea.pointerY)
-                                    if (editor.hasSelection) {
-                                        c.closePath()
-                                        artboard.strokeSelectionPath(c)
-                                    } else {
-                                        c.strokeStyle = "#f5f7f9"
-                                        c.lineWidth = 1
-                                        c.stroke()
-                                    }
-                                    if (editor.polygonLassoActive) {
-                                        for (let i = 0; i < points.length; ++i) {
-                                            c.beginPath()
-                                            c.arc(points[i].x * zoom, points[i].y * zoom, 3, 0,
-                                                  Math.PI * 2)
-                                            c.fillStyle = "#f5f7f9"
-                                            c.fill()
-                                            c.strokeStyle = "#172028"
-                                            c.lineWidth = 1
-                                            c.stroke()
-                                        }
-                                    }
-                                }
-                                onXChanged: if (visible) requestPaint()
-                                onYChanged: if (visible) requestPaint()
-                                onWidthChanged: if (visible) requestPaint()
-                                onHeightChanged: if (visible) requestPaint()
-                                onVisibleChanged: if (visible) requestPaint()
-                                Connections {
-                                    target: editor
-                                    function onSelectionChanged() {
-                                        if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint()
-                                    }
-                                }
-                                Connections {
-                                    target: window
-                                    function onZoomChanged() { if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint() }
-                                }
                             }
                             PenOverlay {
                                 id:penOverlay;objectName:"penOverlay"
@@ -2533,7 +2467,6 @@ ApplicationWindow {
                                         if (pressed && ((editor.tool === "polygonalLasso" && (mouse.modifiers & Qt.AltModifier))
                                                 || (editor.tool === "lasso" && !(mouse.modifiers & Qt.AltModifier))))
                                             editor.continuePolygonLasso(mouse.x/zoom,mouse.y/zoom)
-                                        lassoSelectionOverlay.requestPaint()
                                     }
                                     else if(pressed) editor.continueStroke(mouse.x/zoom,mouse.y/zoom)
                                 }

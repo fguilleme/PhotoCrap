@@ -161,6 +161,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/MeasurementOverlaySmoke.h
     tests/BrushCursorSmoke.h
     tests/PenOverlaySmoke.h
+    tests/LassoGuideSmoke.h
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
@@ -422,6 +423,7 @@ qt_add_qml_module(PhotoCrap
         qml/SelectionMenu.qml
         qml/SelectionModifyDialog.qml
         qml/PenOverlay.qml
+        qml/LassoGuide.qml
         qml/ContentAwareMoveOptions.qml
         qml/RemoveOptions.qml
         qml/HistoryBrushOptions.qml
@@ -605,6 +607,9 @@ if(BUILD_TESTING)
     add_test(NAME pen_overlay COMMAND PhotoCrap --smoke-test --pen-overlay-test)
     set_tests_properties(pen_overlay PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
+    add_test(NAME lasso_guide COMMAND PhotoCrap --smoke-test --lasso-guide-test)
+    set_tests_properties(lasso_guide PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)

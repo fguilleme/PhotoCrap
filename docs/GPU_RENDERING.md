@@ -847,3 +847,33 @@ est aussi contrôlée pour les bornes des surfaces, ainsi que le guide visible
 quand le tracé fixe est hors champ. Le smoke test QML déplace la
 souris dans l’application pour vérifier le branchement réel et le masquage par
 Échap. Ces scénarios de rendu sont vérifiés sur logiciel, Metal et OpenGL.
+
+## Guides de lasso bornés et points conservés
+
+`LassoGuide.qml` reprend les guides encore nécessaires en QML : ligne libre
+initiale, polygonal en construction et candidat des sélections combinées. Le
+snapshot de points dépend de `selectionChanged`, sans relire `selectionPath` au
+survol ou à chaque phase de pointillés. Il est vidé quand le contour passe au
+canevas partagé : le lasso libre déjà couvert par le GPU ne subit pas une nouvelle
+conversion de points pour ce guide caché.
+
+La surface est limitée à l’intersection de l’enveloppe du guide, pointeur compris
+pour le polygonal, et de la vue. La marge couvre les traits, leurs joints en onglet
+et les poignées. Le guide reste dessiné en une seule passe pour conserver le
+même anticrénelage aux joints et aux croisements. Le déplacement du pointeur
+redessine cette surface bornée, avec les points déjà en cache.
+
+L’animation commune des fourmis ne tourne plus sans sélection effective. Le guide
+uni ignore aussi les changements de phase directs : un polygonal immobile sans
+sélection ne repeint plus sa surface en continu. Les candidats combinés, dont la
+transition Alt du lasso libre vers le polygonal, gardent le dessin fermé et les
+pointillés complets ; leurs points restent en cache entre changements du candidat.
+Cette étape conserve le dessin raster des guides et le moteur de sélection.
+
+Le test `lasso_guide` compare aux pixels de l’ancien Canvas en 8/16 bits, y compris
+les joints, les transitions entre guides, la sortie du pointeur, le zoom et le
+défilement, l’ajout/retrait de points, les modes combinés, Alt, le masquage et
+l’annulation. Les signaux `painted` et de snapshot contrôlent les repeints évités
+et la réutilisation des points. Le smoke test QML vérifie aussi le survol réel,
+l’absence de repeint au repos et l’arrêt de l’animation sur un polygonal uni.
+Les scénarios de rendu sont vérifiés sur logiciel, Metal et OpenGL.

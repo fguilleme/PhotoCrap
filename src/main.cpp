@@ -18,6 +18,7 @@
 #include "../tests/BrushCursorSmoke.h"
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/FileDialogSmoke.h"
+#include "../tests/LassoGuideSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
 #include "../tests/PenOverlaySmoke.h"
 #include "../tests/PresetPreviewSmoke.h"
@@ -170,6 +171,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--pen-overlay-test")) {
                 passed = window && runPenOverlaySmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--lasso-guide-test")) {
+                passed = window && runLassoGuideSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

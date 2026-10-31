@@ -17,9 +17,32 @@ namespace PhotoCrap::Filters
 {
 const QList<int> &gpuToneBlendModes()
 {
-    // Bounded-slope RGB modes; division, HSL and dissolve remain on CPU.
+    // Universally supported RGB modes; HSL eligibility is checked separately.
     static const QList<int> modes{0, 2, 3, 5, 7, 8, 10, 12, 14, 16, 17, 19, 20, 21};
     return modes;
+}
+const QList<int> &gpuToneHslBlendModes()
+{
+    static const QList<int> modes{23, 24, 25, 26};
+    return modes;
+}
+bool gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage)
+{
+    if (gpuToneBlendModes().contains(_blend))
+        return true;
+    // HSL hue is unstable near gray: require exact input bytes, without mask
+    // premultiplication. Analytic color shaders can differ by one display unit.
+    static const QStringList exactTypes{QStringLiteral("curves"),
+                                        QStringLiteral("levels"),
+                                        QStringLiteral("brightnessContrast"),
+                                        QStringLiteral("exposure"),
+                                        QStringLiteral("colorBalance"),
+                                        QStringLiteral("posterize"),
+                                        QStringLiteral("light"),
+                                        QStringLiteral("gradientMap"),
+                                        QStringLiteral("threshold"),
+                                        QStringLiteral("invert")};
+    return _fullCoverage && gpuToneHslBlendModes().contains(_blend) && exactTypes.contains(_type);
 }
 const QStringList &gpuTonePreviewTypes()
 {

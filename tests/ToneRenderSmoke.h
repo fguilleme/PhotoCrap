@@ -655,6 +655,38 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                              check(frame(), expected, true),
                          "painted mask final rendering matches the CPU"))
                 return false;
+            if (PhotoCrap::Filters::gpuToneBlendSupported(type, 23, true)) {
+                document.setEditingMask(true);
+                document.fillMaskWithColor(Qt::white);
+                document.setEditingMask(false);
+                preview(.8);
+                document.previewLayerBlend(document.activeLayer(), 23);
+                if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                             "exact unmasked sources enable HSL blending"))
+                    return false;
+                frame();
+                const auto hslPhoto = canvas.imageTextureUploads();
+                const auto hslTable = canvas.toneTableUploads();
+                for (int blend : PhotoCrap::Filters::gpuToneHslBlendModes()) {
+                    document.previewLayerBlend(document.activeLayer(), blend);
+                    const auto expected = document.composite();
+                    if (!require(check(frame(), expected, true) &&
+                                     canvas.imageTextureUploads() == hslPhoto &&
+                                     canvas.toneTableUploads() == hslTable &&
+                                     document.gpuTonePreviewMask().isNull(),
+                                 "HSL blending matches QColor without photo or lookup uploads")) {
+                        qWarning() << "Failed HSL blend/filter:" << blend << type;
+                        return false;
+                    }
+                }
+                const auto expected = document.composite();
+                document.finishLayerPreview();
+                if (!require(
+                        QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000) &&
+                            check(frame(), expected, true),
+                        "HSL final render matches the native CPU result"))
+                    return false;
+            }
         }
     }
     if (hardware) {
@@ -706,6 +738,7 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
     }
     qInfo() << "Tone render checks passed; filters:" << types.size()
             << "; blend modes:" << PhotoCrap::Filters::gpuToneBlendModes().size()
+            << "; HSL modes:" << PhotoCrap::Filters::gpuToneHslBlendModes().size()
             << "; hardware:" << hardware << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
             << "; LUT textures:" << canvas.toneTableUploads()

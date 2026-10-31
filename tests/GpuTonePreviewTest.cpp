@@ -600,7 +600,7 @@ private slots:
             doc.finishLayerPreview();
         }
         for (int blend = 0; blend <= 26; ++blend) {
-            if (PhotoCrap::Filters::gpuToneBlendModes().contains(blend))
+            if (PhotoCrap::Filters::gpuToneBlendSupported("levels", blend, true))
                 continue;
             Document doc;
             QVERIFY(doc.newDocument(256, 128, false));

@@ -20,8 +20,13 @@ bool Document::gpuToneEligible() const
         m_active != m_layers.size() - 1)
         return false;
     const auto &layer = m_layers[m_active];
+    const bool  fullCoverage =
+        !layer.maskEnabled || layer.mask.isNull() ||
+        layer.parameters.value("_maskDensity", 100.).toDouble() <= 0 ||
+        (ImageUtils::compact(layer.mask) && layer.mask.constScanLine(0)[0] == 255);
     return layer.kind == QStringLiteral("adjustment") && layer.visible &&
-           PhotoCrap::Filters::gpuToneBlendModes().contains(layer.blend) &&
+           PhotoCrap::Filters::gpuToneBlendSupported(layer.adjustmentType, layer.blend,
+                                                     fullCoverage) &&
            layer.groupId.isEmpty() && !layer.clippingMask &&
            PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
            (layer.adjustmentType != QStringLiteral("selectiveColor") ||

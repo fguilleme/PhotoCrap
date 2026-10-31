@@ -140,6 +140,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/ToneRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
+    tests/GpuHslBlendPreviewTest.cpp
     tests/SelectionTest.cpp
     tests/SelectionUiSmoke.h
     tests/FileDialogSmoke.h
@@ -473,6 +474,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_gpu_tone_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME gpu_tone_preview COMMAND photocrap_gpu_tone_tests)
     set_tests_properties(gpu_tone_preview PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_gpu_hsl_tests tests/GpuHslBlendPreviewTest.cpp)
+    target_link_libraries(photocrap_gpu_hsl_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME gpu_hsl_blend_preview COMMAND photocrap_gpu_hsl_tests)
+    set_tests_properties(gpu_hsl_blend_preview PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)

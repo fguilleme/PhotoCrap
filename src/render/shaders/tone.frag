@@ -44,6 +44,31 @@ vec3 selectiveDelta(vec3 pixel)
     delta += ubuf.parameters[8].xyz * max(0.0, (128.0 - maximum) / 128.0);
     return delta;
 }
+vec3 rgbToHsl(vec3 rgb)
+{
+    float maximum = max(rgb.r, max(rgb.g, rgb.b));
+    float minimum = min(rgb.r, min(rgb.g, rgb.b));
+    float delta = maximum - minimum;
+    float lightness = (maximum + minimum) * 0.5;
+    float saturation = 0.0;
+    float hue = 0.0;
+    if (delta > 0.0) {
+        saturation = delta / (1.0 - abs(2.0 * lightness - 1.0));
+        if (maximum == rgb.r) hue = (rgb.g - rgb.b) / delta;
+        else if (maximum == rgb.g) hue = (rgb.b - rgb.r) / delta + 2.0;
+        else hue = (rgb.r - rgb.g) / delta + 4.0;
+        hue = fract(hue / 6.0 + 1.0);
+    }
+    // QColor stores hue in hundredths of a degree and S/L in 16 bits.
+    return vec3(floor(hue * 36000.0 + 0.5) / 36000.0,
+                 floor(saturation * 65535.0 + 0.5) / 65535.0,
+                 floor(lightness * 65535.0 + 0.5) / 65535.0);
+}
+vec3 hslToRgb(vec3 hsl)
+{
+    vec3 ramp = clamp(abs(mod(vec3(hsl.x * 6.0) + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+    return clamp(vec3(hsl.z) + (ramp - 0.5) * ((1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y), 0.0, 1.0);
+}
 float blendChannel(float base, float source, int mode)
 {
     if (mode == 2) return min(base, source);
@@ -76,9 +101,21 @@ vec4 compositeAdjustment(vec3 base, vec4 adjusted)
         // The CPU masks first, then unpremultiplies before its blend formulas.
         vec3 straight = coverage > 0.0 ? floor(premultiplied * 255.0 / coverage + 0.5) / 255.0 : vec3(0.0);
         vec3 normalized = base / 255.0;
-        vec3 mixed = vec3(blendChannel(normalized.r, straight.r, blend),
+        vec3 mixed;
+        if (blend >= 23) {
+            vec3 baseHsl = rgbToHsl(normalized);
+            vec3 sourceHsl = rgbToHsl(straight);
+            vec3 hsl = baseHsl;
+            if (blend == 23) hsl.x = sourceHsl.x;
+            else if (blend == 24) hsl.y = sourceHsl.y;
+            else if (blend == 25) hsl.xy = sourceHsl.xy;
+            else hsl.z = sourceHsl.z;
+            mixed = floor(hslToRgb(hsl) * 65535.0 + 0.5) / 65535.0;
+        } else {
+            mixed = vec3(blendChannel(normalized.r, straight.r, blend),
                           blendChannel(normalized.g, straight.g, blend),
                           blendChannel(normalized.b, straight.b, blend));
+        }
         float alpha = coverage / 255.0 * ubuf.effectOpacity;
         vec3 result = floor((normalized * (1.0 - alpha) + mixed * alpha) * 255.0 + 0.5);
         return vec4(clamp(result, 0.0, 255.0) / 255.0, 1.0) * ubuf.opacity;
@@ -97,32 +134,11 @@ void main()
     int mode = ubuf.mode - (ubuf.mode / 32) * 32;
     if (mode >= 16) mode -= 16;
     if (mode == 11) {
-        vec3 normalized = index / 255.0;
-        float maximum = max(normalized.r, max(normalized.g, normalized.b));
-        float minimum = min(normalized.r, min(normalized.g, normalized.b));
-        float delta = maximum - minimum;
-        float lightness = (maximum + minimum) * 0.5;
-        float saturation = 0.0;
-        float hue = 0.0;
-        if (delta > 0.0) {
-            saturation = delta / (1.0 - abs(2.0 * lightness - 1.0));
-            if (maximum == normalized.r)
-                hue = (normalized.g - normalized.b) / delta;
-            else if (maximum == normalized.g)
-                hue = (normalized.b - normalized.r) / delta + 2.0;
-            else
-                hue = (normalized.r - normalized.g) / delta + 4.0;
-            hue = fract(hue / 6.0 + 1.0);
-        }
-        // Match QColor's HSL storage before and after applying the adjustment.
-        hue = floor(hue * 36000.0 + 0.5) / 36000.0;
-        saturation = floor(saturation * 65535.0 + 0.5) / 65535.0;
-        lightness = floor(lightness * 65535.0 + 0.5) / 65535.0;
-        hue = floor(fract(hue + ubuf.parameters[0].x + 1.0) * 36000.0 + 0.5) / 36000.0;
-        saturation = floor(clamp(saturation * ubuf.parameters[0].y, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
-        lightness = floor(clamp(lightness + ubuf.parameters[0].z, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
-        vec3 ramp = clamp(abs(mod(vec3(hue * 6.0) + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-        vec3 mapped = vec3(lightness) + (ramp - 0.5) * ((1.0 - abs(2.0 * lightness - 1.0)) * saturation);
+        vec3 hsl = rgbToHsl(index / 255.0);
+        hsl.x = floor(fract(hsl.x + ubuf.parameters[0].x + 1.0) * 36000.0 + 0.5) / 36000.0;
+        hsl.y = floor(clamp(hsl.y * ubuf.parameters[0].y, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
+        hsl.z = floor(clamp(hsl.z + ubuf.parameters[0].z, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
+        vec3 mapped = hslToRgb(hsl);
         fragColor = compositeAdjustment(index, vec4(clamp(floor(mapped * 255.0 + 0.5), 0.0, 255.0) / 255.0, 1.0));
         return;
     }

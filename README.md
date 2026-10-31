@@ -278,6 +278,8 @@ La Plume conserve les dessins du tracé et des poignées pendant le survol : seu
 
 Les guides du lasso conservent leurs points en cache pendant le survol et limitent leur dessin à leur emprise visible. L’animation des fourmis s’arrête lorsqu’aucune sélection n’a de pointillés à afficher. Les guides combinés gardent leur animation avec un snapshot de points réutilisé.
 
+Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises.
+
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.
 
 ## Validation et limites

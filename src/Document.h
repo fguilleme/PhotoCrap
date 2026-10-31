@@ -4,6 +4,7 @@
 #include "selection/SelectionCoverage.h"
 #include "storage/TiledImage.h"
 #include "tools/PenPath.h"
+#include "tools/SliceDescriptionCache.h"
 #include <QCache>
 #include <QColor>
 #include <QFutureWatcher>
@@ -1561,4 +1562,6 @@ private:
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                         const QSize &_targetSize, bool _draft,
                                         std::shared_ptr<ScratchImageCache> _scratch = {});
+
+    mutable PhotoCrap::Tools::SliceDescriptionCache m_sliceDescriptions;
 };

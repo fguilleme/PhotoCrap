@@ -23,6 +23,7 @@
 #include "../tests/PenOverlaySmoke.h"
 #include "../tests/PresetPreviewSmoke.h"
 #include "../tests/ShutdownSmoke.h"
+#include "../tests/SliceOverlaySmoke.h"
 #include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
 #ifdef Q_OS_MACOS
@@ -176,6 +177,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--lasso-guide-test")) {
                 passed = window && runLassoGuideSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--slice-overlay-test")) {
+                passed = window && runSliceOverlaySmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

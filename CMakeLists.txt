@@ -71,6 +71,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/EyedropperTools.cpp
     src/tools/CropTools.cpp
     src/tools/SliceTools.cpp
+    src/tools/SliceDescriptionCache.cpp
     src/filters/BlackWhiteFilter.cpp
     src/filters/BrightnessContrastFilter.cpp
     src/filters/ChannelMixerFilter.cpp
@@ -126,6 +127,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/tools/RegionHealing.h
     src/tools/ContentFill.h
     src/tools/PenPath.h
+    src/tools/SliceDescriptionCache.h
     src/selection/SelectionGeometry.h
     src/selection/SelectionCoverage.h
     src/filters/BlackWhiteFilter.h
@@ -162,6 +164,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/BrushCursorSmoke.h
     tests/PenOverlaySmoke.h
     tests/LassoGuideSmoke.h
+    tests/SliceOverlaySmoke.h
+    tests/SliceDescriptionCacheTest.cpp
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
@@ -306,6 +310,8 @@ qt_add_library(photocrap_core STATIC
     src/tools/EyedropperTools.cpp
     src/tools/CropTools.cpp
     src/tools/SliceTools.cpp
+    src/tools/SliceDescriptionCache.cpp
+    src/tools/SliceDescriptionCache.h
     src/ImageUtils.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h
@@ -518,6 +524,11 @@ if(BUILD_TESTING)
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
+    qt_add_executable(photocrap_slice_cache_tests tests/SliceDescriptionCacheTest.cpp)
+    target_link_libraries(photocrap_slice_cache_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME slice_cache COMMAND photocrap_slice_cache_tests)
+    set_tests_properties(slice_cache PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 30)
     qt_add_executable(photocrap_content_move_tests tests/ContentMoveFinalizationTest.cpp)
     target_link_libraries(photocrap_content_move_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME content_move COMMAND photocrap_content_move_tests)
@@ -609,6 +620,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME lasso_guide COMMAND PhotoCrap --smoke-test --lasso-guide-test)
     set_tests_properties(lasso_guide PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME slice_overlay COMMAND PhotoCrap --smoke-test --slice-overlay-test)
+    set_tests_properties(slice_overlay PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

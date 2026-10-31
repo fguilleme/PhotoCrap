@@ -8,7 +8,10 @@ Rectangle {
     signal exportRequested()
     color: "#20262e"; implicitHeight: 44
     enabled: !document.sliceBusy
-    readonly property var selected: document.activeSlice>=0 ? document.slices[document.activeSlice] : null
+    readonly property var sliceRecords: document.slices
+    readonly property int manualCount: sliceRecords.filter(s => !s.automatic).length
+    readonly property var selected: document.activeSlice>=0 && document.activeSlice<sliceRecords.length
+        ? sliceRecords[document.activeSlice] : null
     RowLayout {
         anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 8
         ToolIcon { toolName: root.document.tool; Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
@@ -37,7 +40,7 @@ Rectangle {
         Button { objectName:"deleteSliceButton";text:qsTr("Supprimer");enabled:root.selected!==null;implicitHeight:30;onClicked:root.document.deleteActiveSlice() }
         CheckBox { text:qsTr("Tranches automatiques");checked:root.document.sliceShowAuto;onToggled:root.document.sliceShowAuto=checked }
         Item { Layout.fillWidth:true }
-        Button { objectName:"exportSlicesButton";text:qsTr("Exporter en PNG…");enabled:root.document.slices.some(function(s){return !s.automatic});implicitHeight:30;onClicked:root.exportRequested() }
+        Button { objectName:"exportSlicesButton";text:qsTr("Exporter en PNG…");enabled:root.manualCount>0;implicitHeight:30;onClicked:root.exportRequested() }
     }
     Popup {
         id: dividePopup
@@ -60,7 +63,7 @@ Rectangle {
                     text:qsTr("Diviser")
                     enabled:root.selected!==null && columns.value*rows.value>1
                             && columns.value<=root.selected.width && rows.value<=root.selected.height
-                            && root.document.slices.filter(function(s){return !s.automatic}).length-1+columns.value*rows.value<=256
+                            && root.manualCount-1+columns.value*rows.value<=256
                     onClicked:{root.document.divideActiveSlice(columns.value,rows.value);dividePopup.close()}
                 }
             }

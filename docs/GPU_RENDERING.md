@@ -877,3 +877,40 @@ l’annulation. Les signaux `painted` et de snapshot contrôlent les repeints é
 et la réutilisation des points. Le smoke test QML vérifie aussi le survol réel,
 l’absence de repeint au repos et l’arrêt de l’animation sur un polygonal uni.
 Les scénarios de rendu sont vérifiés sur logiciel, Metal et OpenGL.
+
+## Tranches : descriptions partagées et dessin des éléments visibles
+
+`tools/SliceDescriptionCache` conserve une seule liste de descriptions par document,
+avec pour clé les dimensions, les rectangles manuels et l’option des tranches
+automatiques. Les données sont identiques à celles de l’ancien getter : tranches
+manuelles dans leur ordre, puis complément automatique, jusqu’à 1 024 descriptions
+au total avec la limite actuelle de 256 tranches manuelles.
+
+`Document::slices()` retourne une copie partagée de cette liste. Un changement de
+tranche active, un état occupé ou un rectangle provisoire ne change pas la clé et
+ne reconstruit pas le complément géométrique. Une édition validée, une division,
+Annuler/Rétablir, un changement de dimensions ou l’ouverture d’un projet provoquent
+un nouveau calcul si la clé diffère. Le premier calcul reste CPU sur le thread
+GUI ; le cache ne contient aucun pixel et ne modifie pas le format de projet.
+
+`SliceOverlay.qml` conserve le snapshot, la liste manuelle pour le test du curseur
+et la liste visible pour le dessin. Le rejet des tranches hors champ inclut une
+marge pour les poignées et les étiquettes, qui peuvent dépasser les rectangles
+très étroits. L’ordre de dessin et les indices sont conservés. Les contrôles de
+`SliceOptions.qml` partagent aussi un snapshot entre leurs champs et leurs boutons.
+Un changement de couleur ou d’opacité de brosse ne repeint plus cette surimpression ;
+le passage Tranche/Sélection de tranche réactualise bien les poignées.
+
+La surface Canvas reste limitée à la vue. Les changements de tranches ou du
+rectangle provisoire repeignent cette surface, en parcourant uniquement la liste
+visible. Cette étape réduit le travail CPU de préparation et de dessin ; elle
+conserve le moteur raster et le rendu natif des images.
+
+`slice_cache` vérifie la couverture automatique, l’ordre, le partage du buffer,
+les clés, les gestes provisoires, Annuler/Rétablir et l’ouverture de projets. Une
+partition très fragmentée vérifie aussi le plafond de 1 024 descriptions.
+`slice_overlay` compare à l’ancien dessin en 8/16 bits avec 145 tranches manuelles,
+les automatiques, les étiquettes débordantes, les poignées, les curseurs, les
+gestes provisoires, le zoom, le défilement et la rotation. Les scénarios de rendu
+sont exécutés sur logiciel, Metal et OpenGL. Le smoke test QML vérifie aussi les
+contrôles de tranche réellement affichés dans l’application.

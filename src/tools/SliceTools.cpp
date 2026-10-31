@@ -8,11 +8,6 @@
 
 namespace
 {
-QVariantMap sliceDescription(const QRect &_rect, int _index, bool _automatic)
-{
-    return {{"x", _rect.x()},           {"y", _rect.y()},  {"width", _rect.width()},
-            {"height", _rect.height()}, {"index", _index}, {"automatic", _automatic}};
-}
 QRect pixelRect(const QRectF &_rect, const QSize &_size)
 {
     const QRectF rect = _rect.normalized();
@@ -24,22 +19,7 @@ QRect pixelRect(const QRectF &_rect, const QSize &_size)
 
 QVariantList Document::slices() const
 {
-    QVariantList list;
-    QRegion      uncovered(QRect(QPoint{}, m_size));
-    for (int i = 0; i < m_slices.size(); ++i) {
-        list.append(sliceDescription(m_slices[i], i, false));
-        if (m_sliceShowAuto)
-            uncovered -= m_slices[i];
-    }
-    if (m_sliceShowAuto) {
-        int i = int(m_slices.size());
-        for (const QRect &rect : uncovered) {
-            if (i >= 1024)
-                break;
-            list.append(sliceDescription(rect, i++, true));
-        }
-    }
-    return list;
+    return m_sliceDescriptions.records(m_size, m_slices, m_sliceShowAuto);
 }
 void Document::setSliceShowAuto(bool _value)
 {

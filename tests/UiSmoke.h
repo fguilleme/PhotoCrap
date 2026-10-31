@@ -1878,6 +1878,13 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, cropScene(150, 120));
     if (!require(_document.slices().size() == 1, "dragging Slice creates a user slice"))
         return false;
+    auto sliceOverlay = _window->findChild<QQuickItem *>("sliceOverlay");
+    auto exportSlices = _window->findChild<QObject *>("exportSlicesButton");
+    if (!require(sliceOverlay && sliceOverlay->isVisible() &&
+                     sliceOptions->property("manualCount").toInt() == 1 && exportSlices &&
+                     exportSlices->property("enabled").toBool(),
+                 "slice controls share the current manual metadata snapshot"))
+        return false;
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "crop"),
                               Q_ARG(QVariant, "sliceSelect"));
     QTest::qWait(60);
@@ -1894,6 +1901,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "Slice Select moves a slice without changing document dimensions"))
         return false;
     auto deleteSlice = _window->findChild<QObject *>("deleteSliceButton");
+    if (!require(deleteSlice && deleteSlice->property("enabled").toBool(),
+                 "the selected slice keeps its editing controls enabled"))
+        return false;
     QMetaObject::invokeMethod(deleteSlice, "clicked");
     if (!require(_document.slices().isEmpty(),
                  "slice deletion is wired to the dedicated options bar"))

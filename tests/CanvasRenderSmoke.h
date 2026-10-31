@@ -541,6 +541,71 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
     if (!require(near(pixel(frame(), 124.5, 100.5), QColor(Qt::red)),
                  "undo restores the canvas after asynchronous removal assembly"))
         return false;
+    for (int bits : {8, 16}) {
+        QImage magic(512, 320,
+                     bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                : QImage::Format_ARGB32_Premultiplied);
+        magic.fill(bits == 16 ? QColor::fromRgba64(47003, 16001, 8007, 40003)
+                              : QColor(180, 60, 30, 170));
+        {
+            QPainter painter(&magic);
+            painter.fillRect(142, 100, 12, 12, QColor(30, 70, 180));
+        }
+        const auto magicPath = directory.filePath(QString("magic-%1.png").arg(bits));
+        if (!require(magic.save(magicPath) && document.openFile(QUrl::fromLocalFile(magicPath)),
+                     "open a native precision magic eraser reference"))
+            return false;
+        document.setTool("ellipticalSelect");
+        document.beginStroke(96, 80);
+        document.continueStroke(176, 160);
+        document.endStroke();
+        document.modifySelection("feather", 5);
+        QElapsedTimer selectionWait;
+        selectionWait.start();
+        while (document.selectionBusy() && selectionWait.elapsed() < 5000)
+            QTest::qWait(10);
+        if (!require(!document.selectionBusy(), "prepare soft magic eraser coverage"))
+            return false;
+        document.setTool("magicEraser");
+        document.setMagicEraserTolerance(0);
+        document.setMagicEraserContiguous(false);
+        document.setMagicEraserAntialias(true);
+        document.setBrushOpacity(.37);
+        const auto beforeMagic = document.layerImage(0);
+        const int  history     = document.historyIndex();
+        frame();
+        document.beginStroke(112, 112);
+        if (!require(document.pixelEditBusy() && document.historyIndex() == history &&
+                         document.layerImage(0) == beforeMagic,
+                     "magic erasing leaves native pixels untouched until its worker completes"))
+            return false;
+        QElapsedTimer eraseWait;
+        eraseWait.start();
+        while (document.pixelEditBusy() && eraseWait.elapsed() < 5000)
+            QTest::qWait(10);
+        const auto erased = frame();
+        if (!require(!document.pixelEditBusy() && document.channelBits() == bits &&
+                         document.historyIndex() == history + 1,
+                     "soft magic erasing commits once at native precision"))
+            return false;
+        for (const auto point : {QPoint(100, 112), QPoint(112, 112), QPoint(148, 108)}) {
+            const int checker = (point.x() % 24 < 12) == (point.y() % 24 < 12) ? 238 : 214;
+            QImage    expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+            expected.fill(QColor(checker, checker, checker));
+            QPainter painter(&expected);
+            painter.fillRect(expected.rect(), document.layerImage(0).pixelColor(point));
+            painter.end();
+            if (!require(
+                    near(pixel(erased, point.x() + .5, point.y() + .5), expected.pixelColor(0, 0)),
+                    "the canvas displays native soft erasing and checkerboard transparency"))
+                return false;
+        }
+        document.undo();
+        frame();
+        if (!require(document.layerImage(0) == beforeMagic,
+                     "undo restores native pixels after soft magic erasing"))
+            return false;
+    }
     QImage donor(512, 320, QImage::Format_ARGB32_Premultiplied);
     donor.fill(QColor(180, 40, 40));
     for (int y = 0; y < donor.height(); ++y)

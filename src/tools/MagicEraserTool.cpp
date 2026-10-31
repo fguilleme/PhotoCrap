@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImagePixels.h"
 #include "ImageUtils.h"
 
 #include <QtConcurrent>
@@ -39,7 +40,7 @@ QRgba64 faded(QRgba64 _pixel, qreal _keep)
 template <typename Pixel>
 EraseResult eraseColors(const QImage &_target, const QImage &_sample, const QSize &_size,
                         const QPoint &_seed, const QRegion &_selection, int _tolerance,
-                        bool _contiguous, bool _antialias, qreal _opacity,
+                        bool _contiguous, bool _antialias, qreal _opacity, const QImage &_coverage,
                         const std::shared_ptr<std::atomic_bool> &_cancel)
 {
     const bool  selected = !_selection.isEmpty();
@@ -135,7 +136,9 @@ EraseResult eraseColors(const QImage &_target, const QImage &_sample, const QSiz
     for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
         if (_cancel->load())
             return {};
-        auto *row = reinterpret_cast<Pixel *>(result.scanLine(y));
+        auto       *row           = reinterpret_cast<Pixel *>(result.scanLine(y));
+        const auto *coverageRow   = y < _coverage.height() ? _coverage.constScanLine(y) : nullptr;
+        int         firstModified = bounds.right() + 1, lastModified = bounds.left() - 1;
         for (int x = bounds.left(); x <= bounds.right(); ++x) {
             if (!marked(x, y))
                 continue;
@@ -155,12 +158,26 @@ EraseResult eraseColors(const QImage &_target, const QImage &_sample, const QSiz
                     }
                 coverage = sum / 16.;
             }
-            const Pixel erased = faded(row[x], 1. - _opacity * coverage);
+            Pixel erased = faded(row[x], 1. - _opacity * coverage);
+            if (coverageRow && x < _coverage.width()) {
+                // Match SelectionCoverage::blend's native-precision rounding,
+                // but attenuate only matching pixels before publishing the result.
+                using P             = ImageUtils::PixelAccess<Pixel>;
+                const Pixel  before = row[x];
+                const double f      = coverageRow[x] / 255.;
+                erased = P::rgba(P::red(before) + (P::red(erased) - P::red(before)) * f,
+                                 P::green(before) + (P::green(erased) - P::green(before)) * f,
+                                 P::blue(before) + (P::blue(erased) - P::blue(before)) * f,
+                                 P::alpha(before) + (P::alpha(erased) - P::alpha(before)) * f);
+            }
             if (erased != row[x]) {
-                row[x] = erased;
-                dirty |= QRect(x, y, 1, 1);
+                row[x]        = erased;
+                firstModified = qMin(firstModified, x);
+                lastModified  = x;
             }
         }
+        if (firstModified <= lastModified)
+            dirty |= QRect(firstModified, y, lastModified - firstModified + 1, 1);
     }
     return dirty.isEmpty() ? EraseResult{} : EraseResult{result, dirty};
 }
@@ -171,6 +188,7 @@ void Document::setMagicEraserTolerance(int _value)
     _value = qBound(0, _value, 255);
     if (m_magicEraserTolerance == _value)
         return;
+    cancelMagicErase();
     m_magicEraserTolerance = _value;
     emit settingsChanged();
 }
@@ -178,6 +196,7 @@ void Document::setMagicEraserContiguous(bool _value)
 {
     if (m_magicEraserContiguous == _value)
         return;
+    cancelMagicErase();
     m_magicEraserContiguous = _value;
     emit settingsChanged();
 }
@@ -185,6 +204,7 @@ void Document::setMagicEraserAntialias(bool _value)
 {
     if (m_magicEraserAntialias == _value)
         return;
+    cancelMagicErase();
     m_magicEraserAntialias = _value;
     emit settingsChanged();
 }
@@ -192,6 +212,7 @@ void Document::setMagicEraserSampleAllLayers(bool _value)
 {
     if (m_magicEraserSampleAllLayers == _value)
         return;
+    cancelMagicErase();
     m_magicEraserSampleAllLayers = _value;
     emit settingsChanged();
 }
@@ -203,6 +224,7 @@ void Document::cancelMagicErase()
     if (m_magicEraserBusy) {
         m_magicEraserBusy = false;
         emit settingsChanged();
+        emit historyChanged();
     }
 }
 void Document::applyMagicEraser(const QPoint &_seed)
@@ -220,6 +242,7 @@ void Document::applyMagicEraser(const QPoint &_seed)
     const Snapshot       before     = snapshot(tr("Gomme magique"));
     const quint64        session    = m_documentSession;
     const QRegion        selection  = m_selectionRegion;
+    const QImage         coverage   = before.selectionMask;
     const int            tolerance  = m_magicEraserTolerance;
     const bool           contiguous = m_magicEraserContiguous, antialias = m_magicEraserAntialias;
     const qreal          opacity = m_brushOpacity;
@@ -229,6 +252,7 @@ void Document::applyMagicEraser(const QPoint &_seed)
     m_magicEraserCancel          = cancel;
     m_magicEraserBusy            = true;
     emit  settingsChanged();
+    emit  historyChanged();
     auto *watcher = new QFutureWatcher<EraseResult>(this);
     connect(watcher, &QFutureWatcher<EraseResult>::finished, this,
             [this, watcher, before, session, cancel] {
@@ -241,10 +265,7 @@ void Document::applyMagicEraser(const QPoint &_seed)
                     m_active != before.active || m_editingMask || m_tool != "magicEraser" ||
                     result.image.isNull())
                     return;
-                QImage image = result.image;
-                SelectionCoverage::blend(image, before.layers[m_active].image, before.selectionMask,
-                                         result.dirty);
-                m_layers[m_active].image = image;
+                m_layers[m_active].image = result.image;
                 m_dirtyRegion            = m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Gomme magique"), false, false);
                 ++m_thumbnailRevision;
@@ -252,15 +273,15 @@ void Document::applyMagicEraser(const QPoint &_seed)
                 requestPreviewRender(true, true);
             });
     watcher->setFuture(QtConcurrent::run([target, layers, size, selection, _seed, tolerance,
-                                          contiguous, antialias, opacity, cancel] {
+                                          contiguous, antialias, opacity, coverage, cancel] {
         if (cancel->load())
             return EraseResult{};
         const QImage sample =
             layers.isEmpty() ? target : renderPreviewSnapshot(layers, size, size, false);
         if (ImageUtils::is16Bit(target))
             return eraseColors<QRgba64>(target, sample, size, _seed, selection, tolerance,
-                                        contiguous, antialias, opacity, cancel);
+                                        contiguous, antialias, opacity, coverage, cancel);
         return eraseColors<QRgb>(target, sample, size, _seed, selection, tolerance, contiguous,
-                                 antialias, opacity, cancel);
+                                 antialias, opacity, coverage, cancel);
     }));
 }

@@ -188,7 +188,7 @@ bool Document::importLayer(const QUrl &_url)
 bool Document::saveProject(const QUrl &_url)
 {
     endStroke();
-    if (m_patchBusy || m_contentMoveBusy || m_removeBusy)
+    if (pixelEditBusy())
         return fail(
             tr("Attendez la fin du traitement ou annulez-le avant de sauvegarder ou exporter."));
     QString path = localPath(_url);
@@ -389,7 +389,7 @@ bool Document::loadProject(const QString &_path)
 bool Document::exportImage(const QUrl &_url)
 {
     endStroke();
-    if (m_patchBusy || m_contentMoveBusy || m_removeBusy)
+    if (pixelEditBusy())
         return fail(
             tr("Attendez la fin du traitement ou annulez-le avant de sauvegarder ou exporter."));
     QString path = localPath(_url);

@@ -8,10 +8,11 @@
 
 void Document::undo()
 {
-    if (m_patchBusy || m_contentMoveBusy || m_removeBusy) {
+    if (pixelEditBusy()) {
         invalidatePatch(true);
         invalidateContentMove(true);
         cancelRemoval();
+        cancelMagicErase();
         return;
     }
     if (selectionBusy()) {
@@ -30,10 +31,11 @@ void Document::undo()
 }
 void Document::redo()
 {
-    if (m_patchBusy || m_contentMoveBusy || m_removeBusy) {
+    if (pixelEditBusy()) {
         invalidatePatch(true);
         invalidateContentMove(true);
         cancelRemoval();
+        cancelMagicErase();
         return;
     }
     if (selectionBusy()) {

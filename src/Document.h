@@ -252,6 +252,7 @@ class Document : public QObject
     Q_PROPERTY(bool magicEraserSampleAllLayers READ magicEraserSampleAllLayers WRITE
                    setMagicEraserSampleAllLayers NOTIFY settingsChanged)
     Q_PROPERTY(bool magicEraserBusy READ magicEraserBusy NOTIFY settingsChanged)
+    Q_PROPERTY(bool pixelEditBusy READ pixelEditBusy NOTIFY settingsChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
@@ -344,7 +345,7 @@ public:
     }
     bool modified() const
     {
-        return m_patchBusy || m_contentMoveBusy || m_removeBusy || m_contentId != m_savedId;
+        return pixelEditBusy() || m_contentId != m_savedId;
     }
     QVariantList             layers() const;
     Q_INVOKABLE QVariantList histogram() const;
@@ -585,6 +586,10 @@ public:
     bool magicEraserSampleAllLayers() const
     {
         return m_magicEraserSampleAllLayers;
+    }
+    bool pixelEditBusy() const
+    {
+        return m_patchBusy || m_contentMoveBusy || m_removeBusy || m_magicEraserBusy;
     }
     bool magicEraserBusy() const
     {

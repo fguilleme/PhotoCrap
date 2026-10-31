@@ -1106,12 +1106,12 @@ ApplicationWindow {
 
     Action { id: newAction; text: qsTr("Nouveau…"); shortcut: (shortcuts.revision, shortcuts.sequence("new")); enabled: !window.modalOpen; onTriggered: guard("new") }
     Action { id: openAction; text: qsTr("Ouvrir…"); shortcut: (shortcuts.revision, shortcuts.sequence("open")); enabled: !window.modalOpen; onTriggered: guard("open") }
-    Action { id: saveAction; text: qsTr("Enregistrer le projet"); shortcut: (shortcuts.revision, shortcuts.sequence("save")); enabled: !window.modalOpen && !editor.patchBusy && !editor.contentMoveBusy && !editor.removeBusy; onTriggered: { resumeAfterSave=false; save(false) } }
-    Action { id: saveAsAction; text: qsTr("Enregistrer sous…"); shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen && !editor.patchBusy && !editor.contentMoveBusy && !editor.removeBusy; onTriggered: { resumeAfterSave=false; save(true) } }
-    Action { id: exportAction; text: qsTr("Exporter l’image…"); shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen && !editor.patchBusy && !editor.contentMoveBusy && !editor.removeBusy; onTriggered: exportDialog.open() }
+    Action { id: saveAction; text: qsTr("Enregistrer le projet"); shortcut: (shortcuts.revision, shortcuts.sequence("save")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { resumeAfterSave=false; save(false) } }
+    Action { id: saveAsAction; text: qsTr("Enregistrer sous…"); shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { resumeAfterSave=false; save(true) } }
+    Action { id: exportAction; text: qsTr("Exporter l’image…"); shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: exportDialog.open() }
     Action { id: importAction; text: qsTr("Importer comme calque…"); shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
-    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.patchBusy || editor.contentMoveBusy || editor.removeBusy) && !window.modalOpen; onTriggered: editor.undo() }
-    Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.patchBusy || editor.contentMoveBusy || editor.removeBusy) && !window.modalOpen; onTriggered: editor.redo() }
+    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && !window.modalOpen; onTriggered: editor.undo() }
+    Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.pixelEditBusy) && !window.modalOpen; onTriggered: editor.redo() }
     Action { id: copyAction; text: qsTr("Copier l’image visible"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.copy() }
     Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
     Action { id: selectAction; text: qsTr("Tout sélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
@@ -4894,7 +4894,7 @@ ApplicationWindow {
         footer: DialogButtonBox {
             DialogActionButton { objectName: "unsavedCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: unsavedDialog.close() }
             DialogActionButton { objectName: "unsavedDiscardButton"; text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }
-            DialogActionButton { objectName: "unsavedSaveButton"; enabled: !editor.patchBusy && !editor.contentMoveBusy && !editor.removeBusy; text: qsTr("Enregistrer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
+            DialogActionButton { objectName: "unsavedSaveButton"; enabled: !editor.pixelEditBusy; text: qsTr("Enregistrer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
         }
     }
     Dialog {

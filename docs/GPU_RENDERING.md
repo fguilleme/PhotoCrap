@@ -336,6 +336,37 @@ réparée et Annuler en logiciel, Metal et OpenGL. La copie complète QImage res
 nécessaire à l’écriture d’un état modifié : cette étape déplace son coût hors du
 GUI, sans réduire sa consommation mémoire. L’outil reste limité aux pixels 8 bits.
 
+## Couverture douce de la Gomme magique
+
+`MagicEraserTool` capture aussi le masque doux immuable de la sélection. Le worker
+calcule la tolérance, la contiguïté, le lissage et l’opacité comme auparavant, puis
+interpole les canaux prémultipliés de chaque pixel correspondant avec sa couverture.
+Cette interpolation utilise les mêmes valeurs et arrondis natifs que
+`SelectionCoverage::blend`, en 8 et 16 bits. Les pixels non correspondants ne sont
+pas reparcourus pour appliquer la sélection, même entre deux zones éloignées.
+Le rectangle modifié est accumulé par ligne après atténuation ; un résultat sans
+modification n’ajoute pas d’historique.
+
+Le callback installe l’image terminée sans repeindre ni détacher une seconde fois
+le plan complet. Une copie native reste nécessaire dans le worker pour écrire les
+pixels et conserver l’annulation ; le masque de recherche occupe toujours la zone
+limitée par la sélection ou le document. Le prélèvement de tous les calques reste
+un composite CPU préparé en arrière-plan. Le dessin et la précision finale ne sont
+pas transférés au GPU par cette étape.
+
+Changer tolérance, contiguïté, lissage ou échantillonnage abandonne le travail en
+cours. `pixelEditBusy` regroupe désormais les états de Pièce, Déplacement basé sur
+le contenu, Suppression et Gomme magique pour protéger la fermeture, désactiver
+la sauvegarde/l’export et permettre Annuler/Rétablir pendant une tâche. Les drapeaux
+propres à chaque outil restent disponibles pour leurs contrôles et leur annulation.
+
+La suite `magic_eraser_coverage` compare le résultat fusionné à l’effacement suivi
+d’un mélange de couverture séparé : 8/16 bits, lissage activé/désactivé, zones
+contiguës ou distinctes, opacité, échantillonnage global et canaux 16 bits hors des
+paliers 8 bits. Elle vérifie aussi les réglages périmés, Annuler/Rétablir, l’absence
+de modification et la sauvegarde. `canvas_render` contrôle le rendu transparent,
+les pixels non correspondants et Annuler en logiciel, Metal et OpenGL.
+
 ## Aperçus de réglages sur GPU
 
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,

@@ -17,6 +17,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/CanvasRendering.cpp
     src/render/ToneMappingNode.cpp
     src/render/SelectionOutlineNode.cpp
+    src/render/RegionOverlayNode.cpp
+    src/render/ClippedOverlayNode.cpp
+    src/render/RegionMesh.cpp
     src/render/SelectionMesh.cpp
     src/render/DisplayLevel.cpp
     src/render/TileSnapshot.cpp
@@ -107,6 +110,9 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/CanvasItem.h
     src/render/ToneMappingNode.h
     src/render/SelectionOutlineNode.h
+    src/render/RegionOverlayNode.h
+    src/render/ClippedOverlayNode.h
+    src/render/RegionMesh.h
     src/render/SelectionMesh.h
     src/render/DisplayLevel.h
     src/render/TileSnapshot.h
@@ -152,6 +158,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
     tests/SelectionMeshTest.cpp
+    tests/RegionMeshTest.cpp
     tests/ToneRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
@@ -236,6 +243,7 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 qt_add_library(photocrap_core STATIC
+    src/render/RegionMesh.cpp src/render/RegionMesh.h
     src/render/SelectionMesh.cpp src/render/SelectionMesh.h
     src/render/DisplayLevel.cpp src/render/DisplayLevel.h
     src/render/TileSnapshot.cpp src/render/TileSnapshot.h
@@ -344,6 +352,8 @@ qt_add_executable(PhotoCrap
     src/CanvasItem.cpp src/CanvasItem.h src/CanvasRendering.cpp
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
     src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
+    src/render/RegionOverlayNode.cpp src/render/RegionOverlayNode.h
+    src/render/ClippedOverlayNode.cpp src/render/ClippedOverlayNode.h
     src/ShortcutManager.cpp src/ShortcutManager.h
     src/LanguageManager.cpp src/LanguageManager.h
     src/RecentFilesManager.cpp src/RecentFilesManager.h
@@ -521,6 +531,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_selection_mesh_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME selection_mesh COMMAND photocrap_selection_mesh_tests)
     set_tests_properties(selection_mesh PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_region_mesh_tests tests/RegionMeshTest.cpp)
+    target_link_libraries(photocrap_region_mesh_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME region_mesh COMMAND photocrap_region_mesh_tests)
+    set_tests_properties(region_mesh PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)

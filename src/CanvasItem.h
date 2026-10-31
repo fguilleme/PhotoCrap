@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "render/RegionMesh.h"
 #include "render/SelectionMesh.h"
 #include <QPainterPath>
 #include <QPointer>
@@ -91,6 +92,14 @@ public:
     {
         return m_selectionVertices.size();
     }
+    bool removeOverlayGpuActive() const
+    {
+        return m_gpuRemove;
+    }
+    quint64 regionGeometryUploads() const
+    {
+        return m_regionGeometryUploads.load();
+    }
 #endif
 protected:
     QSGNode *updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *) override;
@@ -113,7 +122,13 @@ private:
     QSizeF                                      m_selectionMeshScale;
     qreal                                       m_selectionMeshRatio        = 0;
     quint64                                     m_selectionGeometryRevision = 0;
-    bool   m_gpuSelection = false, m_selectionMeshCached = false, m_selectionMeshFallback = false;
+    bool    m_gpuSelection = false, m_selectionMeshCached = false, m_selectionMeshFallback = false;
+    QRegion m_removeOverlayRegion;
+    QVector<PhotoCrap::Render::RegionVertex> m_removeVertices;
+    QSizeF                                   m_removeMeshScale;
+    QRectF                                   m_removeMeshViewport;
+    quint64                                  m_removeGeometryRevision = 0;
+    bool   m_gpuRemove = false, m_removeMeshCached = false, m_removeMeshFallback = false;
     QImage m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
     bool   m_gpuTonePreviewEnabled = false;
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
@@ -135,6 +150,7 @@ private:
     quint64              m_displayLevelSourcePixels = 0;
     std::atomic<quint64> m_residentTextureBytes{0};
     std::atomic<quint64> m_selectionGeometryUploads{0}, m_overlayTextureUploads{0};
+    std::atomic<quint64> m_regionGeometryUploads{0};
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

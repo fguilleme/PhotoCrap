@@ -410,6 +410,93 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
         canvas.setTextureCacheMiB(4);
     }
     canvas.setTextureCacheMiB(0);
+    // Remove marks are non-destructive and can coexist with animated selection.
+    canvas.setSize({512, 320});
+    canvas.setX(40);
+    canvas.setViewportRect(canvas.boundingRect());
+    for (int bits : {8, 16}) {
+        if (!require(document.newDocument(512, 320, false, bits),
+                     "create a removal overlay reference"))
+            return false;
+        const QColor base(40, 110, 210);
+        document.setColor(base);
+        document.fillWithColor(true);
+        document.setSelectionEdgesVisible(true);
+        document.setTool("select");
+        document.beginStroke(400, 200);
+        document.continueStroke(460, 260);
+        document.endStroke();
+        document.invertSelection();
+        document.setTool("remove");
+        document.setRemoveAfterEachStroke(false);
+        document.setRemoveSubtract(false);
+        document.setBrushSize(64);
+        frame();
+        const auto beforeMarks = canvas.imageTextureUploads();
+        const int  history     = document.historyIndex();
+        document.beginStroke(100, 100);
+        document.endStroke();
+        if (bits == 16) {
+            if (!require(
+                    !document.removeHasPending() && document.channelBits() == 16 &&
+                        document.historyIndex() == history &&
+                        near(pixel(frame(), 100.5, 100.5), base),
+                    "unsupported 16-bit removal remains rejected without an overlay or conversion"))
+                return false;
+            document.setRemoveAfterEachStroke(true);
+            continue;
+        }
+        QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
+        expected.fill(base);
+        QPainter blend(&expected);
+        blend.fillRect(expected.rect(), QColor(235, 70, 180, 110));
+        blend.end();
+        const auto marked = frame();
+        if (!require(near(pixel(marked, 100.5, 100.5), expected.pixelColor(0, 0)) &&
+                         near(pixel(marked, 200.5, 100.5), base) &&
+                         canvas.imageTextureUploads() == beforeMarks &&
+                         document.historyIndex() == history,
+                     "removal marking preserves native pixels and matches alpha composition"))
+            return false;
+        document.setRemoveSubtract(true);
+        document.setBrushSize(20);
+        document.beginStroke(100, 100);
+        document.endStroke();
+        const auto holed = frame();
+        if (!require(near(pixel(holed, 100.5, 100.5), base) &&
+                         near(pixel(holed, 125.5, 100.5), expected.pixelColor(0, 0)),
+                     "subtracted removal marks preserve holes without double blending"))
+            return false;
+        if (shaderSelection) {
+            if (!require(canvas.removeOverlayGpuActive() && canvas.overlayPixelSize().isEmpty(),
+                         "hardware removal marking needs no image texture"))
+                return false;
+            const auto geometry = canvas.regionGeometryUploads(),
+                       textures = canvas.overlayTextureUploads();
+            canvas.setSelectionPhase(canvas.selectionPhase() + .25);
+            frame();
+            if (!require(canvas.regionGeometryUploads() == geometry &&
+                             canvas.overlayTextureUploads() == textures,
+                         "selection animation does not rebuild removal geometry"))
+                return false;
+            canvas.setViewportRect({50, 50, 300, 200});
+            frame();
+            canvas.setRotation(12);
+            const auto rotated = frame();
+            if (!require(near(pixel(rotated, 125.5, 100.5), expected.pixelColor(0, 0)),
+                         "shared rotated clipping preserves the removal overlay"))
+                return false;
+            canvas.setRotation(0);
+            canvas.setViewportRect(canvas.boundingRect());
+        }
+        document.cancelRemoval();
+        if (!require(near(pixel(frame(), 125.5, 100.5), base) && !canvas.removeOverlayGpuActive() &&
+                         document.historyIndex() == history,
+                     "cancelling removal clears its overlay without editing the image"))
+            return false;
+        document.setRemoveSubtract(false);
+        document.setRemoveAfterEachStroke(true);
+    }
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

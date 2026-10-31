@@ -1,5 +1,7 @@
 #include "CanvasItem.h"
+#include "render/ClippedOverlayNode.h"
 #include "render/DisplayLevel.h"
+#include "render/RegionOverlayNode.h"
 #include "render/SelectionOutlineNode.h"
 #include "render/TileCache.h"
 #include "render/TileSnapshot.h"
@@ -134,10 +136,12 @@ struct CanvasNode : QSGTransformNode {
     QSGTexture                     *toneTable       = nullptr;
     qint64                          toneTableKey    = 0;
     ToneMappingSettings             toneSettings;
-    QSGTransformNode               *selectionRoot     = nullptr;
-    QSGClipNode                    *selectionClip     = nullptr;
+    ClippedOverlayNode             *selectionRoot     = nullptr;
     SelectionOutlineNode           *selection         = nullptr;
     quint64                         selectionRevision = 0;
+    ClippedOverlayNode             *removeRoot        = nullptr;
+    RegionOverlayNode              *remove            = nullptr;
+    quint64                         removeRevision    = 0;
 
     ~CanvasNode() override
     {
@@ -398,7 +402,7 @@ void CanvasItem::updatePolish()
         m_overlayDirty           = false;
         m_overlayImage           = {};
         m_overlayRect            = visibleBounds(m_viewportRect, boundingRect());
-        bool selectionMeshNeeded = false;
+        bool selectionMeshNeeded = false, removeMeshNeeded = false, removePending = false;
         if (m_document && !m_overlayRect.isEmpty() && m_document->width() > 0 &&
             m_document->height() > 0) {
             const bool patch =
@@ -408,6 +412,26 @@ void CanvasItem::updatePolish()
                                     m_document->hasSelection() &&
                                     m_document->selectionEdgesVisible();
             const qreal ratio     = window() ? window()->effectiveDevicePixelRatio() : 1.;
+            const bool  hardware  = window() && QSGRendererInterface::isApiRhiBased(
+                                                    window()->rendererInterface()->graphicsApi());
+            if (remove && hardware) {
+                const auto   region = m_document->removeRegion();
+                const QSizeF scale(width() / m_document->width(), height() / m_document->height());
+                if (!m_removeMeshCached || region != m_removeOverlayRegion ||
+                    scale != m_removeMeshScale || m_overlayRect != m_removeMeshViewport) {
+                    auto mesh        = PhotoCrap::Render::regionMesh(region, scale, m_overlayRect);
+                    m_removeVertices = std::move(mesh.vertices);
+                    m_removeMeshFallback  = mesh.fallback;
+                    m_removeOverlayRegion = region;
+                    m_removeMeshScale     = scale;
+                    m_removeMeshViewport  = m_overlayRect;
+                    m_removeMeshCached    = true;
+                    ++m_removeGeometryRevision;
+                }
+                removeMeshNeeded = !m_removeMeshFallback;
+            }
+            removePending = remove;
+            m_gpuRemove   = removeMeshNeeded;
             if (selection) {
                 const QRegion outline     = m_document->selectionOutline();
                 const bool    pathChanged = m_selectionOutline != outline;
@@ -418,8 +442,6 @@ void CanvasItem::updatePolish()
                     m_selectionPath.addRegion(outline);
                     m_selectionPath = m_selectionPath.simplified();
                 }
-                const bool hardware = window() && QSGRendererInterface::isApiRhiBased(
-                                                      window()->rendererInterface()->graphicsApi());
                 if (hardware) {
                     const QSizeF scale(width() / m_document->width(),
                                        height() / m_document->height());
@@ -439,7 +461,7 @@ void CanvasItem::updatePolish()
                 }
             }
             m_gpuSelection = selectionMeshNeeded;
-            if (patch || remove || (selection && !m_gpuSelection)) {
+            if (patch || (remove && !m_gpuRemove) || (selection && !m_gpuSelection)) {
                 m_overlayImage = QImage(QSize(qCeil(m_overlayRect.width() * ratio),
                                               qCeil(m_overlayRect.height() * ratio)),
                                         QImage::Format_ARGB32_Premultiplied);
@@ -456,7 +478,7 @@ void CanvasItem::updatePolish()
                                           m_document->patchPreviewImage());
                         painter.restore();
                     }
-                    if (remove) {
+                    if (remove && !m_gpuRemove) {
                         painter.save();
                         painter.setClipRegion(m_document->removeRegion());
                         painter.fillRect(m_document->removeRegion().boundingRect(),
@@ -476,6 +498,20 @@ void CanvasItem::updatePolish()
                         painter.drawPath(m_selectionPath);
                     }
                 }
+            }
+        }
+        if (!removeMeshNeeded) {
+            if (!removePending) {
+                m_removeOverlayRegion = {};
+                m_removeMeshCached    = false;
+                m_removeMeshFallback  = false;
+            }
+            m_gpuRemove = false;
+            if (!m_removeMeshFallback)
+                m_removeMeshCached = false;
+            if (!m_removeVertices.isEmpty()) {
+                m_removeVertices = {};
+                ++m_removeGeometryRevision;
             }
         }
         if (!selectionMeshNeeded) {
@@ -695,7 +731,9 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         if (!m_overlayImage.isNull()) {
             node->overlay = imageNode(window(), m_overlayImage);
             if (node->overlay) {
-                if (node->selectionRoot)
+                if (node->removeRoot)
+                    node->effects.insertChildNodeBefore(node->overlay, node->removeRoot);
+                else if (node->selectionRoot)
                     node->effects.insertChildNodeBefore(node->overlay, node->selectionRoot);
                 else
                     node->effects.appendChildNode(node->overlay);
@@ -710,43 +748,51 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         node->overlay->setRect(m_overlayRect);
         node->overlay->setFiltering(QSGTexture::Nearest);
     }
+    if (!m_gpuRemove || m_removeVertices.isEmpty()) {
+        if (node->removeRoot) {
+            node->effects.removeChildNode(node->removeRoot);
+            delete node->removeRoot;
+            node->removeRoot = nullptr;
+            node->remove     = nullptr;
+        }
+    } else {
+        bool created = false;
+        if (!node->removeRoot) {
+            node->removeRoot = new ClippedOverlayNode;
+            node->remove     = new RegionOverlayNode(QColor(235, 70, 180, 110));
+            node->removeRoot->appendContent(node->remove);
+            if (node->selectionRoot)
+                node->effects.insertChildNodeBefore(node->removeRoot, node->selectionRoot);
+            else
+                node->effects.appendChildNode(node->removeRoot);
+            created = true;
+        }
+        node->removeRoot->setViewport(m_overlayRect);
+        if (created || node->removeRevision != m_removeGeometryRevision) {
+            node->remove->setMesh(m_removeVertices);
+            node->removeRevision = m_removeGeometryRevision;
+#ifdef PHOTOCRAP_TESTING
+            ++m_regionGeometryUploads;
+#endif
+        }
+    }
     if (!m_gpuSelection || m_selectionVertices.isEmpty()) {
         if (node->selectionRoot) {
             node->effects.removeChildNode(node->selectionRoot);
             delete node->selectionRoot;
             node->selectionRoot = nullptr;
-            node->selectionClip = nullptr;
             node->selection     = nullptr;
         }
     } else {
         bool created = false;
         if (!node->selectionRoot) {
-            node->selectionRoot = new QSGTransformNode;
-            node->selectionClip = new QSGClipNode;
-            node->selectionClip->setIsRectangular(true);
-            // A rotated rectangle cannot use the scissor shortcut. Qt then
-            // needs explicit clip geometry for its stencil pass.
-            auto *clipGeometry = new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(), 4);
-            clipGeometry->setDrawingMode(QSGGeometry::DrawTriangleStrip);
-            node->selectionClip->setGeometry(clipGeometry);
-            node->selectionClip->setFlag(QSGNode::OwnsGeometry);
-            node->selection = new SelectionOutlineNode;
-            node->selectionClip->appendChildNode(node->selection);
-            node->selectionRoot->appendChildNode(node->selectionClip);
+            node->selectionRoot = new ClippedOverlayNode;
+            node->selection     = new SelectionOutlineNode;
+            node->selectionRoot->appendContent(node->selection);
             node->effects.appendChildNode(node->selectionRoot);
             created = true;
         }
-        QMatrix4x4 matrix;
-        matrix.translate(float(m_overlayRect.x()), float(m_overlayRect.y()));
-        if (node->selectionRoot->matrix() != matrix)
-            node->selectionRoot->setMatrix(matrix);
-        const QRectF clip(QPointF{}, m_overlayRect.size());
-        if (created || node->selectionClip->clipRect() != clip) {
-            node->selectionClip->setClipRect(clip);
-            QSGGeometry::updateRectGeometry(node->selectionClip->geometry(), clip);
-            node->selectionClip->geometry()->markVertexDataDirty();
-            node->selectionClip->markDirty(QSGNode::DirtyGeometry);
-        }
+        node->selectionRoot->setViewport(m_overlayRect);
         if (created || node->selectionRevision != m_selectionGeometryRevision) {
             node->selection->setMesh(m_selectionVertices);
             node->selectionRevision = m_selectionGeometryRevision;

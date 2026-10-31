@@ -45,8 +45,9 @@ la configuration et la disponibilité. Ce changement ne force pas Vulkan sous Li
 - Le damier de transparence utilise une texture répétée de 24 × 24 sur les backends
   RHI. Le rendu logiciel garde un fond limité à la zone visible.
 - Les contours des sélections générales, le marquage de suppression et l’aperçu
-  de Pièce sont séparés de la photo. Pièce et le marquage gardent une petite surface
-  QPainter limitée à la vue. Sur les backends RHI, les contours généraux utilisent
+  de Pièce sont séparés de la photo. Pièce garde une petite surface QPainter limitée
+  à la vue. Sur les backends RHI, le marquage est une géométrie translucide et les
+  contours généraux utilisent
   une géométrie de trait et un shader de pointillés : animer leurs fourmis ne
   recrée ni image, ni texture, ni géométrie.
 - Les ressources graphiques sont créées et détruites sur le thread de rendu, avec
@@ -63,9 +64,10 @@ Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
 La composition des calques, les masques, les traits et les rendus complets des
 filtres restent calculés sur CPU. Les aperçus pris en charge sont décrits ci-dessous.
-Pièce et le marquage de suppression utilisent encore QPainter dans une petite
-surface puis une texture. Les contours généraux utilisent le shader décrit plus
-bas, avec repli QPainter pour le backend logiciel ou les cas trop complexes.
+Pièce utilise encore QPainter dans une petite surface puis une texture.
+Les contours généraux et le marquage de Suppression utilisent les géométries
+GPU décrites plus bas, avec repli QPainter pour le backend logiciel ou les cas
+trop complexes.
 Les transferts régionaux couvrent le composite CPU et ses niveaux réduits.
 `render/DisplayLevel` met à jour le cache réduit par portions lorsque les dimensions
 source sont divisibles par celles du niveau. Les portions sont alignées sur cette
@@ -174,6 +176,35 @@ non uniformes, les segments hors champ, la phase après découpage et les grande
 coordonnées. Le test natif `canvas_render` vérifie une animation visible, les phases
 fractionnaires, la stabilité des compteurs de géométrie/textures, le déplacement,
 la rotation et l’absence de remplissage de la sélection sur Metal et OpenGL.
+
+## Marquage de Suppression sur GPU
+
+`render/RegionMesh` projette les rectangles disjoints de la région de marquage,
+les découpe à la vue et génère des triangles en coordonnées locales. Les trous
+issus de la soustraction restent vides ; les rectangles n’introduisent pas de
+surfaces superposées qui doubleraient le mélange translucide.
+`RegionOverlayNode` utilise le matériau couleur de Qt avec le même rose et le
+même alpha que la référence QPainter. Aucune surface ni texture d’image n’est
+nécessaire sur un backend RHI.
+
+La géométrie est conservée jusqu’à un changement de région, d’échelle ou de vue.
+Faire avancer les pointillés d’une sélection simultanée ne la reconstruit pas.
+Annuler le marquage retire son nœud sans changer les pixels ni l’historique.
+`ClippedOverlayNode`, commun à cette surface et aux contours de sélection, gère
+la translation locale et la géométrie explicite du clip utilisée sous rotation.
+
+La limite reste un million de sommets, soit environ 7,6 Mio pour le marquage.
+Le backend logiciel et les régions dépassant cette limite conservent le chemin
+QPainter. Cette optimisation concerne seulement l’affichage des marques : leur
+région, la reconstruction asynchrone et l’historique restent gérés par le moteur
+existant. L’outil Suppression reste réservé aux pixels 8 bits ; le refus des
+pixels 16 bits ne provoque ni conversion ni modification.
+
+La suite `region_mesh` vérifie l’aire des régions trouées, les échelles non
+uniformes, le découpage, les grandes coordonnées et le repli de complexité.
+`canvas_render` compare le mélange couleur, l’intérieur des trous et les zones
+non marquées, puis contrôle l’animation simultanée, le clip sous rotation,
+l’annulation et le maintien du refus en 16 bits sur Metal/OpenGL et en logiciel.
 
 ## Aperçus de réglages sur GPU
 

@@ -17,6 +17,7 @@
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/FileDialogSmoke.h"
+#include "../tests/MeasurementOverlaySmoke.h"
 #include "../tests/PresetPreviewSmoke.h"
 #include "../tests/ShutdownSmoke.h"
 #include "../tests/ToneRenderSmoke.h"
@@ -152,6 +153,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--measurement-overlay-test")) {
+                passed = window && runMeasurementOverlaySmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

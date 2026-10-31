@@ -2613,53 +2613,25 @@ ApplicationWindow {
                                 id: sampleRefreshTimer; interval:40
                                 onTriggered: { window.refreshColorSamples(); window.refreshInformationColor() }
                             }
-                            Canvas {
+                            RulerOverlay {
                                 id: rulerOverlay
-                                anchors.fill: parent
+                                objectName: "rulerOverlay"
+                                viewportItem: viewport
+                                zoom: window.zoom
+                                startPoint: window.rulerStart
+                                endPoint: window.rulerEnd
                                 z: 4
-                                enabled: false
                                 visible: window.rulerVisible
-                                onPaint: {
-                                    const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
-                                    const x1=window.rulerStart.x*zoom,y1=window.rulerStart.y*zoom
-                                    const x2=window.rulerEnd.x*zoom,y2=window.rulerEnd.y*zoom
-                                    c.strokeStyle="rgba(0,0,0,.85)";c.lineWidth=4
-                                    c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()
-                                    c.strokeStyle="#f5f7f9";c.lineWidth=2
-                                    c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()
-                                    for(const p of [{x:x1,y:y1},{x:x2,y:y2}]) {
-                                        c.beginPath();c.arc(p.x,p.y,4,0,Math.PI*2)
-                                        c.fillStyle="#f5f7f9";c.fill();c.strokeStyle="#101419";c.lineWidth=1;c.stroke()
-                                    }
-                                }
-                                Connections {
-                                    target: window
-                                    function onRulerStartChanged(){rulerOverlay.requestPaint()}
-                                    function onRulerEndChanged(){rulerOverlay.requestPaint()}
-                                    function onZoomChanged(){rulerOverlay.requestPaint()}
-                                }
                             }
-                            Canvas {
+                            SamplingRing {
                                 id: samplingRing
                                 objectName: "samplingRing"
-                                anchors.fill: parent; z: 7; enabled: false
+                                x: window.pickerPosition.x-width/2
+                                y: window.pickerPosition.y-height/2
+                                z: 7
+                                sampleColor: window.pickerSampleColor
+                                previousColor: window.pickerPreviousColor
                                 visible: window.pickerDragging && editor.eyedropperRing && editor.tool==="picker"
-                                onPaint: {
-                                    const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
-                                    const x=window.pickerPosition.x,y=window.pickerPosition.y
-                                    c.lineWidth=10
-                                    c.beginPath();c.arc(x,y,35,Math.PI,Math.PI*2);c.strokeStyle=window.pickerSampleColor;c.stroke()
-                                    c.beginPath();c.arc(x,y,35,0,Math.PI);c.strokeStyle=window.pickerPreviousColor;c.stroke()
-                                    c.lineWidth=1;c.strokeStyle="#111111"
-                                    c.beginPath();c.arc(x,y,41,0,Math.PI*2);c.stroke()
-                                    c.strokeStyle="#ffffff";c.beginPath();c.arc(x,y,29,0,Math.PI*2);c.stroke()
-                                }
-                                Connections {
-                                    target: window
-                                    function onPickerPositionChanged(){samplingRing.requestPaint()}
-                                    function onPickerSampleColorChanged(){samplingRing.requestPaint()}
-                                    function onPickerPreviousColorChanged(){samplingRing.requestPaint()}
-                                }
                             }
                             Repeater {
                                 model: window.colorSamples

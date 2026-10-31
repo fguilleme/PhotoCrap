@@ -1560,6 +1560,12 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
     if (!require(
             samplingRing->property("visible").toBool() && _document.color() == QColor(Qt::blue) &&
+                samplingRing->property("width").toReal() == 84 &&
+                samplingRing->property("height").toReal() == 84 &&
+                qAbs(samplingRing->property("x").toReal() + 42 -
+                     _window->property("pickerPosition").toPointF().x()) < .01 &&
+                qAbs(samplingRing->property("y").toReal() + 42 -
+                     _window->property("pickerPosition").toPointF().y()) < .01 &&
                 QGuiApplication::overrideCursor() &&
                 QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor &&
                 QGuiApplication::overrideCursor()->hotSpot() == QPoint(3, 29),
@@ -1649,7 +1655,15 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(0, 0));
     QTest::mouseMove(_window, patchPoint(30, 40));
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(30, 40));
-    if (!require(informationContent->property("rulerVisible").toBool() &&
+    auto       rulerOverlay = _window->findChild<QQuickItem *>("rulerOverlay");
+    const auto measureView  = imageCanvas->property("viewportRect").toRectF();
+    if (!require(informationContent->property("rulerVisible").toBool() && rulerOverlay &&
+                     rulerOverlay->isVisible() && rulerOverlay->width() <= measureView.width() &&
+                     rulerOverlay->height() <= measureView.height() &&
+                     rulerOverlay->property("startPoint").toPointF() ==
+                         _window->property("rulerStart").toPointF() &&
+                     rulerOverlay->property("endPoint").toPointF() ==
+                         _window->property("rulerEnd").toPointF() &&
                      qAbs(informationContent->property("distance").toReal() - 50.0) < 1.5,
                  "Info displays live Ruler length from the actual measuring gesture"))
         return false;

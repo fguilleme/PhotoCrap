@@ -755,3 +755,31 @@ aucun facteur d’accélération n’est annoncé sans mesure comparative.
 - [Nœud image indépendant du backend](https://doc.qt.io/qt-6.8/qsgimagenode.html)
 - [Matériaux et shaders du graphe de scène](https://doc.qt.io/qt-6.8/qsgmaterialshader.html)
 - [Précompilation des shaders](https://doc.qt.io/qt-6.8/qtshadertools-build.html)
+
+## Surimpressions de mesure bornées
+
+L’anneau de pipette et la règle n’utilisent plus de Canvas de la taille entière de
+l’image zoomée. Leur affichage est séparé dans `SamplingRing.qml` et
+`RulerOverlay.qml`, sans modifier l’échantillonnage ni les mesures du document.
+
+L’anneau garde une surface de 84 × 84 pixels logiques, avec les deux demi-cercles
+(couleur échantillonnée et couleur précédente), les liserés et le centre transparent.
+La position du pointeur ne change que `x`/`y` : le graphe de scène déplace la texture
+existante. Une nouvelle couleur ou la réapparition de l’anneau demande un repeint.
+La surface reste fixe au zoom, indépendamment des dimensions du document.
+
+La règle utilise les coordonnées natives des deux points, multipliées par le zoom.
+Son rectangle de dessin est l’intersection de l’emprise du segment, avec une marge
+pour les poignées, et de la vue calculée par `ScreenOverlayCanvas`. Le dessin est
+translaté vers cette origine locale. Une petite mesure garde donc une petite
+surface, et une mesure traversant tout le document reste limitée à l’écran, même
+après défilement ou rotation. Son dessin reste raster ; les changements des points
+repeignent cette surface bornée.
+
+`MeasurementOverlaySmoke.h`, exécuté par `measurement_overlay`, affiche ces composants sur
+une géométrie de document 16 384 × 16 384 à 16×, sans allouer cette image complète.
+Il compare leurs pixels, observe le signal réel `painted` de l’anneau pour vérifier
+la réutilisation au déplacement, et contrôle la règle courte, longue, défilée,
+tournée et masquée. Les mêmes scénarios sont exécutés sur le backend logiciel,
+Metal et OpenGL. Le smoke test QML vérifie aussi leur branchement dans l’interface
+règle/pipette, en conservant les curseurs natifs et le panneau Informations.

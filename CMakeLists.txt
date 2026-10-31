@@ -158,6 +158,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/RawTestImage.h
     tests/UiSmoke.h
     tests/CanvasRenderSmoke.h
+    tests/MeasurementOverlaySmoke.h
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
@@ -426,6 +427,8 @@ qt_add_qml_module(PhotoCrap
         qml/EyedropperOptions.qml
         qml/EyedropperButton.qml
         qml/RulerOptions.qml
+        qml/RulerOverlay.qml
+        qml/SamplingRing.qml
         qml/CropOptions.qml
         qml/CropOverlay.qml
         qml/ScreenOverlayCanvas.qml
@@ -590,6 +593,9 @@ if(BUILD_TESTING)
     add_test(NAME canvas_render COMMAND PhotoCrap --smoke-test --canvas-render-test)
     set_tests_properties(canvas_render PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME measurement_overlay COMMAND PhotoCrap --smoke-test --measurement-overlay-test)
+    set_tests_properties(measurement_overlay PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 20)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)

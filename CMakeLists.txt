@@ -16,6 +16,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
     src/render/ToneMappingNode.cpp
+    src/render/DisplayLevel.cpp
     src/Document.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
@@ -101,6 +102,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
     src/render/ToneMappingNode.h
+    src/render/DisplayLevel.h
     src/Document.h
     src/ImageUtils.h
     src/tools/RegionHealing.h
@@ -138,6 +140,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/RawTestImage.h
     tests/UiSmoke.h
     tests/CanvasRenderSmoke.h
+    tests/DisplayLevelTest.cpp
     tests/ToneRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
@@ -222,6 +225,7 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 qt_add_library(photocrap_core STATIC
+    src/render/DisplayLevel.cpp src/render/DisplayLevel.h
     src/storage/ScratchImageCache.cpp src/storage/ScratchImageCache.h
     src/storage/TiledImage.cpp src/storage/TiledImage.h
     src/tools/PenTool.cpp
@@ -485,6 +489,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_gpu_dissolve_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME gpu_dissolve_preview COMMAND photocrap_gpu_dissolve_tests)
     set_tests_properties(gpu_dissolve_preview PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_display_level_tests tests/DisplayLevelTest.cpp)
+    target_link_libraries(photocrap_display_level_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME display_level COMMAND photocrap_display_level_tests)
+    set_tests_properties(display_level PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)

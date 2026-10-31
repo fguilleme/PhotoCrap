@@ -59,6 +59,10 @@ public:
     {
         return m_overlayImage.size();
     }
+    quint64 displayLevelSourcePixels() const
+    {
+        return m_displayLevelSourcePixels;
+    }
 #endif
 protected:
     QSGNode *updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *) override;
@@ -90,6 +94,7 @@ private:
     std::atomic<quint64> m_imageTextureUploads{0};
     std::atomic<quint64> m_toneTableUploads{0};
     std::atomic<quint64> m_maskTextureUploads{0};
+    quint64              m_displayLevelSourcePixels = 0;
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

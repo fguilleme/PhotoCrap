@@ -1,4 +1,5 @@
 #include "CanvasItem.h"
+#include "render/DisplayLevel.h"
 #include "render/ToneMappingNode.h"
 
 #include <QPainter>
@@ -265,12 +266,20 @@ void CanvasItem::updatePolish()
             m_textureMaskImage = {};
             ++m_maskRevision;
         }
-        const bool regional = changed && level == 0 && m_textureLevel == 0 &&
-                              previousSize == m_sourceSize && !updateRegion.isEmpty();
+        const bool regional = changed && level == m_textureLevel && previousSize == m_sourceSize &&
+                              !updateRegion.isEmpty();
         if (regional) {
+            if (level > 0) {
+                const auto reduced = PhotoCrap::Render::updateDisplayLevel(
+                    m_textureImage, source, m_textureSize, updateRegion);
+                updateRegion = reduced.changed;
+#ifdef PHOTOCRAP_TESTING
+                m_displayLevelSourcePixels += reduced.sourcePixels;
+#endif
+            }
             // Retain independent snapshots of untouched tiles. Include their
             // one-pixel filtering halo when deciding which snapshots to replace.
-            const QRect bounds(QPoint{}, m_sourceSize);
+            const QRect bounds(QPoint{}, m_textureSize);
             for (auto it = m_tileImages.begin(); it != m_tileImages.end();) {
                 const QRect tile(int(quint32(it.key())) * tileSize,
                                  int(quint32(it.key() >> 32)) * tileSize, tileSize, tileSize);
@@ -286,8 +295,13 @@ void CanvasItem::updatePolish()
             if (level > 0) {
                 if (source.isNull() && m_document)
                     source = displaySource(m_document);
-                m_textureImage =
-                    source.scaled(m_textureSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                const auto reduced =
+                    PhotoCrap::Render::updateDisplayLevel(m_textureImage, source, m_textureSize);
+#ifdef PHOTOCRAP_TESTING
+                m_displayLevelSourcePixels += reduced.sourcePixels;
+#else
+                Q_UNUSED(reduced)
+#endif
             }
             m_tileImages.clear();
             m_textureLevel = level;

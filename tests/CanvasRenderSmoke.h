@@ -236,6 +236,66 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
         canvas.setSize({2176, 256});
         canvas.setViewportRect(canvas.boundingRect());
     }
+    // Make the reduced image span three GPU tiles on both standard and HiDPI
+    // windows. Measure resampling work independently from texture uploads.
+    for (int bits : {8, 16})
+        for (int factor : {2, 4})
+            for (bool odd : {false, true}) {
+                const QSize size(3072 * factor + (odd ? 3 : 0), 128 * factor + (odd ? 3 : 0));
+                const qreal reducedScale = 1. / (factor * ratio);
+                canvas.setX(40);
+                canvas.setSize({size.width() * reducedScale, size.height() * reducedScale});
+                canvas.setViewportRect(canvas.boundingRect());
+                if (!require(document.newDocument(size.width(), size.height(), false, bits),
+                             "create a reduced regional reference"))
+                    return false;
+                frame();
+                auto       previous     = canvas.imageTextureUploads();
+                const auto sourceBefore = canvas.displayLevelSourcePixels();
+                stroke(100 * factor, 64 * factor, Qt::red, 16 * factor);
+                const auto   local = frame();
+                const auto   work  = canvas.displayLevelSourcePixels() - sourceBefore;
+                const qint64 total = qint64(size.width()) * size.height();
+                if (!require(canvas.imageTextureUploads() == previous + 1 &&
+                                 near(pixel(local, (100 * factor + .5) * reducedScale,
+                                            (64 * factor + .5) * reducedScale),
+                                      Qt::red),
+                             "reduced 8/16-bit edits replace only the affected display tile"))
+                    return false;
+                if (!require(odd ? work == quint64(total) : work < quint64(total / 100),
+                             "aligned reductions resample only a patch; irregular grids preserve "
+                             "full Qt sampling"))
+                    return false;
+                if (!require(document.composite().isDetached(),
+                             "incremental reduction retains no native composite reference"))
+                    return false;
+                previous = canvas.imageTextureUploads();
+                stroke(1024 * factor, 64 * factor, Qt::green, 16 * factor);
+                const auto boundary = frame();
+                if (!require(canvas.imageTextureUploads() == previous + 2 &&
+                                 near(pixel(boundary, (1024 * factor + .5) * reducedScale,
+                                            (64 * factor + .5) * reducedScale),
+                                      Qt::green),
+                             "reduced edits preserve both tile boundary halos"))
+                    return false;
+                canvas.setViewportRect({0, 0, 800 / ratio, canvas.height()});
+                frame();
+                previous = canvas.imageTextureUploads();
+                stroke(2600 * factor, 64 * factor, Qt::blue, 16 * factor);
+                frame();
+                if (!require(canvas.imageTextureUploads() == previous,
+                             "reduced offscreen edits preserve resident textures"))
+                    return false;
+                canvas.setX(40 - 2560 / ratio);
+                canvas.setViewportRect({2560 / ratio, 0, 512 / ratio, canvas.height()});
+                if (!require(near(pixel(frame(), (2600 * factor + .5) * reducedScale,
+                                        (64 * factor + .5) * reducedScale),
+                                  Qt::blue) &&
+                                 canvas.imageTextureUploads() == previous + 1,
+                             "panning reveals updated pixels in the cached reduced image"))
+                    return false;
+            }
+    canvas.setX(40);
     canvas.setDocument(nullptr);
     frame();
     canvas.setDocument(&document);

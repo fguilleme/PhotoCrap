@@ -16,6 +16,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
     src/render/ToneMappingNode.cpp
+    src/render/SelectionOutlineNode.cpp
+    src/render/SelectionMesh.cpp
     src/render/DisplayLevel.cpp
     src/render/TileSnapshot.cpp
     src/render/TileCache.cpp
@@ -104,6 +106,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
     src/render/ToneMappingNode.h
+    src/render/SelectionOutlineNode.h
+    src/render/SelectionMesh.h
     src/render/DisplayLevel.h
     src/render/TileSnapshot.h
     src/render/TileCache.h
@@ -147,6 +151,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
+    tests/SelectionMeshTest.cpp
     tests/ToneRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
@@ -231,6 +236,7 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 qt_add_library(photocrap_core STATIC
+    src/render/SelectionMesh.cpp src/render/SelectionMesh.h
     src/render/DisplayLevel.cpp src/render/DisplayLevel.h
     src/render/TileSnapshot.cpp src/render/TileSnapshot.h
     src/render/TileCache.cpp src/render/TileCache.h
@@ -337,6 +343,7 @@ qt_add_executable(PhotoCrap
     src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h src/CanvasRendering.cpp
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
+    src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
     src/ShortcutManager.cpp src/ShortcutManager.h
     src/LanguageManager.cpp src/LanguageManager.h
     src/RecentFilesManager.cpp src/RecentFilesManager.h
@@ -346,6 +353,7 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
     BATCHABLE
     PREFIX "/PhotoCrap"
     FILES src/render/shaders/tone.vert src/render/shaders/tone.frag
+        src/render/shaders/selection.vert src/render/shaders/selection.frag
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
@@ -509,6 +517,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_tile_cache_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME tile_cache COMMAND photocrap_tile_cache_tests)
     set_tests_properties(tile_cache PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_selection_mesh_tests tests/SelectionMeshTest.cpp)
+    target_link_libraries(photocrap_selection_mesh_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME selection_mesh COMMAND photocrap_selection_mesh_tests)
+    set_tests_properties(selection_mesh PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_scratch_tests tests/ScratchImageCacheTest.cpp)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)

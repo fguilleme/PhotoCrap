@@ -82,18 +82,64 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                 return false;
         }
     }
+    const QImage unselected = frame();
     document.setTool("select");
     document.beginStroke(200, 150);
     document.continueStroke(800, 350);
     document.endStroke();
     document.invertSelection();
-    const QImage before  = frame();
-    const auto   uploads = canvas.imageTextureUploads();
+    const QImage before          = frame();
+    auto         uploads         = canvas.imageTextureUploads();
+    const auto   geometryUploads = canvas.selectionGeometryUploads();
+    const auto   overlayUploads  = canvas.overlayTextureUploads();
+    const bool   shaderSelection =
+        QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
     canvas.setSelectionPhase(3);
     const QImage after = frame();
     if (!require(before != after && canvas.imageTextureUploads() == uploads,
                  "marching ants animate without uploading the photo again"))
         return false;
+    if (!require(near(pixel(after, 400 * initialScale, 250 * initialScale),
+                      pixel(unselected, 400 * initialScale, 250 * initialScale)),
+                 "selection outlines do not fill their interior"))
+        return false;
+    if (shaderSelection) {
+        if (!require(canvas.selectionShaderActive() &&
+                         canvas.selectionGeometryUploads() == geometryUploads &&
+                         canvas.overlayTextureUploads() == overlayUploads &&
+                         canvas.overlayPixelSize().isEmpty(),
+                     "shader selection animation changes no image texture or geometry"))
+            return false;
+        canvas.setSelectionPhase(3.25);
+        if (!require(frame() != after && canvas.selectionGeometryUploads() == geometryUploads &&
+                         canvas.overlayTextureUploads() == overlayUploads,
+                     "fractional dash phases animate smoothly without rebuilding geometry"))
+            return false;
+        canvas.setSelectionPhase(3);
+        frame();
+        canvas.setViewportRect({50, 0, 750, 256});
+        const auto pannedSelection = frame();
+        for (int y = 0; y < 150; ++y)
+            for (int x = 225; x < 350; ++x)
+                if (!require(
+                        near(pixel(pannedSelection, x + .5, y + .5), pixel(after, x + .5, y + .5)),
+                        "clipped contours preserve their phase while panning"))
+                    return false;
+        canvas.setViewportRect({0, 0, 1150, 400});
+        frame();
+        const auto transformedGeometry = canvas.selectionGeometryUploads();
+        canvas.setRotation(12);
+        const auto rotatedSelection = frame();
+        canvas.setSelectionPhase(4);
+        if (!require(frame() != rotatedSelection &&
+                         canvas.selectionGeometryUploads() == transformedGeometry,
+                     "rotated contours animate using the inherited scene transform"))
+            return false;
+        canvas.setRotation(0);
+        canvas.setSelectionPhase(3);
+        frame();
+        uploads = canvas.imageTextureUploads();
+    }
     const qreal ratio = _window->effectiveDevicePixelRatio();
     if (!require(canvas.overlayPixelSize().width() <= qCeil(1150 * ratio) &&
                      canvas.overlayPixelSize().height() <= qCeil(400 * ratio),
@@ -150,10 +196,12 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
     document.setSelectionEdgesVisible(true);
     canvas.setSize({2176 * 4, 640 * 4});
     frame();
-    if (!require(canvas.overlayPixelSize().width() > 0 &&
-                     canvas.overlayPixelSize().width() <= qCeil(800 * ratio) &&
-                     canvas.overlayPixelSize().height() <= qCeil(300 * ratio),
-                 "high zoom does not allocate a document-sized selection surface"))
+    if (!require(shaderSelection ? canvas.overlayPixelSize().isEmpty() &&
+                                       canvas.selectionVertexCount() <= 1000000
+                                 : canvas.overlayPixelSize().width() > 0 &&
+                                       canvas.overlayPixelSize().width() <= qCeil(800 * ratio) &&
+                                       canvas.overlayPixelSize().height() <= qCeil(300 * ratio),
+                 "high zoom keeps selection storage bounded to the visible contour"))
         return false;
     // At the full display level, only the modified tile and its filtering halo
     // are copied/uploaded. The explicit viewport covers all three tile slots.

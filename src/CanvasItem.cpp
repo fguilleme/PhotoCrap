@@ -317,8 +317,12 @@ void CanvasItem::setSelectionPhase(qreal _phase)
     if (qFuzzyCompare(m_selectionPhase + 1, _phase + 1))
         return;
     m_selectionPhase = _phase;
-    if (m_document && m_document->selectionShape() >= 6)
-        queueFrame(false, true);
+    if (m_document && m_document->selectionShape() >= 6) {
+        if (m_gpuSelection)
+            polish();
+        else
+            queueFrame(false, true);
+    }
     emit selectionPhaseChanged();
 }
 void CanvasItem::setTextureCacheMiB(int _value)

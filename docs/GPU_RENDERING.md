@@ -44,10 +44,11 @@ la configuration et la disponibilité. Ce changement ne force pas Vulkan sous Li
   lorsque leurs pixels n’ont pas été invalidés.
 - Le damier de transparence utilise une texture répétée de 24 × 24 sur les backends
   RHI. Le rendu logiciel garde un fond limité à la zone visible.
-- Les contours des sélections générales, le marquage de suppression et l’aperçu de
-  Pièce sont séparés de la photo. Leur surface est limitée à la portion visible,
-  y compris après rotation de la vue. Le tracé d’une sélection générale est mis en
-  cache ; animer ses fourmis ne recrée pas les textures de la photo.
+- Les contours des sélections générales, le marquage de suppression et l’aperçu
+  de Pièce sont séparés de la photo. Pièce et le marquage gardent une petite surface
+  QPainter limitée à la vue. Sur les backends RHI, les contours généraux utilisent
+  une géométrie de trait et un shader de pointillés : animer leurs fourmis ne
+  recrée ni image, ni texture, ni géométrie.
 - Les ressources graphiques sont créées et détruites sur le thread de rendu, avec
   reconstruction après suppression du nœud ou changement de fenêtre.
 
@@ -62,8 +63,9 @@ Ce n’est ni un affichage HDR, ni une nouvelle gestion ICC.
 
 La composition des calques, les masques, les traits et les rendus complets des
 filtres restent calculés sur CPU. Les aperçus pris en charge sont décrits ci-dessous.
-Les surimpressions générales
-utilisent encore QPainter dans une petite surface puis une texture ; leurs traits ne sont pas encore dessinés par un shader.
+Pièce et le marquage de suppression utilisent encore QPainter dans une petite
+surface puis une texture. Les contours généraux utilisent le shader décrit plus
+bas, avec repli QPainter pour le backend logiciel ou les cas trop complexes.
 Les transferts régionaux couvrent le composite CPU et ses niveaux réduits.
 `render/DisplayLevel` met à jour le cache réduit par portions lorsque les dimensions
 source sont divisibles par celles du niveau. Les portions sont alignées sur cette
@@ -137,6 +139,41 @@ bords, changements de format/niveau et dimensions irrégulières. Elle vérifie 
 que les pixels hors région projetée restent inchangés.
 Les tests moteur comparent le résultat régional à une reconstruction complète avec
 un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosaïque.
+
+## Contours de sélection animés sur GPU
+
+Les sélections générales (`selectionShape >= 6`, dont les sélections combinées ou
+issues d’un masque) passent par `render/SelectionMesh` et `SelectionOutlineNode`.
+Les autres contours QML de rectangles, ellipses et lassos restent inchangés.
+
+Le chemin de région est conservé tant que le contour ne change pas. Le maillage
+ne contient que les segments utiles à la vue, avec jointures en onglet bornées et
+un découpage local. Ses positions sont relatives à l’origine de la vue ; la
+distance le long du contour est calculée avant découpage puis ramenée à une
+période courte. Déplacer la vue ne redémarre pas les pointillés. La projection des
+jointures le long du segment conserve aussi cette phase quand un coin sort du champ.
+
+Le shader applique un trait cosmétique de 1,5 pixel physique, avec une transition
+anticrénelée d’un pixel aux bords et entre noir/blanc. Ce matériau indépendant possède un bloc de
+72 octets utiles selon la réflexion du shader (matrice, opacité et phase) et n’utilise aucune texture. Une animation
+fractionnaire ne met à jour que sa phase ; les opérations Pièce et Suppression
+n’ont pas à être repeintes pour faire avancer les fourmis.
+
+Le nœud hérite des transformations du canevas et utilise un clip du graphe de
+scène, y compris sous rotation. Un changement de contour, d’échelle, de résolution
+physique ou de vue reconstruit la géométrie. Les snapshots restent préparés sur
+le thread GUI ; le thread de rendu ne consulte pas le document.
+
+Le maillage est limité à **un million de sommets** (environ 15,3 Mio de données de sommets).
+Au-delà, et sur le backend logiciel, le rendu QPainter précédent reste utilisé.
+La première conversion d’une région très complexe reste sur CPU ; cette étape
+n’accélère pas la création du masque de sélection ni son calcul de contour.
+
+La suite `selection_mesh` contrôle les trous, les sous-chemins fermés, les échelles
+non uniformes, les segments hors champ, la phase après découpage et les grandes
+coordonnées. Le test natif `canvas_render` vérifie une animation visible, les phases
+fractionnaires, la stabilité des compteurs de géométrie/textures, le déplacement,
+la rotation et l’absence de remplissage de la sélection sur Metal et OpenGL.
 
 ## Aperçus de réglages sur GPU
 

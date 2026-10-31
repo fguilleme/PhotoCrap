@@ -1,5 +1,6 @@
 #include "CanvasItem.h"
 #include "render/DisplayLevel.h"
+#include "render/SelectionOutlineNode.h"
 #include "render/TileCache.h"
 #include "render/TileSnapshot.h"
 #include "render/ToneMappingNode.h"
@@ -7,6 +8,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QQuickWindow>
+#include <QSGClipNode>
 #include <QSGImageNode>
 #include <QSGRendererInterface>
 #include <QSGSimpleTextureNode>
@@ -132,6 +134,10 @@ struct CanvasNode : QSGTransformNode {
     QSGTexture                     *toneTable       = nullptr;
     qint64                          toneTableKey    = 0;
     ToneMappingSettings             toneSettings;
+    QSGTransformNode               *selectionRoot     = nullptr;
+    QSGClipNode                    *selectionClip     = nullptr;
+    SelectionOutlineNode           *selection         = nullptr;
+    quint64                         selectionRevision = 0;
 
     ~CanvasNode() override
     {
@@ -389,22 +395,54 @@ void CanvasItem::updatePolish()
         }
     }
     if (m_overlayDirty) {
-        m_overlayDirty = false;
-        m_overlayImage = {};
-        m_overlayRect  = visibleBounds(m_viewportRect, boundingRect());
+        m_overlayDirty           = false;
+        m_overlayImage           = {};
+        m_overlayRect            = visibleBounds(m_viewportRect, boundingRect());
+        bool selectionMeshNeeded = false;
         if (m_document && !m_overlayRect.isEmpty() && m_document->width() > 0 &&
             m_document->height() > 0) {
             const bool patch =
                 m_document->patchDragging() && !m_document->patchPreviewImage().isNull();
-            const bool remove    = m_document->removeHasPending();
-            const bool selection = m_document->selectionShape() >= 6 &&
-                                   m_document->hasSelection() &&
-                                   m_document->selectionEdgesVisible();
-            if (patch || remove || selection) {
-                const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1.;
-                m_overlayImage    = QImage(QSize(qCeil(m_overlayRect.width() * ratio),
-                                                 qCeil(m_overlayRect.height() * ratio)),
-                                           QImage::Format_ARGB32_Premultiplied);
+            const bool  remove    = m_document->removeHasPending();
+            const bool  selection = m_document->selectionShape() >= 6 &&
+                                    m_document->hasSelection() &&
+                                    m_document->selectionEdgesVisible();
+            const qreal ratio     = window() ? window()->effectiveDevicePixelRatio() : 1.;
+            if (selection) {
+                const QRegion outline     = m_document->selectionOutline();
+                const bool    pathChanged = m_selectionOutline != outline;
+                if (pathChanged) {
+                    m_selectionOutline = outline;
+                    m_selectionPath    = {};
+                    m_selectionPath.setFillRule(Qt::WindingFill);
+                    m_selectionPath.addRegion(outline);
+                    m_selectionPath = m_selectionPath.simplified();
+                }
+                const bool hardware = window() && QSGRendererInterface::isApiRhiBased(
+                                                      window()->rendererInterface()->graphicsApi());
+                if (hardware) {
+                    const QSizeF scale(width() / m_document->width(),
+                                       height() / m_document->height());
+                    if (!m_selectionMeshCached || pathChanged || m_selectionMeshScale != scale ||
+                        m_selectionMeshViewport != m_overlayRect || m_selectionMeshRatio != ratio) {
+                        auto mesh = PhotoCrap::Render::selectionMesh(m_selectionPath, scale,
+                                                                     m_overlayRect, ratio);
+                        m_selectionVertices     = std::move(mesh.vertices);
+                        m_selectionMeshFallback = mesh.fallback;
+                        m_selectionMeshViewport = m_overlayRect;
+                        m_selectionMeshScale    = scale;
+                        m_selectionMeshRatio    = ratio;
+                        m_selectionMeshCached   = true;
+                        ++m_selectionGeometryRevision;
+                    }
+                    selectionMeshNeeded = !m_selectionMeshFallback;
+                }
+            }
+            m_gpuSelection = selectionMeshNeeded;
+            if (patch || remove || (selection && !m_gpuSelection)) {
+                m_overlayImage = QImage(QSize(qCeil(m_overlayRect.width() * ratio),
+                                              qCeil(m_overlayRect.height() * ratio)),
+                                        QImage::Format_ARGB32_Premultiplied);
                 if (!m_overlayImage.isNull()) {
                     m_overlayImage.setDevicePixelRatio(ratio);
                     m_overlayImage.fill(Qt::transparent);
@@ -425,15 +463,7 @@ void CanvasItem::updatePolish()
                                          QColor(235, 70, 180, 110));
                         painter.restore();
                     }
-                    if (selection) {
-                        const QRegion outline = m_document->selectionOutline();
-                        if (m_selectionOutline != outline) {
-                            m_selectionOutline = outline;
-                            m_selectionPath    = {};
-                            m_selectionPath.setFillRule(Qt::WindingFill);
-                            m_selectionPath.addRegion(outline);
-                            m_selectionPath = m_selectionPath.simplified();
-                        }
+                    if (selection && !m_gpuSelection) {
                         QPen pen(Qt::black, 1.5, Qt::DashLine, Qt::SquareCap, Qt::MiterJoin);
                         pen.setCosmetic(true);
                         pen.setDashPattern({5, 5});
@@ -446,6 +476,15 @@ void CanvasItem::updatePolish()
                         painter.drawPath(m_selectionPath);
                     }
                 }
+            }
+        }
+        if (!selectionMeshNeeded) {
+            m_gpuSelection = false;
+            if (!m_selectionMeshFallback)
+                m_selectionMeshCached = false;
+            if (!m_selectionVertices.isEmpty()) {
+                m_selectionVertices = {};
+                ++m_selectionGeometryRevision;
             }
         }
     }
@@ -655,14 +694,67 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         removeImage(node->effects, node->overlay);
         if (!m_overlayImage.isNull()) {
             node->overlay = imageNode(window(), m_overlayImage);
-            if (node->overlay)
-                node->effects.appendChildNode(node->overlay);
+            if (node->overlay) {
+                if (node->selectionRoot)
+                    node->effects.insertChildNodeBefore(node->overlay, node->selectionRoot);
+                else
+                    node->effects.appendChildNode(node->overlay);
+#ifdef PHOTOCRAP_TESTING
+                ++m_overlayTextureUploads;
+#endif
+            }
         }
         node->overlayKey = overlayKey;
     }
     if (node->overlay) {
         node->overlay->setRect(m_overlayRect);
         node->overlay->setFiltering(QSGTexture::Nearest);
+    }
+    if (!m_gpuSelection || m_selectionVertices.isEmpty()) {
+        if (node->selectionRoot) {
+            node->effects.removeChildNode(node->selectionRoot);
+            delete node->selectionRoot;
+            node->selectionRoot = nullptr;
+            node->selectionClip = nullptr;
+            node->selection     = nullptr;
+        }
+    } else {
+        bool created = false;
+        if (!node->selectionRoot) {
+            node->selectionRoot = new QSGTransformNode;
+            node->selectionClip = new QSGClipNode;
+            node->selectionClip->setIsRectangular(true);
+            // A rotated rectangle cannot use the scissor shortcut. Qt then
+            // needs explicit clip geometry for its stencil pass.
+            auto *clipGeometry = new QSGGeometry(QSGGeometry::defaultAttributes_Point2D(), 4);
+            clipGeometry->setDrawingMode(QSGGeometry::DrawTriangleStrip);
+            node->selectionClip->setGeometry(clipGeometry);
+            node->selectionClip->setFlag(QSGNode::OwnsGeometry);
+            node->selection = new SelectionOutlineNode;
+            node->selectionClip->appendChildNode(node->selection);
+            node->selectionRoot->appendChildNode(node->selectionClip);
+            node->effects.appendChildNode(node->selectionRoot);
+            created = true;
+        }
+        QMatrix4x4 matrix;
+        matrix.translate(float(m_overlayRect.x()), float(m_overlayRect.y()));
+        if (node->selectionRoot->matrix() != matrix)
+            node->selectionRoot->setMatrix(matrix);
+        const QRectF clip(QPointF{}, m_overlayRect.size());
+        if (created || node->selectionClip->clipRect() != clip) {
+            node->selectionClip->setClipRect(clip);
+            QSGGeometry::updateRectGeometry(node->selectionClip->geometry(), clip);
+            node->selectionClip->geometry()->markVertexDataDirty();
+            node->selectionClip->markDirty(QSGNode::DirtyGeometry);
+        }
+        if (created || node->selectionRevision != m_selectionGeometryRevision) {
+            node->selection->setMesh(m_selectionVertices);
+            node->selectionRevision = m_selectionGeometryRevision;
+#ifdef PHOTOCRAP_TESTING
+            ++m_selectionGeometryUploads;
+#endif
+        }
+        node->selection->setPhase(m_selectionPhase);
     }
     return node;
 }

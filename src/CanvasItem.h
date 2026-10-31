@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "render/SelectionMesh.h"
 #include <QPainterPath>
 #include <QPointer>
 #include <QQuickItem>
@@ -74,6 +75,22 @@ public:
     {
         return m_residentTextureBytes.load();
     }
+    quint64 selectionGeometryUploads() const
+    {
+        return m_selectionGeometryUploads.load();
+    }
+    quint64 overlayTextureUploads() const
+    {
+        return m_overlayTextureUploads.load();
+    }
+    bool selectionShaderActive() const
+    {
+        return m_gpuSelection;
+    }
+    qsizetype selectionVertexCount() const
+    {
+        return m_selectionVertices.size();
+    }
 #endif
 protected:
     QSGNode *updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *) override;
@@ -87,12 +104,18 @@ signals:
     void textureCacheChanged();
 
 private:
-    void               queueFrame(bool _image, bool _overlay);
-    QPointer<Document> m_document;
-    QRegion            m_selectionOutline;
-    QPainterPath       m_selectionPath;
-    QImage             m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
-    bool               m_gpuTonePreviewEnabled = false;
+    void                                        queueFrame(bool _image, bool _overlay);
+    QPointer<Document>                          m_document;
+    QRegion                                     m_selectionOutline;
+    QPainterPath                                m_selectionPath;
+    QVector<PhotoCrap::Render::SelectionVertex> m_selectionVertices;
+    QRectF                                      m_selectionMeshViewport;
+    QSizeF                                      m_selectionMeshScale;
+    qreal                                       m_selectionMeshRatio        = 0;
+    quint64                                     m_selectionGeometryRevision = 0;
+    bool   m_gpuSelection = false, m_selectionMeshCached = false, m_selectionMeshFallback = false;
+    QImage m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
+    bool   m_gpuTonePreviewEnabled = false;
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
     QHash<quint64, QImage>                  m_tileImages, m_maskTileImages;
     QHash<quint64, quint64>                 m_tileLastUse;
@@ -111,6 +134,7 @@ private:
     std::atomic<quint64> m_maskTextureUploads{0};
     quint64              m_displayLevelSourcePixels = 0;
     std::atomic<quint64> m_residentTextureBytes{0};
+    std::atomic<quint64> m_selectionGeometryUploads{0}, m_overlayTextureUploads{0};
 #endif
     qreal m_selectionPhase     = 0;
     bool  m_systemCursorActive = false;

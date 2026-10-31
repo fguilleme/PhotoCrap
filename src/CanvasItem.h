@@ -129,6 +129,8 @@ private:
     void                                        queueFrame(bool _image, bool _overlay);
     QPointer<Document>                          m_document;
     QRegion                                     m_selectionOutline;
+    QRect                                       m_selectionBounds;
+    int                                         m_selectionShape = -1;
     QPainterPath                                m_selectionPath;
     QVector<PhotoCrap::Render::SelectionVertex> m_selectionVertices;
     QRectF                                      m_selectionMeshViewport;

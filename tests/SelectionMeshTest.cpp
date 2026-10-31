@@ -41,6 +41,30 @@ private slots:
             QVERIFY(v.x >= 0 && v.x <= 200 && v.y >= 0 && v.y <= 240);
         }
     }
+    void ellipsesStayCurvedAtDifferentScales()
+    {
+        QPainterPath path;
+        path.addEllipse(QRectF(100, 80, 160, 90));
+        for (const auto scale : {QSizeF(.25, .25), QSizeF(1, 1), QSizeF(3.5, 2.1)}) {
+            const auto mesh = PhotoCrap::Render::selectionMesh(
+                path, scale, {0, 0, 400 * scale.width(), 300 * scale.height()}, 2);
+            QVERIFY(!mesh.fallback);
+            QVERIFY(mesh.vertices.size() > 24);
+            for (qsizetype i = 0; i < mesh.vertices.size(); i += 6) {
+                const auto a = QPointF(mesh.vertices[i].x + mesh.vertices[i + 1].x,
+                                       mesh.vertices[i].y + mesh.vertices[i + 1].y) /
+                               2;
+                const auto b = QPointF(mesh.vertices[i + 2].x + mesh.vertices[i + 5].x,
+                                       mesh.vertices[i + 2].y + mesh.vertices[i + 5].y) /
+                               2;
+                for (const auto point : {a, b}) {
+                    const qreal x = (point.x() / scale.width() - 180) / 80;
+                    const qreal y = (point.y() / scale.height() - 125) / 45;
+                    QVERIFY(qAbs(x * x + y * y - 1) < .025);
+                }
+            }
+        }
+    }
     void boundedComplexityAndLargeCoordinates()
     {
         QPainterPath path;

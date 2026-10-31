@@ -6,6 +6,7 @@
 #include <QSGRendererInterface>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <cmath>
 
 inline bool runCanvasRenderSmoke(QQuickWindow *_window)
 {
@@ -794,6 +795,108 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
         if (!require(near(pixel(frame(), 364.5, 108.5), QColor(165, 165, 165)),
                      "undo restores the canvas after asynchronous move assembly"))
             return false;
+    }
+    for (const int bits : {8, 16}) {
+        if (!require(document.newDocument(512, 320, false, bits),
+                     "create a marquee display reference"))
+            return false;
+        canvas.setSize({512, 320});
+        canvas.setViewportRect(canvas.boundingRect());
+        const QColor base(90, 120, 150);
+        document.setColor(base);
+        document.fillWithColor(true);
+        document.setSelectionEdgesVisible(true);
+        frame();
+        const auto photoUploads = canvas.imageTextureUploads();
+        for (const QString tool : {QString("select"), QString("ellipticalSelect")}) {
+            document.deselect();
+            document.setTool(tool);
+            document.setSelectionMode(0);
+            document.beginStroke(110, 80);
+            document.continueStroke(310, 200);
+            document.endStroke();
+            canvas.setSelectionPhase(0);
+            const auto   first = frame();
+            const QRectF bounds(document.selection());
+            const bool   ellipse     = tool == "ellipticalSelect";
+            const auto   changedNear = [&](const QImage &_frame, QPointF _point) {
+                for (int y = -2; y <= 2; ++y)
+                    for (int x = -2; x <= 2; ++x)
+                        if (!near(pixel(_frame, qFloor(_point.x()) + x + .5,
+                                        qFloor(_point.y()) + y + .5),
+                                  base))
+                            return true;
+                return false;
+            };
+            if (!require(document.selectionShape() == int(ellipse) &&
+                             changedNear(first, {bounds.left(), bounds.center().y()}) &&
+                             changedNear(first, {bounds.center().x(), bounds.top()}) &&
+                             !changedNear(first, bounds.center()) &&
+                             (ellipse ? !changedNear(first, bounds.topLeft()) &&
+                                            changedNear(
+                                                first,
+                                                bounds.center() +
+                                                    QPointF(bounds.width() / (2 * std::sqrt(2.)),
+                                                            bounds.height() / (2 * std::sqrt(2.))))
+                                      : changedNear(first, bounds.topLeft())),
+                         "rectangle/ellipse contours follow their true shape without a fill"))
+                return false;
+            if (!shaderSelection &&
+                !require(canvas.overlayPixelSize().width() < qCeil(canvas.width() * ratio) &&
+                             canvas.overlayPixelSize().height() < qCeil(canvas.height() * ratio),
+                         "small software marquees allocate only their own visible bounds"))
+                return false;
+            const auto geometry = canvas.selectionGeometryUploads();
+            const auto textures = canvas.overlayTextureUploads();
+            canvas.setSelectionPhase(3);
+            const auto animated = frame();
+            if (!require(animated != first && canvas.imageTextureUploads() == photoUploads,
+                         "basic marching ants animate without changing the photograph"))
+                return false;
+            if (shaderSelection) {
+                if (!require(canvas.selectionShaderActive() &&
+                                 canvas.overlayPixelSize().isEmpty() &&
+                                 canvas.selectionGeometryUploads() == geometry &&
+                                 canvas.overlayTextureUploads() == textures,
+                             "marquee animation updates only its shader phase"))
+                    return false;
+                canvas.setSelectionPhase(3.25);
+                if (!require(frame() != animated && canvas.selectionGeometryUploads() == geometry &&
+                                 canvas.overlayTextureUploads() == textures,
+                             "marquee fractional phases stay smooth without rebuilding resources"))
+                    return false;
+            }
+            canvas.setSelectionPhase(3);
+            frame();
+            canvas.setViewportRect({90, 60, 200, 180});
+            const auto clipped = frame();
+            for (int y = 65; y < 225; ++y)
+                for (int x = 95; x < 285; ++x)
+                    if (!require(
+                            near(pixel(clipped, x + .5, y + .5), pixel(animated, x + .5, y + .5)),
+                            "clipped marquees retain their dash phase"))
+                        return false;
+            const auto clippedGeometry = canvas.selectionGeometryUploads();
+            canvas.setRotation(12);
+            const auto rotated = frame();
+            canvas.setSelectionPhase(4);
+            if (!require(
+                    frame() != rotated &&
+                        (!shaderSelection || canvas.selectionGeometryUploads() == clippedGeometry),
+                    "marquees rotate with the canvas without changing their geometry"))
+                return false;
+            canvas.setRotation(0);
+            canvas.setViewportRect(canvas.boundingRect());
+            document.setSelectionEdgesVisible(false);
+            const auto hidden = frame();
+            if (!require(!changedNear(hidden, bounds.topLeft()) &&
+                             !changedNear(hidden, {bounds.center().x(), bounds.top()}) &&
+                             !canvas.selectionShaderActive() &&
+                             canvas.imageTextureUploads() == photoUploads,
+                         "hiding basic selection edges removes the overlay without a photo upload"))
+                return false;
+            document.setSelectionEdgesVisible(true);
+        }
     }
     canvas.setDocument(nullptr);
     frame();

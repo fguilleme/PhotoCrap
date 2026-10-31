@@ -145,8 +145,21 @@ un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosa
 ## Contours de sélection animés sur GPU
 
 Les sélections générales (`selectionShape >= 6`, dont les sélections combinées ou
-issues d’un masque) passent par `render/SelectionMesh` et `SelectionOutlineNode`.
-Les autres contours QML de rectangles, ellipses et lassos restent inchangés.
+issues d’un masque), les rectangles et les ellipses passent par
+`render/SelectionMesh` et `SelectionOutlineNode`. Les lignes/colonnes uniques et les
+lassos conservent leur affichage QML. Les Canvas QML ne repeignent donc plus le
+rectangle ou l’ellipse à chaque phase de l’animation.
+
+Les rectangles et ellipses créent directement un chemin de la taille de la sélection,
+avec une vraie courbe elliptique. Le type et le rectangle font partie de la clé du
+cache : passer de rectangle à ellipse aux mêmes dimensions remplace le tracé. Le
+maillage projette les courbes selon l’échelle courante avant de les découper à la
+vue ; il ne dessine ni remplissage ni contour de région pixellisé pour l’ellipse.
+Leur trait adopte les mêmes dimensions cosmétiques que les sélections générales.
+Sur le backend logiciel, ce chemin est peint dans la surface de surimpression
+limitée à la vue, avec le même repli QPainter que les sélections générales. Sans
+autre surimpression raster simultanée, cette surface est aussi limitée à l’emprise
+du contour et sa marge : une petite sélection ne repeint pas toute la vue.
 
 Le chemin de région est conservé tant que le contour ne change pas. Le maillage
 ne contient que les segments utiles à la vue, avec jointures en onglet bornées et
@@ -175,7 +188,10 @@ La suite `selection_mesh` contrôle les trous, les sous-chemins fermés, les éc
 non uniformes, les segments hors champ, la phase après découpage et les grandes
 coordonnées. Le test natif `canvas_render` vérifie une animation visible, les phases
 fractionnaires, la stabilité des compteurs de géométrie/textures, le déplacement,
-la rotation et l’absence de remplissage de la sélection sur Metal et OpenGL.
+la rotation et l’absence de remplissage de la sélection sur Metal et OpenGL. Il
+contrôle aussi les courbes elliptiques, le changement de forme à dimensions égales,
+le masquage et les pixels de travail 8/16 bits ; `selection_mesh` vérifie la
+courbure à plusieurs échelles, y compris non uniformes.
 
 ## Marquage de Suppression sur GPU
 

@@ -2222,9 +2222,8 @@ ApplicationWindow {
                             objectName: "artboard"
                             property real selectionAntPhase: 0
                             onSelectionAntPhaseChanged: {
-                                rectangularSelectionOverlay.requestPaint()
-                                ellipseSelectionOverlay.requestPaint()
-                                lassoSelectionOverlay.requestPaint()
+                                if (rectangularSelectionOverlay.visible) rectangularSelectionOverlay.requestPaint()
+                                if (lassoSelectionOverlay.visible) lassoSelectionOverlay.requestPaint()
                             }
                             function strokeSelectionPath(context) {
                                 context.lineWidth = 1.5
@@ -2298,8 +2297,8 @@ ApplicationWindow {
                             Canvas {
                                 id: rectangularSelectionOverlay
                                 objectName: "rectangularSelectionOverlay"
-                                visible: editor.selectionEdgesVisible && editor.hasSelection && editor.selectionShape < 4
-                                         && editor.selectionShape !== 1
+                                visible: editor.selectionEdgesVisible && editor.hasSelection
+                                         && (editor.selectionShape === 2 || editor.selectionShape === 3)
                                 x: editor.selection.x * zoom - 2
                                 y: editor.selection.y * zoom - 2
                                 width: editor.selection.width * zoom + 4
@@ -2340,39 +2339,6 @@ ApplicationWindow {
                                 Rectangle {
                                     anchors.fill: parent; anchors.margins: 1
                                     color: "transparent"; border.color: "#172028"; border.width: 1
-                                }
-                            }
-                            Canvas {
-                                id: ellipseSelectionOverlay
-                                objectName: "ellipseSelectionOverlay"
-                                x: editor.selection.x * zoom - 2
-                                y: editor.selection.y * zoom - 2
-                                width: editor.selection.width * zoom + 4
-                                height: editor.selection.height * zoom + 4
-                                z: 2
-                                enabled: false
-                                visible: editor.selectionEdgesVisible && editor.hasSelection && editor.selectionShape === 1
-                                onPaint: {
-                                    const c = getContext("2d")
-                                    c.reset()
-                                    c.clearRect(0, 0, width, height)
-                                    if (width <= 4 || height <= 4) return
-                                    c.save()
-                                    c.translate(width / 2, height / 2)
-                                    c.scale((width - 4) / 2, (height - 4) / 2)
-                                    c.beginPath()
-                                    c.arc(0, 0, 1, 0, Math.PI * 2)
-                                    c.restore()
-                                    artboard.strokeSelectionPath(c)
-                                }
-                                onWidthChanged: requestPaint()
-                                onHeightChanged: requestPaint()
-                                onVisibleChanged: if (visible) requestPaint()
-                                Connections {
-                                    target: editor
-                                    function onSelectionChanged() {
-                                        ellipseSelectionOverlay.requestPaint()
-                                    }
                                 }
                             }
                             Canvas {

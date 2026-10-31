@@ -274,6 +274,8 @@ void CanvasItem::updatePolish()
         m_textureSize      = {};
         m_textureLevel     = -1;
         m_selectionOutline = {};
+        m_selectionBounds  = {};
+        m_selectionShape   = -1;
         m_selectionPath    = {};
     } else {
         const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1.;
@@ -414,13 +416,26 @@ void CanvasItem::updatePolish()
             const bool patch =
                 m_document->patchDragging() && !m_document->patchPreviewImage().isNull();
             const bool  remove    = m_document->removeHasPending();
-            const bool  selection = m_document->selectionShape() >= 6 &&
-                                    m_document->hasSelection() &&
+            const int   shape     = m_document->selectionShape();
+            const bool  marquee   = shape == 0 || shape == 1;
+            const bool  selection = (marquee || shape >= 6) && m_document->hasSelection() &&
                                     m_document->selectionEdgesVisible();
             const qreal ratio     = window() ? window()->effectiveDevicePixelRatio() : 1.;
             const bool  hardware  = window() && QSGRendererInterface::isApiRhiBased(
                                                     window()->rendererInterface()->graphicsApi());
-            patchPending          = patch;
+            if (selection && marquee && !hardware && !patch && !remove) {
+                const QRectF bounds(m_document->selection());
+                const qreal  sx = width() / m_document->width();
+                const qreal  sy = height() / m_document->height();
+                const QRectF projected(bounds.x() * sx, bounds.y() * sy, bounds.width() * sx,
+                                       bounds.height() * sy);
+                // Keep small software marquees as small as their former QML
+                // surface, while clipping huge selections to the viewport.
+                const QRectF local(projected.adjusted(-2 / ratio, -2 / ratio, 2 / ratio, 2 / ratio)
+                                       .toAlignedRect());
+                m_overlayRect = m_overlayRect.intersected(local);
+            }
+            patchPending = patch;
             if (patch && hardware && !m_patchGpuRejected) {
                 const auto   region = m_document->patchTargetRegion();
                 const auto   target = m_document->patchTargetRect();
@@ -466,14 +481,24 @@ void CanvasItem::updatePolish()
             removePending = remove;
             m_gpuRemove   = removeMeshNeeded;
             if (selection) {
-                const QRegion outline     = m_document->selectionOutline();
-                const bool    pathChanged = m_selectionOutline != outline;
+                const QRect   bounds   = marquee ? m_document->selection() : QRect{};
+                const QRegion outline  = marquee ? QRegion{} : m_document->selectionOutline();
+                const bool pathChanged = m_selectionShape != shape || m_selectionBounds != bounds ||
+                                         m_selectionOutline != outline;
                 if (pathChanged) {
+                    m_selectionShape   = shape;
+                    m_selectionBounds  = bounds;
                     m_selectionOutline = outline;
                     m_selectionPath    = {};
-                    m_selectionPath.setFillRule(Qt::WindingFill);
-                    m_selectionPath.addRegion(outline);
-                    m_selectionPath = m_selectionPath.simplified();
+                    if (shape == 1)
+                        m_selectionPath.addEllipse(QRectF(bounds));
+                    else if (shape == 0)
+                        m_selectionPath.addRect(QRectF(bounds));
+                    else {
+                        m_selectionPath.setFillRule(Qt::WindingFill);
+                        m_selectionPath.addRegion(outline);
+                        m_selectionPath = m_selectionPath.simplified();
+                    }
                 }
                 if (hardware) {
                     const QSizeF scale(width() / m_document->width(),

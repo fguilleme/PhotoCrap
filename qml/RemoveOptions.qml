@@ -46,7 +46,7 @@ Rectangle {
             onClicked: root.document.cancelRemoval()
         }
         Label {
-            text: root.document.removeBusy ? qsTr("Reconstruction en cours…")
+            text: root.document.removeBusy ? qsTr("Reconstruction en cours… (Échap pour annuler)")
                                           : qsTr("Peignez ou entourez l’objet à supprimer")
             color: "#87929e"
             Layout.fillWidth: true; elide: Text.ElideRight

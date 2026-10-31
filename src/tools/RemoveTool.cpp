@@ -1,5 +1,6 @@
 #include "ContentFill.h"
 #include "Document.h"
+#include "ImageUtils.h"
 
 #include <QPainterPathStroker>
 #include <QtConcurrent>
@@ -8,6 +9,52 @@
 
 namespace
 {
+struct RemovalResult {
+    QImage image;
+    QRect  dirty;
+    bool   valid = false;
+};
+
+RemovalResult finishRemoval(const QImage &_source, const QImage &_fill, const QRegion &_region,
+                            const QImage                            &_coverage,
+                            const std::shared_ptr<std::atomic_bool> &_cancel)
+{
+    if (_fill.isNull() || _source.isNull() || _cancel->load())
+        return {};
+    const QRect  bounds = _region.boundingRect();
+    const QImage old    = _source.copy(bounds);
+    if (old.isNull())
+        return {};
+    QImage work = old;
+    {
+        QPainter painter(&work);
+        painter.setClipRegion(_region.translated(-bounds.topLeft()));
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.drawImage(QPoint{}, _fill);
+    }
+    if (_cancel->load())
+        return {};
+    if (work == old)
+        return {{}, {}, true};
+    // All full-plane allocation and detachment stays on this worker, including
+    // uniform/empty layers that are still stored as a single pixel in Document.
+    QImage result = _source.copy();
+    if (result.isNull() || _cancel->load())
+        return {};
+    {
+        QPainter painter(&result);
+        painter.setClipRegion(_region);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.drawImage(bounds.topLeft(), work);
+    }
+    for (const QRect &span : _region) {
+        if (_cancel->load())
+            return {};
+        SelectionCoverage::blend(result, _source, _coverage, span);
+    }
+    return _cancel->load() ? RemovalResult{} : RemovalResult{result, bounds, true};
+}
+
 // Close edge-to-edge strokes along the shorter image perimeter. In particular,
 // a diagonal stroke across a corner includes that corner without marking the
 // rest of the image. A stroke away from the edges remains an ordinary brush.
@@ -104,8 +151,10 @@ void Document::stopRemovalJob()
     m_removeCancel.reset();
     const bool busy = m_removeBusy;
     m_removeBusy    = false;
-    if (busy)
+    if (busy) {
         emit settingsChanged();
+        emit historyChanged();
+    }
 }
 void Document::cancelRemoval()
 {
@@ -186,7 +235,8 @@ void Document::applyRemoval()
     if (m_removeRegion.isEmpty() || m_removeBusy || !editable() || m_editingMask)
         return;
     const Snapshot       before     = snapshot(tr("Suppression"));
-    const QImage         source     = layerImage(m_active);
+    const QImage         source     = m_layers[m_active].image;
+    const QImage         coverage   = before.selectionMask;
     const QVector<Layer> layers     = m_removeSampleAllLayers ? m_layers : QVector<Layer>{};
     const QSize          size       = m_size;
     const QRegion        region     = m_removeRegion;
@@ -195,10 +245,11 @@ void Document::applyRemoval()
     m_removeCancel                  = cancel;
     m_removeBusy                    = true;
     emit  settingsChanged();
-    auto *watcher = new QFutureWatcher<QImage>(this);
-    connect(watcher, &QFutureWatcher<QImage>::finished, this,
-            [this, watcher, before, region, generation, cancel] {
-                const QImage fill = watcher->result();
+    emit  historyChanged();
+    auto *watcher = new QFutureWatcher<RemovalResult>(this);
+    connect(watcher, &QFutureWatcher<RemovalResult>::finished, this,
+            [this, watcher, before, generation, cancel] {
+                const RemovalResult result = watcher->result();
                 watcher->deleteLater();
                 if (cancel->load() || generation != m_removeGeneration || m_stateId != before.id ||
                     m_active != before.active)
@@ -206,32 +257,21 @@ void Document::applyRemoval()
                 m_removeBusy = false;
                 m_removeCancel.reset();
                 emit settingsChanged();
-                if (fill.isNull()) {
+                if (!result.valid) {
+                    emit historyChanged();
                     emit statusMessage(
                         tr("Pas assez de pixels voisins pour reconstruire cette zone."));
                     return;
                 }
-                QImage      *target = paintTarget();
-                const QRect  bounds = region.boundingRect();
-                const QImage old    = target->copy(bounds);
-                QImage       work   = old;
-                {
-                    QPainter painter(&work);
-                    painter.setClipRegion(region.translated(-bounds.topLeft()));
-                    painter.setCompositionMode(QPainter::CompositionMode_Source);
-                    painter.drawImage(QPoint{}, fill);
-                }
                 cancelRemoval();
-                if (work == old)
+                if (result.dirty.isEmpty()) {
+                    emit historyChanged();
                     return;
-                QPainter painter(target);
-                painter.setClipRegion(region);
-                painter.setCompositionMode(QPainter::CompositionMode_Source);
-                painter.drawImage(bounds.topLeft(), work);
-                painter.end();
-                SelectionCoverage::blend(*target, before.layers[m_active].image,
-                                         before.selectionMask, bounds);
-                m_dirtyRegion = m_dirtyRegion.united(bounds);
+                }
+                // The worker already expanded compact layers and owns the
+                // finished pixels; paintTarget() would expand again on the GUI.
+                m_layers[m_active].image = result.image;
+                m_dirtyRegion            = m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Suppression"), false, false);
                 ++m_thumbnailRevision;
                 emit thumbnailsChanged();
@@ -239,9 +279,15 @@ void Document::applyRemoval()
             });
     // Document, QML and UI state stay on the GUI thread. The worker sees only
     // immutable images/regions and a cancellation token.
-    watcher->setFuture(QtConcurrent::run([source, layers, size, region, cancel] {
+    watcher->setFuture(QtConcurrent::run([source, layers, size, region, coverage, cancel] {
+        if (cancel->load())
+            return RemovalResult{};
+        const QImage target = ImageUtils::expandedPlane(source, size);
+        if (target.isNull() || cancel->load())
+            return RemovalResult{};
         const QImage sample =
-            layers.isEmpty() ? source : renderPreviewSnapshot(layers, size, size, false);
-        return ContentFill::reconstruct(sample, region, region, 4, cancel);
+            layers.isEmpty() ? target : renderPreviewSnapshot(layers, size, size, false);
+        const QImage fill = ContentFill::reconstruct(sample, region, region, 4, cancel);
+        return finishRemoval(target, fill, region, coverage, cancel);
     }));
 }

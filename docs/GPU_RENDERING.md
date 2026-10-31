@@ -303,6 +303,39 @@ le calcul, les résultats tardifs et la sauvegarde après réparation. La suite 
 conserve les contrôles 4K et d’échantillonnage des calques. `canvas_render` vérifie
 le remplacement de l’aperçu, les trous et l’annulation en logiciel/Metal/OpenGL.
 
+## Finition de Suppression en arrière-plan
+
+`RemoveTool` capture l’image stockée du calque sans appeler `layerImage` : les
+calques vides ou uniformes restent compacts sur le thread GUI. Le worker développe
+leur plan de pixels si nécessaire, prélève les calques visibles si demandé, puis
+reconstruit la texture. Il assemble un patch local avec la même composition Source
+et les mêmes trous que le chemin précédent, compare les pixels et prépare la copie
+du calque terminé. Le contour progressif s’applique seulement aux rectangles
+disjoints des marques, en évitant les pixels hors région.
+
+Le callback GUI installe directement l’image calculée ; il ne fait ni peinture,
+ni développement de calque, ni copie complète. Il retire les marques, ajoute une
+seule étape d’annulation et demande le composite écran puis son raffinement en
+arrière-plan. Une zone identique ne crée pas d’historique et ses plans temporaires sont libérés
+sur le worker ; si la reconstruction
+échoue, les marques restent disponibles pour correction ou annulation.
+
+Échap, le bouton Annuler, Annuler/Rétablir ou un changement d’outil abandonne le
+calcul. Une nouvelle marque conserve les marques précédentes et relance le travail
+sur leur union. Changer « Tous les calques » arrête le travail tout en gardant les
+marques pour une nouvelle application. Les générations et le jeton d’annulation
+rejettent les résultats périmés. Pendant le calcul, le document est considéré
+modifié et la sauvegarde/l’export sont suspendus, comme pour Pièce et Déplacement.
+
+La suite `removal` compare les pixels à une référence raster pour les calques
+pleins ou vides, les couvertures adoucies, l’alpha et les trous. Elle vérifie les
+annulations tardives, la sauvegarde, les calques uniformes et l’échec sans voisins.
+Les tests moteur existants couvrent aussi les tracés 4K et les nouveaux marquages
+pendant un travail. `canvas_render` vérifie la disparition des marques, l’image
+réparée et Annuler en logiciel, Metal et OpenGL. La copie complète QImage reste
+nécessaire à l’écriture d’un état modifié : cette étape déplace son coût hors du
+GUI, sans réduire sa consommation mémoire. L’outil reste limité aux pixels 8 bits.
+
 ## Aperçus de réglages sur GPU
 
 Le chemin de filtre GPU est limité : le calque actif doit être le dernier calque,

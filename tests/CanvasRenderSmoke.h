@@ -497,6 +497,50 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
         document.setRemoveSubtract(false);
         document.setRemoveAfterEachStroke(true);
     }
+    QImage removal(512, 320, QImage::Format_ARGB32_Premultiplied);
+    removal.fill(QColor(170, 170, 170));
+    {
+        QPainter painter(&removal);
+        painter.fillRect(118, 94, 12, 12, Qt::red);
+    }
+    const auto removalPath = directory.filePath("remove-completion.png");
+    if (!require(removal.save(removalPath) && document.openFile(QUrl::fromLocalFile(removalPath)),
+                 "open the removal completion reference"))
+        return false;
+    document.setTool("remove");
+    document.setRemoveAfterEachStroke(false);
+    document.setRemoveSubtract(false);
+    document.setBrushSize(48);
+    document.beginStroke(124, 100);
+    document.endStroke();
+    document.setBrushSize(8);
+    document.beginStroke(140, 100, true);
+    document.endStroke();
+    frame();
+    const int  removalHistory = document.historyIndex();
+    const auto markedRegion   = document.removeRegion();
+    document.applyRemoval();
+    if (!require(document.removeBusy() && document.removeRegion() == markedRegion &&
+                     document.historyIndex() == removalHistory &&
+                     document.layerImage(0).pixelColor(124, 100) == QColor(Qt::red),
+                 "removal leaves pixels and history intact until its worker finishes assembly"))
+        return false;
+    QElapsedTimer removalWait;
+    removalWait.start();
+    while (document.removeBusy() && removalWait.elapsed() < 5000)
+        QTest::qWait(10);
+    const auto removed = frame();
+    if (!require(!document.removeBusy() && !document.removeHasPending() &&
+                     !canvas.removeOverlayGpuActive() &&
+                     document.historyIndex() == removalHistory + 1 &&
+                     near(pixel(removed, 124.5, 100.5), QColor(170, 170, 170)) &&
+                     near(pixel(removed, 140.5, 100.5), QColor(170, 170, 170)),
+                 "the asynchronous removal replaces the marks and preserves their hole"))
+        return false;
+    document.undo();
+    if (!require(near(pixel(frame(), 124.5, 100.5), QColor(Qt::red)),
+                 "undo restores the canvas after asynchronous removal assembly"))
+        return false;
     QImage donor(512, 320, QImage::Format_ARGB32_Premultiplied);
     donor.fill(QColor(180, 40, 40));
     for (int y = 0; y < donor.height(); ++y)

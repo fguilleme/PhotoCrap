@@ -68,8 +68,10 @@ void Document::setTool(const QString &_value)
         cancelPolygonLasso();
     else
         endStroke();
-    if (m_tool != _value)
+    if (m_tool != _value) {
+        invalidatePatch(true);
         cancelRemoval();
+    }
     if (m_tool != _value) {
         cancelCrop();
         endSliceGesture(true);

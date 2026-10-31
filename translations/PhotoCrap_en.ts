@@ -113,6 +113,8 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Attendez la fin de la réparation ou annulez-la avant de sauvegarder ou exporter.</source><translation>Wait for the repair to finish or cancel it before saving or exporting.</translation></message>
+    <message><source>Impossible de calculer la réparation de cette zone.</source><translation>Could not compute a repair for this area.</translation></message>
     <message><source>Contour du tracé</source><translation>Stroke Path</translation></message>
     <message><source>Déplacer les points d’ancrage</source><translation>Move Anchor Points</translation></message>
     <message><source>Fermer le tracé</source><translation>Close Path</translation></message>
@@ -4269,6 +4271,7 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>PatchOptions</name>
+    <message><source>Réparation en cours… (Échap pour annuler)</source><translation>Repairing… (Escape to cancel)</translation></message>
     <message><source>Pièce : Normal</source><translation>Patch: Normal</translation></message>
     <message><source>Source</source><translation>Source</translation></message>
     <message><source>Destination</source><translation>Destination</translation></message>

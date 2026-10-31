@@ -37,7 +37,8 @@ struct PatchTone {
 // A bounded harmonic field preserves the donor's full-resolution texture while
 // avoiding both a full-image filter and a blur that would reintroduce the defect.
 PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegion &_region,
-                    const QPoint &_offset, int _diffusion)
+                    const QPoint &_offset, int _diffusion,
+                    const std::shared_ptr<std::atomic_bool> &_cancel)
 {
     const QRect bounds =
         _region.boundingRect().adjusted(-4, -4, 4, 4).intersected(_reference.rect());
@@ -49,6 +50,8 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
     int           count = 0;
     for (int gy = 0; gy < size.height(); ++gy)
         for (int gx = 0; gx < size.width(); ++gx) {
+            if (_cancel && _cancel->load())
+                return {};
             const int   index = gy * size.width() + gx;
             const QRect cell(bounds.x() + gx * bounds.width() / size.width(),
                              bounds.y() + gy * bounds.height() / size.height(),
@@ -89,7 +92,9 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
     for (qsizetype i = 0; i < field.values.size(); ++i)
         if (!fixed[i])
             field.values[i] = mean;
-    for (int iteration = 0; iteration < 180; ++iteration)
+    for (int iteration = 0; iteration < 180; ++iteration) {
+        if (_cancel && _cancel->load())
+            return {};
         for (int y = 0; y < size.height(); ++y)
             for (int x = 0; x < size.width(); ++x) {
                 const int index = y * size.width() + x;
@@ -106,6 +111,7 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
                     field.values[index][c] += 1.4 * (average - field.values[index][c]);
                 }
             }
+    }
     return field;
 }
 } // namespace
@@ -115,14 +121,18 @@ QImage RegionHealing::blend(const QImage &_source, const QImage &_reference, con
                             bool _composite, int _feather,
                             const std::shared_ptr<std::atomic_bool> &_cancel)
 {
-    if (_region.isEmpty())
+    if (_region.isEmpty() || (_cancel && _cancel->load()))
         return {};
     const QRect     bounds = _region.boundingRect();
-    const PatchTone tone   = _colorBlend > 0
-                                 ? patchTone(_source, _reference, _region, _offset, _diffusion)
-                                 : PatchTone{};
+    const PatchTone tone =
+        _colorBlend > 0 ? patchTone(_source, _reference, _region, _offset, _diffusion, _cancel)
+                        : PatchTone{};
+    if (_cancel && _cancel->load())
+        return {};
     QImage output = _composite ? _reference.copy(bounds)
                                : QImage(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+    if (output.isNull())
+        return {};
     if (!_composite)
         output.fill(Qt::transparent);
     for (const QRect &span : _region)

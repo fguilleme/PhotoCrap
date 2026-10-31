@@ -183,6 +183,7 @@ class Document : public QObject
     Q_PROPERTY(int patchMode READ patchMode WRITE setPatchMode NOTIFY settingsChanged)
     Q_PROPERTY(
         int patchDiffusion READ patchDiffusion WRITE setPatchDiffusion NOTIFY settingsChanged)
+    Q_PROPERTY(bool patchBusy READ patchBusy NOTIFY settingsChanged)
     Q_PROPERTY(bool patchDragging READ patchDragging NOTIFY patchPreviewChanged)
     Q_PROPERTY(QRect patchTargetRect READ patchTargetRect NOTIFY patchPreviewChanged)
     Q_PROPERTY(bool spotHealingSampleAllLayers READ spotHealingSampleAllLayers WRITE
@@ -343,7 +344,7 @@ public:
     }
     bool modified() const
     {
-        return m_contentId != m_savedId;
+        return m_patchBusy || m_contentId != m_savedId;
     }
     QVariantList             layers() const;
     Q_INVOKABLE QVariantList histogram() const;
@@ -813,6 +814,10 @@ public:
     {
         return m_patchDiffusion;
     }
+    bool patchBusy() const
+    {
+        return m_patchBusy;
+    }
     bool patchDragging() const
     {
         return m_patchDragging;
@@ -1255,6 +1260,9 @@ private:
     std::shared_ptr<std::atomic_bool> m_contentMoveCancel;
     int                               m_patchMode = 0, m_patchDiffusion = 5;
     bool                              m_patchDragging = false;
+    bool                              m_patchBusy = false, m_patchAwaitingImage = false;
+    quint64                           m_patchGeneration = 0;
+    std::shared_ptr<std::atomic_bool> m_patchCancel;
     QPoint                            m_patchOffset;
     QRegion                           m_patchTarget;
     QImage                            m_patchSource, m_patchPreview, m_regionPreviewSource;
@@ -1438,6 +1446,7 @@ private:
     bool                                m_previewRenderPending     = false;
     std::atomic_bool                    m_previewRenderActive{false};
     mutable QMutex                      m_previewImageMutex;
+    Snapshot                            m_beforePatch;
     Snapshot                            m_beforeContentMove;
     Snapshot                            m_beforeStroke;
     Snapshot                            m_beforeLayerPreview;
@@ -1463,7 +1472,8 @@ private:
     void    continuePatch(const QPointF &_point);
     void    finishPatch(bool _cancel);
     void    clearPatch();
-    void    applyPatch();
+    void    startPatchRepair();
+    void    invalidatePatch(bool _restoreSelection = false);
     void    beginLasso(qreal _x, qreal _y);
     void    continueLasso(qreal _x, qreal _y);
     void    finishLasso();

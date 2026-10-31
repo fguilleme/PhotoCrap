@@ -39,7 +39,8 @@ Rectangle {
             ToolTip.text: qsTr("Faible : textures détaillées ; élevée : zones lisses")
         }
         Label {
-            text: qsTr("Entourez une zone, puis faites glisser la sélection")
+            text: root.document.patchBusy ? qsTr("Réparation en cours… (Échap pour annuler)")
+                                          : qsTr("Entourez une zone, puis faites glisser la sélection")
             color: "#87929e"
             Layout.fillWidth: true; Layout.leftMargin: 12; elide: Text.ElideRight
         }

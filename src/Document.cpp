@@ -93,6 +93,10 @@ Document::Document(QObject *_parent) : QObject(_parent)
                 m_fullCompositeDirty = false;
                 m_dirtyRegion        = {};
             }
+            if (m_patchAwaitingImage) {
+                m_patchAwaitingImage = false;
+                clearPatch();
+            }
             if (m_contentMoveAwaitingImage) {
                 m_contentMoveAwaitingImage = false;
                 clearPatch();
@@ -122,12 +126,14 @@ Document::Document(QObject *_parent) : QObject(_parent)
             m_selectionEdgesVisible = true;
             emit selectionDisplayChanged();
         }
+        invalidatePatch();
         invalidateContentMove();
         cancelRemoval();
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, [this] {
         cancelSelectionOperation();
+        invalidatePatch();
         invalidateContentMove();
         cancelRemoval();
         cancelMagicErase();
@@ -150,6 +156,8 @@ Document::~Document()
         m_removeCancel->store(true);
     if (m_contentMoveCancel)
         m_contentMoveCancel->store(true);
+    if (m_patchCancel)
+        m_patchCancel->store(true);
 }
 bool Document::fail(const QString &_message)
 {
@@ -495,6 +503,7 @@ void Document::changed(bool _metadata, bool _notifyImage)
     if (!m_preserveGpuTonePreview)
         invalidateGpuTonePreview();
     cancelMagicErase();
+    invalidatePatch();
     invalidateContentMove();
     cancelRemoval();
     if (m_maskOnlyView &&
@@ -567,6 +576,7 @@ void Document::resetHistory(bool _clean)
     ++m_documentSession;
     if (m_scratchCache)
         m_scratchCache = std::make_shared<ScratchImageCache>(m_scratchCache->options());
+    invalidatePatch();
     invalidateContentMove();
     cancelRemoval();
     m_undo.clear();

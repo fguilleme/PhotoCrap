@@ -1216,8 +1216,12 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "Patch drag shows donor texture before committing pixels"))
         return false;
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, patchPoint(-50, 0));
-    QTest::qWait(30);
-    if (!require(!_document.patchDragging() && _document.patchPreviewImage().isNull() &&
+    QElapsedTimer patchWait;
+    patchWait.start();
+    while ((_document.patchBusy() || _document.patchDragging()) && patchWait.elapsed() < 5000)
+        QTest::qWait(10);
+    if (!require(!_document.patchBusy() && !_document.patchDragging() &&
+                     _document.patchPreviewImage().isNull() &&
                      _document.selectionRegion() == patchSelection,
                  "Patch release restores the repair selection and clears its preview"))
         return false;

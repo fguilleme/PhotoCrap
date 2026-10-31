@@ -602,6 +602,34 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                               pixel(before, at.x() + .5, at.y() + .5)),
                      "cancelling a patch clears its texture and restores the selection"))
             return false;
+        document.beginStroke(128, 100);
+        document.continueStroke(384, 100);
+        frame();
+        document.endStroke();
+        if (!require(document.patchBusy() && document.patchDragging() &&
+                         !document.patchPreviewImage().isNull() &&
+                         document.historyIndex() == history,
+                     "release retains the donor while the repair worker owns immutable inputs"))
+            return false;
+        QElapsedTimer repairWait;
+        repairWait.start();
+        while ((document.patchBusy() || document.patchDragging()) && repairWait.elapsed() < 5000)
+            QTest::qWait(10);
+        const auto finished = frame();
+        if (!require(!document.patchBusy() && !document.patchDragging() &&
+                         document.patchPreviewImage().isNull() && !canvas.patchOverlayGpuActive() &&
+                         document.historyIndex() == history + 1 &&
+                         near(pixel(finished, at.x() + .5, at.y() + .5),
+                              document.layerImage(0).pixelColor(at)) &&
+                         near(pixel(finished, hole.x() + .5, hole.y() + .5),
+                              pixel(before, hole.x() + .5, hole.y() + .5)),
+                     "the repaired composite replaces the donor, preserves holes and commits once"))
+            return false;
+        document.undo();
+        if (!require(near(pixel(frame(), at.x() + .5, at.y() + .5),
+                          pixel(before, at.x() + .5, at.y() + .5)),
+                     "undo restores the canvas after an asynchronous repair"))
+            return false;
     }
     canvas.setDocument(nullptr);
     frame();

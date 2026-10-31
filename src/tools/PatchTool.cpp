@@ -2,6 +2,7 @@
 #include "RegionHealing.h"
 
 #include <QPainter>
+#include <QtConcurrent>
 #include <QtMath>
 #include <cmath>
 
@@ -14,6 +15,7 @@ bool Document::selectionContains(qreal _x, qreal _y) const
 void Document::setPatchMode(int _value)
 {
     endStroke();
+    invalidatePatch(true);
     m_patchMode = qBound(0, _value, 1);
     emit settingsChanged();
 }
@@ -21,6 +23,7 @@ void Document::setPatchMode(int _value)
 void Document::setPatchDiffusion(int _value)
 {
     endStroke();
+    invalidatePatch(true);
     m_patchDiffusion = qBound(1, _value, 7);
     emit settingsChanged();
 }
@@ -90,41 +93,140 @@ void Document::continueRegionDrag(const QPointF &_point, bool _sourceMode)
     emit patchPreviewChanged();
 }
 
-void Document::applyPatch()
+namespace
 {
-    if (m_patchOffset.isNull() || m_patchSource.isNull())
-        return;
-    QImage *target = paintTarget();
-    if (!target)
-        return;
-    const QRegion region       = m_patchTarget;
-    const QRect   bounds       = region.boundingRect();
-    const QPoint  sourceOffset = m_patchMode == 0 ? m_patchOffset : -m_patchOffset;
-    const QImage repaired = RegionHealing::blend(m_patchSource, m_patchSource, region, sourceOffset,
-                                                 m_patchDiffusion, 1., true);
-    QRect        modified;
-    for (const QRect &span : region)
+struct PatchResult {
+    QImage image;
+    QRect  dirty;
+};
+
+PatchResult repairPatch(const QImage &_source, const QRegion &_region, const QPoint &_offset,
+                        int _diffusion, const QImage &_coverage,
+                        const std::shared_ptr<std::atomic_bool> &_cancel)
+{
+    const QRect  bounds = _region.boundingRect();
+    const QImage repaired =
+        RegionHealing::blend(_source, _source, _region, _offset, _diffusion, 1., true, 0, _cancel);
+    if (repaired.isNull() || _cancel->load())
+        return {};
+    QRect modified;
+    for (const QRect &span : _region)
         for (int y = span.top(); y <= span.bottom(); ++y) {
+            if (_cancel->load())
+                return {};
             const auto *line =
                 reinterpret_cast<const QRgb *>(repaired.constScanLine(y - bounds.y()));
-            const auto *before = reinterpret_cast<const QRgb *>(target->constScanLine(y));
+            const auto *before = reinterpret_cast<const QRgb *>(_source.constScanLine(y));
+            int         left = span.right() + 1, right = span.left() - 1;
             for (int x = span.left(); x <= span.right(); ++x)
-                if (line[x - bounds.x()] != before[x])
-                    modified |= QRect(QPoint(x - bounds.x(), y - bounds.y()), QSize(1, 1));
+                if (line[x - bounds.x()] != before[x]) {
+                    left  = qMin(left, x);
+                    right = x;
+                }
+            if (left <= right)
+                modified |= QRect(left, y, right - left + 1, 1);
         }
     if (modified.isEmpty())
-        return;
-    const QRect dirty = modified.translated(bounds.topLeft());
-    QPainter    painter(target);
+        return {_source, {}};
+    // QImage's copy-on-write detachment also belongs on the worker: committing
+    // a small repair must not copy a full-resolution layer on the GUI thread.
+    QImage result = _source.copy();
+    if (result.isNull() || _cancel->load())
+        return {};
+    QPainter painter(&result);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.drawImage(dirty.topLeft(), repaired, modified);
+    painter.drawImage(modified.topLeft(), repaired, modified.translated(-bounds.topLeft()));
     painter.end();
-    SelectionCoverage::blend(*target, m_beforeStroke.layers[m_active].image, m_selectionMask,
-                             dirty);
-    m_dirtyRegion = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
-    commit(m_beforeStroke, tr("Pièce"), false);
-    ++m_thumbnailRevision;
-    emit thumbnailsChanged();
+    SelectionCoverage::blend(result, _source, _coverage, modified);
+    if (_cancel->load())
+        return {};
+    return {result, modified};
+}
+} // namespace
+
+void Document::invalidatePatch(bool _restoreSelection)
+{
+    if (!m_patchBusy && !m_patchAwaitingImage)
+        return;
+    const bool restoreSelection = _restoreSelection && m_patchBusy;
+    m_patchBusy                 = false;
+    m_patchAwaitingImage        = false;
+    ++m_patchGeneration;
+    if (m_patchCancel)
+        m_patchCancel->store(true);
+    m_patchCancel.reset();
+    clearPatch();
+    if (restoreSelection) {
+        m_selection           = m_beforePatch.selection;
+        m_selectionRegion     = m_beforePatch.selectionRegion;
+        m_selectionShape      = m_beforePatch.selectionShape;
+        m_selectionPath       = m_beforePatch.selectionPath;
+        m_selectionMask       = m_beforePatch.selectionMask;
+        m_selectionOutline    = m_beforePatch.selectionOutline;
+        m_selectionMaskRegion = m_selectionRegion;
+        emit selectionChanged();
+    }
+    m_beforePatch = {};
+    emit settingsChanged();
+    emit historyChanged();
+}
+
+void Document::startPatchRepair()
+{
+    const Snapshot before = m_beforeStroke;
+    const QImage   source = m_patchSource, coverage = m_selectionMask;
+    const QRegion  region     = m_patchTarget;
+    const QPoint   offset     = m_patchMode == 0 ? m_patchOffset : -m_patchOffset;
+    const int      diffusion  = m_patchDiffusion;
+    const quint64  generation = ++m_patchGeneration;
+    auto           cancel     = std::make_shared<std::atomic_bool>(false);
+    m_patchCancel             = cancel;
+    m_beforePatch             = before;
+    m_beforeStroke            = {};
+    m_patchBusy               = true;
+    emit  settingsChanged();
+    emit  historyChanged();
+    auto *watcher = new QFutureWatcher<PatchResult>(this);
+    connect(watcher, &QFutureWatcher<PatchResult>::finished, this,
+            [this, watcher, before, generation, cancel] {
+                const PatchResult result = watcher->result();
+                watcher->deleteLater();
+                if (cancel->load() || generation != m_patchGeneration || m_stateId != before.id ||
+                    m_active != before.active)
+                    return;
+                m_patchBusy = false;
+                m_patchCancel.reset();
+                m_beforePatch = {};
+                if (result.image.isNull() || result.dirty.isEmpty()) {
+                    clearPatch();
+                    emit settingsChanged();
+                    emit historyChanged();
+                    if (result.image.isNull())
+                        emit statusMessage(
+                            tr("Impossible de calculer la réparation de cette zone."));
+                    return;
+                }
+                QImage *target = paintTarget();
+                if (!target) {
+                    clearPatch();
+                    emit settingsChanged();
+                    emit historyChanged();
+                    return;
+                }
+                *target = result.image;
+                m_dirtyRegion =
+                    m_dirtyRegion.isEmpty() ? result.dirty : m_dirtyRegion.united(result.dirty);
+                commit(before, tr("Pièce"), false, false);
+                ++m_thumbnailRevision;
+                emit thumbnailsChanged();
+                m_patchAwaitingImage = true;
+                requestPreviewRender(true, true);
+                emit settingsChanged();
+            });
+    // All inputs are immutable values; the worker never accesses Document or QML.
+    watcher->setFuture(QtConcurrent::run([source, region, offset, diffusion, coverage, cancel] {
+        return repairPatch(source, region, offset, diffusion, coverage, cancel);
+    }));
 }
 
 void Document::finishPatch(bool _cancel)
@@ -145,13 +247,15 @@ void Document::finishPatch(bool _cancel)
         m_selectionOutline    = m_beforeStroke.selectionOutline;
         m_selectionMaskRegion = m_selectionRegion;
     }
-    // Hide the donor preview before imageChanged requests the final composite.
-    m_patchPreview = {};
-    if (!_cancel)
-        applyPatch();
-    m_beforeStroke = {};
-    clearPatch();
+    // Restore the Source selection before arming the job; subsequent selection
+    // changes invalidate it. Keep the donor visible until the repaired composite arrives.
     emit selectionChanged();
+    if (!_cancel && !m_patchOffset.isNull() && !m_patchSource.isNull())
+        startPatchRepair();
+    else {
+        m_beforeStroke = {};
+        clearPatch();
+    }
 }
 
 void Document::clearPatch()

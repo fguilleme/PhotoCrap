@@ -226,8 +226,9 @@ change (ou si le sous-rectangle de texture du backend change).
 
 Ainsi, en mode Source, déplacer l’échantillon conserve généralement la géométrie ;
 en mode Destination, déplacer un donneur inchangé conserve sa texture. L’animation
-d’une sélection simultanée ne modifie aucune de ces ressources. Annuler ou terminer
-le geste libère l’aperçu. Le même chemin d’affichage sert aux aperçus de déplacement
+d’une sélection simultanée ne modifie aucune de ces ressources. Annuler libère
+immédiatement l’aperçu ; terminer le geste le conserve jusqu’à l’arrivée du composite
+réparé. Le même chemin d’affichage sert aux aperçus de déplacement
 de région qui utilisent cette image ; aucun algorithme de réparation n’est modifié.
 
 Le repli QPainter couvre le backend logiciel, le dépassement du million de sommets
@@ -240,6 +241,37 @@ les grandes coordonnées et le repli de complexité. `canvas_render` compare les
 modes Source/Destination sur une image donneuse à motifs et semi-transparente,
 contrôle la réutilisation des ressources, les trous, la rotation et l’annulation,
 en logiciel ainsi que sur Metal et OpenGL.
+
+## Réparation de Pièce en arrière-plan
+
+Au relâchement, `PatchTool` envoie au worker des valeurs immuables : image source,
+région cible, décalage, diffusion et couverture douce. L’adaptation de couleur par
+`RegionHealing`, la recherche du rectangle de pixels modifiés, l’application du
+contour progressif et la copie d’écriture du calque s’exécutent sur ce worker.
+Le calcul de réparation reste limité à la région ; les pixels hors sélection et
+les trous sont conservés. Le format actuel QImage demande encore une copie du
+calque complet quand ses pixels changent ; elle a lieu hors du thread GUI, sans
+réduire le coût mémoire de l’état d’annulation.
+
+Le thread GUI installe ensuite l’image terminée et inscrit une seule étape dans
+l’historique. Il demande un composite écran asynchrone, puis son raffinement ;
+le donneur reste visible jusque-là, sans retour intermédiaire à la photo précédente.
+Une réparation identique aux pixels source n’ajoute pas d’étape. Pendant le calcul,
+le document est considéré modifié pour protéger la fermeture ; la sauvegarde et
+l’export sont indisponibles afin de ne pas écrire un état antérieur à la réparation.
+
+Échap ou Annuler pendant le calcul restaure la sélection d’origine et abandonne
+le travail. Changer d’outil, de réglage Pièce, de sélection, de calque ou de document,
+ou commencer un autre geste, invalide également le résultat en attente. Un jeton
+atomique et une génération empêchent toute réponse tardive d’écraser le nouvel
+état. La résolution de couleur et les lignes de réparation contrôlent l’annulation ;
+les copies mémoire et la couverture douce sont vérifiées avant/après.
+
+Les tests moteur comparent les pixels Source/Destination adoucis et transparents
+à la référence, contrôlent les gestes successifs et les annulations, et vérifient
+la réparation locale en 4K. Le test `canvas_render` vérifie aussi le remplacement
+du donneur par l’image réparée, la conservation des trous et le retour par Annuler,
+en logiciel et sur Metal/OpenGL.
 
 ## Aperçus de réglages sur GPU
 

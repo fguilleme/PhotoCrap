@@ -8,6 +8,10 @@
 
 void Document::undo()
 {
+    if (m_patchBusy) {
+        invalidatePatch(true);
+        return;
+    }
     if (selectionBusy()) {
         cancelSelectionOperation();
         return;
@@ -24,6 +28,10 @@ void Document::undo()
 }
 void Document::redo()
 {
+    if (m_patchBusy) {
+        invalidatePatch(true);
+        return;
+    }
     if (selectionBusy()) {
         cancelSelectionOperation();
         return;

@@ -92,6 +92,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         applyMagicEraser(QPoint(int(std::floor(_x)), int(std::floor(_y))));
         return;
     }
+    invalidatePatch();
     invalidateContentMove();
     if (m_tool != "remove")
         cancelRemoval();
@@ -509,6 +510,7 @@ void Document::cancelStroke()
         endCropGesture();
         return;
     }
+    invalidatePatch(true);
     invalidateContentMove(true);
     if (m_tool == "remove") {
         cancelRemoval();

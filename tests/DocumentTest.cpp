@@ -22,6 +22,7 @@
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
+#include "tools/RegionHealing.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -2572,6 +2573,11 @@ private slots:
         QCOMPARE(d.layerImage(0), original);
         QCOMPARE(d.historyIndex(), history);
         d.endStroke();
+        QVERIFY(d.patchBusy());
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(0), original);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 5000);
         QVERIFY(!d.patchDragging());
         QVERIFY(d.patchPreviewImage().isNull());
         QCOMPARE(d.selectionRegion(), selection);
@@ -2604,6 +2610,7 @@ private slots:
         d.continueStroke(85, 45);
         QCOMPARE(d.patchTargetRegion(), source.translated(50, 0));
         d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
         QCOMPARE(d.selectionRegion(), source.translated(50, 0));
         QCOMPARE(d.historyIndex(), sourceHistory + 1);
         QVERIFY(d.layerImage(0).pixelColor(85, 45).red() > 170);
@@ -2648,6 +2655,7 @@ private slots:
         QCOMPARE(d.selection().right(), d.width() - 1);
         QCOMPARE(d.selection().top(), 0);
         d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
         QVERIFY(d.layerImage(0).pixelColor(20, 20).red() > 170);
         for (int y = 0; y < 100; ++y)
             for (int x = 0; x < 100; ++x)
@@ -2708,6 +2716,8 @@ private slots:
             d.continueStroke(x, 100);
         QCOMPARE(d.layerImage(0).cacheKey(), sourceKey);
         d.endStroke();
+        QVERIFY(d.patchBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
         qInfo() << "UHD Patch small repair (ms):" << timer.elapsed();
         QVERIFY(timer.elapsed() < 1500);
         QCOMPARE(d.historyIndex(), history + 1);
@@ -2723,6 +2733,251 @@ private slots:
         QVERIFY(d.patchPreviewImage().width() <= 1000);
         QVERIFY(d.patchPreviewImage().height() <= 1000);
         d.cancelStroke();
+    }
+
+    void patchAsyncCancellationRejectsLateResults_data()
+    {
+        QTest::addColumn<QString>("action");
+        for (const auto &action : {"escape", "undo", "tool", "selection", "mode", "diffusion",
+                                   "layer", "lock", "mask", "new-document"})
+            QTest::newRow(action) << QString::fromLatin1(action);
+    }
+
+    void patchAsyncCancellationRejectsLateResults()
+    {
+        QFETCH(QString, action);
+        QTemporaryDir dir;
+        QImage        image(240, 180, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(180, 150, 120));
+        QPainter painter(&image);
+        painter.fillRect(45, 45, 10, 10, Qt::black);
+        painter.end();
+        const auto path = dir.filePath("patch-cancel.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("select");
+        d.beginStroke(35, 35);
+        d.continueStroke(65, 65);
+        d.endStroke();
+        const QImage  original  = d.layerImage(0);
+        const QRegion selection = d.selectionRegion();
+        const int     history   = d.historyIndex();
+        d.setTool("patch");
+        d.setPatchMode(1);
+        d.beginStroke(50, 50);
+        d.continueStroke(130, 50);
+        d.endStroke();
+        QVERIFY(d.patchBusy());
+        QVERIFY(d.patchDragging());
+        QVERIFY(!d.patchPreviewImage().isNull());
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(0), original);
+        if (action == "escape")
+            d.cancelStroke();
+        else if (action == "undo")
+            d.undo(); // Cancel even when the undo stack was empty.
+        else if (action == "tool")
+            d.setTool("brush");
+        else if (action == "selection")
+            d.deselect();
+        else if (action == "mode")
+            d.setPatchMode(0);
+        else if (action == "diffusion")
+            d.setPatchDiffusion(7);
+        else if (action == "layer")
+            d.addLayer();
+        else if (action == "lock")
+            d.setLayerLocked(0, true);
+        else if (action == "mask") {
+            d.addLayerMask();
+            d.setEditingMask(true);
+        } else
+            QVERIFY(d.newDocument(20, 20, true));
+        QVERIFY(!d.patchBusy());
+        QVERIFY(!d.patchDragging());
+        // Drain workers, then deliver every queued completion: a stale result
+        // must not add history, overwrite another edit, or resurrect its preview.
+        QVERIFY(QThreadPool::globalInstance()->waitForDone(5000));
+        QCoreApplication::processEvents();
+        QVERIFY(!d.patchBusy());
+        QVERIFY(d.patchPreviewImage().isNull());
+        if (action == "new-document") {
+            QCOMPARE(d.width(), 20);
+            QCOMPARE(d.layerImage(0).pixelColor(10, 10).alpha(), 0);
+            QCOMPARE(d.historyIndex(), 0);
+        } else {
+            QCOMPARE(d.layerImage(0), original);
+            const bool edited =
+                action == "layer" || action == "lock" || action == "mask" || action == "selection";
+            QCOMPARE(d.historyIndex(), history + int(edited));
+            if (action == "escape" || action == "undo" || action == "tool" || action == "mode" ||
+                action == "diffusion")
+                QCOMPARE(d.selectionRegion(), selection);
+        }
+    }
+
+    void patchAsyncSoftSelectionMatchesRepairReference_data()
+    {
+        QTest::addColumn<int>("mode");
+        QTest::newRow("source") << 0;
+        QTest::newRow("destination") << 1;
+    }
+
+    void patchAsyncSoftSelectionMatchesRepairReference()
+    {
+        QFETCH(int, mode);
+        QTemporaryDir dir;
+        QImage        image(240, 180, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(x, y,
+                                    QColor(70 + x / 3, 80 + y / 2, 120 + y % 8, 160 + x % 80));
+        const auto path = dir.filePath("patch-soft.png");
+        QVERIFY(image.save(path));
+        Document d;
+        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+        d.setTool("ellipticalSelect");
+        d.beginStroke(30, 30);
+        d.continueStroke(70, 70);
+        d.endStroke();
+        d.modifySelection("feather", 4);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.selectionBusy(), 5000);
+        const QImage  original         = d.layerImage(0);
+        const QImage  originalCoverage = d.selectionMask();
+        const QRegion selection        = d.selectionRegion();
+        const int     history          = d.historyIndex();
+        d.setTool("patch");
+        d.setPatchMode(mode);
+        d.beginStroke(50, 50);
+        d.continueStroke(100, 50);
+        d.endStroke();
+        QVERIFY(d.patchBusy());
+        const QRegion target   = d.patchTargetRegion();
+        const QImage  coverage = d.selectionMask();
+        const QImage  repaired =
+            RegionHealing::blend(original, original, target, QPoint(mode == 0 ? 50 : -50, 0),
+                                 d.patchDiffusion(), 1., true);
+        QImage   expected = original.copy();
+        QPainter painter(&expected);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.drawImage(target.boundingRect().topLeft(), repaired);
+        painter.end();
+        SelectionCoverage::blend(expected, original, coverage, target.boundingRect());
+        QVERIFY(expected != original);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 5000);
+        QCOMPARE(d.layerImage(0), expected);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.selectionRegion(), mode == 0 ? selection : selection.translated(50, 0));
+        d.undo();
+        QCOMPARE(d.layerImage(0), original);
+        QCOMPARE(d.selectionMask(), originalCoverage);
+        d.redo();
+        QCOMPARE(d.layerImage(0), expected);
+    }
+
+    void patchPendingRepairProtectsSaveAndCleanDocument()
+    {
+        QTemporaryDir dir;
+        Document      d;
+        QVERIFY(d.newDocument(240, 180, false));
+        d.selectAll();
+        d.setColor(Qt::red);
+        d.fillWithColor(true);
+        d.deselect();
+        d.setTool("brush");
+        d.setColor(Qt::blue);
+        d.setBrushSize(10);
+        d.setBrushHardness(1);
+        d.beginStroke(100, 50);
+        d.endStroke();
+        const QUrl project  = QUrl::fromLocalFile(dir.filePath("patch.pcr"));
+        const QUrl exported = QUrl::fromLocalFile(dir.filePath("patch.png"));
+        QVERIFY(d.saveProject(project));
+        d.setTool("select");
+        d.beginStroke(30, 30);
+        d.continueStroke(70, 70);
+        d.endStroke();
+        QVERIFY(!d.modified());
+        d.setTool("patch");
+        d.beginStroke(50, 50);
+        d.continueStroke(100, 50);
+        d.endStroke();
+        QVERIFY(d.patchBusy());
+        QVERIFY(d.modified());
+        const QUrl pending = QUrl::fromLocalFile(dir.filePath("pending.pcr"));
+        QVERIFY(!d.saveProject(pending));
+        QVERIFY(!d.exportImage(exported));
+        QVERIFY(!QFile::exists(pending.toLocalFile()));
+        QVERIFY(!QFile::exists(exported.toLocalFile()));
+        d.cancelStroke();
+        QVERIFY(!d.modified());
+        d.beginStroke(50, 50);
+        d.continueStroke(100, 50);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
+        QVERIFY(d.modified());
+        const QImage repaired = d.layerImage(0);
+        QVERIFY(d.saveProject(project));
+        QVERIFY(!d.modified());
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.layerImage(0), repaired);
+    }
+
+    void patchLatestGestureWinsAndUniformRepairIsNoOp()
+    {
+        Document d;
+        QVERIFY(d.newDocument(240, 180, false));
+        d.setTool("select");
+        d.beginStroke(30, 30);
+        d.continueStroke(70, 70);
+        d.endStroke();
+        d.setTool("patch");
+        const int uniformHistory = d.historyIndex();
+        d.beginStroke(50, 50);
+        d.continueStroke(100, 50);
+        d.endStroke();
+        QVERIFY(d.patchBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
+        QCOMPARE(d.historyIndex(), uniformHistory);
+        QVERIFY(d.patchPreviewImage().isNull());
+        d.deselect();
+        d.setTool("brush");
+        d.setBrushSize(10);
+        d.setBrushHardness(1);
+        d.setColor(Qt::red);
+        d.beginStroke(100, 50);
+        d.endStroke();
+        d.setColor(Qt::blue);
+        d.beginStroke(150, 50);
+        d.endStroke();
+        d.setTool("select");
+        d.beginStroke(30, 30);
+        d.continueStroke(70, 70);
+        d.endStroke();
+        d.setTool("patch");
+        const int    history = d.historyIndex();
+        const QImage before  = d.layerImage(0);
+        d.beginStroke(50, 50);
+        d.continueStroke(100, 50);
+        d.endStroke();
+        QVERIFY(d.patchBusy());
+        d.beginStroke(50, 50);
+        d.continueStroke(150, 50);
+        d.endStroke();
+        QVERIFY(d.patchBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 5000);
+        QVERIFY(QThreadPool::globalInstance()->waitForDone(5000));
+        QCoreApplication::processEvents();
+        QCOMPARE(d.historyIndex(), history + 1);
+        const QColor pixel = d.layerImage(0).pixelColor(50, 50);
+        QVERIFY(pixel.blue() > pixel.red());
+        QCOMPARE(d.layerImage(0).pixel(100, 50), before.pixel(100, 50));
+        d.undo();
+        QCOMPARE(d.layerImage(0), before);
     }
 
     void spotHealingAutomaticallyRepairsLocallyAndUndoes()

@@ -72,13 +72,18 @@ vec3 hslToRgb(vec3 hsl)
 float blendChannel(float base, float source, int mode)
 {
     // Integer channel coordinates keep near-zero denominators exact.
-    if (mode == 4 || mode == 9 || mode == 22) {
+    if (mode == 4 || mode == 9 || mode == 15 || mode == 22) {
         float baseByte = floor(base * 255.0 + 0.5);
         float sourceByte = floor(source * 255.0 + 0.5);
         if (mode == 4)
             return sourceByte <= 0.0 ? 0.0 : 1.0 - min(1.0, (255.0 - baseByte) / sourceByte);
         if (mode == 9)
             return sourceByte >= 255.0 ? 1.0 : min(1.0, baseByte / (255.0 - sourceByte));
+        if (mode == 15) {
+            if (sourceByte <= 127.0)
+                return sourceByte <= 0.0 ? 0.0 : 1.0 - min(1.0, (255.0 - baseByte) / (2.0 * sourceByte));
+            return sourceByte >= 255.0 ? 1.0 : min(1.0, baseByte / (510.0 - 2.0 * sourceByte));
+        }
         return sourceByte <= 0.0 ? 1.0 : min(1.0, baseByte / sourceByte);
     }
     if (mode == 2) return min(base, source);
@@ -88,6 +93,9 @@ float blendChannel(float base, float source, int mode)
     if (mode == 8) return base + source - base * source;
     if (mode == 10) return min(1.0, base + source);
     if (mode == 12) return base <= 0.5 ? 2.0 * base * source : 1.0 - 2.0 * (1.0 - base) * (1.0 - source);
+    // Preserve the existing CPU soft-light polynomial branch, including its low-range rule.
+    if (mode == 13) return source <= 0.5 ? base - (1.0 - 2.0 * source) * base * (1.0 - base)
+        : base + (2.0 * source - 1.0) * (base <= 0.25 ? ((16.0 * base - 12.0) * base + 4.0) * base : sqrt(base) - base);
     if (mode == 14) return source <= 0.5 ? 2.0 * base * source : 1.0 - 2.0 * (1.0 - base) * (1.0 - source);
     if (mode == 16) return clamp(base + 2.0 * source - 1.0, 0.0, 1.0);
     if (mode == 17) return source <= 0.5 ? min(base, 2.0 * source) : max(base, 2.0 * source - 1.0);
@@ -121,6 +129,13 @@ vec4 compositeAdjustment(vec3 base, vec4 adjusted)
             else if (blend == 25) hsl.xy = sourceHsl.xy;
             else hsl.z = sourceHsl.z;
             mixed = floor(hslToRgb(hsl) * 65535.0 + 0.5) / 65535.0;
+        } else if (blend == 6 || blend == 11) {
+            // Sum byte coordinates so equal totals retain the base exactly as on CPU.
+            vec3 sourceBytes = floor(straight * 255.0 + 0.5);
+            float baseTotal = base.r + base.g + base.b;
+            float sourceTotal = sourceBytes.r + sourceBytes.g + sourceBytes.b;
+            bool useSource = blend == 6 ? sourceTotal < baseTotal : sourceTotal > baseTotal;
+            mixed = useSource ? straight : normalized;
         } else {
             mixed = vec3(blendChannel(normalized.r, straight.r, blend),
                           blendChannel(normalized.g, straight.g, blend),

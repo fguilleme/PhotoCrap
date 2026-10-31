@@ -158,7 +158,13 @@ le backend logiciel.
 - Densité couleur +, Densité couleur − et Division utilisent les coordonnées
   entières 0–255 des canaux avant de former leurs rapports. Les cas source zéro
   ou 255 gardent les branches du CPU, sans epsilon arbitraire dans les dénominateurs.
-- Ces sept fusions demandent des octets d’entrée exacts. Elles sont éligibles
+- Lumière tamisée reprend le polynôme et la racine du moteur existant, y compris
+  sa branche basse. Lumière vive choisit entre densité et éclaircissement selon
+  le demi-ton, avec les canaux entiers pour ses dénominateurs.
+- Couleur plus foncée et Couleur plus claire comparent les sommes RVB entières,
+  puis choisissent une couleur complète. En cas d’égalité, elles gardent la base,
+  même si la couleur du réglage a une teinte différente.
+- Ces onze fusions demandent des octets d’entrée exacts. Elles sont éligibles
   avec Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance des couleurs,
   Isohélie, Lumière, Transfert de dégradé, Seuil et Négatif, sans atténuation du
   masque : masque absent, désactivé, uniforme blanc ou densité à zéro. L’opacité
@@ -171,9 +177,9 @@ le backend logiciel.
   distinct. Le mode de fusion est codé dans les bits supérieurs de l’entier du
   shader ; le bloc reste de 224 octets et aucun sampler n’est ajouté.
 - Le survol des modes de fusion d’un réglage éligible ne change que cette constante.
-  Les calques de pixels, Fondu, Couleur plus foncée/claire, Lumière tamisée/vive,
-  Mélange maximal restent CPU. Les quatre modes HSL et les trois modes de rapport
-  utilisent les conditions plus strictes décrites ci-dessus.
+  Les calques de pixels, Fondu et Mélange maximal restent CPU. Les onze modes
+  conditionnels utilisent les règles plus strictes décrites ci-dessus. Cela porte
+  à 25 les modes éligibles pour certains aperçus de réglage.
   Il s’agit de l’aperçu du réglage actif, pas d’une composition GPU de toute la pile.
 - Les tables identiques sont conservées. Changer uniquement la densité ou le
   contour progressif d’un masque uniforme ne retransfère ni la photo ni la table.
@@ -290,13 +296,17 @@ Les quatre fusions HSL sont comparées à QColor sur chacun des dix réglages
 Le changement de fusion ne doit retransférer ni la photo ni la table. Les tests
 moteur couvrent les dix réglages en 8/16 bits, l’historique, l’annulation, le repli
 avec masque gris, le retour au GPU à densité zéro ou masque désactivé, ainsi que
-le repli de chacun des huit autres réglages pour ces sept modes. Ils sont regroupés
+le repli de chacun des huit autres réglages pour ces onze modes. Ils sont regroupés
 dans `gpu_conditional_blend_preview`, séparé de la suite générale pour conserver des délais
 de test courts. Les images uniformes du test moteur restent petites ; le scénario
-natif conserve ses motifs couleur complets. Les trois modes de rapport sont
-comparés sur les dix réglages éligibles et sur chaque valeur de base 0–255, face à
-des sorties Courbes constantes 0/1/2/63/64/127/128/191/192/253/254/255, à 100 % et
-37 % d’opacité. Le changement de mode ne retransfère aucune photo. Le test moteur
+natif conserve ses motifs couleur complets. Les trois modes de rapport et les deux
+modes de contraste sont comparés sur les dix réglages éligibles et sur chaque valeur
+de base 0–255, face à des sorties Courbes constantes
+0/1/2/51/63/64/127/128/191/192/204/253/254/255, à 100 % et 37 % d’opacité.
+Les seuils autour de 1/4 et 1/2 sont ainsi couverts. Des valeurs connues conservent
+la branche basse de Lumière tamisée (51 vers 204 donne 120 à pleine opacité).
+Les deux sélections de couleur sont aussi vérifiées avec des décalages opposés
+rouge/vert, pour exercer les sommes égales et celles modifiées par l’écrêtage. Le changement de mode ne retransfère aucune photo. Le test moteur
 utilise `QTest::qWaitFor` pour traiter les événements sans les pauses de 50 ms de
 chaque attente générale ; les délais maximaux restent identiques.
 Le test des dix-huit réglages passe aussi en **OpenGL 2.1 sur ce Mac**, avec

@@ -31,11 +31,23 @@ const QList<int> &gpuToneRatioBlendModes()
     static const QList<int> modes{4, 9, 22};
     return modes;
 }
+const QList<int> &gpuToneContrastBlendModes()
+{
+    static const QList<int> modes{13, 15};
+    return modes;
+}
+const QList<int> &gpuToneColorSelectionBlendModes()
+{
+    static const QList<int> modes{6, 11};
+    return modes;
+}
 const QList<int> &gpuToneConditionalBlendModes()
 {
     static const QList<int> modes = [] {
         auto result = gpuToneHslBlendModes();
         result.append(gpuToneRatioBlendModes());
+        result.append(gpuToneContrastBlendModes());
+        result.append(gpuToneColorSelectionBlendModes());
         return result;
     }();
     return modes;
@@ -44,7 +56,7 @@ bool gpuToneBlendSupported(const QString &_type, int _blend, bool _fullCoverage)
 {
     if (gpuToneBlendModes().contains(_blend))
         return true;
-    // Hue near gray and division near zero amplify one-byte input errors.
+    // Hue, near-zero divisions and whole-color decisions amplify one-byte errors.
     // Require exact inputs, without visible mask premultiplication.
     static const QStringList exactTypes{QStringLiteral("curves"),
                                         QStringLiteral("levels"),

@@ -1,11 +1,40 @@
 #include "Document.h"
 #include "filters/ToneMappingTable.h"
 #include <QtTest>
+#include <tuple>
 
 class GpuConditionalBlendPreviewTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void contrastAndColorSelectionKnownValues()
+    {
+        for (const auto &[base, opacity, expected] :
+             {std::tuple{51, 1., 120}, std::tuple{51, .37, 76}, std::tuple{64, 1., 128}}) {
+            Document doc;
+            QVERIFY(doc.newDocument(8, 8, false));
+            doc.setColor(QColor(base, base, base));
+            doc.fillWithColor(true);
+            doc.addAdjustmentLayer("exposure");
+            doc.setLayerOpacity(doc.activeLayer(), opacity);
+            doc.previewLayerParameter("exposure", 2.);
+            doc.previewLayerBlend(doc.activeLayer(), 13);
+            QCOMPARE(doc.composite().pixelColor(0, 0), QColor(expected, expected, expected));
+        }
+        for (const QColor base : {QColor(100, 150, 50), QColor(250, 20, 30)})
+            for (int blend : {6, 11}) {
+                Document doc;
+                QVERIFY(doc.newDocument(8, 8, false));
+                doc.setColor(base);
+                doc.fillWithColor(true);
+                doc.addAdjustmentLayer("colorBalance");
+                doc.previewLayerParameter("cyanRed", 40. / 2.55);
+                doc.previewLayerParameter("magentaGreen", -40. / 2.55);
+                doc.previewLayerBlend(doc.activeLayer(), blend);
+                const QColor expected = base.red() == 250 && blend == 6 ? QColor(255, 0, 30) : base;
+                QCOMPARE(doc.composite().pixelColor(0, 0), expected);
+            }
+    }
     void conditionalBlendPreview_data()
     {
         QTest::addColumn<QString>("type");

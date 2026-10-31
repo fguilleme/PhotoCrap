@@ -695,6 +695,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
         if (!require(document.openFile(QUrl::fromLocalFile(path)), "open ratio boundary reference"))
             return false;
         document.addAdjustmentLayer("curves");
+        auto boundaryModes = PhotoCrap::Filters::gpuToneRatioBlendModes();
+        boundaryModes.append(PhotoCrap::Filters::gpuToneContrastBlendModes());
         for (double opacity : {1., .37}) {
             document.setLayerOpacity(document.activeLayer(), opacity);
             document.previewLayerParameter(
@@ -706,17 +708,17 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                 return false;
             frame();
             const auto ratioPhoto = canvas.imageTextureUploads();
-            for (int source : {0, 1, 2, 63, 64, 127, 128, 191, 192, 253, 254, 255}) {
+            for (int source : {0, 1, 2, 51, 63, 64, 127, 128, 191, 192, 204, 253, 254, 255}) {
                 document.previewLayerParameter(
                     "points", QVariantList{QVariantMap{{"x", 0}, {"y", source}},
                                            QVariantMap{{"x", 255}, {"y", source}}});
-                for (int blend : PhotoCrap::Filters::gpuToneRatioBlendModes()) {
+                for (int blend : boundaryModes) {
                     document.previewLayerBlend(document.activeLayer(), blend);
                     const auto expected = document.composite();
                     if (!require(check(frame(), expected, true) &&
                                      canvas.imageTextureUploads() == ratioPhoto,
-                                 "burn, dodge and divide preserve zero/near-zero denominator "
-                                 "semantics")) {
+                                 "contrast and ratio modes preserve quarter/half thresholds and "
+                                 "zero denominators")) {
                         qWarning() << "Failed ratio source/mode:" << source << blend << opacity;
                         return false;
                     }
@@ -727,6 +729,32 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
                          "ratio final render finishes"))
                 return false;
         }
+        if (!require(document.openFile(QUrl::fromLocalFile(path)), "open color-decision reference"))
+            return false;
+        document.addAdjustmentLayer("colorBalance");
+        document.previewLayerParameter("cyanRed", 100. / 2.55);
+        document.previewLayerParameter("magentaGreen", -100. / 2.55);
+        document.previewLayerBlend(document.activeLayer(), 6);
+        if (!require(QTest::qWaitFor([&] { return document.gpuTonePreviewActive(); }, 5000),
+                     "whole-color decision preview starts"))
+            return false;
+        for (double shift : {0., 1., 40., 100., 127.}) {
+            document.previewLayerParameter("cyanRed", shift / 2.55);
+            document.previewLayerParameter("magentaGreen", -shift / 2.55);
+            for (int blend : PhotoCrap::Filters::gpuToneColorSelectionBlendModes()) {
+                document.previewLayerBlend(document.activeLayer(), blend);
+                const auto expected = document.composite();
+                if (!require(check(frame(), expected, true),
+                             "whole-color equality and clipped totals match the CPU")) {
+                    qWarning() << "Failed color selector:" << shift << blend;
+                    return false;
+                }
+            }
+        }
+        document.finishLayerPreview();
+        if (!require(QTest::qWaitFor([&] { return !document.gpuTonePreviewActive(); }, 5000),
+                     "color-decision final render finishes"))
+            return false;
         // Mask/photo tile padding must agree at 1024 pixels and across display LODs.
         QImage wide(1280, 256, QImage::Format_ARGB32);
         wide.fill(QColor(40, 110, 210));
@@ -777,6 +805,8 @@ inline bool runToneRenderSmoke(QQuickWindow *_window)
             << "; blend modes:" << PhotoCrap::Filters::gpuToneBlendModes().size()
             << "; HSL modes:" << PhotoCrap::Filters::gpuToneHslBlendModes().size()
             << "; ratio modes:" << PhotoCrap::Filters::gpuToneRatioBlendModes().size()
+            << "; contrast modes:" << PhotoCrap::Filters::gpuToneContrastBlendModes().size()
+            << "; color selectors:" << PhotoCrap::Filters::gpuToneColorSelectionBlendModes().size()
             << "; hardware:" << hardware << "; API:" << _window->rendererInterface()->graphicsApi()
             << "; photo textures:" << canvas.imageTextureUploads()
             << "; LUT textures:" << canvas.toneTableUploads()

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 ColumnLayout {
     id: root
+    objectName: "gradientMapEditorRoot"
 
     property string shadowColor: "#101828"
     property string highlightColor: "#f5d9a8"
@@ -59,8 +60,6 @@ ColumnLayout {
         shadowHue=shadow.h;shadowSaturation=shadow.s;shadowValue=shadow.v
         highlightHue=highlight.h;highlightSaturation=highlight.s;highlightValue=highlight.v
         syncing=false
-        wheel.requestPaint()
-        valueOverlay.requestPaint()
     }
     function selectedKey() { return activeHandle===0 ? "shadowColor" : "highlightColor" }
     function selectedColor() {
@@ -71,7 +70,6 @@ ColumnLayout {
     function setSelectedValue(value,preview) {
         if(activeHandle===0)shadowValue=value
         else highlightValue=value
-        valueOverlay.requestPaint()
         if(preview)root.previewed(selectedKey(),selectedColor())
     }
     function setSelectedPosition(hue,saturation,preview) {
@@ -81,7 +79,6 @@ ColumnLayout {
     }
     function selectHandle(index) {
         activeHandle=index
-        valueOverlay.requestPaint()
     }
 
     onShadowColorChanged: syncColors()
@@ -122,17 +119,10 @@ ColumnLayout {
             }
         }
 
-        Canvas {
-            id: valueOverlay
+        ColorWheelShade {
+            objectName: "gradientMapValueShade"
             anchors.fill: parent
-            onWidthChanged: requestPaint()
-            onHeightChanged: requestPaint()
-            onPaint: {
-                const c=getContext("2d")
-                c.reset();c.clearRect(0,0,width,height)
-                c.beginPath();c.arc(wheel.center,wheel.center,wheel.radius,0,Math.PI*2)
-                c.fillStyle="rgba(0,0,0,"+(1-root.selectedValue())+")";c.fill()
-            }
+            value: root.selectedValue()
         }
 
         Rectangle {

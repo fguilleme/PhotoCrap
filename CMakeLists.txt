@@ -192,6 +192,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/ThresholdGraphSmoke.h
     tests/LevelsGraphSmoke.h
     tests/CurvesGraphSmoke.h
+    tests/ColorWheelSmoke.h
     tests/SliceDescriptionCacheTest.cpp
     tests/CropShadeTest.cpp
     tests/CropOverlaySmoke.h
@@ -425,6 +426,7 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
         src/render/shaders/selection.vert src/render/shaders/selection.frag
         src/render/shaders/crop.vert src/render/shaders/crop.frag
         src/render/shaders/samplingring.vert src/render/shaders/samplingring.frag
+        src/render/shaders/colorwheelshade.vert src/render/shaders/colorwheelshade.frag
         src/render/shaders/brushcursor.vert src/render/shaders/brushcursor.frag
 )
 if(APPLE)
@@ -521,6 +523,7 @@ qt_add_qml_module(PhotoCrap
         qml/BlackWhiteEditor.qml
         qml/PresetComboBox.qml
         qml/ChannelMixerEditor.qml
+        qml/ColorWheelShade.qml
         qml/GradientMapEditor.qml
         qml/FrequencySeparationEditor.qml
         qml/LightEditor.qml
@@ -722,6 +725,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME curves_graph COMMAND PhotoCrap --smoke-test --curves-graph-test)
     set_tests_properties(curves_graph PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME color_wheel COMMAND PhotoCrap --smoke-test --color-wheel-test)
+    set_tests_properties(color_wheel PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

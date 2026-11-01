@@ -285,6 +285,10 @@ reuse unchanged results without retaining source pixels. A local 24 Mpx 16-bit
 test reduces the two calculations from about 31 to 3 ms, excluding composition
 and drawing; this timing is indicative.
 
+The Gradient Map wheel reuses its fixed spectrum during color edits. Its
+brightness shade is procedural on the GPU: only opacity changes, with no Canvas
+repaint during the gesture. Software and fractional sizes keep the prior drawing.
+
 Horizontal and vertical viewport rulers keep only visible graduations, with a
 margin for labels extending from offscreen ticks. On graphics backends, ticks
 and cached digit outlines stay in the scene graph for integer-sized bands.

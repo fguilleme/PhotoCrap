@@ -14,7 +14,9 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
+#include <QtMath>
 #include <QtTest>
+#include <cmath>
 #include <functional>
 
 // Exercise pointer delivery through QML, keyboard focus and the unsaved guard.
@@ -2234,6 +2236,95 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(gradientMapEditor && gradientMapEditor->property("visible").toBool() &&
                      gradientMapWheel && gradientBrightness,
                  "gradient map uses its color wheel and brightness editor"))
+        return false;
+    _document.beginLayerPreview();
+    _document.previewLayerParameter("shadowColor", QString("#405c90"));
+    _document.finishLayerPreview();
+    QTest::qWait(100);
+    auto *wheelItem      = qobject_cast<QQuickItem *>(gradientMapWheel);
+    auto *shadeItem      = _window->findChild<QQuickItem *>("gradientMapValueShade");
+    auto *brightnessItem = qobject_cast<QQuickItem *>(gradientBrightness);
+    if (!require(wheelItem && shadeItem && brightnessItem,
+                 "gradient map exposes wheel shade and slider"))
+        return false;
+    const auto shadowColor = [&] {
+        for (const auto &entry : _document.layers()) {
+            const auto layer = entry.toMap();
+            if (layer["layerIndex"].toInt() == _document.activeLayer() &&
+                layer["adjustmentType"].toString() == "gradientMap")
+                return layer["parameters"].toMap()["shadowColor"].toString();
+        }
+        return QString{};
+    };
+    const auto  initialShadow = shadowColor();
+    QSignalSpy  spectrumPaints(wheelItem, SIGNAL(painted()));
+    const qreal center     = wheelItem->property("center").toReal(),
+                radius     = wheelItem->property("radius").toReal();
+    const qreal hue        = qDegreesToRadians(gradientMapEditor->property("shadowHue").toReal());
+    const qreal saturation = gradientMapEditor->property("shadowSaturation").toReal();
+    const auto  wheelStart = wheelItem
+                                 ->mapToScene(QPointF(center + std::cos(hue) * saturation * radius,
+                                                      center - std::sin(hue) * saturation * radius))
+                                 .toPoint();
+    const auto  wheelEnd   = wheelItem->mapToScene(QPointF(center + 45, center - 30)).toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, wheelStart);
+    QTest::mouseMove(_window, wheelEnd, 20);
+    QTest::qWait(80);
+    if (!require(gradientMapEditor->property("dragging").toBool() &&
+                     gradientMapEditor->property("activeHandle").toInt() == 0,
+                 "gradient map keeps the chosen endpoint during a wheel drag"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, wheelEnd);
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return shadowColor() != initialShadow &&
+                                gradientMapEditor->property("shadowColor").toString() ==
+                                    shadowColor();
+                     },
+                     1000) &&
+                     spectrumPaints.isEmpty(),
+                 "wheel drag commits the color without repainting the spectrum"))
+        return false;
+    _document.undo();
+    if (!require(QTest::qWaitFor([&] { return shadowColor() == initialShadow; }, 1000),
+                 "wheel color drag creates a single undo step"))
+        return false;
+    auto *brightnessHandle = qobject_cast<QQuickItem *>(
+        qvariant_cast<QObject *>(gradientBrightness->property("handle")));
+    if (!require(brightnessHandle, "gradient brightness exposes its handle"))
+        return false;
+    const auto brightnessStart =
+        brightnessHandle
+            ->mapToScene(QPointF(brightnessHandle->width() / 2, brightnessHandle->height() / 2))
+            .toPoint();
+    const qreal brightnessEndX = gradientBrightness->property("leftPadding").toReal() +
+                                 .82 * (gradientBrightness->property("availableWidth").toReal() -
+                                        brightnessHandle->width()) +
+                                 brightnessHandle->width() / 2;
+    const auto  brightnessEnd =
+        brightnessItem->mapToScene(QPointF(brightnessEndX, brightnessItem->height() / 2)).toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, brightnessStart);
+    QTest::mouseMove(_window, brightnessEnd, 20);
+    QTest::qWait(80);
+    if (!require(gradientBrightness->property("pressed").toBool() &&
+                     qAbs(shadeItem->property("value").toReal() -
+                          gradientMapEditor->property("shadowValue").toReal()) < .00001,
+                 "brightness drag updates the disk while the slider stays captured"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, brightnessEnd);
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return shadowColor() != initialShadow &&
+                                gradientMapEditor->property("shadowColor").toString() ==
+                                    shadowColor();
+                     },
+                     1000) &&
+                     spectrumPaints.isEmpty(),
+                 "brightness commits without repainting the spectrum"))
+        return false;
+    _document.undo();
+    if (!require(QTest::qWaitFor([&] { return shadowColor() == initialShadow; }, 1000),
+                 "brightness drag creates a single undo step"))
         return false;
     QMetaObject::invokeMethod(layerProperties, "close");
     _document.addAdjustmentLayer("light");

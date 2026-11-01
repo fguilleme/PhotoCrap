@@ -22,6 +22,7 @@
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/BrushCursorSmoke.h"
 #include "../tests/CanvasRenderSmoke.h"
+#include "../tests/ColorWheelSmoke.h"
 #include "../tests/CropOverlaySmoke.h"
 #include "../tests/CurvesGraphSmoke.h"
 #include "../tests/FileDialogSmoke.h"
@@ -179,6 +180,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--color-wheel-test")) {
+                passed = window && runColorWheelSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

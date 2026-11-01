@@ -1488,3 +1488,49 @@ et le dessin ; aucun seuil de vitesse n'est imposé aux tests.
 Références Qt : [identité du contenu QImage](https://doc.qt.io/qt-6.8/qimage.html#cacheKey),
 [conversion de format](https://doc.qt.io/qt-6.8/qimage.html#convertToFormat),
 [lecture des lignes](https://doc.qt.io/qt-6.8/qimage.html#constScanLine).
+
+
+## Roue de Transfert de dégradé : spectre fixe et voile procédural
+
+Le spectre teinte/saturation du `GradientMapEditor` ne dépend que de ses
+dimensions : ses 180 secteurs et son dégradé blanc sont conservés dans le
+Canvas existant. Les synchronisations HSV des couleurs et les changements de
+poignée n'en demandent plus le repeint. Les pointeurs et la bande finale du
+dégradé gardent leurs contrôles et leurs calculs actuels.
+
+`ColorWheelShade.qml` remplace le Canvas de luminosité indépendant par un shader
+procédural sur RHI, pour les dimensions entières. Le shader trace un disque noir
+anticrénelé ; il conserve le centre historique basé sur la largeur pour les deux
+axes et le rayon `min(largeur, hauteur) / 2 - 9`. La géométrie est un rectangle
+fixe et le paramètre de luminosité ne change que son opacité. Il n'y a ni image
+source pour ce voile, ni tessellation de courbe, ni repeint raster pendant le
+geste. L'anticrénelage utilise les dérivées de la distance au centre. L'opacité
+héritée reste prise en compte par `qt_Opacity`.
+
+Le backend logiciel, les dimensions fractionnaires et les erreurs de préparation
+du shader disposent du dessin Canvas historique. Le Canvas est chargé seulement
+pour ce repli et retiré du graphe de scène au retour GPU : aucun ancien disque
+transparent ne peut s'ajouter au nouveau. Les modifications faites pendant le
+masquage sont reprises au prochain affichage. Le spectre reste une petite image
+Canvas ; cette étape ne le remplace pas par une nouvelle roue analytique et ne
+modifie pas la conversion HSV ni le filtre photo.
+
+`color_wheel` compare le voile à une copie indépendante de l'ancien dessin sur
+un fond coloré, avec noir, transparence complète, valeurs intermédiaires, opacité,
+rotation, tailles rectangulaires et fractionnaires, rayon nul, masquage et retour
+GPU à dimensions de tampon arrondies identiques. Il vérifie directement
+l’assombrissement du centre, puis les pixels après recréation : Qt peut réutiliser
+les informations de shader de son cache alors que le gestionnaire de la nouvelle
+instance signale encore Uncompiled. Les signaux de taille, identités d'objets et
+signaux de repeint contrôlent séparément l'absence de géométrie ou d'image
+recréée pendant les changements de valeur.
+
+Un second contrôle utilise le vrai éditeur : le centre de la roue doit être
+peint avant la mesure du cache ; modifier ses couleurs et la poignée active doit
+laisser le compteur de repeints du spectre inchangé. Le smoke test général
+exerce un glisser de la couleur puis de la luminosité, avec capture de souris,
+accord avec les paramètres du calque et une seule annulation par geste.
+
+Références Qt : [ShaderEffect](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html),
+[uniformes et opacité](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html#shader-inputs-and-resources),
+[source du cache de shaders Qt](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/qquickshadereffect.cpp).

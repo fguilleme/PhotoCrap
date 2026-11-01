@@ -10,6 +10,7 @@
 #include "render/CanvasFonts.h"
 #include "render/CurvesGeometry.h"
 #include "render/HistogramGeometry.h"
+#include "render/PenBandGeometry.h"
 #include "text/TextEditorController.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -109,6 +110,9 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonType<HistogramGeometry>(
         "PhotoCrap.Native", 1, 0, "HistogramGeometry",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new HistogramGeometry; });
+    qmlRegisterSingletonType<PenBandGeometry>(
+        "PhotoCrap.Native", 1, 0, "PenBandGeometry",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new PenBandGeometry; });
     qmlRegisterType<TextEditorController>("PhotoCrap.Native", 1, 0, "TextFormatting");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");

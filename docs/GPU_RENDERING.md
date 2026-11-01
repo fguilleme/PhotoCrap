@@ -1079,8 +1079,8 @@ les curseurs natifs ne sont pas modifiés par cette étape.
 `PenOverlay.qml` utilise `PenCurve.qml` et le composant commun `GpuGuideShape`
 pour ses deux traits principaux : contour sombre de 3 pixels logiques et trait
 bleu de 1,5 pixel, sans remplissage. Le moteur CurveRenderer affiche ces chemins
-sans Canvas ni texture intermédiaire. Le segment provisoire reste dans son
-Canvas indépendant, au-dessus du tracé. Les ancres et tangentes utilisent désormais
+sans Canvas ni texture intermédiaire. Le segment provisoire possède son propre
+chemin GPU avec un repli Canvas, au-dessus du tracé. Les ancres et tangentes utilisent
 la couche GPU décrite plus bas, avec un repli Canvas ; leur ordre de dessin et
 leurs règles d’actualisation sont conservés.
 
@@ -1680,8 +1680,8 @@ pendant le masquage ne déclenchent pas de peinture.
 Cette étape ne modifie pas le modèle de tracé, les raccourcis, les gestes,
 l’historique ou les pixels 8/16 bits. La mise en conformité des interactions de
 la Plume avec Photoshop reste une tâche séparée dans la roadmap. Le segment
-provisoire pointillé reste en Canvas, au-dessus du tracé principal et sous les
-repères.
+provisoire pointillé dispose maintenant du chemin GPU décrit ci-dessous, au-dessus
+du tracé principal et sous les repères.
 
 `pen_overlay` conserve ses comparaisons indépendantes en 8/16 bits : édition,
 Annuler, fermeture, réactivation, zoom jusqu’à 64×, défilement fractionnaire et
@@ -1697,3 +1697,57 @@ de souris n’invalide pas les repères fixes.
 
 Références Qt : [Shape et CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
 [couches et opacité des Items](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#layer-opacity).
+
+
+## Segment provisoire pointillé de la Plume sur GPU
+
+`PenRubberBand.qml` sépare le segment provisoire de ses deux voisins, le tracé
+retenu et la feuille de repères. Ses entrées sont le dernier point, sa tangente
+sortante, le point de survol et l’origine découpée. Le survol réactualise seulement
+ce segment : les descriptions du tracé principal et des repères restent en cache.
+Les règles d’affichage, l’ordre des couches et les interactions sont conservés.
+
+Le chemin matériel garde la cubique historique, dont les deux derniers contrôles
+sont le point de survol. `PenBandGeometry` prépare son contour pointillé avec
+l’API publique `QPainterPathStroker` : largeur de 1,5 pixel logique, extrémités
+plates, jointures en onglet avec limite 10, motif Qt `[4,3]` et phase initiale
+nulle. Ce motif garde les unités du QPen utilisé par le Canvas ; il n’est pas
+réinterprété comme une autre longueur de tirets.
+
+Le chemin et la largeur du trait sont multipliés par le facteur de pixels de
+l’écran avant cette préparation, puis le contour revient en coordonnées logiques.
+Cela conserve la subdivision des courbes et le placement des pointillés du
+rasteriseur HiDPI. Le contour est une description SVG remplie en WindingFill par
+`PenRubberGuide.qml`, avec CurveRenderer. Une couche GPU limitée à l’emprise
+visible applique l’opacité après composition, y compris aux retours en arrière.
+Il n’y a aucun repeint Canvas ni transfert d’image raster sur ce chemin ; la
+préparation du contour et de la géométrie reste sur CPU.
+
+L’éligibilité est volontairement conservative. Les trois points de l’enveloppe
+de contrôle doivent rester dans les limites stables de la vue et de l’image,
+avec une marge de deux pixels logiques. Cette vérification ne dépend pas du
+petit cadre du segment, qui change pendant le mouvement : l’objet GPU reste
+conservé tant que la courbe est éligible. La longueur du polygone de contrôle,
+qui borne la longueur de la courbe, est limitée à 8 192 pixels logiques pour
+borner la préparation des pointillés. Le facteur de pixels accepté est positif
+et au plus égal à huit.
+
+Les courbes coupées par la vue, les courbes plus longues, le logiciel et Qt sans
+CurveRenderer utilisent le Canvas précédent. La coupure raster peut modifier
+la subdivision des tirets ; ce repli conserve son placement. Le retour à une
+courbe entièrement visible recharge le GPU et retire le Canvas. Un segment nul,
+entièrement hors champ ou caché n’alloue aucune surface de dessin. Le SVG n’est
+pas préparé pour le repli logiciel ni pendant les changements de survol cachés.
+
+`pen_overlay` compare les pixels en 8/16 bits à la cubique Canvas indépendante,
+avec déplacement, édition, Annuler, zoom jusqu’à 64×, rotation, défilement
+fractionnaire, fermeture et réactivation. Des cas isolés ajoutent les segments
+droits, courbés, avec retour en arrière, presque nuls, nuls, coupés et très longs,
+leur opacité réduite et le retour du repli vers le GPU. Les compteurs de repeints,
+descriptions et identités d’objets vérifient la réutilisation des parties fixes
+et du composant provisoire pendant le survol. Le test d’interface exerce aussi
+les vrais gestes de souris, la désactivation du guide et Échap.
+
+Références Qt : [QPainterPathStroker](https://doc.qt.io/qt-6.8/qpainterpathstroker.html),
+[préparation des traits dans QPaintEngineEx](https://github.com/qt/qtbase/blob/v6.12.0/src/gui/painting/qpaintengineex.cpp),
+[CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html).

@@ -20,6 +20,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/CropShade.cpp
     src/render/HistogramGeometry.cpp
     src/render/CurvesGeometry.cpp
+    src/render/PenBandGeometry.cpp
     src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
     src/render/SelectionOutlineNode.cpp
@@ -126,6 +127,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/CropShade.h
     src/render/HistogramGeometry.h
     src/render/CurvesGeometry.h
+    src/render/PenBandGeometry.h
     src/render/CanvasFonts.h
     src/render/CropShadeNode.h
     src/render/ToneMappingNode.h
@@ -409,6 +411,7 @@ qt_add_executable(PhotoCrap
     src/render/CropShade.cpp src/render/CropShade.h
     src/render/HistogramGeometry.cpp src/render/HistogramGeometry.h
     src/render/CurvesGeometry.cpp src/render/CurvesGeometry.h
+    src/render/PenBandGeometry.cpp src/render/PenBandGeometry.h
     src/render/CanvasFonts.h
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
@@ -480,6 +483,8 @@ qt_add_qml_module(PhotoCrap
         qml/SelectionModifyDialog.qml
         qml/PenOverlay.qml
         qml/PenCurve.qml
+        qml/PenRubberBand.qml
+        qml/PenRubberGuide.qml
         qml/PenHandles.qml
         qml/PenHandleGuides.qml
         qml/LassoGuide.qml

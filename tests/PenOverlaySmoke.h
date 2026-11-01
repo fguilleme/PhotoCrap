@@ -21,6 +21,7 @@ inline bool runPenOverlaySmoke(QQuickWindow *_window)
         QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
     bool          vectorCurve   = false;
     bool          vectorHandles = false;
+    bool          vectorBand    = false;
     Document      document;
     QQmlComponent component(qmlEngine(_window));
     component.setData(R"(
@@ -37,14 +38,16 @@ Item {
     property real viewRotation: 0
     property bool useSynthetic: false
     property var syntheticPoints: []
+    property bool syntheticDrawing: false
+    property point syntheticHover: Qt.point(0,0)
     readonly property var drawingDocument: useSynthetic ? synthetic : document
     QtObject {
         id: synthetic
         property var penPaths: [{points:fixture.syntheticPoints,closed:false}]
         property int activePenPath: 0
-        property bool penDrawing: false
-        property bool penRubberBand: false
-        property point penHover: Qt.point(0,0)
+        property bool penDrawing: fixture.syntheticDrawing
+        property bool penRubberBand: fixture.syntheticDrawing
+        property point penHover: fixture.syntheticHover
     }
     Rectangle { anchors.fill: parent; color: "#5a7896" }
 component LegacyPenOverlay: ScreenOverlayCanvas {
@@ -259,8 +262,10 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
     QSignalSpy snapshots(overlay, SIGNAL(activePathChanged()));
     QSignalSpy paths(overlay, SIGNAL(curvePathChanged()));
     QSignalSpy primitives(handles, SIGNAL(primitivesChanged()));
+    QSignalSpy bandPaths(band, SIGNAL(curvePathChanged()));
     if (!require(pathPaints.isValid() && handlePaints.isValid() && bandPaints.isValid() &&
-                     snapshots.isValid() && paths.isValid() && primitives.isValid(),
+                     snapshots.isValid() && paths.isValid() && primitives.isValid() &&
+                     bandPaths.isValid(),
                  "observe layer painting and native path snapshots"))
         return false;
     for (int bits : {8, 16}) {
@@ -283,10 +288,13 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
         auto *raster  = visualItem("penRasterCurve");
         vectorCurve   = hardware && curve && curve->property("curveRendererAvailable").toBool();
         vectorHandles = handles->property("gpuHandles").toBool();
+        vectorBand    = band->property("gpuBand").toBool();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
         if (!require(!hardware || vectorCurve, "RHI uses retained GPU pen curves"))
             return false;
         if (!require(vectorHandles == hardware, "RHI uses GPU handle guides on compatible Qt"))
+            return false;
+        if (!require(vectorBand == hardware, "RHI uses a GPU provisional segment on compatible Qt"))
             return false;
 #endif
         if (!require(vectorCurve ? !raster && curve->property("rendererType") ==
@@ -298,6 +306,10 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
                                    : handles->property("rasterActive").toBool(),
                      "GPU handles do not create a raster context; software keeps its Canvas"))
             return false;
+        if (!require(vectorBand ? !band->property("rasterActive").toBool()
+                                : band->property("rasterActive").toBool(),
+                     "the provisional segment uses only its expected drawing path"))
+            return false;
         if (!require(matchesReference(),
                      "separate curve, rubber band and handles match the original drawing"))
             return false;
@@ -307,21 +319,25 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
         snapshots.clear();
         paths.clear();
         primitives.clear();
+        bandPaths.clear();
         const auto *retainedCurve  = visualItem("penGpuCurve");
         const auto *retainedHandle = visualItem("penGpuHandlePrimitive0");
+        const auto *retainedBand   = visualItem("penGpuRubberBand");
         const auto  beforeHover    = frame();
         for (const auto point : {QPointF(300, 100), QPointF(110, 60), QPointF(300, 170)}) {
             document.updatePenHover(point.x(), point.y());
             frame();
         }
-        if (!require(
-                pathPaints.isEmpty() && handlePaints.isEmpty() && primitives.isEmpty() &&
-                    visualItem("penGpuHandlePrimitive0") == retainedHandle && snapshots.isEmpty() &&
-                    paths.isEmpty() && visualItem("penGpuCurve") == retainedCurve &&
-                    bandPaints.count() >= 3 && frame() != beforeHover && band->width() < 512 &&
-                    band->height() < 320 && document.historyIndex() == history &&
-                    document.layerImage(0) == original,
-                "hover repaints only the local provisional curve without path conversion or edits"))
+        if (!require(pathPaints.isEmpty() && handlePaints.isEmpty() && primitives.isEmpty() &&
+                         visualItem("penGpuHandlePrimitive0") == retainedHandle &&
+                         visualItem("penGpuRubberBand") == retainedBand && snapshots.isEmpty() &&
+                         paths.isEmpty() && visualItem("penGpuCurve") == retainedCurve &&
+                         (vectorBand ? bandPaints.isEmpty() : bandPaints.count() >= 3) &&
+                         (vectorBand ? !bandPaths.isEmpty() : bandPaths.isEmpty()) &&
+                         frame() != beforeHover && band->width() < 512 && band->height() < 320 &&
+                         document.historyIndex() == history && document.layerImage(0) == original,
+                     "hover updates the local provisional curve without raster paints on GPU or "
+                     "document edits"))
             return false;
         if (!require(matchesReference(),
                      "a moved provisional curve preserves draw order at crossings"))
@@ -517,6 +533,57 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
     frame();
     if (!require(matchesReference(), "showing handles uses points changed while hidden"))
         return false;
+    handles->setOpacity(0);
+    referenceHandles->setOpacity(0);
+    root->setProperty("syntheticDrawing", true);
+    struct BandCase {
+        QPointF start, control, end;
+        bool    eligible;
+    };
+    const BandCase bands[] = {
+        {{80, 160}, {80, 160}, {420, 160}, true},    {{80, 160}, {80, 20}, {420, 260}, true},
+        {{280, 160}, {80, 160}, {420, 160}, true},   {{80, 160}, {80, 160}, {80.02, 160.02}, true},
+        {{80, 160}, {80, 160}, {80, 160}, false},    {{-80, 160}, {80, 20}, {420, 260}, false},
+        {{80, 160}, {10000, 40}, {420, 260}, false}, {{600, 160}, {700, 160}, {800, 160}, false},
+        {{80, 160}, {80, 20}, {420, 260}, true}};
+    for (const auto &test : bands) {
+        setPoint(test.start, test.start, test.control, false);
+        root->setProperty("syntheticHover", test.end);
+        frame();
+        if (!require(
+                matchesReference(),
+                "straight, bent, reversing, tiny, clipped and long provisional segments match"))
+            return false;
+        if (!require(band->property("gpuBand").toBool() == (vectorBand && test.eligible),
+                     "provisional geometry uses the eligible GPU path or its explicit fallback"))
+            return false;
+        if (test.eligible) {
+            band->setOpacity(.37);
+            root->findChild<QQuickItem *>("penReferenceRubberBand")->setOpacity(.37);
+            frame();
+            if (!require(matchesReference(),
+                         "provisional dashes composite before inherited opacity"))
+                return false;
+            band->setOpacity(1);
+            root->findChild<QQuickItem *>("penReferenceRubberBand")->setOpacity(1);
+            frame();
+        }
+        if (test.start == test.end && test.start == test.control &&
+            !require(!band->property("rasterActive").toBool(),
+                     "an empty provisional segment allocates no image"))
+            return false;
+    }
+    root->setProperty("syntheticDrawing", false);
+    frame();
+    bandPaths.clear();
+    bandPaints.clear();
+    root->setProperty("syntheticHover", QPointF(120, 240));
+    frame();
+    if (!require(bandPaths.isEmpty() && bandPaints.isEmpty(),
+                 "hidden provisional movement prepares no SVG and paints no Canvas"))
+        return false;
+    handles->setOpacity(1);
+    referenceHandles->setOpacity(1);
     root->setProperty("useSynthetic", false);
     frame();
     if (!require(matchesReference() && document.layerImage(0) == originalPixels &&

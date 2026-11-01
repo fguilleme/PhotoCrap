@@ -253,7 +253,9 @@ The Pen's main path now uses retained GPU curves, with a raster fallback for sof
 and older Qt kits. Native cubic paths are prepared with a geometric error bounded
 to 0.01 logical pixels. Anchors and tangent handles also use GPU paths, cached
 during hover, with a bounded composition layer preserving opacity. The provisional
-segment keeps its separate Canvas; software and older Qt retain raster handles.
+segment also uses GPU geometry when its control hull is fully visible. Clipped
+or very long provisional curves retain their Canvas, as do software and older
+Qt kits. The main path, handles and provisional segment keep separate caches.
 The current editing interactions are preserved.
 
 Solid lasso guides and polygon markers now use GPU paths on compatible Qt kits,

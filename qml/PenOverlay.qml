@@ -147,28 +147,20 @@ Item {
     onYChanged: if (visible) requestPaint()
     onWidthChanged: if (visible) requestPaint()
     onHeightChanged: if (visible) requestPaint()
-    Canvas {
+    PenRubberBand {
         id: rubberBand
         objectName: "penRubberBandOverlay"
-        enabled: false; antialiasing: true; z: 1
+        z: 1
         visible: root.document.penDrawing && root.document.penRubberBand
                  && root.activePath !== null && !root.activePath.closed && root.points.length > 0
+        readonly property var last: root.points.length ? root.points[root.points.length-1] : null
+        startPoint: last ? Qt.point(last.x*root.zoom,last.y*root.zoom) : Qt.point(0,0)
+        controlPoint: last ? Qt.point(last.outX*root.zoom,last.outY*root.zoom) : Qt.point(0,0)
+        endPoint: Qt.point(root.document.penHover.x*root.zoom,root.document.penHover.y*root.zoom)
+        viewBounds: root.screenBounds
+        imageOrigin: Qt.point(root.rubberBounds.x,root.rubberBounds.y)
         x: root.rubberBounds.x-root.x; y: root.rubberBounds.y-root.y
         width: root.rubberBounds.width; height: root.rubberBounds.height
-        onWidthChanged: if (visible) requestPaint()
-        onHeightChanged: if (visible) requestPaint()
-        onVisibleChanged: if (visible) requestPaint()
-        onPaint: {
-            const c = getContext("2d")
-            c.reset(); c.clearRect(0,0,width,height)
-            if (!root.points.length) return
-            c.translate(-root.rubberBounds.x,-root.rubberBounds.y)
-            const last=root.points[root.points.length-1], to=root.document.penHover
-            c.beginPath(); c.moveTo(last.x*root.zoom,last.y*root.zoom)
-            c.bezierCurveTo(last.outX*root.zoom,last.outY*root.zoom,
-                            to.x*root.zoom,to.y*root.zoom,to.x*root.zoom,to.y*root.zoom)
-            c.setLineDash([4,3]); c.strokeStyle="#73c5ff"; c.lineWidth=1.5; c.stroke()
-        }
     }
     PenHandles {
         id: handles

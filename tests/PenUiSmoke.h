@@ -142,7 +142,8 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     QTest::qWait(60);
     if (!require(
             band->isVisible() && pathPaints.isEmpty() && handlePaints.isEmpty() &&
-                primitives.isEmpty() && !bandPaints.isEmpty(),
+                primitives.isEmpty() &&
+                (band->property("gpuBand").toBool() ? bandPaints.isEmpty() : !bandPaints.isEmpty()),
             "pointer hover updates the provisional curve without repainting the retained path"))
         return false;
     QTest::keyClick(_window, Qt::Key_Escape);

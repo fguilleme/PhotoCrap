@@ -468,6 +468,7 @@ qt_add_qml_module(PhotoCrap
         qml/TextTypographyPanel.qml
         qml/TextLayerEditor.qml
         qml/CropOverlay.qml
+        qml/CropGuides.qml
         qml/ScreenOverlayCanvas.qml
         qml/SliceOptions.qml
         qml/SliceOverlay.qml

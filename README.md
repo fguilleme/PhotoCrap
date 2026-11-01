@@ -63,7 +63,7 @@ CMake télécharge les sources LibRaw et zlib épinglées et vérifie leurs SHA-
 
 ## Compilation
 
-Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
+Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs, QtQuick.Shapes et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
 
 ### macOS
 
@@ -288,7 +288,7 @@ Les guides du lasso conservent leurs points en cache pendant le survol et limite
 
 Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises.
 
-Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées conservent leur dessin, limité à leur emprise visible ; le backend logiciel garde le rendu raster complet. Le survol réutilise les points du cadre pour choisir le curseur.
+Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées utilisent aussi des chemins et rectangles du graphe de scène, sans Canvas ni texture de guides pendant le geste. Le backend logiciel et les anciens kits Qt sans CurveRenderer conservent le dessin raster. Le survol réutilise les points du cadre pour choisir le curseur.
 
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.
 

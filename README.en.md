@@ -53,7 +53,7 @@ The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the impleme
 
 ## Building
 
-Requirements: CMake ≥ 3.24, a C++20 compiler, and **Qt ≥ 6.5** with Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools, and Test (for tests). The QtQuick.Dialogs and QtQml.Models QML modules are also required. Qt Image Formats adds formats including WebP and TIFF. Blur uses Accelerate/vImage on macOS and Qt Concurrent on other platforms; each binary must be built with the Qt kit for its target platform.
+Requirements: CMake ≥ 3.24, a C++20 compiler, and **Qt ≥ 6.5** with Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools, and Test (for tests). The QtQuick.Dialogs, QtQuick.Shapes, and QtQml.Models QML modules are also required. Qt Image Formats adds formats including WebP and TIFF. Blur uses Accelerate/vImage on macOS and Qt Concurrent on other platforms; each binary must be built with the Qt kit for its target platform.
 
 ### macOS
 
@@ -234,6 +234,8 @@ The **layer** menu provides available properties, duplication, renaming, deletio
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, selected/visible layer merging, flattening, smart objects, and advanced blending options.
 
 The canvas under development after v0.15 uses reusable Qt Quick textures for visible tiles, with separate overlays. Eligible Curves, Levels, Light, Color, Color Balance, Black and White, Gradient Map, Photo Filter, Channel Mixer, Posterize, Threshold, Color Lookup, and Selective Color previews use correction lookup tables or direct calculations on the GPU; unsupported cases and final rendering retain the CPU engine and working pixel precision. See the [graphics architecture and limitations](docs/GPU_RENDERING.md) (French).
+
+Crop and perspective-crop shading, frame, grid, and handles now render through the GPU scene graph without a Canvas guide texture. The software backend and older Qt kits without CurveRenderer retain raster guides. Final cropping still runs asynchronously on the CPU at native 8/16-bit precision.
 
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 

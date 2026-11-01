@@ -149,6 +149,16 @@ component LegacyCropOverlay: ScreenOverlayCanvas {
         QTest::qWait(50);
         return _window->grabWindow();
     };
+    const auto visualItem = [&](const QString &_name) -> QQuickItem * {
+        QList<QQuickItem *> pending{root};
+        while (!pending.isEmpty()) {
+            auto *item = pending.takeLast();
+            if (item->objectName() == _name)
+                return item;
+            pending.append(item->childItems());
+        }
+        return nullptr;
+    };
     const auto matchesReference = [&] {
         root->setProperty("referenceVisible", true);
         const auto reference = frame();
@@ -158,11 +168,33 @@ component LegacyCropOverlay: ScreenOverlayCanvas {
         const auto  origin = root->mapToScene(QPointF{});
         const QRect bounds(qFloor(origin.x() * ratio), qFloor(origin.y() * ratio),
                            qFloor(root->width() * ratio), qFloor(root->height() * ratio));
+        const auto  filtered = [&](const QImage &_image, int _x, int _y) {
+            int rgb[3] = {0, 0, 0}, count = 0;
+            for (int yy = qMax(bounds.top(), _y - 2); yy <= qMin(bounds.bottom(), _y + 2); ++yy)
+                for (int xx = qMax(bounds.left(), _x - 2); xx <= qMin(bounds.right(), _x + 2);
+                     ++xx) {
+                    const auto c = _image.pixelColor(xx, yy);
+                    rgb[0] += c.red();
+                    rgb[1] += c.green();
+                    rgb[2] += c.blue();
+                    ++count;
+                }
+            return QColor(rgb[0] / count, rgb[1] / count, rgb[2] / count);
+        };
+        const auto near = [](QColor _a, QColor _b, int _tolerance) {
+            return qAbs(_a.red() - _b.red()) <= _tolerance &&
+                   qAbs(_a.green() - _b.green()) <= _tolerance &&
+                   qAbs(_a.blue() - _b.blue()) <= _tolerance;
+        };
         for (int y = bounds.top(); y <= bounds.bottom(); ++y)
             for (int x = bounds.left(); x <= bounds.right(); ++x) {
                 const auto a = actual.pixelColor(x, y), b = reference.pixelColor(x, y);
-                if (qAbs(a.red() - b.red()) > 4 || qAbs(a.green() - b.green()) > 4 ||
-                    qAbs(a.blue() - b.blue()) > 4) {
+                // The old rotated Canvas is antialiased then texture-filtered;
+                // GPU paths are antialiased once. A small common low-pass filter
+                // compares their geometry/coverage without requiring identical AA.
+                if (!near(a, b, 4)) {
+                    if (hardware && near(filtered(actual, x, y), filtered(reference, x, y), 12))
+                        continue;
                     qWarning() << "Crop reference difference" << QPoint(x, y) << a << b;
                     actual.save("/tmp/photocrap-crop-actual.png");
                     reference.save("/tmp/photocrap-crop-reference.png");
@@ -187,19 +219,42 @@ component LegacyCropOverlay: ScreenOverlayCanvas {
         const auto pixels  = document.layerImage(0);
         const auto history = document.historyIndex();
         frame();
+        auto      *guides = visualItem("cropGpuGuides");
+        auto      *raster = visualItem("cropRasterGuides");
+        const bool vectorGuides =
+            hardware && guides && guides->property("curveRendererAvailable").toBool();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        if (!require(!hardware || vectorGuides, "current RHI kits must use GPU crop guides"))
+            return false;
+#endif
+        if (!require(vectorGuides ? guides && !raster : raster != nullptr,
+                     "hardware creates retained guides without a Canvas; software keeps the raster "
+                     "fallback"))
+            return false;
+        if (vectorGuides) {
+            auto *shape = guides->findChild<QQuickItem *>("cropGuideShape");
+            if (!require(shape && shape->property("rendererType") ==
+                                      shape->property("preferredRendererType"),
+                         "crop paths use the requested GPU curve renderer"))
+                return false;
+        }
         if (!require(overlay->property("gpuShade").toBool() == hardware &&
                          shade->shaderActive() == hardware && matchesReference(),
                      "GPU crop shade and guides match the original raster overlay"))
             return false;
         if (hardware && !require(overlay->width() * overlay->height() < 512 * 320 &&
                                      shade->geometryUploads() > 0,
-                                 "hardware keeps a four-vertex veil and a smaller guide raster"))
+                                 "hardware keeps a four-vertex veil and bounded retained guides"))
             return false;
+        QSignalSpy rasterPaints(overlay, SIGNAL(painted()));
         const auto geometry = shade->geometryUploads(), parameters = shade->parameterUpdates();
         document.beginCropGesture(160, 140, 0);
         document.updateCropGesture(170, 150);
         document.endCropGesture();
         frame();
+        if (!require(vectorGuides ? rasterPaints.isEmpty() : !rasterPaints.isEmpty(),
+                     "GPU crop movement avoids raster paints while the fallback still updates"))
+            return false;
         if (!require((!hardware || (shade->geometryUploads() == geometry &&
                                     shade->parameterUpdates() > parameters)) &&
                          document.layerImage(0) == pixels && document.historyIndex() == history &&

@@ -915,7 +915,7 @@ gestes provisoires, le zoom, le défilement et la rotation. Les scénarios de re
 sont exécutés sur logiciel, Metal et OpenGL. Le smoke test QML vérifie aussi les
 contrôles de tranche réellement affichés dans l’application.
 
-## Recadrage : voile GPU et guides raster bornés
+## Recadrage : voile et guides GPU
 
 `CropOverlay.qml` partage un snapshot des quatre points entre le test du curseur,
 le dessin des guides et le voile natif `CropShadeItem`. Le survol n’appelle plus
@@ -937,12 +937,25 @@ ou du découpage d’une vue tournée. La transformation et le clipping restent 
 du graphe de scène. Même si les guides sont entièrement hors champ, le voile
 reste visible dans la vue par son nœud enfant.
 
-Le cadre, la grille et les poignées gardent leur dessin Canvas en une seule passe,
-limité à l’enveloppe visible du quadrilatère avec une marge de 16 pixels logiques
-pour les traits, joints en onglet et poignées. Leur raster est repeint quand le
-cadre change ; cette étape ne les passe pas sur GPU. Le backend logiciel conserve
-le Canvas complet d’origine pour le voile et les guides. Le recadrage final reste
-asynchrone sur CPU en précision native 8/16 bits.
+Le cadre et la grille utilisent désormais quatre `ShapePath` dans un unique
+`Shape` avec `CurveRenderer` : contour sombre puis clair, grille sombre puis claire.
+Les quatre ou huit poignées sont des rectangles du graphe de scène. Le `Loader`
+matériel ne crée aucun Canvas ni image de guides. Les chemins sont préparés sur
+CPU par Qt (leur géométrie est petite et bornée en nombre de segments), puis
+tracés sur GPU avec anticrénelage analytique ; cette étape ne supprime donc pas
+le coût de préparation des chemins, ni le calcul CPU du recadrage final.
+
+Les coordonnées des guides sont locales à l’enveloppe visible du quadrilatère,
+avec une marge de 16 pixels logiques. Les poignées sont conservées au déplacement,
+avec un nombre stable de délégués. Les guides entièrement hors champ ne sont pas
+créés. La vue conserve le clipping et la rotation du graphe de scène.
+
+Le backend logiciel conserve le Canvas complet d’origine pour le voile et les
+guides. Les kits sans `preferredRendererType` (Qt 6.5) gardent également les guides
+raster bornés, avec le voile natif sur RHI. Les propriétés introduites en Qt 6.6
+sont consultées dynamiquement, sans imposer une nouvelle version minimale.
+Le module QML `QtQuick.Shapes` fait partie des dépendances à déployer.
+Le recadrage final reste asynchrone sur CPU en précision native 8/16 bits.
 
 `crop_shade` vérifie les plans, le sens du quadrilatère, les ouvertures invalides,
 les grandes coordonnées et les origines de vue. `crop_overlay` compare les pixels
@@ -953,3 +966,17 @@ et la mise à jour des seules constantes au déplacement. Ces scénarios sont
 exécutés sur logiciel, Metal et OpenGL ; les autres backends RHI restent à valider
 sur leur matériel. Le smoke test QML contrôle aussi le curseur réel du recadrage
 et l’absence de repeint/snapshot pendant son survol.
+
+Les tests des guides matériels contrôlent l’absence de Canvas et de signal
+`painted` pendant le déplacement, ainsi que le renderer demandé. Les comparaisons
+au Canvas restent strictes sur logiciel (4/255 par canal). Sur GPU, les traits
+analytiques sont lissés une fois, tandis que l’ancien Canvas est lissé puis filtré
+comme texture sous rotation. Les pixels différents sont donc comparés après un
+même filtre moyen de 5 × 5 pixels physiques, avec une tolérance de 12/255 par canal.
+Ce contrôle porte sur l’aspect et le placement des guides ; il ne revendique pas
+une identité d’anticrénelage avec QPainter. Les pixels et l’historique de l’image
+restent comparés sans cette tolérance. Les compteurs vérifient aussi que le repli
+raster repeint effectivement ses guides lors d’un déplacement.
+
+Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
+[ShapePath](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html).

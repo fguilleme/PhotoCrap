@@ -1,10 +1,12 @@
 #pragma once
 #include "Document.h"
+#include "OverlayReference.h"
 #include <QJSValue>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QSGRendererInterface>
 #include <QtTest>
 #include <memory>
 
@@ -15,6 +17,12 @@ inline bool runLassoGuideSmoke(QQuickWindow *_window)
             qWarning("Lasso guide check failed: %s", _message);
         return _ok;
     };
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    const bool expectedGpu =
+        QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
+#else
+    const bool expectedGpu = false;
+#endif
     Document      document;
     QQmlComponent component(qmlEngine(_window));
     component.setData(R"(
@@ -32,6 +40,7 @@ Item {
     property point pointer: Qt.point(340,130)
     property bool pointerInside: true
     property real phase: 0
+    property real guideOpacity: 1
     Rectangle { anchors.fill: parent; color: "#5a7896" }
     component LegacyGuide: ScreenOverlayCanvas {
         id: legacy
@@ -49,6 +58,9 @@ Item {
                                     const points = document.selectionPath
                                     const c = getContext("2d")
                                     c.reset()
+                                    // Define the reference's solid initial pen
+                                    // independently of prior dash commands.
+                                    c.setLineDash([])
                                     c.clearRect(0, 0, width, height)
                                     if (!points || points.length < 1) return
                                     c.translate(-x, -y)
@@ -101,6 +113,7 @@ Item {
                 objectName: "lassoTestGuide"
                 document: fixture.document; viewportItem: view; zoom: fixture.zoom
                 phase: fixture.phase
+                opacity: fixture.guideOpacity
                 pointerX: fixture.pointer.x*zoom; pointerY: fixture.pointer.y*zoom
                 pointerInside: fixture.pointerInside
                 visible: !referenceVisible && guideNeeded && points.length>0
@@ -108,6 +121,7 @@ Item {
             LegacyGuide {
                 document: fixture.document; viewportItem: view; zoom: fixture.zoom
                 phase: fixture.phase
+                opacity: fixture.guideOpacity
                 pointerX: fixture.pointer.x*zoom; pointerY: fixture.pointer.y*zoom
                 pointerInside: fixture.pointerInside
                 visible: referenceVisible && document.selectionEdgesVisible && document.lassoPreviewActive
@@ -152,19 +166,19 @@ Item {
         const auto  origin = root->mapToScene(QPointF{});
         const QRect bounds(qFloor(origin.x() * ratio), qFloor(origin.y() * ratio),
                            qFloor(root->width() * ratio), qFloor(root->height() * ratio));
-        for (int y = bounds.top(); y <= bounds.bottom(); ++y)
-            for (int x = bounds.left(); x <= bounds.right(); ++x) {
-                const auto a = actual.pixelColor(x, y), b = reference.pixelColor(x, y);
-                if (qAbs(a.red() - b.red()) > 4 || qAbs(a.green() - b.green()) > 4 ||
-                    qAbs(a.blue() - b.blue()) > 4) {
-                    qWarning() << "Lasso reference difference" << QPoint(x, y) << a << b;
-                    return false;
-                }
-            }
-        return true;
+        // A viewport-sized Canvas and a cropped Canvas acquire different
+        // subpixel texture origins when rotated, even on the software backend.
+        const bool filtered =
+            guide->property("gpuGuide").toBool() || root->property("viewRotation").toReal() != 0;
+        return compareOverlayReference(actual, reference, bounds, filtered,
+                                       "/tmp/photocrap-lasso-guide");
     };
-    QSignalSpy guidePaints(guide, SIGNAL(painted())), snapshots(guide, SIGNAL(pointsChanged()));
-    if (!require(guidePaints.isValid() && snapshots.isValid(),
+    QSignalSpy pointBounds(guide, SIGNAL(pointBoundsChanged()));
+    QSignalSpy guidePaints(guide, SIGNAL(painted())), snapshots(guide, SIGNAL(pointsChanged())),
+        prefixes(guide, SIGNAL(fixedPathChanged())),
+        markerModels(guide, SIGNAL(visiblePointsChanged()));
+    if (!require(pointBounds.isValid() && guidePaints.isValid() && snapshots.isValid() &&
+                     prefixes.isValid() && markerModels.isValid(),
                  "observe guide paints and point snapshots"))
         return false;
     for (int bits : {8, 16}) {
@@ -179,8 +193,47 @@ Item {
         frame();
         if (!require(matchesReference(), "bounded polygon guide matches the old drawing"))
             return false;
+        const bool gpu = guide->property("gpuGuide").toBool();
+        if (!require(gpu == expectedGpu,
+                     "solid guides actually use CurveRenderer on eligible hardware"))
+            return false;
+        if (!require(gpu ? !guide->property("rasterActive").toBool()
+                         : guide->property("rasterActive").toBool(),
+                     "solid GPU guides have no raster context; the fallback paints"))
+            return false;
+        if (!require(expectedGpu || guide->property("fixedPath").toString().isEmpty(),
+                     "software rendering does not prepare unused SVG geometry"))
+            return false;
+        root->setProperty("pointer", QPointF(210, 110));
+        frame();
+        if (!require(matchesReference(), "an acute provisional join keeps its full miter"))
+            return false;
+        root->setProperty("pointer", QPointF(181, 71));
+        frame();
+        if (!require(!guide->property("gpuGuide").toBool() &&
+                         guide->property("rasterActive").toBool() && matchesReference(),
+                     "an extremely acute live endpoint uses the original raster join"))
+            return false;
+        root->setProperty("pointer", QPointF(210, 110));
+        document.addPolygonLassoPoint(181, 71);
+        frame();
+        if (!require(!guide->property("gpuGuide").toBool() &&
+                         guide->property("rasterActive").toBool() && matchesReference(),
+                     "extremely acute fixed joins keep raster miters and marker drawing order"))
+            return false;
+        document.removeLastPolygonLassoPoint();
+        root->setProperty("pointer", QPointF(340, 130));
+        frame();
+        if (!require(
+                guide->property("gpuGuide").toBool() == gpu &&
+                    guide->property("rasterActive").toBool() != gpu && matchesReference(),
+                "removing the acute point restores the expected renderer without a stale raster"))
+            return false;
         guidePaints.clear();
         snapshots.clear();
+        prefixes.clear();
+        markerModels.clear();
+        pointBounds.clear();
         for (int phase : {1, 3, 6}) {
             root->setProperty("phase", phase);
             frame();
@@ -192,10 +245,12 @@ Item {
             root->setProperty("pointer", point);
             frame();
         }
-        if (!require(
-                guidePaints.count() >= 3 && snapshots.isEmpty() &&
-                    document.historyIndex() == history && document.layerImage(0) == original,
-                "polygon hover redraws its bounded guide without edits or new point snapshots"))
+        if (!require((gpu ? guidePaints.isEmpty() : guidePaints.count() >= 3) &&
+                         snapshots.isEmpty() && prefixes.isEmpty() && markerModels.isEmpty() &&
+                         pointBounds.isEmpty() && document.historyIndex() == history &&
+                         document.layerImage(0) == original,
+                     "polygon hover preserves fixed points and marker models, with no GPU raster "
+                     "paints"))
             return false;
         if (!require(cachedPointCount() == 3 && matchesReference(),
                      "moving the polygon tail preserves the guide and its joins"))
@@ -209,23 +264,30 @@ Item {
         guidePaints.clear();
         document.addPolygonLassoPoint(300, 170);
         frame();
-        if (!require(!guidePaints.isEmpty() && matchesReference(),
+        if (!require((gpu ? guidePaints.isEmpty() : !guidePaints.isEmpty()) &&
+                         !snapshots.isEmpty() && matchesReference(),
                      "placing a polygon point refreshes the fixed guide"))
             return false;
         document.removeLastPolygonLassoPoint();
         frame();
         if (!require(matchesReference(), "removing a polygon point restores its previous guide"))
             return false;
-        for (qreal zoom : {.5, 2., 8.}) {
+        for (qreal zoom : {.5, 2., 8., 64.}) {
             root->setProperty("zoom", zoom);
             root->setProperty("panX", zoom > 1 ? 100 * zoom : 0);
-            root->setProperty("panY", zoom > 1 ? 60 * zoom : 0);
+            root->setProperty("panY", zoom == 64 ? 70 * zoom - 40 : zoom > 1 ? 60 * zoom : 0);
             frame();
             if (!require(
                     guide->width() <= 512 && guide->height() <= 320 && matchesReference(),
                     "guide layers stay bounded and preserve pixels through zoom and scrolling"))
                 return false;
         }
+        root->setProperty("panY", 250. * 64);
+        frame();
+        if (!require(guide->height() == 0 && !guide->property("gpuGuide").toBool() &&
+                         !guide->property("rasterActive").toBool() && matchesReference(),
+                     "an entirely offscreen guide allocates neither a GPU layer nor a Canvas"))
+            return false;
         root->setProperty("zoom", 1.);
         root->setProperty("panX", 0);
         root->setProperty("panY", 0);
@@ -236,6 +298,13 @@ Item {
         if (!require(guidePaints.isEmpty() && guide->width() <= 610 && guide->height() <= 610,
                      "rotation moves the local guide texture without repainting unchanged bounds"))
             return false;
+        if (!require(matchesReference(), "rotated guides preserve their thin strokes and markers"))
+            return false;
+        root->setProperty("guideOpacity", .37);
+        frame();
+        if (!require(matchesReference(), "stroke and markers composite before inherited opacity"))
+            return false;
+        root->setProperty("guideOpacity", 1.);
         root->setProperty("viewRotation", 0);
         document.finishPolygonLasso();
         frame();
@@ -267,8 +336,9 @@ Item {
         root->setProperty("phase", 2.25);
         frame();
         if (!require(
-                guide->isVisible() && !guidePaints.isEmpty() && snapshots.isEmpty() &&
-                    matchesReference(),
+                guide->isVisible() && !guide->property("gpuGuide").toBool() &&
+                    guide->property("rasterActive").toBool() && !guidePaints.isEmpty() &&
+                    snapshots.isEmpty() && matchesReference(),
                 "combined freehand candidates keep animated dashes without reconverting points"))
             return false;
         document.cancelStroke();
@@ -286,6 +356,12 @@ Item {
         frame();
         if (!require(!guide->isVisible(), "hiding selection edges clears all guide layers"))
             return false;
+        const auto hiddenPaints = guidePaints.count();
+        root->setProperty("pointer", QPointF(210, 110));
+        root->setProperty("phase", 7.5);
+        frame();
+        if (!require(guidePaints.count() == hiddenPaints, "hidden guide changes do not paint"))
+            return false;
         document.setSelectionEdgesVisible(true);
         frame();
         if (!require(matchesReference(), "showing edges restores the current guide"))
@@ -298,5 +374,6 @@ Item {
             return false;
         document.setToolModifiers(false, false, false);
     }
+    qInfo("Lasso guide checks passed");
     return true;
 }

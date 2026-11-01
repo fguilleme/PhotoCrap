@@ -857,7 +857,9 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::mouseMove(
         _window, area->mapToScene(QPointF(90, 50) * _window->property("zoom").toReal()).toPoint());
     QTest::qWait(60);
-    if (!require(!guidePaints.isEmpty(), "polygon hover repaints its cached guide on demand"))
+    if (!require(lassoGuide->property("gpuGuide").toBool() ? guidePaints.isEmpty()
+                                                           : !guidePaints.isEmpty(),
+                 "polygon hover uses GPU geometry or repaints the software guide on demand"))
         return false;
     _document.cancelPolygonLasso();
     QTest::qWait(30);

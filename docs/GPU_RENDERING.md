@@ -861,16 +861,17 @@ conversion de points pour ce guide caché.
 
 La surface est limitée à l’intersection de l’enveloppe du guide, pointeur compris
 pour le polygonal, et de la vue. La marge couvre les traits, leurs joints en onglet
-et les poignées. Le guide reste dessiné en une seule passe pour conserver le
-même anticrénelage aux joints et aux croisements. Le déplacement du pointeur
-redessine cette surface bornée, avec les points déjà en cache.
+et les poignées. Le repli Canvas dessine le guide en une seule passe pour conserver
+le même anticrénelage aux joints et aux croisements. Sur ce repli, le déplacement
+du pointeur redessine la surface bornée avec les points déjà en cache. Les guides
+unis éligibles utilisent désormais le chemin GPU décrit plus bas.
 
 L’animation commune des fourmis ne tourne plus sans sélection effective. Le guide
 uni ignore aussi les changements de phase directs : un polygonal immobile sans
 sélection ne repeint plus sa surface en continu. Les candidats combinés, dont la
 transition Alt du lasso libre vers le polygonal, gardent le dessin fermé et les
 pointillés complets ; leurs points restent en cache entre changements du candidat.
-Cette étape conserve le dessin raster des guides et le moteur de sélection.
+Le moteur de sélection reste commun aux chemins GPU et raster.
 
 Le test `lasso_guide` compare aux pixels de l’ancien Canvas en 8/16 bits, y compris
 les joints, les transitions entre guides, la sortie du pointeur, le zoom et le
@@ -1582,3 +1583,63 @@ pendant le masquage.
 
 Références Qt : [ShaderEffect et sorties prémultipliées](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html#shader-inputs-and-resources),
 [Canvas et coût des transferts de texture](https://doc.qt.io/qt-6.8/qml-qtquick-canvas.html#detailed-description).
+
+
+## Guides unis du lasso dans le graphe de scène GPU
+
+`LassoGuide.qml` sépare maintenant le conteneur borné de son dessin. Les points,
+leur enveloppe et le préfixe du chemin fixe restent en cache entre mouvements
+du pointeur ; l’enveloppe du guide s’obtient en ajoutant le seul point provisoire,
+sans reparcourir ni recopier les points fixes. Les repères visibles sont filtrés
+à partir des points et de la vue, indépendamment du survol.
+
+Le chemin SVG et le modèle de repères GPU ne sont pas préparés pour le backend
+logiciel ou les candidats combinés qui ne les utilisent pas.
+
+Sur RHI et avec CurveRenderer, `LassoSolidGuide.qml` dessine le contour ouvert
+et les repères dans le graphe de scène. Le contour et son segment provisoire
+forment un seul chemin, pour conserver la jointure à leur raccord. Ce chemin
+est réévalué quand le segment provisoire change ; les chemins des repères restent
+indépendants et leurs nœuds sont repositionnés lorsque l’origine locale change.
+Il reste donc une préparation de géométrie CPU, mais aucun repeint Canvas ni
+transfert d’image raster pendant le survol éligible.
+
+Une couche GPU limitée à l’intersection du guide et de la vue compose les traits
+et les repères avant l’opacité héritée, comme l’ancien Canvas. Elle peut changer
+de dimensions avec l’enveloppe du guide ; il ne s’agit pas d’un shader sans
+surface intermédiaire. Le trait garde sa largeur d’un pixel logique, ses couleurs,
+ses extrémités plates et ses onglets. Les repères gardent leur rayon de trois
+pixels et leur ordre de dessin. Une enveloppe entièrement hors champ ne charge
+ni la couche GPU ni le Canvas.
+
+Les candidats fermés combinés gardent le Canvas et leurs deux traits pointillés
+animés. Le backend logiciel et Qt sans CurveRenderer utilisent aussi ce repli.
+Les retours presque superposés, dont l’angle intérieur a un cosinus supérieur
+à 0,995, restent en raster : le découpage des onglets extrêmes de CurveRenderer
+diffère de celui de QPainter. Les angles des points fixes sont testés seulement
+quand les points changent ; seul le dernier raccord dépend du pointeur. Retirer
+le point problématique ou déplacer le segment provisoire réactive le GPU et
+retire le Canvas. Aucun seuil ni comportement de sélection n’est modifié.
+
+Les marges de dessin incluent désormais l’onglet complet et sa frange de lissage,
+pas seulement les poignées : 12 pixels logiques pour le polygonal uni et 17 pour
+le candidat à trait de 1,5 pixel. Cela évite de couper une pointe aiguë encore
+visible dans la vue. Le repli réaffirme aussi le trait uni au début de chaque
+peinture : un ancien décalage de pointillés conservé par la relecture Context2D
+ne doit pas rendre les repères d’un nouveau polygonal pointillés.
+
+Le test `lasso_guide` compare à un Canvas indépendant en 8/16 bits : survol,
+repères proches, onglets aigus, repli du dernier raccord et des points fixes,
+ajout/retrait, fin de geste, annulation, masquage et réaffichage. Il vérifie le
+zoom jusqu’à 64×, le défilement, la rotation, l’opacité après composition et la
+sortie complète de la vue. L’absence de contexte raster sur le chemin GPU et
+les compteurs de repeints, snapshots, préfixes, enveloppes et modèles de repères
+contrôlent les réutilisations. Les comparaisons GPU emploient les tolérances de
+lissage partagées ; les replis gardent la comparaison raster directe, sauf sous
+rotation où les textures bornées et pleine vue ont des origines de filtrage
+différentes. Le smoke test général couvre aussi le vrai mouvement de souris et
+l’arrêt de l’animation sans sélection pointillée.
+
+Références Qt : [Shape et CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
+[styles des jointures](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html#joinStyle-prop),
+[relecture des pointillés de Context2D](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/context2d/qquickcontext2dcommandbuffer.cpp).

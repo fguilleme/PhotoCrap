@@ -254,6 +254,12 @@ and older Qt kits. Native cubic paths are prepared with a geometric error bounde
 to 0.01 logical pixels. Handles and the provisional segment keep their bounded
 Canvas layers; hovering does not rebuild the retained main path.
 
+Solid lasso guides and polygon markers now use GPU paths on compatible Qt kits,
+with a view-bounded composition layer preserving opacity. Fixed point snapshots,
+bounds and marker models stay cached during hover. Software, older Qt kits and
+extremely acute joins retain Canvas rendering; combined candidates keep their
+animated dashes. An entirely offscreen guide allocates neither drawing path.
+
 The moving Slice frame uses a separate GPU path. Creating, moving or resizing a
 slice keeps the numbered slice layer cached. Commits, selection, tool and view
 changes still repaint that layer. The overlay and options bar reuse their

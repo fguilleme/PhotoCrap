@@ -288,6 +288,8 @@ Les guides du lasso conservent leurs points en cache pendant le survol et limite
 
 Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises. Le cadre provisoire est séparé sur GPU : création, déplacement et redimensionnement conservent le dessin des tranches fixes et des numéros. Leur liste partagée reste aussi en cache dans la barre d’options pendant le geste ; le backend logiciel garde le cadre raster.
 
+Le panneau Histogramme dessine ses trois zones RVB et sa courbe de luminance sur GPU, avec un repli Canvas sur le backend logiciel et les anciens kits Qt. Une couche de composition GPU limitée à la taille du graphique conserve la superposition des couleurs et l’opacité du panneau. Le calcul des statistiques reste sur CPU.
+
 Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées utilisent aussi des chemins et rectangles du graphe de scène, sans Canvas ni texture de guides pendant le geste. Le backend logiciel et les anciens kits Qt sans CurveRenderer conservent le dessin raster. Le survol réutilise les points du cadre pour choisir le curseur.
 
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.

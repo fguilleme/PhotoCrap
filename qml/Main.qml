@@ -2919,44 +2919,11 @@ ApplicationWindow {
                             anchors.fill: parent
                             color: "#181e25"; radius: 5
                             property var histogramData: (editor.revision, editor.colorHistogram())
-                            onHistogramDataChanged: histogramCanvas.requestPaint()
-                            Canvas {
+                            HistogramChart {
                                 id: histogramCanvas
                                 objectName: "colorHistogramCanvas"
                                 anchors.fill: parent; anchors.margins: 8
-                                onPaint: {
-                                    const context = getContext("2d")
-                                    context.reset()
-                                    context.fillStyle = "#14191f"
-                                    context.fillRect(0, 0, width, height)
-                                    const data = parent.histogramData
-                                    function channel(values, color) {
-                                        if (!values || values.length !== 256) return
-                                        context.beginPath()
-                                        context.moveTo(0, height)
-                                        for (let i = 0; i < 256; ++i)
-                                            context.lineTo(i * width / 255, height - values[i] * (height - 4))
-                                        context.lineTo(width, height)
-                                        context.closePath()
-                                        context.fillStyle = color
-                                        context.fill()
-                                    }
-                                    channel(data.red, "rgba(245,63,69,.48)")
-                                    channel(data.green, "rgba(55,220,95,.43)")
-                                    channel(data.blue, "rgba(64,112,255,.48)")
-                                    context.strokeStyle = "rgba(235,239,242,.7)"
-                                    context.lineWidth = 1
-                                    const luminance = data.luminance
-                                    if (luminance && luminance.length === 256) {
-                                        context.beginPath()
-                                        for (let i = 0; i < 256; ++i) {
-                                            const x = i * width / 255
-                                            const y = height - luminance[i] * (height - 4)
-                                            if (i === 0) context.moveTo(x, y); else context.lineTo(x, y)
-                                        }
-                                        context.stroke()
-                                    }
-                                }
+                                histogramData: parent.histogramData
                             }
                         } }
                     }

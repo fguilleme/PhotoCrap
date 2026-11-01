@@ -259,6 +259,11 @@ slice keeps the numbered slice layer cached. Commits, selection, tool and view
 changes still repaint that layer. The overlay and options bar reuse their
 metadata snapshot during draft gestures. Software retains the raster draft.
 
+The Histogram panel draws its RGB areas and luminance curve on the GPU, with a
+Canvas fallback for software and older Qt kits. A chart-sized GPU composition
+layer preserves channel blending and panel opacity. Histogram statistics still
+run on the CPU.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

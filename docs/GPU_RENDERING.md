@@ -1166,3 +1166,62 @@ du canevas et des options : ils restent nuls pendant le déplacement sur GPU, le
 même objet de cadre est conservé et le buffer natif reste partagé. Le dessin des
 numéros reste raster et borné ; cette étape accélère le cadre mobile et évite les
 repeints de son fond.
+
+## Panneau Histogramme dessiné sur GPU
+
+Le panneau droit utilise `HistogramChart.qml` et `HistogramGraph.qml` au lieu de
+son Canvas intégré à `Main.qml`. Les trois surfaces RVB et le trait de luminance
+sont des chemins de 256 valeurs, affichés par le composant commun CurveRenderer.
+Les aplats gardent l’ordre rouge, vert puis bleu, leurs couleurs et leurs alphas
+respectifs ; la luminance est tracée par-dessus avec une largeur de 1 pixel logique.
+Le fond reste `#14191f`, les abscisses vont de 0 à largeur pour les 256 classes et
+la hauteur utile conserve la marge supérieure de 4 pixels du dessin précédent.
+
+La luminance utilise un contour préparé par `HistogramGeometry` avec
+`QPainterPathStroker` : largeur 1, extrémités plates, jointures en pointe et limite
+10, puis remplissage GPU avec la règle d’enroulement. Cette préparation géométrique
+CPU conserve les pointes étroites que le trait direct de CurveRenderer écourtait.
+Elle ne produit aucune image raster. Les données et les dimensions invalides sont
+ignorées ; le contour reste en cache dans la liaison QML entre deux changements.
+
+Le fond et les quatre chemins sont composés dans une petite couche graphique
+`layer.enabled`, à la taille du graphique. Ce tampon GPU garde le résultat opaque
+avant l’application d’une éventuelle opacité héritée du panneau. Il évite que les
+alphas des trois canaux soient réappliqués séparément lorsque le panneau est
+atténué. Le conteneur Canvas reste présent pour le repli logiciel, mais le chemin
+matériel n’y crée aucun contexte 2D ni aucune image raster. Il conserve une texture
+intermédiaire et un passage de composition sur GPU. Cette ressource
+Qt est distincte du budget LRU des tuiles photo ; elle est bornée au graphique,
+réside sur GPU et reste réutilisée tant que son contenu ne change pas.
+
+Pour les tailles fractionnaires, la surface logique est arrondie puis remise à
+l’échelle aux dimensions du composant, comme la fenêtre de pixels du Canvas.
+Les points restent calculés depuis les dimensions fractionnaires d’origine.
+Ce traitement conserve l’alignement des classes et de la ligne de base sans
+élargir la tolérance du comparateur de rendu.
+
+Une nouvelle série de statistiques ou un redimensionnement réactualisent les
+chemins. Le déplacement du panneau conserve les chemins et leur objet graphique ;
+le masquage décharge le composant et sa réouverture utilise les dernières données.
+Le backend logiciel et les versions Qt sans CurveRenderer utilisent une copie du
+Canvas antérieur. L’identifiant d’objet historique `colorHistogramCanvas` reste
+celui du composant public, pour les transitions ancré/flottant existantes.
+
+Le calcul des statistiques `Document::colorHistogram()` et ses proxys CPU ne sont
+pas modifiés. Cette étape concerne le panneau Histogramme ; les graphiques des
+éditeurs Courbes, Niveaux et Seuil gardent leurs composants actuels.
+
+Le test `histogram_render` utilise une copie indépendante du dessin Canvas comme
+référence : superposition RVB vérifiée par calcul source-over, luminance, données
+variables et incomplètes, pics isolés et classes extrêmes, déplacements, tailles
+entières/fractionnaires, opacité, rotation, données modifiées pendant le masquage
+et passage vers une seconde fenêtre puis retour. Il exige le véritable rendu GPU
+sur les backends compatibles, sans contexte Canvas actif sur ce chemin, et observe
+les repeints logiciels. Les comparaisons reprennent les tolérances du comparateur
+commun des surimpressions. Le smoke test général conserve ses contrôles de mise en onglets,
+masquage et transitions du panneau Histogramme.
+
+Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
+[couches graphiques et opacité](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#item-layers)
+et [Canvas](https://doc.qt.io/qt-6.8/qml-qtquick-canvas.html).
+Préparation du contour : [QPainterPathStroker](https://doc.qt.io/qt-6.8/qpainterpathstroker.html).

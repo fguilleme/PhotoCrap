@@ -7,6 +7,7 @@
 #include "ShortcutManager.h"
 #include "ToolInput.h"
 #include "WorkspaceSettings.h"
+#include "render/HistogramGeometry.h"
 #include "text/TextEditorController.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -21,6 +22,7 @@
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/CropOverlaySmoke.h"
 #include "../tests/FileDialogSmoke.h"
+#include "../tests/HistogramRenderSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
 #include "../tests/PenOverlaySmoke.h"
@@ -90,6 +92,9 @@ int main(int argc, char *argv[])
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterType<CropShadeItem>("PhotoCrap.Native", 1, 0, "CropShade");
+    qmlRegisterSingletonType<HistogramGeometry>(
+        "PhotoCrap.Native", 1, 0, "HistogramGeometry",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new HistogramGeometry; });
     qmlRegisterType<TextEditorController>("PhotoCrap.Native", 1, 0, "TextFormatting");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");
@@ -162,6 +167,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--histogram-render-test")) {
+                passed = window && runHistogramRenderSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

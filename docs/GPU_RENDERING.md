@@ -829,19 +829,19 @@ pas. Seul le Canvas du segment provisoire est repeint au survol. Chaque surface
 est limitée à l’intersection de son enveloppe (points de contrôle inclus pour les
 courbes, tangentes sélectionnées pour les poignées), avec marge de trait, et de
 la vue. Les enveloppes sont conservatrices : elles ne coupent pas une courbe qui
-sort du rectangle de ses seules ancres. Les éléments raster restent séparés du
-composite photo ; cette étape ne déplace pas l’édition des tracés sur GPU. Le cache
-peut conserver trois surfaces bornées, au lieu du dessin combiné précédent, afin
-d’éviter de repeindre les éléments fixes. Ces surfaces QML restent distinctes du
-budget LRU des tuiles photo.
+sort du rectangle de ses seules ancres. Le premier cache séparé pouvait conserver
+trois surfaces bornées au lieu du dessin combiné précédent, afin d’éviter de
+repeindre les éléments fixes. Le chemin GPU décrit ci-dessous remplace maintenant
+la surface de la courbe principale. Les couches QML restent séparées du composite
+photo et du budget LRU de ses tuiles ; l’édition des points reste côté CPU.
 
 Une modification des ancres, des tangentes, du chemin actif ou une annulation
 invalide les dessins fixes. Zoom et défilement ajustent les surfaces visibles.
 Fermer le chemin, terminer sa construction ou désactiver le segment provisoire
 le masque ; le survol d’un chemin terminé ne provoque plus de repeint.
 
-Le test `pen_overlay` conserve l’ancien Canvas comme référence indépendante et
-compare les pixels du dessin séparé en 8/16 bits, avec/sans guide, après édition
+Le test `pen_overlay` conserve une copie indépendante des Canvas bornés de la
+Plume, avant l’ajout du tracé GPU, et compare les pixels du dessin séparé en 8/16 bits, avec/sans guide, après édition
 et annulation, aux différents zooms et après défilement. Les signaux `painted`
 vérifient que le survol ne repeint ni courbe ni poignées et ne modifie pas le
 snapshot actif ; pixels et historique du document restent intacts. La rotation
@@ -1072,3 +1072,56 @@ changements de forme et du déplacement d’une empreinte découpée.
 
 L’échantillonnage du pinceau, la peinture sur calques et masques, l’historique et
 les curseurs natifs ne sont pas modifiés par cette étape.
+
+## Tracé principal de la Plume conservé sur GPU
+
+`PenOverlay.qml` utilise `PenCurve.qml` et le composant commun `GpuGuideShape`
+pour ses deux traits principaux : contour sombre de 3 pixels logiques et trait
+bleu de 1,5 pixel, sans remplissage. Le moteur CurveRenderer affiche ces chemins
+sans Canvas ni texture intermédiaire. Les poignées et le segment provisoire
+restent dans leurs Canvas indépendants, au-dessus du tracé ; leur ordre de dessin
+et leurs règles d’actualisation ne changent pas.
+
+La conversion native des points reste conservée entre notifications du document.
+Sur le chemin matériel, une description SVG du tracé dépend des points, du zoom
+et de l’origine découpée, sans dépendre de la position de survol. Le backend
+logiciel n’effectue pas cette préparation SVG. Le survol conserve donc la même description
+et le même objet graphique. Un changement d’ancre ou de tangente réactualise les
+courbes GPU sans repeindre de surface raster. La préparation géométrique reste
+sur le CPU ; cette étape supprime la rasterisation et les transferts de sa texture.
+
+CurveRenderer approxime les cubiques en quadratiques. Sa conversion automatique
+créait un décalage observable dans la comparaison à l’ancien Canvas ; le panneau
+prépare donc ses propres quadratiques avant le rendu. Pour une cubique de contrôles
+A, B, C, D, la quadratique passant par les mêmes extrémités et le même milieu a
+pour contrôle `(3*(B+C)-A-D)/4`. Son erreur maximale de position vaut
+`|D-3*C+3*B-A|/(12*sqrt(3))`. La subdivision de De Casteljau à mi-paramètre est
+répétée jusqu’à obtenir une erreur au plus égale à 0,01 pixel logique, après
+application du zoom. La profondeur est limitée à 12 par sécurité ; les coordonnées
+acceptées par le document et les zooms de l’interface atteignent le seuil avant
+cette limite. Les extrémités restent exactes, y compris au retour vers la première
+ancre d’un chemin fermé, sans ajouter de fermeture absente du dessin précédent.
+
+L’emprise du chemin garde son enveloppe de contrôle, intersectée avec les limites
+de la vue et de l’image via `ScreenOverlayBounds`. Le conteneur GPU découpe
+explicitement le dessin à cette emprise. Les coordonnées locales évitent un grand
+rectangle de dessin au zoom fort. Ce découpage ne s’applique pas aux enfants
+poignées/segment provisoire : le guide peut rester visible lorsque le tracé fixe
+est hors champ. Le backend logiciel et les versions Qt sans CurveRenderer gardent
+le dessin Canvas antérieur, avec le même trait et les mêmes points de contrôle.
+
+`pen_overlay` compare le rendu à une copie indépendante des Canvas bornés de la
+version précédente, y compris leurs origines sous rotation, en 8 et 16 bits :
+édition, Annuler, fermeture, masquage/réactivation, ancre seule, segments droits,
+angles et croisements, guide passant sur le tracé, zooms de 0,5× à 64×, défilement
+fractionnaire et rotation. Le grand zoom produit une géométrie de 32 768 pixels
+sans surface raster de cette taille. Le test exige le véritable CurveRenderer
+sur les backends compatibles et l’absence de Canvas pour la courbe principale ;
+les compteurs de repeint, de description SVG et de snapshot vérifient le cache au
+survol. Le comparateur commun conserve ses tolérances de lissage ; aucun seuil
+n’a été élargi pour masquer la différence de courbure. Les pixels et l’historique
+du document restent sur leurs chemins existants.
+
+Références Qt : [Shape et moteurs de rendu](https://doc.qt.io/qt-6.12/qml-qtquick-shapes-shape.html),
+[ShapePath](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html) et
+[PathSvg](https://doc.qt.io/qt-6.8/qml-qtquick-pathsvg.html).

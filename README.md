@@ -282,7 +282,7 @@ Les surimpressions de mesure sont bornées : l’anneau de pipette conserve une 
 
 Le contour du pinceau est calculé directement par shader sur les backends graphiques, sans texture ni repeint, y compris lorsqu’il est coupé par un bord de la vue. Son emprise reste limitée à la vue, même avec une grosse brosse au zoom fort ; angle, aplatissement et signes +/− de Sélection rapide sont conservés. Le backend logiciel garde un dessin raster borné.
 
-La Plume conserve les dessins du tracé et des poignées pendant le survol : seul le segment provisoire est redessiné dans sa zone visible. Les modifications des points et des tangentes invalident ces dessins ; zoom et défilement restent limités à la vue.
+La Plume conserve son tracé principal sur GPU avec un repli raster pour les backends logiciel et les anciens kits Qt. Ses courbes sont préparées avec une erreur géométrique limitée à 0,01 pixel logique. Les poignées et le segment provisoire restent dessinés en Canvas bornés ; seul le segment provisoire est repeint au survol. Les modifications des points et des tangentes réactualisent les dessins ; zoom et défilement restent limités à la vue.
 
 Les guides du lasso conservent leurs points en cache pendant le survol et limitent leur dessin à leur emprise visible. L’animation des fourmis s’arrête lorsqu’aucune sélection n’a de pointillés à afficher. Les guides combinés gardent leur animation avec un snapshot de points réutilisé.
 

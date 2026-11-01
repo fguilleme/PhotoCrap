@@ -249,6 +249,11 @@ viewport. Angle, roundness, inherited opacity, and Quick Selection +/− signs a
 preserved, with no Canvas texture on compatible backends. The software fallback
 remains bounded to the viewport; painting and native cursors are unchanged.
 
+The Pen's main path now uses retained GPU curves, with a raster fallback for software
+and older Qt kits. Native cubic paths are prepared with a geometric error bounded
+to 0.01 logical pixels. Handles and the provisional segment keep their bounded
+Canvas layers; hovering does not rebuild the retained main path.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

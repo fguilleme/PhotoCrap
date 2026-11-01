@@ -456,6 +456,7 @@ qt_add_qml_module(PhotoCrap
         qml/SelectionMenu.qml
         qml/SelectionModifyDialog.qml
         qml/PenOverlay.qml
+        qml/PenCurve.qml
         qml/LassoGuide.qml
         qml/ContentAwareMoveOptions.qml
         qml/RemoveOptions.qml

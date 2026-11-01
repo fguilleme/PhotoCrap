@@ -7,6 +7,7 @@
 #include "ShortcutManager.h"
 #include "ToolInput.h"
 #include "WorkspaceSettings.h"
+#include "render/CanvasFonts.h"
 #include "render/HistogramGeometry.h"
 #include "text/TextEditorController.h"
 #include <QGuiApplication>
@@ -31,6 +32,7 @@
 #include "../tests/SliceOverlaySmoke.h"
 #include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
+#include "../tests/ViewportRulerSmoke.h"
 #ifdef Q_OS_MACOS
 #include "../tests/MacApplicationMenuTest.h"
 #include "../tests/MacToolCursorTest.h"
@@ -92,6 +94,9 @@ int main(int argc, char *argv[])
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterType<CropShadeItem>("PhotoCrap.Native", 1, 0, "CropShade");
+    qmlRegisterSingletonType<CanvasFonts>(
+        "PhotoCrap.Native", 1, 0, "CanvasFonts",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new CanvasFonts; });
     qmlRegisterSingletonType<HistogramGeometry>(
         "PhotoCrap.Native", 1, 0, "HistogramGeometry",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new HistogramGeometry; });
@@ -167,6 +172,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--viewport-ruler-test")) {
+                passed = window && runViewportRulerSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

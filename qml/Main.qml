@@ -2182,31 +2182,24 @@ ApplicationWindow {
                         }
                     }
                     Rectangle { anchors.fill: parent; color: "#171c22" }
-                    // Rulers follow the document's zoom and scroll position.
-                    Canvas {
+                    // Rulers keep their visible ticks in the scene graph.
+                    ViewportRuler {
                         id: horizontalRuler
+                        objectName: "horizontalViewportRuler"
                         x: 24; width: parent.width-24; height: 24
-                        onPaint: {
-                            const c=getContext("2d"); c.reset(); c.fillStyle="#20262e"; c.fillRect(0,0,width,height)
-                            c.fillStyle="#788491"; c.strokeStyle="#46505b"; c.font="9px sans-serif"
-                            const step=zoom<0.3?500:zoom<0.65?200:zoom<1.5?100:50
-                            const offset=artboard.x-viewport.contentX
-                            for(let i=0;i<=editor.width;i+=step) { let px=offset+i*zoom; c.fillText(i,px+4,12); c.beginPath(); c.moveTo(px,17);c.lineTo(px,24);c.stroke() }
-                        }
+                        documentLength: editor.width
+                        zoom: window.zoom
+                        offset: artboard.x-viewport.contentX
                     }
-                    Canvas {
+                    ViewportRuler {
                         id: verticalRuler
+                        objectName: "verticalViewportRuler"
                         y: 24; width: 24; height: parent.height-24
-                        onPaint: {
-                            const c=getContext("2d"); c.reset(); c.fillStyle="#20262e"; c.fillRect(0,0,width,height)
-                            c.fillStyle="#788491"; c.strokeStyle="#46505b"; c.font="9px sans-serif"
-                            const step=zoom<0.3?500:zoom<0.65?200:zoom<1.5?100:50
-                            const offset=artboard.y-viewport.contentY
-                            for(let i=0;i<=editor.height;i+=step) { let py=offset+i*zoom; c.save();c.translate(11,py+4);c.rotate(-Math.PI/2);c.fillText(i,0,0);c.restore();c.beginPath();c.moveTo(17,py);c.lineTo(24,py);c.stroke() }
-                        }
+                        vertical: true
+                        documentLength: editor.height
+                        zoom: window.zoom
+                        offset: artboard.y-viewport.contentY
                     }
-                    Connections { target: window; function onZoomChanged() { horizontalRuler.requestPaint(); verticalRuler.requestPaint() } }
-                    Connections { target: editor; function onDocumentChanged() { horizontalRuler.requestPaint(); verticalRuler.requestPaint() } }
                     Flickable {
                         id: viewport
                         objectName: "viewport"
@@ -2215,10 +2208,6 @@ ApplicationWindow {
                         contentWidth: artboard.width+width
                         contentHeight: artboard.height+height
                         interactive: false
-                        onContentXChanged: horizontalRuler.requestPaint()
-                        onContentYChanged: verticalRuler.requestPaint()
-                        onWidthChanged: horizontalRuler.requestPaint()
-                        onHeightChanged: verticalRuler.requestPaint()
                         ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                         // Navigation covers the whole viewport and stays active with every tool.
@@ -2256,8 +2245,6 @@ ApplicationWindow {
                             width: editor.width*zoom; height: editor.height*zoom
                             rotation: window.canvasRotation
                             transformOrigin: Item.Center
-                            onXChanged: horizontalRuler.requestPaint()
-                            onYChanged: verticalRuler.requestPaint()
                             Rectangle { x: 5; y: 9; width: parent.width; height: parent.height; color: "#0c1015"; opacity: 0.6 }
                             ImageCanvas {
                                 id: imageCanvas

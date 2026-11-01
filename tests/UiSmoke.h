@@ -68,6 +68,24 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _recentFiles.clear();
     _document.newDocument(300, 200, true);
     QTest::qWait(100);
+    auto      *horizontalRuler  = _window->findChild<QQuickItem *>("horizontalViewportRuler");
+    auto      *verticalRuler    = _window->findChild<QQuickItem *>("verticalViewportRuler");
+    const auto rulersFollowView = [&] {
+        return horizontalRuler && verticalRuler &&
+               horizontalRuler->property("documentLength").toInt() == _document.width() &&
+               verticalRuler->property("documentLength").toInt() == _document.height() &&
+               qAbs(horizontalRuler->property("zoom").toReal() -
+                    _window->property("zoom").toReal()) < .001 &&
+               qAbs(verticalRuler->property("zoom").toReal() - _window->property("zoom").toReal()) <
+                   .001 &&
+               qAbs(horizontalRuler->property("offset").toReal() - artboard->x() +
+                    viewport->property("contentX").toReal()) < .001 &&
+               qAbs(verticalRuler->property("offset").toReal() - artboard->y() +
+                    viewport->property("contentY").toReal()) < .001;
+    };
+    if (!require(rulersFollowView(),
+                 "viewport rulers follow document dimensions and view placement"))
+        return false;
     auto histogramPanel     = _window->findChild<QObject *>("histogramDockPanel");
     auto navigatorPanel     = _window->findChild<QObject *>("navigatorDockPanel");
     auto histogramCanvas    = _window->findChild<QQuickItem *>("colorHistogramCanvas");
@@ -279,6 +297,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(viewport->property("contentX").toReal() > beforeHorizontal &&
                      qAbs(viewport->property("contentY").toReal() - stableVertical) < .01,
                  "Shift+wheel pans horizontally"))
+        return false;
+    if (!require(rulersFollowView(), "viewport rulers follow wheel zoom and both pan directions"))
         return false;
     // Real modifier presses and non-mouse devices exercise paths that a bare
     // synthetic Ctrl+wheel event over the image does not cover.

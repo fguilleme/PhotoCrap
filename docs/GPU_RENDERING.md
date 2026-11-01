@@ -1225,3 +1225,56 @@ Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html
 [couches graphiques et opacité](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#item-layers)
 et [Canvas](https://doc.qt.io/qt-6.8/qml-qtquick-canvas.html).
 Préparation du contour : [QPainterPathStroker](https://doc.qt.io/qt-6.8/qpainterpathstroker.html).
+
+## Règles du canevas : éléments conservés et graduations visibles
+
+`ViewportRuler.qml` remplace les deux boucles Canvas intégrées à `Main.qml`.
+Les dimensions du document, le zoom et la position de l’image relativement au
+viewport sont des dépendances explicites. Les changements de zoom, de taille et
+de défilement actualisent ainsi les deux règles sans les notifications manuelles
+précédentes ; une modification des pixels à dimensions constantes ne les repeint
+plus inutilement.
+
+Le pas garde les seuils historiques : 500 en dessous de 0,3×, 200 en dessous de
+0,65×, 100 en dessous de 1,5×, puis 50 pixels natifs. Deux indices calculés depuis
+l’origine et la longueur visible bornent la liste des graduations. Une marge
+conservatrice tenant compte du nombre de chiffres garde les étiquettes venant
+d’un trait hors champ, notamment les chiffres verticaux orientés à −90°. La borne
+du document et la graduation zéro restent incluses comme auparavant.
+
+Sur RHI, lorsque les dimensions de la bande sont entières, les graduations
+utilisent des rectangles de 1 × 7 pixels logiques et les chiffres des contours
+CurveRenderer conservés. `CanvasFonts` résout la famille générique sans-serif
+avec `QFont::SansSerif` et sa famille par défaut, comme le parseur CSS du Canvas ;
+il ne fixe pas une famille particulière à macOS. Les contours sont préparés avec
+`QPainterPath::addText`, comme `Context2D.fillText`, et leur cache LRU est borné à
+128 étiquettes. Le déplacement d'une graduation ne recalcule pas sa police.
+Traits et contours se déplacent dans le graphe de scène, sans repeindre ni
+retransférer une image CPU de la règle. Une petite couche GPU limitée à la bande
+compose le fond et les chiffres avant l'application de l'opacité héritée.
+
+Le backend logiciel, Qt sans CurveRenderer et les bandes de dimensions
+fractionnaires gardent le Canvas d'origine, mais sa boucle est elle aussi bornée
+aux indices utiles. Ce dernier repli conserve la projection et l'échantillonnage
+fractionnaires du Canvas : utiliser directement des éléments natifs déplacerait
+légèrement les chiffres et le dernier bord. Le chemin matériel éligible n'ouvre
+pas de contexte Canvas ; un contexte déjà créé par le repli peut rester alloué.
+Le repli efface aussi le bord entier du tampon avant chaque dessin : le
+`reset()` limité au rectangle fractionnaire pouvait laisser une couverture
+résiduelle dépendante du nombre de repeints. Les surfaces Qt et le cache des
+contours ne font pas partie du LRU des tuiles photo.
+
+`viewport_ruler` compare aux deux boucles historiques indépendantes : chiffres,
+traits, orientation verticale, défilement fractionnaire, seuils de zoom, tailles
+fractionnaires, opacité, origine d’un document vide, document hors champ et reprise
+après masquage. Un cas de coordonnées jusqu’à un milliard vérifie directement que
+le nombre d’éléments reste lié à la vue ; il évite volontairement d’exécuter les
+deux millions de passages de l’ancienne boucle de référence. Le test contrôle
+les vrais signaux de repeint et les objets affichés. Le smoke test général vérifie
+les liaisons des deux règles après ouverture d’une image, zoom et déplacement à
+la molette. Le test Histogramme est également réexécuté pour contrôler le panneau
+précédemment optimisé.
+
+Références : [QPainterPath::addText](https://doc.qt.io/qt-6.8/qpainterpath.html#addText),
+[Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html) et
+[implémentation Qt de Context2D](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/context2d/qquickcontext2d.cpp).

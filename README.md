@@ -290,6 +290,8 @@ Les outils Tranche partagent un cache de descriptions, y compris pour les tranch
 
 Le panneau Histogramme dessine ses trois zones RVB et sa courbe de luminance sur GPU, avec un repli Canvas sur le backend logiciel et les anciens kits Qt. Une couche de composition GPU limitée à la taille du graphique conserve la superposition des couleurs et l’opacité du panneau. Le calcul des statistiques reste sur CPU.
 
+Les règles horizontale et verticale limitent leurs graduations à la zone visible, avec une marge pour les chiffres débordants. Sur les backends graphiques, traits et contours des chiffres sont conservés dans le graphe de scène quand la bande a des dimensions entières ; le repli logiciel, aussi conservé pour les dimensions fractionnaires, ne parcourt que les graduations utiles. Le pas, les valeurs et leur orientation suivent le zoom et le défilement.
+
 Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées utilisent aussi des chemins et rectangles du graphe de scène, sans Canvas ni texture de guides pendant le geste. Le backend logiciel et les anciens kits Qt sans CurveRenderer conservent le dessin raster. Le survol réutilise les points du cadre pour choisir le curseur.
 
 Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévisualisent au survol ou au clavier ; clic/Entrée valide, Échap ou fermeture du menu restaure les valeurs précédentes, sans historique intermédiaire.

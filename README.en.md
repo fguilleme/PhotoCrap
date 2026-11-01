@@ -264,6 +264,13 @@ Canvas fallback for software and older Qt kits. A chart-sized GPU composition
 layer preserves channel blending and panel opacity. Histogram statistics still
 run on the CPU.
 
+Horizontal and vertical viewport rulers keep only visible graduations, with a
+margin for labels extending from offscreen ticks. On graphics backends, ticks
+and cached digit outlines stay in the scene graph for integer-sized bands.
+Software rendering and fractional-sized bands retain the original Canvas
+sampling with the same bounded loop. Values, spacing and orientation follow
+zoom and panning.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

@@ -123,6 +123,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/text/TextEditorController.h
     src/render/CropShade.h
     src/render/HistogramGeometry.h
+    src/render/CanvasFonts.h
     src/render/CropShadeNode.h
     src/render/ToneMappingNode.h
     src/render/SelectionOutlineNode.h
@@ -183,6 +184,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/LassoGuideSmoke.h
     tests/SliceOverlaySmoke.h
     tests/HistogramRenderSmoke.h
+    tests/ViewportRulerSmoke.h
     tests/SliceDescriptionCacheTest.cpp
     tests/CropShadeTest.cpp
     tests/CropOverlaySmoke.h
@@ -393,6 +395,7 @@ qt_add_executable(PhotoCrap
     src/text/TextEditorController.cpp src/text/TextEditorController.h
     src/render/CropShade.cpp src/render/CropShade.h
     src/render/HistogramGeometry.cpp src/render/HistogramGeometry.h
+    src/render/CanvasFonts.h
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
     src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
@@ -486,6 +489,7 @@ qt_add_qml_module(PhotoCrap
         qml/SliceDraft.qml
         qml/HistogramChart.qml
         qml/HistogramGraph.qml
+        qml/ViewportRuler.qml
         qml/InformationPanel.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml
@@ -683,6 +687,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME histogram_render COMMAND PhotoCrap --smoke-test --histogram-render-test)
     set_tests_properties(histogram_render PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
+    add_test(NAME viewport_ruler COMMAND PhotoCrap --smoke-test --viewport-ruler-test)
+    set_tests_properties(viewport_ruler PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

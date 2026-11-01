@@ -10,6 +10,7 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
 {
     if (m_persist) {
         m_useShiftToCycleTools = QSettings().value("tools/useShiftToCycle", true).toBool();
+        m_autoCreatePaintLayer = QSettings().value("tools/autoCreatePaintLayer", true).toBool();
         m_springLoadedTools    = QSettings().value("tools/springLoaded", true).toBool();
         m_layout               = QSettings().value(QStringLiteral("workspace/layout")).toMap();
         m_toolLayout           = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
@@ -206,4 +207,14 @@ void WorkspaceSettings::setScratchDirectoryUrl(const QUrl &_url)
 {
     if (_url.isLocalFile())
         setScratchDirectory(_url.toLocalFile());
+}
+
+void WorkspaceSettings::setAutoCreatePaintLayer(bool _value)
+{
+    if (m_autoCreatePaintLayer == _value)
+        return;
+    m_autoCreatePaintLayer = _value;
+    if (m_persist)
+        QSettings().setValue("tools/autoCreatePaintLayer", _value);
+    emit toolBehaviorChanged();
 }

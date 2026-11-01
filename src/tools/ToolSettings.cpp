@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "text/TextLayer.h"
 
 #include <QtMath>
 #include <cmath>
@@ -267,7 +268,14 @@ void Document::setSelectionEnhanceEdge(bool _value)
 }
 void Document::setText(const QString &_value)
 {
-    m_text = _value.left(4096);
+    m_text = _value.left(100000);
+    if (m_textEditing) {
+        PhotoCrap::Text::Document document;
+        PhotoCrap::Text::configure(document, m_layers[m_active].parameters);
+        document.setPlainText(m_text);
+        updateTextHtml(document.toHtml());
+        emit textEditRequested();
+    }
     emit settingsChanged();
 }
 void Document::setTextSize(int _value)

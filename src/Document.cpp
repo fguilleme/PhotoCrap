@@ -194,7 +194,7 @@ bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMas
     return validStorageBytes(
         DocumentStorage::estimateBytes(_w, _h, colors, masks, _bits ? _bits : m_channelBits));
 }
-bool Document::editable(bool _materialize)
+bool Document::editable(bool _materialize, bool _allowText)
 {
     if (m_active < 0 || m_active >= m_layers.size())
         return false;
@@ -209,7 +209,8 @@ bool Document::editable(bool _materialize)
     if (!m_editingMask && m_layers[m_active].kind.startsWith(QStringLiteral("frequency")))
         return fail(tr("Choisissez « Préparer la retouche » dans les propriétés de la séparation "
                        "de fréquences pour modifier ses pixels."));
-    if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask)
+    if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask &&
+        !(_allowText && m_layers[m_active].kind == "text"))
         return fail(tr("Sélectionnez le masque de ce calque pour peindre dessus."));
     const auto &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
     if (_materialize && ImageUtils::compact(target) &&
@@ -589,11 +590,15 @@ void Document::resetHistory(bool _clean)
     m_selectionPath.clear();
     m_polygonLassoActive = false;
     selectOnly(m_active);
-    m_drawing                 = false;
+    m_drawing     = false;
+    m_textEditing = m_textGesture = false;
+    m_beforeText                  = {};
+    emit textEditingChanged();
     m_editingMask             = false;
     m_previewingLayer         = false;
     m_frequencyPreviewDraft   = false;
     m_beforeStroke            = {};
+    m_strokeCreatedLayer      = false;
     m_beforeLayerPreview      = {};
     m_strokeBase              = {};
     m_strokeCoverage          = {};
@@ -786,6 +791,7 @@ QImage Document::maskImage(int _index, const QSize &_requested) const
 }
 void Document::setActiveLayer(int _index)
 {
+    _index = finishTextForLayer(_index);
     if (_index < 0 || _index >= m_layers.size())
         return;
     endStroke();
@@ -855,6 +861,7 @@ bool Document::canUngroupActive() const
 }
 void Document::selectLayer(int _index, bool _toggle, bool _range)
 {
+    _index = finishTextForLayer(_index);
     if (_index < 0 || _index >= m_layers.size())
         return;
     endStroke();

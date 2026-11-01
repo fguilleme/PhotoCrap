@@ -76,7 +76,8 @@ DarkMenu {
     }
     MenuSeparator {}
     ContextMenuItem { text: qsTr("Convertir en objet dynamique (NYI)"); enabled: false }
-    ContextMenuItem { text: qsTr("Pixelliser le calque (NYI)"); enabled: false }
+    ContextMenuItem {text:qsTr("Modifier le texte…");visible:menu.layerInfo.kind==="text";enabled:!menu.layerInfo.locked;onTriggered:menu.document.editTextLayer(menu.document.activeLayer)}
+    ContextMenuItem { text: menu.layerInfo.kind==="text" ? qsTr("Pixelliser le texte") : qsTr("Pixelliser le calque (NYI)"); enabled: menu.layerInfo.kind==="text" && !menu.layerInfo.locked; onTriggered:menu.document.rasterizeTextLayer() }
     MenuSeparator {}
     ContextMenuItem {
         text: qsTr("Fusionner avec le calque inférieur")

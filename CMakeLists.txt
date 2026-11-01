@@ -16,6 +16,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
     src/CropShadeItem.cpp
+    src/text/TextEditorController.cpp
     src/render/CropShade.cpp
     src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
@@ -47,6 +48,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/FillTool.cpp
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
+    src/tools/ToolLayerCreation.cpp
+    src/tools/TextTool.cpp
+    src/text/TextLayer.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
     src/selection/SelectionCommands.cpp
@@ -115,6 +119,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
     src/CropShadeItem.h
+    src/text/TextEditorController.h
     src/render/CropShade.h
     src/render/CropShadeNode.h
     src/render/ToneMappingNode.h
@@ -162,9 +167,12 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/RecentFilesManager.h
     src/ShortcutManager.h
     src/WorkspaceSettings.h
+    src/text/TextLayer.h
     tests/DocumentTest.cpp
+    tests/TextToolTest.cpp
     tests/RawTestImage.h
     tests/UiSmoke.h
+    tests/ToolLayerSmoke.h
     tests/CanvasRenderSmoke.h
     tests/MeasurementOverlaySmoke.h
     tests/BrushCursorSmoke.h
@@ -291,6 +299,9 @@ qt_add_library(photocrap_core STATIC
     src/tools/FillTool.cpp
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
+    src/tools/ToolLayerCreation.cpp
+    src/tools/TextTool.cpp
+    src/text/TextLayer.cpp
     src/tools/RetouchTools.cpp
     src/tools/SelectionTools.cpp
     src/selection/SelectionCommands.cpp
@@ -375,6 +386,7 @@ qt_add_executable(PhotoCrap
     src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h src/CanvasRendering.cpp
     src/CropShadeItem.cpp src/CropShadeItem.h
+    src/text/TextEditorController.cpp src/text/TextEditorController.h
     src/render/CropShade.cpp src/render/CropShade.h
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
@@ -453,6 +465,8 @@ qt_add_qml_module(PhotoCrap
         qml/SamplingRing.qml
         qml/BrushCursor.qml
         qml/CropOptions.qml
+        qml/TextTypographyPanel.qml
+        qml/TextLayerEditor.qml
         qml/CropOverlay.qml
         qml/ScreenOverlayCanvas.qml
         qml/SliceOptions.qml
@@ -536,6 +550,11 @@ if(BUILD_TESTING)
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
+    qt_add_executable(photocrap_text_tests tests/TextToolTest.cpp)
+    target_link_libraries(photocrap_text_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME text_tools COMMAND photocrap_text_tests)
+    set_tests_properties(text_tools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 30)
+
     qt_add_executable(photocrap_slice_cache_tests tests/SliceDescriptionCacheTest.cpp)
     target_link_libraries(photocrap_slice_cache_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME slice_cache COMMAND photocrap_slice_cache_tests)
@@ -643,6 +662,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME crop_overlay COMMAND PhotoCrap --smoke-test --crop-overlay-test)
     set_tests_properties(crop_overlay PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME tool_layers COMMAND PhotoCrap --smoke-test --tool-layer-test)
+    set_tests_properties(tool_layers PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

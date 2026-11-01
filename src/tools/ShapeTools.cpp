@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "text/TextLayer.h"
 
 #include <QPainter>
 #include <QPolygonF>
@@ -27,14 +28,42 @@ QPolygonF regularPolygon(const QRectF &_bounds, int _points, qreal _innerRatio =
 
 void Document::renderShape(const QPointF &_to)
 {
-    if (m_active < 0 || m_active >= m_layers.size() ||
-        (m_tool != "move" && m_active >= m_beforeStroke.layers.size())) {
+    if (m_active < 0 || m_active >= m_layers.size()) {
         m_drawing       = false;
         m_strokeChanged = false;
         return;
     }
-    const QImage sourceImage = ImageUtils::expandedPlane(
-        m_tool == "move" ? m_strokeBase : m_beforeStroke.layers.at(m_active).image, m_size);
+    if (m_tool == "move" && m_layers[m_active].kind == "text") {
+        if (_to == m_anchor)
+            return;
+        if (m_moveCopy && !m_moveDuplicatedLayer) {
+            auto layer      = m_layers[m_active];
+            layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            layer.name += tr(" — copie");
+            m_layers.insert(++m_active, layer);
+            selectOnly(m_active);
+            m_moveCopy            = false;
+            m_moveDuplicatedLayer = true;
+        }
+        auto       parameters = m_textMoveParameters;
+        const auto delta      = _to - m_anchor;
+        PhotoCrap::Text::transform(parameters, QTransform::fromTranslate(delta.x(), delta.y()));
+        auto image = PhotoCrap::Text::render(parameters, m_size, workingFormat());
+        if (image.isNull()) {
+            cancelStroke();
+            fail(tr("Mémoire insuffisante pour rendre le texte."));
+            return;
+        }
+        m_layers[m_active].parameters = parameters;
+        m_layers[m_active].image      = image;
+        m_strokeChanged               = true;
+        m_fullCompositeDirty          = true;
+        changed(false);
+        return;
+    }
+    if (m_tool != "move" && m_tool != "gradient" && _to == m_anchor)
+        return;
+    const QImage sourceImage = ImageUtils::expandedPlane(m_strokeBase, m_size);
     if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
         _to != m_anchor) {
         auto layer = m_layers[m_active];

@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "text/TextLayer.h"
 
 #include <QBuffer>
 #include <QColorSpace>
@@ -187,6 +188,7 @@ bool Document::importLayer(const QUrl &_url)
 }
 bool Document::saveProject(const QUrl &_url)
 {
+    finishTextEdit();
     endStroke();
     if (pixelEditBusy())
         return fail(
@@ -229,7 +231,7 @@ bool Document::saveProject(const QUrl &_url)
                                   {"groupCollapsed", layer.groupCollapsed},
                                   {"source", source}});
     }
-    QJsonObject root{{"format", "PhotoCrap"},   {"version", 8},
+    QJsonObject root{{"format", "PhotoCrap"},   {"version", 9},
                      {"width", width()},        {"height", height()},
                      {"activeLayer", m_active}, {"layers", layers}};
     root["channelBits"]   = m_channelBits;
@@ -266,7 +268,7 @@ bool Document::loadProject(const QString &_path)
     const auto      root    = json.object();
     const int       version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 8))
+        (version < 1 || version > 9))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
@@ -307,14 +309,14 @@ bool Document::loadProject(const QString &_path)
         const QString kind =
             version == 1 ? QStringLiteral("pixel") : object["kind"].toString("pixel");
         if (kind != "pixel" && kind != "adjustment" && kind != "group" && kind != "frequency" &&
-            kind != "frequencyLow" && kind != "frequencyHigh")
+            kind != "frequencyLow" && kind != "frequencyHigh" && !(version >= 9 && kind == "text"))
             return fail(tr("Type de calque inconnu."));
         auto image  = decode(object["png"].toString(), format,
                              version >= 7 && object["compactPixels"].toBool());
         auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8,
                              version >= 7 && object["compactMask"].toBool());
         auto source = decode(object["source"].toString(), format);
-        if ((kind == "pixel" && image.isNull()) ||
+        if (((kind == "pixel" || kind == "text") && image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||
             (!object["mask"].toString().isEmpty() && mask.isNull()))
             return fail(tr("Calque corrompu ou dimensions incohérentes."));
@@ -337,6 +339,8 @@ bool Document::loadProject(const QString &_path)
         layer.kind           = kind;
         layer.adjustmentType = object["adjustmentType"].toString();
         layer.parameters     = object["parameters"].toObject().toVariantMap();
+        if (kind == "text" && !PhotoCrap::Text::normalize(layer.parameters))
+            return fail(tr("Calque de texte invalide."));
         layer.mask           = mask;
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
         layer.clippingMask   = object["clippingMask"].toBool(false);
@@ -388,6 +392,7 @@ bool Document::loadProject(const QString &_path)
 }
 bool Document::exportImage(const QUrl &_url)
 {
+    finishTextEdit();
     endStroke();
     if (pixelEditBusy())
         return fail(

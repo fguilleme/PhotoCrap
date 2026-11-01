@@ -9,8 +9,8 @@ La [release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) fo
 | Élément | État dans v0.15 | Source |
 |---|---|---|
 | Barre d’outils | 71 outils recensés : **54 disponibles, 17 NYI** | Catalogue de `qml/Main.qml` |
-| Raccourcis et gestes | **298 entrées** : 123 commandes personnalisables, 54 gestes contextuels, 121 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
-| Projets | Format `.pcr` **v8**, lecture des versions 1 à 7 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
+| Raccourcis et gestes | **298 entrées** : 123 commandes personnalisables, 56 gestes contextuels, 119 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
+| Projets | Format `.pcr` **v9** avec texte éditable, lecture des versions 1 à 8 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
 | Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
 
 Les sections « Disponible » et « Ajouts » ci-dessous constituent l’historique des fonctions livrées : leurs anciens nombres de raccourcis et formats de projet ne décrivent pas la version courante. Les sections numérotées regroupent les travaux restants et les validations à poursuivre. **NYI** signifie recensé mais non implémenté ; les gestes contextuels disponibles ne sont pas des commandes globales personnalisables.
@@ -29,7 +29,8 @@ Les sections « Disponible » et « Ajouts » ci-dessous constituent l’histori
 - [x] Peinture : pinceau, crayon, gomme, remplacement de couleur, pinceau mélangeur, tampon de duplication et tampon de motif. Taille, dureté, opacité, débit, espacement, forme de pointe et lissage.
 - [x] Retouche locale : flou, netteté, doigt, densité −/+, éponge, œil rouge, correcteur, correcteur localisé, pièce, déplacement basé sur le contenu et suppression. Calculs limités aux zones touchées et à leur voisinage lorsque le traitement le permet.
 - [x] Forme d’historique et forme d’historique artistique avec source retenue, contrôles spécialisés et annulation par geste.
-- [x] Pipette ponctuelle/moyenne, anneau comparatif, échantillonneur déplaçable et règle. Rectangle, ellipse, triangle, polygone, étoile et ligne raster avec options de remplissage/contour ; texte horizontal rasterisé.
+- [x] Pipette ponctuelle/moyenne, anneau comparatif, échantillonneur déplaçable et règle. Rectangle, ellipse, triangle, polygone, étoile et ligne raster avec options de remplissage/contour ; texte horizontal éditable en calque dédié (ponctuel/paragraphe, formats mixtes, polices, paragraphes et sauvegarde v9).
+- [x] Création automatique de calques par Texte et les six formes raster ; choix Nouveau calque/Pixels sur calque actif dans leur barre. Pinceau/Crayon créant un calque sur cible non peignable selon une préférence persistante, masques conservés, insertion dans les groupes, annulation atomique du dessin et du calque, abandon du calque provisoire et limites mémoire/calques respectées. Les formes vectorielles restent à faire ; règles et écarts Adobe documentés dans [docs/TOOL_LAYERS.md](docs/TOOL_LAYERS.md).
 - [x] Zoom centré sous le pointeur, déplacement temporaire par Espace, rotation de l’affichage et zoom conservé par Annuler/Rétablir.
 - [x] Dialogues annulables pour le pinceau et les propriétés des calques, réinitialisation, boutons communs avec focus visible et comportement Retour/Espace. Retour valide d’abord l’édition d’un champ numérique.
 - [x] Interface française/anglaise, raccourcis personnalisables, fichiers récents, historique à budget mémoire et sauvegarde atomique.
@@ -158,6 +159,8 @@ Les **17 outils NYI** du catalogue sont tous recensés ci-dessous et désactivé
 
 Améliorations des outils déjà disponibles :
 
+- [x] Texte éditable ponctuel/paragraphe, double-clic sur la vignette T, saisie/curseur/sélection sur l’image, formats mixtes, familles/styles, couleur, interligne, approche, crénage métrique, échelle horizontale, ligne de base, capitales et indices/exposants ; alignements, retraits et espacements de paragraphes. Annulation par session, projets v9, transformations conservées et pixellisation explicite. [Inventaire Adobe et limites](docs/TEXT_TOOL.md).
+- [ ] Texte sur tracé, déformations, texte vertical/masques, options OpenType et polices variables, styles réutilisables, crénage optique, lissages Adobe, typographie CJK détaillée, césure, correction/recherche et Adobe Fonts.
 - [ ] Modes Forme et masque vectoriel de la Plume, opérations booléennes et panneau Tracés complet. Le mode Tracé, les outils d’ajout/suppression/conversion de point et leur conversion en sélection sont déjà disponibles.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
@@ -171,7 +174,8 @@ Améliorations des outils déjà disponibles :
 - [ ] Compléter les commandes NYI des calques : fusion des calques sélectionnés/visibles, calque des visibles fusionnés, aplatissement, placement direct tout en haut/en bas, verrouillage des pixels transparents, étiquettes de couleur, pixellisation et options de fusion avancées.
 - [ ] Compléter les commandes NYI des masques : appliquer le masque, associer/dissocier, charger comme sélection et Sélectionner et masquer.
 - [ ] Masques vectoriels, effets de calque et objets dynamiques.
-- [ ] Transformation libre, perspective, formes vectorielles et texte éditable.
+- [ ] Transformation libre, perspective interactive des calques et formes vectorielles.
+- [ ] Dégradé non destructif avec calque de remplissage et poignées ; l’outil actuel reste un dégradé raster classique.
 - [ ] Fidélité colorimétrique des réglages et jeux d’images de référence ; les traitements actuels sont des implémentations sRGB simplifiées.
 - [ ] Lectures supplémentaires dans Informations : espaces colorimétriques, opacité, avant/après et unités de mesure configurables.
 - [ ] Gestion ICC complète, épreuvage écran/impression, RVB 32 bits, CMJN, tons directs et HDR.
@@ -189,7 +193,7 @@ Ces manques sont déjà indiqués dans le catalogue des raccourcis, même lorsqu
 - [ ] Répéter le dernier filtre et atténuer la dernière opération ; Fluidité et filtre de développement RAW.
 - [ ] Dialogue Remplir complet (motif, historique, contenu) ; le sélecteur de couleur et les remplissages premier/arrière-plan sont déjà disponibles.
 - [ ] Grille de travail, repères, magnétisme, Extras, modes d’écran et masquage de la barre supérieure des options. Les règles, Tab/Maj+Tab et l’affichage du contour de sélection existent déjà.
-- [ ] Gestes contextuels complémentaires : source du tampon décalable/rotative/redimensionnable, rapporteur de la règle, réglage Noir et blanc sur l’image, raccourcis détaillés des points de Courbes et édition du texte. L’inventaire par geste est dans [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
+- [ ] Gestes contextuels complémentaires : source du tampon décalable/rotative/redimensionnable, rapporteur de la règle, réglage Noir et blanc sur l’image, raccourcis détaillés des points de Courbes et raccourcis typographiques avancés. L’inventaire par geste est dans [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
 
 ## 7. Interopérabilité et extensibilité
 

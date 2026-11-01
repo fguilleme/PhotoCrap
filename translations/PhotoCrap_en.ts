@@ -736,6 +736,15 @@
         <translation>Fill mask with color</translation>
     </message>
     <message><source>Mémoire insuffisante pour la couverture du trait.</source><translation>Insufficient memory for stroke coverage.</translation></message>
+    <message><source>Mémoire insuffisante pour créer le calque.</source><translation>Insufficient memory to create the layer.</translation></message>
+    <message><source>Modifier le texte</source><translation>Edit type</translation></message>
+    <message><source>Pixelliser le texte</source><translation>Rasterize type</translation></message>
+    <message><source>Calque de texte invalide.</source><translation>Invalid type layer.</translation></message>
+    <message><source>Texte invalide ou trop volumineux.</source><translation>Invalid or oversized text.</translation></message>
+    <message><source>Mémoire insuffisante pour rendre le texte.</source><translation>Insufficient memory to render the text.</translation></message>
+    <message><source>Dimensions du bloc de texte invalides.</source><translation>Invalid text box dimensions.</translation></message>
+    <message><source>Mise en forme du texte invalide.</source><translation>Invalid text formatting.</translation></message>
+    <message><source>Ce groupe est verrouillé ou masqué.</source><translation>This group is locked or hidden.</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -1183,8 +1192,8 @@
     </message>
     <message>
       <location filename="../qml/Main.qml" line="81" />
-      <source>Texte rasterisé</source>
-      <translation>Rasterized Text</translation>
+      <source>Texte éditable</source>
+      <translation>Editable Text</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="82" />
@@ -2431,7 +2440,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Ajout de point d’ancrage</source><translation>Add Anchor Point</translation></message>
     <message><source>Suppression de point d’ancrage</source><translation>Delete Anchor Point</translation></message>
     <message><source>Conversion de point</source><translation>Convert Point</translation></message>
-    <message><source>Texte horizontal rasterisé</source><translation>Rasterized Horizontal Type</translation></message>
+    <message><source>Texte horizontal éditable</source><translation>Editable Horizontal Type</translation></message>
     <message><source>Texte vertical</source><translation>Vertical Type</translation></message>
     <message><source>Masque de texte vertical</source><translation>Vertical Type Mask</translation></message>
     <message><source>Masque de texte horizontal</source><translation>Horizontal Type Mask</translation></message>
@@ -2561,6 +2570,13 @@ Independent software, not affiliated with Adobe.</translation>
         <translation>No default shortcut</translation>
     </message>
     <message><source>Cache de travail</source><translation>Scratch cache</translation></message>
+    <message><source>Pixels sur calque actif</source><translation>Pixels on current layer</translation></message>
+    <message><source>Créer une forme sur son propre calque ou dessiner dans les pixels du calque actif</source><translation>Create a shape on its own layer or draw into the current layer pixels</translation></message>
+    <message><source>Créer un calque avec Pinceau/Crayon sur une cible non peignable</source><translation>Create a new layer when brushing on a non-paintable target</translation></message>
+    <message><source>Saisie sur l’image · ⌘/Ctrl Entrée : valider · Échap : annuler</source><translation>Type on the image · ⌘/Ctrl Enter: commit · Escape: cancel</translation></message>
+    <message><source>Cliquez pour écrire ; glissez pour créer un bloc de paragraphe</source><translation>Click to type; drag to create a paragraph box</translation></message>
+    <message><source>Caractère / Paragraphe…</source><translation>Character / Paragraph…</translation></message>
+    <message><source>Valider</source><translation>Commit</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -2798,8 +2814,8 @@ Independent software, not affiliated with Adobe.</translation>
     </message>
     <message>
       <location filename="../src/ShortcutManager.cpp" line="28" />
-      <source>Texte rasterisé</source>
-      <translation>Rasterized Text</translation>
+      <source>Texte éditable</source>
+      <translation>Editable Text</translation>
     </message>
     <message>
       <location filename="../src/ShortcutManager.cpp" line="28" />
@@ -4547,7 +4563,9 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Aplatir l’image (NYI)</source><translation>Flatten Image (NYI)</translation></message>
     <message><source>Masquer le calque</source><translation>Hide Layer</translation></message>
     <message><source>Afficher le calque</source><translation>Show Layer</translation></message>
-  </context>
+      <message><source>Modifier le texte…</source><translation>Edit type…</translation></message>
+    <message><source>Pixelliser le texte</source><translation>Rasterize type</translation></message>
+</context>
   <context>
     <name>MaskContextMenu</name>
     <message><source>Propriétés du masque…</source><translation>Mask Properties…</translation></message>
@@ -4761,4 +4779,47 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Le cache disque est encore utilisé par des rendus.</source><translation>The disk cache is still in use by renders.</translation></message>
     <message><source>Espace libre insuffisant pour le cache disque.</source><translation>Insufficient free space for the disk cache.</translation></message>
   </context>
+  <context>
+    <name>TextTypographyPanel</name>
+      <message><source>Caractère et paragraphe</source><translation>Character and Paragraph</translation></message>
+    <message><source>La mise en forme s’applique à la sélection, sinon à tout le texte.</source><translation>Formatting applies to the selection, or to all text if nothing is selected.</translation></message>
+    <message><source>Taille</source><translation>Size</translation></message>
+    <message><source>Couleur du texte…</source><translation>Type color…</translation></message>
+    <message><source>Casse</source><translation>Case</translation></message>
+    <message><source>Normale</source><translation>Normal</translation></message>
+    <message><source>Capitales</source><translation>All caps</translation></message>
+    <message><source>Petites capitales</source><translation>Small caps</translation></message>
+    <message><source>Normal</source><translation>Normal</translation></message>
+    <message><source>Exposant</source><translation>Superscript</translation></message>
+    <message><source>Indice</source><translation>Subscript</translation></message>
+    <message><source>Approche (1/1000 em)</source><translation>Tracking (1/1000 em)</translation></message>
+    <message><source>Échelle horizontale (%)</source><translation>Horizontal scale (%)</translation></message>
+    <message><source>Décalage de ligne (%)</source><translation>Baseline shift (%)</translation></message>
+    <message><source>Interligne (0 = auto)</source><translation>Leading (0 = auto)</translation></message>
+    <message><source>Crénage métrique</source><translation>Metrics kerning</translation></message>
+    <message><source>Paragraphe</source><translation>Paragraph</translation></message>
+    <message><source>Aligné à gauche</source><translation>Align left</translation></message>
+    <message><source>Centré</source><translation>Centered</translation></message>
+    <message><source>Aligné à droite</source><translation>Align right</translation></message>
+    <message><source>Justifié</source><translation>Justified</translation></message>
+    <message><source>Retrait gauche</source><translation>Left indent</translation></message>
+    <message><source>Retrait droit</source><translation>Right indent</translation></message>
+    <message><source>Première ligne</source><translation>First line</translation></message>
+    <message><source>Espace avant</source><translation>Space before</translation></message>
+    <message><source>Espace après</source><translation>Space after</translation></message>
+    <message><source>Bloc de paragraphe</source><translation>Paragraph box</translation></message>
+    <message><source>L</source><translation>W</translation></message>
+    <message><source>H</source><translation>H</translation></message>
+    <message><source>Fonctions avancées</source><translation>Advanced features</translation></message>
+    <message><source>Texte sur tracé (NYI)</source><translation>Type on a path (NYI)</translation></message>
+    <message><source>Déformation du texte (NYI)</source><translation>Warp type (NYI)</translation></message>
+    <message><source>Texte vertical (NYI)</source><translation>Vertical type (NYI)</translation></message>
+    <message><source>Masques de texte (NYI)</source><translation>Type masks (NYI)</translation></message>
+    <message><source>Options OpenType et glyphes (NYI)</source><translation>OpenType options and glyphs (NYI)</translation></message>
+    <message><source>Styles de caractère/paragraphe (NYI)</source><translation>Character / paragraph styles (NYI)</translation></message>
+    <message><source>Modes de lissage Adobe (NYI)</source><translation>Adobe anti-aliasing modes (NYI)</translation></message>
+    <message><source>Crénage optique (NYI)</source><translation>Optical kerning (NYI)</translation></message>
+    <message><source>Direction de droite à gauche</source><translation>Right-to-left direction</translation></message>
+    <message><source>Police absente : un remplacement système est utilisé.</source><translation>Font missing: a system substitute is being used.</translation></message>
+</context>
 </TS>

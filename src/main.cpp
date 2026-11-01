@@ -7,6 +7,7 @@
 #include "ShortcutManager.h"
 #include "ToolInput.h"
 #include "WorkspaceSettings.h"
+#include "text/TextEditorController.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterType<CropShadeItem>("PhotoCrap.Native", 1, 0, "CropShade");
+    qmlRegisterType<TextEditorController>("PhotoCrap.Native", 1, 0, "TextFormatting");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");
     LanguageManager    languageManager(nullptr, !smoke);
@@ -185,6 +187,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--slice-overlay-test")) {
                 passed = window && runSliceOverlaySmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--tool-layer-test")) {
+                passed = window && runToolLayerSmoke(window, document, workspaceSettings);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

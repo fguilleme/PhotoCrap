@@ -202,8 +202,15 @@ class Document : public QObject
     Q_PROPERTY(int stampPattern READ stampPattern WRITE setStampPattern NOTIFY settingsChanged)
     Q_PROPERTY(bool hasCustomStampPattern READ hasCustomStampPattern NOTIFY settingsChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY settingsChanged)
+    Q_PROPERTY(bool textEditing READ textEditing NOTIFY textEditingChanged)
+    Q_PROPERTY(bool textGesture READ textGesture NOTIFY textGeometryChanged)
+    Q_PROPERTY(QVariantMap textEditState READ textEditState NOTIFY textGeometryChanged)
+
     Q_PROPERTY(int textSize READ textSize WRITE setTextSize NOTIFY settingsChanged)
     Q_PROPERTY(bool filledShapes READ filledShapes WRITE setFilledShapes NOTIFY settingsChanged)
+    Q_PROPERTY(bool shapeNewLayer READ shapeNewLayer WRITE setShapeNewLayer NOTIFY settingsChanged)
+    Q_PROPERTY(bool autoCreatePaintLayer READ autoCreatePaintLayer WRITE setAutoCreatePaintLayer
+                   NOTIFY settingsChanged)
     Q_PROPERTY(
         QColor shapeFillColor READ shapeFillColor WRITE setShapeFillColor NOTIFY settingsChanged)
     Q_PROPERTY(QColor shapeStrokeColor READ shapeStrokeColor WRITE setShapeStrokeColor NOTIFY
@@ -459,6 +466,16 @@ public:
     {
         return m_shapeStrokeColor.isValid() ? m_shapeStrokeColor : m_color;
     }
+    bool shapeNewLayer() const
+    {
+        return m_shapeNewLayer;
+    }
+    bool autoCreatePaintLayer() const
+    {
+        return m_autoCreatePaintLayer;
+    }
+    void setShapeNewLayer(bool _value);
+    void setAutoCreatePaintLayer(bool _value);
     bool shapeStrokeEnabled() const
     {
         return m_shapeStrokeEnabled;
@@ -1015,6 +1032,24 @@ public:
     Q_INVOKABLE void ungroupActiveLayers();
     Q_INVOKABLE void toggleGroupCollapsed(int _index);
     Q_INVOKABLE void renameLayer(int _index, const QString &_name);
+    bool             textEditing() const
+    {
+        return m_textEditing;
+    }
+    bool textGesture() const
+    {
+        return m_textGesture;
+    }
+    QVariantMap      textEditState() const;
+    Q_INVOKABLE void editTextLayer(int _index);
+    Q_INVOKABLE void updateTextHtml(const QString &_html);
+    Q_INVOKABLE void updateTextContent(const QString &_html, const QVariantMap &_formatting);
+    Q_INVOKABLE void updateTextFormatting(const QVariantMap &_formatting);
+    Q_INVOKABLE void setTextBox(bool _paragraph, qreal _width, qreal _height);
+    Q_INVOKABLE void moveTextBy(qreal _dx, qreal _dy);
+    Q_INVOKABLE void finishTextEdit(bool _cancel = false);
+    Q_INVOKABLE void rasterizeTextLayer();
+
     Q_INVOKABLE void setLayerVisible(int _index, bool _visible);
     Q_INVOKABLE void toggleLayerIsolation(int _index);
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);
@@ -1162,6 +1197,11 @@ signals:
     void canvasSizeChanged();
     void documentChanged();
     void layersChanged();
+    void toolLayerCreated();
+    void textEditingChanged();
+    void textGeometryChanged();
+    void textEditRequested();
+    void textEditRequestedAt(qreal _x, qreal _y);
     void imageChanged();
     void gpuTonePreviewChanged();
     void thumbnailsChanged();
@@ -1334,9 +1374,10 @@ private:
     bool      m_spongeSaturate = false;
     int       m_retouchRange   = 1;
     bool      m_protectTones   = true;
-    QString   m_text           = QStringLiteral("Votre texte");
-    int       m_textSize       = 64;
-    bool      m_filledShapes   = true;
+    QString   m_text;
+    int       m_textSize      = 64;
+    bool      m_filledShapes  = true;
+    bool      m_shapeNewLayer = true, m_autoCreatePaintLayer = true;
     QColor    m_shapeFillColor;
     QColor    m_shapeStrokeColor;
     bool      m_shapeStrokeEnabled = true;
@@ -1400,6 +1441,9 @@ private:
     mutable bool      m_fullCompositeDirty = true;
     mutable QRect     m_dirtyRegion;
     bool              m_drawing = false, m_strokeChanged = false;
+    bool              m_strokeCreatedLayer = false;
+    bool              toolNeedsNewLayer() const;
+    bool              startToolLayer(const QString &_label);
     bool              m_toolShift = false, m_toolAlternate = false, m_toolSpace = false;
     bool              m_selectionInitialAlternate = false, m_selectionMoving = false;
     bool              m_strokeConnect = false, m_moveCopy = false, m_moveDuplicatedLayer = false;
@@ -1466,14 +1510,24 @@ private:
     Snapshot                            m_beforePatch;
     Snapshot                            m_beforeContentMove;
     Snapshot                            m_beforeStroke;
-    Snapshot                            m_beforeLayerPreview;
-    QImage                              m_beforeLayerPreviewComposite;
-    bool                                m_layerPropertiesSession = false;
-    Snapshot                            m_beforeLayerProperties;
-    QVector<Snapshot>                   m_undoBeforeLayerProperties;
-    QVector<Snapshot>                   m_redoBeforeLayerProperties;
-    Snapshot                            snapshot(const QString &_label) const;
-    void                                restore(const Snapshot &_state);
+    Snapshot                            m_beforeText;
+    int                                 finishTextForLayer(int _index);
+    bool        m_textEditing = false, m_textGesture = false, m_textNewLayer = false;
+    QPointF     m_textAnchor;
+    QVariantMap m_textMoveParameters;
+    void        beginTextGesture(qreal _x, qreal _y, bool _forceNew);
+    void        beginTextEdit(int _index, bool _fromCanvas);
+    void        updateTextGesture(qreal _x, qreal _y);
+    bool        renderTextEdit();
+
+    Snapshot          m_beforeLayerPreview;
+    QImage            m_beforeLayerPreviewComposite;
+    bool              m_layerPropertiesSession = false;
+    Snapshot          m_beforeLayerProperties;
+    QVector<Snapshot> m_undoBeforeLayerProperties;
+    QVector<Snapshot> m_redoBeforeLayerProperties;
+    Snapshot          snapshot(const QString &_label) const;
+    void              restore(const Snapshot &_state);
 
     bool                              m_frequencyRetouchBusy = false;
     std::shared_ptr<std::atomic_bool> m_frequencyRetouchCancel;
@@ -1507,7 +1561,7 @@ private:
     bool    validStorageBytes(qint64 _bytes);
     bool    validLayerStorage(int _width, int _height, int _extraColors = 0, int _extraMasks = 0,
                               int _bits = 0);
-    bool    editable(bool _materialize = true);
+    bool    editable(bool _materialize = true, bool _allowText = false);
     bool    fail(const QString &_message);
     void    edit(const QString &_label, const std::function<void()> &_operation);
     void    paintSegment(const QPointF &_from, const QPointF &_to);

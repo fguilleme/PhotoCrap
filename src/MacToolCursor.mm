@@ -11,8 +11,13 @@ void reapplyMacToolCursor(const QCursor &_cursor)
     if (QGuiApplication::platformName() != QStringLiteral("cocoa") || !NSApp.active)
         return;
     const QPixmap pixmap = _cursor.pixmap();
-    if (pixmap.isNull())
+    if (pixmap.isNull()) {
+        // AppKit tracking areas can also replace the standard text cursor even
+        // while Qt still considers its I-beam override current.
+        if (_cursor.shape() == Qt::IBeamCursor)
+            [[NSCursor IBeamCursor] set];
         return;
+    }
     // Qt's Cocoa backend may keep its cached cursor while AppKit has reset the
     // actual cursor during a floating window transition. Reapply the bitmap.
     static qint64    previousKey = 0;

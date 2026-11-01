@@ -21,6 +21,8 @@ void Document::addLayer()
 }
 void Document::duplicateLayer()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() ||
         m_layers[m_active].kind == QStringLiteral("group"))
         return;
@@ -41,6 +43,8 @@ void Document::duplicateLayer()
 }
 void Document::removeLayer()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].locked ||
         m_layers.size() == 1)
         return;
@@ -61,6 +65,8 @@ void Document::removeLayer()
 }
 void Document::moveLayer(int _direction)
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() ||
         m_layers[m_active].kind == QStringLiteral("group"))
         return;
@@ -77,6 +83,8 @@ void Document::moveLayer(int _direction)
 }
 void Document::mergeDown()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 1 || m_active >= m_layers.size())
         return;
     const auto &lower = m_layers[m_active - 1];
@@ -106,6 +114,8 @@ void Document::mergeDown()
 }
 void Document::groupSelectedLayers()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (!canGroupSelected() || !validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     edit(tr("Grouper les calques"), [&] {
@@ -140,6 +150,8 @@ void Document::groupSelectedLayers()
 }
 void Document::ungroupActiveLayers()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (!canUngroupActive())
         return;
     const QString groupId = m_layers[m_active].groupId;
@@ -162,6 +174,9 @@ void Document::ungroupActiveLayers()
 }
 void Document::toggleGroupCollapsed(int _index)
 {
+    _index = finishTextForLayer(_index);
+    if (_index < 0)
+        return;
     if (_index < 0 || _index >= m_layers.size() || m_layers[_index].kind != QStringLiteral("group"))
         return;
     m_layers[_index].groupCollapsed = !m_layers[_index].groupCollapsed;
@@ -172,13 +187,23 @@ void Document::toggleGroupCollapsed(int _index)
 }
 void Document::renameLayer(int _index, const QString &_name)
 {
+    _index = finishTextForLayer(_index);
+    if (_index < 0)
+        return;
     if (_index < 0 || _index >= m_layers.size() || _name.trimmed().isEmpty() ||
         m_layers[_index].name == _name.trimmed())
         return;
-    edit(tr("Renommer le calque"), [&] { m_layers[_index].name = _name.trimmed().left(256); });
+    edit(tr("Renommer le calque"), [&] {
+        m_layers[_index].name = _name.trimmed().left(256);
+        if (m_layers[_index].kind == "text")
+            m_layers[_index].parameters["autoName"] = false;
+    });
 }
 void Document::setLayerVisible(int _i, bool _visible)
 {
+    _i = finishTextForLayer(_i);
+    if (_i < 0)
+        return;
     if (_i < 0 || _i >= m_layers.size() || m_layers[_i].visible == _visible)
         return;
     m_visibilityBeforeIsolation.clear();
@@ -187,6 +212,9 @@ void Document::setLayerVisible(int _i, bool _visible)
 }
 void Document::toggleLayerIsolation(int _i)
 {
+    _i = finishTextForLayer(_i);
+    if (_i < 0)
+        return;
     if (_i < 0 || _i >= m_layers.size())
         return;
     if (m_isolatedLayer == _i && m_visibilityBeforeIsolation.size() == m_layers.size()) {
@@ -225,12 +253,18 @@ void Document::toggleLayerIsolation(int _i)
 }
 void Document::setLayerLocked(int _i, bool _locked)
 {
+    _i = finishTextForLayer(_i);
+    if (_i < 0)
+        return;
     if (_i < 0 || _i >= m_layers.size() || m_layers[_i].locked == _locked)
         return;
     edit(tr("Verrouillage du calque"), [&] { m_layers[_i].locked = _locked; });
 }
 void Document::setLayerOpacity(int _i, qreal _opacity)
 {
+    _i = finishTextForLayer(_i);
+    if (_i < 0)
+        return;
     if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
         !std::isfinite(_opacity))
         return;
@@ -241,6 +275,9 @@ void Document::setLayerOpacity(int _i, qreal _opacity)
 }
 void Document::setLayerBlend(int _i, int _blend)
 {
+    _i = finishTextForLayer(_i);
+    if (_i < 0)
+        return;
     if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
         _blend < 0 || _blend > 26 || m_layers[_i].blend == _blend)
         return;
@@ -248,6 +285,9 @@ void Document::setLayerBlend(int _i, int _blend)
 }
 void Document::previewLayerBlend(int _i, int _blend)
 {
+    _i = finishTextForLayer(_i);
+    if (_i < 0)
+        return;
     if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
         _blend < 0 || _blend > 26)
         return;
@@ -263,6 +303,8 @@ void Document::previewLayerBlend(int _i, int _blend)
 }
 void Document::setClippingMask(bool _enabled)
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() ||
         m_layers[m_active].kind == QStringLiteral("group") ||
         m_layers[m_active].clippingMask == _enabled || (_enabled && m_active == 0))
@@ -272,6 +314,8 @@ void Document::setClippingMask(bool _enabled)
 }
 void Document::addLayerMask(bool _revealAll)
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() ||
         m_layers[m_active].kind == QStringLiteral("group"))
         return;
@@ -326,6 +370,8 @@ void Document::copyLayerMask(int _sourceIndex, int _targetIndex)
 }
 void Document::removeLayerMask()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull())
         return;
     edit(tr("Supprimer le masque de fusion"), [&] {
@@ -335,12 +381,16 @@ void Document::removeLayerMask()
 }
 void Document::invertLayerMask()
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull())
         return;
     edit(tr("Inverser le masque de fusion"), [&] { m_layers[m_active].mask.invertPixels(); });
 }
 void Document::setMaskEnabled(bool _enabled)
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull() ||
         m_layers[m_active].maskEnabled == _enabled)
         return;
@@ -348,6 +398,8 @@ void Document::setMaskEnabled(bool _enabled)
 }
 void Document::setEditingMask(bool _enabled)
 {
+    if (finishTextForLayer(m_active) < 0)
+        return;
     if (m_active < 0 || m_active >= m_layers.size())
         return;
     _enabled = _enabled && !m_layers[m_active].mask.isNull();

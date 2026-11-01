@@ -247,7 +247,7 @@ private slots:
         QVERIFY(io.open(QIODevice::ReadOnly));
         auto root = QJsonDocument::fromJson(io.readAll()).object();
         io.close();
-        QCOMPARE(root["version"].toInt(), 8);
+        QCOMPARE(root["version"].toInt(), 9);
         auto paths        = root["penPaths"].toArray();
         auto invalid      = paths[0].toObject();
         invalid["points"] = QJsonArray{QJsonArray{1, 2}};

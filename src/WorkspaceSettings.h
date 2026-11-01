@@ -12,6 +12,8 @@ class WorkspaceSettings final : public QObject
                    NOTIFY toolBehaviorChanged)
     Q_PROPERTY(bool springLoadedTools READ springLoadedTools WRITE setSpringLoadedTools NOTIFY
                    toolBehaviorChanged)
+    Q_PROPERTY(bool autoCreatePaintLayer READ autoCreatePaintLayer WRITE setAutoCreatePaintLayer
+                   NOTIFY toolBehaviorChanged)
     Q_PROPERTY(QVariantMap layout READ layout NOTIFY layoutChanged)
     Q_PROPERTY(QVariantList toolLayout READ toolLayout NOTIFY toolLayoutChanged)
     Q_PROPERTY(
@@ -43,6 +45,11 @@ public:
     {
         return m_springLoadedTools;
     }
+    bool autoCreatePaintLayer() const
+    {
+        return m_autoCreatePaintLayer;
+    }
+    void setAutoCreatePaintLayer(bool _value);
     void setUseShiftToCycleTools(bool _value);
     void setSpringLoadedTools(bool _value);
     int  scratchDiskGiB() const
@@ -77,7 +84,8 @@ private:
     QVariantList m_toolLayout;
     bool         m_persist              = true;
     bool         m_useShiftToCycleTools = true, m_springLoadedTools = true;
-    int          m_scratchDiskGiB  = 4;
-    int          m_textureCacheMiB = 64;
+    bool         m_autoCreatePaintLayer = true;
+    int          m_scratchDiskGiB       = 4;
+    int          m_textureCacheMiB      = 64;
     QString      m_scratchDirectory;
 };

@@ -6,6 +6,7 @@
 #include "RecentFilesManager.h"
 #include "SelectionUiSmoke.h"
 #include "ShortcutManager.h"
+#include "ToolLayerSmoke.h"
 #include "WorkspaceSettings.h"
 #include <QFile>
 #include <QOperatingSystemVersion>
@@ -377,13 +378,18 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(_window, "closeLayerContextMenu");
     _document.setTool("text");
-    auto textField = _window->findChild<QQuickItem *>("textField");
-    if (!require(textField, "text field exists"))
+    _document.beginStroke(20, 20);
+    _document.endStroke();
+    QTest::qWait(50);
+    auto textField = _window->findChild<QQuickItem *>("canvasTextEditor");
+    if (!require(textField, "canvas text editor exists"))
         return false;
     textField->forceActiveFocus();
     QTest::keyClick(_window, Qt::Key_B);
-    if (!require(_document.tool() == "text", "typing B does not switch tools"))
+    if (!require(_document.tool() == "text" && _document.text().contains("b", Qt::CaseInsensitive),
+                 "typing B edits the text layer without switching tools"))
         return false;
+    _document.finishTextEdit(true);
     area->forceActiveFocus();
     _document.setTool("brush");
     _document.setColor(Qt::red);
@@ -1818,6 +1824,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(guard, "close");
     QTest::qWait(150);
+    if (!runToolLayerSmoke(_window, _document, _workspaceSettings))
+        return false;
     // The four C variants share one toolbar slot and operate through real pointer delivery.
     _document.newDocument(300, 200, true);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "crop"),

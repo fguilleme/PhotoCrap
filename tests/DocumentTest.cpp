@@ -477,7 +477,7 @@ private slots:
         QVERIFY(input.open(QIODevice::ReadOnly));
         auto root = QJsonDocument::fromJson(input.readAll()).object();
         input.close();
-        QCOMPARE(root["version"].toInt(), 8);
+        QCOMPARE(root["version"].toInt(), 9);
         auto layers    = root["layers"].toArray();
         auto compact   = layers[1].toObject();
         compact["png"] = layers[0].toObject()["png"]; // Full image with a compact flag.
@@ -939,6 +939,8 @@ private slots:
                      QStringList({"rectangle", "ellipse", "triangle", "polygon", "star", "line",
                                   "customShape"}));
 
+            QVERIFY(settings.autoCreatePaintLayer());
+            settings.setAutoCreatePaintLayer(false);
             customized = defaults;
             customized.append(customized.takeFirst());
             settings.saveToolLayout(customized);
@@ -946,6 +948,11 @@ private slots:
         {
             WorkspaceSettings restored;
             QCOMPARE(restored.toolLayout(), customized);
+            QVERIFY(!restored.autoCreatePaintLayer());
+            WorkspaceSettings temporary(nullptr, false);
+            QVERIFY(temporary.autoCreatePaintLayer());
+            temporary.setAutoCreatePaintLayer(true);
+            QVERIFY(!QSettings().value("tools/autoCreatePaintLayer").toBool());
             restored.resetToolLayout();
             QCOMPARE(restored.toolLayout().first().toMap().value("id").toString(), QString("move"));
         }
@@ -4350,6 +4357,7 @@ private slots:
         QVERIFY(d.layerImage(0).pixelColor(30, 60).alpha() > 0);
         QCOMPARE(d.layerImage(0).pixelColor(30, 66).alpha(), 0);
         d.setTool("rectangle");
+        d.setShapeNewLayer(false); // Exercise the explicit pixel mode in this gesture test.
         d.setShapeStrokeEnabled(false);
         d.setShapeFillColor(Qt::blue);
         d.beginStroke(60, 60, true, true);
@@ -4925,6 +4933,208 @@ private slots:
         QVERIFY(!d.newDocument(20000, 100));
         QCOMPARE(d.width(), 8);
         QVERIFY(!d.newDocument(-1, 100));
+    }
+    void creatingToolsOwnTheirLayers_data()
+    {
+        QTest::addColumn<QString>("tool");
+        QTest::addColumn<int>("bits");
+        for (const auto tool :
+             {"text", "rectangle", "ellipse", "triangle", "polygon", "star", "line"})
+            for (int bits : {8, 16})
+                QTest::newRow(qPrintable(QString("%1-%2").arg(tool).arg(bits)))
+                    << QString(tool) << bits;
+    }
+    void creatingToolsOwnTheirLayers()
+    {
+        QFETCH(QString, tool);
+        QFETCH(int, bits);
+        Document d;
+        QVERIFY(d.newDocument(96, 80, true, bits));
+        d.addAdjustmentLayer("brightnessContrast");
+        d.setEditingMask(true);
+        d.toggleMaskOnlyView(d.activeLayer());
+        const auto base = d.layerImage(0), mask = d.maskImage(1);
+        const auto history = d.historyIndex();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setText("Abc");
+        d.setTextSize(16);
+        d.setColor(Qt::red);
+        d.setShapeFillColor(Qt::red);
+        d.setShapeStrokeColor(Qt::red);
+        d.setTool(tool);
+        d.beginStroke(10, 10);
+        d.continueStroke(70, 60);
+        d.endStroke();
+        if (tool == "text") {
+            d.setText("Abc");
+            d.finishTextEdit();
+        }
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.activeLayer(), 2);
+        QVERIFY(!d.editingMask());
+        QCOMPARE(d.maskOnlyLayer(), -1);
+        QCOMPARE(d.selectedLayerCount(), 1);
+        QCOMPARE(d.layers().first().toMap().value("kind").toString(),
+                 tool == "text" ? QString("text") : QString("pixel"));
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layerImage(0), base);
+        QCOMPARE(d.maskImage(1), mask);
+        const auto output = d.layerImage(2);
+        QCOMPARE(ImageUtils::is16Bit(output), bits == 16);
+        bool painted = false;
+        for (int y = 0; y < output.height(); ++y)
+            for (int x = 0; x < output.width(); ++x)
+                painted |= output.pixelColor(x, y).alpha() > 0;
+        QVERIFY(painted);
+        d.undo();
+        QCOMPARE(d.layers().size(), 2);
+        QCOMPARE(d.activeLayer(), 1);
+        QVERIFY(d.editingMask());
+        QCOMPARE(d.historyIndex(), history);
+        d.redo();
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.layerImage(2), output);
+    }
+    void shapeLayerCancellationAndPixelMode()
+    {
+        Document d;
+        QVERIFY(d.newDocument(64, 64, true));
+        d.setLayerLocked(0, true);
+        const auto before  = d.layerImage(0);
+        const int  history = d.historyIndex();
+        d.setTool("rectangle");
+        d.beginStroke(4, 4);
+        d.continueStroke(40, 40);
+        QCOMPARE(d.layers().size(), 2);
+        d.cancelStroke();
+        QCOMPARE(d.layers().size(), 1);
+        QCOMPARE(d.activeLayer(), 0);
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(0), before);
+        d.beginStroke(4, 4);
+        d.endStroke(); // A click without a drag leaves no empty layer or undo step.
+        QCOMPARE(d.layers().size(), 1);
+        QCOMPARE(d.historyIndex(), history);
+        d.setShapeNewLayer(false);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.beginStroke(4, 4);
+        d.continueStroke(40, 40);
+        d.endStroke();
+        QCOMPARE(errors.size(), 1);
+        QCOMPARE(d.layers().size(), 1);
+        d.setLayerLocked(0, false);
+        d.beginStroke(4, 4);
+        d.continueStroke(40, 40);
+        d.endStroke();
+        QCOMPARE(d.layers().size(), 1);
+        QVERIFY(d.layerImage(0) != before);
+        d.setTool("gradient"); // The existing classic raster gradient keeps its target.
+        d.beginStroke(0, 0);
+        d.continueStroke(50, 50);
+        d.endStroke();
+        QCOMPARE(d.layers().size(), 1);
+    }
+    void creatingLayerFinalizesPreviousPropertiesSession()
+    {
+        Document d;
+        QVERIFY(d.newDocument(64, 64, true));
+        d.addAdjustmentLayer("brightnessContrast");
+        d.beginLayerPropertiesSession();
+        d.previewLayerParameter("brightness", 30.);
+        d.setTool("rectangle");
+        d.beginStroke(5, 5);
+        d.continueStroke(40, 40);
+        d.endStroke();
+        QCOMPARE(d.layers().size(), 3);
+        const auto result = d.layerImage(2);
+        d.cancelLayerPreview();
+        d.cancelLayerPropertiesSession(); // Closing the old panel cannot discard the new drawing.
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.layerImage(2), result);
+        d.undo();
+        QCOMPARE(d.layers().size(), 2);
+        QCOMPARE(
+            d.layers().first().toMap().value("parameters").toMap().value("brightness").toDouble(),
+            30.);
+        d.undo();
+        QCOMPARE(
+            d.layers().first().toMap().value("parameters").toMap().value("brightness").toDouble(),
+            0.);
+    }
+    void paintLayerFallbackRespectsMasksAndPreference()
+    {
+        for (const auto tool : {"brush", "pencil"}) {
+            Document d;
+            QVERIFY(d.newDocument(32, 32, true, 16));
+            d.addAdjustmentLayer("brightnessContrast");
+            d.setTool(tool);
+            d.setColor(Qt::red);
+            const int  history = d.historyIndex();
+            QSignalSpy errors(&d, &Document::errorOccurred);
+            d.beginStroke(10, 10);
+            d.endStroke();
+            QCOMPARE(errors.size(), 0);
+            QCOMPARE(d.layers().size(), 3);
+            QCOMPARE(d.layerImage(2).pixelColor(10, 10), QColor(Qt::red));
+            QCOMPARE(d.historyIndex(), history + 1);
+            d.beginStroke(20, 20);
+            d.endStroke();
+            QCOMPARE(d.layers().size(), 3); // Subsequent strokes use the new pixel layer.
+            d.undo();
+            d.undo();
+            QCOMPARE(d.layers().size(), 2);
+            d.setEditingMask(true);
+            d.setColor(Qt::black);
+            d.beginStroke(10, 10);
+            d.endStroke();
+            QCOMPARE(d.layers().size(), 2);
+            QVERIFY(d.maskImage(1).pixelColor(10, 10).red() < 255);
+            d.setEditingMask(false);
+            d.setAutoCreatePaintLayer(false);
+            d.beginStroke(10, 10);
+            d.endStroke();
+            QCOMPARE(errors.size(), 1);
+            QCOMPARE(d.layers().size(), 2);
+        }
+    }
+    void toolLayersFollowGroupPlacementAndCapacity()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32, true));
+        d.addLayer();
+        d.selectAllLayers();
+        d.groupSelectedLayers();
+        const int     group   = d.activeLayer();
+        const QString groupId = d.layers().first().toMap().value("groupId").toString();
+        d.toggleGroupCollapsed(group);
+        QCOMPARE(d.layers().size(), 1);
+        d.setTool("rectangle");
+        d.beginStroke(2, 2);
+        d.continueStroke(20, 20);
+        d.endStroke();
+        QCOMPARE(d.activeLayer(), group);
+        QCOMPARE(d.layers().size(), 4); // Creating content reveals a collapsed target folder.
+        QCOMPARE(d.layers()[1].toMap().value("groupId").toString(), groupId);
+        d.undo();
+        d.setLayerLocked(group, true);
+        d.beginStroke(2, 2);
+        d.continueStroke(20, 20);
+        d.endStroke();
+        QCOMPARE(d.activeLayer(), group + 1);
+        QVERIFY(d.layers().first().toMap().value("groupId").toString().isEmpty());
+        d.undo();
+        QVERIFY(d.newDocument(8, 8, true));
+        for (int i = 1; i < 512; ++i)
+            d.addLayer();
+        const int  history = d.historyIndex();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.beginStroke(1, 1);
+        d.continueStroke(6, 6);
+        d.endStroke();
+        QCOMPARE(errors.size(), 1);
+        QCOMPARE(d.layers().size(), 512);
+        QCOMPARE(d.historyIndex(), history);
     }
     void shapePreviewIsSingleUndoOperation()
     {

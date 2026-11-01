@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "text/TextLayer.h"
 
 #include <QFutureWatcher>
 #include <QLineF>
@@ -321,6 +322,8 @@ void Document::applyCrop()
             _image = std::move(output);
         };
         for (auto &layer : layers) {
+            if (layer.kind == "text")
+                PhotoCrap::Text::transform(layer.parameters, transform);
             warp(layer.image);
             warp(layer.mask);
             warp(layer.source);

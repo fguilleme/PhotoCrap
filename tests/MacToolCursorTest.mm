@@ -11,6 +11,11 @@
 
 #import <AppKit/AppKit.h>
 
+bool macTextCursorIsCurrent()
+{
+    return [[NSCursor currentCursor] isEqual:[NSCursor IBeamCursor]];
+}
+
 bool runMacPenInputTest(QQuickWindow *_window, Document &_document)
 {
     if (QGuiApplication::platformName() != QStringLiteral("cocoa"))

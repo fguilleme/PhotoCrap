@@ -146,6 +146,9 @@ La Gomme magique est maintenant disponible dans le groupe E : Maj+E parcourt les
 | Opacité du calque | 0–9 | Déplacement |
 | Mettre humidité et mélange à zéro | 00 | Pinceau mélangeur |
 
+| Sélectionner tout le texte | Ctrl + A | Texte |
+| Valider le texte | Ctrl + Entrée | Texte |
+
 ## Inventaire NYI
 
 Ces entrées constituent la liste de travail des fonctions manquantes, sans annoncer qu’elles sont implémentées.
@@ -230,8 +233,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Changer la grille | Alt + clic | Courbes |
 | Afficher l’écrêtage | Alt + glisser | Courbes / Niveaux |
 | Régler la famille de couleur sur l’image | Glisser sur l’image | Noir et blanc |
-| Sélectionner tout le texte | Ctrl + A | Texte |
-| Valider le texte | Ctrl + Entrée | Texte |
 | Taille du texte | Ctrl + Maj + < / > | Texte |
 | Interligne | Alt + flèches haut / bas | Texte |
 | Approche du texte | Alt + flèches gauche / droite | Texte |
@@ -275,3 +276,7 @@ Le catalogue de v0.15 contient 298 entrées, dont 121 NYI. Les tracés de la Plu
 Frange, Lisser, Dilater, Contracter, Sélectionner les calques similaires et Afficher/masquer le contour de sélection sont configurables, sans combinaison imposée par défaut. Resélectionner (Commande/Ctrl+Maj+D) et Intervertir (Commande/Ctrl+Maj+I) passent par les actions du menu, même lorsqu’il est fermé.
 
 Le catalogue recense aussi les entrées NYI Étendre, Généraliser, Zone de mise au point, Sujet, Ciel, Mémoriser/Récupérer la sélection, Désélectionner les calques, Rechercher et Isoler les calques dans le panneau. Plage de couleurs est maintenant configurable (sans combinaison par défaut) ; Contour progressif utilise Maj+F6 et devient configurable. Sélectionner et masquer, Mode Masque et Transformer la sélection restent NYI. L’inventaire ne réserve pas les touches de ces fonctions manquantes. Voir [SELECTIONS.md](SELECTIONS.md) pour leurs options et les prérequis du moteur.
+
+## Texte éditable
+
+Depuis le calque de texte éditable, Cmd/Ctrl+A sélectionne le texte et Cmd/Ctrl+Entrée valide la session. Ces deux gestes sont désormais disponibles dans le catalogue (298 entrées, 119 NYI). Cmd/Ctrl+B, I et U mettent en forme les caractères ; Échap annule la session. Les raccourcis avancés de taille, interligne, approche et alignement restent NYI ; leurs réglages sont accessibles dans le panneau Caractère / Paragraphe. Voir [le guide texte](TEXT_TOOL.md).

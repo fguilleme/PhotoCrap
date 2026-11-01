@@ -145,6 +145,21 @@ ApplicationWindow {
             window.springPreviousTool = ""; window.springSelectedTool = ""
         }
     }
+    Binding {
+        target: editor
+        property: "autoCreatePaintLayer"
+        value: workspaceSettings.autoCreatePaintLayer
+    }
+    Connections {
+        target: editor
+        function onToolLayerCreated() {
+            window.cancelLayerPreviewQueue()
+            if (layerPropertiesDialog.opened) {
+                layerPropertiesDialog.keepChanges = true
+                layerPropertiesDialog.accept()
+            }
+        }
+    }
     readonly property bool stampToolActive: editor.tool === "cloneStamp" || editor.tool === "patternStamp"
     readonly property bool selectionToolActive: editor.tool === "select"
                                                  || editor.tool === "ellipticalSelect"
@@ -171,6 +186,7 @@ ApplicationWindow {
                                                ? (editor.slices, sliceOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY))
                                              : window.cropToolActive
                                                ? cropOverlay.cursorAt(drawingArea.pointerX, drawingArea.pointerY)
+                                             : editor.tool === "text" ? (canvasTextEditor.moveCursor ? Qt.SizeAllCursor : Qt.IBeamCursor)
                                              : editor.tool === "move"
                                                ? Qt.SizeAllCursor
                                              : window.paintToolActive
@@ -227,7 +243,7 @@ ApplicationWindow {
     property string dockDropZone: ""
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
-    property bool editingText: activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
+    property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool modalOpen: colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -309,7 +325,7 @@ ApplicationWindow {
         {name:"addAnchor", icon:"+◇", label:qsTr("Ajout de point d’ancrage"), implemented:true},
         {name:"deleteAnchor", icon:"−◇", label:qsTr("Suppression de point d’ancrage"), implemented:true},
         {name:"convertPoint", icon:"⌞", label:qsTr("Conversion de point"), implemented:true},
-        {name:"text", icon:"T", label:qsTr("Texte horizontal rasterisé"), implemented:true},
+        {name:"text", icon:"T", label:qsTr("Texte horizontal éditable"), implemented:true},
         {name:"verticalText", icon:"↕T", label:qsTr("Texte vertical"), implemented:false},
         {name:"verticalTypeMask", icon:"↕T", label:qsTr("Masque de texte vertical"), implemented:false},
         {name:"horizontalTypeMask", icon:"T", label:qsTr("Masque de texte horizontal"), implemented:false},
@@ -339,6 +355,12 @@ ApplicationWindow {
     function isPreparedFrequency(info) {
         return info.kind === "pixel" && info.parameters &&
                (info.parameters._frequencyBand === "low" || info.parameters._frequencyBand === "high")
+    }
+    function openActiveLayerProperties() {
+        if(activeInfo.kind==="text" && !activeInfo.editingMask) {
+            if(!editor.textEditing)editor.editTextLayer(editor.activeLayer)
+            if(editor.textEditing)textTypography.open()
+        } else layerPropertiesDialog.open()
     }
     function canOpenLayerProperties(info) {
         return info.kind !== "group" && (info.kind !== "pixel" || info.editingMask || isPreparedFrequency(info))
@@ -880,7 +902,7 @@ ApplicationWindow {
             editor.toggleMaskOnlyView(layerIndex)
         else {
             editor.showCompositeView()
-            layerPropertiesDialog.open()
+            window.openActiveLayerProperties()
         }
     }
     function perform(action) {
@@ -927,7 +949,7 @@ ApplicationWindow {
     }
     function addAdjustmentLayer(type) {
         editor.addAdjustmentLayer(type)
-        layerPropertiesDialog.open()
+        window.openActiveLayerProperties()
     }
     function queueLayerPreview(key, value) {
         if(!layerPreview.checked)return
@@ -1312,7 +1334,7 @@ ApplicationWindow {
                     DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: addAdjustmentLayer("noise") }
                 }
             }
-            DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
+            DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); window.openActiveLayerProperties() } }
             MenuSeparator {}
             DarkMenu {
                 title: qsTr("Masque de fusion")
@@ -1323,7 +1345,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Supprimer le masque"); enabled: activeInfo.hasMask; onTriggered: editor.removeLayerMask() }
             }
             DarkMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
-            DarkMenuItem { text: qsTr("Propriétés…"); enabled: window.canOpenLayerProperties(activeInfo); onTriggered: layerPropertiesDialog.open() }
+            DarkMenuItem { text: qsTr("Propriétés…"); enabled: window.canOpenLayerProperties(activeInfo); onTriggered: window.openActiveLayerProperties() }
             DarkMenuItem { text: qsTr("Fusionner vers le bas"); enabled: editor.activeLayer>0; onTriggered: editor.mergeDown() }
             DarkMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onTriggered: editor.removeLayer() }
         }
@@ -1777,7 +1799,16 @@ ApplicationWindow {
                     implicitWidth: 92
                     onValueModified: editor.toolStrength=value/100
                 }
-                Label { visible: window.shapeToolActive && window.width >= 1250; text: qsTr("Pixels"); color: "#aab3bd" }
+                ComboBox {
+                    objectName: "shapeLayerMode"
+                    visible: window.shapeToolActive
+                    implicitWidth: 165; implicitHeight: 30
+                    model: [qsTr("Nouveau calque"), qsTr("Pixels sur calque actif")]
+                    currentIndex: editor.shapeNewLayer ? 0 : 1
+                    onActivated: editor.shapeNewLayer = currentIndex === 0
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Créer une forme sur son propre calque ou dessiner dans les pixels du calque actif")
+                }
                 CheckBox {
                     objectName: "shapeFillEnabled"
                     visible: window.closedShapeToolActive
@@ -2316,6 +2347,13 @@ ApplicationWindow {
                                 visible:window.penToolActive && editor.activePenPath>=0
                                 z:3
                             }
+                            TextLayerEditor {
+                                id: canvasTextEditor
+                                objectName: "textLayerOverlay"
+                                document: editor
+                                zoom: window.zoom
+                                z: 30
+                            }
                             MouseArea {
                                 id: drawingArea
                                 objectName: "drawingArea"
@@ -2353,8 +2391,8 @@ ApplicationWindow {
                                               : window.temporaryPickerActive ? "picker"
                                               : window.penToolActive ? editor.penCursorAt(pointerX/zoom,pointerY/zoom,7/zoom,window.primaryPressed,window.stampSourcePicking) : editor.tool
                                     imageCanvas.setSystemCursor(calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
-                                                                (containsMouse || calibration || measuring) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
-                                                                tool, editor.selectionMode, window.stampSourcePicking, toolInput.precise)
+                                                                (containsMouse || canvasTextEditor.pointerInside || calibration || measuring) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
+                                                                tool, editor.selectionMode, window.stampSourcePicking, editor.tool!=="text" && toolInput.precise)
                                 }
                                 function refreshSystemCursor() {
                                     syncSystemCursor()
@@ -2518,6 +2556,10 @@ ApplicationWindow {
                                 function onColorPickerModeChanged() { drawingArea.refreshSystemCursor() }
                                 function onStampSourcePickingChanged() { drawingArea.syncSystemCursor() }
                                 function onPrimaryPressedChanged() { drawingArea.refreshSystemCursor() }
+                            }
+                            Connections {
+                                target: canvasTextEditor
+                                function onPointerInsideChanged(){drawingArea.refreshSystemCursor()}
                             }
                             Connections {
                                 target: toolInput
@@ -2785,8 +2827,14 @@ ApplicationWindow {
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 15
                         Label { text: editor.tool==="text" ? qsTr("Texte") : window.cropToolActive ? qsTr("Tracez le cadre, ajustez les poignées ; Entrée pour recadrer, Échap pour annuler") : ""; color: "#8e9aa7" }
-                        TextField { id: textField; objectName: "textField"; visible: editor.tool==="text"; text: editor.text; Layout.fillWidth: true; placeholderText: qsTr("Cliquez ensuite sur le canevas"); onTextEdited: editor.text=text }
-                        DarkSpinBox { visible: editor.tool==="text"; from: 6; to: 512; value: editor.textSize; suffix: " px"; onValueModified: editor.textSize=value }
+                        Label {
+                            visible: editor.tool==="text";Layout.fillWidth:true;color:"#bec8d2"
+                            text: editor.textEditing ? qsTr("Saisie sur l’image · ⌘/Ctrl Entrée : valider · Échap : annuler") : qsTr("Cliquez pour écrire ; glissez pour créer un bloc de paragraphe")
+                            elide:Text.ElideRight
+                        }
+                        Button {visible:editor.tool==="text";text:qsTr("Caractère / Paragraphe…");enabled:editor.textEditing;onClicked:textTypography.open()}
+                        Button {visible:editor.textEditing;text:qsTr("Annuler");onClicked:editor.finishTextEdit(true)}
+                        Button {visible:editor.textEditing;text:qsTr("Valider");onClicked:{canvasTextEditor.sync();editor.finishTextEdit()}}
                         Item { Layout.fillWidth: true; visible: editor.tool!=="text" }
                         IconButton { text: qsTr("−"); implicitHeight: 28; onClicked: setZoom(zoom/1.25) }
                         Label { text: Math.round(zoom*100)+" %"; color: "#bec8d2"; horizontalAlignment: Text.AlignHCenter; Layout.preferredWidth: 50 }
@@ -3147,7 +3195,8 @@ ApplicationWindow {
                                 onDoubleClicked: function(mouse) {
                                     if(mouse.button!==Qt.LeftButton) return
                                     editor.selectLayer(modelData.layerIndex)
-                                    if(window.canOpenLayerProperties(modelData)) layerPropertiesDialog.open()
+                                    if(modelData.kind==="text") editor.editTextLayer(modelData.layerIndex)
+                                    else if(window.canOpenLayerProperties(modelData)) window.openActiveLayerProperties()
                                     else { layerName.text=modelData.name; renameDialog.open() }
                                 }
                             }
@@ -3197,9 +3246,11 @@ ApplicationWindow {
                                 }
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
-                                    Image { anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Image { visible:modelData.kind!=="text"; anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Label {anchors.centerIn:parent;visible:modelData.kind==="text";text:"T";font.family:"serif";font.bold:true;font.pixelSize:27;color:"#dbe6ef"}
                                     MouseArea {
                                         objectName: "layerThumbnailMouse"
+                                        onDoubleClicked: function(mouse){if(mouse.button===Qt.LeftButton && modelData.kind==="text")editor.editTextLayer(modelData.layerIndex)}
                                         anchors.fill: parent
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         onClicked: function(mouse) {
@@ -3279,7 +3330,7 @@ ApplicationWindow {
                                     Label { text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11 }
                                     Label {
                                         text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
-                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
+                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
                                         color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
                                         font.pixelSize: 9
                                     }
@@ -3292,7 +3343,7 @@ ApplicationWindow {
                         IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
                         IconButton { glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
-                        IconButton { objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: layerPropertiesDialog.open() }
+                        IconButton { objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: window.openActiveLayerProperties() }
                         IconButton { glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
                         IconButton { glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
                         Item { Layout.fillWidth: true }
@@ -3506,7 +3557,7 @@ ApplicationWindow {
     DarkMenu {
         id: createLayerMenu
         DarkMenuItem { text: qsTr("Calque de pixels"); onTriggered: editor.addLayer() }
-        DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); layerPropertiesDialog.open() } }
+        DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); window.openActiveLayerProperties() } }
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
         DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
@@ -3557,7 +3608,7 @@ ApplicationWindow {
                              (activeInfo.kind !== "pixel" || window.isPreparedFrequency(activeInfo))
         onPropertiesRequested: {
             editor.setEditingMask(false)
-            layerPropertiesDialog.open()
+            window.openActiveLayerProperties()
         }
         onRenameRequested: { layerName.text=activeInfo.name; renameDialog.open() }
     }
@@ -3566,7 +3617,7 @@ ApplicationWindow {
         objectName: "maskContextMenu"
         document: editor
         layerInfo: window.activeInfo
-        onPropertiesRequested: layerPropertiesDialog.open()
+        onPropertiesRequested: window.openActiveLayerProperties()
     }
 
     Popup {
@@ -3722,6 +3773,14 @@ ApplicationWindow {
         }
         onAccepted: editor.resizeImage(resizeWidth.value,resizeHeight.value)
     }
+    TextTypographyPanel {
+        id: textTypography
+        objectName: "textTypographyPanel"
+        textEditor: canvasTextEditor
+        document: editor
+        x:Math.max(20,window.width-width-30);y:110
+    }
+    Connections {target:editor;function onTextEditingChanged(){if(!editor.textEditing)textTypography.close()}}
     Dialog {
         id: renameDialog; title: qsTr("Renommer le calque"); anchors.centerIn: parent; modal: true; width: 350
         TextField { id: layerName; width: parent.width; maximumLength: 256; selectByMouse: true; onAccepted: renameDialog.accept() }
@@ -4592,6 +4651,12 @@ ApplicationWindow {
                         text: qsTr("Revenir à l’outil précédent après un raccourci maintenu")
                         checked: workspaceSettings.springLoadedTools
                         onToggled: workspaceSettings.springLoadedTools=checked
+                    }
+                    CheckBox {
+                        objectName: "autoCreatePaintLayerCheck"
+                        text: qsTr("Créer un calque avec Pinceau/Crayon sur une cible non peignable")
+                        checked: workspaceSettings.autoCreatePaintLayer
+                        onToggled: workspaceSettings.autoCreatePaintLayer = checked
                     }
                     Label { text: qsTr("Barre d’outils"); color: "#eef2f5"; font.pixelSize: 20; font.bold: true }
                     Label {

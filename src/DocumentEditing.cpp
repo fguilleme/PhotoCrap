@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "text/TextLayer.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
@@ -220,6 +221,10 @@ void Document::cropToSelection()
     }
     edit(tr("Recadrer"), [&] {
         for (auto &layer : m_layers) {
+            if (layer.kind == "text")
+                PhotoCrap::Text::transform(
+                    layer.parameters,
+                    QTransform::fromTranslate(-m_selection.x(), -m_selection.y()));
             if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image = layer.image.copy(m_selection);
             if (!layer.mask.isNull() && !ImageUtils::compact(layer.mask))
@@ -257,7 +262,12 @@ void Document::resizeImage(int _w, int _h)
     }
     edit(tr("Redimensionner l’image"), [&] {
         for (auto &layer : m_layers) {
-            if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
+            if (layer.kind == "text") {
+                PhotoCrap::Text::transform(
+                    layer.parameters,
+                    QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height()));
+                layer.image = PhotoCrap::Text::render(layer.parameters, {_w, _h}, workingFormat());
+            } else if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     layer.image.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             if (!layer.mask.isNull() && !ImageUtils::compact(layer.mask))
@@ -307,6 +317,8 @@ void Document::transformImage(const QString &_operation)
         m_penPaths = paths;
         emit penPathsChanged();
         for (auto &layer : m_layers) {
+            if (layer.kind == "text")
+                PhotoCrap::Text::transform(layer.parameters, pathTransform);
             auto transform = [&](QImage &_image) {
                 if (_image.isNull())
                     return;

@@ -81,6 +81,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         beginPenGesture(_x, _y, 6, false, _alternate, _straight);
         return;
     }
+    if (m_tool == "text") {
+        beginTextGesture(_x, _y, _straight);
+        return;
+    }
     if (!toolSupportsDepth(m_tool)) {
         fail(tr("Cet outil nécessite actuellement un document 8 bits. Changez la profondeur dans "
                 "le menu Image."));
@@ -186,11 +190,17 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         emit selectionChanged();
         return;
     }
-    if (!editable())
+    const bool newLayer = toolNeedsNewLayer();
+    if (newLayer && (m_brushOpacity <= 0 || (m_tool == "text" && m_text.trimmed().isEmpty()) ||
+                     ((m_tool == "line" || m_tool == "rectangle" || m_tool == "ellipse" ||
+                       m_tool == "triangle" || m_tool == "polygon" || m_tool == "star") &&
+                      !m_shapeStrokeEnabled && (m_tool == "line" || !m_filledShapes))))
         return;
-    if (m_editingMask && m_tool != "brush" && m_tool != "pencil" && m_tool != "eraser" &&
-        m_tool != "fill" && m_tool != "cloneStamp" && m_tool != "patternStamp" &&
-        m_tool != "smudge" && m_tool != "mixerBrush") {
+    if (!newLayer && !editable(true, m_tool == "move"))
+        return;
+    if (!newLayer && m_editingMask && m_tool != "brush" && m_tool != "pencil" &&
+        m_tool != "eraser" && m_tool != "fill" && m_tool != "cloneStamp" &&
+        m_tool != "patternStamp" && m_tool != "smudge" && m_tool != "mixerBrush") {
         fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
         return;
     }
@@ -198,9 +208,16 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         (!validSize(width(), height(), int(m_layers.size()) + 1) ||
          !validLayerStorage(width(), height(), 1, !m_layers[m_active].mask.isNull())))
         return;
-    m_beforeStroke = snapshot(toolLabel(m_tool));
-    if (m_tool == "move")
+    m_strokeCreatedLayer = false;
+    if (newLayer) {
+        if (!startToolLayer(toolLabel(m_tool)))
+            return;
+    } else
+        m_beforeStroke = snapshot(toolLabel(m_tool));
+    if (isShapeStrokeTool(m_tool) || m_tool == "text")
         m_strokeBase = m_layers[m_active].image;
+    if (m_tool == "move" && m_layers[m_active].kind == "text")
+        m_textMoveParameters = m_layers[m_active].parameters;
     m_drawing       = true;
     m_strokeChanged = false;
     if (m_tool == "redEye") {
@@ -273,30 +290,15 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     } else if (m_tool == "fill") {
         floodFill(QPoint(int(_x), int(_y)));
         endStroke();
-    } else if (m_tool == "text") {
-        if (!m_text.isEmpty()) {
-            QPainter painter(paintTarget());
-            painter.setRenderHint(QPainter::TextAntialiasing);
-            if (hasSelection())
-                painter.setClipRegion(m_selectionRegion);
-            QFont font("sans-serif");
-            font.setPixelSize(m_textSize);
-            font.setWeight(QFont::DemiBold);
-            painter.setFont(font);
-            painter.setPen(m_color);
-            painter.setOpacity(m_brushOpacity);
-            painter.drawText(m_anchor + QPointF(0, m_textSize), m_text);
-            painter.end();
-            blendSelectionEdit(*paintTarget(), m_editingMask
-                                                   ? m_beforeStroke.layers[m_active].mask
-                                                   : m_beforeStroke.layers[m_active].image);
-            m_strokeChanged = true;
-        }
-        endStroke();
     }
 }
 void Document::continueStroke(qreal _x, qreal _y)
 {
+    if (m_textGesture) {
+        updateTextGesture(_x, _y);
+        return;
+    }
+
     if (m_penGesture) {
         updatePenGesture(_x, _y, m_toolShift, m_toolAlternate, m_toolSpace);
         return;
@@ -394,6 +396,20 @@ void Document::continueStroke(qreal _x, qreal _y)
 }
 void Document::endStroke()
 {
+    if (m_textGesture) {
+        m_textGesture = false;
+        emit textGeometryChanged();
+        if (m_textNewLayer)
+            emit textEditRequested();
+        else
+            emit textEditRequestedAt(m_textAnchor.x(), m_textAnchor.y());
+        return;
+    }
+    if (m_textEditing) {
+        finishTextEdit();
+        return;
+    }
+
     if (m_penGesture) {
         endPenGesture();
         return;
@@ -453,7 +469,7 @@ void Document::endStroke()
         return;
     }
     if (m_strokeChanged) {
-        if (m_tool == "move" && hasSelection()) {
+        if (m_tool == "move" && hasSelection() && m_layers[m_active].kind != "text") {
             const QPoint offset = (m_last - m_anchor).toPoint();
             m_selection = m_selection.translated(offset).intersected(QRect(QPoint{}, m_size));
             m_selectionRegion =
@@ -462,12 +478,15 @@ void Document::endStroke()
             m_selectionPath.translate(offset);
             emit selectionChanged();
         }
-        commit(m_beforeStroke, toolLabel(m_tool), !isPaintStrokeTool(m_tool) && m_tool != "redEye");
+        commit(m_beforeStroke, toolLabel(m_tool),
+               m_strokeCreatedLayer || (!isPaintStrokeTool(m_tool) && m_tool != "redEye"));
         if (isPaintStrokeTool(m_tool) || m_tool == "redEye") {
             ++m_thumbnailRevision;
             emit thumbnailsChanged();
         }
     }
+    if (m_strokeCreatedLayer && !m_strokeChanged)
+        restore(m_beforeStroke);
     if (isPaintStrokeTool(m_tool) && m_strokeChanged) {
         m_paintLastEnd     = m_last;
         m_paintLastState   = m_stateId;
@@ -484,6 +503,7 @@ void Document::endStroke()
         finishSpotHealingStroke();
     m_historyStrokeSource  = {};
     m_beforeStroke         = {};
+    m_strokeCreatedLayer   = false;
     m_strokeBase           = {};
     m_strokeCoverage       = {};
     m_tiledStrokeCoverage  = {};
@@ -497,6 +517,11 @@ void Document::endStroke()
 }
 void Document::cancelStroke()
 {
+    if (m_textEditing) {
+        finishTextEdit(true);
+        return;
+    }
+
     if (m_penGesture) {
         endPenGesture(true);
         return;
@@ -552,6 +577,7 @@ void Document::cancelStroke()
         finishSpotHealingStroke();
     m_historyStrokeSource  = {};
     m_beforeStroke         = {};
+    m_strokeCreatedLayer   = false;
     m_strokeBase           = {};
     m_strokeCoverage       = {};
     m_tiledStrokeCoverage  = {};

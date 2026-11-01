@@ -1315,3 +1315,56 @@ valeur initiale avec un seul Annuler.
 
 Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html)
 et [composition des couches](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#item-layers).
+
+
+## Graphiques d'entrée et de sortie du panneau Niveaux sur GPU
+
+`LevelsChart.qml` garde les fonctions de coordonnées et le repli Canvas, tandis
+que `LevelsGraph.qml` conserve les éléments natifs des deux graphiques.
+`LevelsEditor` continue de gérer le choix du triangle le plus proche, la capture
+de souris, les contraintes entre points noir/blanc, la conversion du gamma et
+les signaux de prévisualisation/validation. Les paramètres et le filtre restent
+inchangés.
+
+Sur RHI avec CurveRenderer et des dimensions entières, la grille, le cadre et
+l'histogramme d'entrée restent dans le graphe de scène. Leurs chemins ne dépendent
+pas directement des valeurs noir, gamma ou blanc. Les nouvelles statistiques
+fournies par le document continuent toutefois d'actualiser l'histogramme : le
+cache ne bloque pas ces changements. Les trois triangles sont des chemins fixes
+remplis et bordés ; seule leur position change. En sortie, le dégradé noir–blanc
+est un rectangle à gradient horizontal indépendant des valeurs ; les deux
+triangles suivent les niveaux de sortie, y compris quand ils se superposent.
+L'ordre noir/gris/blanc et noir/blanc conserve celui du dessin précédent.
+
+Chaque graphique utilise une petite couche GPU limitée à ses dimensions pour
+appliquer l'opacité après composition, avec filtrage linéaire pour les
+transformations. Aucun contexte Canvas n'est ouvert lors d'une première
+activation éligible, et les gestes n'y provoquent pas de repeints raster. Le
+repli logiciel/Qt ancien/dimensions fractionnaires garde la projection du Canvas,
+avec nettoyage entier du bord du tampon. Lors du retour au GPU, un tampon raster
+déjà créé est vidé une fois : la sortie est transparente et ne doit pas laisser
+les anciens triangles apparaître sous les nouveaux. Ce contexte et sa texture
+vide peuvent rester alloués ; ce n'est pas un nouvel upload pendant chaque geste.
+
+`levels_graph` compare les deux graphiques à des copies indépendantes des
+anciens dessins, en logiciel, Metal et OpenGL. Il couvre les extrêmes du gamma,
+les marqueurs coïncidents, une plage d'entrée d'un pixel, les pics étroits, les
+histogrammes absents/invalides, les changements de taille, rotation, opacité,
+dimensions fractionnaires et données modifiées pendant le masquage, sans
+repeints raster des graphiques cachés. Le retour
+fractionnaire→entier est testé avec les mêmes dimensions arrondies de tampon,
+pour révéler les résidus transparents. Les signaux de géométrie, identités
+d'éléments et signaux de repeint vérifient séparément que le fond de l'histogramme
+et le dégradé sont réutilisés pendant les gestes. Les tolérances de comparaison
+restent celles du comparateur commun, sans zone masquée.
+
+Le smoke test général exerce séparément les cinq poignées dans le vrai dialogue :
+noir/gamma/blanc en entrée et noir/blanc en sortie. Il contrôle la capture de
+souris, les valeurs enregistrées dans le calque, la synchronisation des graphiques
+et le retour à la valeur initiale avec une seule annulation par geste. Le calcul
+des statistiques et le rendu de l'image suivent leurs chemins existants ; cette
+étape optimise l'affichage des contrôles.
+
+Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
+[Gradient](https://doc.qt.io/qt-6.8/qml-qtquick-gradient.html) et
+[couches graphiques](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#item-layers).

@@ -269,6 +269,11 @@ only the black/white band and cutoff marker change. Canvas remains the fallback
 for software, older Qt kits and fractional dimensions. Input handling, image
 filtering and undo keep their existing paths.
 
+The Levels panel also retains its grid, histogram and output gradient on the
+GPU while moving the five handles. Parameters, black/white constraints, gamma
+mapping and undo stay unchanged. The same software, older Qt and fractional-size
+fallback remains available.
+
 Horizontal and vertical viewport rulers keep only visible graduations, with a
 margin for labels extending from offscreen ticks. On graphics backends, ticks
 and cached digit outlines stay in the scene graph for integer-sized bands.

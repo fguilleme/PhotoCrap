@@ -2108,6 +2108,69 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(levelsEditor->isVisible() && !curvesEditor->isVisible(),
                  "levels adjustment uses its dedicated editor"))
         return false;
+    auto *levelsRoot   = _window->findChild<QQuickItem *>("levelsEditorRoot");
+    auto *levelsOutput = _window->findChild<QQuickItem *>("levelsOutputChart");
+    if (!require(levelsRoot && levelsOutput, "levels exposes input and output graphs"))
+        return false;
+    struct LevelsGesture {
+        const char *key;
+        qreal       from;
+        qreal       to;
+        bool        output;
+    };
+    for (const auto &gesture :
+         {LevelsGesture{"inputBlack", 0., .2, false}, LevelsGesture{"gamma", .5, .65, false},
+          LevelsGesture{"inputWhite", 1., .8, false}, LevelsGesture{"outputBlack", 0., .2, true},
+          LevelsGesture{"outputWhite", 1., .8, true}}) {
+        auto       *chart   = gesture.output ? levelsOutput : levelsEditor;
+        const qreal initial = levelsRoot->property(gesture.key).toReal();
+        const qreal y       = gesture.output ? 26 : 50;
+        const auto  start =
+            chart->mapToScene(QPointF(14 + gesture.from * (chart->width() - 28), y)).toPoint();
+        const auto end =
+            chart->mapToScene(QPointF(14 + gesture.to * (chart->width() - 28), y)).toPoint();
+        const qreal t        = (chart->mapFromScene(end).x() - 14) / (chart->width() - 28);
+        const qreal expected = QByteArray(gesture.key) == "gamma"
+                                   ? (t <= .5 ? 1 + (.5 - t) * 4 : 1 - (t - .5) * 1.8)
+                                   : t * 255;
+        const auto  stored   = [&] {
+            for (const auto &entry : _document.layers()) {
+                const auto layer = entry.toMap();
+                if (layer["layerIndex"].toInt() == _document.activeLayer())
+                    return layer["adjustmentType"].toString() == "levels"
+                               ? layer["parameters"].toMap().value(gesture.key, initial).toDouble()
+                               : -10000.;
+            }
+            return -10000.;
+        };
+        QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(_window, end, 20);
+        QTest::qWait(80);
+        if (!require(levelsRoot->property("activeKey").toString() == QLatin1String(gesture.key),
+                     "levels captures the requested knob while previews update"))
+            return false;
+        QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
+        if (!require(QTest::qWaitFor(
+                         [&] {
+                             return levelsRoot->property("activeKey").toString().isEmpty() &&
+                                    qAbs(stored() - expected) < .001 &&
+                                    qAbs(levelsRoot->property(gesture.key).toReal() - expected) <
+                                        .001;
+                         },
+                         1000),
+                     "levels drag commits the same value in the graph and layer"))
+            return false;
+        _document.undo();
+        if (!require(QTest::qWaitFor(
+                         [&] {
+                             return qAbs(stored() - initial) < .001 &&
+                                    qAbs(levelsRoot->property(gesture.key).toReal() - initial) <
+                                        .001;
+                         },
+                         1000),
+                     "each levels knob creates a single undo step"))
+            return false;
+    }
     QMetaObject::invokeMethod(layerProperties, "close");
     _document.addAdjustmentLayer("gradientMap");
     QMetaObject::invokeMethod(layerProperties, "open");

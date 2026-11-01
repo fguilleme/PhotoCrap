@@ -186,6 +186,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/HistogramRenderSmoke.h
     tests/ViewportRulerSmoke.h
     tests/ThresholdGraphSmoke.h
+    tests/LevelsGraphSmoke.h
     tests/SliceDescriptionCacheTest.cpp
     tests/CropShadeTest.cpp
     tests/CropOverlaySmoke.h
@@ -512,6 +513,8 @@ qt_add_qml_module(PhotoCrap
         qml/FrequencySeparationEditor.qml
         qml/LightEditor.qml
         qml/LayerPropertiesActions.qml
+        qml/LevelsChart.qml
+        qml/LevelsGraph.qml
         qml/LevelsEditor.qml
         qml/PhotoFilterEditor.qml
         qml/PosterizeEditor.qml
@@ -696,6 +699,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME threshold_graph COMMAND PhotoCrap --smoke-test --threshold-graph-test)
     set_tests_properties(threshold_graph PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
+    add_test(NAME levels_graph COMMAND PhotoCrap --smoke-test --levels-graph-test)
+    set_tests_properties(levels_graph PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

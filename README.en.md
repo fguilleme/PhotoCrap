@@ -274,6 +274,11 @@ GPU while moving the five handles. Parameters, black/white constraints, gamma
 mapping and undo stay unchanged. The same software, older Qt and fractional-size
 fallback remains available.
 
+The Curves graph uses retained GPU paths and prepares its slopes and 256 samples
+once per new point list. Changing the active point, histogram or graph size does
+not reevaluate interpolation. The formula, eyedroppers and undo stay unchanged;
+the Canvas fallback also reuses the sampled table.
+
 Horizontal and vertical viewport rulers keep only visible graduations, with a
 margin for labels extending from offscreen ticks. On graphics backends, ticks
 and cached digit outlines stay in the scene graph for integer-sized bands.

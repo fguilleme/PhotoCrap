@@ -19,6 +19,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/text/TextEditorController.cpp
     src/render/CropShade.cpp
     src/render/HistogramGeometry.cpp
+    src/render/CurvesGeometry.cpp
     src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
     src/render/SelectionOutlineNode.cpp
@@ -123,6 +124,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/text/TextEditorController.h
     src/render/CropShade.h
     src/render/HistogramGeometry.h
+    src/render/CurvesGeometry.h
     src/render/CanvasFonts.h
     src/render/CropShadeNode.h
     src/render/ToneMappingNode.h
@@ -187,6 +189,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/ViewportRulerSmoke.h
     tests/ThresholdGraphSmoke.h
     tests/LevelsGraphSmoke.h
+    tests/CurvesGraphSmoke.h
     tests/SliceDescriptionCacheTest.cpp
     tests/CropShadeTest.cpp
     tests/CropOverlaySmoke.h
@@ -397,6 +400,7 @@ qt_add_executable(PhotoCrap
     src/text/TextEditorController.cpp src/text/TextEditorController.h
     src/render/CropShade.cpp src/render/CropShade.h
     src/render/HistogramGeometry.cpp src/render/HistogramGeometry.h
+    src/render/CurvesGeometry.cpp src/render/CurvesGeometry.h
     src/render/CanvasFonts.h
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
@@ -502,6 +506,9 @@ qt_add_qml_module(PhotoCrap
         qml/DarkMenuItem.qml
         qml/DarkSlider.qml
         qml/DarkSpinBox.qml
+        qml/CurveInterpolation.js
+        qml/CurvesChart.qml
+        qml/CurvesGraph.qml
         qml/CurvesEditor.qml
         qml/ColorEditor.qml
         qml/ColorLookupEditor.qml
@@ -703,6 +710,9 @@ if(BUILD_TESTING)
     add_test(NAME levels_graph COMMAND PhotoCrap --smoke-test --levels-graph-test)
     set_tests_properties(levels_graph PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
+    add_test(NAME curves_graph COMMAND PhotoCrap --smoke-test --curves-graph-test)
+    set_tests_properties(curves_graph PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)

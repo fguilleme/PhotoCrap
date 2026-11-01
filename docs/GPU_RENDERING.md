@@ -1368,3 +1368,64 @@ des statistiques et le rendu de l'image suivent leurs chemins existants ; cette
 Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
 [Gradient](https://doc.qt.io/qt-6.8/qml-qtquick-gradient.html) et
 [couches graphiques](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#item-layers).
+
+
+## Graphique Courbes et interpolation mise en cache
+
+`CurvesEditor` conserve la gestion des points et des quatre pipettes, tandis que
+`CurvesChart.qml` porte le dessin et les conversions entre valeurs et pixels.
+`CurveInterpolation.js` reprend l'arithmétique précédente : pentes harmoniques,
+pentes nulles aux changements de signe, règles d'extrémité et polynôme d'Hermite
+sont inchangés. Un snapshot associe la liste des points à ses pentes ; les 256
+échantillons dépendent uniquement de ce snapshot. Une nouvelle liste de points
+reconstruit ainsi une fois les pentes et une fois la table, au lieu de préparer
+les pentes séparément pour chacun des 256 échantillons à chaque dessin. La
+pipette couleur utilise le même évaluateur pour placer son nouveau point.
+
+L'histogramme, la taille du graphique et le point actif ne réévaluent pas cette
+table. Les statistiques reçues du document continuent d'actualiser normalement
+l'histogramme. Les pentes, la table et la préparation de géométrie restent des
+calculs CPU ; le traitement photo et les mécanismes de preview restent inchangés.
+
+Sur RHI avec CurveRenderer et des dimensions entières, `CurvesGraph.qml`
+conserve des éléments distincts pour la grille, l'histogramme, la diagonale, le
+trait de transfert et les poignées. `CurvesGeometry` prépare le contour du trait
+à partir des 256 valeurs avec `QPainterPathStroker` : largeur 2, bouts plats,
+jonctions et limite de miter identiques au Canvas. Le GPU remplit ensuite ce
+contour ; ce n'est pas une nouvelle image raster. Une modification des points
+réactualise le trait et les poignées, sans changer les chemins de grille et
+d'histogramme si leurs données restent identiques. Sélectionner un point sans
+modifier la liste change seulement les poignées concernées.
+
+La couche GPU est limitée au graphique, utilise un filtrage linéaire pour les
+transformations et demande quatre échantillons MSAA. Cela conserve notamment
+la couverture des traits presque verticaux et des pics étroits ; Qt peut adapter
+le nombre d'échantillons aux capacités du backend. La surface multisample et sa
+résolution consomment de la mémoire graphique supplémentaire hors du budget LRU
+des tuiles photo. Aucun contexte Canvas n'est ouvert lors d'une première
+activation éligible. Le logiciel, Qt sans CurveRenderer et les dimensions
+fractionnaires gardent le Canvas et la table mise en cache ; les mises à jour
+masquées ne repeignent pas. Un ancien tampon raster est vidé au retour GPU et
+peut ensuite rester alloué.
+
+`curves_graph` compare indépendamment les valeurs à l'ancien évaluateur, pour les
+256 entrées entières et plusieurs entrées fractionnaires, avec un écart maximal
+de 1e-9. Des compteurs de signaux vérifient une reconstruction par nouvelle liste
+et aucune pour les changements de point actif, d'histogramme ou de taille. Les
+comparaisons de pixels reprennent une copie indépendante du dessin précédent :
+identité, inversion, plateau, pic sur un pixel, variations aux extrémités, points
+avec abscisse identique, extrémités décalées et listes dégénérées. Elles couvrent
+aussi les données d'histogramme absentes/invalides, la rotation, l'opacité, le
+redimensionnement, le repli fractionnaire et les changements pendant le masquage.
+Les tolérances sont celles du comparateur commun, sans zone masquée. Validations
+locales en logiciel, Metal et OpenGL ; autres GPU matériels à vérifier.
+
+Le smoke test de l'interface ajoute et déplace un point pendant les previews,
+vérifie sa validation dans le calque, le supprime par clic droit puis le restaure
+par Annuler. Une annulation supplémentaire après fermeture doit ramener la liste
+d'avant le geste d'ajout/déplacement. Les contrôles existants des pipettes restent
+exécutés.
+
+Références Qt : [QPainterPathStroker](https://doc.qt.io/qt-6.8/qpainterpathstroker.html),
+[Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
+[échantillonnage des couches](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#layer.samples-prop).

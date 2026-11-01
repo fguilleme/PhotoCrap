@@ -2087,6 +2087,27 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto curvesRoot = _window->findChild<QQuickItem *>("curvesEditorRoot");
     if (!require(curvesRoot, "curves editor root exists"))
         return false;
+    const auto storedCurvePoints = [&] {
+        for (const auto &entry : _document.layers()) {
+            const auto layer = entry.toMap();
+            if (layer["layerIndex"].toInt() == _document.activeLayer() &&
+                layer["adjustmentType"].toString() == "curves")
+                return layer["parameters"].toMap()["points"].toList();
+        }
+        return QVariantList{};
+    };
+    const auto sameCurvePoints = [](const QVariantList &_a, const QVariantList &_b) {
+        if (_a.size() != _b.size())
+            return false;
+        for (int i = 0; i < _a.size(); ++i) {
+            const auto a = _a[i].toMap(), b = _b[i].toMap();
+            if (qAbs(a["x"].toDouble() - b["x"].toDouble()) > 1e-6 ||
+                qAbs(a["y"].toDouble() - b["y"].toDouble()) > 1e-6)
+                return false;
+        }
+        return true;
+    };
+    const auto   initialCurvePoints = storedCurvePoints();
     const QPoint curveStart =
         curvesEditor->mapToScene(QPointF(curvesEditor->width() / 2, curvesEditor->height() / 2))
             .toPoint();
@@ -2099,9 +2120,41 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "curves keeps pointer capture while previews finish"))
         return false;
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, curveStart + QPoint(52, -36));
-    QTest::qWait(100);
-    QMetaObject::invokeMethod(layerProperties, "close");
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !curvesRoot->property("dragging").toBool() &&
+                                storedCurvePoints().size() == initialCurvePoints.size() + 1;
+                     },
+                     1000),
+                 "curves commits the point added and moved on the graph"))
+        return false;
+    const auto editedCurvePoints = storedCurvePoints();
+    QTest::mouseClick(_window, Qt::RightButton, Qt::NoModifier, curveStart + QPoint(52, -36));
+    if (!require(
+            QTest::qWaitFor(
+                [&] { return sameCurvePoints(storedCurvePoints(), initialCurvePoints); }, 1000),
+            "right click removes the moved interior curve point"))
+        return false;
     _document.undo();
+    if (!require(QTest::qWaitFor(
+                     [&] { return sameCurvePoints(storedCurvePoints(), editedCurvePoints); }, 1000),
+                 "undo restores a deleted curve point"))
+        return false;
+    QMetaObject::invokeMethod(layerPropertiesClose, "clicked");
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !layerProperties->property("visible").toBool() &&
+                                sameCurvePoints(storedCurvePoints(), editedCurvePoints);
+                     },
+                     1000),
+                 "Close preserves the edited curve before testing undo"))
+        return false;
+    _document.undo();
+    if (!require(
+            QTest::qWaitFor(
+                [&] { return sameCurvePoints(storedCurvePoints(), initialCurvePoints); }, 1000),
+            "adding and moving a curve point creates a single undo step"))
+        return false;
     _document.addAdjustmentLayer("levels");
     QMetaObject::invokeMethod(layerProperties, "open");
     QTest::qWait(100);

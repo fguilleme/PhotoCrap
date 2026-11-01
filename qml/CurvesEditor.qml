@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "CurveInterpolation.js" as CurveInterpolation
 
 ColumnLayout {
     id: root
@@ -26,7 +27,7 @@ ColumnLayout {
         result.sort((a,b)=>a.x-b.x)
         return result
     }
-    function sync() { if(!dragging) { points=copyPoints(sourcePoints); curveCanvas.requestPaint() } }
+    function sync() { if(!dragging) { points=copyPoints(sourcePoints) } }
     function emittedPoints() { return copyPoints(points) }
     function addColorSample(color) {
         const input=Math.max(0,Math.min(255,Math.round((.2126*color.r+.7152*color.g+.0722*color.b)*255)))
@@ -40,33 +41,12 @@ ColumnLayout {
         activePoint=points.findIndex(point=>Math.abs(point.x-input)<.5)
         points=points.slice()
         committed(emittedPoints())
-        curveCanvas.requestPaint()
     }
-    function curveValue(input) {
-        if(points.length<2)return input
-        const delta=[],slopes=[]
-        for(let i=0;i+1<points.length;i++)
-            delta.push((points[i+1].y-points[i].y)/Math.max(.001,points[i+1].x-points[i].x))
-        slopes.push(delta[0])
-        for(let i=1;i+1<points.length;i++) {
-            if(delta[i-1]*delta[i]<=0)slopes.push(0)
-            else {
-                const left=points[i].x-points[i-1].x,right=points[i+1].x-points[i].x
-                slopes.push((left+right)/((left+2*right)/(3*delta[i-1])+(2*left+right)/(3*delta[i])))
-            }
-        }
-        slopes.push(delta[delta.length-1])
-        if(input<=points[0].x)return points[0].y
-        if(input>=points[points.length-1].x)return points[points.length-1].y
-        let segment=0
-        while(segment+1<points.length-1 && input>points[segment+1].x)segment++
-        const width=points[segment+1].x-points[segment].x
-        const t=(input-points[segment].x)/width,t2=t*t,t3=t2*t
-        return (2*t3-3*t2+1)*points[segment].y+(t3-2*t2+t)*width*slopes[segment]
-                +(-2*t3+3*t2)*points[segment+1].y+(t3-t2)*width*slopes[segment+1]
-    }
+    readonly property var interpolationState: ({points:points,slopes:CurveInterpolation.prepare(points)})
+    readonly property var curveSamples: CurveInterpolation.sample(interpolationState.points,interpolationState.slopes)
+    function curveValue(input) { return CurveInterpolation.value(interpolationState.points,interpolationState.slopes,input) }
+
     onSourcePointsChanged: sync()
-    onHistogramChanged: curveCanvas.requestPaint()
     Component.onCompleted: sync()
 
     RowLayout {
@@ -98,47 +78,16 @@ ColumnLayout {
             onClicked: root.pickerSelected(checked ? "white" : "")
         }
     }
-    Canvas {
+    CurvesChart {
         id: curveCanvas
         objectName: "curvesEditor"
         Layout.fillWidth: true
         Layout.preferredHeight: Math.min(width, 320)
         Layout.minimumHeight: 230
-        property real leftEdge: 18
-        property real rightEdge: width-10
-        property real topEdge: 10
-        property real bottomEdge: height-20
-        function px(value) { return leftEdge+value/255*(rightEdge-leftEdge) }
-        function py(value) { return bottomEdge-value/255*(bottomEdge-topEdge) }
-        function valueX(pixel) { return Math.max(0,Math.min(255,(pixel-leftEdge)/(rightEdge-leftEdge)*255)) }
-        function valueY(pixel) { return Math.max(0,Math.min(255,(bottomEdge-pixel)/(bottomEdge-topEdge)*255)) }
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        onPaint: {
-            const c=getContext("2d"); c.reset(); c.fillStyle="#151a20"; c.fillRect(0,0,width,height)
-            c.strokeStyle="#303943"; c.lineWidth=1
-            for(let i=0;i<=4;i++) {
-                const x=leftEdge+(rightEdge-leftEdge)*i/4, y=topEdge+(bottomEdge-topEdge)*i/4
-                c.beginPath();c.moveTo(x,topEdge);c.lineTo(x,bottomEdge);c.stroke()
-                c.beginPath();c.moveTo(leftEdge,y);c.lineTo(rightEdge,y);c.stroke()
-            }
-            if(root.histogram && root.histogram.length===256) {
-                c.beginPath();c.moveTo(leftEdge,bottomEdge)
-                for(let b=0;b<256;b++) c.lineTo(px(b),bottomEdge-Number(root.histogram[b])*(bottomEdge-topEdge)*.82)
-                c.lineTo(rightEdge,bottomEdge);c.closePath();c.fillStyle="rgba(185,197,208,.25)";c.fill()
-            }
-            c.strokeStyle="#65717c";c.beginPath();c.moveTo(leftEdge,bottomEdge);c.lineTo(rightEdge,topEdge);c.stroke()
-            c.strokeStyle="#e8edf1";c.lineWidth=2;c.beginPath();c.moveTo(px(0),py(root.curveValue(0)))
-            for(let p=1;p<256;p++)c.lineTo(px(p),py(root.curveValue(p)))
-            c.stroke()
-            for(let j=0;j<root.points.length;j++) {
-                const point=root.points[j], x=px(point.x), y=py(point.y)
-                c.beginPath();c.arc(x,y,j===root.activePoint?6:5,0,Math.PI*2)
-                c.fillStyle=j===root.activePoint?"#ffffff":"#222a32";c.fill()
-                c.strokeStyle=j===root.activePoint?"#1d80e5":"#dce4ea";c.lineWidth=2;c.stroke()
-            }
-            c.strokeStyle="#66727d";c.lineWidth=1;c.strokeRect(leftEdge,topEdge,rightEdge-leftEdge,bottomEdge-topEdge)
-        }
+        histogram: root.histogram
+        points: root.points
+        samples: root.curveSamples
+        activePoint: root.activePoint
         MouseArea {
             anchors.fill: parent
             preventStealing: true
@@ -152,7 +101,7 @@ ColumnLayout {
                 if(mouse.button===Qt.RightButton) {
                     if(nearest>0 && nearest<root.points.length-1) {
                         root.editStarted();root.points.splice(nearest,1);root.points=root.points.slice();root.activePoint=-1
-                        root.committed(root.emittedPoints());curveCanvas.requestPaint()
+                        root.committed(root.emittedPoints())
                     }
                     return
                 }
@@ -169,12 +118,12 @@ ColumnLayout {
                 const next=root.activePoint+1<root.points.length?root.points[root.activePoint+1].x-1:255
                 const lockedX=root.activePoint===0?0:root.activePoint===root.points.length-1?255:Math.max(previous,Math.min(next,curveCanvas.valueX(x)))
                 root.points[root.activePoint]={x:lockedX,y:curveCanvas.valueY(y)};root.points=root.points.slice()
-                root.previewed(root.emittedPoints());curveCanvas.requestPaint()
+                root.previewed(root.emittedPoints())
             }
             onPositionChanged: function(mouse) { if(pressed && (mouse.buttons & Qt.LeftButton)) updatePoint(mouse.x,mouse.y) }
             onReleased: {
                 if(root.dragging)root.committed(root.emittedPoints())
-                root.dragging=false;curveCanvas.requestPaint()
+                root.dragging=false
             }
             onCanceled: root.dragging=false
         }

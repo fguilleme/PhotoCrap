@@ -8,6 +8,7 @@
 #include "ToolInput.h"
 #include "WorkspaceSettings.h"
 #include "render/CanvasFonts.h"
+#include "render/CurvesGeometry.h"
 #include "render/HistogramGeometry.h"
 #include "text/TextEditorController.h"
 #include <QGuiApplication>
@@ -22,6 +23,7 @@
 #include "../tests/BrushCursorSmoke.h"
 #include "../tests/CanvasRenderSmoke.h"
 #include "../tests/CropOverlaySmoke.h"
+#include "../tests/CurvesGraphSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/HistogramRenderSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
@@ -99,6 +101,9 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonType<CanvasFonts>(
         "PhotoCrap.Native", 1, 0, "CanvasFonts",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new CanvasFonts; });
+    qmlRegisterSingletonType<CurvesGeometry>(
+        "PhotoCrap.Native", 1, 0, "CurvesGeometry",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new CurvesGeometry; });
     qmlRegisterSingletonType<HistogramGeometry>(
         "PhotoCrap.Native", 1, 0, "HistogramGeometry",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new HistogramGeometry; });
@@ -174,6 +179,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--curves-graph-test")) {
+                passed = window && runCurvesGraphSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

@@ -254,6 +254,11 @@ and older Qt kits. Native cubic paths are prepared with a geometric error bounde
 to 0.01 logical pixels. Handles and the provisional segment keep their bounded
 Canvas layers; hovering does not rebuild the retained main path.
 
+The moving Slice frame uses a separate GPU path. Creating, moving or resizing a
+slice keeps the numbered slice layer cached. Commits, selection, tool and view
+changes still repaint that layer. The overlay and options bar reuse their
+metadata snapshot during draft gestures. Software retains the raster draft.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

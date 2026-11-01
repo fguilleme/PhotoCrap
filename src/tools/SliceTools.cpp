@@ -21,6 +21,15 @@ QVariantList Document::slices() const
 {
     return m_sliceDescriptions.records(m_size, m_slices, m_sliceShowAuto);
 }
+quint64 Document::sliceDescriptionRevision() const
+{
+    m_sliceDescriptions.records(m_size, m_slices, m_sliceShowAuto);
+    return m_sliceDescriptions.revision();
+}
+QVariantList Document::sliceDescriptionSnapshot() const
+{
+    return slices();
+}
 void Document::setSliceShowAuto(bool _value)
 {
     m_sliceShowAuto = _value;

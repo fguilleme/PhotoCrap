@@ -479,6 +479,7 @@ qt_add_qml_module(PhotoCrap
         qml/ScreenOverlayCanvas.qml
         qml/SliceOptions.qml
         qml/SliceOverlay.qml
+        qml/SliceDraft.qml
         qml/InformationPanel.qml
         qml/PanelTitle.qml
         qml/TrashIcon.qml

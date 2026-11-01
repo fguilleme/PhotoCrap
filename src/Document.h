@@ -87,6 +87,7 @@ class Document : public QObject
     Q_PROPERTY(bool penAutoAddDelete READ penAutoAddDelete WRITE setPenAutoAddDelete NOTIFY
                    penOptionsChanged)
     Q_PROPERTY(QVariantList slices READ slices NOTIFY slicesChanged)
+    Q_PROPERTY(quint64 sliceDescriptionRevision READ sliceDescriptionRevision NOTIFY slicesChanged)
     Q_PROPERTY(int activeSlice READ activeSlice NOTIFY slicesChanged)
     Q_PROPERTY(QRectF sliceDraft READ sliceDraft NOTIFY slicesChanged)
     Q_PROPERTY(bool sliceBusy READ sliceBusy NOTIFY slicesChanged)
@@ -1133,6 +1134,8 @@ public:
     Q_INVOKABLE void         paste();
     Q_INVOKABLE void         cropToSelection();
     QVariantList             slices() const;
+    quint64                  sliceDescriptionRevision() const;
+    Q_INVOKABLE QVariantList sliceDescriptionSnapshot() const;
     int                      activeSlice() const
     {
         return m_activeSlice;

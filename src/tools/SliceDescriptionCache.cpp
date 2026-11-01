@@ -39,6 +39,7 @@ const QVariantList &SliceDescriptionCache::records(const QSize          &_size,
     m_manuals       = _manuals;
     m_showAutomatic = _showAutomatic;
     m_valid         = true;
+    ++m_revision;
     return m_records;
 }
 } // namespace PhotoCrap::Tools

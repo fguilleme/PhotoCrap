@@ -286,7 +286,7 @@ La Plume conserve son tracé principal sur GPU avec un repli raster pour les bac
 
 Les guides du lasso conservent leurs points en cache pendant le survol et limitent leur dessin à leur emprise visible. L’animation des fourmis s’arrête lorsqu’aucune sélection n’a de pointillés à afficher. Les guides combinés gardent leur animation avec un snapshot de points réutilisé.
 
-Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises.
+Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises. Le cadre provisoire est séparé sur GPU : création, déplacement et redimensionnement conservent le dessin des tranches fixes et des numéros. Leur liste partagée reste aussi en cache dans la barre d’options pendant le geste ; le backend logiciel garde le cadre raster.
 
 Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées utilisent aussi des chemins et rectangles du graphe de scène, sans Canvas ni texture de guides pendant le geste. Le backend logiciel et les anciens kits Qt sans CurveRenderer conservent le dessin raster. Le survol réutilise les points du cadre pour choisir le curseur.
 

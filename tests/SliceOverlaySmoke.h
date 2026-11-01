@@ -1,10 +1,12 @@
 #pragma once
 #include "Document.h"
+#include "OverlayReference.h"
 #include <QJSValue>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QSGRendererInterface>
 #include <QtTest>
 #include <memory>
 
@@ -15,6 +17,9 @@ inline bool runSliceOverlaySmoke(QQuickWindow *_window)
             qWarning("Slice overlay check failed: %s", _message);
         return _ok;
     };
+    const bool hardware =
+        QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
+    bool          vectorDraft = false;
     Document      document;
     QQmlComponent component(qmlEngine(_window));
     component.setData(R"(
@@ -30,15 +35,35 @@ Item {
     property real panY: 0
     property real viewRotation: 0
     Rectangle { anchors.fill: parent; color: "#5a7896" }
+    SliceOptions {
+        objectName: "sliceTestOptions"
+        document: fixture.document
+        visible: false
+    }
 component LegacySliceOverlay: ScreenOverlayCanvas {
     id: root
     required property var document
     enabled: false
-    visible: document.tool==="slice" || document.tool==="sliceSelect"
+    visible: sliceToolActive
+    readonly property bool sliceToolActive: document.tool==="slice" || document.tool==="sliceSelect"
+    readonly property bool sliceSelection: document.tool==="sliceSelect"
     antialiasing: true
+    readonly property var sliceRecords: sliceToolActive ? document.slices : []
+    readonly property var manualSlices: sliceRecords.filter(r => !r.automatic)
+    readonly property var selectedSlice: document.activeSlice>=0 && document.activeSlice<sliceRecords.length
+        ? sliceRecords[document.activeSlice] : null
+    readonly property var visibleSlices: {
+        const view=screenBounds
+        return sliceRecords.filter(function(r) {
+            const x=r.x*zoom, y=r.y*zoom, w=r.width*zoom, h=r.height*zoom
+            // Labels and handles can extend outside very small slice rectangles.
+            return Math.max(x+w+5,x+48)>=view.x && x-5<=view.x+view.width
+                && Math.max(y+h+5,y+24)>=view.y && y-5<=view.y+view.height
+        })
+    }
     function cursorAt(x,y) {
-        if(document.tool!=="sliceSelect") return Qt.CrossCursor
-        const slice=document.activeSlice>=0 ? document.slices[document.activeSlice] : null
+        if(!sliceSelection) return Qt.CrossCursor
+        const slice=selectedSlice
         if(slice) {
             const l=slice.x*zoom,t=slice.y*zoom,r=l+slice.width*zoom,b=t+slice.height*zoom
             const handles=[{x:l,y:t},{x:r,y:t},{x:r,y:b},{x:l,y:b},
@@ -47,14 +72,14 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
                 return i<4 ? (i%2===0 ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor)
                            : (i%2===0 ? Qt.SizeVerCursor : Qt.SizeHorCursor)
         }
-        for(const s of document.slices)
-            if(!s.automatic && x>=s.x*zoom && y>=s.y*zoom && x<=(s.x+s.width)*zoom && y<=(s.y+s.height)*zoom)
+        for(const s of manualSlices)
+            if(x>=s.x*zoom && y>=s.y*zoom && x<=(s.x+s.width)*zoom && y<=(s.y+s.height)*zoom)
                 return Qt.SizeAllCursor
         return Qt.ArrowCursor
     }
     onPaint: {
         const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
-        for(const r of document.slices) {
+        for(const r of visibleSlices) {
             const selected=r.index===document.activeSlice && !r.automatic
             const x=r.x*zoom-root.x,y=r.y*zoom-root.y,w=r.width*zoom,h=r.height*zoom
             c.lineWidth=1;c.strokeStyle=r.automatic ? "#adb3bc" : selected ? "#ffb664" : "#67c5ff"
@@ -62,7 +87,7 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
             c.fillStyle=r.automatic ? "#515964" : selected ? "#bd6c16" : "#256797"
             c.fillRect(x+1,y+1,26,18);c.fillStyle="#ffffff";c.font="11px sans-serif"
             c.fillText(String(r.index+1).padStart(2,"0"),x+5,y+14)
-            if(selected && document.tool==="sliceSelect") {
+            if(selected && sliceSelection) {
                 for(const p of [{x:x,y:y},{x:x+w,y:y},{x:x+w,y:y+h},{x:x,y:y+h},
                                 {x:x+w/2,y:y},{x:x+w,y:y+h/2},{x:x+w/2,y:y+h},{x:x,y:y+h/2}]) {
                     c.fillStyle="#ffb664";c.fillRect(p.x-3,p.y-3,6,6)
@@ -76,10 +101,12 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
             c.strokeRect(draft.x*zoom-root.x,draft.y*zoom-root.y,draft.width*zoom,draft.height*zoom)
         }
     }
-    onZoomChanged:requestPaint()
-    onVisibleChanged:requestPaint()
-    Connections { target:root.document;function onSlicesChanged(){root.requestPaint()} function onSettingsChanged(){root.requestPaint()} }
+    onZoomChanged:if(visible)requestPaint()
+    onVisibleChanged:if(visible)requestPaint()
+    onSliceSelectionChanged:if(visible)requestPaint()
+    Connections { target:root.document;function onSlicesChanged(){if(root.visible)root.requestPaint()} }
 }
+
 
     Flickable {
         id: view
@@ -115,12 +142,23 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
     root->setPosition({40, 120});
     root->setZ(2000);
     auto *overlay = root->findChild<QQuickItem *>("sliceTestOverlay");
-    if (!require(overlay, "slice overlay exists"))
+    auto *options = root->findChild<QQuickItem *>("sliceTestOptions");
+    if (!require(overlay && options, "slice overlay and options exist"))
         return false;
     const auto frame = [&] {
         _window->update();
         QTest::qWait(50);
         return _window->grabWindow();
+    };
+    const auto visualItem = [&](const QString &_name) -> QQuickItem * {
+        QList<QQuickItem *> pending{root};
+        while (!pending.isEmpty()) {
+            auto *item = pending.takeLast();
+            if (item->objectName() == _name)
+                return item;
+            pending.append(item->childItems());
+        }
+        return nullptr;
     };
     const auto sequence = [&](const char *_name) {
         const auto value = overlay->property(_name);
@@ -137,20 +175,13 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         const auto  origin = root->mapToScene(QPointF{});
         const QRect bounds(qFloor(origin.x() * ratio), qFloor(origin.y() * ratio),
                            qFloor(root->width() * ratio), qFloor(root->height() * ratio));
-        for (int y = bounds.top(); y <= bounds.bottom(); ++y)
-            for (int x = bounds.left(); x <= bounds.right(); ++x) {
-                const auto a = actual.pixelColor(x, y), b = reference.pixelColor(x, y);
-                if (qAbs(a.red() - b.red()) > 4 || qAbs(a.green() - b.green()) > 4 ||
-                    qAbs(a.blue() - b.blue()) > 4) {
-                    qWarning() << "Slice reference difference" << QPoint(x, y) << a << b;
-                    return false;
-                }
-            }
-        return true;
+        return compareOverlayReference(actual, reference, bounds, vectorDraft,
+                                       "/tmp/photocrap-slice-draft");
     };
     QSignalSpy paints(overlay, SIGNAL(painted())),
         snapshots(overlay, SIGNAL(sliceRecordsChanged()));
-    if (!require(paints.isValid() && snapshots.isValid(),
+    QSignalSpy optionSnapshots(options, SIGNAL(sliceRecordsChanged()));
+    if (!require(paints.isValid() && snapshots.isValid() && optionSnapshots.isValid(),
                  "observe slice paints and metadata snapshots"))
         return false;
     for (int bits : {8, 16}) {
@@ -175,6 +206,18 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         const auto all     = document.slices();
         const auto history = document.historyIndex();
         frame();
+        vectorDraft = overlay->property("gpuDraft").toBool();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        if (!require(!hardware || vectorDraft, "RHI uses the retained GPU slice draft"))
+            return false;
+#endif
+        if (vectorDraft) {
+            const auto *draft = visualItem("sliceGpuDraft");
+            if (!require(draft && draft->property("rendererType") ==
+                                      draft->property("preferredRendererType"),
+                         "the white draft frame uses CurveRenderer"))
+                return false;
+        }
         if (!require(sequence("sliceRecords").size() == all.size() &&
                          sequence("visibleSlices").size() < all.size() / 4 && matchesReference(),
                      "many offscreen slices are culled without changing visible labels, borders "
@@ -226,11 +269,19 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         root->setProperty("panX", 0);
         root->setProperty("panY", 0);
         document.beginSliceGesture(40, 35, 0);
+        frame();
+        paints.clear();
+        snapshots.clear();
+        optionSnapshots.clear();
+        const auto *retainedDraft = visualItem("sliceGpuDraft");
         for (int i = 0; i < 4; ++i) {
             document.updateSliceGesture(50 + i, 40);
             frame();
-            if (!require(document.slices().constData() == all.constData(),
-                         "draft drags keep the committed metadata buffer"))
+            if (!require(document.slices().constData() == all.constData() && snapshots.isEmpty() &&
+                             optionSnapshots.isEmpty() &&
+                             (vectorDraft ? paints.isEmpty() : !paints.isEmpty()) &&
+                             visualItem("sliceGpuDraft") == retainedDraft,
+                         "draft drags retain metadata and the GPU frame without repainting labels"))
                 return false;
         }
         if (!require(matchesReference(), "live slice drafts preserve their original drawing"))
@@ -240,6 +291,30 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         if (!require(document.historyIndex() == history && matchesReference(),
                      "cancelling a slice draft restores the display without history"))
             return false;
+        document.beginSliceGesture(20, 20, 8);
+        frame();
+        paints.clear();
+        snapshots.clear();
+        document.updateSliceGesture(15.25, 10.75);
+        frame();
+        if (!require(snapshots.isEmpty() && (vectorDraft ? paints.isEmpty() : !paints.isEmpty()) &&
+                         matchesReference(),
+                     "resizing a slice updates only the draft on GPU"))
+            return false;
+        document.endSliceGesture(true);
+        document.setTool("slice");
+        document.beginSliceGesture(110, 120);
+        frame();
+        paints.clear();
+        snapshots.clear();
+        document.updateSliceGesture(180.5, 200.25);
+        frame();
+        if (!require(snapshots.isEmpty() && (vectorDraft ? paints.isEmpty() : !paints.isEmpty()) &&
+                         matchesReference(),
+                     "creating a fractional draft preserves the original frame"))
+            return false;
+        document.endSliceGesture(true);
+        document.setTool("sliceSelect");
         document.beginSliceGesture(40, 35, 0);
         document.updateSliceGesture(50, 40);
         document.endSliceGesture();
@@ -257,6 +332,10 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         if (!require(matchesReference(), "hiding automatic slices updates the overlay"))
             return false;
         document.setSliceShowAuto(true);
+        const auto viewHistory = document.historyIndex();
+        document.setTool("slice");
+        document.beginSliceGesture(600, 100);
+        document.updateSliceGesture(800, 260);
         for (qreal zoom : {.25, 1., 8.}) {
             root->setProperty("zoom", zoom);
             root->setProperty("panX", 620 * zoom);
@@ -275,6 +354,11 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
                      "slice culling respects the rotated visible area"))
             return false;
         root->setProperty("viewRotation", 0);
+        document.endSliceGesture(true);
+        frame();
+        if (!require(document.historyIndex() == viewHistory && matchesReference(),
+                     "view changes and cancelling the draft preserve undo history"))
+            return false;
         document.setTool("brush");
         frame();
         if (!require(!overlay->isVisible() && sequence("sliceRecords").isEmpty() &&
@@ -282,5 +366,6 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
                      "leaving slice tools drops the QML snapshot and preserves native pixels"))
             return false;
     }
+    qInfo("Slice overlay checks passed on both 8-bit and 16-bit documents");
     return true;
 }

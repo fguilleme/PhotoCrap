@@ -49,15 +49,19 @@ private slots:
     {
         PhotoCrap::Tools::SliceDescriptionCache cache;
         const QVector<QRect>                    manuals{{10, 20, 80, 70}, {450, 270, 62, 50}};
-        const auto                              held   = cache.records({512, 320}, manuals, true);
-        const auto                             *buffer = held.constData();
+        const auto                              held     = cache.records({512, 320}, manuals, true);
+        const auto                             *buffer   = held.constData();
+        const auto                              revision = cache.revision();
+        QVERIFY(revision > 0);
         for (int i = 0; i < 64; ++i) {
             const QVector<QRect> equal(manuals.cbegin(), manuals.cend());
             QCOMPARE(cache.records({512, 320}, equal, true).constData(), buffer);
+            QCOMPARE(cache.revision(), revision);
         }
         const auto bigger = cache.records({600, 400}, manuals, true);
         QVERIFY(bigger.constData() != buffer);
         QVERIFY(bigger != held);
+        QVERIFY(cache.revision() > revision);
         QCOMPARE(cache.records({512, 320}, manuals, true), held);
         auto moved = manuals;
         moved[0].translate(20, 10);
@@ -100,24 +104,32 @@ private slots:
             d.updateSliceGesture(46, 36);
             d.endSliceGesture();
             d.setSliceShowAuto(true);
-            const auto  held   = d.slices();
-            const auto *buffer = held.constData();
+            const auto  held     = d.slices();
+            const auto *buffer   = held.constData();
+            const auto  revision = d.sliceDescriptionRevision();
+            QCOMPARE(d.sliceDescriptionSnapshot().constData(), buffer);
             d.setTool("sliceSelect");
             d.beginSliceGesture(20, 20, 0);
             for (int i = 1; i <= 10; ++i) {
                 d.updateSliceGesture(20 + i, 20 + i);
                 QCOMPARE(d.slices().constData(), buffer);
+                QCOMPARE(d.sliceDescriptionRevision(), revision);
+                QCOMPARE(d.sliceDescriptionSnapshot().constData(), buffer);
             }
             d.endSliceGesture(true);
             QCOMPARE(d.slices().constData(), buffer);
+            QCOMPARE(d.sliceDescriptionRevision(), revision);
             d.beginSliceGesture(20, 20, 0);
             d.updateSliceGesture(25, 25);
             d.endSliceGesture();
             const auto moved = d.slices();
             QVERIFY(moved.constData() != buffer);
+            const auto committedRevision = d.sliceDescriptionRevision();
+            QVERIFY(committedRevision > revision);
             QCOMPARE(recordRect(moved[0]), QRect(10, 10, 41, 31));
             d.undo();
             QCOMPARE(d.slices(), held);
+            QVERIFY(d.sliceDescriptionRevision() > committedRevision);
             d.redo();
             QCOMPARE(d.slices(), moved);
             QCOMPARE(d.layerImage(0), pixels);

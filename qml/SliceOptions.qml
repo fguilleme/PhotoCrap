@@ -8,7 +8,11 @@ Rectangle {
     signal exportRequested()
     color: "#20262e"; implicitHeight: 44
     enabled: !document.sliceBusy
-    readonly property var sliceRecords: document.slices
+    readonly property double recordsRevision: document.sliceDescriptionRevision
+    readonly property var sliceRecords: {
+        const revision=recordsRevision
+        return document.sliceDescriptionSnapshot()
+    }
     readonly property int manualCount: sliceRecords.filter(s => !s.automatic).length
     readonly property var selected: document.activeSlice>=0 && document.activeSlice<sliceRecords.length
         ? sliceRecords[document.activeSlice] : null

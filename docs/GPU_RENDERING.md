@@ -1125,3 +1125,44 @@ du document restent sur leurs chemins existants.
 Références Qt : [Shape et moteurs de rendu](https://doc.qt.io/qt-6.12/qml-qtquick-shapes-shape.html),
 [ShapePath](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html) et
 [PathSvg](https://doc.qt.io/qt-6.8/qml-qtquick-pathsvg.html).
+
+## Tranches : cadre provisoire GPU et fond conservé
+
+`SliceOverlay.qml` sépare le rectangle blanc du geste en cours du dessin des
+tranches validées. `SliceDraft.qml` dessine ce cadre de 2 pixels logiques avec
+CurveRenderer, sans surface raster ni transfert de texture pour le cadre mobile.
+Le Canvas principal conserve les bordures, numéros et poignées des tranches fixes,
+dans leur ordre de dessin antérieur. Il n’est plus repeint pour chaque déplacement
+du cadre. Une validation, une nouvelle sélection, un changement d’outil ou de vue
+réactualisent toujours ce fond. Les contrôles du curseur ne changent pas.
+
+Le signal natif `slicesChanged` notifie aussi les changements de brouillon. Pour
+éviter qu’il reconvertisse toute la liste à chaque mouvement, le cache natif
+`SliceDescriptionCache` possède une révision monotone qui ne change que lors d’un
+changement de clé : dimensions, rectangles validés ou affichage automatique.
+`Document::sliceDescriptionRevision()` synchronise la clé et expose cette révision ;
+`sliceDescriptionSnapshot()` retourne les descriptions partagées sans créer de
+dépendance QML à ce signal général. Une propriété numérique intermédiaire, dans
+le canevas et dans `SliceOptions`, filtre les notifications de révision identique.
+La liste, son filtre visible et les contrôles réutilisent ainsi leurs données
+pendant le geste. La tranche active reste une dépendance séparée pour les couleurs
+et poignées, et le rectangle provisoire suit sa propre propriété.
+
+Le cadre GPU est découpé aux limites du Canvas visible, y compris après rotation,
+sans couper le fond déjà conservé. Les coordonnées locales soustraient l’origine
+de la vue et appliquent le zoom comme dans l’ancien dessin. Les backends logiciels
+et les kits Qt sans CurveRenderer conservent le cadre dans le Canvas principal ;
+leurs mouvements demandent encore un repeint raster. Aucune image de calque ni
+étape d’historique n’est créée par cette optimisation, et le format de projet ne
+change pas.
+
+`slice_cache` vérifie la révision et le partage des descriptions pendant les gestes,
+puis leur renouvellement après validation, Annuler/Rétablir et ouverture de projet.
+`slice_overlay` compare aux Canvas de la version précédente en 8/16 bits : création,
+déplacement, redimensionnement, valeurs fractionnaires, annulation, validation,
+zoom, défilement, rotation, tranches automatiques et petites étiquettes débordant
+de leur rectangle. Le test observe les compteurs réels de `painted` et de snapshots
+du canevas et des options : ils restent nuls pendant le déplacement sur GPU, le
+même objet de cadre est conservé et le buffer natif reste partagé. Le dessin des
+numéros reste raster et borné ; cette étape accélère le cadre mobile et évite les
+repeints de son fond.

@@ -764,9 +764,10 @@ l’image zoomée. Leur affichage est séparé dans `SamplingRing.qml` et
 
 L’anneau garde une surface de 84 × 84 pixels logiques, avec les deux demi-cercles
 (couleur échantillonnée et couleur précédente), les liserés et le centre transparent.
-La position du pointeur ne change que `x`/`y` : le graphe de scène déplace la texture
-existante. Une nouvelle couleur ou la réapparition de l’anneau demande un repeint.
-La surface reste fixe au zoom, indépendamment des dimensions du document.
+La surface reste fixe au zoom, indépendamment des dimensions du document. Sur le
+backend logiciel, la position du pointeur ne change que `x`/`y` et réutilise sa
+texture ; une nouvelle couleur ou la réapparition demande un repeint. Le shader
+procédural décrit ci-dessous remplace cette texture sur les backends RHI.
 
 La règle utilise les coordonnées natives des deux points, multipliées par le zoom.
 Son rectangle de dessin est l’intersection de l’emprise du segment, avec une marge
@@ -1006,3 +1007,35 @@ scrolling, la rotation, les points inversés ou confondus, une règle traversant
 document 16K et son masquage. Les compteurs vérifient zéro signal `painted` sur
 GPU pendant ces mises à jour, et des repeints effectifs sur le repli logiciel.
 Le test du recadrage reste exécuté pour vérifier les composants communs.
+
+## Anneau de pipette procédural sur GPU
+
+`SamplingRing.qml` utilise un `ShaderEffect` sur Metal, Vulkan, OpenGL et Direct3D.
+Les shaders `samplingring.vert` et `samplingring.frag` dessinent les deux moitiés
+colorées et leurs liserés dans un simple rectangle, sans Canvas, texture source
+ni échantillonnage d’image dans le shader. Le prélèvement des pixels du document
+reste inchangé ; seule sa représentation est accélérée.
+
+Le déplacement change la transformation du rectangle. Une nouvelle couleur ne
+change que les paramètres du shader : couleur courante, couleur précédente et
+dimensions du rectangle. Les coordonnées locales issues des UV restent correctes
+lorsque Qt regroupe les dessins ou applique une rotation. Les rayons de 35, 41
+et 29 pixels logiques et la bande colorée de 10 pixels restent indépendants du
+zoom ; les dérivées écran lissent les contours. Les couleurs reçues par
+`ShaderEffect` sont déjà prémultipliées : les deux moitiés sont interpolées en
+une seule bande et l’opacité héritée est appliquée une seule fois après la
+composition des liserés. Le centre et les pixels extérieurs restent transparents.
+
+Le backend logiciel garde le Canvas borné de 84 × 84. Une erreur de chargement du
+shader réactive aussi ce repli. Le test exige néanmoins un shader compilé et
+l’absence de Canvas sur les backends matériels, pour ne pas masquer une régression.
+
+`measurement_overlay` compare le rendu à une copie indépendante de l’ancien
+Canvas : couleurs opaques et transparentes, alpha partiel, opacité héritée,
+déplacement, dimensions non carrées, masquage avec changement de couleur et rotation.
+Il contrôle aussi les couleurs au centre des bandes avec une tolérance de deux
+niveaux et les compteurs de repeint : aucun repeint raster sur GPU, y compris
+lorsque les couleurs changent. La comparaison des contours reprend les limites
+explicites de lissage du test des guides, sans élargir leur tolérance.
+
+Référence : [Qt ShaderEffect — attributs, paramètres prémultipliés et shaders QSB](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html).

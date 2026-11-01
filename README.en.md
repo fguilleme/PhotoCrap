@@ -239,6 +239,11 @@ Crop and perspective-crop shading, frame, grid, and handles now render through t
 
 Ruler lines and circular endpoint markers also use retained GPU paths without a Canvas texture on compatible backends. A bounded raster fallback remains available; measurement coordinates and Info panel values are unchanged.
 
+The eyedropper sampling ring uses a procedural GPU shader without a source texture,
+including when either sample color changes. Its size remains 84 × 84 logical pixels;
+transparency and inherited opacity are preserved. The software backend keeps the
+bounded Canvas fallback. Pixel sampling itself is unchanged.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

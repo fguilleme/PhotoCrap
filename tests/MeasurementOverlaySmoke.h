@@ -28,6 +28,10 @@ Item {
     property color sampleColor: "red"
     property color previousColor: "#00ff00"
     property bool showRing: true
+    property bool referenceRingVisible: false
+    property real ringOpacity: 1
+    property real ringWidth: 84
+    property real ringHeight: 84
     property real panX: 0
     property real panY: 0
     property real viewRotation: 0
@@ -37,6 +41,27 @@ Item {
     property point measureEnd: Qt.point(20,18)
     property bool showRuler: true
     Rectangle { anchors.fill: parent; color: "#5a7896" }
+component LegacySamplingRing: Canvas {
+    required property color sampleColor
+    required property color previousColor
+    enabled: false
+    onSampleColorChanged: requestPaint()
+    onPreviousColorChanged: requestPaint()
+    onVisibleChanged: if (visible) requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+    onPaint: {
+        const c=getContext("2d")
+        c.reset();c.clearRect(0,0,width,height)
+        const x=width/2,y=height/2
+        c.lineWidth=10
+        c.beginPath();c.arc(x,y,35,Math.PI,Math.PI*2);c.strokeStyle=sampleColor;c.stroke()
+        c.beginPath();c.arc(x,y,35,0,Math.PI);c.strokeStyle=previousColor;c.stroke()
+        c.lineWidth=1;c.strokeStyle="#111111"
+        c.beginPath();c.arc(x,y,41,0,Math.PI*2);c.stroke()
+        c.strokeStyle="#ffffff";c.beginPath();c.arc(x,y,29,0,Math.PI*2);c.stroke()
+    }
+}
 component LegacyRulerOverlay: ScreenOverlayCanvas {
     id: root
     required property point startPoint
@@ -100,7 +125,16 @@ component LegacyRulerOverlay: ScreenOverlayCanvas {
                 x: samplePoint.x-width/2; y: samplePoint.y-height/2
                 sampleColor: fixture.sampleColor
                 previousColor: fixture.previousColor
-                visible: showRing
+                visible: showRing && !referenceRingVisible
+                opacity: ringOpacity
+                width: ringWidth; height: ringHeight
+            }
+            LegacySamplingRing {
+                x: samplePoint.x-width/2; y: samplePoint.y-height/2
+                width: ringWidth; height: ringHeight
+                sampleColor: fixture.sampleColor; previousColor: fixture.previousColor
+                visible: showRing && referenceRingVisible
+                opacity: ringOpacity
             }
         }
     }
@@ -136,16 +170,18 @@ component LegacyRulerOverlay: ScreenOverlayCanvas {
         }
         return nullptr;
     };
-    const auto matchesReference = [&] {
-        root->setProperty("referenceVisible", true);
+    const auto matchesReference = [&](bool _ring = false) {
+        const auto *property = _ring ? "referenceRingVisible" : "referenceVisible";
+        root->setProperty(property, true);
         const auto reference = frame();
-        root->setProperty("referenceVisible", false);
+        root->setProperty(property, false);
         const auto  actual = frame();
         const auto  origin = root->mapToScene(QPointF{});
         const qreal ratio  = qreal(actual.width()) / _window->width();
         const QRect bounds(qFloor(origin.x() * ratio), qFloor(origin.y() * ratio),
                            qFloor(root->width() * ratio), qFloor(root->height() * ratio));
-        return compareOverlayReference(actual, reference, bounds, hardware, "/tmp/photocrap-ruler");
+        return compareOverlayReference(actual, reference, bounds, hardware,
+                                       _ring ? "/tmp/photocrap-ring" : "/tmp/photocrap-ruler");
     };
     const auto pixel = [&](const QImage &_frame, const QQuickItem *_item, QPointF _point) {
         const auto   scene = _item->mapToScene(_point);
@@ -168,6 +204,14 @@ component LegacyRulerOverlay: ScreenOverlayCanvas {
                      near(pixel(first, board, {224, 208}), QColor("#f5f7f9")) &&
                      near(pixel(first, board, {128, 128}), QColor("#f5f7f9")),
                  "short ruler retains its segment and handles in a local backing surface"))
+        return false;
+    if (!require(hardware
+                     ? visualItem("samplingRingShader") && ring->property("gpuReady").toBool() &&
+                           !visualItem("samplingRingRaster")
+                     : visualItem("samplingRingRaster") != nullptr,
+                 "the sampling ring uses a compiled shader on RHI and Canvas on software"))
+        return false;
+    if (!require(matchesReference(true), "sampling ring matches its independent raster reference"))
         return false;
     auto      *guides = visualItem("rulerGpuGuides");
     auto      *raster = visualItem("rulerRasterGuides");
@@ -207,14 +251,39 @@ component LegacyRulerOverlay: ScreenOverlayCanvas {
     if (!require(paints.isEmpty() && ring->size() == QSizeF(84, 84) &&
                      near(pixel(moved, board, {280, 45}), Qt::red) &&
                      near(pixel(moved, board, {200, 45}), QColor("#5a7896")),
-                 "moving the ring reuses its texture and clears its former screen position"))
+                 "moving the ring avoids repainting and clears its former screen position"))
         return false;
     root->setProperty("sampleColor", QColor(Qt::blue));
     const auto recoloured = frame();
-    if (!require(!paints.isEmpty() && near(pixel(recoloured, board, {280, 45}), Qt::blue) &&
+    if (!require((hardware ? paints.isEmpty() : !paints.isEmpty()) &&
+                     near(pixel(recoloured, board, {280, 45}), Qt::blue) &&
                      near(pixel(recoloured, board, {280, 115}), Qt::green),
-                 "a changed sample repaints its half while preserving the previous colour"))
+                 "a changed sample updates its half without raster painting on GPU"))
         return false;
+    if (!require(matchesReference(true), "recoloured sampling ring preserves the raster reference"))
+        return false;
+    root->setProperty("sampleColor", QColor(255, 0, 0, 0));
+    root->setProperty("previousColor", QColor(0, 255, 0, 128));
+    const auto translucent = frame();
+    if (!require(near(pixel(translucent, board, {280, 45}), QColor("#5a7896")) &&
+                     near(pixel(translucent, board, {280, 115}), QColor(45, 188, 75)) &&
+                     matchesReference(true),
+                 "transparent and translucent samples composite once in premultiplied colour"))
+        return false;
+    root->setProperty("ringOpacity", .37);
+    frame();
+    if (!require(matchesReference(true), "parent opacity preserves the ring's raster reference"))
+        return false;
+    root->setProperty("ringOpacity", 1.);
+    root->setProperty("sampleColor", QColor(Qt::blue));
+    root->setProperty("previousColor", QColor(Qt::green));
+    root->setProperty("ringWidth", 100.);
+    root->setProperty("ringHeight", 96.);
+    frame();
+    if (!require(matchesReference(true), "resized ring retains circular strokes at its centre"))
+        return false;
+    root->setProperty("ringWidth", 84.);
+    root->setProperty("ringHeight", 84.);
     root->setProperty("showRing", false);
     root->setProperty("previousColor", QColor(Qt::yellow));
     const auto noRing = frame();
@@ -226,6 +295,8 @@ component LegacyRulerOverlay: ScreenOverlayCanvas {
     if (!require(near(pixel(restoredRing, board, {280, 45}), Qt::blue) &&
                      near(pixel(restoredRing, board, {280, 115}), Qt::yellow),
                  "showing the ring uses both current colours after a hidden change"))
+        return false;
+    if (!require(matchesReference(true), "restored ring preserves the raster reference"))
         return false;
     root->setProperty("panX", 64);
     root->setProperty("panY", 32);
@@ -247,7 +318,8 @@ component LegacyRulerOverlay: ScreenOverlayCanvas {
                      rotatedStroke.green() > 180 && rotatedStroke.blue() > 180,
                  "ruler follows canvas rotation without expanding to document dimensions"))
         return false;
-    if (!require(matchesReference(), "rotated ruler preserves the raster reference"))
+    if (!require(matchesReference() && matchesReference(true),
+                 "rotated ruler and sampling ring preserve their raster references"))
         return false;
     root->setProperty("viewRotation", 0);
     for (qreal z : {.5, 1., 4., 16.}) {

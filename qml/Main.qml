@@ -3815,22 +3815,17 @@ ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 10
             Label { text: qsTr("Forme de la pointe"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
-            Canvas {
+            BrushTipPreview {
                 id: brushPreview
+                objectName: "brushTipPreview"
                 Layout.fillWidth: true; Layout.preferredHeight: 105
-                onPaint: {
-                    const c=getContext("2d");c.reset();c.fillStyle="#151a20";c.fillRect(0,0,width,height)
-                    const radius=Math.min(editor.brushSize/2,38);const spacing=Math.max(1,editor.brushSize*editor.brushSpacing)
-                    c.globalAlpha=editor.brushOpacity
-                    for(let x=28;x<width-20;x+=spacing) {
-                        c.save();c.translate(x,height/2);c.rotate(editor.brushAngle*Math.PI/180);c.scale(1,editor.brushRoundness)
-                        const g=c.createRadialGradient(0,0,0,0,0,radius)
-                        g.addColorStop(0,"rgba(190,236,203,"+editor.brushFlow+")")
-                        g.addColorStop(Math.min(.999,editor.brushHardness),"rgba(190,236,203,"+editor.brushFlow+")")
-                        g.addColorStop(1,"rgba(190,236,203,0)");c.fillStyle=g;c.beginPath();c.arc(0,0,radius,0,Math.PI*2);c.fill();c.restore()
-                    }
-                }
-                Connections { target: editor; function onSettingsChanged() { brushPreview.requestPaint() } }
+                brushSize: editor.brushSize
+                hardness: editor.brushHardness
+                brushOpacity: editor.brushOpacity
+                flow: editor.brushFlow
+                spacing: editor.brushSpacing
+                angle: editor.brushAngle
+                roundness: editor.brushRoundness
             }
             Label {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#91a0ad"

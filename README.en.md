@@ -289,6 +289,12 @@ The Gradient Map wheel reuses its fixed spectrum during color edits. Its
 brightness shade is procedural on the GPU: only opacity changes, with no Canvas
 repaint during the gesture. Software and fractional sizes keep the prior drawing.
 
+The brush settings tip preview uses a bounded shader for common tips: size,
+hardness, flow, spacing, angle and roundness update parameters without creating
+an image. Very thin tips, dense overlapping stamps, fractional sizes and software
+rendering retain the Canvas. Unrelated settings no longer repaint the preview,
+and a closed dialog does not draw it.
+
 Horizontal and vertical viewport rulers keep only visible graduations, with a
 margin for labels extending from offscreen ticks. On graphics backends, ticks
 and cached digit outlines stay in the scene graph for integer-sized bands.

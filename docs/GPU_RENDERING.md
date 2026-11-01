@@ -1534,3 +1534,51 @@ accord avec les paramètres du calque et une seule annulation par geste.
 Références Qt : [ShaderEffect](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html),
 [uniformes et opacité](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html#shader-inputs-and-resources),
 [source du cache de shaders Qt](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/qquickshadereffect.cpp).
+
+## Aperçu de pointe du pinceau : illustration procédurale bornée
+
+`BrushTipPreview.qml` extrait l’illustration des paramètres du pinceau de
+`Main.qml`. Sept propriétés visuelles remplacent la demande de repeint sur
+chaque notification générale `settingsChanged`. Modifier le lissage, le mode
+de fusion ou un autre outil sans changer ces propriétés conserve l’aperçu. Les
+loaders sont inactifs quand le dialogue est fermé ; la réouverture utilise les
+valeurs courantes, y compris après Annuler.
+
+Le chemin matériel utilise un rectangle et un shader sans texture source.
+Le fond reste `#151a20` et les empreintes `rgb(190,236,203)`. Le rayon est
+toujours plafonné à 38 pixels logiques ; l’espacement garde son minimum d’un
+pixel, son départ à 28 et sa limite `largeur - 20`. Le nombre d’empreintes est
+préparé avec la boucle historique pour conserver son arrondi d’extrémité. Le
+shader inverse la rotation et l’aplatissement, évalue le dégradé radial et
+compose les empreintes dans leur ordre. Dureté et transparence sont intégrées
+au bord anticrénelé ; l’opacité héritée s’applique au résultat complet.
+
+Chaque fragment ne considère que les empreintes dont l’enveloppe circulaire
+peut le couvrir. Le chemin GPU exige un petit rayon d’au moins deux pixels et
+un espacement d’au moins un huitième du rayon : au plus 17 empreintes sont
+évaluées par fragment, quelle que soit la largeur. Les dérivées de coordonnées
+sont calculées avant les branchements dépendant du fragment. Les pointes plus
+fines et les accumulations plus denses conservent le Canvas, ses arrondis
+séquentiels en 8 bits et son rendu des détails sous-pixel. Les dimensions
+fractionnaires, le backend logiciel et les erreurs de préparation du shader
+utilisent aussi ce repli. Le Canvas est retiré au retour sur GPU.
+
+Cette étape concerne seulement l’illustration du dialogue : elle ne modifie ni
+les empreintes déposées dans le document, ni le moteur de peinture, ni le
+calcul des pixels 8/16 bits. Aucun changement d’interaction ou de réglage
+supplémentaire n’est introduit.
+
+`brush_tip_preview` compare les pixels à une copie indépendante du Canvas
+historique : pointes dures/douces, angle, aplatissement, tailles minimale et
+maximale, faible débit/opacité, espacement limite, superposition dense,
+transparence, rotation et opacité héritées, largeur étroite, dimensions
+fractionnaires, masquage et retour GPU. Les tolérances partagées des autres
+surimpressions bornent les différences de lissage entre Canvas texturé et
+shader natif. L’identité du shader, ses changements de taille et les signaux
+de repeint vérifient que les réglages conservent le rectangle sans rasterisation.
+Le smoke test général contrôle les liaisons réelles du dialogue, l’absence de
+repeint pour le lissage seul, Annuler et la réouverture après modification
+pendant le masquage.
+
+Références Qt : [ShaderEffect et sorties prémultipliées](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html#shader-inputs-and-resources),
+[Canvas et coût des transferts de texture](https://doc.qt.io/qt-6.8/qml-qtquick-canvas.html#detailed-description).

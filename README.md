@@ -300,6 +300,8 @@ Le calcul CPU des histogrammes convertit uniquement les pixels de la grille util
 
 La roue du Transfert de dégradé conserve son spectre pendant les modifications de couleur. Son voile de luminosité est procédural sur GPU : seule l’opacité change, sans repeindre de Canvas pendant le geste. Le repli logiciel et les tailles fractionnaires conservent le dessin précédent.
 
+L’aperçu de pointe dans les paramètres du pinceau utilise un shader borné pour les pointes courantes : taille, dureté, débit, espacement, angle et arrondi actualisent des paramètres sans créer d’image. Les pointes très fines, les superpositions denses, les dimensions fractionnaires et le backend logiciel gardent le Canvas. Les réglages sans effet visuel sur cet aperçu ne le repeignent plus ; le dialogue fermé ne dessine rien.
+
 Les règles horizontale et verticale limitent leurs graduations à la zone visible, avec une marge pour les chiffres débordants. Sur les backends graphiques, traits et contours des chiffres sont conservés dans le graphe de scène quand la bande a des dimensions entières ; le repli logiciel, aussi conservé pour les dimensions fractionnaires, ne parcourt que les graduations utiles. Le pas, les valeurs et leur orientation suivent le zoom et le défilement.
 
 Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées utilisent aussi des chemins et rectangles du graphe de scène, sans Canvas ni texture de guides pendant le geste. Le backend logiciel et les anciens kits Qt sans CurveRenderer conservent le dessin raster. Le survol réutilise les points du cadre pour choisir le curseur.

@@ -1812,6 +1812,19 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QTest::qWait(100);
     if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))
         return false;
+    auto *tipPreview = _window->findChild<QObject *>("brushTipPreview");
+    if (!require(tipPreview && tipPreview->property("visible").toBool(),
+                 "brush settings shows the standalone tip preview"))
+        return false;
+    QSignalSpy tipPaints(tipPreview, SIGNAL(painted()));
+    // Document exposes a shared notification for all tool settings. Unrelated
+    // changes must not invalidate this illustration's raster or uniforms.
+    const qreal initialSmoothing = _document.brushSmoothing();
+    _document.setBrushSmoothing(initialSmoothing < .5 ? .75 : .25);
+    QTest::qWait(70);
+    if (!require(tipPaints.isEmpty(), "unrelated brush smoothing does not repaint the preview"))
+        return false;
+    _document.setBrushSmoothing(initialSmoothing);
     auto brushCancel = _window->findChild<QObject *>("brushSettingsCancelButton");
     auto brushOk     = _window->findChild<QObject *>("brushSettingsOkButton");
     if (!require(brushCancel && brushOk, "brush settings provides Cancel and OK actions"))
@@ -1825,13 +1838,27 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     const qreal originalBrushSize = _document.brushSize();
     _document.setBrushSize(originalBrushSize + 12);
+    QTest::qWait(70);
+    if (!require(qAbs(tipPreview->property("brushSize").toReal() - originalBrushSize - 12) < .001,
+                 "tip preview follows the edited brush size"))
+        return false;
     QMetaObject::invokeMethod(brushSettings, "reject");
     QTest::qWait(80);
     if (!require(qAbs(_document.brushSize() - originalBrushSize) < .001,
                  "Cancel restores brush settings from before the dialog opened"))
         return false;
+    const int closedTipPaints = tipPaints.count();
+    _document.setBrushSize(originalBrushSize + 1);
+    QTest::qWait(70);
+    if (!require(tipPaints.count() == closedTipPaints,
+                 "a closed brush settings dialog does not paint its hidden preview"))
+        return false;
+    _document.setBrushSize(originalBrushSize);
     QMetaObject::invokeMethod(brushSettings, "open");
     QTest::qWait(80);
+    if (!require(qAbs(tipPreview->property("brushSize").toReal() - originalBrushSize) < .001,
+                 "reopened preview reflects the restored size"))
+        return false;
     _document.setBrushSize(originalBrushSize + 8);
     brushSettings->setProperty("keepSettings", true);
     QMetaObject::invokeMethod(brushSettings, "accept");

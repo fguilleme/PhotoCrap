@@ -800,12 +800,13 @@ pinceau près du bord de la photo garde son contour hors image si cette portion
 reste visible à l’écran. Une empreinte énorme ne réserve donc pas une texture
 proportionnelle au carré de son diamètre zoomé.
 
-Tant que le contour reste entièrement dans la vue, son centre local et sa taille
-ne changent pas : déplacer le pointeur déplace seulement la texture existante
-dans le graphe de scène. En cas de découpage, le centre local et les dimensions
-changent ; seule cette surface bornée est repeinte. Les changements de diamètre,
-angle, aplatissement, signe ou visibilité demandent aussi un repeint. La peinture
-des pixels du document et les curseurs natifs restent sur leurs chemins existants.
+Sur le backend logiciel, tant que le contour reste entièrement dans la vue, son
+centre local et sa taille ne changent pas : déplacer le pointeur déplace seulement
+la texture existante dans le graphe de scène. En cas de découpage, seule la surface
+bornée est repeinte. Les changements de diamètre, angle, aplatissement, signe ou
+visibilité demandent aussi un repeint. Le chemin GPU procédural décrit ci-dessous
+supprime cette texture. La peinture des pixels du document et les curseurs natifs
+restent sur leurs chemins existants.
 
 Le test `brush_cursor` compare les pixels avec/sans découpage, vérifie le centre
 transparent, l’ellipse tournée, les signes +/−, le défilement, le repositionnement
@@ -1039,3 +1040,35 @@ lorsque les couleurs changent. La comparaison des contours reprend les limites
 explicites de lissage du test des guides, sans élargir leur tolérance.
 
 Référence : [Qt ShaderEffect — attributs, paramètres prémultipliés et shaders QSB](https://doc.qt.io/qt-6.8/qml-qtquick-shadereffect.html).
+
+## Contour de pinceau procédural sur GPU
+
+Sur Metal, Vulkan, OpenGL et Direct3D, `BrushCursor.qml` utilise un `ShaderEffect`
+avec `brushcursor.vert` et `brushcursor.frag`. Un rectangle limité à la vue remplace
+le Canvas et sa texture, y compris lorsque le curseur est découpé par un bord.
+Le déplacement actualise sa transformation, son centre local et ses dimensions ;
+les changements de diamètre, aplatissement, angle ou signe ne changent que les
+paramètres du shader. Une empreinte de 32 000 pixels reste limitée à la vue, sans
+surface raster de cette taille ni transfert de texture à chaque déplacement.
+
+Le shader ramène chaque fragment dans le repère du cercle avant la rotation et
+l’aplatissement, puis calcule les deux traits contrastés. Il conserve les largeurs
+anisotropes de l’ancien Canvas : 2/ratio et 1/ratio avant la transformation.
+Les dérivées écran règlent le lissage des contours. Les signes +/− gardent leurs
+traits à bouts droits, leur place dans l’empreinte et leur orientation dans le
+repère du document, indépendamment de l’angle du pinceau. Les couches sont
+composées en couleurs prémultipliées avant l’application de l’opacité héritée.
+
+Le backend logiciel conserve le Canvas borné, également utilisé en cas d’erreur
+de chargement du shader. Le test `brush_cursor` exige un shader compilé et aucun
+Canvas sur le chemin matériel, puis compare les pixels à une copie indépendante
+de l’ancien composant : cercle, ellipse tournée, rotation de la vue, opacité,
+signes +/−, curseur partiellement visible, déplacement découpé, très grand diamètre,
+défilement, marges autour de l’image, aplatissement minimal, diamètre d’un pixel,
+position fractionnaire et réapparition après modification des réglages masqués. Les tolérances de lissage restent
+celles du comparateur commun des surimpressions ; les couleurs et le centre vide
+sont aussi vérifiés directement. Le compteur `painted` reste nul sur GPU lors des
+changements de forme et du déplacement d’une empreinte découpée.
+
+L’échantillonnage du pinceau, la peinture sur calques et masques, l’historique et
+les curseurs natifs ne sont pas modifiés par cette étape.

@@ -407,6 +407,7 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
         src/render/shaders/selection.vert src/render/shaders/selection.frag
         src/render/shaders/crop.vert src/render/shaders/crop.frag
         src/render/shaders/samplingring.vert src/render/shaders/samplingring.frag
+        src/render/shaders/brushcursor.vert src/render/shaders/brushcursor.frag
 )
 if(APPLE)
     target_sources(PhotoCrap PRIVATE

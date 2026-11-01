@@ -244,6 +244,11 @@ including when either sample color changes. Its size remains 84 × 84 logical pi
 transparency and inherited opacity are preserved. The software backend keeps the
 bounded Canvas fallback. Pixel sampling itself is unchanged.
 
+Brush outlines also use a procedural GPU shader, including when clipped by the
+viewport. Angle, roundness, inherited opacity, and Quick Selection +/− signs are
+preserved, with no Canvas texture on compatible backends. The software fallback
+remains bounded to the viewport; painting and native cursors are unchanged.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

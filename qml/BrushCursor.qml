@@ -1,8 +1,8 @@
 import QtQuick
 
-// Keep a local raster of the footprint. Moving an unclipped brush only moves
-// its scene-graph texture; clipped footprints stay bounded to the viewport.
-Canvas {
+// Keep the footprint bounded to the viewport. RHI draws it procedurally;
+// software retains the local raster and reuses it during unclipped motion.
+Item {
     id: root
     required property var viewportItem
     property real zoom: 1
@@ -46,6 +46,86 @@ Canvas {
     width: Math.max(0, fullSize-clipLeft-clipRight)
     height: Math.max(0, fullSize-clipTop-clipBottom)
 
+    signal painted()
+    readonly property bool gpuCursor: GraphicsInfo.api === GraphicsInfo.Metal
+        || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
+        || GraphicsInfo.api === GraphicsInfo.Direct3D11 || GraphicsInfo.api === GraphicsInfo.Direct3D12
+    readonly property bool gpuReady: nativeCursor.item !== null
+        && nativeCursor.item.status === ShaderEffect.Compiled
+    readonly property bool shaderFailed: nativeCursor.item !== null
+        && nativeCursor.item.status === ShaderEffect.Error
+
+    function requestPaint() {
+        if (softwareCursor && softwareCursor.item)
+            softwareCursor.item.requestPaint()
+    }
+    Loader {
+        id: nativeCursor
+        anchors.fill: parent
+        active: root.visible && root.gpuCursor
+        visible: !root.shaderFailed
+        sourceComponent: ShaderEffect {
+            objectName: "brushCursorShader"
+            property size cursorSize: Qt.size(width, height)
+            property point cursorCenter: Qt.point(root.localCenterX, root.localCenterY)
+            property vector4d brushParameters: Qt.vector4d(root.diameter / 2,
+                Math.max(.01, Math.min(1, root.roundness)),
+                Math.cos(root.angle * Math.PI / 180), Math.sin(root.angle * Math.PI / 180))
+            property real selectionSign: root.selectionSign
+            vertexShader: "qrc:/PhotoCrap/src/render/shaders/brushcursor.vert.qsb"
+            fragmentShader: "qrc:/PhotoCrap/src/render/shaders/brushcursor.frag.qsb"
+            blending: true
+        }
+    }
+    Loader {
+        id: softwareCursor
+        anchors.fill: parent
+        active: root.visible && (!root.gpuCursor || root.shaderFailed)
+        sourceComponent: Canvas {
+            objectName: "brushCursorRaster"
+            Component.onCompleted: requestPaint()
+            onPainted: root.painted()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: {
+                const c = getContext("2d")
+                c.reset()
+                c.clearRect(0, 0, width, height)
+                c.translate(root.localCenterX, root.localCenterY)
+                c.save()
+                const ratio = Math.max(.01, Math.min(1, root.roundness))
+                c.rotate(root.angle*Math.PI/180)
+                c.scale(1, ratio)
+                const radius = root.diameter/2
+                c.beginPath()
+                c.arc(0, 0, radius, 0, Math.PI*2)
+                c.lineWidth = 2/ratio
+                c.strokeStyle = "rgba(0,0,0,.75)"
+                c.stroke()
+                c.lineWidth = 1/ratio
+                c.strokeStyle = "rgba(255,255,255,.95)"
+                c.stroke()
+                c.restore()
+                if (root.selectionSign !== 0) {
+                    // Keep the sign upright and inside the footprint's local bounds.
+                    const px = radius*.5, py = -radius*.5
+                    c.beginPath()
+                    c.moveTo(px-3, py)
+                    c.lineTo(px+3, py)
+                    if (root.selectionSign > 0) {
+                        c.moveTo(px, py-3)
+                        c.lineTo(px, py+3)
+                    }
+                    c.lineWidth = 3
+                    c.strokeStyle = "rgba(0,0,0,.85)"
+                    c.stroke()
+                    c.lineWidth = 1
+                    c.strokeStyle = "#ffffff"
+                    c.stroke()
+                }
+            }
+        }
+    }
     onLocalCenterXChanged: if (visible) requestPaint()
     onLocalCenterYChanged: if (visible) requestPaint()
     onWidthChanged: if (visible) requestPaint()
@@ -55,41 +135,4 @@ Canvas {
     onAngleChanged: if (visible) requestPaint()
     onSelectionSignChanged: if (visible) requestPaint()
     onVisibleChanged: if (visible) requestPaint()
-    onPaint: {
-        const c = getContext("2d")
-        c.reset()
-        c.clearRect(0, 0, width, height)
-        c.translate(localCenterX, localCenterY)
-        c.save()
-        const ratio = Math.max(.01, Math.min(1, roundness))
-        c.rotate(angle*Math.PI/180)
-        c.scale(1, ratio)
-        const radius = diameter/2
-        c.beginPath()
-        c.arc(0, 0, radius, 0, Math.PI*2)
-        c.lineWidth = 2/ratio
-        c.strokeStyle = "rgba(0,0,0,.75)"
-        c.stroke()
-        c.lineWidth = 1/ratio
-        c.strokeStyle = "rgba(255,255,255,.95)"
-        c.stroke()
-        c.restore()
-        if (selectionSign !== 0) {
-            // Keep the sign upright and inside the footprint's local bounds.
-            const px = radius*.5, py = -radius*.5
-            c.beginPath()
-            c.moveTo(px-3, py)
-            c.lineTo(px+3, py)
-            if (selectionSign > 0) {
-                c.moveTo(px, py-3)
-                c.lineTo(px, py+3)
-            }
-            c.lineWidth = 3
-            c.strokeStyle = "rgba(0,0,0,.85)"
-            c.stroke()
-            c.lineWidth = 1
-            c.strokeStyle = "#ffffff"
-            c.stroke()
-        }
-    }
 }

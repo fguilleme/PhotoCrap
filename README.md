@@ -280,7 +280,7 @@ Le canevas en développement après v0.15 utilise des textures Qt Quick réutili
 
 Les surimpressions de mesure sont bornées : l’anneau de pipette conserve une taille de 84 × 84 pixels logiques et utilise un shader sans texture sur les backends graphiques, y compris lorsque ses couleurs changent. Le backend logiciel garde le dessin raster borné. La règle trace son segment et ses repères circulaires sur GPU sans Canvas sur les backends compatibles. Son emprise reste limitée à la vue, et le repli logiciel garde un dessin raster borné ; zoom, défilement et rotation conservent les mêmes coordonnées de mesure.
 
-Le contour du pinceau garde aussi une surface limitée à la vue, même avec une grosse brosse au zoom fort. Son déplacement réutilise le dessin tant que le contour reste entièrement visible ; angle, aplatissement et signes +/− de Sélection rapide sont pris en compte.
+Le contour du pinceau est calculé directement par shader sur les backends graphiques, sans texture ni repeint, y compris lorsqu’il est coupé par un bord de la vue. Son emprise reste limitée à la vue, même avec une grosse brosse au zoom fort ; angle, aplatissement et signes +/− de Sélection rapide sont conservés. Le backend logiciel garde un dessin raster borné.
 
 La Plume conserve les dessins du tracé et des poignées pendant le survol : seul le segment provisoire est redessiné dans sa zone visible. Les modifications des points et des tangentes invalident ces dessins ; zoom et défilement restent limités à la vue.
 

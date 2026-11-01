@@ -175,6 +175,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/ToolLayerSmoke.h
     tests/CanvasRenderSmoke.h
     tests/MeasurementOverlaySmoke.h
+    tests/OverlayReference.h
     tests/BrushCursorSmoke.h
     tests/PenOverlaySmoke.h
     tests/LassoGuideSmoke.h
@@ -469,6 +470,9 @@ qt_add_qml_module(PhotoCrap
         qml/TextLayerEditor.qml
         qml/CropOverlay.qml
         qml/CropGuides.qml
+        qml/GpuGuideShape.qml
+        qml/ScreenOverlayBounds.qml
+        qml/RulerGuides.qml
         qml/ScreenOverlayCanvas.qml
         qml/SliceOptions.qml
         qml/SliceOverlay.qml

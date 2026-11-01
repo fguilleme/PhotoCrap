@@ -5,20 +5,12 @@ Item {
     id: root
     required property var viewportItem
     property real zoom: 1
-    // Visible artboard bounds; native guides never allocate a viewport-sized raster.
-    readonly property rect screenBounds: {
-        if(!parent || !viewportItem)return Qt.rect(0,0,0,0)
-        const scrollX=viewportItem.contentX,scrollY=viewportItem.contentY
-        const scale=zoom,rotation=parent.rotation,originX=parent.x,originY=parent.y
-        const sourceWidth=parent.width,sourceHeight=parent.height
-        const w=viewportItem.width,h=viewportItem.height
-        const p=[viewportItem.mapToItem(parent,0,0),viewportItem.mapToItem(parent,w,0),
-                 viewportItem.mapToItem(parent,w,h),viewportItem.mapToItem(parent,0,h)]
-        const l=Math.max(0,Math.floor(Math.min.apply(null,p.map(p=>p.x))))
-        const t=Math.max(0,Math.floor(Math.min.apply(null,p.map(p=>p.y))))
-        const r=Math.min(parent.width,Math.ceil(Math.max.apply(null,p.map(p=>p.x))))
-        const b=Math.min(parent.height,Math.ceil(Math.max.apply(null,p.map(p=>p.y))))
-        return Qt.rect(l,t,Math.max(0,r-l),Math.max(0,b-t))
+    readonly property rect screenBounds: visibleArea.bounds
+    ScreenOverlayBounds {
+        id: visibleArea
+        artboard: root.parent
+        viewportItem: root.viewportItem
+        zoom: root.zoom
     }
     signal painted()
     function requestPaint(){if(softwareGuides && softwareGuides.item)softwareGuides.item.requestPaint()}

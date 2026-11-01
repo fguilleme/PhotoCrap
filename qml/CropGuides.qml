@@ -12,7 +12,7 @@ Item {
     property bool perspective: false
     enabled: false
     // CurveRenderer was added in Qt 6.6; keep Qt 6.5's raster-guide fallback.
-    readonly property bool curveRendererAvailable: "preferredRendererType" in guideShape
+    readonly property bool curveRendererAvailable: guideShape.curveRendererAvailable
     visible: curveRendererAvailable
     readonly property var corners: points.length===4
         ? points.map(p=>Qt.point(p.x*zoom-origin.x,p.y*zoom-origin.y))
@@ -39,12 +39,10 @@ Item {
         miterLimit: 10
         PathSvg { path: stroke.svg }
     }
-    Shape {
+    GpuGuideShape {
         id: guideShape
         objectName: "cropGuideShape"
         anchors.fill: parent
-        Component.onCompleted: if(root.curveRendererAvailable)
-            guideShape["preferredRendererType"]=Shape["CurveRenderer"]
         Stroke {svg:root.framePath;strokeWidth:3;strokeColor:Qt.rgba(0,0,0,.9)}
         Stroke {svg:root.framePath;strokeWidth:1;strokeColor:"white"}
         Stroke {svg:root.showGrid?root.gridPath:"";strokeWidth:2;strokeColor:Qt.rgba(0,0,0,.65)}

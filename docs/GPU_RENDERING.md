@@ -770,11 +770,11 @@ La surface reste fixe au zoom, indépendamment des dimensions du document.
 
 La règle utilise les coordonnées natives des deux points, multipliées par le zoom.
 Son rectangle de dessin est l’intersection de l’emprise du segment, avec une marge
-pour les poignées, et de la vue calculée par `ScreenOverlayCanvas`. Le dessin est
+pour les poignées, et de la vue calculée par `ScreenOverlayBounds`. Le dessin est
 translaté vers cette origine locale. Une petite mesure garde donc une petite
-surface, et une mesure traversant tout le document reste limitée à l’écran, même
-après défilement ou rotation. Son dessin reste raster ; les changements des points
-repeignent cette surface bornée.
+emprise, et une mesure traversant tout le document reste limitée à l’écran, même
+après défilement ou rotation. Le premier rendu borné était raster ; le chemin GPU
+décrit ci-dessous supprime maintenant cette surface sur les backends compatibles.
 
 `MeasurementOverlaySmoke.h`, exécuté par `measurement_overlay`, affiche ces composants sur
 une géométrie de document 16 384 × 16 384 à 16×, sans allouer cette image complète.
@@ -980,3 +980,29 @@ raster repeint effectivement ses guides lors d’un déplacement.
 
 Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
 [ShapePath](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html).
+
+## Règle : trait et repères conservés sur GPU
+
+Sur RHI avec CurveRenderer, `RulerOverlay.qml` ne crée plus de Canvas. Son trait
+sombre de 4 pixels et clair de 2 pixels sont deux chemins dans `RulerGuides.qml` ;
+les repères sont deux cercles de rayon 4, remplis et bordés, dans une seconde forme
+pour conserver leur ordre au-dessus du segment. Changer les extrémités actualise
+les petits chemins et leur géométrie, sans image intermédiaire à repeindre ou à
+transférer. La préparation de ces chemins reste effectuée par Qt sur CPU.
+
+`GpuGuideShape.qml` partage avec le recadrage la sélection dynamique de
+CurveRenderer et le repli Qt 6.5. `ScreenOverlayBounds.qml` partage leurs calculs
+de vue, en tenant compte du défilement, du zoom, de la rotation et de la position
+de l’artboard. Le backend logiciel et les kits sans CurveRenderer gardent l’ancien
+dessin Canvas limité à la vue. Les coordonnées et les lectures du panneau
+Informations restent inchangées ; aucun pixel ni historique du document n’est
+modifié par cet affichage.
+
+`measurement_overlay` conserve l’ancien Canvas comme référence indépendante.
+Les comparaisons utilisent les mêmes tolérances de lissage que le recadrage via
+`OverlayReference.h` : logiciel strict, contrôle filtré sur GPU. Elles couvrent
+une mesure courte, un changement d’extrémité, les zooms 0,5×/1×/4×/16×, le
+scrolling, la rotation, les points inversés ou confondus, une règle traversant un
+document 16K et son masquage. Les compteurs vérifient zéro signal `painted` sur
+GPU pendant ces mises à jour, et des repeints effectifs sur le repli logiciel.
+Le test du recadrage reste exécuté pour vérifier les composants communs.

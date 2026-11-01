@@ -237,6 +237,8 @@ The canvas under development after v0.15 uses reusable Qt Quick textures for vis
 
 Crop and perspective-crop shading, frame, grid, and handles now render through the GPU scene graph without a Canvas guide texture. The software backend and older Qt kits without CurveRenderer retain raster guides. Final cropping still runs asynchronously on the CPU at native 8/16-bit precision.
 
+Ruler lines and circular endpoint markers also use retained GPU paths without a Canvas texture on compatible backends. A bounded raster fallback remains available; measurement coordinates and Info panel values are unchanged.
+
 Black and White, Photo Filter, and Channel Mixer preset menus preview on hover or keyboard navigation. Clicking or pressing Return commits; Escape or menu dismissal restores the previous settings without intermediate history entries.
 
 ## Validation and limitations

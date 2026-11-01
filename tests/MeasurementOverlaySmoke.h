@@ -1,8 +1,10 @@
 #pragma once
+#include "OverlayReference.h"
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QSGRendererInterface>
 #include <QtTest>
 #include <memory>
 
@@ -13,8 +15,10 @@ inline bool runMeasurementOverlaySmoke(QQuickWindow *_window)
             qWarning("Measurement overlay check failed: %s", _message);
         return _ok;
     };
+    const bool hardware =
+        QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
     QQmlComponent component(qmlEngine(_window));
-    component.setData(R"(
+    component.setData(R"QML(
 import QtQuick
 import PhotoCrap
 Item {
@@ -27,9 +31,48 @@ Item {
     property real panX: 0
     property real panY: 0
     property real viewRotation: 0
+    property bool referenceVisible: false
+    property real measureZoom: 16
+    property point measureStart: Qt.point(8,8)
     property point measureEnd: Qt.point(20,18)
     property bool showRuler: true
     Rectangle { anchors.fill: parent; color: "#5a7896" }
+component LegacyRulerOverlay: ScreenOverlayCanvas {
+    id: root
+    required property point startPoint
+    required property point endPoint
+    enabled: false
+    readonly property rect lineBounds: {
+        const left=Math.max(screenBounds.x,Math.floor(Math.min(startPoint.x,endPoint.x)*zoom-6))
+        const top=Math.max(screenBounds.y,Math.floor(Math.min(startPoint.y,endPoint.y)*zoom-6))
+        const right=Math.min(screenBounds.x+screenBounds.width,Math.ceil(Math.max(startPoint.x,endPoint.x)*zoom+6))
+        const bottom=Math.min(screenBounds.y+screenBounds.height,Math.ceil(Math.max(startPoint.y,endPoint.y)*zoom+6))
+        return Qt.rect(left,top,Math.max(0,right-left),Math.max(0,bottom-top))
+    }
+    x: lineBounds.x
+    y: lineBounds.y
+    width: lineBounds.width
+    height: lineBounds.height
+    onStartPointChanged: if (visible) requestPaint()
+    onEndPointChanged: if (visible) requestPaint()
+    onZoomChanged: if (visible) requestPaint()
+    onVisibleChanged: if (visible) requestPaint()
+    onPaint: {
+        const c=getContext("2d");c.reset();c.clearRect(0,0,width,height)
+        c.translate(-x,-y)
+        const x1=startPoint.x*zoom,y1=startPoint.y*zoom
+        const x2=endPoint.x*zoom,y2=endPoint.y*zoom
+        c.strokeStyle="rgba(0,0,0,.85)";c.lineWidth=4
+        c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()
+        c.strokeStyle="#f5f7f9";c.lineWidth=2
+        c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()
+        for(const p of [{x:x1,y:y1},{x:x2,y:y2}]) {
+            c.beginPath();c.arc(p.x,p.y,4,0,Math.PI*2)
+            c.fillStyle="#f5f7f9";c.fill();c.strokeStyle="#101419";c.lineWidth=1;c.stroke()
+        }
+    }
+}
+
     Flickable {
         id: view
         anchors.fill: parent
@@ -39,13 +82,18 @@ Item {
         Item {
             id: board
             objectName: "measurementTestBoard"
-            width: 16384*16; height: 16384*16
+            width: 16384*fixture.measureZoom; height: 16384*fixture.measureZoom
             rotation: viewRotation; transformOrigin: Item.TopLeft
             RulerOverlay {
                 objectName: "measurementTestRuler"
-                viewportItem: view; zoom: 16
-                startPoint: Qt.point(8,8); endPoint: measureEnd
-                visible: showRuler
+                viewportItem: view; zoom: fixture.measureZoom
+                startPoint: fixture.measureStart; endPoint: measureEnd
+                visible: showRuler && !referenceVisible
+            }
+            LegacyRulerOverlay {
+                viewportItem: view;zoom:fixture.measureZoom
+                startPoint:fixture.measureStart;endPoint:fixture.measureEnd
+                visible:showRuler && referenceVisible
             }
             SamplingRing {
                 objectName: "measurementTestRing"
@@ -57,7 +105,7 @@ Item {
         }
     }
 }
-)",
+)QML",
                       QUrl());
     if (!require(component.isReady(), qPrintable(component.errorString())))
         return false;
@@ -77,6 +125,27 @@ Item {
         _window->update();
         QTest::qWait(50);
         return _window->grabWindow();
+    };
+    const auto visualItem = [&](const QString &_name) -> QQuickItem * {
+        QList<QQuickItem *> pending{root};
+        while (!pending.isEmpty()) {
+            auto *item = pending.takeLast();
+            if (item->objectName() == _name)
+                return item;
+            pending.append(item->childItems());
+        }
+        return nullptr;
+    };
+    const auto matchesReference = [&] {
+        root->setProperty("referenceVisible", true);
+        const auto reference = frame();
+        root->setProperty("referenceVisible", false);
+        const auto  actual = frame();
+        const auto  origin = root->mapToScene(QPointF{});
+        const qreal ratio  = qreal(actual.width()) / _window->width();
+        const QRect bounds(qFloor(origin.x() * ratio), qFloor(origin.y() * ratio),
+                           qFloor(root->width() * ratio), qFloor(root->height() * ratio));
+        return compareOverlayReference(actual, reference, bounds, hardware, "/tmp/photocrap-ruler");
     };
     const auto pixel = [&](const QImage &_frame, const QQuickItem *_item, QPointF _point) {
         const auto   scene = _item->mapToScene(_point);
@@ -100,6 +169,35 @@ Item {
                      near(pixel(first, board, {128, 128}), QColor("#f5f7f9")),
                  "short ruler retains its segment and handles in a local backing surface"))
         return false;
+    auto      *guides = visualItem("rulerGpuGuides");
+    auto      *raster = visualItem("rulerRasterGuides");
+    const bool vectorGuides =
+        hardware && guides && guides->property("curveRendererAvailable").toBool();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    if (!require(!hardware || vectorGuides, "RHI uses retained GPU ruler guides"))
+        return false;
+#endif
+    if (!require(vectorGuides ? !raster : raster != nullptr,
+                 "ruler creates either GPU guides or its raster fallback"))
+        return false;
+    if (vectorGuides) {
+        auto *shape = guides->findChild<QQuickItem *>("rulerGuideShape");
+        if (!require(shape && shape->property("rendererType") ==
+                                  shape->property("preferredRendererType"),
+                     "ruler paths use CurveRenderer"))
+            return false;
+    }
+    if (!require(matchesReference(), "ruler appearance matches the independent raster reference"))
+        return false;
+    QSignalSpy rulerPaints(ruler, SIGNAL(painted()));
+    root->setProperty("measureEnd", QPointF(22, 18));
+    const auto changedRuler = frame();
+    if (!require((vectorGuides ? rulerPaints.isEmpty() : !rulerPaints.isEmpty()) &&
+                     near(pixel(changedRuler, board, {240, 208}), QColor("#f5f7f9")) &&
+                     matchesReference(),
+                 "moving the ruler updates its line without raster painting on GPU"))
+        return false;
+    root->setProperty("measureEnd", QPointF(20, 18));
     frame();
     QSignalSpy paints(ring, SIGNAL(painted()));
     if (!require(paints.isValid(), "observe real sampling ring paints"))
@@ -136,6 +234,8 @@ Item {
                      near(pixel(scrolled, board, {224, 208}), QColor("#f5f7f9")),
                  "ruler coordinates survive scrolling of the enlarged document"))
         return false;
+    if (!require(matchesReference(), "scrolled ruler preserves the raster reference"))
+        return false;
     root->setProperty("panX", 0);
     root->setProperty("panY", 0);
     root->setProperty("viewRotation", 12);
@@ -147,13 +247,36 @@ Item {
                      rotatedStroke.green() > 180 && rotatedStroke.blue() > 180,
                  "ruler follows canvas rotation without expanding to document dimensions"))
         return false;
+    if (!require(matchesReference(), "rotated ruler preserves the raster reference"))
+        return false;
     root->setProperty("viewRotation", 0);
+    for (qreal z : {.5, 1., 4., 16.}) {
+        root->setProperty("measureZoom", z);
+        frame();
+        if (!require(ruler->width() <= 512 && ruler->height() <= 320 && matchesReference(),
+                     "ruler guides keep their size and position through zoom changes"))
+            return false;
+    }
+    root->setProperty("measureEnd", QPointF(2, 2));
+    frame();
+    if (!require(matchesReference(), "reversed ruler endpoints preserve the line and handles"))
+        return false;
+    root->setProperty("measureEnd", QPointF(8, 8));
+    frame();
+    if (!require(matchesReference(), "a zero-length ruler retains its endpoint marker"))
+        return false;
     root->setProperty("measureEnd", QPointF(16380, 8));
     root->setProperty("panX", 600);
     const auto longLine = frame();
     if (!require(ruler->width() <= 512 && ruler->height() <= 12 &&
                      near(pixel(longLine, board, {824, 128}), QColor("#f5f7f9")),
                  "a document-wide ruler stays a viewport-clipped narrow strip"))
+        return false;
+    if (!require(matchesReference(),
+                 "a document-wide ruler is clipped without changing its appearance"))
+        return false;
+    if (!require(vectorGuides ? rulerPaints.isEmpty() : !rulerPaints.isEmpty(),
+                 "all ruler updates avoid raster painting only on the GPU path"))
         return false;
     root->setProperty("showRuler", false);
     const auto hidden = frame();

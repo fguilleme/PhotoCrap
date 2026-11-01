@@ -1429,3 +1429,62 @@ exécutés.
 Références Qt : [QPainterPathStroker](https://doc.qt.io/qt-6.8/qpainterpathstroker.html),
 [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
 [échantillonnage des couches](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#layer.samples-prop).
+
+
+## Statistiques d'histogramme : grille native et cache sans pixels
+
+`Document::histogram()` et `colorHistogram()` délèguent leur travail à
+`ImageHistogramCache`. L'ancienne méthode convertissait l'intégralité de
+`displayComposite()` en ARGB32 avant de lire une grille espacée. La nouvelle
+méthode rassemble d'abord les pixels de cette même grille dans leur format
+natif, puis demande à Qt la conversion de cette petite image en ARGB32. Il n'y a
+pas de redimensionnement, d'interpolation ni de changement des coordonnées
+échantillonnées.
+
+Les pas historiques sont conservés : maximum entre 1 et la partie entière de
+la racine de `largeur × hauteur / budget`, avec 262 144 pour la luminance et
+65 536 pour le RVB. Ces paramètres déterminent le pas ; ils ne constituent pas
+un plafond strict de pixels, notamment sur une image très allongée. La grille
+part de (0,0) et garde ses dernières positions lorsque les dimensions ne sont
+pas divisibles par le pas. Avec un pas de 1, Qt convertit directement la source.
+
+Les pixels de profondeur au moins 8 bits sont copiés sans décodage manuel de
+leurs canaux ; les formats monochromes recopient les indices de palette. La
+table de couleurs et l'espace colorimétrique sont transmis. La conversion Qt
+garde ainsi son traitement du 16 bits, de l'alpha prémultiplié et des arrondis,
+sans remplacer ce traitement par une approximation de `pixelColor()`.
+Pondération par l'alpha 8 bits, coefficients de luminance, arrondi et
+normalisation restent ceux du calcul précédent. Les statistiques restent sur
+CPU et sont toujours basées sur le composite affiché ; les traitements photo
+et le rendu GPU ne changent pas.
+
+Chaque Document conserve au plus une entrée de luminance et une entrée RVB,
+identifiées par `QImage::cacheKey()`, les dimensions et le format réels de la
+source affichée. Seuls les 256 résultats de luminance et les quatre listes de
+256 résultats couleur restent en cache : aucune QImage ni référence à ses
+pixels n'est gardée. Les appels répétés partagent ces listes. Les changements
+réels de pixels ou de vue affichée invalident naturellement la clé. Un échec
+d'allocation pour une image valide n'est pas mémorisé comme un résultat valable.
+Ce cache s'utilise sur le thread propriétaire de Document.
+
+`image_histogram` compare la collecte à la conversion complète indépendante,
+pour chaque format QImage disponible et plusieurs pas, y compris les lignes
+avec padding et les palettes. Les histogrammes sont comparés exactement en
+8/16 bits, avec alpha nul, très faible et partiel, et les tests vérifient la
+réutilisation des listes, l'absence de référence conservée sur les pixels,
+les mutations de palette et l'alternance des sources. Les tests Document
+exercent retouche, changement de couche affichée, Annuler/Rétablir et nouveau
+document en 8/16 bits. Le moteur, les graphiques Histogramme/Seuil/Niveaux/Courbes
+et le smoke test général sont aussi réexécutés.
+
+Sur le cas local de 6 000 × 4 000 pixels RGBA64 prémultipliés, les images à
+convertir comptent respectivement 667 × 445 et 316 × 211 pixels, au lieu de
+24 millions pour chacun des deux histogrammes. Une mesure sur M2 Pro/Qt 6.12
+donne environ 30,9 ms pour les deux calculs de référence contre 2,9 ms avec la
+grille native ; 1 000 paires de lectures déjà en cache prennent environ 0,04 ms
+dans ce test C++. Ces temps indicatifs excluent la composition, les échanges QML
+et le dessin ; aucun seuil de vitesse n'est imposé aux tests.
+
+Références Qt : [identité du contenu QImage](https://doc.qt.io/qt-6.8/qimage.html#cacheKey),
+[conversion de format](https://doc.qt.io/qt-6.8/qimage.html#convertToFormat),
+[lecture des lignes](https://doc.qt.io/qt-6.8/qimage.html#constScanLine).

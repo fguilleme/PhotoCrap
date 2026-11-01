@@ -32,6 +32,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/DisplayLevel.cpp
     src/render/TileSnapshot.cpp
     src/render/TileCache.cpp
+    src/ImageHistogram.cpp
     src/Document.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
@@ -140,6 +141,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/TileCache.h
     src/Document.h
     src/ImageUtils.h
+    src/ImageHistogram.h
     src/tools/RegionHealing.h
     src/tools/ContentFill.h
     src/tools/PenPath.h
@@ -193,6 +195,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/SliceDescriptionCacheTest.cpp
     tests/CropShadeTest.cpp
     tests/CropOverlaySmoke.h
+    tests/ImageHistogramTest.cpp
     tests/DisplayLevelTest.cpp
     tests/TileSnapshotTest.cpp
     tests/TileCacheTest.cpp
@@ -293,6 +296,7 @@ qt_add_library(photocrap_core STATIC
     src/storage/TiledImage.cpp src/storage/TiledImage.h
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp src/tools/PenPath.h
+    src/ImageHistogram.cpp
     src/Document.cpp
     src/Document.h
     src/DocumentAdjustments.cpp
@@ -343,6 +347,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/SliceDescriptionCache.cpp
     src/tools/SliceDescriptionCache.h
     src/ImageUtils.h
+    src/ImageHistogram.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h
     src/filters/BlendMath.h
@@ -623,6 +628,11 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_gpu_dissolve_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME gpu_dissolve_preview COMMAND photocrap_gpu_dissolve_tests)
     set_tests_properties(gpu_dissolve_preview PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_histogram_tests tests/ImageHistogramTest.cpp)
+    target_link_libraries(photocrap_histogram_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME image_histogram COMMAND photocrap_histogram_tests)
+    set_tests_properties(image_histogram PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
     qt_add_executable(photocrap_display_level_tests tests/DisplayLevelTest.cpp)
     target_link_libraries(photocrap_display_level_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME display_level COMMAND photocrap_display_level_tests)

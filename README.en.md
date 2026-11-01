@@ -279,6 +279,12 @@ once per new point list. Changing the active point, histogram or graph size does
 not reevaluate interpolation. The formula, eyedroppers and undo stay unchanged;
 the Canvas fallback also reuses the sampled table.
 
+CPU histogram calculations convert only pixels on the original sampling grid,
+preserving Qt conversion and alpha weighting. Two cache entries per document
+reuse unchanged results without retaining source pixels. A local 24 Mpx 16-bit
+test reduces the two calculations from about 31 to 3 ms, excluding composition
+and drawing; this timing is indicative.
+
 Horizontal and vertical viewport rulers keep only visible graduations, with a
 margin for labels extending from offscreen ticks. On graphics backends, ticks
 and cached digit outlines stay in the scene graph for integer-sized bands.

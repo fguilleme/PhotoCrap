@@ -296,6 +296,8 @@ Le panneau Niveaux conserve aussi sur GPU sa grille, son histogramme et le dégr
 
 Le graphique Courbes utilise des chemins conservés sur GPU et prépare une seule fois les pentes et les 256 échantillons par nouvelle liste de points. Le point actif, l’histogramme et le redimensionnement ne réévaluent pas l’interpolation. La formule, les pipettes et l’annulation sont conservées ; le repli Canvas réutilise aussi cette table.
 
+Le calcul CPU des histogrammes convertit uniquement les pixels de la grille utile, avec les mêmes positions, conversions Qt et pondérations qu’auparavant. Deux entrées de cache par document réutilisent les résultats lorsque l’image affichée reste identique, sans conserver ses pixels. Le test local de 24 Mpx en 16 bits passe d’environ 31 à 3 ms pour les deux histogrammes, hors composition et dessin ; ce temps est indicatif.
+
 Les règles horizontale et verticale limitent leurs graduations à la zone visible, avec une marge pour les chiffres débordants. Sur les backends graphiques, traits et contours des chiffres sont conservés dans le graphe de scène quand la bande a des dimensions entières ; le repli logiciel, aussi conservé pour les dimensions fractionnaires, ne parcourt que les graduations utiles. Le pas, les valeurs et leur orientation suivent le zoom et le défilement.
 
 Le voile sombre du recadrage est calculé sur GPU, sans image intermédiaire à repeindre à chaque déplacement. Le cadre, la grille et les poignées utilisent aussi des chemins et rectangles du graphe de scène, sans Canvas ni texture de guides pendant le geste. Le backend logiciel et les anciens kits Qt sans CurveRenderer conservent le dessin raster. Le survol réutilise les points du cadre pour choisir le curseur.

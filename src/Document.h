@@ -1,4 +1,5 @@
 #pragma once
+#include "ImageHistogram.h"
 #include "RawImageReader.h"
 #include "filters/ToneMappingTable.h"
 #include "selection/SelectionCoverage.h"
@@ -1434,32 +1435,33 @@ private:
     int               m_thumbnailRevision = 0;
     int               m_displayChannel    = 0;
     bool              m_maskOnlyView      = false;
-    mutable QImage    m_channelDisplayCache;
-    mutable qint64    m_channelDisplaySourceKey  = 0;
-    mutable int       m_channelDisplayCacheIndex = 0;
-    mutable QImage    m_composite;
-    mutable qint64    m_compositeUpdateBefore = 0, m_compositeUpdateAfter = 0;
-    mutable QRect     m_compositeUpdateRegion;
-    mutable bool      m_cacheDirty         = true;
-    mutable bool      m_fullCompositeDirty = true;
-    mutable QRect     m_dirtyRegion;
-    bool              m_drawing = false, m_strokeChanged = false;
-    bool              m_strokeCreatedLayer = false;
-    bool              toolNeedsNewLayer() const;
-    bool              startToolLayer(const QString &_label);
-    bool              m_toolShift = false, m_toolAlternate = false, m_toolSpace = false;
-    bool              m_selectionInitialAlternate = false, m_selectionMoving = false;
-    bool              m_strokeConnect = false, m_moveCopy = false, m_moveDuplicatedLayer = false;
-    QPointF           m_geometryPointer, m_paintLastEnd;
-    QString           m_paintLastTool;
-    int               m_paintLastLayer = -1;
-    bool              m_paintLastMask  = false;
-    quint64           m_paintLastState = 0, m_paintLastSession = 0;
-    bool              m_selectionCombined = false;
-    void              rememberSelection();
-    void              restoreGestureSelection();
-    void              combineGestureSelection();
-    QPointF           constrainedToolPoint(const QPointF &_point, bool _diagonal) const;
+    mutable PhotoCrap::ImageHistogramCache m_histograms;
+    mutable QImage                         m_channelDisplayCache;
+    mutable qint64                         m_channelDisplaySourceKey  = 0;
+    mutable int                            m_channelDisplayCacheIndex = 0;
+    mutable QImage                         m_composite;
+    mutable qint64                         m_compositeUpdateBefore = 0, m_compositeUpdateAfter = 0;
+    mutable QRect                          m_compositeUpdateRegion;
+    mutable bool                           m_cacheDirty         = true;
+    mutable bool                           m_fullCompositeDirty = true;
+    mutable QRect                          m_dirtyRegion;
+    bool                                   m_drawing = false, m_strokeChanged = false;
+    bool                                   m_strokeCreatedLayer = false;
+    bool                                   toolNeedsNewLayer() const;
+    bool                                   startToolLayer(const QString &_label);
+    bool       m_toolShift = false, m_toolAlternate = false, m_toolSpace = false;
+    bool       m_selectionInitialAlternate = false, m_selectionMoving = false;
+    bool       m_strokeConnect = false, m_moveCopy = false, m_moveDuplicatedLayer = false;
+    QPointF    m_geometryPointer, m_paintLastEnd;
+    QString    m_paintLastTool;
+    int        m_paintLastLayer = -1;
+    bool       m_paintLastMask  = false;
+    quint64    m_paintLastState = 0, m_paintLastSession = 0;
+    bool       m_selectionCombined = false;
+    void       rememberSelection();
+    void       restoreGestureSelection();
+    void       combineGestureSelection();
+    QPointF    constrainedToolPoint(const QPointF &_point, bool _diagonal) const;
     QRectF     toolRectangle(const QPointF &_anchor, const QPointF &_point, bool _center) const;
     bool       m_editingMask           = false;
     bool       m_previewingLayer       = false;

@@ -1278,3 +1278,40 @@ précédemment optimisé.
 Références : [QPainterPath::addText](https://doc.qt.io/qt-6.8/qpainterpath.html#addText),
 [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html) et
 [implémentation Qt de Context2D](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/context2d/qquickcontext2d.cpp).
+
+
+## Graphique du panneau Seuil conservé sur GPU
+
+`ThresholdHistogram.qml` sépare le dessin des interactions de `ThresholdEditor`.
+Sur RHI et pour les dimensions entières, `ThresholdGraph.qml` conserve les
+chemins de la grille et des 256 classes de l'histogramme dans le graphe de scène.
+Le chemin de l'histogramme dépend de ses valeurs et de la taille du graphique ;
+il ne dépend pas du seuil. Déplacer celui-ci actualise les deux rectangles de la
+bande noir/blanc et la position de la ligne et du triangle. Les couleurs, marges,
+hauteurs, ordre de dessin et coordonnées des contrôles restent ceux du panneau
+précédent. Les chemins sont dessinés avec CurveRenderer ; une couche GPU limitée
+au graphique applique l'opacité après composition des éléments.
+
+Le chemin éligible n'ouvre pas de contexte Canvas et n'effectue pas de repeint
+raster du graphique pendant le geste. Le repli conserve le dessin Canvas pour
+le backend logiciel, Qt sans CurveRenderer et les dimensions fractionnaires,
+avec effacement complet du bord du tampon pour éviter les résidus de couverture.
+Un contexte déjà créé par ce repli peut rester alloué. La mise en forme des
+chemins reste sur CPU lorsque les données ou la taille changent ; cette étape
+n'ajoute aucun calcul de statistiques ou filtre photo sur GPU. Les statistiques,
+le rendu de l'image et l'historique suivent leurs chemins existants.
+
+Le test `threshold_graph` compare le graphique à une copie indépendante de
+l'ancien dessin, avec nettoyage du tampon de référence entre images. Il couvre
+les seuils 0/1/128/254/255, les pics étroits, les données absentes ou de mauvaise
+longueur, le redimensionnement, la rotation, l'opacité, les dimensions
+fractionnaires et les modifications pendant le masquage. Des signaux et
+identités d'objets vérifient séparément que la grille et l'histogramme ne changent
+pas au déplacement du seuil et qu'aucun Canvas n'est peint sur le chemin GPU.
+Les comparaisons gardent les tolérances communes des surimpressions, sans masquer
+des zones du graphique. Le smoke test d'interface ajoute un vrai glisser : capture
+conservée, accord entre calque, graphique et champ numérique, puis retour à la
+valeur initiale avec un seul Annuler.
+
+Références Qt : [Shape](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html)
+et [composition des couches](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#item-layers).

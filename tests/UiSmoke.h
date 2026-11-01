@@ -2242,6 +2242,48 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      thresholdHistogram && thresholdValue,
                  "threshold exposes an interactive histogram and numeric cutoff"))
         return false;
+    auto *thresholdChart = qobject_cast<QQuickItem *>(thresholdHistogram);
+    if (!require(thresholdChart, "threshold histogram accepts pointer input"))
+        return false;
+    const qreal  thresholdEndX  = qRound(12 + .72 * (thresholdChart->width() - 24));
+    const QPoint thresholdStart = thresholdChart->mapToScene(QPointF(24, 50)).toPoint();
+    const QPoint thresholdEnd   = thresholdChart->mapToScene(QPointF(thresholdEndX, 50)).toPoint();
+    const int    expectedThreshold =
+        qRound((thresholdEndX - 12) / (thresholdChart->width() - 24) * 255);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, thresholdStart);
+    QTest::mouseMove(_window, thresholdEnd, 20);
+    QTest::qWait(80);
+    if (!require(thresholdEditor->property("dragging").toBool(),
+                 "threshold keeps pointer capture while previews update"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, thresholdEnd);
+    const auto storedThreshold = [&] {
+        for (const auto &entry : _document.layers()) {
+            const auto layer = entry.toMap();
+            if (layer["layerIndex"].toInt() == _document.activeLayer())
+                return layer["parameters"].toMap()["level"].toInt();
+        }
+        return -1;
+    };
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !thresholdEditor->property("dragging").toBool() &&
+                                storedThreshold() == expectedThreshold &&
+                                thresholdChart->property("level").toInt() == expectedThreshold &&
+                                thresholdValue->property("value").toInt() == expectedThreshold;
+                     },
+                     1000),
+                 "threshold drag commits the value in the layer and both controls"))
+        return false;
+    _document.undo();
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return storedThreshold() == 128 &&
+                                thresholdChart->property("level").toInt() == 128;
+                     },
+                     1000),
+                 "a threshold drag creates a single undo step"))
+        return false;
     QMetaObject::invokeMethod(layerProperties, "close");
     _document.newDocument(64, 64);
     for (int i = 0; i < 300; ++i)

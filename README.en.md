@@ -264,6 +264,11 @@ Canvas fallback for software and older Qt kits. A chart-sized GPU composition
 layer preserves channel blending and panel opacity. Histogram statistics still
 run on the CPU.
 
+The Threshold panel retains its grid and histogram on the GPU while dragging:
+only the black/white band and cutoff marker change. Canvas remains the fallback
+for software, older Qt kits and fractional dimensions. Input handling, image
+filtering and undo keep their existing paths.
+
 Horizontal and vertical viewport rulers keep only visible graduations, with a
 margin for labels extending from offscreen ticks. On graphics backends, ticks
 and cached digit outlines stay in the scene graph for integer-sized bands.

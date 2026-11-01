@@ -30,6 +30,7 @@
 #include "../tests/PresetPreviewSmoke.h"
 #include "../tests/ShutdownSmoke.h"
 #include "../tests/SliceOverlaySmoke.h"
+#include "../tests/ThresholdGraphSmoke.h"
 #include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
 #include "../tests/ViewportRulerSmoke.h"
@@ -172,6 +173,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--threshold-graph-test")) {
+                passed = window && runThresholdGraphSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

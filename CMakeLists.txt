@@ -185,6 +185,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/SliceOverlaySmoke.h
     tests/HistogramRenderSmoke.h
     tests/ViewportRulerSmoke.h
+    tests/ThresholdGraphSmoke.h
     tests/SliceDescriptionCacheTest.cpp
     tests/CropShadeTest.cpp
     tests/CropOverlaySmoke.h
@@ -515,6 +516,8 @@ qt_add_qml_module(PhotoCrap
         qml/PhotoFilterEditor.qml
         qml/PosterizeEditor.qml
         qml/SelectiveColorEditor.qml
+        qml/ThresholdGraph.qml
+        qml/ThresholdHistogram.qml
         qml/ThresholdEditor.qml
 )
 qt_add_translations(PhotoCrap
@@ -690,6 +693,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME viewport_ruler COMMAND PhotoCrap --smoke-test --viewport-ruler-test)
     set_tests_properties(viewport_ruler PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
+    add_test(NAME threshold_graph COMMAND PhotoCrap --smoke-test --threshold-graph-test)
+    set_tests_properties(threshold_graph PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 25)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

@@ -185,6 +185,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/OverlayReference.h
     tests/BrushCursorSmoke.h
     tests/PenOverlaySmoke.h
+    tests/PenUiSmoke.h
     tests/LassoGuideSmoke.h
     tests/SliceOverlaySmoke.h
     tests/HistogramRenderSmoke.h
@@ -479,6 +480,8 @@ qt_add_qml_module(PhotoCrap
         qml/SelectionModifyDialog.qml
         qml/PenOverlay.qml
         qml/PenCurve.qml
+        qml/PenHandles.qml
+        qml/PenHandleGuides.qml
         qml/LassoGuide.qml
         qml/LassoSolidGuide.qml
         qml/ContentAwareMoveOptions.qml

@@ -56,8 +56,15 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     if (!require(points.size() == 3 && points[1].toMap()["outX"].toReal() > 140,
                  "click-drag creates direction handles"))
         return false;
+    QSignalSpy editedHandlePaints(handles, SIGNAL(painted()));
     QTest::mousePress(_window, Qt::LeftButton, Qt::ControlModifier, scene(130, 40));
     QTest::mouseMove(_window, scene(160, 50), 20);
+    QTest::qWait(40);
+    if (!require(handles->isVisible() &&
+                     (handles->property("gpuHandles").toBool() ? editedHandlePaints.isEmpty()
+                                                               : !editedHandlePaints.isEmpty()),
+                 "real anchor dragging updates handles with the expected GPU/software renderer"))
+        return false;
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::ControlModifier, scene(160, 50));
     const auto moved = _document.penPaths()[0].toMap()["points"].toList()[1].toMap();
     if (qAbs(moved["x"].toReal() - 160) >= 1 || qAbs(moved["y"].toReal() - 50) >= 1)
@@ -130,11 +137,12 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     QSignalSpy pathPaints(overlay, SIGNAL(painted()));
     QSignalSpy handlePaints(handles, SIGNAL(painted()));
     QSignalSpy bandPaints(band, SIGNAL(painted()));
+    QSignalSpy primitives(handles, SIGNAL(primitivesChanged()));
     QTest::mouseMove(_window, scene(60, 150));
     QTest::qWait(60);
     if (!require(
             band->isVisible() && pathPaints.isEmpty() && handlePaints.isEmpty() &&
-                !bandPaints.isEmpty(),
+                primitives.isEmpty() && !bandPaints.isEmpty(),
             "pointer hover updates the provisional curve without repainting the retained path"))
         return false;
     QTest::keyClick(_window, Qt::Key_Escape);

@@ -1,6 +1,7 @@
 #pragma once
 #include "Document.h"
 #include "OverlayReference.h"
+#include <QJSValue>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -18,7 +19,8 @@ inline bool runPenOverlaySmoke(QQuickWindow *_window)
     };
     const bool hardware =
         QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
-    bool          vectorCurve = false;
+    bool          vectorCurve   = false;
+    bool          vectorHandles = false;
     Document      document;
     QQmlComponent component(qmlEngine(_window));
     component.setData(R"(
@@ -33,6 +35,17 @@ Item {
     property real panX: 0
     property real panY: 0
     property real viewRotation: 0
+    property bool useSynthetic: false
+    property var syntheticPoints: []
+    readonly property var drawingDocument: useSynthetic ? synthetic : document
+    QtObject {
+        id: synthetic
+        property var penPaths: [{points:fixture.syntheticPoints,closed:false}]
+        property int activePenPath: 0
+        property bool penDrawing: false
+        property bool penRubberBand: false
+        property point penHover: Qt.point(0,0)
+    }
     Rectangle { anchors.fill: parent; color: "#5a7896" }
 component LegacyPenOverlay: ScreenOverlayCanvas {
     id: root
@@ -184,12 +197,12 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
             rotation: viewRotation; transformOrigin: Item.TopLeft
             PenOverlay {
                 objectName: "penTestOverlay"
-                document: fixture.document; viewportItem: view; zoom: fixture.zoom
+                document: fixture.drawingDocument; viewportItem: view; zoom: fixture.zoom
                 visible: !referenceVisible && document.activePenPath>=0
             }
             LegacyPenOverlay {
                 objectName: "penTestReference"
-                document: fixture.document; viewportItem: view; zoom: fixture.zoom
+                document: fixture.drawingDocument; viewportItem: view; zoom: fixture.zoom
                 visible: referenceVisible && document.activePenPath>=0
             }
         }
@@ -207,10 +220,11 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
     root->setParentItem(_window->contentItem());
     root->setPosition({40, 120});
     root->setZ(2000);
-    auto *overlay = root->findChild<QQuickItem *>("penTestOverlay");
-    auto *handles = root->findChild<QQuickItem *>("penHandlesOverlay");
-    auto *band    = root->findChild<QQuickItem *>("penRubberBandOverlay");
-    if (!require(overlay && handles && band, "pen overlay layers exist"))
+    auto *overlay          = root->findChild<QQuickItem *>("penTestOverlay");
+    auto *handles          = root->findChild<QQuickItem *>("penHandlesOverlay");
+    auto *band             = root->findChild<QQuickItem *>("penRubberBandOverlay");
+    auto *referenceHandles = root->findChild<QQuickItem *>("penReferenceHandles");
+    if (!require(overlay && handles && band && referenceHandles, "pen overlay layers exist"))
         return false;
     const auto frame = [&] {
         _window->update();
@@ -244,8 +258,9 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
     QSignalSpy bandPaints(band, SIGNAL(painted()));
     QSignalSpy snapshots(overlay, SIGNAL(activePathChanged()));
     QSignalSpy paths(overlay, SIGNAL(curvePathChanged()));
+    QSignalSpy primitives(handles, SIGNAL(primitivesChanged()));
     if (!require(pathPaints.isValid() && handlePaints.isValid() && bandPaints.isValid() &&
-                     snapshots.isValid() && paths.isValid(),
+                     snapshots.isValid() && paths.isValid() && primitives.isValid(),
                  "observe layer painting and native path snapshots"))
         return false;
     for (int bits : {8, 16}) {
@@ -264,17 +279,24 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
         const auto original = document.layerImage(0);
         const auto history  = document.historyIndex();
         frame();
-        auto *curve  = visualItem("penGpuCurve");
-        auto *raster = visualItem("penRasterCurve");
-        vectorCurve  = hardware && curve && curve->property("curveRendererAvailable").toBool();
+        auto *curve   = visualItem("penGpuCurve");
+        auto *raster  = visualItem("penRasterCurve");
+        vectorCurve   = hardware && curve && curve->property("curveRendererAvailable").toBool();
+        vectorHandles = handles->property("gpuHandles").toBool();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
         if (!require(!hardware || vectorCurve, "RHI uses retained GPU pen curves"))
+            return false;
+        if (!require(vectorHandles == hardware, "RHI uses GPU handle guides on compatible Qt"))
             return false;
 #endif
         if (!require(vectorCurve ? !raster && curve->property("rendererType") ==
                                                   curve->property("preferredRendererType")
                                  : raster != nullptr,
-                     "only the main pen curve switches between CurveRenderer and Canvas"))
+                     "the main pen curve switches between CurveRenderer and Canvas"))
+            return false;
+        if (!require(vectorHandles ? !handles->property("rasterActive").toBool()
+                                   : handles->property("rasterActive").toBool(),
+                     "GPU handles do not create a raster context; software keeps its Canvas"))
             return false;
         if (!require(matchesReference(),
                      "separate curve, rubber band and handles match the original drawing"))
@@ -284,14 +306,17 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
         bandPaints.clear();
         snapshots.clear();
         paths.clear();
-        const auto *retainedCurve = visualItem("penGpuCurve");
-        const auto  beforeHover   = frame();
+        primitives.clear();
+        const auto *retainedCurve  = visualItem("penGpuCurve");
+        const auto *retainedHandle = visualItem("penGpuHandlePrimitive0");
+        const auto  beforeHover    = frame();
         for (const auto point : {QPointF(300, 100), QPointF(110, 60), QPointF(300, 170)}) {
             document.updatePenHover(point.x(), point.y());
             frame();
         }
         if (!require(
-                pathPaints.isEmpty() && handlePaints.isEmpty() && snapshots.isEmpty() &&
+                pathPaints.isEmpty() && handlePaints.isEmpty() && primitives.isEmpty() &&
+                    visualItem("penGpuHandlePrimitive0") == retainedHandle && snapshots.isEmpty() &&
                     paths.isEmpty() && visualItem("penGpuCurve") == retainedCurve &&
                     bandPaints.count() >= 3 && frame() != beforeHover && band->width() < 512 &&
                     band->height() < 320 && document.historyIndex() == history &&
@@ -323,7 +348,8 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
         document.endPenGesture();
         frame();
         if (!require((vectorCurve ? pathPaints.isEmpty() : !pathPaints.isEmpty()) &&
-                         !handlePaints.isEmpty() && matchesReference(),
+                         (vectorHandles ? handlePaints.isEmpty() : !handlePaints.isEmpty()) &&
+                         matchesReference(),
                      "anchor edits update GPU curves without raster painting and refresh handles"))
             return false;
         document.undo();
@@ -422,5 +448,82 @@ component LegacyPenOverlay: ScreenOverlayCanvas {
                      "all overlay views and path edits preserve the document pixels"))
             return false;
     }
+    // Independent geometry cases isolate handles from the main curve and the
+    // document's bounded editing coordinates, without changing the paint engine.
+    const auto originalPixels  = document.layerImage(0);
+    const auto originalPaths   = document.penPaths();
+    const auto originalHistory = document.historyIndex();
+    const auto primitiveCount  = [&] {
+        const auto value = handles->property("primitives");
+        return value.metaType() == QMetaType::fromType<QJSValue>()
+                   ? value.value<QJSValue>().property("length").toInt()
+                   : int(value.toList().size());
+    };
+    const auto setPoint = [&](QPointF _anchor, QPointF _in, QPointF _out, bool _selected) {
+        root->setProperty("syntheticPoints", QVariantList{QVariantMap{{"x", _anchor.x()},
+                                                                      {"y", _anchor.y()},
+                                                                      {"inX", _in.x()},
+                                                                      {"inY", _in.y()},
+                                                                      {"outX", _out.x()},
+                                                                      {"outY", _out.y()},
+                                                                      {"selected", _selected}}});
+    };
+    struct HandleCase {
+        QPointF anchor, in, out;
+        bool    selected;
+        int     count;
+    };
+    const HandleCase cases[] = {{{-80, 160}, {600, 160}, {-80, 160}, true, 1},
+                                {{1, 160}, {1, 160}, {1, 160}, false, 1},
+                                {{180, 160}, {181, 160.1}, {182, 160.2}, true, 5},
+                                {{180, 160}, {130, 110}, {240, 200}, false, 1},
+                                {{180, 160}, {180.02, 160.02}, {180, 160}, true, 1},
+                                {{600, 160}, {600, 160}, {600, 160}, true, 0}};
+    root->setProperty("useSynthetic", true);
+    for (const auto &test : cases) {
+        setPoint(test.anchor, test.in, test.out, test.selected);
+        frame();
+        if (!require(matchesReference(), "crossing/offscreen tangents, overlapping handles, edge "
+                                         "anchors and tiny vectors match"))
+            return false;
+        if (!require(primitiveCount() == (vectorHandles ? test.count : 0),
+                     "only visible GPU primitives are prepared; software avoids unused geometry"))
+            return false;
+        if (test.count == 5) {
+            handles->setOpacity(.37);
+            referenceHandles->setOpacity(.37);
+            frame();
+            if (!require(matchesReference(),
+                         "overlapping controls composite before inherited opacity"))
+                return false;
+            handles->setOpacity(1);
+            referenceHandles->setOpacity(1);
+            frame();
+        }
+        if (test.count == 0 && !require(!handles->property("gpuHandles").toBool() &&
+                                            !handles->property("rasterActive").toBool(),
+                                        "offscreen handles allocate neither renderer"))
+            return false;
+    }
+    root->setProperty("referenceVisible", true);
+    frame();
+    const int hiddenHandlePaints = handlePaints.count();
+    setPoint({250, 140}, {230, 120}, {270, 160}, true);
+    frame();
+    if (!require(handlePaints.count() == hiddenHandlePaints,
+                 "hidden point changes do not paint handles"))
+        return false;
+    root->setProperty("referenceVisible", false);
+    frame();
+    if (!require(matchesReference(), "showing handles uses points changed while hidden"))
+        return false;
+    root->setProperty("useSynthetic", false);
+    frame();
+    if (!require(matchesReference() && document.layerImage(0) == originalPixels &&
+                     document.penPaths() == originalPaths &&
+                     document.historyIndex() == originalHistory,
+                 "isolated rendering tests preserve document paths, history and native pixels"))
+        return false;
+    qInfo("Pen overlay checks passed");
     return true;
 }

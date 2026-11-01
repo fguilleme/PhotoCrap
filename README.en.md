@@ -251,8 +251,10 @@ remains bounded to the viewport; painting and native cursors are unchanged.
 
 The Pen's main path now uses retained GPU curves, with a raster fallback for software
 and older Qt kits. Native cubic paths are prepared with a geometric error bounded
-to 0.01 logical pixels. Handles and the provisional segment keep their bounded
-Canvas layers; hovering does not rebuild the retained main path.
+to 0.01 logical pixels. Anchors and tangent handles also use GPU paths, cached
+during hover, with a bounded composition layer preserving opacity. The provisional
+segment keeps its separate Canvas; software and older Qt retain raster handles.
+The current editing interactions are preserved.
 
 Solid lasso guides and polygon markers now use GPU paths on compatible Qt kits,
 with a view-bounded composition layer preserving opacity. Fixed point snapshots,

@@ -170,36 +170,16 @@ Item {
             c.setLineDash([4,3]); c.strokeStyle="#73c5ff"; c.lineWidth=1.5; c.stroke()
         }
     }
-    Canvas {
+    PenHandles {
         id: handles
         objectName: "penHandlesOverlay"
-        enabled: false; antialiasing: true; z: 2
+        z: 2
         visible: root.points.length > 0
+        points: root.points
+        zoom: root.zoom
+        imageOrigin: Qt.point(root.handlesBounds.x,root.handlesBounds.y)
         x: root.handlesBounds.x-root.x; y: root.handlesBounds.y-root.y
         width: root.handlesBounds.width; height: root.handlesBounds.height
-        onWidthChanged: if (visible) requestPaint()
-        onHeightChanged: if (visible) requestPaint()
-        onVisibleChanged: if (visible) requestPaint()
-        onPaint: {
-            const c = getContext("2d")
-            c.reset(); c.clearRect(0,0,width,height)
-            c.translate(-root.handlesBounds.x,-root.handlesBounds.y)
-            for (const a of root.points) {
-                const px=a.x*root.zoom, py=a.y*root.zoom
-                if (a.selected) {
-                    for (const h of [{x:a.inX*root.zoom,y:a.inY*root.zoom},
-                                     {x:a.outX*root.zoom,y:a.outY*root.zoom}]) {
-                        if (Math.hypot(h.x-px,h.y-py)<.1) continue
-                        c.beginPath(); c.moveTo(px,py); c.lineTo(h.x,h.y)
-                        c.strokeStyle="#73c5ff"; c.lineWidth=1; c.stroke()
-                        c.beginPath(); c.arc(h.x,h.y,3,0,2*Math.PI)
-                        c.fillStyle="#eef8ff"; c.fill(); c.strokeStyle="#1b4968"; c.stroke()
-                    }
-                }
-                c.fillStyle=a.selected?"#73c5ff":"#ffffff"; c.fillRect(px-3,py-3,6,6)
-                c.strokeStyle="#183e59"; c.lineWidth=1; c.strokeRect(px-3,py-3,6,6)
-            }
-        }
     }
     onHandlesBoundsChanged: if (handles && handles.visible) handles.requestPaint()
     onRubberBoundsChanged: if (rubberBand && rubberBand.visible) rubberBand.requestPaint()

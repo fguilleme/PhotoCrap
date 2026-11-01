@@ -1079,9 +1079,10 @@ les curseurs natifs ne sont pas modifiés par cette étape.
 `PenOverlay.qml` utilise `PenCurve.qml` et le composant commun `GpuGuideShape`
 pour ses deux traits principaux : contour sombre de 3 pixels logiques et trait
 bleu de 1,5 pixel, sans remplissage. Le moteur CurveRenderer affiche ces chemins
-sans Canvas ni texture intermédiaire. Les poignées et le segment provisoire
-restent dans leurs Canvas indépendants, au-dessus du tracé ; leur ordre de dessin
-et leurs règles d’actualisation ne changent pas.
+sans Canvas ni texture intermédiaire. Le segment provisoire reste dans son
+Canvas indépendant, au-dessus du tracé. Les ancres et tangentes utilisent désormais
+la couche GPU décrite plus bas, avec un repli Canvas ; leur ordre de dessin et
+leurs règles d’actualisation sont conservés.
 
 La conversion native des points reste conservée entre notifications du document.
 Sur le chemin matériel, une description SVG du tracé dépend des points, du zoom
@@ -1643,3 +1644,56 @@ l’arrêt de l’animation sans sélection pointillée.
 Références Qt : [Shape et CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
 [styles des jointures](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html#joinStyle-prop),
 [relecture des pointillés de Context2D](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/context2d/qquickcontext2dcommandbuffer.cpp).
+
+
+## Ancres et tangentes de la Plume sur GPU
+
+`PenHandles.qml` extrait la feuille de repères de `PenOverlay.qml`. Les points,
+le zoom, l’origine découpée et les dimensions de la feuille déterminent une liste
+ordonnée de primitives visibles. La position de survol n’en fait pas partie :
+déplacer le segment provisoire conserve cette liste et ses objets graphiques.
+Les changements d’ancre, de tangente ou de sélection de points la réactualisent.
+Le backend logiciel et Qt sans CurveRenderer ne préparent pas de SVG inutilisé.
+
+Chaque point conserve l’ordre précédent : ligne et cercle de la direction
+entrante, ligne et cercle de la direction sortante, puis carré d’ancrage. Les
+directions de moins de 0,1 pixel logique restent masquées. Les points non
+sélectionnés ne dessinent que leur carré. Les couleurs, traits d’un pixel,
+cercles de rayon trois et carrés de côté six sont ceux du Canvas. Les primitives
+sont filtrées par leur enveloppe avec marge ; une tangente traversant la vue
+reste présente même si son ancre et sa poignée sont toutes deux hors champ.
+
+`PenHandleGuides.qml` utilise CurveRenderer pour ces lignes et formes. Une couche
+GPU limitée à la feuille visible compose les éléments avant l’opacité héritée,
+y compris lorsque deux poignées et leur ancre se superposent. Le conteneur
+clipse le résultat ; il ne crée pas de surface de la taille du document zoomé.
+Cette couche utilise une texture de composition GPU, mais aucun Canvas ni
+transfert de texture raster sur le chemin matériel. Les primitives et leur
+préparation géométrique restent des calculs CPU.
+
+Les loaders sont inactifs lorsque la feuille est cachée ou entièrement hors
+champ. La réactivation prépare les repères depuis les points courants. Le
+repli Canvas garde son dessin précédent et ses coordonnées image ; ses repeints
+sont transmis par le signal de contrôle commun. Les changements de points
+pendant le masquage ne déclenchent pas de peinture.
+
+Cette étape ne modifie pas le modèle de tracé, les raccourcis, les gestes,
+l’historique ou les pixels 8/16 bits. La mise en conformité des interactions de
+la Plume avec Photoshop reste une tâche séparée dans la roadmap. Le segment
+provisoire pointillé reste en Canvas, au-dessus du tracé principal et sous les
+repères.
+
+`pen_overlay` conserve ses comparaisons indépendantes en 8/16 bits : édition,
+Annuler, fermeture, réactivation, zoom jusqu’à 64×, défilement fractionnaire et
+rotation. Il vérifie maintenant l’absence de contexte raster pour les repères
+GPU et la conservation du modèle de primitives et de son premier objet au
+survol. Des cas isolés couvrent les tangentes traversantes, les ancres au bord,
+les contrôles superposés avec une opacité de 37 %, les points non sélectionnés,
+les directions presque nulles, la sortie de vue et la modification cachée.
+Le compte de primitives vérifie la suppression des éléments hors champ et
+l’absence de préparation SVG sur le repli logiciel. Le smoke test général
+exerce un vrai glisser d’ancre et l’annulation, puis vérifie que le mouvement
+de souris n’invalide pas les repères fixes.
+
+Références Qt : [Shape et CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
+[couches et opacité des Items](https://doc.qt.io/qt-6.8/qml-qtquick-item.html#layer-opacity).

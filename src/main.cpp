@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "CanvasItem.h"
 #include "CropShadeItem.h"
+#include "DashedGuideItem.h"
 #include "Document.h"
 #include "LanguageManager.h"
 #include "RecentFilesManager.h"
@@ -101,6 +102,7 @@ int main(int argc, char *argv[])
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
     qmlRegisterType<CanvasItem>("PhotoCrap.Native", 1, 0, "ImageCanvas");
     qmlRegisterType<CropShadeItem>("PhotoCrap.Native", 1, 0, "CropShade");
+    qmlRegisterType<DashedGuideItem>("PhotoCrap.Native", 1, 0, "DashedGuide");
     qmlRegisterSingletonType<CanvasFonts>(
         "PhotoCrap.Native", 1, 0, "CanvasFonts",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new CanvasFonts; });

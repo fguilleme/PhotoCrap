@@ -1,4 +1,5 @@
 import QtQuick
+import PhotoCrap.Native 1.0
 
 Item {
     id: root
@@ -9,6 +10,9 @@ Item {
     readonly property bool gpuBackend: GraphicsInfo.api===GraphicsInfo.Metal
         || GraphicsInfo.api===GraphicsInfo.Vulkan || GraphicsInfo.api===GraphicsInfo.OpenGL
         || GraphicsInfo.api===GraphicsInfo.Direct3D11 || GraphicsInfo.api===GraphicsInfo.Direct3D12
+    readonly property bool integralScreenScale: Screen.devicePixelRatio>0
+        && Screen.devicePixelRatio===Math.round(Screen.devicePixelRatio)
+    readonly property bool gpuSolidEligible: gpuBackend && integralScreenScale
     readonly property rect screenBounds: visibleArea.bounds
     ScreenOverlayBounds {
         id: visibleArea
@@ -53,7 +57,10 @@ Item {
         }
         // QPainter's miter limit is expressed in pen widths; allow the full
         // sharp join and its antialias/filter fringe, not only the point handles.
-        return clippedBounds(box,document.hasSelection ? 17 : document.polygonLassoActive ? 12 : 3)
+        const bounds=clippedBounds(box,document.hasSelection ? 17 : document.polygonLassoActive ? 12 : 3)
+        // Fractional screens resample cropped Canvas textures differently.
+        // Keep the historical viewport origin and size for exact raster pixels.
+        return !integralScreenScale && bounds.width>0 && bounds.height>0 ? screenBounds : bounds
     }
     x: guideBounds.x; y: guideBounds.y
     width: guideBounds.width; height: guideBounds.height
@@ -70,13 +77,13 @@ Item {
     // The fixed prefix and marker model do not depend on the live endpoint.
     readonly property rect fixedBounds: clippedBounds(pointBounds,12)
     readonly property string fixedPath: {
-        if(!gpuBackend || document.hasSelection || !points.length)return ""
+        if(!gpuSolidEligible || document.hasSelection || !points.length)return ""
         function xy(p){return (p.x*root.zoom-root.fixedBounds.x)+" "+(p.y*root.zoom-root.fixedBounds.y)}
         let path="M"+xy(points[0])
         for(let i=1;i<points.length;++i)path+="L"+xy(points[i])
         return path
     }
-    readonly property var visiblePoints: gpuBackend && !document.hasSelection
+    readonly property var visiblePoints: gpuSolidEligible && !document.hasSelection
         && document.polygonLassoActive ? points.filter(function(p) {
         const x=p.x*zoom,y=p.y*zoom,b=screenBounds
         return x+4>=b.x && x-4<=b.x+b.width && y+4>=b.y && y-4<=b.y+b.height
@@ -86,10 +93,10 @@ Item {
     function acuteJoin(a,b,c) {
         const ux=a.x-b.x,uy=a.y-b.y,vx=c.x-b.x,vy=c.y-b.y
         const norm=Math.hypot(ux,uy)*Math.hypot(vx,vy)
-        return norm>1e-12 && ux*vx+uy*vy>.995*norm
+        return norm>1e-12 && ux*vx+uy*vy>.99*norm
     }
     readonly property bool fixedAcuteJoin: {
-        if(!gpuBackend || document.hasSelection)return false
+        if(!gpuSolidEligible || document.hasSelection)return false
         for(let i=1;i+1<points.length;++i)
             if(acuteJoin(points[i-1],points[i],points[i+1]))return true
         return false
@@ -98,8 +105,10 @@ Item {
         || (!fixedAcuteJoin && !(document.polygonLassoActive
         && pointerInside && points.length>=2
         && acuteJoin(points[points.length-2],points[points.length-1],{x:pointerX/zoom,y:pointerY/zoom})))
-    readonly property bool gpuGuide: gpuBackend && curveSafe && !document.hasSelection
+    readonly property bool gpuSolidGuide: gpuSolidEligible && curveSafe && !document.hasSelection
         && nativeGuide.item!==null && nativeGuide.item.curveRendererAvailable
+    readonly property bool gpuDashedGuide: dashedGuide.item!==null && dashedGuide.item.supported
+    readonly property bool gpuGuide: gpuSolidGuide || gpuDashedGuide
     readonly property bool rasterActive: softwareGuide.item!==null
         && softwareGuide.item.context!==null && softwareGuide.item.context!==undefined
     function requestPaint() {
@@ -110,7 +119,7 @@ Item {
         anchors.fill: parent
         clip: true
         active: root.visible && root.width>0 && root.height>0
-            && root.gpuBackend && root.curveSafe && !root.document.hasSelection
+            && root.gpuSolidEligible && root.curveSafe && !root.document.hasSelection
         sourceComponent: LassoSolidGuide {
             fixedPath: root.fixedPath
             origin: Qt.point(root.fixedBounds.x-root.x,root.fixedBounds.y-root.y)
@@ -119,6 +128,27 @@ Item {
             markers: root.visiblePoints
             zoom: root.zoom
             imageOrigin: Qt.point(root.x,root.y)
+        }
+    }
+    Loader {
+        id: dashedGuide
+        anchors.fill: parent
+        active: root.visible && root.width>0 && root.height>0 && root.gpuBackend
+            && root.document.hasSelection && !root.document.polygonLassoActive
+        sourceComponent: Item {
+            readonly property bool supported: dashed.supported
+            clip: true
+            layer.enabled: supported
+            layer.smooth: true
+            DashedGuide {
+                id: dashed
+                objectName: "lassoDashedItem"
+                anchors.fill: parent
+                points: root.points
+                zoom: root.zoom
+                origin: Qt.point(root.x,root.y)
+                phase: root.phase
+            }
         }
     }
     Loader {

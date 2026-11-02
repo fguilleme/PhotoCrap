@@ -264,9 +264,12 @@ The current editing interactions are preserved.
 
 Solid lasso guides and polygon markers now use GPU paths on compatible Qt kits,
 with a view-bounded composition layer preserving opacity. Fixed point snapshots,
-bounds and marker models stay cached during hover. Software, older Qt kits and
-extremely acute joins retain Canvas rendering; combined candidates keep their
-animated dashes. An entirely offscreen guide allocates neither drawing path.
+bounds and marker models stay cached during hover. Software, older Qt kits,
+fractional screens and extremely acute joins retain Canvas for solid guides. Combined freehand candidates
+with right or obtuse joins animate dashes in shaders, retaining their geometry
+without raster repaints or vertex uploads for phase changes. Acute joins,
+combined polygonal guides and over-budget paths keep Canvas. An entirely
+offscreen guide allocates neither drawing path.
 
 The moving Slice frame uses a separate GPU path. The overlay and options bar reuse
 their metadata snapshot during draft gestures. In development after v0.16: retained

@@ -1,4 +1,5 @@
 #pragma once
+#include "DashedGuideItem.h"
 #include "Document.h"
 #include "OverlayReference.h"
 #include <QJSValue>
@@ -8,6 +9,7 @@
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QtTest>
+#include <limits>
 #include <memory>
 
 inline bool runLassoGuideSmoke(QQuickWindow *_window)
@@ -19,7 +21,8 @@ inline bool runLassoGuideSmoke(QQuickWindow *_window)
     };
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
     const bool expectedGpu =
-        QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
+        QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi()) &&
+        _window->devicePixelRatio() == qRound(_window->devicePixelRatio());
 #else
     const bool expectedGpu = false;
 #endif
@@ -167,9 +170,13 @@ Item {
         const QRect bounds(qFloor(origin.x() * ratio), qFloor(origin.y() * ratio),
                            qFloor(root->width() * ratio), qFloor(root->height() * ratio));
         // A viewport-sized Canvas and a cropped Canvas acquire different
-        // subpixel texture origins when rotated, even on the software backend.
-        const bool filtered =
-            guide->property("gpuGuide").toBool() || root->property("viewRotation").toReal() != 0;
+        // subpixel texture origins when rotated or on a fractional screen.
+        // Fractional artboard dimensions also round their Canvas textures,
+        // even on the software backend.
+        const bool filtered = guide->property("gpuGuide").toBool() ||
+                              root->property("viewRotation").toReal() != 0 ||
+                              ratio != qRound(ratio) || guide->width() != qRound(guide->width()) ||
+                              guide->height() != qRound(guide->height());
         return compareOverlayReference(actual, reference, bounds, filtered,
                                        "/tmp/photocrap-lasso-guide");
     };
@@ -182,6 +189,7 @@ Item {
                  "observe guide paints and point snapshots"))
         return false;
     for (int bits : {8, 16}) {
+        root->setProperty("pointer", QPointF(340, 130));
         if (!require(document.newDocument(512, 320, false, bits),
                      "create the lasso reference document"))
             return false;
@@ -295,7 +303,8 @@ Item {
         guidePaints.clear();
         root->setProperty("viewRotation", 12);
         frame();
-        if (!require(guidePaints.isEmpty() && guide->width() <= 610 && guide->height() <= 610,
+        if (!require((!guide->property("integralScreenScale").toBool() || guidePaints.isEmpty()) &&
+                         guide->width() <= 610 && guide->height() <= 610,
                      "rotation moves the local guide texture without repainting unchanged bounds"))
             return false;
         if (!require(matchesReference(), "rotated guides preserve their thin strokes and markers"))
@@ -342,6 +351,119 @@ Item {
                 "combined freehand candidates keep animated dashes without reconverting points"))
             return false;
         document.cancelStroke();
+        document.beginStroke(80, 70);
+        document.continueStroke(240, 70);
+        document.continueStroke(240, 220);
+        document.continueStroke(80, 220);
+        frame();
+        const bool dashedGpu =
+            QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
+        if (!require(guide->property("gpuDashedGuide").toBool() == dashedGpu &&
+                         guide->property("rasterActive").toBool() != dashedGpu &&
+                         matchesReference(),
+                     "closed combined candidates use retained GPU dashes with a software fallback"))
+            return false;
+        const auto findDashed = [](auto &&self, QQuickItem *item) -> DashedGuideItem * {
+            if (auto *dashed = qobject_cast<DashedGuideItem *>(item))
+                return dashed;
+            for (auto *child : item->childItems())
+                if (auto *dashed = self(self, child))
+                    return dashed;
+            return nullptr;
+        };
+        auto      *dashed  = findDashed(findDashed, guide);
+        const auto builds  = dashed ? dashed->geometryBuilds() : 0;
+        const auto uploads = dashed ? dashed->geometryUploads() : 0;
+        const auto updates = dashed ? dashed->parameterUpdates() : 0;
+        guidePaints.clear();
+        snapshots.clear();
+        const auto firstDash = frame();
+        for (qreal phase : {3.125, 4.5, 7.75}) {
+            root->setProperty("phase", phase);
+            frame();
+        }
+        if (!require(snapshots.isEmpty() &&
+                         (dashedGpu
+                              ? dashed && dashed->shaderActive() && uploads > 0 &&
+                                    dashed->geometryBuilds() == builds &&
+                                    dashed->geometryUploads() == uploads &&
+                                    dashed->parameterUpdates() > updates && guidePaints.isEmpty()
+                              : !guidePaints.isEmpty()) &&
+                         firstDash != frame(),
+                     "dash animation updates uniforms without rebuilding or uploading geometry"))
+            return false;
+        if (!require(matchesReference(), "fractional dash phase preserves the Canvas appearance"))
+            return false;
+        root->setProperty("zoom", .005);
+        frame();
+        if (!require(!guide->property("gpuDashedGuide").toBool() &&
+                         guide->property("rasterActive").toBool() && matchesReference(),
+                     "subpixel corners with overlapping fringes retain the raster stroke"))
+            return false;
+        root->setProperty("zoom", 1.);
+        frame();
+        for (qreal phase : {0., 1.5, 5., -1.25, 10.}) {
+            root->setProperty("phase", phase);
+            frame();
+            if (!require(matchesReference(), "dash boundaries and closure keep their flat caps"))
+                return false;
+        }
+        for (qreal zoom : {.5, 2., 64.}) {
+            root->setProperty("zoom", zoom);
+            root->setProperty("panX", zoom == 64 ? 80 * zoom - 20 : zoom > 1 ? 100 : 0);
+            root->setProperty("panY", zoom == 64 ? 70 * zoom - 40 : 0);
+            frame();
+            if (!require(guide->width() <= 512 && guide->height() <= 320 && matchesReference(),
+                         "clipped dashes retain logical width and phase at high zoom"))
+                return false;
+        }
+        root->setProperty("panY", 250. * 64);
+        frame();
+        if (!require(!guide->property("gpuGuide").toBool() &&
+                         !guide->property("rasterActive").toBool(),
+                     "an offscreen dashed candidate releases both renderers"))
+            return false;
+        root->setProperty("zoom", 1.);
+        root->setProperty("panX", 0);
+        root->setProperty("panY", 0);
+        root->setProperty("phase", 2.25);
+        root->setProperty("viewRotation", 12);
+        root->setProperty("guideOpacity", .37);
+        frame();
+        if (!require(matchesReference(),
+                     "dashed passes compose before rotation and inherited opacity"))
+            return false;
+        root->setProperty("viewRotation", 0);
+        root->setProperty("guideOpacity", 1.);
+        document.cancelStroke();
+        document.beginStroke(80, 70);
+        document.continueStroke(240, 220);
+        document.continueStroke(80, 220);
+        document.continueStroke(240, 70);
+        frame();
+        if (!require(!guide->property("gpuDashedGuide").toBool() && matchesReference(),
+                     "acute crossed corners retain QPainter's exact dash joins"))
+            return false;
+        document.cancelStroke();
+        document.beginStroke(80, 70);
+        for (const auto &p :
+             {QPointF(240, 70), QPointF(240, 220), QPointF(140, 220), QPointF(140, 30),
+              QPointF(280, 30), QPointF(280, 150), QPointF(80, 150)})
+            document.continueStroke(p.x(), p.y());
+        frame();
+        if (!require(guide->property("gpuDashedGuide").toBool() == dashedGpu && matchesReference(),
+                     "self-intersections preserve the global black-then-white stroke order"))
+            return false;
+        document.setSelectionEdgesVisible(false);
+        frame();
+        if (!require(!findDashed(findDashed, guide) && !guide->property("rasterActive").toBool(),
+                     "hiding dashes destroys their native item and raster fallback"))
+            return false;
+        document.setSelectionEdgesVisible(true);
+        frame();
+        if (!require(matchesReference(), "showing dashes restores the latest candidate"))
+            return false;
+        document.cancelStroke();
         document.setSelectionMode(0);
         document.beginStroke(80, 70);
         document.continueStroke(180, 70);
@@ -374,6 +496,31 @@ Item {
             return false;
         document.setToolModifiers(false, false, false);
     }
+    DashedGuideItem bounded(root);
+    bounded.setSize({100, 100});
+    bounded.setOpacity(0);
+    const QVariantList square{QPointF(10, 10), QPointF(90, 10), QPointF(90, 90), QPointF(10, 90)};
+    bounded.setPoints(square);
+    frame();
+    if (!require(bounded.supported(), "valid native points prepare a bounded dash mesh"))
+        return false;
+    QVariantList oversized;
+    oversized.fill(QPointF(10, 10), 8193);
+    bounded.setPoints(oversized);
+    frame();
+    if (!require(!bounded.supported(), "oversized input falls back before allocating a mesh"))
+        return false;
+    auto invalid = square;
+    invalid[1]   = QPointF(std::numeric_limits<qreal>::quiet_NaN(), 10);
+    bounded.setPoints(invalid);
+    frame();
+    if (!require(!bounded.supported(), "nonfinite input is rejected"))
+        return false;
+    bounded.setPoints(square);
+    bounded.setZoom(2);
+    frame();
+    if (!require(bounded.supported(), "valid input restores the native path after a fallback"))
+        return false;
     qInfo("Lasso guide checks passed");
     return true;
 }

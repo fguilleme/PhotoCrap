@@ -1621,10 +1621,16 @@ ses extrémités plates et ses onglets. Les repères gardent leur rayon de trois
 pixels et leur ordre de dessin. Une enveloppe entièrement hors champ ne charge
 ni la couche GPU ni le Canvas.
 
-Les candidats fermés combinés gardent le Canvas et leurs deux traits pointillés
-animés. Le backend logiciel et Qt sans CurveRenderer utilisent aussi ce repli.
+Les candidats polygonaux combinés gardent le Canvas et leurs deux traits pointillés
+animés. Les candidats libres combinés éligibles utilisent le shader décrit ci-dessous.
+Le backend logiciel, Qt sans CurveRenderer et les écrans fractionnaires utilisent
+aussi le repli des guides unis.
+Sur un écran fractionnaire, la surface reprend l’origine et la taille de la vue
+historique : découper davantage le Canvas modifierait sa phase de filtrage.
+Une enveloppe hors champ reste vide. Les pointillés natifs gardent leur propre
+lissage adapté au facteur d’écran, y compris à 1,25×.
 Les retours presque superposés, dont l’angle intérieur a un cosinus supérieur
-à 0,995, restent en raster : le découpage des onglets extrêmes de CurveRenderer
+à 0,99, restent en raster : le découpage des onglets extrêmes de CurveRenderer
 diffère de celui de QPainter. Les angles des points fixes sont testés seulement
 quand les points changent ; seul le dernier raccord dépend du pointeur. Retirer
 le point problématique ou déplacer le segment provisoire réactive le GPU et
@@ -1644,15 +1650,54 @@ zoom jusqu’à 64×, le défilement, la rotation, l’opacité après compositi
 sortie complète de la vue. L’absence de contexte raster sur le chemin GPU et
 les compteurs de repeints, snapshots, préfixes, enveloppes et modèles de repères
 contrôlent les réutilisations. Les comparaisons GPU emploient les tolérances de
-lissage partagées ; les replis gardent la comparaison raster directe, sauf sous
-rotation où les textures bornées et pleine vue ont des origines de filtrage
-différentes. Le smoke test général couvre aussi le vrai mouvement de souris et
+lissage partagées ; les replis gardent la comparaison raster directe, sauf en cas
+de rotation, de facteur d’écran ou de dimensions de surface fractionnaires où les
+textures ont des phases de filtrage différentes. Le smoke test général couvre aussi le vrai mouvement de souris et
 l’arrêt de l’animation sans sélection pointillée.
 
 Références Qt : [Shape et CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html),
 [styles des jointures](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html#joinStyle-prop),
 [relecture des pointillés de Context2D](https://github.com/qt/qtdeclarative/blob/v6.12.0/src/quick/items/context2d/qquickcontext2dcommandbuffer.cpp).
 
+
+## Pointillés des candidats combinés du lasso libre sur GPU
+
+`DashedGuideItem` prépare une géométrie native à partir du snapshot de points,
+sur le thread GUI. La conversion des éventuelles valeurs JavaScript s’effectue
+avant le rendu ; le thread graphique ne consulte aucun objet du moteur QML.
+Points, zoom, origine locale, dimensions et facteur d’écran invalident le maillage.
+Changer la phase ne demande qu’une mise à jour de ses paramètres graphiques.
+
+Le maillage partagé de sélection est utilisé à l’échelle logique : largeur de
+1,5 pixel et période de 15 pixels, comme les deux traits de l’ancien Canvas.
+Le shader adapte les franges de lissage au facteur d’écran. Les distances sont
+rebasées au découpage sans redémarrer le motif. La fermeture conserve deux
+extrémités plates, comme `QDashStroker`, y compris lorsque la longueur totale
+est un multiple de la période. Une petite extension du maillage permet leur
+lissage sans recréer les sommets pendant l’animation.
+
+`DashedGuideNode` conserve deux passes ordonnées : le trait noir complet, puis
+le trait blanc complet. Cet ordre reste valable aux croisements. Leurs sommets
+et buffers ne changent pas avec la phase. Une couche bornée à la vue compose
+les deux passes avant l’opacité héritée ; il reste donc une surface GPU, mais
+aucune image raster à repeindre ou retransférer à chaque pas.
+
+Le chemin reste volontairement conservateur : angles aigus inférieurs à 90°,
+points dégénérés/non finis, raccords sous-pixel qui se chevauchent, plus de
+8 192 points, facteurs d’écran hors de [1,8]
+ou dépassement du budget de sommets gardent le Canvas. Les jointures aiguës
+du moteur de traits Qt ne sont pas remplacées par une approximation différente.
+Les candidats polygonaux combinés et la transition Alt restent aussi en raster.
+Masquage et sortie complète de la vue détruisent le composant chargé ; un retour
+à une géométrie éligible retire le Canvas.
+
+Le test `lasso_guide` compare les pixels à un Canvas indépendant en 8/16 bits,
+avec phases fractionnaires et négatives, fermeture, croisements, angles aigus,
+zoom 64×, défilement, rotation, faible opacité et masquage. Des compteurs vérifient
+qu’une animation ne reconstruit ni ne retransfère la géométrie et ne repeint pas
+de Canvas. Les entrées non finies et le dépassement du budget sont aussi testés.
+
+Référence Qt : [traitement des sous-chemins pointillés dans QDashStroker](https://github.com/qt/qtbase/blob/v6.8.3/src/gui/painting/qstroker.cpp).
 
 ## Ancres et tangentes de la Plume sur GPU
 

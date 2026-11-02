@@ -16,6 +16,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
     src/CropShadeItem.cpp
+    src/DashedGuideItem.cpp
+    src/render/DashedGuideNode.cpp
     src/text/TextEditorController.cpp
     src/render/CropShade.cpp
     src/render/HistogramGeometry.cpp
@@ -123,6 +125,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     ${PHOTOCRAP_CXX_SOURCES}
     src/CanvasItem.h
     src/CropShadeItem.h
+    src/DashedGuideItem.h
+    src/render/DashedGuideNode.h
     src/text/TextEditorController.h
     src/render/CropShade.h
     src/render/HistogramGeometry.h
@@ -407,6 +411,8 @@ qt_add_executable(PhotoCrap
     src/ToolInput.cpp src/ToolInput.h
     src/CanvasItem.cpp src/CanvasItem.h src/CanvasRendering.cpp
     src/CropShadeItem.cpp src/CropShadeItem.h
+    src/DashedGuideItem.cpp src/DashedGuideItem.h
+    src/render/DashedGuideNode.cpp src/render/DashedGuideNode.h
     src/text/TextEditorController.cpp src/text/TextEditorController.h
     src/render/CropShade.cpp src/render/CropShade.h
     src/render/HistogramGeometry.cpp src/render/HistogramGeometry.h
@@ -429,6 +435,7 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
     PREFIX "/PhotoCrap"
     FILES src/render/shaders/tone.vert src/render/shaders/tone.frag
         src/render/shaders/selection.vert src/render/shaders/selection.frag
+        src/render/shaders/dashedguide.vert src/render/shaders/dashedguide.frag
         src/render/shaders/crop.vert src/render/shaders/crop.frag
         src/render/shaders/samplingring.vert src/render/shaders/samplingring.frag
         src/render/shaders/colorwheelshade.vert src/render/shaders/colorwheelshade.frag

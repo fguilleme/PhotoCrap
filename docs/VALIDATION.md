@@ -1,5 +1,24 @@
 # Validation
 
+## Pointillés des candidats combinés du lasso — 2 novembre 2026
+
+- Compilation et tests `lasso_guide` / `qml_smoke` sur Qt 6.8.3 et Qt 6.12.0 ;
+  `selection_mesh` passe aussi sur le kit local. Contrôle clang-tidy des deux
+  nouveaux fichiers C++ sans avertissement.
+- Comparaisons natives sur macOS Apple Silicon : Metal 1×/1,25×/2× et OpenGL, avec
+  référence Canvas indépendante en 8/16 bits. Phases fractionnaires et négatives,
+  extrémités plates, croisements, zoom 64×, défilement, rotation et faible opacité.
+- Les compteurs attestent que la phase conserve le maillage et ses buffers,
+  sans repeindre de Canvas. Entrées non finies/hors budget, angles aigus,
+  raccords sous-pixel au zoom 0,005×, transition Alt, masquage et réaffichage
+  conservent le repli et les pixels. Les surfaces aux dimensions fractionnaires
+  sont comparées avec la même tolérance de filtrage que les surfaces tournées.
+- Les angles presque superposés du guide uni ont un repli plus conservateur
+  (cosinus supérieur à 0,99), pour préserver les pointes QPainter aussi à 1×.
+  Sur écran fractionnaire, le guide uni garde le Canvas à l’origine et à la taille
+  de la vue pour éviter un changement de filtrage ; les nouveaux pointillés restent GPU.
+- Vulkan et Direct3D n’ont pas été exécutés localement.
+
 ## Guides de tranches après v0.16 — 2 novembre 2026
 
 - Build local et contrôles `slice_cache`, `slice_overlay`, `qml_smoke` sur Qt 6.8.3

@@ -604,7 +604,7 @@ if(BUILD_TESTING)
     add_test(NAME document COMMAND photocrap_tests)
     qt_add_executable(photocrap_text_tests tests/TextToolTest.cpp)
     target_link_libraries(photocrap_text_tests PRIVATE photocrap_core Qt6::Test)
-    add_test(NAME text_tools COMMAND photocrap_text_tests)
+    add_test(NAME text_tools COMMAND photocrap_text_tests -o -,txt -o text-tools.txt,txt)
     set_tests_properties(text_tools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 30)
 
     qt_add_executable(photocrap_slice_cache_tests tests/SliceDescriptionCacheTest.cpp)

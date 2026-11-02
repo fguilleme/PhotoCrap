@@ -14,7 +14,7 @@ jobs:
       matrix:
         # Build the AppImage on the oldest runner so its glibc requirement is
         # compatible with newer mainstream Linux distributions.
-        os: [macos-14, ubuntu-22.04, windows-2022]
+        os: [macos-15, ubuntu-22.04, windows-2022]
     steps:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
@@ -27,7 +27,18 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 3
       - name: Test engine and QML
+        env:
+          QT_FORCE_STDERR_LOGGING: '1'
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test-diagnostics-${{ matrix.os }}
+          path: |
+            build/Testing/Temporary/
+            build/text-tools.txt
+          retention-days: 14
       - name: Configure production package
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
       - name: Build production application

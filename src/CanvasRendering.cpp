@@ -206,6 +206,8 @@ QRectF visibleBounds(const QRectF &_requested, const QRectF &_bounds)
 
 void CanvasItem::queueFrame(bool _image, bool _overlay)
 {
+    // Cache-budget changes require preparation even without dirty pixels.
+    m_frameQueued = true;
     m_imageDirty |= _image;
     m_overlayDirty |= _overlay;
     polish();
@@ -236,6 +238,19 @@ void CanvasItem::itemChange(ItemChange _change, const ItemChangeData &_value)
 
 void CanvasItem::updatePolish()
 {
+    if (!m_frameQueued && !m_imageDirty && !m_overlayDirty) {
+        // A phase-only polish reuses the GUI snapshots, tile residency and LRU.
+        // The render thread continues using the immutable snapshots as usual.
+#ifdef PHOTOCRAP_TESTING
+        ++m_phaseOnlyPreparations;
+#endif
+        update();
+        return;
+    }
+    m_frameQueued = false;
+#ifdef PHOTOCRAP_TESTING
+    ++m_framePreparations;
+#endif
     if (m_document)
         m_document->setGpuToneNearestSampling(width() >= m_document->width());
     QImage      source;

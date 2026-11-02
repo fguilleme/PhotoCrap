@@ -204,6 +204,26 @@ anticrénelée d’un pixel aux bords et entre noir/blanc. Ce matériau indépen
 fractionnaire ne met à jour que sa phase ; les opérations Pièce et Suppression
 n’ont pas à être repeintes pour faire avancer les fourmis.
 
+La préparation GUI possède aussi un chemin court pour cette seule phase.
+`setSelectionPhase` planifie un polish, mais ne marque pas l’image comme modifiée.
+Sans demande complète en attente, `updatePolish` conserve les snapshots, les
+tuiles de masque, la résidence des tuiles et leur ordre LRU. Il demande le rendu
+avec les données déjà préparées, sans reparcourir le cache ni appeler le réglage
+d’échantillonnage du document. Le thread graphique continue ses vérifications
+de ressources et sa mise à jour du matériau ; cette étape optimise la préparation
+sur le thread de l’interface, pas l’ensemble de la synchronisation graphique.
+
+Toute demande `queueFrame` reste prioritaire, même avec ses deux arguments à
+`false` : c’est le cas d’un changement de budget du cache. Les notifications
+d’image, de masque, de sélection, les changements de vue, de taille, de fenêtre
+ou de facteur d’écran passent donc toujours par la préparation complète.
+Une requête arrivée pendant cette préparation reste également planifiée.
+
+Les compteurs de `canvas_render` vérifient l’absence de préparation complète
+pendant les phases générales, rectangulaires/elliptiques et du lasso libre.
+Des demandes coalescées de budget et de visibilité d’un calque vérifient aussi
+l’éviction effective des tuiles hors champ et le rafraîchissement des pixels.
+
 Le nœud hérite des transformations du canevas et utilise un clip du graphe de
 scène, y compris sous rotation. Un changement de contour, d’échelle, de résolution
 physique ou de vue reconstruit la géométrie. Les snapshots restent préparés sur

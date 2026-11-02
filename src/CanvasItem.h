@@ -53,6 +53,14 @@ public:
     }
     void setTextureCacheMiB(int _value);
 #ifdef PHOTOCRAP_TESTING
+    quint64 framePreparations() const
+    {
+        return m_framePreparations;
+    }
+    quint64 phaseOnlyPreparations() const
+    {
+        return m_phaseOnlyPreparations;
+    }
     quint64 imageTextureUploads() const
     {
         return m_imageTextureUploads.load();
@@ -167,8 +175,9 @@ private:
     int                                     m_textureLevel     = -1;
     QSize                                   m_documentSize, m_sourceSize, m_textureSize;
     QRectF                                  m_viewportRect{-1, -1, -1, -1}, m_overlayRect;
-    bool                                    m_imageDirty = true, m_overlayDirty = true;
+    bool m_imageDirty = true, m_overlayDirty = true, m_frameQueued = true;
 #ifdef PHOTOCRAP_TESTING
+    quint64              m_framePreparations = 0, m_phaseOnlyPreparations = 0;
     std::atomic<quint64> m_imageTextureUploads{0};
     std::atomic<quint64> m_toneTableUploads{0};
     std::atomic<quint64> m_maskTextureUploads{0};

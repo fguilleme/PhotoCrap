@@ -89,10 +89,12 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
     document.continueStroke(800, 350);
     document.endStroke();
     document.invertSelection();
-    const QImage before          = frame();
-    auto         uploads         = canvas.imageTextureUploads();
-    const auto   geometryUploads = canvas.selectionGeometryUploads();
-    const auto   overlayUploads  = canvas.overlayTextureUploads();
+    const QImage before            = frame();
+    auto         uploads           = canvas.imageTextureUploads();
+    const auto   geometryUploads   = canvas.selectionGeometryUploads();
+    const auto   overlayUploads    = canvas.overlayTextureUploads();
+    const auto   preparations      = canvas.framePreparations();
+    const auto   phasePreparations = canvas.phaseOnlyPreparations();
     const bool   shaderSelection =
         QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
     canvas.setSelectionPhase(3);
@@ -105,7 +107,8 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                  "selection outlines do not fill their interior"))
         return false;
     if (shaderSelection) {
-        if (!require(canvas.selectionShaderActive() &&
+        if (!require(canvas.selectionShaderActive() && canvas.framePreparations() == preparations &&
+                         canvas.phaseOnlyPreparations() > phasePreparations &&
                          canvas.selectionGeometryUploads() == geometryUploads &&
                          canvas.overlayTextureUploads() == overlayUploads &&
                          canvas.overlayPixelSize().isEmpty(),
@@ -113,11 +116,45 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
             return false;
         canvas.setSelectionPhase(3.25);
         if (!require(frame() != after && canvas.selectionGeometryUploads() == geometryUploads &&
-                         canvas.overlayTextureUploads() == overlayUploads,
+                         canvas.overlayTextureUploads() == overlayUploads &&
+                         canvas.framePreparations() == preparations,
                      "fractional dash phases animate smoothly without rebuilding geometry"))
             return false;
         canvas.setSelectionPhase(3);
         frame();
+        canvas.setTextureCacheMiB(64);
+        canvas.setViewportRect({0, 0, 400, 200});
+        frame();
+        const auto cachedBytes  = canvas.residentTextureBytes();
+        const auto beforeBudget = canvas.framePreparations();
+        canvas.setTextureCacheMiB(0);
+        canvas.setSelectionPhase(4.25);
+        frame();
+        if (!require(canvas.framePreparations() > beforeBudget &&
+                         canvas.residentTextureBytes() < cachedBytes,
+                     "a cache-budget change queued with a phase still prunes offscreen tiles"))
+            return false;
+        canvas.setTextureCacheMiB(0);
+        canvas.setViewportRect({0, 0, 1150, 400});
+        canvas.setSelectionPhase(3);
+        const auto restoredPhoto = frame();
+        const auto beforeImage   = canvas.framePreparations();
+        const auto photoPoint    = QPointF(700 * initialScale, 100 * initialScale);
+        document.setLayerVisible(0, false);
+        canvas.setSelectionPhase(4.5);
+        const auto changedPhoto = frame();
+        if (!require(canvas.framePreparations() > beforeImage &&
+                         !near(pixel(changedPhoto, photoPoint.x(), photoPoint.y()),
+                               pixel(restoredPhoto, photoPoint.x(), photoPoint.y())),
+                     "an image change queued with a phase still refreshes the photo"))
+            return false;
+        document.setLayerVisible(0, true);
+        canvas.setSelectionPhase(3);
+        if (!require(near(pixel(frame(), photoPoint.x(), photoPoint.y()),
+                          pixel(restoredPhoto, photoPoint.x(), photoPoint.y())),
+                     "the image returns after restoring layer visibility"))
+            return false;
+        uploads = canvas.imageTextureUploads();
         canvas.setViewportRect({50, 0, 750, 256});
         const auto pannedSelection = frame();
         for (int y = 0; y < 150; ++y)
@@ -846,8 +883,9 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                              canvas.overlayPixelSize().height() < qCeil(canvas.height() * ratio),
                          "small software marquees allocate only their own visible bounds"))
                 return false;
-            const auto geometry = canvas.selectionGeometryUploads();
-            const auto textures = canvas.overlayTextureUploads();
+            const auto geometry          = canvas.selectionGeometryUploads();
+            const auto framePreparations = canvas.framePreparations();
+            const auto textures          = canvas.overlayTextureUploads();
             canvas.setSelectionPhase(3);
             const auto animated = frame();
             if (!require(animated != first && canvas.imageTextureUploads() == photoUploads,
@@ -855,6 +893,7 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                 return false;
             if (shaderSelection) {
                 if (!require(canvas.selectionShaderActive() &&
+                                 canvas.framePreparations() == framePreparations &&
                                  canvas.overlayPixelSize().isEmpty() &&
                                  canvas.selectionGeometryUploads() == geometry &&
                                  canvas.overlayTextureUploads() == textures,
@@ -933,9 +972,10 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                     "freehand candidates use the shared contour while polygon guides stay QML"))
                 return false;
             if (tool == "lasso") {
-                const auto liveGeometry = canvas.selectionGeometryUploads();
-                const auto liveTextures = canvas.overlayTextureUploads();
-                const auto live         = frame();
+                const auto liveGeometry     = canvas.selectionGeometryUploads();
+                const auto livePreparations = canvas.framePreparations();
+                const auto liveTextures     = canvas.overlayTextureUploads();
+                const auto live             = frame();
                 canvas.setSelectionPhase(2.25);
                 if (!require(
                         frame() != live && canvas.imageTextureUploads() == photoUploads &&
@@ -943,6 +983,7 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                             document.historyIndex() == history &&
                             (!shaderSelection ||
                              (canvas.selectionGeometryUploads() == liveGeometry &&
+                              canvas.framePreparations() == livePreparations &&
                               canvas.overlayTextureUploads() == liveTextures &&
                               canvas.overlayPixelSize().isEmpty())),
                         "live freehand animation preserves geometry, textures, pixels and history"))

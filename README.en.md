@@ -262,6 +262,10 @@ or very long provisional curves retain their Canvas, as do software and older
 Qt kits. The main path, handles and provisional segment keep separate caches.
 The current editing interactions are preserved.
 
+GPU selection animation also skips tile and cache preparation when only the dash
+phase changes. Image, zoom, viewport and memory-budget changes still receive full
+preparation.
+
 Solid lasso guides and polygon markers now use GPU paths on compatible Qt kits,
 with a view-bounded composition layer preserving opacity. Fixed point snapshots,
 bounds and marker models stay cached during hover. Software, older Qt kits,

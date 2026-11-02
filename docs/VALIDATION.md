@@ -1,5 +1,21 @@
 # Validation
 
+## Préparation GUI des phases de sélection — 2 novembre 2026
+
+- Builds Qt 6.8.3 / 6.12.0 et tests `canvas_render`, `tone_render`, `qml_smoke` ;
+  `tile_cache` passe aussi sur le kit local. Formatage et clang-tidy propres.
+- Contrôles natifs Metal (Qt 6.8.3 et 6.12.0) et OpenGL (Qt 6.12.0) sur macOS
+  Apple Silicon : animation visible sans nouvelle préparation complète des
+  snapshots/tuiles, géométrie et textures conservées, phases fractionnaires,
+  rectangles/ellipses et lassos en 8/16 bits.
+- Une baisse du budget mémoire coalescée avec une phase doit réellement évincer
+  les tuiles hors champ. Une modification de visibilité de calque coalescée avec
+  une phase doit rafraîchir la photo, puis retrouver ses pixels après restauration.
+  Ces contrôles vérifient que le chemin court ne masque pas les demandes complètes.
+- La synchronisation du thread graphique reste inchangée. Aucun gain chiffré en
+  millisecondes ou en fréquence d’affichage n’est déduit des seuls compteurs.
+- Vulkan/Direct3D restent à contrôler sur leurs plateformes.
+
 ## Candidats de lasso sans bord visible — 2 novembre 2026
 
 - Builds Qt 6.8.3 / 6.12.0 et contrôles `lasso_guide`, `qml_smoke` ;

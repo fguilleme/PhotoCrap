@@ -1,5 +1,14 @@
 # Validation
 
+## Préparation des contours de sélection — 2 novembre 2026
+
+- Les raccords à angle droit, demi-tours, chemins fermés, zones découpées et
+  limites du maillage sont vérifiés. Une comparaison locale avec l’ancienne
+  implémentation donne les mêmes sommets sur 400 contours et vues variés.
+- Sur un contour synthétique de 12 000 segments visibles, la préparation CPU
+  mesurée localement passe d’environ 227 à 206 ms pour 200 calculs. Ce résultat
+  ne mesure pas le temps de rendu GPU complet.
+
 ## Sélection des textures en cache — 2 novembre 2026
 
 - Comparaison avec l’algorithme précédent sur 500 ensembles déterministes de

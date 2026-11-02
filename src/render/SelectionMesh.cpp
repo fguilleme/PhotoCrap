@@ -46,6 +46,7 @@ SelectionMesh selectionMesh(const QPainterPath &_path, const QSizeF &_scale,
         _path.toSubpathPolygons(QTransform::fromScale(_scale.width(), _scale.height()));
     for (const auto &polygon : polygons) {
         QVector<QPointF> points;
+        points.reserve(polygon.size());
         for (const auto &point : polygon)
             if (points.isEmpty() || points.last() != point)
                 points.append(point);
@@ -54,13 +55,13 @@ SelectionMesh selectionMesh(const QPainterPath &_path, const QSizeF &_scale,
             points.removeLast();
         if (points.size() < 2)
             continue;
-        const auto join = [&](int _index, const QPointF &_n) {
+        const auto join = [&](int _index, const QPointF &_n, bool _start) {
             if (!closed && (_index == 0 || _index == points.size() - 1))
                 return _n * extent;
             const int   previous = (_index + points.size() - 1) % points.size();
             const int   next     = (_index + 1) % points.size();
-            const auto  a        = normal(points[_index] - points[previous]);
-            const auto  b        = normal(points[next] - points[_index]);
+            const auto  a        = _start ? normal(points[_index] - points[previous]) : _n;
+            const auto  b        = _start ? _n : normal(points[next] - points[_index]);
             const auto  sum      = a + b;
             const qreal length   = std::hypot(sum.x(), sum.y());
             if (length < 1e-8)
@@ -79,11 +80,11 @@ SelectionMesh selectionMesh(const QPainterPath &_path, const QSizeF &_scale,
             if (length > 0 && clip(points[i], delta, clipRect, first, last)) {
                 if (mesh.vertices.size() + 6 > _maximumVertices)
                     return {{}, true};
-                const auto  n      = normal(delta);
+                const auto  n      = QPointF(-delta.y() / length, delta.x() / length);
                 const auto  a      = points[i] + delta * first - _viewport.topLeft();
                 const auto  b      = points[i] + delta * last - _viewport.topLeft();
-                const auto  na     = first == 0 ? join(i, n) : n * extent;
-                const auto  nb     = last == 1 ? join(next, n) : n * extent;
+                const auto  na     = first == 0 ? join(i, n, true) : n * extent;
+                const auto  nb     = last == 1 ? join(next, n, false) : n * extent;
                 const qreal start  = std::fmod((distance + length * first) * _ratio, 15.);
                 const qreal end    = start + length * (last - first) * _ratio;
                 const auto  vertex = [](const QPointF &_p, qreal _distance, float _side) {

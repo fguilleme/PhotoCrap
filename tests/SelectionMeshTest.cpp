@@ -41,6 +41,31 @@ private slots:
             QVERIFY(v.x >= 0 && v.x <= 200 && v.y >= 0 && v.y <= 240);
         }
     }
+    void connectedJoinsAndReversals()
+    {
+        QPainterPath path;
+        path.moveTo(10, 10);
+        path.lineTo(20, 10);
+        path.lineTo(20, 20);
+        const auto mesh = PhotoCrap::Render::selectionMesh(path, {1, 1}, {0, 0, 100, 100}, 1);
+        QCOMPARE(mesh.vertices.size(), 12);
+        const auto &endPlus = mesh.vertices[2], &startPlus = mesh.vertices[6];
+        const auto &endMinus = mesh.vertices[5], &startMinus = mesh.vertices[7];
+        QCOMPARE(endPlus.x, 18.75f);
+        QCOMPARE(endPlus.y, 11.25f);
+        QCOMPARE(endMinus.x, 21.25f);
+        QCOMPARE(endMinus.y, 8.75f);
+        QCOMPARE(endPlus.x, startPlus.x);
+        QCOMPARE(endPlus.y, startPlus.y);
+        QCOMPARE(endMinus.x, startMinus.x);
+        QCOMPARE(endMinus.y, startMinus.y);
+        path.lineTo(20, 10); // A 180-degree reversal has no stable miter.
+        const auto reversed = PhotoCrap::Render::selectionMesh(path, {1, 1}, {0, 0, 100, 100}, 1);
+        QVERIFY(!reversed.fallback);
+        for (const auto &vertex : reversed.vertices)
+            QVERIFY(std::isfinite(vertex.x) && std::isfinite(vertex.y) &&
+                    std::isfinite(vertex.distance));
+    }
     void ellipsesStayCurvedAtDifferentScales()
     {
         QPainterPath path;

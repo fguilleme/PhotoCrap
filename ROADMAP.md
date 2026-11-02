@@ -155,6 +155,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Préparation GUI courte pour les phases des sélections GPU : snapshots et cache de tuiles/masques/LRU réutilisés sans reparcours. Les demandes complètes gardent la priorité, y compris le budget mémoire sans pixels modifiés. Compteurs sur contours généraux, rectangles/ellipses et lassos ; contrôle des pixels et de l’éviction lors de demandes image/budget coalescées.
 - [x] Animation de sélection suspendue quand la fenêtre est masquée ou réduite, puis reprise au retour : pas de nouvelles phases inutiles pour le canevas hors écran.
 - [x] Cache des textures : tri LRU évité lorsque le budget est épuisé ou que toutes les tuiles candidates tiennent ; tri limité aux candidates sinon. Les tuiles visibles restent prioritaires et la politique de rétention est inchangée.
+- [x] Préparation des contours de sélection GPU : réutilisation de la normale déjà calculée pour chaque segment et ses raccords, avec allocation des points limitée au contour. Géométrie et repli inchangés.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

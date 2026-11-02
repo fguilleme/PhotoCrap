@@ -4726,6 +4726,10 @@ private slots:
             QVERIFY(d.composite().pixelColor(10, 16).alpha() < first.alpha());
             d.setLayerOpacity(0, .5);
             QCOMPARE(d.composite().pixelColor(10, 16), first);
+            d.setLayerOpacity(0, 0);
+            QCOMPARE(d.composite().pixelColor(10, 16).alpha(), 0);
+            d.setLayerOpacity(0, .5);
+            QCOMPARE(d.composite().pixelColor(10, 16), first);
             d.setLayerVisible(2, false);
             const QColor hiddenTop = d.composite().pixelColor(10, 16);
             QVERIFY(hiddenTop.green() > hiddenTop.blue());
@@ -4749,6 +4753,49 @@ private slots:
             d.setLayerVisible(3, false);
             QCOMPARE(d.composite().pixelColor(48, 16).alpha(), 0);
             QCOMPARE(d.composite().pixelColor(10, 16), first);
+        }
+    }
+    void zeroOpacityLayersPreservePixelsAndRegionalRendering()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(128, 96, true, bits));
+            d.setColor(QColor::fromRgba64(17389, 42467, 61357, 23456));
+            d.fillWithColor(true);
+            const QImage base = d.composite();
+            d.addLayer();
+            d.setColor(Qt::blue);
+            d.fillWithColor(true);
+            d.setLayerOpacity(1, 0);
+            for (int mode = 0; mode < 27; ++mode) {
+                d.setLayerBlend(1, mode);
+                QCOMPARE(d.composite(), base);
+            }
+            d.addAdjustmentLayer("mosaic");
+            d.setLayerOpacity(2, 0);
+            QCOMPARE(d.composite(), base);
+            const auto before = d.composite().cacheKey();
+            d.setActiveLayer(0);
+            d.setTool("brush");
+            d.setBrushSize(4);
+            d.setColor(Qt::red);
+            d.beginStroke(64, 48);
+            d.endStroke();
+            const QImage edited = d.composite();
+            QVERIFY(edited != base);
+            const QRect region = d.compositeUpdateRegion(before, edited.cacheKey());
+            QVERIFY(!region.isEmpty());
+            QVERIFY(region.width() < d.width() && region.height() < d.height());
+            d.setLayerOpacity(2, 1);
+            QVERIFY(d.composite() != edited);
+            d.setLayerOpacity(2, 0);
+            QCOMPARE(d.composite(), edited);
+            d.setActiveLayer(2);
+            d.setClippingMask(true);
+            d.setLayerOpacity(2, 1);
+            QCOMPARE(d.composite(), edited);
+            d.setLayerVisible(1, false);
+            QCOMPARE(d.composite(), edited);
         }
     }
     void multipleLayerSelectionCreatesPersistentPassThroughGroup()

@@ -15,13 +15,14 @@ bool requiresFullComposite(const Layer &_layer)
     // These filters currently depend on absolute image coordinates. The blur
     // family is local and can be recomputed from a padded dirty rectangle.
     static const QStringList filters{QStringLiteral("mosaic"), QStringLiteral("noise")};
-    return _layer.visible && (_layer.blend == 1 || (_layer.kind == QStringLiteral("adjustment") &&
-                                                    filters.contains(_layer.adjustmentType)));
+    return _layer.visible && _layer.opacity > 0 &&
+           (_layer.blend == 1 || (_layer.kind == QStringLiteral("adjustment") &&
+                                  filters.contains(_layer.adjustmentType)));
 }
 
 int effectMargin(const Layer &_layer)
 {
-    if (!_layer.visible)
+    if (!_layer.visible || _layer.opacity <= 0)
         return 0;
     const int maskMargin =
         _layer.maskEnabled && !_layer.mask.isNull()
@@ -107,11 +108,15 @@ const QImage &Document::composite() const
         }
         const bool groupVisible =
             layer.groupId.isEmpty() || groupVisibility.value(layer.groupId, true);
-        if (!layer.visible || !groupVisible) {
+        if (!layer.visible || !groupVisible || layer.opacity <= 0) {
             if (!layer.clippingMask)
                 resetClipping();
             continue;
         }
+        // A clipped layer cannot contribute without coverage from a visible
+        // base. Reject it before filters, masks or frequency bands are built.
+        if (layer.clippingMask && clippingBase.isNull())
+            continue;
         // Empty pixel layers contribute no coverage.
         if (layer.kind == QStringLiteral("pixel") && ImageUtils::compact(layer.image) &&
             layer.image.pixelColor(0, 0).alpha() == 0) {

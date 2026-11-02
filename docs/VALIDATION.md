@@ -1,5 +1,13 @@
 # Validation
 
+## Calques sans contribution visible — 2 novembre 2026
+
+- Tests 8/16 bits avec les 27 modes de fusion à opacité nulle, réglage Mosaïque
+  désactivé par son opacité, retour à une opacité visible, et écrêtage sur une
+  base masquée ou d’opacité nulle.
+- Une retouche locale sous ces calques conserve une région de mise à jour
+  plus petite que le document, au lieu de forcer la recomposition intégrale.
+
 ## Multiplication des masques 8 bits — 2 novembre 2026
 
 - Comparaison exhaustive des 65 536 combinaisons canal/couverture au calcul

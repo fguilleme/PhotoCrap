@@ -1,5 +1,14 @@
 # Validation
 
+## Surimpressions hors de la vue — 2 novembre 2026
+
+- Les tests couvrent les régions fragmentées, les contacts aux bords, les UV de
+  Pièce et les limites du maillage. Une comparaison locale avec les anciens
+  chemins sur 300 régions, échelles et vues conserve les mêmes sommets.
+- Sur une région synthétique de 4 000 rectangles hors écran, 1 000 préparations
+  successives des deux surimpressions passent d’environ 25 ms à 0,01 ms sur ce
+  Mac. Il s’agit de la préparation CPU, pas du temps de rendu GPU complet.
+
 ## Contours de sélection hors de la vue — 2 novembre 2026
 
 - Les tests vérifient les traits sur la limite de découpage, les courbes dont

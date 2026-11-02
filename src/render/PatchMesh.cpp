@@ -1,4 +1,7 @@
 #include "PatchMesh.h"
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace PhotoCrap::Render
 {
@@ -6,11 +9,24 @@ PatchMesh patchMesh(const QRegion &_region, const QRect &_target, const QSizeF &
                     const QRectF &_viewport, qsizetype _maximumVertices)
 {
     PatchMesh mesh;
-    if (_target.isEmpty() || _viewport.isEmpty() || _scale.isEmpty())
+    if (_target.isEmpty() || _viewport.isEmpty() || _scale.isEmpty() || _region.isEmpty())
         return mesh;
     const QRectF target(_target.x() * _scale.width(), _target.y() * _scale.height(),
                         _target.width() * _scale.width(), _target.height() * _scale.height());
-    const auto   vertex = [&](qreal _x, qreal _y) {
+    if (!target.intersects(_viewport))
+        return mesh;
+    const QRect bounds = _region.boundingRect();
+    QRectF      mappedBounds(bounds.x() * _scale.width(), bounds.y() * _scale.height(),
+                             bounds.width() * _scale.width(), bounds.height() * _scale.height());
+    const qreal magnitude =
+        std::max({qreal(1), std::abs(mappedBounds.left()), std::abs(mappedBounds.right()),
+                  std::abs(mappedBounds.top()), std::abs(mappedBounds.bottom())});
+    const qreal margin = magnitude * std::numeric_limits<qreal>::epsilon() * 16;
+    mappedBounds.adjust(-margin, -margin, margin, margin);
+    if (std::isfinite(margin) &&
+        (!mappedBounds.intersects(_viewport) || !mappedBounds.intersects(target)))
+        return mesh;
+    const auto vertex = [&](qreal _x, qreal _y) {
         return PatchVertex{float(_x - _viewport.x()), float(_y - _viewport.y()),
                            float((_x - target.x()) / target.width()),
                            float((_y - target.y()) / target.height())};

@@ -48,6 +48,19 @@ private slots:
         QVERIFY(PhotoCrap::Render::regionMesh(region, {1, 1}, {}).vertices.isEmpty());
         QVERIFY(PhotoCrap::Render::regionMesh({}, {1, 1}, {0, 0, 20, 20}).vertices.isEmpty());
     }
+    void fragmentedRegionsAtViewEdges()
+    {
+        QRegion region;
+        for (int i = 0; i < 2000; ++i)
+            region += QRect(1000 + i * 2, 1000 + (i % 2) * 3, 1, 1);
+        const auto outside = PhotoCrap::Render::regionMesh(region, {1, 1}, {0, 0, 100, 100}, 1);
+        QVERIFY(outside.vertices.isEmpty() && !outside.fallback);
+        const auto touching = PhotoCrap::Render::regionMesh(region, {1, 1}, {900, 1000, 100, 1});
+        QVERIFY(touching.vertices.isEmpty());
+        const auto edge = PhotoCrap::Render::regionMesh(region, {1, 1}, {1000.5, 1000, 1, 1});
+        QCOMPARE(edge.vertices.size(), 6);
+        QCOMPARE(area(edge), .5);
+    }
 };
 QTEST_GUILESS_MAIN(RegionMeshTest)
 #include "RegionMeshTest.moc"

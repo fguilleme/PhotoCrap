@@ -50,6 +50,23 @@ private slots:
         QVERIFY(PhotoCrap::Render::patchMesh(QRegion(target), {}, {1, 1}, {0, 0, 10, 10})
                     .vertices.isEmpty());
     }
+    void skipsFragmentedRegionAndTargetOutsideView()
+    {
+        QRegion region;
+        for (int i = 0; i < 2000; ++i)
+            region += QRect(1000 + i * 2, 1000 + (i % 2) * 3, 1, 1);
+        const QRect target(1000, 1000, 4000, 10);
+        const auto  outside =
+            PhotoCrap::Render::patchMesh(region, target, {1, 1}, {0, 0, 100, 100}, 1);
+        QVERIFY(outside.vertices.isEmpty() && !outside.fallback);
+        const auto otherTarget =
+            PhotoCrap::Render::patchMesh(region, {0, 0, 100, 100}, {1, 1}, {0, 0, 100, 100}, 1);
+        QVERIFY(otherTarget.vertices.isEmpty() && !otherTarget.fallback);
+        const auto edge =
+            PhotoCrap::Render::patchMesh(region, target, {1, 1}, {1000.5, 1000, 1, 1});
+        QCOMPARE(edge.vertices.size(), 6);
+        QVERIFY(edge.vertices.first().u > 0);
+    }
 };
 QTEST_GUILESS_MAIN(PatchMeshTest)
 #include "PatchMeshTest.moc"

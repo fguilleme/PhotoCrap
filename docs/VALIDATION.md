@@ -1,5 +1,14 @@
 # Validation
 
+## Application des masques de calque — 2 novembre 2026
+
+- Comparaison exacte à une référence scalaire sur des images 8 et 16 bits,
+  avec transparence, densités 0/63/100 et surfaces de part et d’autre du seuil
+  de parallélisation. Le même projet est aussi composé depuis le pool de calcul.
+- Sur une image synthétique 16 bits de 12 Mpx avec huit threads, application
+  du masque et copie de l’image passent d’environ 114 à 42 ms. Ce chiffre ne
+  comprend ni l’ensemble de la pile de calques ni l’affichage GPU.
+
 ## Flou de boîte 16 bits — 2 novembre 2026
 
 - Comparaison exacte à une référence scalaire pour trois tailles, dont une

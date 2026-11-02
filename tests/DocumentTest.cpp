@@ -23,6 +23,7 @@
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
 #include "tools/RegionHealing.h"
+#include <QBuffer>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -5314,6 +5315,100 @@ private slots:
                 const QImage expected = pass(pass(original, false), true);
                 document.applyFilter("blur", radius);
                 QCOMPARE(document.layerImage(0), expected);
+            }
+        }
+    }
+    void maskedCompositionMatchesScalarReference()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            for (QSize size : {QSize(23, 17), QSize(320, 240)}) {
+                QImage input(size, bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                              : QImage::Format_ARGB32_Premultiplied);
+                QImage mask(size, QImage::Format_Grayscale8);
+                for (int y = 0; y < size.height(); ++y) {
+                    for (int x = 0; x < size.width(); ++x) {
+                        input.setPixelColor(
+                            x, y,
+                            QColor::fromRgba64(ushort((x * 347 + y * 199) % 65536),
+                                               ushort((x * 101 + y * 887) % 65536),
+                                               ushort((x * 271 + y * 463) % 65536),
+                                               ushort((x * 119 + y * 313 + 5000) % 65536)));
+                        mask.scanLine(y)[x] = uchar((x * 13 + y * 17) % 256);
+                    }
+                }
+                const QString imagePath   = directory.filePath("mask-source.png");
+                const QString projectPath = directory.filePath("masked.pcr");
+                QVERIFY(input.save(imagePath));
+                Document initial;
+                QVERIFY(initial.openFile(QUrl::fromLocalFile(imagePath)));
+                initial.addLayerMask();
+                QVERIFY(initial.saveProject(QUrl::fromLocalFile(projectPath)));
+                QFile file(projectPath);
+                QVERIFY(file.open(QIODevice::ReadOnly));
+                auto root = QJsonDocument::fromJson(file.readAll()).object();
+                file.close();
+                QByteArray encoded;
+                QBuffer    buffer(&encoded);
+                QVERIFY(buffer.open(QIODevice::WriteOnly));
+                QVERIFY(mask.save(&buffer, "PNG"));
+                auto layers          = root["layers"].toArray();
+                auto layer           = layers[0].toObject();
+                layer["mask"]        = QString::fromLatin1(encoded.toBase64());
+                layer["compactMask"] = false;
+                for (int density : {0, 63, 100}) {
+                    auto parameters            = layer["parameters"].toObject();
+                    parameters["_maskDensity"] = density;
+                    layer["parameters"]        = parameters;
+                    layers[0]                  = layer;
+                    root["layers"]             = layers;
+                    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+                    QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+                    file.close();
+                    Document document;
+                    QVERIFY(document.openFile(QUrl::fromLocalFile(projectPath)));
+                    const QImage original  = document.layerImage(0);
+                    QImage       reference = original.copy();
+                    for (int y = 0; y < size.height(); ++y) {
+                        for (int x = 0; x < size.width(); ++x) {
+                            const double weight = density / 100.;
+                            double       a      = 255 - (255 - mask.constScanLine(y)[x]) * weight;
+                            if (bits == 8) {
+                                a           = qRound(a);
+                                auto *pixel = reinterpret_cast<QRgb *>(reference.scanLine(y)) + x;
+                                *pixel      = qRgba(qRound(qRed(*pixel) * a / 255),
+                                                    qRound(qGreen(*pixel) * a / 255),
+                                                    qRound(qBlue(*pixel) * a / 255),
+                                                    qRound(qAlpha(*pixel) * a / 255));
+                            } else {
+                                auto *pixel =
+                                    reinterpret_cast<QRgba64 *>(reference.scanLine(y)) + x;
+                                const auto scale = [a](int channel) {
+                                    return qRound((channel / 257. * a / 255.) * 257.);
+                                };
+                                *pixel = QRgba64::fromRgba64(
+                                    scale(pixel->red()), scale(pixel->green()),
+                                    scale(pixel->blue()), scale(pixel->alpha()));
+                            }
+                        }
+                    }
+                    QImage   expected = ImageUtils::blank(size, original.format());
+                    QPainter painter(&expected);
+                    painter.drawImage(0, 0, reference);
+                    painter.end();
+                    QCOMPARE(document.composite(), expected);
+                    if (size.width() == 320 && density == 63) {
+                        auto future = QtConcurrent::run([projectPath] {
+                            Document worker;
+                            return worker.openFile(QUrl::fromLocalFile(projectPath))
+                                       ? QImage(worker.composite())
+                                       : QImage{};
+                        });
+                        future.waitForFinished();
+                        QCOMPARE(future.result(), expected);
+                    }
+                }
             }
         }
     }

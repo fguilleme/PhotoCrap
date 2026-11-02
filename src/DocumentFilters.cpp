@@ -54,15 +54,32 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
         const bool   uniform  = ImageUtils::compact(coverage);
         const int    h = uniform ? result.height() : qMin(result.height(), coverage.height()),
                      w = uniform ? result.width() : qMin(result.width(), coverage.width());
-        for (int y = 0; y < h; ++y) {
-            auto         pixels = reinterpret_cast<Pixel *>(result.scanLine(y));
-            const uchar *m      = coverage.constScanLine(uniform ? 0 : y);
-            for (int x = 0; x < w; ++x) {
-                const double a = P::round(255 - (255 - m[uniform ? 0 : x]) * _density);
-                pixels[x] = P::rgba(P::red(pixels[x]) * a / 255, P::green(pixels[x]) * a / 255,
-                                    P::blue(pixels[x]) * a / 255, P::alpha(pixels[x]) * a / 255);
+        if (w <= 0 || h <= 0)
+            return result;
+        const int jobs =
+            qint64(w) * h < 65536
+                ? 1
+                : qMin(h, qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
+        QVector<int> blocks(jobs);
+        std::iota(blocks.begin(), blocks.end(), 0);
+        uchar          *destination = result.bits();
+        const qsizetype stride      = result.bytesPerLine();
+        const auto      renderRows  = [&](int _block) {
+            for (int y = h * _block / jobs; y < h * (_block + 1) / jobs; ++y) {
+                auto        *pixels = reinterpret_cast<Pixel *>(destination + y * stride);
+                const uchar *m      = coverage.constScanLine(uniform ? 0 : y);
+                for (int x = 0; x < w; ++x) {
+                    const double a = P::round(255 - (255 - m[uniform ? 0 : x]) * _density);
+                    pixels[x] =
+                        P::rgba(P::red(pixels[x]) * a / 255, P::green(pixels[x]) * a / 255,
+                                P::blue(pixels[x]) * a / 255, P::alpha(pixels[x]) * a / 255);
+                }
             }
-        }
+        };
+        if (jobs == 1)
+            renderRows(0);
+        else
+            ImageUtils::blockingMap(blocks, renderRows);
         return result;
     };
     return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()

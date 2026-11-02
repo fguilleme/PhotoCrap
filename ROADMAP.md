@@ -160,6 +160,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Surimpressions Suppression et Pièce : rejet des régions entièrement hors de la vue avant parcours de leurs rectangles, avec marge de précision pour les coordonnées aux limites.
 - [x] Contours GPU sans segment visible : les changements de phase ne réveillent plus le graphe de scène ; la phase courante est appliquée dès le retour du contour dans la vue.
 - [x] Flou de boîte 16 bits : passe verticale par bandes de colonnes contiguës, avec sommes locales et résultat identique au calcul précédent ; ce chemin sert aussi au flou gaussien et à d’autres effets.
+- [x] Composition des masques de calque : grandes zones traitées par blocs de lignes en parallèle, avec conservation des arrondis 8/16 bits et traitement séquentiel dans les tâches déjà sur le pool.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

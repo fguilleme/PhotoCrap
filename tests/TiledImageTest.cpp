@@ -10,6 +10,67 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void importedPixelsAndVersionsRemainExact()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        ScratchImageCache cache({dir.path(), 32LL * 1024 * 1024, 0});
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage source(517, 301, format);
+            source.setColorSpace(QColorSpace::SRgb);
+            source.setDevicePixelRatio(2);
+            source.setDotsPerMeterX(11811);
+            source.setDotsPerMeterY(11811);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(x, y,
+                                         QColor::fromRgba64(ushort(x * 173), ushort(y * 199),
+                                                            ushort(x * 37 + y * 67), 65535));
+            TiledImage plane;
+            QVERIFY(plane.replace(source));
+            QCOMPARE(plane.region(source.rect()), source);
+            QVERIFY(plane.offload(cache));
+            QCOMPARE(plane.heapBytes(), qint64(0));
+            const TiledImage before   = plane;
+            const QImage     original = source;
+            source.setPixelColor(260, 270, Qt::white);
+            QVERIFY(plane.replace(source));
+            QCOMPARE(before.region(original.rect()), original);
+            QCOMPARE(plane.region(source.rect()), source);
+            const QImage metadata = plane.region(source.rect());
+            QCOMPARE(metadata.colorSpace(), source.colorSpace());
+            QCOMPARE(metadata.devicePixelRatio(), source.devicePixelRatio());
+            QCOMPARE(metadata.dotsPerMeterX(), source.dotsPerMeterX());
+            QCOMPARE(metadata.dotsPerMeterY(), source.dotsPerMeterY());
+            QVERIFY(plane.heapBytes() <= 256 * 256 * 8);
+            QVERIFY(plane.paint({10, 12, 3, 4}, [](QPainter &painter) {
+                painter.fillRect(QRect(10, 12, 3, 4), Qt::red);
+            }));
+            QPainter painter(&source);
+            painter.scale(.5, .5);
+            painter.fillRect(QRect(10, 12, 3, 4), Qt::red);
+            painter.end();
+            QCOMPARE(plane.region(source.rect()), source);
+            cache.clear();
+            QCOMPARE(before.region(original.rect()), original);
+            QCOMPARE(plane.region(source.rect()), source);
+            QVERIFY(!plane.replace(QImage(10, 10, QImage::Format_Mono)));
+            QCOMPARE(plane.region(source.rect()), source);
+        }
+    }
+    void replacingWithBackgroundReleasesTiles()
+    {
+        QImage image(513, 300, QImage::Format_RGBA64_Premultiplied);
+        image.fill(Qt::red);
+        TiledImage plane;
+        QVERIFY(plane.replace(image));
+        QVERIFY(plane.tileCount() > 0);
+        image.fill(Qt::transparent);
+        QVERIFY(plane.replace(image));
+        QCOMPARE(plane.tileCount(), 0);
+        QCOMPARE(plane.region(image.rect()), image);
+    }
     void largeUniformPlanesAllocateOnlyTouchedTiles()
     {
         TiledImage plane({6000, 4000}, QImage::Format_RGBA64_Premultiplied, Qt::transparent);

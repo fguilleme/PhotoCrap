@@ -54,6 +54,9 @@ struct TiledImage::Data {
         else
             image.fill(background.pixelColor(0, 0));
         image.setColorSpace(background.colorSpace());
+        image.setDevicePixelRatio(background.devicePixelRatio());
+        image.setDotsPerMeterX(background.dotsPerMeterX());
+        image.setDotsPerMeterY(background.dotsPerMeterY());
         return image;
     }
 };
@@ -103,6 +106,50 @@ qint64 TiledImage::heapBytes() const
                 bytes += tile->pixels.sizeInBytes();
         }
     return bytes;
+}
+
+bool TiledImage::replace(const QImage &_image)
+{
+    if (_image.isNull())
+        return false;
+    TiledImage initial(_image.size(), _image.format(), Qt::transparent);
+    if (initial.isNull())
+        return false;
+    const bool reuse = m_data && m_data->size == _image.size() &&
+                       m_data->background.format() == _image.format() &&
+                       m_data->background.colorSpace() == _image.colorSpace();
+    auto       next  = reuse ? std::make_shared<Data>(*m_data) : initial.m_data;
+    next->background.setColorSpace(_image.colorSpace());
+    next->background.setDevicePixelRatio(_image.devicePixelRatio());
+    next->background.setDotsPerMeterX(_image.dotsPerMeterX());
+    next->background.setDotsPerMeterY(_image.dotsPerMeterY());
+    const int pixelBytes = _image.depth() / 8;
+    for (int row = 0; row < (_image.height() + TileSize - 1) / TileSize; ++row)
+        for (int column = 0; column < next->columns(); ++column) {
+            const auto   bounds   = next->rect(column, row);
+            const int    key      = next->key(column, row);
+            const auto   previous = next->tiles.value(key);
+            const QImage pixels   = previous ? previous->image() : next->blank(bounds.size());
+            bool         equal    = true;
+            for (int y = 0; y < bounds.height(); ++y)
+                if (std::memcmp(pixels.constScanLine(y),
+                                _image.constScanLine(bounds.y() + y) + bounds.x() * pixelBytes,
+                                size_t(bounds.width()) * pixelBytes) != 0) {
+                    equal = false;
+                    break;
+                }
+            if (!equal) {
+                const QImage replacement = _image.copy(bounds);
+                if (replacement.isNull())
+                    return false;
+                if (replacement == next->blank(bounds.size()))
+                    next->tiles.remove(key);
+                else
+                    next->tiles.insert(key, std::make_shared<Tile>(replacement));
+            }
+        }
+    m_data = std::move(next);
+    return true;
 }
 
 QImage TiledImage::region(const QRect &_region) const
@@ -172,6 +219,8 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
                 QPainter painter(&tile->pixels);
                 if (!painter.isActive())
                     return false;
+                const qreal ratio = tile->pixels.devicePixelRatio();
+                painter.scale(1. / ratio, 1. / ratio);
                 painter.translate(-bounds.topLeft());
                 painter.setClipRect(region);
                 _paint(painter);

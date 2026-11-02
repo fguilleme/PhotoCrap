@@ -26,6 +26,9 @@ public:
     int    tileCount() const;
     qint64 allocatedBytes() const;
     qint64 heapBytes() const;
+    // Import native pixels exactly; updates retain immutable versions of
+    // unchanged tiles, including their disk leases.
+    bool   replace(const QImage &_image);
     QImage region(const QRect &_region) const;
     bool   paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);
     // Reuse unique tiles for disposable gesture buffers. On failure the caller

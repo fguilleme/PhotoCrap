@@ -85,6 +85,10 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 
 ## 2. Grands documents et performance
 
+Le programme des cinq migrations de performance demandées le 2 novembre est
+détaillé dans [docs/OPTIMIZATION_PLAN.md](docs/OPTIMIZATION_PLAN.md). Le raccordement
+des plans de calques par tuiles et les quatre chantiers suivants restent en cours.
+
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 
 - [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7 et suivants, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Test de stockage/rechargement de 301 calques sur une image 24 Mpx en 16 bits : les calques ajoutés sont vides et les réglages masqués ; ce n’est pas un test de 301 photos remplies. Liste de calques virtualisée.

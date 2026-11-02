@@ -1,5 +1,13 @@
 # Validation
 
+## Masques sans contribution — 2 novembre 2026
+
+- Tests 8/16 bits d’un réglage Mosaïque avec masque compact noir : retouche
+  régionale, désactivation/réactivation du masque, densité 0/100 et calque
+  écrêté sur cette base masquée. Le retour à un masque visible réactive l’effet.
+- La densité nulle rend directement l’image source ; la comparaison scalaire
+  des compositions avec masques vérifie aussi ce cas.
+
 ## Calques sans contribution visible — 2 novembre 2026
 
 - Tests 8/16 bits avec les 27 modes de fusion à opacité nulle, réglage Mosaïque

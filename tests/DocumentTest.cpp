@@ -4798,6 +4798,53 @@ private slots:
             QCOMPARE(d.composite(), edited);
         }
     }
+    void compactBlackMasksSkipEffectsAndInvalidateWhenEnabled()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(128, 96, true, bits));
+            d.setColor(Qt::blue);
+            d.fillWithColor(true);
+            d.addAdjustmentLayer("mosaic");
+            d.addLayerMask(false);
+            d.invertLayerMask(); // Adjustment layers already have a white mask.
+            QCOMPARE(d.maskImage(1).pixelColor(0, 0), QColor(Qt::black));
+            d.setEditingMask(false);
+            const QImage before = d.composite();
+            const auto   key    = before.cacheKey();
+            d.setActiveLayer(0);
+            d.setTool("brush");
+            d.setColor(Qt::red);
+            d.setBrushSize(4);
+            d.beginStroke(64, 48);
+            d.endStroke();
+            const QImage edited = d.composite();
+            QVERIFY(edited != before);
+            const QRect region = d.compositeUpdateRegion(key, edited.cacheKey());
+            QVERIFY(!region.isEmpty() && region.width() < d.width() &&
+                    region.height() < d.height());
+            d.setActiveLayer(1);
+            d.setMaskEnabled(false);
+            QVERIFY(d.composite() != edited);
+            d.setMaskEnabled(true);
+            QCOMPARE(d.composite(), edited);
+            d.beginLayerPreview();
+            d.previewLayerParameter("_maskDensity", 0);
+            d.finishLayerPreview();
+            QVERIFY(d.composite() != edited);
+            d.beginLayerPreview();
+            d.previewLayerParameter("_maskDensity", 100);
+            d.finishLayerPreview();
+            QCOMPARE(d.composite(), edited);
+            // A clipped layer must not reuse coverage from the layer below
+            // a fully hidden base.
+            d.addLayer();
+            d.setColor(Qt::yellow);
+            d.fillWithColor(true);
+            d.setClippingMask(true);
+            QCOMPARE(d.composite(), edited);
+        }
+    }
     void multipleLayerSelectionCreatesPersistentPassThroughGroup()
     {
         QTemporaryDir dir;

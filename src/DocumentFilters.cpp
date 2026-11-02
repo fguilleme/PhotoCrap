@@ -41,9 +41,9 @@
 QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _density,
                            qreal _feather)
 {
-    if (_source.isNull() || _mask.isNull())
+    if (_source.isNull() || _mask.isNull() || _density <= 0)
         return _source;
-    if (ImageUtils::compact(_mask) && (_mask.constScanLine(0)[0] == 255 || _density <= 0))
+    if (ImageUtils::compact(_mask) && _mask.constScanLine(0)[0] == 255)
         return _source;
     const auto render = [&]<typename Pixel>() -> QImage {
         using P               = ImageUtils::PixelAccess<Pixel>;

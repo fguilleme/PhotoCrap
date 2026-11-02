@@ -165,6 +165,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Couverture d’écrêtage : extraction directe de l’alpha des formats natifs 8/16 bits, sans conversion temporaire de tous les canaux couleur ; quantification identique à Qt.
 - [x] Masques 8 bits : table de couverture par densité et multiplication entière exacte des canaux prémultipliés, avec conservation des arrondis du calcul flottant.
 - [x] Composition : rejet anticipé des calques à opacité nulle et des calques écrêtés sans base visible ; les effets à opacité nulle ne forcent plus une recomposition intégrale ni une marge de filtre.
+- [x] Masques sans effet : densité nulle sans copie des pixels, et calques masqués par un masque compact entièrement noir écartés avant les filtres et les marges de composition.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

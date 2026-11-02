@@ -10,19 +10,28 @@
 
 namespace
 {
+bool contributes(const Layer &_layer)
+{
+    if (!_layer.visible || _layer.opacity <= 0)
+        return false;
+    return !(_layer.maskEnabled && ImageUtils::compact(_layer.mask) &&
+             _layer.mask.constScanLine(0)[0] == 0 &&
+             _layer.parameters.value("_maskDensity", 100.).toDouble() >= 100.);
+}
+
 bool requiresFullComposite(const Layer &_layer)
 {
     // These filters currently depend on absolute image coordinates. The blur
     // family is local and can be recomputed from a padded dirty rectangle.
     static const QStringList filters{QStringLiteral("mosaic"), QStringLiteral("noise")};
-    return _layer.visible && _layer.opacity > 0 &&
+    return contributes(_layer) &&
            (_layer.blend == 1 || (_layer.kind == QStringLiteral("adjustment") &&
                                   filters.contains(_layer.adjustmentType)));
 }
 
 int effectMargin(const Layer &_layer)
 {
-    if (!_layer.visible || _layer.opacity <= 0)
+    if (!contributes(_layer))
         return 0;
     const int maskMargin =
         _layer.maskEnabled && !_layer.mask.isNull()
@@ -108,7 +117,7 @@ const QImage &Document::composite() const
         }
         const bool groupVisible =
             layer.groupId.isEmpty() || groupVisibility.value(layer.groupId, true);
-        if (!layer.visible || !groupVisible || layer.opacity <= 0) {
+        if (!groupVisible || !contributes(layer)) {
             if (!layer.clippingMask)
                 resetClipping();
             continue;

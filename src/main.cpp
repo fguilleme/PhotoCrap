@@ -4,6 +4,7 @@
 #include "DashedGuideItem.h"
 #include "Document.h"
 #include "LanguageManager.h"
+#include "RawImageReader.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
 #include "ToolInput.h"
@@ -13,13 +14,20 @@
 #include "render/HistogramGeometry.h"
 #include "render/PenBandGeometry.h"
 #include "text/TextEditorController.h"
+#include <QCryptographicHash>
+#include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QImageReader>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlFileSelector>
 #include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QSaveFile>
+#include <QStandardPaths>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/BrushCursorSmoke.h"
@@ -86,6 +94,85 @@ private:
     Document *m_document;
 };
 
+class RecentThumbnailProvider : public QQuickImageProvider
+{
+    static QImage projectThumbnail(const QString &_path, const QSize &_bounds)
+    {
+        const QFileInfo info(_path);
+        if (!info.isFile())
+            return {};
+        const QByteArray identity =
+            info.absoluteFilePath().toUtf8() + '\0' + QByteArray::number(info.size()) + '\0' +
+            QByteArray::number(info.lastModified().toMSecsSinceEpoch()) + '\0' +
+            QByteArray::number(_bounds.width()) + 'x' + QByteArray::number(_bounds.height());
+        const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        QDir          cache(cacheRoot + QStringLiteral("/recent-project-thumbnails"));
+        const QString cacheFile = cache.filePath(
+            QString::fromLatin1(
+                QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex()) +
+            ".png");
+        QImage image;
+        if (!cacheRoot.isEmpty() && image.load(cacheFile, "PNG"))
+            return image;
+
+        // A separate document belongs entirely to the image provider's worker thread.
+        // This also supports older projects that do not contain an embedded preview.
+        Document document;
+        if (!document.openFile(QUrl::fromLocalFile(_path)))
+            return {};
+        image = document.composite().scaled(_bounds, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        const QFileInfo after(_path);
+        if (!image.isNull() && !cacheRoot.isEmpty() && after.size() == info.size() &&
+            after.lastModified() == info.lastModified() && QDir().mkpath(cache.path())) {
+            QSaveFile file(cacheFile);
+            if (file.open(QIODevice::WriteOnly) && image.save(&file, "PNG"))
+                file.commit();
+            // Bound the cache even when files are saved repeatedly.
+            const auto entries = cache.entryInfoList({"*.png"}, QDir::Files, QDir::Time);
+            for (qsizetype i = 100; i < entries.size(); ++i)
+                QFile::remove(entries.at(i).absoluteFilePath());
+        }
+        return image;
+    }
+
+public:
+    RecentThumbnailProvider() : QQuickImageProvider(Image)
+    {
+    }
+    QImage requestImage(const QString &_id, QSize *_size, const QSize &_requested) override
+    {
+        const auto  encoded = QByteArray::fromBase64(_id.toUtf8(), QByteArray::Base64UrlEncoding);
+        const QUrl  url(QUrl::fromPercentEncoding(encoded));
+        const QSize bounds =
+            _requested.isValid() && !_requested.isEmpty() ? _requested : QSize(320, 220);
+        QImage image;
+        if (url.isLocalFile()) {
+            const auto path = url.toLocalFile();
+            if (RawImageReader::isRawFile(path))
+                image = RawImageReader::embeddedThumbnail(path, bounds);
+            else if (QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0)
+                image = projectThumbnail(path, bounds);
+            else {
+                QImageReader reader(path);
+                reader.setAutoTransform(true);
+                const auto original = reader.size();
+                if (original.isValid())
+                    reader.setScaledSize(original.scaled(bounds, Qt::KeepAspectRatio));
+                image = reader.read();
+            }
+        }
+        if (image.isNull()) {
+            image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+        }
+        if (_size)
+            *_size = image.size();
+        if (image.width() > bounds.width() || image.height() > bounds.height())
+            image = image.scaled(bounds, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        return image;
+    }
+};
+
 int main(int argc, char *argv[])
 {
     Application app(argc, argv);
@@ -143,9 +230,13 @@ int main(int argc, char *argv[])
         &engine, &QQmlApplicationEngine::warnings, &app,
         [&](const QList<QQmlError> &_waraings) { qmlWarnings += int(_waraings.size()); });
     engine.addImageProvider("layers", new ThumbnailProvider(&document));
+    engine.addImageProvider("recent", new RecentThumbnailProvider);
     engine.rootContext()->setContextProperty("editor", &document);
     engine.rootContext()->setContextProperty("languages", &languageManager);
     engine.rootContext()->setContextProperty("recentFiles", &recentFilesManager);
+    engine.rootContext()->setContextProperty("showWelcomeAtStartup",
+                                             !smoke && !args.contains("--demo") &&
+                                                 (args.size() == 1 || args[1].startsWith("--")));
     engine.rootContext()->setContextProperty("shortcuts", &shortcutManager);
     engine.rootContext()->setContextProperty("workspaceSettings", &workspaceSettings);
     QObject::connect(&document, &Document::rawFileOpened, &recentFilesManager,

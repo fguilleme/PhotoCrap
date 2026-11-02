@@ -538,6 +538,19 @@ private slots:
         file.write(RawTestImage::dng());
         file.close();
         QVERIFY(RawImageReader::isRawFile(path));
+        QVERIFY(RawImageReader::embeddedThumbnail(path).isNull());
+        QVERIFY(RawImageReader::embeddedThumbnail(dir.filePath("missing.dng")).isNull());
+        QFile withPreview(dir.filePath(QString::fromUtf8("aperçu 50%.dng")));
+        QVERIFY(withPreview.open(QIODevice::WriteOnly));
+        const auto fixture = RawTestImage::dngWithThumbnail();
+        QVERIFY(!fixture.isEmpty());
+        QCOMPARE(withPreview.write(fixture), qint64(fixture.size()));
+        withPreview.close();
+        const auto preview =
+            RawImageReader::embeddedThumbnail(withPreview.fileName(), QSize(24, 24));
+        QVERIFY(!preview.isNull());
+        QVERIFY(preview.width() <= 24 && preview.height() <= 24);
+        QVERIFY(preview.pixelColor(5, 5).red() > 200);
         const auto result = RawImageReader::read(path);
         QVERIFY2(!result.image.isNull(), qPrintable(result.error));
         QCOMPARE(result.image.format(), QImage::Format_RGBA64_Premultiplied);

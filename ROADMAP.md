@@ -13,6 +13,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 | Projets | Format `.pcr` **v9** avec texte éditable, lecture des versions 1 à 8 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
 | Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
 
+En développement après v0.16 : accueil redimensionnable avec grille de fichiers
+récents, miniatures chargées en arrière-plan et aperçu JPEG intégré aux RAW.
+Les projets `.pcr` sont composités en arrière-plan et leurs miniatures mises en cache.
+
 Les sections « Disponible » et « Ajouts » ci-dessous constituent l’historique des fonctions livrées : leurs anciens nombres de raccourcis et formats de projet ne décrivent pas la version courante. Les sections numérotées regroupent les travaux restants et les validations à poursuivre. **NYI** signifie recensé mais non implémenté ; les gestes contextuels disponibles ne sont pas des commandes globales personnalisables.
 
 ## Disponible dans v0.12.0

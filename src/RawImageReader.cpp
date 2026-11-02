@@ -1,8 +1,10 @@
 #include "RawImageReader.h"
+#include <QBuffer>
 #include <QColorSpace>
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QStringList>
 #include <cstring>
 #include <libraw/libraw.h>
@@ -28,6 +30,42 @@ namespace
 const QStringList extensions = {"3fr", "arw", "cr2", "cr3", "crw", "dcr", "dng", "erf", "fff",
                                 "iiq", "kdc", "mef", "mos", "mrw", "nef", "nrw", "orf", "pef",
                                 "raf", "raw", "rw2", "rwl", "sr2", "srf", "srw", "x3f"};
+}
+QImage RawImageReader::embeddedThumbnail(const QString &_path, const QSize &_size)
+{
+    QFile file(_path);
+    if (!file.open(QIODevice::ReadOnly) || file.size() < 8 || file.size() > 1024LL * 1024 * 1024)
+        return {};
+    auto *data = file.map(0, file.size());
+    if (!data)
+        return {};
+    auto decoder = std::make_unique<LibRaw>();
+    if (decoder->open_buffer(data, size_t(file.size())) != LIBRAW_SUCCESS ||
+        decoder->unpack_thumb() != LIBRAW_SUCCESS)
+        return {};
+    int        error   = 0;
+    const auto release = [](libraw_processed_image_t *_image) { LibRaw::dcraw_clear_mem(_image); };
+    std::unique_ptr<libraw_processed_image_t, decltype(release)> thumb(
+        decoder->dcraw_make_mem_thumb(&error), release);
+    if (!thumb || error != LIBRAW_SUCCESS || thumb->data_size > 64 * 1024 * 1024)
+        return {};
+    if (thumb->type == LIBRAW_IMAGE_JPEG) {
+        QByteArray bytes(reinterpret_cast<const char *>(thumb->data), int(thumb->data_size));
+        QBuffer    buffer(&bytes);
+        buffer.open(QIODevice::ReadOnly);
+        QImageReader reader(&buffer, "JPEG");
+        reader.setAutoTransform(true);
+        if (_size.isValid() && reader.size().isValid())
+            reader.setScaledSize(reader.size().scaled(_size, Qt::KeepAspectRatio));
+        return reader.read();
+    }
+    if (thumb->type == LIBRAW_IMAGE_BITMAP && thumb->colors == 3 && thumb->bits == 8 &&
+        thumb->width > 0 && thumb->height > 0 &&
+        quint64(thumb->width) * thumb->height * 3 <= thumb->data_size)
+        return QImage(thumb->data, thumb->width, thumb->height, thumb->width * 3,
+                      QImage::Format_RGB888)
+            .copy();
+    return {};
 }
 bool RawImageReader::isRawFile(const QString &_path)
 {

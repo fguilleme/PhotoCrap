@@ -54,6 +54,7 @@ Le [guide calques et mémoire](docs/LAYER_MEMORY.md) décrit le fonctionnement e
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
 - Une liste persistante des dix fichiers récemment ouverts ou enregistrés est disponible dans **Fichier → Ouvrir les fichiers récents** ; les fichiers disparus sont retirés automatiquement.
+- Une fenêtre d’accueil redimensionnable présente les fichiers récents en grille au démarrage et peut être rouverte par **Fichier → Accueil**. Les images compatibles affichent une miniature ; les fichiers RAW utilisent leur aperçu JPEG intégré lorsqu’il existe. Les projets `.pcr` sont composités en arrière-plan et leur miniature est conservée dans un cache limité.
 
 ## RAW et précision des couleurs
 

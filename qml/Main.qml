@@ -244,7 +244,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -1100,6 +1100,7 @@ ApplicationWindow {
         refreshToolLayout()
         restoreWorkspaceLayout()
         Qt.callLater(fitCanvas)
+        if (showWelcomeAtStartup) Qt.callLater(function() { recentFiles.refresh(); welcomeDialog.open() })
     }
     Connections {
         target: workspaceSettings
@@ -1226,6 +1227,7 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Fichier")
+            DarkMenuItem { text: qsTr("Accueil…"); enabled: !window.modalOpen; onTriggered: { recentFiles.refresh(); welcomeDialog.open() } }
             DarkMenuItem { action: newAction }
             DarkMenuItem { action: openAction }
             DarkMenu {
@@ -3593,6 +3595,96 @@ ApplicationWindow {
         }
     }
     Shortcut { sequence: "Escape"; enabled: editor.frequencyRetouchBusy; onActivated: editor.cancelFrequencyRetouch() }
+    Dialog {
+        id: welcomeDialog
+        objectName: "welcomeDialog"
+        title: qsTr("Bienvenue dans PhotoCrap")
+        anchors.centerIn: parent
+        width: Math.min(900, window.width - 80)
+        height: Math.min(580, window.height - 80)
+        modal: true
+        closePolicy: Popup.CloseOnEscape
+        background: Rectangle { color: "#22272f"; radius: 8; border.color: "#48535f" }
+        contentItem: ColumnLayout {
+            spacing: 14
+            Label { text: qsTr("Fichiers récents"); color: "#f5f7f9"; font.pixelSize: 18; font.bold: true }
+            Label {
+                visible: recentFiles.entries.length === 0
+                text: qsTr("Aucun fichier récent. Ouvrez une image ou créez un document.")
+                color: "#aab6c4"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+            }
+            GridView {
+                id: welcomeRecentList
+                objectName: "welcomeRecentList"
+                Layout.fillWidth: true; Layout.fillHeight: true
+                clip: true
+                readonly property int columns: Math.max(1, Math.floor(width / 166))
+                cellWidth: width / columns; cellHeight: 170
+                model: recentFiles.entries
+                function thumbnailReady(index, name) { const item = itemAtIndex(index); return item && item.modelData.name === name && item.thumbnailStatus === Image.Ready && (item.thumbnailWidth > 1 || item.thumbnailHeight > 1) }
+                function thumbnailUnavailable(index, name) { const item = itemAtIndex(index); return item && item.modelData.name === name && item.thumbnailStatus === Image.Ready && item.thumbnailWidth <= 1 && item.thumbnailHeight <= 1 }
+                ScrollBar.vertical: ScrollBar { }
+                delegate: ItemDelegate {
+                    id: recentEntry
+                    required property var modelData
+                    readonly property int thumbnailStatus: recentThumbnail.status
+                    readonly property real thumbnailWidth: recentThumbnail.implicitWidth
+                    readonly property real thumbnailHeight: recentThumbnail.implicitHeight
+                    objectName: "welcomeRecentEntry"
+                    width: welcomeRecentList.cellWidth - 8; height: welcomeRecentList.cellHeight - 8
+                    Accessible.name: modelData.name
+                    background: Rectangle { radius: 5; color: recentEntry.hovered || recentEntry.activeFocus ? "#39454c" : "#2b323b"; border.color: recentEntry.activeFocus ? "#8ecba7" : "#3a4650" }
+                    contentItem: ColumnLayout {
+                        spacing: 5
+                        Rectangle {
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            color: "#171c22"; radius: 3; clip: true
+                            Image {
+                                id: recentThumbnail
+                                objectName: "welcomeRecentThumbnail"
+                                anchors.fill: parent; anchors.margins: 3
+                                source: welcomeDialog.opened ? "image://recent/" + Qt.btoa(encodeURIComponent(recentEntry.modelData.url.toString())).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : ""
+                                asynchronous: true; cache: false
+                                sourceSize.width: 320; sourceSize.height: 220
+                                fillMode: Image.PreserveAspectFit
+                            }
+                            Label { anchors.centerIn: parent; visible: recentThumbnail.status !== Image.Ready || (recentThumbnail.implicitWidth <= 1 && recentThumbnail.implicitHeight <= 1); text: recentThumbnail.status === Image.Loading ? qsTr("Chargement…") : qsTr("Aperçu indisponible"); color: "#aab6c4"; font.pixelSize: 10 }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 2
+                            Label { text: recentEntry.modelData.name; color: "#f5f7f9"; font.bold: true; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                            Label { text: recentEntry.modelData.directory; color: "#aab6c4"; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                        }
+                    }
+                    onClicked: { welcomeDialog.close(); window.guardRecent(modelData.url) }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                DialogActionButton { text: qsTr("Nouveau…"); onClicked: { welcomeDialog.close(); window.guard("new") } }
+                DialogActionButton { text: qsTr("Ouvrir…"); onClicked: { welcomeDialog.close(); window.guard("open") } }
+                Item { Layout.fillWidth: true }
+                DialogActionButton { text: qsTr("Fermer"); onClicked: welcomeDialog.close() }
+                Rectangle {
+                    objectName: "welcomeResizeHandle"
+                    width: 24; height: 24; color: "transparent"
+                    Label { anchors.centerIn: parent; text: "◢"; color: "#aab6c4" }
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.SizeFDiagCursor
+                        property point start
+                        property size originalSize
+                        onPressed: function(mouse) { start = mapToItem(null, mouse.x, mouse.y); originalSize = Qt.size(welcomeDialog.width, welcomeDialog.height) }
+                        onPositionChanged: function(mouse) {
+                            if (!pressed) return
+                            const p = mapToItem(null, mouse.x, mouse.y)
+                            welcomeDialog.width = Math.max(400, Math.min(window.width - 32, originalSize.width + 2 * (p.x - start.x)))
+                            welcomeDialog.height = Math.max(300, Math.min(window.height - 32, originalSize.height + 2 * (p.y - start.y)))
+                        }
+                    }
+                }
+            }
+        }
+    }
     FileDialog {
         id: openDialog; objectName: "openDialog"; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
         nameFilters: [window.importing

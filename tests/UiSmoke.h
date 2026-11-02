@@ -267,6 +267,91 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "recent-files menu stays compact for long paths"))
         return false;
     QMetaObject::invokeMethod(recentMenu, "close");
+    auto *welcome = _window->findChild<QObject *>("welcomeDialog");
+    if (!require(welcome && QMetaObject::invokeMethod(welcome, "open"), "welcome dialog opens"))
+        return false;
+    QTest::qWait(100);
+    auto *recentList = _window->findChild<QObject *>("welcomeRecentList");
+    if (!require(welcome->property("visible").toBool() && recentList &&
+                     recentList->property("count").toInt() == 1,
+                 "welcome dialog displays recent files"))
+        return false;
+    const auto waitThumbnail = [&](const QString &_path, bool _available) {
+        return QTest::qWaitFor(
+            [&] {
+                QVariant ready;
+                return QMetaObject::invokeMethod(
+                           recentList, _available ? "thumbnailReady" : "thumbnailUnavailable",
+                           Q_RETURN_ARG(QVariant, ready), Q_ARG(QVariant, 0),
+                           Q_ARG(QVariant, QFileInfo(_path).fileName())) &&
+                       ready.toBool();
+            },
+            3000);
+    };
+    if (!require(waitThumbnail(recentFile.fileName(), false),
+                 "invalid projects show a placeholder"))
+        return false;
+    const QString projectPath = recentDir.filePath(QString::fromUtf8("projet aperçu 50%.pcr"));
+    {
+        Document recentProject;
+        if (!require(recentProject.newDocument(80, 60) &&
+                         recentProject.saveProject(QUrl::fromLocalFile(projectPath)),
+                     "create a recent project thumbnail fixture"))
+            return false;
+    }
+    _recentFiles.add(QUrl::fromLocalFile(projectPath));
+    if (!require(waitThumbnail(projectPath, true),
+                 "welcome reconstructs a thumbnail from a recent project"))
+        return false;
+    QImage welcomeImage(40, 30, QImage::Format_ARGB32);
+    welcomeImage.fill(Qt::red);
+    const QString welcomePath = recentDir.filePath(QString::fromUtf8("échantillon 50%.png"));
+    if (!require(welcomeImage.save(welcomePath), "create a recent image thumbnail fixture"))
+        return false;
+    _recentFiles.add(QUrl::fromLocalFile(welcomePath));
+    if (!require(waitThumbnail(welcomePath, true), "welcome loads a thumbnail for a recent image"))
+        return false;
+    const auto jpegPath = recentDir.filePath("photo.jpg");
+    if (!require(welcomeImage.save(jpegPath), "create a JPEG thumbnail fixture"))
+        return false;
+    _recentFiles.add(QUrl::fromLocalFile(jpegPath));
+    if (!require(waitThumbnail(jpegPath, true), "welcome displays a recent JPEG thumbnail"))
+        return false;
+    QFile rawPreview(recentDir.filePath(QString::fromUtf8("aperçu 50%.dng")));
+    if (!require(rawPreview.open(QIODevice::WriteOnly), "create an embedded RAW thumbnail fixture"))
+        return false;
+    const auto rawPreviewData = RawTestImage::dngWithThumbnail();
+    if (!require(!rawPreviewData.isEmpty() &&
+                     rawPreview.write(rawPreviewData) == rawPreviewData.size(),
+                 "write the embedded RAW thumbnail fixture"))
+        return false;
+    rawPreview.close();
+    _recentFiles.add(QUrl::fromLocalFile(rawPreview.fileName()));
+    if (!require(waitThumbnail(rawPreview.fileName(), true),
+                 "welcome displays the RAW file's embedded thumbnail"))
+        return false;
+    const int wideColumns  = recentList->property("columns").toInt();
+    auto     *resizeHandle = _window->findChild<QQuickItem *>("welcomeResizeHandle");
+    if (!require(resizeHandle && resizeHandle->width() > 0 && resizeHandle->height() > 0,
+                 "welcome resize handle is available"))
+        return false;
+    const qreal initialWidth = welcome->property("width").toReal();
+    const auto  resizeStart =
+        resizeHandle->mapToScene(resizeHandle->boundingRect().center()).toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, resizeStart);
+    QTest::mouseMove(_window, resizeStart - QPoint(65, 25), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, resizeStart - QPoint(65, 25));
+    QTest::qWait(100);
+    if (!require(welcome->property("width").toReal() < initialWidth - 40,
+                 "dragging the handle resizes the welcome dialog"))
+        return false;
+    welcome->setProperty("width", 420);
+    QTest::qWait(100);
+    if (!require(wideColumns > recentList->property("columns").toInt() &&
+                     recentList->property("columns").toInt() >= 1,
+                 "recent thumbnails reflow when the welcome dialog is resized"))
+        return false;
+    QMetaObject::invokeMethod(welcome, "close");
     _recentFiles.clear();
     QTest::qWait(20);
     if (!require(_window->property("recentFileCount").toInt() == 0,

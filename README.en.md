@@ -54,6 +54,7 @@ The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the impleme
 - Atomic `.pcr` project saving with layers. Flattened PNG, JPEG, BMP, and WebP export when the corresponding module is installed. JPEG and BMP composite transparency over white.
 - An editable demo composition from **File → Open Demo Composition**, or with the `--demo` option.
 - A persistent list of the ten most recently opened or saved files under **File → Open Recent Files**. Missing files are removed automatically.
+- A resizable welcome dialog displays recent files in a grid at startup and can be reopened from **File → Home**. Supported images show thumbnails and RAW files use their embedded JPEG when available. `.pcr` projects are composited in the background and their thumbnails are kept in a bounded cache.
 
 ## Building
 

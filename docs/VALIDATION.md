@@ -1,5 +1,18 @@
 # Validation
 
+## Accueil et miniatures des fichiers récents — 2 novembre 2026
+
+- Builds et `qml_smoke` sur Qt 6.8.3 et Qt 6.12.0 ; le test couvre les
+  miniatures PNG et JPEG, les chemins accentués et contenant `%`, l’aperçu RAW
+  intégré, la reconstruction d’un projet `.pcr`, le remplacement quand un fichier
+  est illisible et la poignée de redimensionnement.
+- Un DNG synthétique avec aperçu JPEG teste aussi l’extraction LibRaw dans le
+  moteur ; le DNG sans aperçu vérifie le retour vide. Le fichier réel
+  `IMG_9908.CR2` a permis de vérifier l’orientation et le décodage réduit.
+- Le chargement des vignettes est asynchrone. Les projets `.pcr` sont composités
+  puis mis en cache ; les RAW dépourvus d’aperçu intégré affichent un emplacement
+  de remplacement.
+
 ## Préparation GUI des phases de sélection — 2 novembre 2026
 
 - Builds Qt 6.8.3 / 6.12.0 et tests `canvas_render`, `tone_render`, `qml_smoke` ;

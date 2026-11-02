@@ -767,6 +767,12 @@
   </context>
   <context>
     <name>Main</name>
+    <message><source>Accueil…</source><translation>Home…</translation></message>
+    <message><source>Bienvenue dans PhotoCrap</source><translation>Welcome to PhotoCrap</translation></message>
+    <message><source>Fichiers récents</source><translation>Recent files</translation></message>
+    <message><source>Aucun fichier récent. Ouvrez une image ou créez un document.</source><translation>No recent files. Open an image or create a document.</translation></message>
+    <message><source>Aperçu indisponible</source><translation>Preview unavailable</translation></message>
+    <message><source>Chargement…</source><translation>Loading…</translation></message>
     <message><source>Contour du tracé avec le pinceau</source><translation>Stroke Path with Brush</translation></message>
     <message><source>Définir une sélection</source><translation>Make Selection</translation></message>
     <message><source>Fermer le tracé</source><translation>Close Path</translation></message>

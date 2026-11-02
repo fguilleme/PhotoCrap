@@ -1,5 +1,13 @@
 # Validation
 
+## Animation des contours hors de la vue — 2 novembre 2026
+
+- Tests Metal sur Qt 6.8 et 6.12 : rectangles et ellipses en 8 et 16 bits,
+  aucun travail de préparation de phase ni transfert de géométrie quand aucun
+  segment n’est visible, puis reprise avec la phase exacte au retour du bord.
+- Le repli logiciel conserve son fonctionnement ; l’horloge de phase continue
+  de tourner afin de conserver la synchronisation avec les autres guides.
+
 ## Surimpressions hors de la vue — 2 novembre 2026
 
 - Les tests couvrent les régions fragmentées, les contacts aux bords, les UV de

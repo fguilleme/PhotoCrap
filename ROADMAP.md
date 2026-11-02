@@ -158,6 +158,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Préparation des contours de sélection GPU : réutilisation de la normale déjà calculée pour chaque segment et ses raccords, avec allocation des points limitée au contour. Géométrie et repli inchangés.
 - [x] Préparation des contours GPU : élimination anticipée des tracés entièrement hors de la vue, avant conversion en polygones, en conservant les segments sur le bord et les courbes visibles.
 - [x] Surimpressions Suppression et Pièce : rejet des régions entièrement hors de la vue avant parcours de leurs rectangles, avec marge de précision pour les coordonnées aux limites.
+- [x] Contours GPU sans segment visible : les changements de phase ne réveillent plus le graphe de scène ; la phase courante est appliquée dès le retour du contour dans la vue.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

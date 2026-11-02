@@ -321,9 +321,13 @@ void CanvasItem::setSelectionPhase(qreal _phase)
     const int  shape     = m_document ? m_document->selectionShape() : -1;
     const bool pathLasso = shape == 4 || (shape == 5 && !m_document->lassoPreviewActive());
     if ((shape >= 0 && shape <= 3) || pathLasso || shape >= 6) {
-        if (m_gpuSelection)
-            polish();
-        else
+        if (m_gpuSelection) {
+            // Keep the phase current without waking the scene graph when the
+            // clipped selection contains no visible segments. A later full
+            // update will use the latest phase when a contour returns.
+            if (!m_selectionVertices.isEmpty())
+                polish();
+        } else
             queueFrame(false, true);
     }
     emit selectionPhaseChanged();

@@ -904,6 +904,33 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
                                  canvas.overlayTextureUploads() == textures,
                              "marquee fractional phases stay smooth without rebuilding resources"))
                     return false;
+                // The viewport is entirely inside the selection, so no edge
+                // is visible. Phase changes must not schedule scene work.
+                canvas.setViewportRect(QRectF(bounds.center() - QPointF(10, 10), QSizeF(20, 20)));
+                frame();
+                const auto hiddenPreparations = canvas.phaseOnlyPreparations();
+                const auto hiddenGeometry     = canvas.selectionGeometryUploads();
+                if (!require(
+                        canvas.selectionShaderActive() && canvas.selectionVertexCount() == 0,
+                        "an offscreen contour retains its GPU selection state without vertices"))
+                    return false;
+                canvas.setSelectionPhase(5.25);
+                QTest::qWait(60);
+                if (!require(canvas.phaseOnlyPreparations() == hiddenPreparations &&
+                                 canvas.selectionGeometryUploads() == hiddenGeometry,
+                             "invisible contours do not schedule phase-only rendering"))
+                    return false;
+                canvas.setViewportRect(canvas.boundingRect());
+                const auto returned = frame();
+                canvas.setSelectionPhase(3);
+                const auto phaseThree = frame();
+                if (!require(canvas.selectionVertexCount() > 0 && returned != phaseThree,
+                             "returning contours display the latest phase and resume animation"))
+                    return false;
+                canvas.setSelectionPhase(5.25);
+                if (!require(frame() == returned,
+                             "returning contours use the phase received while they were hidden"))
+                    return false;
             }
             canvas.setSelectionPhase(3);
             frame();

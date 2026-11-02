@@ -1,5 +1,14 @@
 # Validation
 
+## Flou de boîte 16 bits — 2 novembre 2026
+
+- Comparaison exacte à une référence scalaire pour trois tailles, dont une
+  ligne et une colonne, et les rayons 1, 7 et 30. Les tests couvrent aussi les
+  bords et l’alpha prémultiplié ; le test de composition régionale reste valide.
+- Sur une image synthétique de 12 Mpx avec huit threads, la passe verticale
+  mesurée isolément passe d’environ 193 à 61 ms et produit les mêmes pixels.
+  Ce chiffre n’inclut ni la passe horizontale ni l’affichage ou les autres effets.
+
 ## Animation des contours hors de la vue — 2 novembre 2026
 
 - Tests Metal sur Qt 6.8 et 6.12 : rectangles et ellipses en 8 et 16 bits,

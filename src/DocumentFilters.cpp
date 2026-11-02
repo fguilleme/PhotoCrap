@@ -201,7 +201,50 @@ QImage Document::blurImage(const QImage &_source, int _radius)
             });
         };
         pass(input, horizontal, false);
-        pass(horizontal, result, true);
+        // Process adjacent columns together, so each source and destination
+        // row is read/written sequentially rather than one strided column at
+        // a time. Each task owns its columns and a small set of running sums.
+        struct Sums {
+            qint64 red = 0, green = 0, blue = 0, alpha = 0;
+        };
+        const int    jobs = qMin(w, qMax(1, QThreadPool::globalInstance()->maxThreadCount() * 2));
+        QVector<int> blocks(jobs);
+        std::iota(blocks.begin(), blocks.end(), 0);
+        uchar          *destination = result.bits();
+        const qsizetype stride      = result.bytesPerLine();
+        ImageUtils::blockingMap(blocks, [&](int _block) {
+            const int     first = w * _block / jobs, last = w * (_block + 1) / jobs;
+            QVector<Sums> sums(last - first);
+            for (int k = -_radius; k <= _radius; ++k) {
+                const auto *row = reinterpret_cast<const QRgba64 *>(
+                    horizontal.constScanLine(qBound(0, k, h - 1)));
+                for (int x = first; x < last; ++x) {
+                    const auto c   = row[x];
+                    auto      &sum = sums[x - first];
+                    sum.red += c.red();
+                    sum.green += c.green();
+                    sum.blue += c.blue();
+                    sum.alpha += c.alpha();
+                }
+            }
+            for (int y = 0; y < h; ++y) {
+                auto       *out     = reinterpret_cast<QRgba64 *>(destination + y * stride);
+                const auto *removed = reinterpret_cast<const QRgba64 *>(
+                    horizontal.constScanLine(qBound(0, y - _radius, h - 1)));
+                const auto *added = reinterpret_cast<const QRgba64 *>(
+                    horizontal.constScanLine(qBound(0, y + _radius + 1, h - 1)));
+                for (int x = first; x < last; ++x) {
+                    auto &sum    = sums[x - first];
+                    out[x]       = QRgba64::fromRgba64(sum.red / window, sum.green / window,
+                                                       sum.blue / window, sum.alpha / window);
+                    const auto a = added[x], r = removed[x];
+                    sum.red += qint64(a.red()) - r.red();
+                    sum.green += qint64(a.green()) - r.green();
+                    sum.blue += qint64(a.blue()) - r.blue();
+                    sum.alpha += qint64(a.alpha()) - r.alpha();
+                }
+            }
+        });
         return result;
     }
     const QImage input = _source.convertToFormat(QImage::Format_ARGB32_Premultiplied);

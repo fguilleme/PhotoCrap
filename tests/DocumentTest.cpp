@@ -5265,6 +5265,58 @@ private slots:
         d.undo();
         QCOMPARE(d.layers().size(), 2);
     }
+    void sixteenBitBoxBlurMatchesScalarReference()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        for (const QSize size : {QSize(1, 13), QSize(17, 1), QSize(37, 29)}) {
+            QImage source(size, QImage::Format_RGBA64_Premultiplied);
+            source.setColorSpace(QColorSpace::SRgb);
+            for (int y = 0; y < size.height(); ++y)
+                for (int x = 0; x < size.width(); ++x)
+                    source.setPixelColor(
+                        x, y,
+                        QColor::fromRgba64(ushort((x * 4093 + y * 337) % 65536),
+                                           ushort((x * 211 + y * 5147) % 65536),
+                                           ushort((x * 3251 + y * 1789) % 65536),
+                                           ushort((x * 613 + y * 1237 + 5000) % 65536)));
+            const QString path =
+                dir.filePath(QString("%1x%2.png").arg(size.width()).arg(size.height()));
+            QVERIFY(source.save(path));
+            for (int radius : {1, 7, 30}) {
+                Document document;
+                QVERIFY(document.openFile(QUrl::fromLocalFile(path)));
+                const QImage original = document.layerImage(0);
+                QCOMPARE(original.format(), QImage::Format_RGBA64_Premultiplied);
+                const int window = radius * 2 + 1;
+                auto      pass   = [&](const QImage &input, bool vertical) {
+                    QImage output = ImageUtils::blank(size, QImage::Format_RGBA64_Premultiplied);
+                    for (int y = 0; y < size.height(); ++y) {
+                        auto *dst = reinterpret_cast<QRgba64 *>(output.scanLine(y));
+                        for (int x = 0; x < size.width(); ++x) {
+                            quint64 r = 0, g = 0, b = 0, a = 0;
+                            for (int k = -radius; k <= radius; ++k) {
+                                const int  sx = vertical ? x : qBound(0, x + k, size.width() - 1);
+                                const int  sy = vertical ? qBound(0, y + k, size.height() - 1) : y;
+                                const auto c =
+                                    reinterpret_cast<const QRgba64 *>(input.constScanLine(sy))[sx];
+                                r += c.red();
+                                g += c.green();
+                                b += c.blue();
+                                a += c.alpha();
+                            }
+                            dst[x] =
+                                QRgba64::fromRgba64(r / window, g / window, b / window, a / window);
+                        }
+                    }
+                    return output;
+                };
+                const QImage expected = pass(pass(original, false), true);
+                document.applyFilter("blur", radius);
+                QCOMPARE(document.layerImage(0), expected);
+            }
+        }
+    }
     void layerMasksCanBePaintedAndToggled()
     {
         Document d;

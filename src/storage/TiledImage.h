@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QColor>
+#include <QColorSpace>
+#include <QHash>
 #include <QImage>
 #include <QPainter>
 #include <QRect>
@@ -28,9 +30,14 @@ public:
     qint64 heapBytes() const;
     // Import native pixels exactly; updates retain immutable versions of
     // unchanged tiles, including their disk leases.
-    bool   replace(const QImage &_image);
-    QImage region(const QRect &_region) const;
-    bool   paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);
+    bool                  replace(const QImage &_image);
+    bool                  writeRegion(const QPoint &_origin, const QImage &_pixels);
+    QImage::Format        format() const;
+    QColorSpace           colorSpace() const;
+    QHash<qint64, qint64> storageBlocks() const;
+    QHash<qint64, qint64> heapBlocks() const;
+    QImage                region(const QRect &_region) const;
+    bool paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);
     // Reuse unique tiles for disposable gesture buffers. On failure the caller
     // must discard this buffer; shared snapshots are still protected.
     bool paintTransient(const QRect &_region, const std::function<void(QPainter &)> &_paint);

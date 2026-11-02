@@ -14,9 +14,10 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
         m_springLoadedTools    = QSettings().value("tools/springLoaded", true).toBool();
         m_layout               = QSettings().value(QStringLiteral("workspace/layout")).toMap();
         m_toolLayout           = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
-        m_scratchDiskGiB       = qBound(0, QSettings().value("cache/diskGiB", 4).toInt(), 64);
-        m_scratchDirectory     = QSettings().value("cache/directory").toString();
-        m_textureCacheMiB      = qBound(0, QSettings().value("cache/textureMiB", 64).toInt(), 1024);
+        m_planeRamMiB      = qBound(0, QSettings().value("cache/planeRamMiB", 256).toInt(), 4096);
+        m_scratchDiskGiB   = qBound(0, QSettings().value("cache/diskGiB", 4).toInt(), 64);
+        m_scratchDirectory = QSettings().value("cache/directory").toString();
+        m_textureCacheMiB  = qBound(0, QSettings().value("cache/textureMiB", 64).toInt(), 1024);
         if (!m_scratchDirectory.isEmpty() && !QDir::isAbsolutePath(m_scratchDirectory))
             m_scratchDirectory.clear();
     }
@@ -217,4 +218,15 @@ void WorkspaceSettings::setAutoCreatePaintLayer(bool _value)
     if (m_persist)
         QSettings().setValue("tools/autoCreatePaintLayer", _value);
     emit toolBehaviorChanged();
+}
+
+void WorkspaceSettings::setPlaneRamMiB(int value)
+{
+    value = qBound(0, value, 4096);
+    if (value == m_planeRamMiB)
+        return;
+    m_planeRamMiB = value;
+    if (m_persist)
+        QSettings().setValue("cache/planeRamMiB", value);
+    emit planeRamChanged();
 }

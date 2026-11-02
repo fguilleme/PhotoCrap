@@ -1,5 +1,34 @@
 # Calques, mémoire et cache de travail disque
 
+## Migration du 3 novembre 2026
+
+`PixelPlane` stocke désormais les plans de calques, masques et sources de fréquences
+et leurs versions d’historique dans `TiledImage`. Les tuiles inchangées sont partagées ;
+les écritures régionales du Pinceau, Crayon et de la Gomme créent uniquement les
+versions touchées. Le composite CPU lit les régions nécessaires sans retenir de
+copie complète du calque. Les autres outils, transformations, filtres et sauvegardes
+peuvent encore matérialiser une image complète temporaire.
+
+Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
+(256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états
+historiques sont parcourus avant les plans actifs. Les versions en cours d’utilisation
+restent valides grâce aux références immuables et aux leases des fichiers. Un refus
+d’écriture garde les pixels en mémoire ; vider le cache ne détruit pas les tuiles
+encore utilisées. Les limites de dimensions/calques et la réservation logique de
+2 Gio ne sont pas relevées.
+
+`memoryUsage()` compte les versions de tuiles partagées une fois et expose
+`tileHeapBytes` pour leurs allocations natives. Ce chiffre ne représente pas toute
+la RAM du processus : mappings, composite, sélections, images exportées et buffers
+temporaires restent distincts. La RAM résidente des pages mappées est gérée par l’OS.
+
+Les tests vérifient un trait et un masque local sur 24 Mpx/16 bits avec au plus
+576 Kio de plans persistants, ainsi qu’édition, déchargement, vidage du cache,
+Annuler/Rétablir et sauvegarde/rechargement d’un document 16 bits.
+
+## État historique avant cette migration
+
+
 État vérifié pour **v0.15**, le **29 octobre 2026**, à partir de l’audit du 28 octobre.
 Cette version livre les optimisations de composition, le cache disque des rendus de
 fréquences et la couverture des traits par tuiles. Les pixels des calques, les masques

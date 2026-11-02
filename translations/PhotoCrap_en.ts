@@ -4755,13 +4755,17 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>ScratchCachePreferences</name>
+    <message><source>Tuiles RAM : %1 Mio · objectif %2 Mio</source><translation>Tile RAM: %1 MiB · target %2 MiB</translation></message>
     <message><source>Mio</source><translation>MiB</translation></message>
     <message><source>Cache graphique</source><translation>Graphics cache</translation></message>
     <message><source>Budget du cache graphique</source><translation>Graphics cache budget</translation></message>
     <message><source>Conserve les zones récemment affichées pour accélérer les déplacements. 0 désactive cette réserve. La zone visible reste prioritaire et peut dépasser le budget.</source><translation>Keeps recently displayed areas to speed up panning. 0 disables this reserve. The visible area has priority and may exceed the budget.</translation></message>
 
     <message><source>Cache de travail</source><translation>Scratch cache</translation></message>
-    <message><source>Conserve les rendus de fréquences sur disque pour éviter de les recalculer. Les pixels des calques et l’historique ne sont pas encore déchargés sur disque.</source><translation>Stores frequency renders on disk to avoid recalculating them. Layer pixels and history are not offloaded to disk yet.</translation></message>
+    <message><source>Conserve les rendus de fréquences et les tuiles des calques, masques et états d’historique sur disque. Les opérations qui utilisent encore une image complète réservent un tampon temporaire.</source><translation>Stores frequency renders and layer, mask and history tiles on disk. Operations that still require a full image allocate a temporary buffer.</translation></message>
+    <message><source>Tuiles en mémoire</source><translation>Tiles in memory</translation></message>
+    <message><source>Budget RAM des tuiles</source><translation>Tile RAM budget</translation></message>
+    <message><source>Objectif pour les tuiles hors des opérations en cours. Le déchargement se fait après une pause ; un disque indisponible conserve les données en mémoire. Ce budget ne couvre pas tous les tampons de l’application.</source><translation>Target for tiles outside active operations. Tiles are offloaded after a pause; unavailable disk storage keeps their data in memory. This budget does not cover all application buffers.</translation></message>
     <message><source>Budget disque</source><translation>Disk budget</translation></message>
     <message><source>Gio</source><translation>GiB</translation></message>
     <message><source>Budget du cache disque</source><translation>Disk cache budget</translation></message>

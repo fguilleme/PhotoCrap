@@ -414,7 +414,7 @@ void Document::createDemo()
     newDocument(1440, 1000);
     auto &background = m_layers[0];
     background.name  = tr("Fond · bleu nuit");
-    QPainter        bg(&background.image);
+    QPainter        bg(&background.image.edit());
     QLinearGradient gradient(0, 0, 1440, 1000);
     gradient.setColorAt(0, QColor("#0e2632"));
     gradient.setColorAt(1, QColor("#30424c"));

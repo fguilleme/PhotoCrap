@@ -3,6 +3,7 @@
 #include "RawImageReader.h"
 #include "filters/ToneMappingTable.h"
 #include "selection/SelectionCoverage.h"
+#include "storage/PixelPlane.h"
 #include "storage/TiledImage.h"
 #include "tools/PenPath.h"
 #include "tools/SliceDescriptionCache.h"
@@ -40,7 +41,7 @@ struct Layer {
     // Runtime identity follows a layer through reordering and undo.
     QString     historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString     name;
-    QImage      image;
+    PixelPlane  image;
     bool        visible = true;
     bool        locked  = false;
     qreal       opacity = 1;
@@ -48,12 +49,12 @@ struct Layer {
     QString     kind    = QStringLiteral("pixel");
     QString     adjustmentType;
     QVariantMap parameters;
-    QImage      mask;
+    PixelPlane  mask;
     bool        maskEnabled  = true;
     bool        clippingMask = false;
     QString     groupId;
     bool        groupCollapsed = false;
-    QImage      source;
+    PixelPlane  source;
 };
 
 class Document : public QObject
@@ -939,6 +940,11 @@ public:
     }
     Q_INVOKABLE QVariantMap memoryUsage() const;
     Q_INVOKABLE void        configureScratchCache(const QString &_directory, qint64 _maxBytes);
+    Q_INVOKABLE void        configurePlaneRamMiB(int value)
+    {
+        m_planeRamMiB = qBound(0, value, 4096);
+        schedulePlaneOffload();
+    }
     Q_INVOKABLE QVariantMap scratchCacheUsage() const;
     Q_INVOKABLE void        clearScratchCache();
 
@@ -947,8 +953,12 @@ public:
     void             setStampPattern(int _value);
     Q_INVOKABLE void setCloneSource(qreal _x, qreal _y);
     Q_INVOKABLE bool defineStampPattern();
-    const QImage    &composite() const;
-    QImage           displayComposite() const;
+    qint64           layerPixelVersion(int index) const
+    {
+        return index >= 0 && index < m_layers.size() ? m_layers[index].image.cacheKey() : 0;
+    }
+    const QImage &composite() const;
+    QImage        displayComposite() const;
     // Empty means the caller must refresh the whole image. Keys identify the
     // exact before/after composite, even if another consumer rendered first.
     QRect compositeUpdateRegion(qint64 _before, qint64 _after) const;
@@ -1470,6 +1480,7 @@ private:
     QPointF    m_anchor, m_last;
     QPointF    m_smoothedLast;
     qreal      m_distanceToNextDab = 0;
+    PixelPlane m_strokePlaneBase;
     QImage     m_strokeBase, m_strokeCoverage;
     TiledImage m_tiledStrokeCoverage;
     bool       m_strokeCoverageFailed = false;
@@ -1477,6 +1488,10 @@ private:
     QRectF     m_strokeBounds;
     mutable QCache<QString, QImage>    m_frequencyCache{128 * 1024};
     std::shared_ptr<ScratchImageCache> m_scratchCache;
+    QTimer                             m_planeOffloadTimer;
+    int                                m_planeRamMiB = 256;
+    QFutureWatcher<void>               m_planeOffloadWatcher;
+    void                               schedulePlaneOffload();
     struct PreviewRenderResult {
         QImage image, mask;
         qint64 maskSourceKey = 0;

@@ -184,16 +184,15 @@ const QImage &Document::composite() const
         else
             rendered = ImageUtils::compact(layer.image)
                            ? ImageUtils::expandedPlane(layer.image, workRegion.size())
-                           : regionImage(layer.image);
+                           : layer.image.region(workRegion);
         if (layer.maskEnabled && !layer.mask.isNull()) {
             const qreal  density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal  feather = layer.parameters.value("_maskFeather", 0.).toDouble();
-            const QImage maskRegion =
-                ImageUtils::compact(layer.mask)
-                    ? layer.mask
-                    : regionImage(feather >= .5 ? blurImage(layer.mask, qRound(feather))
-                                                : layer.mask);
-            rendered = applyMask(rendered, maskRegion, density, 0);
+            const QImage maskRegion = ImageUtils::compact(layer.mask) ? QImage(layer.mask)
+                                      : feather >= .5
+                                          ? regionImage(blurImage(layer.mask, qRound(feather)))
+                                          : layer.mask.region(workRegion);
+            rendered                = applyMask(rendered, maskRegion, density, 0);
         }
         if (layer.clippingMask) {
             if (clippingBase.isNull())

@@ -23,6 +23,8 @@ class WorkspaceSettings final : public QObject
     Q_PROPERTY(int textureCacheMiB READ textureCacheMiB WRITE setTextureCacheMiB NOTIFY
                    textureCacheChanged)
 
+    Q_PROPERTY(int planeRamMiB READ planeRamMiB WRITE setPlaneRamMiB NOTIFY planeRamChanged)
+
 public:
     explicit WorkspaceSettings(QObject *_parent = nullptr, bool _persist = true);
 
@@ -68,6 +70,11 @@ public:
         return m_textureCacheMiB;
     }
     void setTextureCacheMiB(int _value);
+    int  planeRamMiB() const
+    {
+        return m_planeRamMiB;
+    }
+    void setPlaneRamMiB(int value);
 
 signals:
     void toolBehaviorChanged();
@@ -75,6 +82,7 @@ signals:
     void toolLayoutChanged();
     void scratchCacheChanged();
     void textureCacheChanged();
+    void planeRamChanged();
 
 private:
     static QVariantList defaultToolLayout();
@@ -85,6 +93,7 @@ private:
     bool         m_persist              = true;
     bool         m_useShiftToCycleTools = true, m_springLoadedTools = true;
     bool         m_autoCreatePaintLayer = true;
+    int          m_planeRamMiB          = 256;
     int          m_scratchDiskGiB       = 4;
     int          m_textureCacheMiB      = 64;
     QString      m_scratchDirectory;

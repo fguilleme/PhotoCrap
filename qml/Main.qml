@@ -4825,6 +4825,7 @@ ApplicationWindow {
                         workspaceSettings.scratchDirectory = ""
                         workspaceSettings.scratchDiskGiB = 4
                         workspaceSettings.textureCacheMiB = 64
+                        workspaceSettings.planeRamMiB = 256
                     }
                 }
             }

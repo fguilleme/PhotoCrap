@@ -606,6 +606,16 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "graphics cache edits apply immediately"))
         return false;
     _workspaceSettings.setTextureCacheMiB(64);
+    auto planeBudget = _window->findChild<QObject *>("planeRamBudget");
+    if (!require(planeBudget && planeBudget->property("value").toInt() == 256,
+                 "tile RAM budget is available in preferences"))
+        return false;
+    planeBudget->setProperty("value", 128);
+    QMetaObject::invokeMethod(planeBudget, "valueModified");
+    if (!require(_workspaceSettings.planeRamMiB() == 128,
+                 "tile RAM budget edits apply to settings"))
+        return false;
+    _workspaceSettings.setPlaneRamMiB(256);
     QMetaObject::invokeMethod(clearScratch, "clicked");
     _workspaceSettings.setScratchDiskGiB(4);
     QMetaObject::invokeMethod(preferences, "close");

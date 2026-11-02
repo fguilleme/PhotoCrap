@@ -216,6 +216,9 @@ int main(int argc, char *argv[])
             smoke ? 0 : qint64(workspaceSettings.scratchDiskGiB()) * 1024 * 1024 * 1024);
     };
     configureScratch();
+    document.configurePlaneRamMiB(workspaceSettings.planeRamMiB());
+    QObject::connect(&workspaceSettings, &WorkspaceSettings::planeRamChanged, &document,
+                     [&] { document.configurePlaneRamMiB(workspaceSettings.planeRamMiB()); });
     QObject::connect(&workspaceSettings, &WorkspaceSettings::scratchCacheChanged, &document,
                      configureScratch);
     int                   qmlWarnings = 0;

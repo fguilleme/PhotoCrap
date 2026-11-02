@@ -15,20 +15,21 @@
 
 namespace
 {
-QImage cachedScreenProxy(const QImage &_source, const QSize &_size, QImage::Format _format)
+QMutex                  screenProxyMutex;
+QCache<QString, QImage> screenProxyCache(128 * 1024);
+template <typename Image>
+QImage cachedScreenProxy(const Image &_source, const QSize &_size, QImage::Format _format)
 {
     if (_source.isNull() || !_size.isValid())
         return {};
-    const QString                  key = QStringLiteral("%1:%2x%3:%4")
-                                             .arg(_source.cacheKey())
-                                             .arg(_size.width())
-                                             .arg(_size.height())
-                                             .arg(int(_format));
-    static QMutex                  cacheMutex;
-    static QCache<QString, QImage> cache(128 * 1024);
+    const QString key = QStringLiteral("%1:%2x%3:%4")
+                            .arg(_source.cacheKey())
+                            .arg(_size.width())
+                            .arg(_size.height())
+                            .arg(int(_format));
     {
-        QMutexLocker locker(&cacheMutex);
-        if (const QImage *cached = cache.object(key))
+        QMutexLocker locker(&screenProxyMutex);
+        if (const QImage *cached = screenProxyCache.object(key))
             return *cached;
     }
     QImage    proxy = _source.scaled(_size, Qt::IgnoreAspectRatio, Qt::FastTransformation)
@@ -36,8 +37,8 @@ QImage cachedScreenProxy(const QImage &_source, const QSize &_size, QImage::Form
     const int cost =
         qMax(1, int(qMin<qsizetype>(proxy.sizeInBytes() / 1024, std::numeric_limits<int>::max())));
     {
-        QMutexLocker locker(&cacheMutex);
-        cache.insert(key, new QImage(proxy), cost);
+        QMutexLocker locker(&screenProxyMutex);
+        screenProxyCache.insert(key, new QImage(proxy), cost);
     }
     return proxy;
 }
@@ -156,7 +157,7 @@ void Document::startPendingPreviewRender()
     m_runningPreviewGpuAux     = m_pendingPreviewGpuAux;
     m_runningGpuToneEpoch      = m_gpuToneEpoch;
     const bool gpuBase         = m_runningPreviewGpuBase;
-    QImage     mask;
+    PixelPlane mask;
     int        feather = 0;
     if (gpuBase) {
         const auto &layer = layers.constLast();
@@ -190,13 +191,16 @@ void Document::startPendingPreviewRender()
                 }
                 if (!mask.isNull()) {
                     const qint64 key = mask.cacheKey();
-                    if (mask.size() != result.size())
-                        mask = cachedScreenProxy(mask, result.size(), QImage::Format_Grayscale8);
+                    QImage       preparedMask =
+                        mask.size() != result.size()
+                            ? cachedScreenProxy(mask, result.size(), QImage::Format_Grayscale8)
+                            : QImage(mask);
                     if (feather > 0)
-                        mask = blurImage(mask, feather).convertToFormat(QImage::Format_Grayscale8);
-                    if (mask.isNull())
+                        preparedMask = blurImage(preparedMask, feather)
+                                           .convertToFormat(QImage::Format_Grayscale8);
+                    if (preparedMask.isNull())
                         return {};
-                    return {result, mask, key, feather};
+                    return {result, preparedMask, key, feather};
                 }
             }
             return {result, {}};

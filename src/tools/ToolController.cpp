@@ -224,8 +224,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_redEyeRegion = {};
         emit redEyeRegionChanged();
     } else if (isPaintStrokeTool(m_tool)) {
-        QImage *target = paintTarget();
-        if (!target) {
+        const bool simplePaint = m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser";
+        QImage    *target      = simplePaint ? nullptr : paintTarget();
+        if (!simplePaint && !target) {
             m_drawing = false;
             return;
         }
@@ -246,16 +247,22 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             return;
         }
         m_artHistoryDabIndex = 0;
-        m_strokeBase         = *target;
-        m_strokeInkColor     = m_color;
+        if (simplePaint)
+            m_strokePlaneBase = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+        else
+            m_strokeBase = *target;
+        m_strokeInkColor = m_color;
         if (m_tool == "colorReplacement") {
             const QPoint sample(int(std::floor(_x)), int(std::floor(_y)));
             m_replacementSample =
                 target->rect().contains(sample) ? target->pixelColor(sample) : QColor{};
         }
         if (m_tool == "pencil" && m_pencilAutoErase &&
-            target->rect().contains(QPoint(int(_x), int(_y))) &&
-            target->pixelColor(int(_x), int(_y)).rgba() == m_color.rgba())
+            QRect(QPoint{}, m_size).contains(QPoint(int(_x), int(_y))) &&
+            m_strokePlaneBase
+                    .pixelColor(m_strokePlaneBase.size() == QSize(1, 1) ? 0 : int(_x),
+                                m_strokePlaneBase.size() == QSize(1, 1) ? 0 : int(_y))
+                    .rgba() == m_color.rgba())
             m_strokeInkColor = m_secondary;
         const QPointF requestedEnd = m_anchor;
         if (_straight && m_paintLastSession == m_documentSession && m_paintLastState == m_stateId &&
@@ -505,6 +512,7 @@ void Document::endStroke()
     m_beforeStroke         = {};
     m_strokeCreatedLayer   = false;
     m_strokeBase           = {};
+    m_strokePlaneBase      = {};
     m_strokeCoverage       = {};
     m_tiledStrokeCoverage  = {};
     m_strokeCoverageFailed = false;
@@ -579,6 +587,7 @@ void Document::cancelStroke()
     m_beforeStroke         = {};
     m_strokeCreatedLayer   = false;
     m_strokeBase           = {};
+    m_strokePlaneBase      = {};
     m_strokeCoverage       = {};
     m_tiledStrokeCoverage  = {};
     m_strokeCoverageFailed = false;
@@ -594,12 +603,14 @@ QImage *Document::paintTarget()
     if (m_active < 0 || m_active >= m_layers.size())
         return nullptr;
     if (m_editingMask && !m_layers[m_active].mask.isNull()) {
-        m_layers[m_active].mask = ImageUtils::expandedPlane(m_layers[m_active].mask, m_size);
-        return &m_layers[m_active].mask;
+        if (ImageUtils::compact(m_layers[m_active].mask))
+            m_layers[m_active].mask = ImageUtils::expandedPlane(m_layers[m_active].mask, m_size);
+        return &m_layers[m_active].mask.edit();
     }
     if (m_layers[m_active].kind == "pixel") {
-        m_layers[m_active].image = ImageUtils::expandedPlane(m_layers[m_active].image, m_size);
-        return &m_layers[m_active].image;
+        if (ImageUtils::compact(m_layers[m_active].image))
+            m_layers[m_active].image = ImageUtils::expandedPlane(m_layers[m_active].image, m_size);
+        return &m_layers[m_active].image.edit();
     }
     return nullptr;
 }

@@ -84,6 +84,35 @@ int TiledImage::tileCount() const
 {
     return m_data ? m_data->tiles.size() : 0;
 }
+QImage::Format TiledImage::format() const
+{
+    return m_data ? m_data->background.format() : QImage::Format_Invalid;
+}
+QColorSpace TiledImage::colorSpace() const
+{
+    return m_data ? m_data->background.colorSpace() : QColorSpace{};
+}
+QHash<qint64, qint64> TiledImage::storageBlocks() const
+{
+    QHash<qint64, qint64> result;
+    if (m_data)
+        for (const auto &tile : std::as_const(m_data->tiles)) {
+            QMutexLocker locker(&tile->mutex);
+            result.insert(-qint64(tile->id), tile->pixels.sizeInBytes());
+        }
+    return result;
+}
+QHash<qint64, qint64> TiledImage::heapBlocks() const
+{
+    QHash<qint64, qint64> result;
+    if (m_data)
+        for (const auto &tile : std::as_const(m_data->tiles)) {
+            QMutexLocker locker(&tile->mutex);
+            if (!tile->diskBacked)
+                result.insert(-qint64(tile->id), tile->pixels.sizeInBytes());
+        }
+    return result;
+}
 
 qint64 TiledImage::allocatedBytes() const
 {
@@ -184,6 +213,33 @@ QImage TiledImage::region(const QRect &_region) const
 bool TiledImage::paint(const QRect &_region, const std::function<void(QPainter &)> &_paint)
 {
     return paintRegion(_region, _paint, true);
+}
+
+bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels)
+{
+    if (!m_data || _pixels.isNull() || _pixels.format() != format())
+        return false;
+    const QRect region = QRect(_origin, _pixels.size()).intersected(QRect(QPoint{}, size()));
+    if (region.isEmpty())
+        return true;
+    auto      next  = std::make_shared<Data>(*m_data);
+    const int bytes = _pixels.depth() / 8;
+    for (int y = region.top() / TileSize; y <= region.bottom() / TileSize; ++y)
+        for (int x = region.left() / TileSize; x <= region.right() / TileSize; ++x) {
+            const QRect bounds = next->rect(x, y), overlap = region.intersected(bounds);
+            const auto  previous = next->tiles.value(next->key(x, y));
+            QImage      image    = previous ? previous->image().copy() : next->blank(bounds.size());
+            if (image.isNull())
+                return false;
+            for (int row = overlap.top(); row <= overlap.bottom(); ++row)
+                std::memcpy(image.scanLine(row - bounds.y()) + (overlap.x() - bounds.x()) * bytes,
+                            _pixels.constScanLine(row - _origin.y()) +
+                                (overlap.x() - _origin.x()) * bytes,
+                            size_t(overlap.width()) * bytes);
+            next->tiles.insert(next->key(x, y), std::make_shared<Tile>(image));
+        }
+    m_data = std::move(next);
+    return true;
 }
 
 bool TiledImage::paintTransient(const QRect &_region, const std::function<void(QPainter &)> &_paint)

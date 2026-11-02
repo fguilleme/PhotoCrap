@@ -8,11 +8,15 @@ ScrollView {
     required property var document
     required property var settings
     property var usage: ({})
+    property var planeUsage: ({})
     contentWidth: availableWidth
     clip: true
     function refresh() {
         const current = document.scratchCacheUsage()
-        if (!current.busy) usage = current
+        if (!current.busy) {
+            usage = current
+            planeUsage = document.memoryUsage()
+        }
     }
     onVisibleChanged: if (visible) refresh()
     Component.onCompleted: refresh()
@@ -40,7 +44,7 @@ ScrollView {
     }
     Label {
         Layout.fillWidth: true
-        text: qsTr("Conserve les rendus de fréquences sur disque pour éviter de les recalculer. Les pixels des calques et l’historique ne sont pas encore déchargés sur disque.")
+        text: qsTr("Conserve les rendus de fréquences et les tuiles des calques, masques et états d’historique sur disque. Les opérations qui utilisent encore une image complète réservent un tampon temporaire.")
         color: "#a8b5c1"; wrapMode: Text.WordWrap
     }
     Rectangle { Layout.fillWidth: true; height: 1; color: "#39424c" }
@@ -58,6 +62,28 @@ ScrollView {
         Layout.fillWidth: true
         text: qsTr("0 désactive le cache. Une réserve de 512 Mio d’espace libre est conservée. Le cache RAM de fréquences reste limité à 128 Mio.")
         color: "#95a2af"; wrapMode: Text.WordWrap
+    }
+    RowLayout {
+        Layout.fillWidth: true
+        Label { text: qsTr("Tuiles en mémoire"); color: "#d3dbe2"; Layout.fillWidth: true }
+        DarkSpinBox {
+            objectName: "planeRamBudget"
+            from: 0; to: 4096; value: panel.settings.planeRamMiB; suffix: qsTr("Mio")
+            Accessible.name: qsTr("Budget RAM des tuiles")
+            onValueModified: panel.settings.planeRamMiB = value
+        }
+    }
+    Label {
+        Layout.fillWidth: true
+        text: qsTr("Objectif pour les tuiles hors des opérations en cours. Le déchargement se fait après une pause ; un disque indisponible conserve les données en mémoire. Ce budget ne couvre pas tous les tampons de l’application.")
+        color: "#95a2af"; wrapMode: Text.WordWrap
+    }
+    Label {
+        objectName: "tileRamStatistics"
+        Layout.fillWidth: true
+        text: qsTr("Tuiles RAM : %1 Mio · objectif %2 Mio").arg(
+                  ((panel.planeUsage.tileHeapBytes || 0) / 1048576).toFixed(1)).arg(panel.settings.planeRamMiB)
+        color: "#c9d4dc"; wrapMode: Text.WordWrap
     }
     Label { text: qsTr("Dossier de travail"); color: "#d3dbe2" }
     Label {

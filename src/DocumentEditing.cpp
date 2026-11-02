@@ -332,9 +332,9 @@ void Document::transformImage(const QString &_operation)
                     _image = _image.transformed(
                         QTransform().rotate(_operation == "rotateRight" ? 90 : -90));
             };
-            transform(layer.image);
-            transform(layer.mask);
-            transform(layer.source);
+            transform(layer.image.edit());
+            transform(layer.mask.edit());
+            transform(layer.source.edit());
         }
         if (_operation.startsWith("rotate"))
             m_size.transpose();

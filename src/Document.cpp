@@ -15,8 +15,29 @@
 
 namespace
 {
-constexpr qint64 MaxPixels = 32LL * 1024 * 1024;
-constexpr int    MaxLayers = 512;
+constexpr qint64      MaxPixels = 32LL * 1024 * 1024;
+constexpr int         MaxLayers = 512;
+QHash<qint64, qint64> layerBlocks(const Layer &layer)
+{
+    auto blocks = layer.image.storageBlocks();
+    blocks.insert(layer.mask.storageBlocks());
+    blocks.insert(layer.source.storageBlocks());
+    return blocks;
+}
+
+void freezeLayers(const QVector<Layer> &layers)
+{
+    QHash<qint64, const PixelPlane *> planes;
+    for (const auto &layer : layers)
+        for (const auto *plane : {std::addressof(layer.image), std::addressof(layer.mask),
+                                  std::addressof(layer.source)}) {
+            const auto key = plane->cacheKey();
+            if (auto previous = planes.value(key); previous && plane->shareStorage(*previous))
+                continue;
+            plane->freeze();
+            planes.insert(plane->cacheKey(), plane);
+        }
+}
 
 // Regions and paths share their backing storage across snapshots, like QImage.
 // Account for each retained allocation once, without counting live selection data twice.
@@ -48,6 +69,55 @@ struct SelectionMemory {
 
 Document::Document(QObject *_parent) : QObject(_parent)
 {
+    m_planeOffloadTimer.setSingleShot(true);
+    m_planeOffloadTimer.setInterval(500);
+    connect(&m_planeOffloadTimer, &QTimer::timeout, this, [this] {
+        if (m_drawing || m_previewingLayer || pixelEditBusy() ||
+            m_planeOffloadWatcher.isRunning()) {
+            schedulePlaneOffload();
+            return;
+        }
+        const auto cache = m_scratchCache;
+        if (!cache || cache->options().maxBytes <= 0)
+            return;
+        QVector<PixelPlane> planes;
+        const auto          collect = [&](const QVector<Layer> &layers) {
+            for (const auto &layer : layers) {
+                planes.append(layer.image);
+                planes.append(layer.mask);
+                planes.append(layer.source);
+            }
+        };
+        collect(m_layers);
+        for (const auto &state : m_undo)
+            collect(state.layers);
+        for (const auto &state : m_redo)
+            collect(state.layers);
+        collect(m_historyBrushSource.layers);
+        const qint64 budget = qint64(m_planeRamMiB) * 1024 * 1024;
+        m_planeOffloadWatcher.setFuture(
+            QtConcurrent::run([cache, budget, planes = std::move(planes)] {
+                QHash<qint64, qint64> blocks;
+                for (const auto &plane : planes)
+                    blocks.insert(plane.tiles().heapBlocks());
+                qint64 bytes = 0;
+                for (auto value : blocks)
+                    bytes += value;
+                // Prefer older versions, collected after the live layers, to keep
+                // live editing data in RAM when the budget permits it.
+                for (auto it = planes.crbegin(); it != planes.crend() && bytes > budget; ++it) {
+                    const auto before = it->tiles().heapBlocks();
+                    if (before.isEmpty())
+                        continue;
+                    it->offload(*cache);
+                    const auto after = it->tiles().heapBlocks();
+                    for (auto b = before.cbegin(); b != before.cend(); ++b)
+                        if (!after.contains(b.key()) && blocks.contains(b.key())) {
+                            bytes -= blocks.take(b.key());
+                        }
+                }
+            }));
+    });
     connect(&m_rawWatcher, &QFutureWatcher<RawImageResult>::finished, this,
             &Document::finishRawLoad);
     m_gpuToneAuxTimer.setSingleShot(true);
@@ -220,6 +290,7 @@ bool Document::editable(bool _materialize, bool _allowText)
 }
 Document::Snapshot Document::snapshot(const QString &_label) const
 {
+    freezeLayers(m_layers);
     Snapshot state;
     state.layers               = m_layers;
     state.size                 = m_size;
@@ -327,10 +398,11 @@ void Document::trimHistory()
     selections.add(m_lastSelectionRegion);
     selections.add(m_selectionPath);
     const qint64 currentSelectionBytes = selections.bytes;
-    for (const auto &layer : std::as_const(m_layers))
-        for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
-            if (!image->isNull())
-                seen.insert(image->cacheKey());
+    for (const auto &layer : std::as_const(m_layers)) {
+        const auto blocks = layerBlocks(layer);
+        for (auto it = blocks.cbegin(); it != blocks.cend(); ++it)
+            seen.insert(it.key());
+    }
     for (const QImage *mask : {&m_selectionMask, &m_lastSelectionMask})
         if (!mask->isNull())
             seen.insert(mask->cacheKey());
@@ -346,12 +418,14 @@ void Document::trimHistory()
                 seen.insert(mask->cacheKey());
                 bytes += mask->sizeInBytes();
             }
-        for (const auto &layer : _state.layers)
-            for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
-                if (!image->isNull() && !seen.contains(image->cacheKey())) {
-                    seen.insert(image->cacheKey());
-                    bytes += image->sizeInBytes();
+        for (const auto &layer : _state.layers) {
+            const auto blocks = layerBlocks(layer);
+            for (auto it = blocks.cbegin(); it != blocks.cend(); ++it)
+                if (!seen.contains(it.key())) {
+                    seen.insert(it.key());
+                    bytes += it.value();
                 }
+        }
     };
     count(m_historyBrushSource);
     // Current document pixels are not additional history storage. Walk from
@@ -382,15 +456,21 @@ QVariantMap Document::memoryUsage() const
             seen.insert(mask->cacheKey());
             selectionBytes += mask->sizeInBytes();
         }
-    qint64     layerBytes = 0, historyBytes = 0;
-    int        colors = 0, masks = 0, compactPlanes = 0;
-    const auto count = [&](const QVector<Layer> &_layers, qint64 &_bytes) {
-        for (const auto &layer : _layers)
-            for (const QImage *image : {&layer.image, &layer.mask, &layer.source})
-                if (!image->isNull() && !seen.contains(image->cacheKey())) {
-                    seen.insert(image->cacheKey());
-                    _bytes += image->sizeInBytes();
+    qint64                layerBytes = 0, historyBytes = 0;
+    QHash<qint64, qint64> heapBlocks;
+    int                   colors = 0, masks = 0, compactPlanes = 0;
+    const auto            count = [&](const QVector<Layer> &_layers, qint64 &_bytes) {
+        for (const auto &layer : _layers) {
+            heapBlocks.insert(layer.image.heapBlocks());
+            heapBlocks.insert(layer.mask.heapBlocks());
+            heapBlocks.insert(layer.source.heapBlocks());
+            const auto blocks = layerBlocks(layer);
+            for (auto it = blocks.cbegin(); it != blocks.cend(); ++it)
+                if (!seen.contains(it.key())) {
+                    seen.insert(it.key());
+                    _bytes += it.value();
                 }
+        }
     };
     count(m_layers, layerBytes);
     const auto countSelection = [&](const Snapshot &_state) {
@@ -423,7 +503,11 @@ QVariantMap Document::memoryUsage() const
         masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
         compactPlanes += ImageUtils::compact(layer.image) + ImageUtils::compact(layer.mask);
     }
-    return {{"layerCount", m_layers.size()},
+    qint64 tileHeapBytes = 0;
+    for (auto bytes : heapBlocks)
+        tileHeapBytes += bytes;
+    return {{"tileHeapBytes", tileHeapBytes},
+            {"layerCount", m_layers.size()},
             {"compactPlanes", compactPlanes},
             {"layerBytes", layerBytes},
             {"historyBytes", historyBytes + historySelectionBytes},
@@ -443,6 +527,12 @@ void Document::configureScratchCache(const QString &_directory, qint64 _maxBytes
     options.maxBytes  = qBound(qint64(0), _maxBytes, 64LL * 1024 * 1024 * 1024);
     m_frequencyCache.clear();
     m_scratchCache = std::make_shared<ScratchImageCache>(std::move(options));
+    schedulePlaneOffload();
+}
+void Document::schedulePlaneOffload()
+{
+    if (m_scratchCache)
+        m_planeOffloadTimer.start();
 }
 QVariantMap Document::scratchCacheUsage() const
 {
@@ -480,9 +570,11 @@ void Document::commit(const Snapshot &_before, const QString &_label, bool _inva
     state.label    = _label;
     m_undo.append(state);
     m_redo.clear();
+    freezeLayers(m_layers);
     m_stateId = m_contentId = m_nextId++;
     trimHistory();
     changed(_invalidateFull, _notifyImage);
+    schedulePlaneOffload();
     emit historyChanged();
 }
 void Document::edit(const QString &_label, const std::function<void()> &_operation)
@@ -601,6 +693,7 @@ void Document::resetHistory(bool _clean)
     m_strokeCreatedLayer      = false;
     m_beforeLayerPreview      = {};
     m_strokeBase              = {};
+    m_strokePlaneBase         = {};
     m_strokeCoverage          = {};
     m_tiledStrokeCoverage     = {};
     m_strokeCoverageFailed    = false;

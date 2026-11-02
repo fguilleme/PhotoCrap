@@ -24,7 +24,7 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 - **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
 - **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
-The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Editable layer planes and history still use full images in RAM; their tiled migration remains future work. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The `.pcr` format remains at version 8, with support for reading versions 1–7. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
+The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Layer planes, masks, frequency sources and history versions now use shared 256 × 256 tiles, offloaded to disk after an editing pause. The tile RAM target is configurable (256 MiB by default). Brush, Pencil and Eraser write regional pixels directly; other operations may still request temporary full-sized buffers. The CPU composite and selections remain outside this budget. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The `.pcr` format remains at version 8, with support for reading versions 1–7. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
 
 ![PhotoCrap demo composition](docs/screenshot.png)
 

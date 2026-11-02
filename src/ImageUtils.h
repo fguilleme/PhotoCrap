@@ -1,5 +1,6 @@
 #pragma once
 
+#include "storage/PixelPlane.h"
 #include <QColorSpace>
 #include <QImage>
 #include <QSize>
@@ -13,6 +14,10 @@ namespace ImageUtils
 // A single stored pixel represents a uniform plane at document size. Expand
 // it only when a tool needs writable pixels; snapshots keep the compact value.
 inline bool compact(const QImage &_image)
+{
+    return !_image.isNull() && _image.size() == QSize(1, 1);
+}
+inline bool compact(const PixelPlane &_image)
 {
     return !_image.isNull() && _image.size() == QSize(1, 1);
 }
@@ -41,8 +46,18 @@ inline bool is16Bit(const QImage &_image)
 {
     return _image.depth() > 32 || _image.format() == QImage::Format_Grayscale16;
 }
+inline bool is16Bit(const PixelPlane &_image)
+{
+    return QImage::toPixelFormat(_image.format()).bitsPerPixel() > 32 ||
+           _image.format() == QImage::Format_Grayscale16;
+}
 
 inline QImage::Format workingFormat(const QImage &_image)
+{
+    return is16Bit(_image) ? QImage::Format_RGBA64_Premultiplied
+                           : QImage::Format_ARGB32_Premultiplied;
+}
+inline QImage::Format workingFormat(const PixelPlane &_image)
 {
     return is16Bit(_image) ? QImage::Format_RGBA64_Premultiplied
                            : QImage::Format_ARGB32_Premultiplied;

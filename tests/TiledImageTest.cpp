@@ -1,4 +1,5 @@
 #include "storage/TiledImage.h"
+#include "storage/PixelPlane.h"
 #include "storage/ScratchImageCache.h"
 
 #include <QColorSpace>
@@ -10,6 +11,33 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void pixelPlaneVersionsAndRegionalWrites()
+    {
+        QImage image(512, 512, QImage::Format_RGBA64_Premultiplied);
+        image.fill(Qt::white);
+        PixelPlane plane(image);
+        QVERIFY(plane.freeze());
+        const auto version  = plane.cacheKey();
+        const auto snapshot = plane;
+        QImage     patch(4, 4, image.format());
+        patch.fill(Qt::red);
+        QVERIFY(plane.writeRegion({254, 254}, patch, image.size()));
+        QVERIFY(plane.cacheKey() != version);
+        QCOMPARE(QImage(snapshot), image);
+        QPainter painter(&image);
+        painter.drawImage(254, 254, patch);
+        painter.end();
+        QCOMPARE(QImage(plane), image);
+        QVERIFY(plane.freeze());
+        const auto after = plane.cacheKey();
+        (void)plane.edit(); // Merely requesting writable access is not an edit.
+        QCOMPARE(plane.cacheKey(), after);
+        QVERIFY(plane.freeze());
+        QCOMPARE(plane.cacheKey(), after);
+        QVERIFY(!plane.writeRegion({0, 0}, QImage(2, 2, QImage::Format_Mono), image.size()));
+        QCOMPARE(plane.cacheKey(), after);
+        QCOMPARE(QImage(plane), image);
+    }
     void importedPixelsAndVersionsRemainExact()
     {
         QTemporaryDir dir;

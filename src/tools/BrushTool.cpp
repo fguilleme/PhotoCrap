@@ -136,8 +136,9 @@ void Document::renderBrushStroke()
         renderStampStroke();
         return;
     }
-    QImage *target = paintTarget();
-    if (!target || m_strokeBase.isNull())
+    PixelPlane *target =
+        std::addressof(m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image);
+    if (m_strokePlaneBase.isNull())
         return;
     QRect region = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
@@ -152,7 +153,8 @@ void Document::renderBrushStroke()
     }
     if (!m_fullCompositeDirty)
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
-    QImage overlay = ImageUtils::blank(region.size(), ImageUtils::workingFormat(m_strokeBase));
+    QImage overlay = ImageUtils::blank(
+        region.size(), (m_editingMask ? QImage::Format_ARGB32_Premultiplied : workingFormat()));
     const QColor strokeColor = m_strokeInkColor.isValid() ? m_strokeInkColor : m_color;
     const QColor ink =
         m_editingMask ? maskColor(m_tool == "eraser" ? m_secondary : strokeColor) : strokeColor;
@@ -164,8 +166,8 @@ void Document::renderBrushStroke()
     maskPainter.drawImage(0, 0, coverage);
     maskPainter.end();
     SelectionCoverage::attenuate(overlay, m_selectionMask, region.topLeft());
-    QImage canvas =
-        m_strokeBase.copy(region).convertToFormat(ImageUtils::workingFormat(m_strokeBase));
+    QImage canvas = m_strokePlaneBase.region(region).convertToFormat(
+        (m_editingMask ? QImage::Format_ARGB32_Premultiplied : workingFormat()));
     if ((m_tool == "brush" || m_tool == "pencil") && !m_editingMask) {
         canvas = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
     } else {
@@ -176,14 +178,7 @@ void Document::renderBrushStroke()
         painter.drawImage(0, 0, overlay);
         painter.end();
     }
-    if (m_editingMask) {
-        const QImage gray = canvas.convertToFormat(QImage::Format_Grayscale8);
-        for (int y = 0; y < region.height(); ++y)
-            memcpy(target->scanLine(region.y() + y) + region.x(), gray.constScanLine(y),
-                   size_t(region.width()));
-    } else {
-        QPainter output(target);
-        output.setCompositionMode(QPainter::CompositionMode_Source);
-        output.drawImage(region.topLeft(), canvas);
-    }
+    const QImage patch = m_editingMask ? canvas.convertToFormat(QImage::Format_Grayscale8) : canvas;
+    if (!target->writeRegion(region.topLeft(), patch, m_size))
+        m_strokeCoverageFailed = true;
 }

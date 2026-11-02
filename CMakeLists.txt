@@ -115,6 +115,7 @@ set(PHOTOCRAP_CXX_SOURCES
 set(PHOTOCRAP_FORMAT_SOURCES
     src/storage/ScratchImageCache.h
     src/storage/TiledImage.h
+    src/storage/PixelPlane.h
     tests/ScratchImageCacheTest.cpp
     tests/TiledImageTest.cpp
     src/ImagePixels.h
@@ -305,6 +306,7 @@ qt_add_library(photocrap_core STATIC
     src/render/TileCache.cpp src/render/TileCache.h
     src/storage/ScratchImageCache.cpp src/storage/ScratchImageCache.h
     src/storage/TiledImage.cpp src/storage/TiledImage.h
+    src/storage/PixelPlane.h
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp src/tools/PenPath.h
     src/ImageHistogram.cpp

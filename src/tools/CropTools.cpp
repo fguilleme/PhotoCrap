@@ -324,9 +324,9 @@ void Document::applyCrop()
         for (auto &layer : layers) {
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, transform);
-            warp(layer.image);
-            warp(layer.mask);
-            warp(layer.source);
+            warp(layer.image.edit());
+            warp(layer.mask.edit());
+            warp(layer.source.edit());
             if (!result.valid)
                 return result;
         }

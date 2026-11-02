@@ -9,12 +9,20 @@ déjà disponibles.
 
 - [x] Import exact des plans existants dans `TiledImage`, remplacement atomique et
   réutilisation des versions des tuiles inchangées, y compris après déchargement disque.
-- [ ] Stockage des plans des calques/masques et de leurs versions d’historique dans
+- [x] Stockage des plans des calques/masques et de leurs versions d’historique dans
   ces plans ; lectures régionales par la composition et les outils.
-- [ ] Suppression des copies complètes permanentes, déchargement asynchrone des
+- [x] Suppression des copies complètes permanentes, déchargement asynchrone des
   tuiles non utilisées, budgets RAM/disque et état de la pression mémoire.
 - [ ] Validation édition/Annuler/Rétablir/sauvegarde après éviction, disque plein,
   documents chargés en 8/16 bits et mesures du pic réel de RAM.
+
+Les calques, masques et sources de fréquences utilisent `PixelPlane`. Pinceau,
+Crayon et Gomme écrivent des régions directement ; les autres outils peuvent
+encore matérialiser un plan temporaire pendant leur opération. Le budget de
+256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
+global. Le composite complet CPU, les sélections et les buffers temporaires
+restent à compter séparément. Les essais sur disque réellement saturé et les
+mesures du pic de RAM global restent ouverts.
 
 ## 2. Composition de la pile sur GPU
 

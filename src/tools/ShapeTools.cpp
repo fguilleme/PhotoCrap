@@ -109,7 +109,7 @@ void Document::renderShape(const QPointF &_to)
         painter.end();
         m_layers[m_active].image = result;
     } else {
-        QPainter painter(&m_layers[m_active].image);
+        QPainter painter(&m_layers[m_active].image.edit());
         painter.setRenderHint(QPainter::Antialiasing);
         if (hasSelection())
             painter.setClipRegion(m_selectionRegion);
@@ -163,7 +163,8 @@ void Document::renderShape(const QPointF &_to)
                                                   : toolRectangle(m_anchor, _to, m_toolAlternate)
                                                         .toAlignedRect()
                                                         .adjusted(-margin, -margin, margin, margin);
-        SelectionCoverage::blend(m_layers[m_active].image, sourceImage, m_selectionMask, bounds);
+        SelectionCoverage::blend(m_layers[m_active].image.edit(), sourceImage, m_selectionMask,
+                                 bounds);
     }
     m_strokeChanged      = true;
     m_fullCompositeDirty = true;

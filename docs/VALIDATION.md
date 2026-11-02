@@ -1,5 +1,22 @@
 # Validation
 
+## Plans éditables tuilés — 3 novembre 2026
+
+- Les calques, masques et sources partagent des versions immuables de tuiles.
+  Les tests vérifient les écritures régionales exactes en 8/16 bits, les frontières
+  des tuiles et la conservation des anciennes versions après modification.
+- Le cycle édition, déchargement disque, nettoyage du cache, Annuler/Rétablir,
+  sauvegarde PCR et réouverture conserve les pixels. Un refus de stockage garde
+  les données éditables en RAM ; ce test ne simule pas un volume réellement plein.
+- Sur un document transparent 6 000 × 4 000 en 16 bits, une petite touche de
+  pinceau puis de masque n'alloue que 576 Kio pour leurs plans. Le lot de trois
+  tests de stockage atteint 402 Mio de RSS maximum et 342 Mio de mémoire
+  « footprint » sur ce Mac (`/usr/bin/time -l`, Qt 6.12). Ces chiffres incluent
+  les composites et buffers temporaires ; ce ne sont pas des plafonds globaux.
+- Les tests document, tuiles et aperçus GPU passent sur Qt 6.8 et 6.12. Le test
+  du masque peint vérifie son identité logique après reconstruction depuis les
+  tuiles, sans dépendre de la clé d'un QImage temporaire.
+
 ## Masques sans contribution — 2 novembre 2026
 
 - Tests 8/16 bits d’un réglage Mosaïque avec masque compact noir : retouche

@@ -49,6 +49,77 @@ private slots:
         QThreadPool::globalInstance()->setMaxThreadCount(2);
     }
 
+    void tiledHistorySurvivesEvictionAndCacheClearing()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(2048, 1024, false, 16));
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const QImage painted = d.composite();
+        QVERIFY(d.memoryUsage()["historyBytes"].toLongLong() <= 256LL * 256 * 8);
+        d.configureScratchCache(directory.path(), 64LL * 1024 * 1024);
+        d.configurePlaneRamMiB(0);
+        QTRY_VERIFY_WITH_TIMEOUT(d.scratchCacheUsage()["diskBytes"].toLongLong() > 0, 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(d.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0), 10000);
+        d.clearScratchCache();
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(100, 100), QColor(Qt::white));
+        d.redo();
+        QCOMPARE(d.composite(), painted);
+        const auto url = QUrl::fromLocalFile(directory.filePath("tiled.pcr"));
+        QVERIFY(d.saveProject(url));
+        Document loaded;
+        QVERIFY(loaded.openFile(url));
+        QCOMPARE(loaded.composite(), painted);
+        d.beginStroke(200, 100);
+        d.endStroke();
+        QVERIFY(d.composite() != painted);
+        d.undo();
+        QCOMPARE(d.composite(), painted);
+    }
+    void largeEditablePlanesAllocateOnlyTouchedTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 8);
+        d.addLayerMask();
+        d.setColor(Qt::black);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 9);
+        d.undo();
+        d.redo();
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 9);
+    }
+    void refusedTileOffloadKeepsEditableHistoryInMemory()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(1024, 512, false, 16));
+        d.setColor(Qt::red);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto painted = d.composite();
+        d.configureScratchCache(directory.path(), 1);
+        d.configurePlaneRamMiB(0);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.scratchCacheUsage()["error"].toString().isEmpty(), 10000);
+        QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() > 0);
+        QCOMPARE(d.composite(), painted);
+        d.undo();
+        QCOMPARE(d.composite().pixelColor(100, 100), QColor(Qt::white));
+        d.redo();
+        QCOMPARE(d.composite(), painted);
+    }
     void layerStorageDistinguishesColorPixelsSourcesAndMasks()
     {
         constexpr qint64 pixels = 6000LL * 4000;
@@ -191,15 +262,16 @@ private slots:
             painter.end();
             return expected;
         };
-        const QImage  source    = d.layerImage(layerCount - 1);
-        const auto    sourceKey = source.cacheKey();
+        const QImage  source      = d.layerImage(layerCount - 1);
+        const auto    sourceKey   = d.layerPixelVersion(layerCount - 1);
+        const auto    exportedKey = source.cacheKey();
         QElapsedTimer timer;
         timer.start();
         const QImage before = d.composite();
         qInfo() << layerCount << "populated layers /" << bits << "bit: composition"
                 << timer.elapsed() << "ms, stored bytes" << d.memoryUsage()["layerBytes"];
         QCOMPARE(before, reference());
-        QCOMPARE(d.layerImage(layerCount - 1).cacheKey(), sourceKey);
+        QCOMPARE(d.layerPixelVersion(layerCount - 1), sourceKey);
         d.setTool("brush");
         d.setBrushSize(11);
         d.setBrushHardness(1);
@@ -208,8 +280,8 @@ private slots:
         d.endStroke();
         const QImage after = d.composite();
         QCOMPARE(after, reference());
-        QCOMPARE(source.cacheKey(), sourceKey);
-        QVERIFY(d.layerImage(layerCount - 1).cacheKey() != sourceKey);
+        QCOMPARE(source.cacheKey(), exportedKey);
+        QVERIFY(d.layerPixelVersion(layerCount - 1) != sourceKey);
         d.undo();
         QCOMPARE(d.composite(), before);
         d.redo();
@@ -221,7 +293,8 @@ private slots:
         Document      d;
         QSignalSpy    errors(&d, &Document::errorOccurred);
         QVERIFY(d.newDocument(6000, 4000, true, 16));
-        const qint64  baseBytes = d.memoryUsage()["layerBytes"].toLongLong();
+        const qint64  baseBytes       = d.memoryUsage()["layerBytes"].toLongLong();
+        const qint64  baseReservation = d.memoryUsage()["reservedLayerBytes"].toLongLong();
         QElapsedTimer timer;
         timer.start();
         for (int i = 0; i < 150; ++i) {
@@ -235,7 +308,7 @@ private slots:
         QCOMPARE(d.layers().size(), 301);
         QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 450);
         QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() < baseBytes + 16 * 1024);
-        QCOMPARE(d.memoryUsage()["reservedLayerBytes"].toLongLong(), baseBytes);
+        QCOMPARE(d.memoryUsage()["reservedLayerBytes"].toLongLong(), baseReservation);
         QCOMPARE(d.memoryUsage()["historyBytes"].toLongLong(), qint64(0));
         QVERIFY(errors.isEmpty());
         qInfo() << "301 layers / 24 MP / 16 bit: creation" << timer.elapsed() << "ms, stored bytes"
@@ -984,6 +1057,8 @@ private slots:
         WorkspaceSettings settings;
         QCOMPARE(settings.scratchDiskGiB(), 4);
         QCOMPARE(settings.textureCacheMiB(), 64);
+        QCOMPARE(settings.planeRamMiB(), 256);
+        settings.setPlaneRamMiB(128);
         settings.setTextureCacheMiB(128);
         QVERIFY(settings.scratchDirectory().isEmpty());
         settings.setScratchDiskGiB(7);
@@ -991,6 +1066,11 @@ private slots:
         WorkspaceSettings restored;
         QCOMPARE(restored.scratchDiskGiB(), 7);
         QCOMPARE(restored.textureCacheMiB(), 128);
+        QCOMPARE(restored.planeRamMiB(), 128);
+        restored.setPlaneRamMiB(-1);
+        QCOMPARE(restored.planeRamMiB(), 0);
+        restored.setPlaneRamMiB(99999);
+        QCOMPARE(restored.planeRamMiB(), 4096);
         restored.setTextureCacheMiB(2048);
         QCOMPARE(restored.textureCacheMiB(), 1024);
         restored.setTextureCacheMiB(-1);
@@ -2538,12 +2618,12 @@ private slots:
         d.endStroke();
         d.setTool("contentAwareMove");
         const int     history     = d.historyIndex();
-        const qint64  originalKey = d.layerImage(0).cacheKey();
+        const qint64  originalKey = d.layerPixelVersion(0);
         QElapsedTimer drag;
         drag.start();
         d.beginStroke(300, 300);
         d.continueStroke(1800, 300);
-        QCOMPARE(d.layerImage(0).cacheKey(), originalKey);
+        QCOMPARE(d.layerPixelVersion(0), originalKey);
         d.endStroke();
         qInfo() << "UHD Content-Aware Move drag/release (ms):" << drag.elapsed();
         QVERIFY(drag.elapsed() < 150);
@@ -2731,13 +2811,13 @@ private slots:
         d.endStroke();
         d.setTool("patch");
         const int     history   = d.historyIndex();
-        const qint64  sourceKey = d.layerImage(0).cacheKey();
+        const qint64  sourceKey = d.layerPixelVersion(0);
         QElapsedTimer timer;
         timer.start();
         d.beginStroke(100, 100);
         for (int x = 130; x < 180; ++x)
             d.continueStroke(x, 100);
-        QCOMPARE(d.layerImage(0).cacheKey(), sourceKey);
+        QCOMPARE(d.layerPixelVersion(0), sourceKey);
         d.endStroke();
         QVERIFY(d.patchBusy());
         QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
@@ -6056,7 +6136,7 @@ private slots:
         d.fillSelectedWithColor(QColor("#905124"));
         d.addLayer();
         d.fillSelectedWithColor(QColor("#21c2e5"));
-        const auto sourceKey = d.layerImage(1).cacheKey();
+        const auto sourceKey = d.layerPixelVersion(1);
         if (hiddenBy == QStringLiteral("group")) {
             d.groupSelectedLayers();
             d.setLayerVisible(d.activeLayer(), false);
@@ -6079,7 +6159,7 @@ private slots:
         QVERIFY(proxyFormats.size() >= 2);
         for (const auto format : std::as_const(proxyFormats))
             QCOMPARE(format, QImage::Format_ARGB32_Premultiplied);
-        QCOMPARE(d.layerImage(1).cacheKey(), sourceKey);
+        QCOMPARE(d.layerPixelVersion(1), sourceKey);
         QCOMPARE(d.channelBits(), 16);
         QCOMPARE(d.composite().format(), QImage::Format_RGBA64_Premultiplied);
     }

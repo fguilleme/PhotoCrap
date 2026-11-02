@@ -1,4 +1,21 @@
-# Validation du 30 septembre 2026
+# Validation
+
+## Préparation de v0.16 — 2 novembre 2026
+
+- Les 43 tests hors écran passent localement sur Apple Silicon avec Qt 6.8.3 et
+  Qt 6.12.0. La validation des paquets GitHub sur les trois plateformes reste requise.
+- Le test de survol des presets force le placement de la ListView avant de déplacer
+  la souris : sous Qt 6.8, l’ouverture précède l’activation des lignes pour les événements.
+  Les tests de survol, annulation, clic, clavier et historique restent actifs.
+- Sous Windows, CTest fournit le dossier système des polices à Qt offscreen lorsque
+  `QT_QPA_FONTDIR` n’est pas déjà défini. Le test Texte exige une vraie base de polices.
+- Les suites GPU paramétrées disposent de 90 secondes au total sur les runners ;
+  leurs assertions et délais individuels restent inchangés.
+- La CI utilise `macos-15` après le retrait de `macos-14`. En cas d’échec, les
+  artefacts `Test-diagnostics-*` conservent les rapports CTest et Texte. Les messages
+  Qt Windows sont redirigés vers stderr dans le workflow.
+
+## Validation du 30 septembre 2026
 
 Environnement exécuté : macOS Apple Silicon, AppleClang 21, Qt 6.11.2, CMake 4.4.3, compilation Release.
 

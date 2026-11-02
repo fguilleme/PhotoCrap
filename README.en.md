@@ -6,6 +6,10 @@ Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Li
 
 Current version: **v0.15**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
+**v0.16** is in preparation (internal version **0.16.0**): GPU previews, retained
+guides and charts, and editable text. Publication awaits validation on all three
+platforms; see the [release notes](CHANGELOG.md).
+
 ## Download
 
 [Release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.

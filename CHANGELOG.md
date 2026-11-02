@@ -2,7 +2,24 @@
 
 Les fonctions disponibles et leurs limites sont détaillées dans le [README](README.md),
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
-Un [résumé en anglais](README.en.md#new-in-v015) est également disponible.
+Un [résumé en anglais](README.en.md) est également disponible.
+
+## v0.16 — en préparation
+
+Version de l’application et des paquets : `0.16.0`. Publication en attente de
+validation du workflow et du tag de release.
+
+- Réutiliser les textures visibles et mettre à jour les tuiles modifiées du canevas.
+- Accélérer les aperçus des réglages, masques et modes de fusion éligibles sur GPU,
+  avec repli CPU et rendu final natif 8/16 bits. Voir les conditions dans le
+  [guide du rendu GPU](docs/GPU_RENDERING.md).
+- Animer les contours de sélection et afficher les guides d’outils avec le graphe
+  de scène ; conserver les graphiques des panneaux et limiter leurs recalculs.
+- Ajouter les calques de texte éditables et la création automatique de calques
+  pour les outils concernés ; voir le [guide Texte](docs/TEXT_TOOL.md).
+- Prévisualiser les presets au survol et corriger le zoom Ctrl-molette sous Linux.
+- Migrer la CI vers `macos-15` après le retrait de `macos-14` et conserver les
+  diagnostics des tests en échec.
 
 ## v0.15 — 29 octobre 2026
 

@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "text/TextLayer.h"
+#include <QFontDatabase>
 #include <QTemporaryDir>
 #include <QTextCursor>
 #include <QtTest>
@@ -9,6 +10,11 @@ class TextToolTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void initTestCase()
+    {
+        QVERIFY2(!QFontDatabase::families().isEmpty(),
+                 "Text rendering tests need real fonts; set QT_QPA_FONTDIR for Windows offscreen.");
+    }
     void editableTextPersistsAndUndoes_data()
     {
         QTest::addColumn<int>("bits");

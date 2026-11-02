@@ -72,6 +72,11 @@ inline bool runPresetPreviewSmoke(QQuickWindow *_window, Document &_document)
             return findVisual(findVisual, content, "presetOption" + QString::number(_index));
         };
         const auto hover = [&](int _index) {
+            // In Qt 6.8, opened precedes the ListView layout that makes its
+            // delegates receive pointer events. Settle it before moving once.
+            auto *content = popup->property("contentItem").value<QQuickItem *>();
+            if (content)
+                QMetaObject::invokeMethod(content, "forceLayout");
             auto *option = optionAt(_index);
             if (!option)
                 return false;

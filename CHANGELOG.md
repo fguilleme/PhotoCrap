@@ -18,6 +18,8 @@ validation du workflow et du tag de release.
 - Ajouter les calques de texte éditables et la création automatique de calques
   pour les outils concernés ; voir le [guide Texte](docs/TEXT_TOOL.md).
 - Prévisualiser les presets au survol et corriger le zoom Ctrl-molette sous Linux.
+- Empêcher le proxy du Navigateur d’écraser une demande de contour progressif
+  du masque dans la file de rendu GPU.
 - Migrer la CI vers `macos-15` après le retrait de `macos-14` et conserver les
   diagnostics des tests en échec.
 

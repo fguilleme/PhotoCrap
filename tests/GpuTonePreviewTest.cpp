@@ -23,8 +23,12 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
+#include <QSemaphore>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThreadPool>
+#include <QtConcurrent>
 #include <QtTest>
 #include <cmath>
 
@@ -455,9 +459,27 @@ private slots:
         doc.previewLayerParameter("_maskDensity", 85.);
         QCOMPARE(doc.gpuTonePreviewMask().cacheKey(), maskKey);
         QCOMPARE(doc.gpuTonePreviewTable().cacheKey(), tableKey);
-        // Queue several feather requests before the worker returns: only the last wins.
-        for (double feather : {3., 12., 5.})
-            doc.previewLayerParameter("_maskFeather", feather);
+        // Hold the worker while the auxiliary timer fires. Its CPU request
+        // must not overwrite the newest queued GPU mask request.
+        {
+            auto     *pool  = QThreadPool::globalInstance();
+            const int limit = pool->maxThreadCount();
+            pool->setMaxThreadCount(1);
+            QSemaphore entered, resume;
+            auto       blocker = QtConcurrent::run(pool, [&] {
+                entered.release();
+                resume.acquire();
+            });
+            const auto cleanup = qScopeGuard([&] {
+                resume.release();
+                blocker.waitForFinished();
+                pool->setMaxThreadCount(limit);
+            });
+            QVERIFY(entered.tryAcquire(1, 5000));
+            for (double feather : {3., 12., 5.})
+                doc.previewLayerParameter("_maskFeather", feather);
+            QTest::qWait(150);
+        }
         QTRY_VERIFY_WITH_TIMEOUT(doc.gpuTonePreviewMask().cacheKey() != maskKey, 5000);
         QTest::qWait(150);
         QCOMPARE(doc.gpuTonePreviewBase().cacheKey(), baseKey);

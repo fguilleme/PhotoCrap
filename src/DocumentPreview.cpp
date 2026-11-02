@@ -115,6 +115,11 @@ void Document::finishLayerPreview(const QString &_label)
 
 void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
 {
+    // Navigator/histogram work must not displace a queued mask/base update.
+    // Completing that GPU request schedules a fresh auxiliary update itself.
+    if (_draft && !_allowGpu && gpuTonePreviewActive() && m_previewRenderPending &&
+        m_pendingPreviewGpuBase)
+        return;
     if (_draft && _allowGpu && updateGpuTonePreview())
         return;
     m_pendingPreviewGpuBase =

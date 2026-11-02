@@ -131,17 +131,37 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
         return false;
     _document.setTool("pen");
     _document.newPenPath();
+    QSignalSpy initialPathPaints(overlay, SIGNAL(painted()));
+    QSignalSpy initialHandlePaints(handles, SIGNAL(painted()));
     QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, scene(20, 160));
     _document.setPenRubberBand(true);
-    QTest::qWait(50);
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return (overlay->property("gpuBackend").toBool() ||
+                                 !initialPathPaints.isEmpty()) &&
+                                (handles->property("gpuHandles").toBool() ||
+                                 !initialHandlePaints.isEmpty());
+                     },
+                     3000),
+                 "initial anchor rendering completes before measuring hover repaints"))
+        return false;
     QSignalSpy pathPaints(overlay, SIGNAL(painted()));
     QSignalSpy handlePaints(handles, SIGNAL(painted()));
     QSignalSpy bandPaints(band, SIGNAL(painted()));
     QSignalSpy primitives(handles, SIGNAL(primitivesChanged()));
     QTest::mouseMove(_window, scene(60, 150));
-    QTest::qWait(60);
+    const bool hoverRendered = QTest::qWaitFor(
+        [&] {
+            return band->isVisible() &&
+                   (band->property("gpuBand").toBool() || !bandPaints.isEmpty());
+        },
+        3000);
+    if (!hoverRendered || !pathPaints.isEmpty() || !handlePaints.isEmpty() || !primitives.isEmpty())
+        qWarning() << "Pen hover diagnostics" << _document.penDrawing() << _document.penHover()
+                   << band->isVisible() << band->property("gpuBand") << pathPaints.size()
+                   << handlePaints.size() << primitives.size() << bandPaints.size();
     if (!require(
-            band->isVisible() && pathPaints.isEmpty() && handlePaints.isEmpty() &&
+            hoverRendered && pathPaints.isEmpty() && handlePaints.isEmpty() &&
                 primitives.isEmpty() &&
                 (band->property("gpuBand").toBool() ? bandPaints.isEmpty() : !bandPaints.isEmpty()),
             "pointer hover updates the provisional curve without repainting the retained path"))

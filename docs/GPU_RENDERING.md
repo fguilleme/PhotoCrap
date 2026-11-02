@@ -587,7 +587,9 @@ le backend logiciel.
 - Le Navigateur et les histogrammes reçoivent un proxy CPU auxiliaire, planifié
   à intervalles d’au moins 100 ms pendant le geste. Ils peuvent suivre avec un
   retard lié au calcul ; ils ne déclenchent pas de lecture GPU ni de composition
-  complète synchrone pour suivre l’aperçu.
+  complète synchrone pour suivre l’aperçu. Une demande auxiliaire ne remplace
+  jamais une base ou un masque GPU déjà en attente : elle est replanifiée après
+  leur mise à jour, pour conserver le dernier contour progressif demandé.
 - À la validation, le rendu complet CPU conserve les 8/16 bits du document et
   remplace l’aperçu GPU quand il est prêt. Annuler ou modifier la pile invalide
   les bases en vol ; les résultats périmés ne réactivent pas un ancien aperçu.

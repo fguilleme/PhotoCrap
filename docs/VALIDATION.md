@@ -11,6 +11,11 @@
   `QT_QPA_FONTDIR` n’est pas déjà défini. Le test Texte exige une vraie base de polices.
 - Les suites GPU paramétrées disposent de 90 secondes au total sur les runners ;
   leurs assertions et délais individuels restent inchangés.
+- Un worker volontairement retenu reproduit la concurrence entre le contour
+  progressif et le proxy auxiliaire : la dernière demande de masque doit rester
+  prioritaire. Le test couvre 8/16 bits, le rendu auxiliaire et Annuler/Rétablir.
+- Le test de survol de la plume attend le rendu initial puis celui du guide
+  provisoire avant de vérifier l’absence de repeint du tracé et des poignées.
 - La CI utilise `macos-15` après le retrait de `macos-14`. En cas d’échec, les
   artefacts `Test-diagnostics-*` conservent les rapports CTest et Texte. Les messages
   Qt Windows sont redirigés vers stderr dans le workflow.

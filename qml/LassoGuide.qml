@@ -138,7 +138,7 @@ Item {
         sourceComponent: Item {
             readonly property bool supported: dashed.supported
             clip: true
-            layer.enabled: supported
+            layer.enabled: dashed.hasGeometry
             layer.smooth: true
             DashedGuide {
                 id: dashed

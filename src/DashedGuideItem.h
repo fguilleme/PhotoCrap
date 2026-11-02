@@ -16,6 +16,7 @@ class DashedGuideItem : public QQuickItem
     Q_PROPERTY(QPointF origin READ origin WRITE setOrigin NOTIFY originChanged)
     Q_PROPERTY(qreal phase READ phase WRITE setPhase NOTIFY phaseChanged)
     Q_PROPERTY(bool supported READ supported NOTIFY supportedChanged)
+    Q_PROPERTY(bool hasGeometry READ hasGeometry NOTIFY hasGeometryChanged)
 public:
     explicit DashedGuideItem(QQuickItem *_parent = nullptr);
     QVariantList points() const;
@@ -39,7 +40,15 @@ public:
     {
         return m_supported;
     }
+    bool hasGeometry() const
+    {
+        return m_supported && !m_mesh.vertices.isEmpty();
+    }
 #ifdef PHOTOCRAP_TESTING
+    quint64 renderUpdates() const
+    {
+        return m_renderUpdates.load();
+    }
     quint64 geometryBuilds() const
     {
         return m_generation;
@@ -63,6 +72,7 @@ signals:
     void originChanged();
     void phaseChanged();
     void supportedChanged();
+    void hasGeometryChanged();
 
 protected:
     void     updatePolish() override;
@@ -79,7 +89,7 @@ private:
     quint64                          m_generation  = 0;
     bool                             m_validPoints = true, m_dirty = true, m_supported = false;
 #ifdef PHOTOCRAP_TESTING
-    std::atomic<quint64> m_geometryUploads{0}, m_parameterUpdates{0};
+    std::atomic<quint64> m_geometryUploads{0}, m_parameterUpdates{0}, m_renderUpdates{0};
     std::atomic<bool>    m_shaderActive{false};
 #endif
 };

@@ -5,6 +5,7 @@
 #include <QJSValue>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQmlProperty>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
@@ -408,6 +409,60 @@ Item {
             if (!require(matchesReference(), "dash boundaries and closure keep their flat caps"))
                 return false;
         }
+        root->setProperty("zoom", 8.);
+        root->setProperty("panX", 1000.);
+        root->setProperty("panY", 800.);
+        frame();
+        frame();
+        auto      *emptyGuide      = findDashed(findDashed, guide);
+        const auto emptyBuilds     = emptyGuide ? emptyGuide->geometryBuilds() : 0;
+        const auto emptyRenders    = emptyGuide ? emptyGuide->renderUpdates() : 0;
+        const auto emptyUploads    = emptyGuide ? emptyGuide->geometryUploads() : 0;
+        const auto emptyParameters = emptyGuide ? emptyGuide->parameterUpdates() : 0;
+        guidePaints.clear();
+        snapshots.clear();
+        for (qreal phase : {1.25, 4.75, -2.5}) {
+            root->setProperty("phase", phase);
+            frame();
+        }
+        if (!require(guide->width() > 0 && guide->height() > 0 && snapshots.isEmpty() &&
+                         (dashedGpu
+                              ? emptyGuide && emptyGuide->supported() &&
+                                    !emptyGuide->hasGeometry() && !emptyGuide->shaderActive() &&
+                                    guide->property("gpuDashedGuide").toBool() &&
+                                    !guide->property("rasterActive").toBool() &&
+                                    guidePaints.isEmpty() &&
+                                    !QQmlProperty(emptyGuide->parentItem(), "layer.enabled")
+                                         .read()
+                                         .toBool() &&
+                                    emptyGuide->geometryBuilds() == emptyBuilds &&
+                                    emptyGuide->renderUpdates() == emptyRenders &&
+                                    emptyGuide->geometryUploads() == emptyUploads &&
+                                    emptyGuide->parameterUpdates() == emptyParameters
+                              : !guidePaints.isEmpty()),
+                     "a contour surrounding the view keeps no composition layer or per-phase "
+                     "render work"))
+            return false;
+        root->setProperty("panX", 620.);
+        frame();
+        auto *returnedGuide = findDashed(findDashed, guide);
+        if (!require((!dashedGpu ||
+                      (returnedGuide == emptyGuide && returnedGuide->hasGeometry() &&
+                       returnedGuide->shaderActive() &&
+                       QQmlProperty(returnedGuide->parentItem(), "layer.enabled").read().toBool() &&
+                       returnedGuide->phase() == -2.5)) &&
+                         matchesReference(),
+                     "scrolling back reuses the item and restores the visible edge with the latest "
+                     "phase"))
+            return false;
+        root->setProperty("panX", 1000.);
+        frame();
+        if (!require(matchesReference(),
+                     "a surrounding contour leaves the viewport pixels unchanged"))
+            return false;
+        root->setProperty("phase", 10.);
+        root->setProperty("panX", 0.);
+        root->setProperty("panY", 0.);
         for (qreal zoom : {.5, 2., 64.}) {
             root->setProperty("zoom", zoom);
             root->setProperty("panX", zoom == 64 ? 80 * zoom - 20 : zoom > 1 ? 100 : 0);

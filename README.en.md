@@ -269,7 +269,9 @@ fractional screens and extremely acute joins retain Canvas for solid guides. Com
 with right or obtuse joins animate dashes in shaders, retaining their geometry
 without raster repaints or vertex uploads for phase changes. Acute joins,
 combined polygonal guides and over-budget paths keep Canvas. An entirely
-offscreen guide allocates neither drawing path.
+offscreen guide allocates neither drawing path. A contour enclosing the viewport
+with every edge offscreen also disables its composition layer and stops phase
+render requests. Scrolling back restores the latest phase on the retained item.
 
 The moving Slice frame uses a separate GPU path. The overlay and options bar reuse
 their metadata snapshot during draft gestures. In development after v0.16: retained

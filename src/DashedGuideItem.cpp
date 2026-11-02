@@ -71,7 +71,7 @@ void DashedGuideItem::setPhase(qreal _phase)
         return;
     m_phase = _phase;
     emit phaseChanged();
-    if (m_supported)
+    if (hasGeometry())
         update();
 }
 void DashedGuideItem::invalidateGeometry()
@@ -96,7 +96,8 @@ void DashedGuideItem::updatePolish()
 {
     if (!m_dirty)
         return;
-    m_dirty = false;
+    m_dirty                = false;
+    const bool hadGeometry = hasGeometry();
     ++m_generation;
     m_mesh         = {};
     m_ratio        = window() ? window()->effectiveDevicePixelRatio() : 1;
@@ -163,10 +164,15 @@ void DashedGuideItem::updatePolish()
         m_supported = supported;
         emit supportedChanged();
     }
+    if (hadGeometry != hasGeometry())
+        emit hasGeometryChanged();
     update();
 }
 QSGNode *DashedGuideItem::updatePaintNode(QSGNode *_old, UpdatePaintNodeData *)
 {
+#ifdef PHOTOCRAP_TESTING
+    ++m_renderUpdates;
+#endif
     auto      *node     = static_cast<DashedGuideNode *>(_old);
     const bool hardware = window() && QSGRendererInterface::isApiRhiBased(
                                           window()->rendererInterface()->graphicsApi());

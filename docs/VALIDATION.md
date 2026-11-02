@@ -1,5 +1,19 @@
 # Validation
 
+## Candidats de lasso sans bord visible — 2 novembre 2026
+
+- Builds Qt 6.8.3 / 6.12.0 et contrôles `lasso_guide`, `qml_smoke` ;
+  `selection_mesh` passe aussi sur le kit local. Clang-tidy et formatage propres.
+- Comparaisons natives Metal et OpenGL sur macOS Apple Silicon, en 8/16 bits.
+  À 8×, le contour entoure la vue avec tous ses segments hors champ :
+  `layer.enabled` reste désactivé, aucun Canvas n’est chargé sur le chemin GPU
+  et les changements de phase ne rappellent pas `updatePaintNode`.
+- Les compteurs de géométrie, transferts et paramètres restent stables dans ce
+  cas. Revenir sur un bord conserve le même composant et la dernière phase,
+  réactive sa composition et retrouve les pixels de la référence indépendante.
+- Le repli logiciel garde son rendu. Les contrôles matériels Vulkan/Direct3D
+  restent à exécuter sur leurs plateformes.
+
 ## Pointillés des candidats combinés du lasso — 2 novembre 2026
 
 - Compilation et tests `lasso_guide` / `qml_smoke` sur Qt 6.8.3 et Qt 6.12.0 ;

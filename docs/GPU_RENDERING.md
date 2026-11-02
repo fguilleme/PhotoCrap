@@ -1679,8 +1679,21 @@ lissage sans recréer les sommets pendant l’animation.
 `DashedGuideNode` conserve deux passes ordonnées : le trait noir complet, puis
 le trait blanc complet. Cet ordre reste valable aux croisements. Leurs sommets
 et buffers ne changent pas avec la phase. Une couche bornée à la vue compose
-les deux passes avant l’opacité héritée ; il reste donc une surface GPU, mais
-aucune image raster à repeindre ou retransférer à chaque pas.
+les deux passes avant l’opacité héritée lorsqu’un segment est visible ; il reste
+donc une surface GPU, mais aucune image raster à repeindre ou retransférer à chaque pas.
+
+Un contour peut entourer toute la vue alors que tous ses bords sont hors
+champ. Son enveloppe reste grande, mais le maillage découpé est vide.
+`hasGeometry` distingue ce cas d’un tracé non pris en charge : le chemin GPU
+reste sélectionné pour éviter de charger le Canvas, sa couche de composition
+est désactivée et les changements de phase ne demandent plus de synchronisation
+de rendu. Les points et la phase courante restent conservés. Revenir sur un
+bord prépare la géométrie visible et réactive la couche sur le même objet.
+
+Le scénario à 8× vérifie la désactivation réelle de `layer.enabled`, l’absence
+de rappel `updatePaintNode`, de reconstruction, de transfert et de repeint Canvas
+pendant plusieurs phases. Il contrôle aussi les pixels de la vue vide, puis le
+retour au bord avec la dernière phase et le même composant natif.
 
 Le chemin reste volontairement conservateur : angles aigus inférieurs à 90°,
 points dégénérés/non finis, raccords sous-pixel qui se chevauchent, plus de

@@ -1,5 +1,13 @@
 # Validation
 
+## Couverture des calques écrêtés — 2 novembre 2026
+
+- Les tests en 8 et 16 bits couvrent plusieurs calques écrêtés, les changements
+  d’opacité et de visibilité de la base, et le passage à une autre base.
+- Mesure synthétique isolée sur cinq calques écrêtés au-dessus d’une base 16 bits
+  de 12 Mpx : préparation de la couverture environ 110 → 19 ms. La mesure ne
+  comprend pas le masquage des calques, leur fusion ni l’affichage.
+
 ## Application des masques de calque — 2 novembre 2026
 
 - Comparaison exacte à une référence scalaire sur des images 8 et 16 bits,

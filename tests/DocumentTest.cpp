@@ -4657,6 +4657,56 @@ private slots:
         QVERIFY(loaded.layers().first().toMap().value("clippingMask").toBool());
         QCOMPARE(loaded.composite(), d.composite());
     }
+    void clippingStacksReuseOnlyTheirCurrentBase()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(64, 32, true, bits));
+            d.setTool("brush");
+            d.setBrushSize(12);
+            d.setBrushHardness(1);
+            d.setColor(Qt::red);
+            d.beginStroke(10, 16);
+            d.endStroke();
+            d.setLayerOpacity(0, .5);
+            for (const QColor color : {QColor(Qt::green), QColor(Qt::blue)}) {
+                d.addLayer();
+                d.setColor(color);
+                d.fillWithColor(true);
+                d.setClippingMask(true);
+            }
+            const QColor first = d.composite().pixelColor(10, 16);
+            QVERIFY(first.blue() > first.green());
+            QCOMPARE(d.composite().pixelColor(48, 16).alpha(), 0);
+            d.setLayerOpacity(0, .2);
+            QVERIFY(d.composite().pixelColor(10, 16).alpha() < first.alpha());
+            d.setLayerOpacity(0, .5);
+            QCOMPARE(d.composite().pixelColor(10, 16), first);
+            d.setLayerVisible(2, false);
+            const QColor hiddenTop = d.composite().pixelColor(10, 16);
+            QVERIFY(hiddenTop.green() > hiddenTop.blue());
+            d.setLayerVisible(2, true);
+            d.setLayerVisible(0, false);
+            QCOMPARE(d.composite().pixelColor(10, 16).alpha(), 0);
+            d.setLayerVisible(0, true);
+            d.addLayer();
+            d.setTool("brush");
+            d.setColor(Qt::red);
+            d.beginStroke(48, 16);
+            d.endStroke();
+            d.addLayer();
+            d.setColor(Qt::yellow);
+            d.fillWithColor(true);
+            d.setClippingMask(true);
+            const QImage result = d.composite();
+            QCOMPARE(result.pixelColor(10, 16), first);
+            const QColor right = result.pixelColor(48, 16);
+            QVERIFY(right.red() > 200 && right.green() > 200 && right.blue() < 30);
+            d.setLayerVisible(3, false);
+            QCOMPARE(d.composite().pixelColor(48, 16).alpha(), 0);
+            QCOMPARE(d.composite().pixelColor(10, 16), first);
+        }
+    }
     void multipleLayerSelectionCreatesPersistentPassThroughGroup()
     {
         QTemporaryDir dir;

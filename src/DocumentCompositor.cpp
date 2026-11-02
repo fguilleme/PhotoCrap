@@ -103,8 +103,12 @@ const QImage &Document::composite() const
         // needs a cropped allocation; a full render can read the original.
         return workRegion == _image.rect() ? _image : _image.copy(workRegion);
     };
-    QImage               clippingBase;
-    qreal                clippingBaseOpacity = 1.;
+    QImage     clippingBase, clippingCoverage;
+    qreal      clippingBaseOpacity = 1.;
+    const auto resetClipping       = [&] {
+        clippingBase     = {};
+        clippingCoverage = {};
+    };
     QHash<QString, bool> groupVisibility;
     for (const auto &layer : m_layers)
         if (layer.kind == QStringLiteral("group"))
@@ -112,21 +116,21 @@ const QImage &Document::composite() const
     for (int layerIndex = 0; layerIndex < m_layers.size(); ++layerIndex) {
         const auto &layer = m_layers[layerIndex];
         if (layer.kind == QStringLiteral("group")) {
-            clippingBase = {};
+            resetClipping();
             continue;
         }
         const bool groupVisible =
             layer.groupId.isEmpty() || groupVisibility.value(layer.groupId, true);
         if (!layer.visible || !groupVisible) {
             if (!layer.clippingMask)
-                clippingBase = {};
+                resetClipping();
             continue;
         }
         // Empty pixel layers contribute no coverage.
         if (layer.kind == QStringLiteral("pixel") && ImageUtils::compact(layer.image) &&
             layer.image.pixelColor(0, 0).alpha() == 0) {
             if (!layer.clippingMask)
-                clippingBase = {};
+                resetClipping();
             continue;
         }
         // An untouched low/high pair reconstructs its source independently of
@@ -194,10 +198,13 @@ const QImage &Document::composite() const
         if (layer.clippingMask) {
             if (clippingBase.isNull())
                 continue;
-            rendered = applyMask(rendered, alphaCoverage(clippingBase, clippingBaseOpacity));
+            if (clippingCoverage.isNull())
+                clippingCoverage = alphaCoverage(clippingBase, clippingBaseOpacity);
+            rendered = applyMask(rendered, clippingCoverage);
         } else {
             clippingBase        = rendered;
             clippingBaseOpacity = layer.opacity;
+            clippingCoverage    = {};
         }
         compositeLayer(rendered, layer.blend, layer.opacity);
     }

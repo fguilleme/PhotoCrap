@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImageAlpha.h"
 #include "ImageUtils.h"
 
 #include <QColorSpace>
@@ -48,21 +49,6 @@ QRect expanded(const QRect &_region, int _margin, const QRect &_bounds)
     return _region.adjusted(-_margin, -_margin, _margin, _margin).intersected(_bounds);
 }
 
-QImage alphaCoverage(const QImage &_source, qreal _opacity)
-{
-    if (_source.isNull())
-        return {};
-    const QImage source = _source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    QImage       coverage(source.size(), QImage::Format_Grayscale8);
-    const qreal  opacity = qBound(0., _opacity, 1.);
-    for (int y = 0; y < source.height(); ++y) {
-        const auto *pixels = reinterpret_cast<const QRgb *>(source.constScanLine(y));
-        auto       *mask   = coverage.scanLine(y);
-        for (int x = 0; x < source.width(); ++x)
-            mask[x] = uchar(qRound(qAlpha(pixels[x]) * opacity));
-    }
-    return coverage;
-}
 } // namespace
 
 const QImage &Document::composite() const
@@ -199,7 +185,7 @@ const QImage &Document::composite() const
             if (clippingBase.isNull())
                 continue;
             if (clippingCoverage.isNull())
-                clippingCoverage = alphaCoverage(clippingBase, clippingBaseOpacity);
+                clippingCoverage = PhotoCrap::alphaCoverage(clippingBase, clippingBaseOpacity);
             rendered = applyMask(rendered, clippingCoverage);
         } else {
             clippingBase        = rendered;

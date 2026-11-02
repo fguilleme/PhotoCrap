@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "DocumentStorage.h"
+#include "ImageAlpha.h"
 #include "ImageUtils.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
@@ -4656,6 +4657,36 @@ private slots:
         QVERIFY(loaded.openFile(url));
         QVERIFY(loaded.layers().first().toMap().value("clippingMask").toBool());
         QCOMPARE(loaded.composite(), d.composite());
+    }
+    void alphaCoverageMatchesQtAcrossAllAlphaValues()
+    {
+        QImage original(256, 256, QImage::Format_RGBA64);
+        for (int y = 0; y < 256; ++y) {
+            auto *row = reinterpret_cast<QRgba64 *>(original.scanLine(y));
+            for (int x = 0; x < 256; ++x)
+                row[x] = QRgba64::fromRgba64(12345, 45678, 32768, ushort(y * 256 + x));
+        }
+        for (auto format :
+             {QImage::Format_RGBA64, QImage::Format_RGBA64_Premultiplied, QImage::Format_ARGB32,
+              QImage::Format_ARGB32_Premultiplied, QImage::Format_RGB32, QImage::Format_RGBA8888,
+              QImage::Format_RGB888, QImage::Format_Grayscale8}) {
+            const QImage source    = original.convertToFormat(format);
+            const QImage reference = source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            const auto   key       = source.cacheKey();
+            for (qreal opacity : {-.5, 0., .003, .37, .63, 1., 2.}) {
+                const QImage coverage = PhotoCrap::alphaCoverage(source, opacity);
+                QCOMPARE(coverage.size(), source.size());
+                QCOMPARE(coverage.format(), QImage::Format_Grayscale8);
+                for (int y = 0; y < 256; ++y) {
+                    const auto *row  = reinterpret_cast<const QRgb *>(reference.constScanLine(y));
+                    const auto *mask = coverage.constScanLine(y);
+                    for (int x = 0; x < 256; ++x)
+                        QCOMPARE(int(mask[x]), qRound(qAlpha(row[x]) * qBound(0., opacity, 1.)));
+                }
+            }
+            QCOMPARE(source.cacheKey(), key);
+        }
+        QVERIFY(PhotoCrap::alphaCoverage({}, 1.).isNull());
     }
     void clippingStacksReuseOnlyTheirCurrentBase()
     {

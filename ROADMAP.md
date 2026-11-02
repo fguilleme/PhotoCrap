@@ -162,6 +162,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Flou de boîte 16 bits : passe verticale par bandes de colonnes contiguës, avec sommes locales et résultat identique au calcul précédent ; ce chemin sert aussi au flou gaussien et à d’autres effets.
 - [x] Composition des masques de calque : grandes zones traitées par blocs de lignes en parallèle, avec conservation des arrondis 8/16 bits et traitement séquentiel dans les tâches déjà sur le pool.
 - [x] Calques écrêtés successifs : couverture de la base calculée une fois par composition et réutilisée jusqu’au changement de base, avec invalidation aux séparations et masquages.
+- [x] Couverture d’écrêtage : extraction directe de l’alpha des formats natifs 8/16 bits, sans conversion temporaire de tous les canaux couleur ; quantification identique à Qt.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

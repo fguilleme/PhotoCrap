@@ -36,6 +36,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/TileSnapshot.cpp
     src/render/TileCache.cpp
     src/ImageHistogram.cpp
+    src/ImageAlpha.cpp
     src/Document.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
@@ -148,6 +149,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/Document.h
     src/ImageUtils.h
     src/ImageHistogram.h
+    src/ImageAlpha.h
     src/tools/RegionHealing.h
     src/tools/ContentFill.h
     src/tools/PenPath.h
@@ -306,6 +308,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp src/tools/PenPath.h
     src/ImageHistogram.cpp
+    src/ImageAlpha.cpp
     src/Document.cpp
     src/Document.h
     src/DocumentAdjustments.cpp
@@ -357,6 +360,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/SliceDescriptionCache.h
     src/ImageUtils.h
     src/ImageHistogram.h
+    src/ImageAlpha.h
     src/filters/BlackWhiteFilter.cpp
     src/filters/BlackWhiteFilter.h
     src/filters/BlendMath.h

@@ -1,5 +1,13 @@
 # Validation
 
+## Extraction directe de l’alpha — 2 novembre 2026
+
+- Comparaison aux conversions Qt sur les 65 536 valeurs d’alpha, huit formats
+  QImage et sept opacités, dont les valeurs hors plage ; source non modifiée.
+- Sur une image synthétique 16 bits de 12 Mpx, cinq extractions successives
+  passent d’environ 109 à 92 ms. La conversion couleur temporaire de 48 Mo
+  est supprimée ; ces chiffres ne mesurent pas toute la composition.
+
 ## Couverture des calques écrêtés — 2 novembre 2026
 
 - Les tests en 8 et 16 bits couvrent plusieurs calques écrêtés, les changements

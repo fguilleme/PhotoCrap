@@ -1,5 +1,16 @@
 # Validation
 
+## Contours de sélection hors de la vue — 2 novembre 2026
+
+- Les tests vérifient les traits sur la limite de découpage, les courbes dont
+  seuls les points de contrôle entrent dans la vue et les contours complexes
+  extérieurs. Une comparaison avec l’ancienne implémentation couvre 400
+  contours et vues variés, sans changement de sommets.
+- Mesure locale synthétique pour 200 préparations répétées d’un contour de
+  12 000 segments entièrement hors de la vue : environ 42 ms → 0,02 ms. Le
+  rectangle englobant est alors déjà en cache dans le chemin Qt ; ce résultat
+  ne mesure pas le rendu GPU complet ni une sélection nouvellement construite.
+
 ## Préparation des contours de sélection — 2 novembre 2026
 
 - Les raccords à angle droit, demi-tours, chemins fermés, zones découpées et

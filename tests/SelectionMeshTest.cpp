@@ -131,6 +131,33 @@ private slots:
             QVERIFY(v.distance < 240);
         }
     }
+    void offscreenBoundsPreserveEdgesAndCurves()
+    {
+        using PhotoCrap::Render::selectionMesh;
+        const QRectF view(0, 0, 100, 100);
+        QPainterPath line;
+        line.moveTo(-6, 10);
+        line.lineTo(-6, 90);
+        QCOMPARE(selectionMesh(line, {1, 1}, view, 1).vertices.size(), 6);
+        QPainterPath outside;
+        outside.moveTo(-6.1, 10);
+        outside.lineTo(-6.1, 90);
+        QVERIFY(selectionMesh(outside, {1, 1}, view, 1).vertices.isEmpty());
+        QPainterPath curve;
+        curve.moveTo(-20, 20);
+        curve.cubicTo(20, 20, 20, 80, -20, 80);
+        QVERIFY(!selectionMesh(curve, {1, 1}, view, 1).vertices.isEmpty());
+        QPainterPath distant;
+        for (int i = 0; i < 1000; ++i) {
+            if (i == 0)
+                distant.moveTo(1000, 1000);
+            else
+                distant.lineTo(1000 + i, 1000 + i % 3);
+        }
+        const auto invisible = selectionMesh(distant, {1, 1}, view, 2, 6);
+        QVERIFY(invisible.vertices.isEmpty());
+        QVERIFY(!invisible.fallback);
+    }
 };
 QTEST_GUILESS_MAIN(SelectionMeshTest)
 #include "SelectionMeshTest.moc"

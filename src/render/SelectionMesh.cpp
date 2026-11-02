@@ -40,10 +40,20 @@ SelectionMesh selectionMesh(const QPainterPath &_path, const QSizeF &_scale,
     SelectionMesh mesh;
     if (_viewport.isEmpty() || _ratio <= 0 || _scale.isEmpty())
         return mesh;
-    const qreal  extent   = 1.25 / _ratio;
-    const QRectF clipRect = _viewport.adjusted(-6 / _ratio, -6 / _ratio, 6 / _ratio, 6 / _ratio);
-    const auto   polygons =
-        _path.toSubpathPolygons(QTransform::fromScale(_scale.width(), _scale.height()));
+    const qreal  extent    = 1.25 / _ratio;
+    const QRectF clipRect  = _viewport.adjusted(-6 / _ratio, -6 / _ratio, 6 / _ratio, 6 / _ratio);
+    const auto   transform = QTransform::fromScale(_scale.width(), _scale.height());
+    const auto   bounds    = transform.mapRect(_path.controlPointRect());
+    // The control-point bounds also contain curves and closing segments. Avoid
+    // flattening a complex path that cannot possibly reach the clipped view.
+    // Compare inclusively: a zero-width line or a path touching the clip edge
+    // can still generate visible vertices.
+    if (std::isfinite(bounds.left()) && std::isfinite(bounds.right()) &&
+        std::isfinite(bounds.top()) && std::isfinite(bounds.bottom()) &&
+        (bounds.right() < clipRect.left() || bounds.left() > clipRect.right() ||
+         bounds.bottom() < clipRect.top() || bounds.top() > clipRect.bottom()))
+        return mesh;
+    const auto polygons = _path.toSubpathPolygons(transform);
     for (const auto &polygon : polygons) {
         QVector<QPointF> points;
         points.reserve(polygon.size());

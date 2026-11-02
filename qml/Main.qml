@@ -2298,7 +2298,9 @@ ApplicationWindow {
                                 to: 10
                                 duration: 700
                                 loops: Animation.Infinite
+                                // Do not wake the scene graph for invisible marching ants.
                                 running: editor.selectionEdgesVisible && editor.hasSelection
+                                         && window.visible && window.visibility !== Window.Minimized
                             }
                             Rectangle {
                                 objectName: "redEyeRegionOverlay"

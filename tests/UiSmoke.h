@@ -914,6 +914,25 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      _document.hasSelection(),
                  "finishing a lasso removes the QML guide and keeps its selection"))
         return false;
+    if (!require(selectionAnimation->property("running").toBool(),
+                 "selection animation runs while the window is visible"))
+        return false;
+    _window->hide();
+    QTest::qWait(40);
+    const bool pausedWhileHidden = !selectionAnimation->property("running").toBool();
+    _window->show();
+    QTest::qWait(80);
+    if (!require(pausedWhileHidden && selectionAnimation->property("running").toBool(),
+                 "selection animation pauses while the window is hidden and resumes on return"))
+        return false;
+    _window->setVisibility(QWindow::Minimized);
+    QTest::qWait(80);
+    const bool pausedWhileMinimized = !selectionAnimation->property("running").toBool();
+    _window->setVisibility(QWindow::Windowed);
+    QTest::qWait(80);
+    if (!require(pausedWhileMinimized && selectionAnimation->property("running").toBool(),
+                 "selection animation pauses while minimized and resumes when restored"))
+        return false;
     _document.setSelectionMode(1);
     _document.beginStroke(80, 10);
     _document.continueStroke(110, 10);

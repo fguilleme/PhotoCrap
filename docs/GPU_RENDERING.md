@@ -145,6 +145,11 @@ un flou ou un masque adouci, et contrôlent les replis pour Fondu, Bruit et Mosa
 
 ## Contours de sélection animés sur GPU
 
+L’animation commune des pointillés est suspendue quand la fenêtre principale est
+masquée ou réduite. Elle reprend dès que la fenêtre redevient visible, sans
+modifier la sélection ; les aperçus et outils qui utilisent cette phase partagent
+la même suspension.
+
 Les sélections générales (`selectionShape >= 6`, dont les sélections combinées ou
 issues d’un masque), les rectangles, les ellipses, les rangées/colonnes uniques et
 les lassos terminés passent par `render/SelectionMesh` et `SelectionOutlineNode`.

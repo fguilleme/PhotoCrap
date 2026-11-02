@@ -1,5 +1,12 @@
 # Validation
 
+## Animation de sélection hors écran — 2 novembre 2026
+
+- Le test d’interface vérifie l’arrêt de l’animation lorsque la fenêtre est
+  masquée ou réduite, puis sa reprise dans les deux cas après réaffichage.
+- La sélection elle-même reste inchangée ; cette étape évite seulement les
+  mises à jour périodiques de la phase quand la fenêtre n’est pas visible.
+
 ## Accueil et miniatures des fichiers récents — 2 novembre 2026
 
 - Builds et `qml_smoke` sur Qt 6.8.3 et Qt 6.12.0 ; le test couvre les

@@ -1,5 +1,7 @@
 #include "render/TileCache.h"
+#include <QRandomGenerator>
 #include <QtTest>
+#include <algorithm>
 
 class TileCacheTest : public QObject
 {
@@ -36,6 +38,37 @@ private slots:
         const QList<PhotoCrap::Render::TileCacheEntry> entries{
             {0, 8, 1, true}, {1, 8, 1, true}, {2, 1, 3, false}};
         QCOMPARE(PhotoCrap::Render::retainedTiles(entries, 2), (QSet<quint64>{0, 1}));
+    }
+    void matchesReferenceAcrossBudgets()
+    {
+        using namespace PhotoCrap::Render;
+        QRandomGenerator random(14096);
+        for (int sample = 0; sample < 500; ++sample) {
+            QList<TileCacheEntry> entries;
+            for (int i = 0; i < 80; ++i)
+                entries.append({quint64(i), qint64(random.bounded(25)) - 2,
+                                quint64(random.bounded(10)), random.bounded(4) == 0});
+            const auto    unsorted = entries;
+            const qint64  budget   = qint64(random.bounded(1200)) - 5;
+            QSet<quint64> expected;
+            qint64        remaining = qMax(qint64(0), budget);
+            for (const auto &entry : entries) {
+                if (entry.visible) {
+                    expected.insert(entry.key);
+                    remaining = qMax(qint64(0), remaining - qMax(qint64(0), entry.bytes));
+                }
+            }
+            std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
+                return a.lastUse == b.lastUse ? a.key < b.key : a.lastUse > b.lastUse;
+            });
+            for (const auto &entry : entries) {
+                if (!entry.visible && entry.bytes > 0 && entry.bytes <= remaining) {
+                    expected.insert(entry.key);
+                    remaining -= entry.bytes;
+                }
+            }
+            QCOMPARE(retainedTiles(unsorted, budget), expected);
+        }
     }
 };
 QTEST_GUILESS_MAIN(TileCacheTest)

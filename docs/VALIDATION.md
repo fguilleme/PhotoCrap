@@ -1,5 +1,15 @@
 # Validation
 
+## Sélection des textures en cache — 2 novembre 2026
+
+- Comparaison avec l’algorithme précédent sur 500 ensembles déterministes de
+  80 tuiles, budgets variés, égalités et tailles irrégulières. Les tuiles
+  visibles restent conservées même si elles dépassent le budget.
+- Mesure locale synthétique sur 8 192 entrées et 200 appels : environ 75 → 1 ms
+  avec budget nul et 101 → 48 ms quand toutes les tuiles tiennent. Un budget
+  intermédiaire nécessitant le tri donne environ 66 → 69 ms. Ces mesures
+  concernent la sélection CPU du cache, pas le temps de rendu GPU complet.
+
 ## Animation de sélection hors écran — 2 novembre 2026
 
 - Le test d’interface vérifie l’arrêt de l’animation lorsque la fenêtre est

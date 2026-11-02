@@ -510,6 +510,7 @@ qt_add_qml_module(PhotoCrap
         qml/ScreenOverlayCanvas.qml
         qml/SliceOptions.qml
         qml/SliceOverlay.qml
+        qml/SliceGuides.qml
         qml/SliceDraft.qml
         qml/HistogramChart.qml
         qml/HistogramGraph.qml

@@ -1,6 +1,6 @@
 # Canevas et accélération graphique
 
-Étapes après **v0.15**, en développement : présentation du composite dans le
+Accélérations livrées dans **v0.16**, puis étapes en développement : présentation du composite dans le
 canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
 Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie,
 Seuil, Style colorimétrique, Correction sélective et anciens réglages
@@ -906,10 +906,10 @@ très étroits. L’ordre de dessin et les indices sont conservés. Les contrôl
 Un changement de couleur ou d’opacité de brosse ne repeint plus cette surimpression ;
 le passage Tranche/Sélection de tranche réactualise bien les poignées.
 
-La surface Canvas reste limitée à la vue. Les changements de tranches ou du
-rectangle provisoire repeignent cette surface, en parcourant uniquement la liste
-visible. Cette étape réduit le travail CPU de préparation et de dessin ; elle
-conserve le moteur raster et le rendu natif des images.
+Le repli Canvas reste limité à la vue et parcourt seulement la liste visible.
+Le cadre provisoire et, dans l’étape après v0.16 décrite plus bas, les cadres fixes
+et poignées utilisent le graphe de scène. Les images du document gardent leur
+moteur de rendu natif.
 
 `slice_cache` vérifie la couverture automatique, l’ordre, le partage du buffer,
 les clés, les gestes provisoires, Annuler/Rétablir et l’ouverture de projets. Une
@@ -1130,46 +1130,52 @@ Références Qt : [Shape et moteurs de rendu](https://doc.qt.io/qt-6.12/qml-qtqu
 [ShapePath](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shapepath.html) et
 [PathSvg](https://doc.qt.io/qt-6.8/qml-qtquick-pathsvg.html).
 
-## Tranches : cadre provisoire GPU et fond conservé
+## Tranches : cadres et étiquettes conservés
 
-`SliceOverlay.qml` sépare le rectangle blanc du geste en cours du dessin des
-tranches validées. `SliceDraft.qml` dessine ce cadre de 2 pixels logiques avec
-CurveRenderer, sans surface raster ni transfert de texture pour le cadre mobile.
-Le Canvas principal conserve les bordures, numéros et poignées des tranches fixes,
-dans leur ordre de dessin antérieur. Il n’est plus repeint pour chaque déplacement
-du cadre. Une validation, une nouvelle sélection, un changement d’outil ou de vue
-réactualisent toujours ce fond. Les contrôles du curseur ne changent pas.
+`SliceDraft.qml` dessine le rectangle blanc de 2 pixels logiques du geste en cours
+avec CurveRenderer, indépendamment des tranches validées. Ce chemin est livré
+dans v0.16. Le snapshot partagé avec `SliceOptions` repose sur la révision monotone
+`sliceDescriptionRevision` : seuls les changements de dimensions, de rectangles
+validés ou d’affichage automatique reconstruisent les descriptions.
 
-Le signal natif `slicesChanged` notifie aussi les changements de brouillon. Pour
-éviter qu’il reconvertisse toute la liste à chaque mouvement, le cache natif
-`SliceDescriptionCache` possède une révision monotone qui ne change que lors d’un
-changement de clé : dimensions, rectangles validés ou affichage automatique.
-`Document::sliceDescriptionRevision()` synchronise la clé et expose cette révision ;
-`sliceDescriptionSnapshot()` retourne les descriptions partagées sans créer de
-dépendance QML à ce signal général. Une propriété numérique intermédiaire, dans
-le canevas et dans `SliceOptions`, filtre les notifications de révision identique.
-La liste, son filtre visible et les contrôles réutilisent ainsi leurs données
-pendant le geste. La tranche active reste une dépendance séparée pour les couleurs
-et poignées, et le rectangle provisoire suit sa propre propriété.
+L’étape en développement après v0.16 remplace le grand Canvas des tranches fixes
+par `SliceGuides.qml` : cadres et poignées sont des chemins GPU, les fonds des
+étiquettes des rectangles conservés. L’ordre par tranche reste cadre, fond, numéro,
+puis chacune des huit poignées, y compris lorsque celles-ci se superposent.
+Le modèle visible est réutilisé quand les mêmes indices restent dans la vue à
+révision identique. Un petit défilement déplace donc les objets existants sans
+reconstruire le Repeater ni recalculer les descriptions natives.
 
-Le cadre GPU est découpé aux limites du Canvas visible, y compris après rotation,
-sans couper le fond déjà conservé. Les coordonnées locales soustraient l’origine
-de la vue et appliquent le zoom comme dans l’ancien dessin. Les backends logiciels
-et les kits Qt sans CurveRenderer conservent le cadre dans le Canvas principal ;
-leurs mouvements demandent encore un repeint raster. Aucune image de calque ni
-étape d’historique n’est créée par cette optimisation, et le format de projet ne
-change pas.
+Les chiffres gardent `Context2D.fillText` avec la police `11px sans-serif`, dans des Canvas de
+**49 × 25 pixels logiques**. Ce sont de petits caches raster, pas des glyphes vectoriels.
+Leur origine est alignée sur la grille physique du Canvas historique et leur phase
+fractionnaire est intégrée au dessin. À phase et numéro constants, déplacer la
+vue ne repeint pas ces caches ; zoom ou changement de résolution d’écran les
+réactualisent. Cette solution conserve les formes de chiffres du rendu historique,
+que le rendu natif de `Text` et les contours typographiques GPU ne reproduisaient
+pas à l’identique.
 
-`slice_cache` vérifie la révision et le partage des descriptions pendant les gestes,
-puis leur renouvellement après validation, Annuler/Rétablir et ouverture de projet.
-`slice_overlay` compare aux Canvas de la version précédente en 8/16 bits : création,
-déplacement, redimensionnement, valeurs fractionnaires, annulation, validation,
-zoom, défilement, rotation, tranches automatiques et petites étiquettes débordant
-de leur rectangle. Le test observe les compteurs réels de `painted` et de snapshots
-du canevas et des options : ils restent nuls pendant le déplacement sur GPU, le
-même objet de cadre est conservé et le buffer natif reste partagé. Le dessin des
-numéros reste raster et borné ; cette étape accélère le cadre mobile et évite les
-repeints de son fond.
+Le chemin fixe GPU est utilisé avec CurveRenderer, à échelle d’écran entière,
+pour **128 descriptions visibles au maximum**. Les autres cas utilisent un Canvas
+limité à la vue, créé par Loader ; le retour GPU détruit ce grand tampon. Le
+masquage des outils détruit également les petits caches de chiffres ; une vue
+sans tranche visible ni cadre provisoire ne crée aucune surface raster. Le cadre
+provisoire conserve son chemin GPU quand il est disponible, même si les tranches
+fixes sont en repli. Une couche de composition bornée applique l’opacité après
+la superposition de tous les éléments, y compris dans ce cas mixte.
+
+`slice_overlay` compare au dessin historique en 8/16 bits : création, déplacement,
+redimensionnement, annulation, validation, zoom jusqu’à 64×, rotation, étiquettes
+hors rectangle et tranches automatiques. Des tranches de 2 × 3 pixels et leurs
+poignées superposées vérifient l’ordre des aplats et traits, à opacité partielle.
+Les compteurs de `painted`, les identités des objets et le modèle visible contrôlent
+la réutilisation pendant un petit défilement et les gestes provisoires. Une grille
+très dense vérifie le repli et la destruction des rangées GPU ; le retour à une
+vue peu dense et le masquage vérifient la libération des surfaces raster.
+
+Les contrôles sont exécutés sur logiciel, Metal 1×/2×, OpenGL et à échelle d’écran
+fractionnaire. `slice_cache` garde les contrôles de partage des descriptions,
+d’historique et d’ouverture de projet ; le smoke test QML couvre les outils réels.
 
 ## Panneau Histogramme dessiné sur GPU
 

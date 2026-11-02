@@ -4,10 +4,15 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.16 — en préparation
+## En développement après v0.16
 
-Version de l’application et des paquets : `0.16.0`. Publication en attente de
-validation du workflow et du tag de release.
+- Conserver les cadres et poignées de tranches sur GPU, réutiliser les petits
+  tampons des numéros au défilement et libérer le Canvas de repli au retour GPU.
+
+## v0.16 — 2 novembre 2026
+
+Tag Git : `v0.16`. Version de l’application et des paquets : `0.16.0`.
+Les trois plateformes sont validées dans le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211).
 
 - Réutiliser les textures visibles et mettre à jour les tuiles modifiées du canevas.
 - Accélérer les aperçus des réglages, masques et modes de fusion éligibles sur GPU,

@@ -4,17 +4,17 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Version courante : **v0.15**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
+Version publiée : **v0.16**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
 
-La **v0.16** est en préparation (version interne **0.16.0**) : aperçus GPU, guides
-et graphiques retenus, texte éditable. Sa publication reste en attente de validation
-des trois plateformes ; voir les [notes de version](CHANGELOG.md).
+La **v0.16** (version interne **0.16.0**) apporte les aperçus GPU, les guides
+et graphiques retenus et le texte éditable. Ses trois plateformes sont validées ;
+voir les [notes de version](CHANGELOG.md).
 
 ## Télécharger
 
-La [release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
 
-Le tag est **v0.15** ; la version interne et les noms des paquets utilisent **0.15.0**.
+Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.16.0**.
 
 ## Nouveautés de v0.15
 
@@ -291,6 +291,11 @@ La Plume conserve son tracé principal sur GPU avec un repli raster pour les bac
 Les guides du lasso conservent leurs points et leur enveloppe fixe en cache pendant le survol, avec un dessin limité à la vue. Le guide uni et les repères du polygonal passent par des chemins GPU ; une couche de composition bornée conserve leur opacité. Le Canvas reste disponible en logiciel, sur les anciens kits Qt et pour les angles presque superposés. Les candidats combinés gardent leurs pointillés ; l’animation s’arrête lorsqu’aucune sélection n’en a besoin.
 
 Les outils Tranche partagent un cache de descriptions, y compris pour les tranches automatiques. Le survol et les déplacements provisoires ne reconstruisent plus cette partition ; le canevas ne dessine que les tranches visibles, étiquettes et poignées comprises. Le cadre provisoire est séparé sur GPU : création, déplacement et redimensionnement conservent le dessin des tranches fixes et des numéros. Leur liste partagée reste aussi en cache dans la barre d’options pendant le geste ; le backend logiciel garde le cadre raster.
+
+En développement après v0.16 : cadres et poignées de tranches conservés sur GPU,
+avec petits tampons de chiffres réutilisés au défilement. Le grand Canvas est réservé
+au repli logiciel, aux échelles d’écran fractionnaires et aux grilles de plus de
+128 tranches visibles ; il est libéré au retour GPU. L’opacité compose tous les guides ensemble.
 
 Le panneau Histogramme dessine ses trois zones RVB et sa courbe de luminance sur GPU, avec un repli Canvas sur le backend logiciel et les anciens kits Qt. Une couche de composition GPU limitée à la taille du graphique conserve la superposition des couleurs et l’opacité du panneau. Le calcul des statistiques reste sur CPU.
 

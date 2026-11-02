@@ -1,8 +1,8 @@
 # Roadmap PhotoCrap
 
-État du projet au **2 novembre 2026**. Dernière release publiée : **v0.15** ; **v0.16** est en préparation (version interne **0.16.0**), en attente de validation et de publication. Cette feuille de route distingue les fonctions livrées dans v0.12.0, v0.13.1, v0.14 et v0.15 et les ajouts depuis v0.15 des travaux restants. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **2 novembre 2026**. Dernière release publiée : **v0.16** (version interne **0.16.0**). Les étapes ajoutées après cette release sont indiquées ci-dessous. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
-La [release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.15.0**, avec SHA-256. La publication est automatique après réussite des builds, tests et contrôles des paquets : [état du workflow](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml). Le [workflow de branche au commit `bcbbc18`](https://github.com/fguilleme/PhotoCrap/actions/runs/40849316101) a déjà validé ces contrôles sur les trois plateformes. Voir les [notes de version](CHANGELOG.md).
+La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
 ## Repères actuels vérifiés
 
@@ -147,6 +147,13 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Ancres et tangentes de la Plume sur GPU : primitives visibles ordonnées et conservées au survol, lignes traversantes gardées lorsque leurs extrémités sont hors champ, couche de composition limitée à la vue et opacité après superposition. Repli Canvas logiciel/Qt ancien sans préparation SVG ; aucun dessin caché ou entièrement hors champ. Tests 8/16 bits logiciel/Metal/OpenGL, édition et Annuler, zoom 64×, contrôles proches, bords, vecteurs presque nuls, masquage et vrai glisser d’ancre. Les interactions de la Plume et son segment provisoire restent inchangés.
 - [x] Segment provisoire de la Plume sur GPU pour les courbes entièrement visibles : contour pointillé préparé par le moteur de trait Qt à la résolution de l’écran, remplissage CurveRenderer et opacité composée sur une couche bornée. Objet réutilisé au survol ; enveloppe contrôlée par la vue stable et polygone de contrôle limité à 8 192 pixels logiques. Repli Canvas pour les courbes coupées/longues, le logiciel et Qt ancien ; aucun dessin nul, caché ou hors champ. Comparaisons 8/16 bits logiciel/Metal/OpenGL, facteurs d’écran 1×/2× sur Metal, retours en arrière, faible opacité, transitions et gestes réels avec Annuler.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
+
+Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU
+conservés ; chiffres en petits caches de 49 × 25 pixels logiques, à la phase de pixels
+du Canvas historique. Modèle visible conservé au petit défilement, composition de
+l’opacité et destruction des surfaces au masquage/changement de chemin. Repli pour
+les écrans fractionnaires, Qt ancien, logiciel et plus de 128 tranches visibles.
+Comparaisons 8/16 bits, zoom 64×, poignées superposées et réutilisation des nœuds.
 
 ## 3. Sélections et masques à compléter
 

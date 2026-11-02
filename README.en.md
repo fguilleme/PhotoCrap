@@ -4,17 +4,17 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Current version: **v0.15**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
+Published version: **v0.16**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
 
-**v0.16** is in preparation (internal version **0.16.0**): GPU previews, retained
-guides and charts, and editable text. Publication awaits validation on all three
-platforms; see the [release notes](CHANGELOG.md).
+**v0.16** (internal version **0.16.0**) adds GPU previews, retained guides and
+charts, and editable text. All three platforms are validated;
+see the [release notes](CHANGELOG.md).
 
 ## Download
 
-[Release v0.15](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.15) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
+[Release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
 
-The tag is **v0.15**; the internal version and package filenames use **0.15.0**.
+The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 ## New in v0.15
 
@@ -268,10 +268,12 @@ bounds and marker models stay cached during hover. Software, older Qt kits and
 extremely acute joins retain Canvas rendering; combined candidates keep their
 animated dashes. An entirely offscreen guide allocates neither drawing path.
 
-The moving Slice frame uses a separate GPU path. Creating, moving or resizing a
-slice keeps the numbered slice layer cached. Commits, selection, tool and view
-changes still repaint that layer. The overlay and options bar reuse their
-metadata snapshot during draft gestures. Software retains the raster draft.
+The moving Slice frame uses a separate GPU path. The overlay and options bar reuse
+their metadata snapshot during draft gestures. In development after v0.16: retained
+GPU borders and handles, with small cached label rasters reused during scrolling.
+The viewport Canvas is reserved for software, fractional screen scales and grids
+with over 128 visible slices; returning to GPU releases it. Opacity is applied to
+the complete guide group.
 
 The Histogram panel draws its RGB areas and luminance curve on the GPU, with a
 Canvas fallback for software and older Qt kits. A chart-sized GPU composition

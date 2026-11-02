@@ -2,6 +2,7 @@
 #include "Document.h"
 #include "OverlayReference.h"
 #include <QJSValue>
+#include <QPointer>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -19,7 +20,7 @@ inline bool runSliceOverlaySmoke(QQuickWindow *_window)
     };
     const bool hardware =
         QSGRendererInterface::isApiRhiBased(_window->rendererInterface()->graphicsApi());
-    bool          vectorDraft = false;
+    bool          vectorDraft = false, vectorSlices = false;
     Document      document;
     QQmlComponent component(qmlEngine(_window));
     component.setData(R"(
@@ -34,6 +35,7 @@ Item {
     property real panX: 0
     property real panY: 0
     property real viewRotation: 0
+    property real guideOpacity: 1
     Rectangle { anchors.fill: parent; color: "#5a7896" }
     SliceOptions {
         objectName: "sliceTestOptions"
@@ -121,10 +123,12 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
                 objectName: "sliceTestOverlay"
                 document: fixture.document; viewportItem: view; zoom: fixture.zoom
                 visible: !referenceVisible && sliceToolActive
+                opacity: fixture.guideOpacity
             }
             LegacySliceOverlay {
                 document: fixture.document; viewportItem: view; zoom: fixture.zoom
                 visible: referenceVisible && (document.tool==="slice" || document.tool==="sliceSelect")
+                opacity: fixture.guideOpacity
             }
         }
     }
@@ -190,6 +194,10 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
             return false;
         document.setSliceShowAuto(false);
         document.setTool("slice");
+        frame();
+        if (!require(!visualItem("sliceRasterGuides") && !visualItem("sliceCachedLabel"),
+                     "empty slice views allocate no raster drawing surfaces"))
+            return false;
         for (int row = 0; row < 12; ++row)
             for (int column = 0; column < 12; ++column) {
                 const int x = 20 + column * 310, y = 20 + row * 250;
@@ -206,9 +214,18 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         const auto all     = document.slices();
         const auto history = document.historyIndex();
         frame();
-        vectorDraft = overlay->property("gpuDraft").toBool();
+        vectorDraft  = overlay->property("gpuDraft").toBool();
+        vectorSlices = overlay->property("gpuSlices").toBool();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
         if (!require(!hardware || vectorDraft, "RHI uses the retained GPU slice draft"))
+            return false;
+        const bool integralDpr = _window->devicePixelRatio() == qRound(_window->devicePixelRatio());
+        if (!require(vectorSlices == (hardware && integralDpr),
+                     "RHI uses retained slice guides with a software fallback at fractional DPR"))
+            return false;
+        if (vectorSlices && !require(!visualItem("sliceRasterGuides") &&
+                                         !overlay->property("rasterActive").toBool(),
+                                     "GPU slice guides allocate no viewport-sized Canvas"))
             return false;
 #endif
         if (vectorDraft) {
@@ -223,6 +240,32 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
                      "many offscreen slices are culled without changing visible labels, borders "
                      "and handles"))
             return false;
+        QSignalSpy                  visibleModels(overlay, SIGNAL(visibleSlicesChanged()));
+        QPointer<QQuickItem>        retainedRecord = visualItem("sliceGpuRecord");
+        auto                       *cachedLabel    = visualItem("sliceCachedLabel");
+        std::unique_ptr<QSignalSpy> labelPaints;
+        if (cachedLabel)
+            labelPaints = std::make_unique<QSignalSpy>(cachedLabel, SIGNAL(painted()));
+        paints.clear();
+        snapshots.clear();
+        const auto visibleBeforePan = sequence("visibleSlices");
+        root->setProperty("panX", 1);
+        root->setProperty("panY", 1);
+        frame();
+        if (!visibleModels.isEmpty() || !snapshots.isEmpty())
+            qWarning() << "Slice pan diagnostics" << visibleModels.size() << snapshots.size()
+                       << (visibleBeforePan == sequence("visibleSlices")) << vectorSlices;
+        if (!require(visibleModels.isEmpty() && snapshots.isEmpty() &&
+                         (!vectorSlices ||
+                          (retainedRecord && visualItem("sliceGpuRecord") == retainedRecord &&
+                           paints.isEmpty() && labelPaints && labelPaints->isEmpty())),
+                     "small pans retain slice nodes and cached glyphs without Canvas paints"))
+            return false;
+        if (!require(matchesReference(), "retained slice labels follow the scrolled pixel grid"))
+            return false;
+        root->setProperty("panX", 0);
+        root->setProperty("panY", 0);
+        frame();
         paints.clear();
         snapshots.clear();
         const auto cursorAt = [&](qreal _x, qreal _y) {
@@ -253,7 +296,7 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
             return false;
         document.setTool("slice");
         frame();
-        if (!require(!paints.isEmpty() && matchesReference(),
+        if (!require((vectorSlices ? paints.isEmpty() : !paints.isEmpty()) && matchesReference(),
                      "switching slice tools refreshes handle visibility"))
             return false;
         document.setTool("sliceSelect");
@@ -286,6 +329,12 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         }
         if (!require(matchesReference(), "live slice drafts preserve their original drawing"))
             return false;
+        for (qreal opacity : {.25, .6, 1.}) {
+            root->setProperty("guideOpacity", opacity);
+            if (!require(matchesReference(),
+                         "slice frames, labels, handles and draft share one opacity group"))
+                return false;
+        }
         document.endSliceGesture(true);
         frame();
         if (!require(document.historyIndex() == history && matchesReference(),
@@ -359,12 +408,55 @@ component LegacySliceOverlay: ScreenOverlayCanvas {
         if (!require(document.historyIndex() == viewHistory && matchesReference(),
                      "view changes and cancelling the draft preserve undo history"))
             return false;
+        root->setProperty("zoom", .125);
+        frame();
+        if (!require(sequence("visibleSlices").size() > 128 &&
+                         !overlay->property("gpuSlices").toBool() && matchesReference(),
+                     "dense slice grids use the bounded raster fallback"))
+            return false;
+        if (!require(visualItem("sliceRasterGuides") && !visualItem("sliceGpuRecord"),
+                     "dense fallback releases cached GPU rows and uses one viewport Canvas"))
+            return false;
         document.setTool("brush");
         frame();
         if (!require(!overlay->isVisible() && sequence("sliceRecords").isEmpty() &&
                          document.layerImage(0) == pixels && document.channelBits() == bits,
                      "leaving slice tools drops the QML snapshot and preserves native pixels"))
             return false;
+        if (!require(!visualItem("sliceRasterGuides") && !visualItem("sliceCachedLabel"),
+                     "hidden slice tools release raster surfaces and label caches"))
+            return false;
+        root->setProperty("zoom", 1.);
+        if (!require(document.newDocument(256, 160, true, bits), "create tiny overlapping slices"))
+            return false;
+        document.setSliceShowAuto(false);
+        document.setTool("slice");
+        for (int offset : {0, 1}) {
+            document.beginSliceGesture(20 + offset, 20 + offset);
+            document.updateSliceGesture(22 + offset, 23 + offset);
+            document.endSliceGesture();
+        }
+        document.setTool("sliceSelect");
+        frame();
+        if (vectorSlices &&
+            !require(!visualItem("sliceRasterGuides"),
+                     "returning to sparse guides releases the large fallback Canvas"))
+            return false;
+        for (qreal zoom : {.25, 1., 64.}) {
+            root->setProperty("zoom", zoom);
+            root->setProperty("panX", qMax(0., 20 * zoom - 20));
+            root->setProperty("panY", qMax(0., 20 * zoom - 20));
+            for (qreal opacity : {1., .35}) {
+                root->setProperty("guideOpacity", opacity);
+                if (!require(matchesReference(),
+                             "tiny reversed frames and overlapping handles preserve drawing order"))
+                    return false;
+            }
+        }
+        root->setProperty("guideOpacity", 1.);
+        root->setProperty("zoom", 1.);
+        root->setProperty("panX", 0);
+        root->setProperty("panY", 0);
     }
     qInfo("Slice overlay checks passed on both 8-bit and 16-bit documents");
     return true;

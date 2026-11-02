@@ -1,9 +1,24 @@
 # Validation
 
-## Préparation de v0.16 — 2 novembre 2026
+## Guides de tranches après v0.16 — 2 novembre 2026
+
+- Build local et contrôles `slice_cache`, `slice_overlay`, `qml_smoke` sur Qt 6.8.3
+  et Qt 6.12.0. Comparaisons natives sur Metal 1×/2×, OpenGL et repli à échelle
+  d’écran fractionnaire, sur macOS Apple Silicon.
+- Référence raster indépendante sur documents 8/16 bits, tranches automatiques,
+  petites étiquettes débordantes, zoom jusqu’à 64×, rotation, superposition de
+  poignées et opacité de l’ensemble des guides.
+- Identité du modèle et des objets conservée au petit défilement ; absence de
+  repeint du grand Canvas et du cache de chiffres observé. Repli au-delà de 128
+  descriptions visibles et destruction des surfaces au masquage/retour GPU.
+- Les vérifications de rendu matériel Vulkan/Direct3D restent à exécuter sur les
+  plateformes concernées ; ces résultats locaux ne les remplacent pas.
+
+## Validation de v0.16 — 2 novembre 2026
 
 - Les 43 tests hors écran passent localement sur Apple Silicon avec Qt 6.8.3 et
-  Qt 6.12.0. La validation des paquets GitHub sur les trois plateformes reste requise.
+  Qt 6.12.0. Les builds, tests et paquets des trois plateformes sont validés dans le
+  [workflow de release](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211).
 - Le test de survol des presets force le placement de la ListView avant de déplacer
   la souris : sous Qt 6.8, l’ouverture précède l’activation des lignes pour les événements.
   Les tests de survol, annulation, clic, clavier et historique restent actifs.

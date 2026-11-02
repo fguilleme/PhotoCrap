@@ -30,6 +30,7 @@
 #include <QtConcurrent>
 #include <QtMath>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <numeric>
@@ -52,8 +53,15 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
         const QImage coverage = (_feather >= .5 ? blurImage(_mask, P::round(_feather)) : _mask)
                                     .convertToFormat(QImage::Format_Grayscale8);
         const bool   uniform  = ImageUtils::compact(coverage);
-        const int    h = uniform ? result.height() : qMin(result.height(), coverage.height()),
-                     w = uniform ? result.width() : qMin(result.width(), coverage.width());
+        std::array<int, 256> alphaFactors{};
+        if constexpr (!P::wide) {
+            const int first = uniform ? coverage.constScanLine(0)[0] : 0;
+            const int last  = uniform ? first + 1 : 256;
+            for (int value = first; value < last; ++value)
+                alphaFactors[value] = qRound(255 - (255 - value) * _density);
+        }
+        const int h = uniform ? result.height() : qMin(result.height(), coverage.height()),
+                  w = uniform ? result.width() : qMin(result.width(), coverage.width());
         if (w <= 0 || h <= 0)
             return result;
         const int jobs =
@@ -69,10 +77,15 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
                 auto        *pixels = reinterpret_cast<Pixel *>(destination + y * stride);
                 const uchar *m      = coverage.constScanLine(uniform ? 0 : y);
                 for (int x = 0; x < w; ++x) {
-                    const double a = P::round(255 - (255 - m[uniform ? 0 : x]) * _density);
-                    pixels[x] =
-                        P::rgba(P::red(pixels[x]) * a / 255, P::green(pixels[x]) * a / 255,
-                                P::blue(pixels[x]) * a / 255, P::alpha(pixels[x]) * a / 255);
+                    if constexpr (!P::wide)
+                        pixels[x] =
+                            ImageUtils::multiplyAlpha8(pixels[x], alphaFactors[m[uniform ? 0 : x]]);
+                    else {
+                        const double a = P::round(255 - (255 - m[uniform ? 0 : x]) * _density);
+                        pixels[x] =
+                            P::rgba(P::red(pixels[x]) * a / 255, P::green(pixels[x]) * a / 255,
+                                    P::blue(pixels[x]) * a / 255, P::alpha(pixels[x]) * a / 255);
+                    }
                 }
             }
         };

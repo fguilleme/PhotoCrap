@@ -1,5 +1,14 @@
 # Validation
 
+## Multiplication des masques 8 bits — 2 novembre 2026
+
+- Comparaison exhaustive des 65 536 combinaisons canal/couverture au calcul
+  flottant arrondi ; composition vérifiée avec alpha et densités intermédiaires,
+  en séquentiel et parallèle. Le chemin 16 bits conserve son calcul propre.
+- Sur une image synthétique de 12 Mpx avec huit threads, application d’un
+  masque 8 bits et copie passent d’environ 25 à 10 ms. Cette mesure isolée
+  ne comprend pas l’ensemble de la pile ni l’affichage.
+
 ## Extraction directe de l’alpha — 2 novembre 2026
 
 - Comparaison aux conversions Qt sur les 65 536 valeurs d’alpha, huit formats

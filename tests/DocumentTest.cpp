@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageAlpha.h"
+#include "ImagePixels.h"
 #include "ImageUtils.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
@@ -4657,6 +4658,18 @@ private slots:
         QVERIFY(loaded.openFile(url));
         QVERIFY(loaded.layers().first().toMap().value("clippingMask").toBool());
         QCOMPARE(loaded.composite(), d.composite());
+    }
+    void integerAlphaMultiplicationMatchesScalarReference()
+    {
+        for (int channel = 0; channel < 256; ++channel) {
+            const QRgb pixel = qRgba(channel, 255 - channel, (channel * 17) % 256, channel);
+            for (int alpha = 0; alpha < 256; ++alpha) {
+                const QRgb expected = qRgba(
+                    qRound(qRed(pixel) * alpha / 255.), qRound(qGreen(pixel) * alpha / 255.),
+                    qRound(qBlue(pixel) * alpha / 255.), qRound(qAlpha(pixel) * alpha / 255.));
+                QCOMPARE(ImageUtils::multiplyAlpha8(pixel, alpha), expected);
+            }
+        }
     }
     void alphaCoverageMatchesQtAcrossAllAlphaValues()
     {

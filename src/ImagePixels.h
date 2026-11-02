@@ -5,6 +5,13 @@
 
 namespace ImageUtils
 {
+// Exact round(channel * alpha / 255) for 8-bit premultiplied channels.
+inline QRgb multiplyAlpha8(QRgb _pixel, int _alpha)
+{
+    return qRgba((qRed(_pixel) * _alpha + 127) / 255, (qGreen(_pixel) * _alpha + 127) / 255,
+                 (qBlue(_pixel) * _alpha + 127) / 255, (qAlpha(_pixel) * _alpha + 127) / 255);
+}
+
 // Algorithms use the familiar 0..255 coordinate system, but never round a
 // 16-bit channel to an 8-bit integer. Quantization happens only at output.
 template <typename Pixel>

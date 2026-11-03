@@ -6052,6 +6052,62 @@ private slots:
         QCOMPARE(d.width(), 32);
         QCOMPARE(d.selection(), QRect(8, 8, 8, 8));
     }
+    void streamedProjectPreservesNativePlanesAndEscapedMetadata()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(96, 64, true, bits));
+            d.setColor(QColor::fromRgba64(23456, 34567, 45678, 50000));
+            d.setBrushSize(20);
+            d.setBrushHardness(1);
+            d.beginStroke(30, 30);
+            d.endStroke();
+            d.addLayerMask();
+            d.setEditingMask(true);
+            d.setColor(Qt::black);
+            d.beginStroke(32, 32);
+            d.endStroke();
+            d.setEditingMask(false);
+            const QString name = QString::fromUtf8("Été \"中文\" \\ path\n👋");
+            d.renameLayer(0, name);
+            const auto pixels = d.layerImage(0), mask = d.maskImage(0);
+            d.addLayer(); // A compact PNG followed by null adjustment pixels.
+            d.addAdjustmentLayer("brightnessContrast");
+            const auto path =
+                QUrl::fromLocalFile(directory.filePath(QString::number(bits) + ".pcr"));
+            QVERIFY(d.saveProject(path));
+            QFile file(path.toLocalFile());
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            QJsonParseError error;
+            const auto      root = QJsonDocument::fromJson(file.readAll(), &error).object();
+            QCOMPARE(error.error, QJsonParseError::NoError);
+            QCOMPARE(root["version"].toInt(), 9);
+            QCOMPARE(root["channelBits"].toInt(), bits);
+            const auto layers = root["layers"].toArray();
+            QCOMPARE(layers.size(), 3);
+            QCOMPARE(layers[0].toObject()["name"].toString(), name);
+            QVERIFY(layers[1].toObject()["compactPixels"].toBool());
+            QVERIFY(layers[2].toObject()["png"].toString().isEmpty());
+            for (const auto &value : layers)
+                for (const auto field : {"png", "mask", "source"}) {
+                    const auto encoded = value.toObject()[field].toString();
+                    if (encoded.isEmpty())
+                        continue;
+                    const auto bytes = QByteArray::fromBase64(
+                        encoded.toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+                    QVERIFY(!bytes.isEmpty());
+                    QVERIFY(!QImage::fromData(bytes, "PNG").isNull());
+                }
+            Document loaded;
+            QVERIFY(loaded.openFile(path));
+            QCOMPARE(loaded.layerImage(0), pixels);
+            QCOMPARE(loaded.maskImage(0), mask);
+            QCOMPARE(loaded.layers(), d.layers());
+            QCOMPARE(loaded.channelBits(), bits);
+        }
+    }
     void projectRoundTripAndExport()
     {
         QTemporaryDir dir;

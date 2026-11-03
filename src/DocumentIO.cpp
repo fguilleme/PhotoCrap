@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "storage/ProjectWriteDevice.h"
 #include "text/TextLayer.h"
 
 #include <QBuffer>
@@ -203,42 +204,38 @@ bool Document::saveProject(const QUrl &_url)
         return fail(tr("Chemin de sauvegarde invalide."));
     if (!path.endsWith(".pcr", Qt::CaseInsensitive))
         path += ".pcr";
-    QJsonArray layers;
-    for (const auto &layer : m_layers) {
-        auto encode = [&](const QImage &_image) -> QString {
-            if (_image.isNull())
-                return {};
-            QByteArray bytes;
-            QBuffer    buffer(&bytes);
-            buffer.open(QIODevice::WriteOnly);
-            return _image.save(&buffer, "PNG") ? QString::fromLatin1(bytes.toBase64()) : QString{};
-        };
-        const QString png = encode(layer.image), mask = encode(layer.mask),
-                      source = encode(layer.source);
-        if ((!layer.image.isNull() && png.isEmpty()) || (!layer.mask.isNull() && mask.isEmpty()) ||
-            (!layer.source.isNull() && source.isEmpty()))
-            return fail(tr("Impossible d’encoder les données du calque."));
-        layers.append(QJsonObject{{"name", layer.name},
-                                  {"visible", layer.visible},
-                                  {"locked", layer.locked},
-                                  {"opacity", layer.opacity},
-                                  {"blend", layer.blend},
-                                  {"kind", layer.kind},
-                                  {"adjustmentType", layer.adjustmentType},
-                                  {"parameters", QJsonObject::fromVariantMap(layer.parameters)},
-                                  {"png", png},
-                                  {"compactPixels", ImageUtils::compact(layer.image)},
-                                  {"mask", mask},
-                                  {"compactMask", ImageUtils::compact(layer.mask)},
-                                  {"maskEnabled", layer.maskEnabled},
-                                  {"clippingMask", layer.clippingMask},
-                                  {"groupId", layer.groupId},
-                                  {"groupCollapsed", layer.groupCollapsed},
-                                  {"source", source}});
-    }
-    QJsonObject root{{"format", "PhotoCrap"},   {"version", 9},
-                     {"width", width()},        {"height", height()},
-                     {"activeLayer", m_active}, {"layers", layers}};
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return fail(file.errorString());
+    LimitedWriteDevice output(file, MaxProjectBytes);
+    const auto         saveError = [&](bool _encoding = false) {
+        if (output.limitExceeded())
+            return fail(tr("Le projet dépasse 256 Mio. Réduisez ses dimensions ou ses calques."));
+        if (file.error() != QFileDevice::NoError)
+            return fail(file.errorString());
+        return fail(_encoding ? tr("Impossible d’encoder les données du calque.")
+                              : output.errorString());
+    };
+    const auto write = [&](const QByteArray &_bytes) {
+        return output.write(_bytes) == _bytes.size();
+    };
+    const auto prefix = [&](const QJsonObject &_object) {
+        auto bytes = QJsonDocument(_object).toJson(QJsonDocument::Compact);
+        bytes.chop(1); // Append streamed fields before the object's closing brace.
+        return write(bytes);
+    };
+    const auto image = [&](const PixelPlane &_plane) {
+        if (_plane.isNull())
+            return true;
+        Base64WriteDevice encoder(output);
+        const QImage      pixels = _plane;
+        return !pixels.isNull() && pixels.save(&encoder, "PNG") && encoder.finish();
+    };
+    QJsonObject root{{"format", "PhotoCrap"},
+                     {"version", 9},
+                     {"width", width()},
+                     {"height", height()},
+                     {"activeLayer", m_active}};
     root["channelBits"]   = m_channelBits;
     root["penPaths"]      = PenGeometry::encode(m_penPaths);
     root["activePenPath"] = m_activePenPath;
@@ -246,12 +243,46 @@ bool Document::saveProject(const QUrl &_url)
     for (const auto &rect : m_slices)
         slices.append(QJsonObject{
             {"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}});
-    root["slices"]        = slices;
-    const QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Compact);
-    if (data.size() > MaxProjectBytes)
-        return fail(tr("Le projet dépasse 256 Mio. Réduisez ses dimensions ou ses calques."));
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit())
+    root["slices"] = slices;
+    if (!prefix(root) || !write(",\"layers\":["))
+        return saveError();
+    bool first = true;
+    for (const auto &layer : m_layers) {
+        if (!first && !write(","))
+            return saveError();
+        first = false;
+        const QJsonObject metadata{{"name", layer.name},
+                                   {"visible", layer.visible},
+                                   {"locked", layer.locked},
+                                   {"opacity", layer.opacity},
+                                   {"blend", layer.blend},
+                                   {"kind", layer.kind},
+                                   {"adjustmentType", layer.adjustmentType},
+                                   {"parameters", QJsonObject::fromVariantMap(layer.parameters)},
+                                   {"compactPixels", ImageUtils::compact(layer.image)},
+                                   {"compactMask", ImageUtils::compact(layer.mask)},
+                                   {"maskEnabled", layer.maskEnabled},
+                                   {"clippingMask", layer.clippingMask},
+                                   {"groupId", layer.groupId},
+                                   {"groupCollapsed", layer.groupCollapsed}};
+        if (!prefix(metadata) || !write(",\"png\":\""))
+            return saveError();
+        if (!image(layer.image))
+            return saveError(true);
+        if (!write("\",\"mask\":\""))
+            return saveError();
+        if (!image(layer.mask))
+            return saveError(true);
+        if (!write("\",\"source\":\""))
+            return saveError();
+        if (!image(layer.source))
+            return saveError(true);
+        if (!write("\"}"))
+            return saveError();
+    }
+    if (!write("]}"))
+        return saveError();
+    if (!file.commit())
         return fail(file.errorString());
     m_savedId    = m_contentId;
     m_projectUrl = QUrl::fromLocalFile(path);

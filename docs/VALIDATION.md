@@ -1,5 +1,40 @@
 # Validation
 
+## Sauvegarde de projet en flux — 3 novembre 2026
+
+Sonde isolée de l’encodeur : douze plans synthétiques opaques de 1 024 × 1 024,
+macOS Apple Silicon / Qt 6.12, pic RSS du processus via `/usr/bin/time -l`.
+La composition, l’historique et les autres caches de l’application ne font pas
+partie de cette sonde. Une exécution par mode donne :
+
+| Profondeur | Ancien pic RSS | Flux, pic RSS | Réduction | Encodage ancien / flux |
+|---|---:|---:|---:|---:|
+| 8 bits | 324 Mio | 74 Mio | 77 % | 1 927 / 1 703 ms |
+| 16 bits | 692 Mio | 122 Mio | 82 % | 5 964 / 5 445 ms |
+
+Les sorties de sonde ont les mêmes tailles et SHA-256 pour chaque profondeur.
+Les durées sont des mesures locales ponctuelles. Reproduction sur macOS :
+
+```sh
+PHOTOCRAP_PROJECT_ENCODING_PROBE=stream PHOTOCRAP_PROJECT_ENCODING_BITS=16 \
+  /usr/bin/time -l build/photocrap_project_write_tests projectEncodingMemoryProbe
+# Remplacer stream par legacy pour la référence précédente.
+```
+
+Le scénario mémoire est ignoré sans opt-in ; il ajoute un skip volontaire à la
+suite dédiée.
+
+La suite dédiée compte neuf réussites : fragments arbitraires autour des multiples
+de trois et de 12 Kio, sorties courtes, erreur et écriture nulle, padding et limite
+stricte, finalisation répétée et refus après finalisation. Les requêtes Base64 restent
+bornées à 16 Kio ; l’échec d’un PNG est propagé et le fichier précédent reste intact.
+Les PNG encodés en ARGB32/RGBA64/Grayscale8 donnent exactement les mêmes octets
+Base64 que l’ancien tampon QBuffer. Les projets v9 8/16 bits avec masques, calques
+compacts, réglages sans pixels, noms multilingues et caractères échappés sont
+rechargés à l’identique. Les 301 calques de 24 Mpx et le texte éditable gardent
+leurs tests de persistance. Ces contrôles passent sur Qt 6.8 et 6.12. Le codec PNG
+peut encore demander des tampons natifs complets ; l’interface de sauvegarde reste synchrone.
+
 ## Rasterisation régionale du texte — 3 novembre 2026
 
 Les 24 références QPainter pleine image donnent les mêmes pixels : profondeurs

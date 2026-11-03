@@ -32,6 +32,8 @@ Unchanged GPU borders also retain their textures when another part of their stor
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.
 
+Saving `.pcr` v9 now streams layer JSON and PNG/Base64 payloads into the atomic file without accumulating the encoded project in memory. The 256 MiB limit remains, and saving is still synchronous.
+
 Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
 
 Eligible GPU stacks retain four reduced GPU levels (1/2 through 1/16). Zoom changes reuse textures and tile boundaries follow the document’s global sampling grid, including odd dimensions. Oversized or unsupported stacks retain the CPU fallback.

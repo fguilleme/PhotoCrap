@@ -74,6 +74,18 @@ le parcours ou l’écriture et validation atomique en une étape d’historique
 Les petites emprises restent synchrones. Un nouveau geste de modification annule
 l’ancien calcul dès la pression, avant même le premier déplacement.
 
+La sauvegarde `.pcr` v9 écrit les métadonnées JSON et les PNG en Base64 directement
+dans le fichier atomique temporaire, un plan après l’autre. Elle ne conserve plus les chaînes Base64 de tous les calques ni une seconde copie
+JSON complète. Elle ne construit plus non plus de tampon PNG compressé ou de grande
+chaîne UTF-16 intermédiaire pour chaque plan. Le convertisseur produit au plus 16 Kio de Base64 à la fois et garde
+au plus deux octets en attente. La limite de 256 Mio porte sur le flux réel, y compris
+métadonnées et padding ; un échec d’écriture/encodage laisse le fichier précédent
+intact. Sur une sonde isolée de douze plans synthétiques de 1 Mpx, le pic RSS de l’encodeur
+passe de 324 à 74 Mio en 8 bits et de 692 à 122 Mio en 16 bits, avec sorties identiques.
+Ces mesures locales n’incluent pas le composite ni l’historique de l’application.
+L’encodage PNG peut encore matérialiser un plan natif complet et ses buffers
+de conversion. La sauvegarde reste synchrone et la lecture parse encore tout le JSON.
+
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états
 historiques sont parcourus avant les plans actifs. Les versions en cours d’utilisation

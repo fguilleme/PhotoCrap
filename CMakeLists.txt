@@ -49,6 +49,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/storage/ProjectWriteDevice.cpp
+    src/storage/ProjectWriteDevice.h
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -199,6 +201,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/text/TextLayer.h
     tests/DocumentTest.cpp
     tests/TextToolTest.cpp
+    tests/ProjectWriteTest.cpp
     tests/RawTestImage.h
     tests/UiSmoke.h
     tests/ToolLayerSmoke.h
@@ -339,6 +342,8 @@ qt_add_library(photocrap_core STATIC
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/storage/ProjectWriteDevice.cpp
+    src/storage/ProjectWriteDevice.h
     src/RawImageReader.cpp
     src/RawImageReader.h
     src/DocumentLayers.cpp
@@ -653,6 +658,10 @@ if(BUILD_TESTING)
     )
     target_link_libraries(photocrap_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME document COMMAND photocrap_tests)
+    qt_add_executable(photocrap_project_write_tests tests/ProjectWriteTest.cpp)
+    target_link_libraries(photocrap_project_write_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME project_writer COMMAND photocrap_project_write_tests)
+    set_tests_properties(project_writer PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_text_tests tests/TextToolTest.cpp)
     target_link_libraries(photocrap_text_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME text_tools COMMAND photocrap_text_tests -o -,txt -o text-tools.txt,txt)

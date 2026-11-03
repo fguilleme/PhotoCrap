@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Application des masques natifs 16 bits par multiplication entière exacte
+  à densité maximale ; facteurs précalculés sans quantification aux autres densités.
+
 - [x] Préparation des grandes sources de fréquences sur worker annulable,
   composite natif terminé réutilisé, sources préparées selon le budget RAM/disque ;
   ouverture des propriétés après publication, zoom et historique conservés.

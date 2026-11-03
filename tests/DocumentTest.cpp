@@ -6857,6 +6857,24 @@ private slots:
             }
         }
     }
+    void integerNativeAlphaMultiplicationMatchesScalarReference()
+    {
+        using P = ImageUtils::PixelAccess<QRgba64>;
+        for (int channel = 0; channel < 65536; ++channel) {
+            const auto pixel =
+                QRgba64::fromRgba64(channel, 65535 - channel, (channel * 17) % 65536, channel);
+            for (int alpha = 0; alpha < 256; ++alpha) {
+                const auto expected =
+                    P::rgba(P::red(pixel) * alpha / 255., P::green(pixel) * alpha / 255.,
+                            P::blue(pixel) * alpha / 255., P::alpha(pixel) * alpha / 255.);
+                const auto actual = ImageUtils::multiplyAlpha16(pixel, alpha);
+                if (actual != expected) {
+                    qInfo() << "native channel and coverage" << channel << alpha;
+                    QCOMPARE(actual, expected);
+                }
+            }
+        }
+    }
     void alphaCoverageMatchesQtAcrossAllAlphaValues()
     {
         QImage original(256, 256, QImage::Format_RGBA64);
@@ -8311,7 +8329,7 @@ private slots:
                 auto layer           = layers[0].toObject();
                 layer["mask"]        = QString::fromLatin1(encoded.toBase64());
                 layer["compactMask"] = false;
-                for (int density : {0, 63, 100}) {
+                for (double density : {0., 1., 12.34567, 49.999, 50., 63., 99.999, 100., 120.}) {
                     auto parameters            = layer["parameters"].toObject();
                     parameters["_maskDensity"] = density;
                     layer["parameters"]        = parameters;
@@ -8326,7 +8344,7 @@ private slots:
                     QImage       reference = original.copy();
                     for (int y = 0; y < size.height(); ++y) {
                         for (int x = 0; x < size.width(); ++x) {
-                            const double weight = density / 100.;
+                            const double weight = qBound(0., density / 100., 1.);
                             double       a      = 255 - (255 - mask.constScanLine(y)[x]) * weight;
                             if (bits == 8) {
                                 a           = qRound(a);
@@ -8352,7 +8370,7 @@ private slots:
                     painter.drawImage(0, 0, reference);
                     painter.end();
                     QCOMPARE(document.composite(), expected);
-                    if (size.width() == 320 && density == 63) {
+                    if (size.width() == 320 && (density == 63 || density == 100)) {
                         auto future = QtConcurrent::run([projectPath] {
                             Document worker;
                             return worker.openFile(QUrl::fromLocalFile(projectPath))

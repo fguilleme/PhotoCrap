@@ -53,12 +53,15 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
         const QImage coverage = (_feather >= .5 ? blurImage(_mask, P::round(_feather)) : _mask)
                                     .convertToFormat(QImage::Format_Grayscale8);
         const bool   uniform  = ImageUtils::compact(coverage);
-        std::array<int, 256> alphaFactors{};
-        if constexpr (!P::wide) {
-            const int first = uniform ? coverage.constScanLine(0)[0] : 0;
-            const int last  = uniform ? first + 1 : 256;
-            for (int value = first; value < last; ++value)
+        std::array<int, 256>    alphaFactors{};
+        std::array<double, 256> nativeAlphaFactors{};
+        const int               first = uniform ? coverage.constScanLine(0)[0] : 0;
+        const int               last  = uniform ? first + 1 : 256;
+        for (int value = first; value < last; ++value) {
+            if constexpr (!P::wide)
                 alphaFactors[value] = qRound(255 - (255 - value) * _density);
+            else
+                nativeAlphaFactors[value] = 255 - (255 - value) * _density;
         }
         const int h = uniform ? result.height() : qMin(result.height(), coverage.height()),
                   w = uniform ? result.width() : qMin(result.width(), coverage.width());
@@ -80,8 +83,12 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
                     if constexpr (!P::wide)
                         pixels[x] =
                             ImageUtils::multiplyAlpha8(pixels[x], alphaFactors[m[uniform ? 0 : x]]);
+                    else if (_density == 1)
+                        pixels[x] = ImageUtils::multiplyAlpha16(pixels[x], m[uniform ? 0 : x]);
                     else {
-                        const double a = P::round(255 - (255 - m[uniform ? 0 : x]) * _density);
+                        // Keep the original floating operation order for fractional
+                        // density: quantizing a factor would change native bits.
+                        const double a = nativeAlphaFactors[m[uniform ? 0 : x]];
                         pixels[x] =
                             P::rgba(P::red(pixels[x]) * a / 255, P::green(pixels[x]) * a / 255,
                                     P::blue(pixels[x]) * a / 255, P::alpha(pixels[x]) * a / 255);

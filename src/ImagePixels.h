@@ -12,6 +12,15 @@ inline QRgb multiplyAlpha8(QRgb _pixel, int _alpha)
                  (qBlue(_pixel) * _alpha + 127) / 255, (qAlpha(_pixel) * _alpha + 127) / 255);
 }
 
+// Exact round(channel * alpha / 255) for native 16-bit channels. The
+// eight-bit coverage denominator is odd, so no half-way rounding is possible.
+inline QRgba64 multiplyAlpha16(QRgba64 _pixel, int _alpha)
+{
+    const auto channel = [_alpha](quint32 _value) { return (_value * _alpha + 127) / 255; };
+    return QRgba64::fromRgba64(channel(_pixel.red()), channel(_pixel.green()),
+                               channel(_pixel.blue()), channel(_pixel.alpha()));
+}
+
 // Algorithms use the familiar 0..255 coordinate system, but never round a
 // 16-bit channel to an 8-bit integer. Quantization happens only at output.
 template <typename Pixel>

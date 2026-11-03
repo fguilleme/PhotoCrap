@@ -1,5 +1,26 @@
 # Validation
 
+## Application native des masques 16 bits — 3 novembre 2026
+
+`integerNativeAlphaMultiplicationMatchesScalarReference` vérifie les 65 536
+valeurs de canal avec les 256 couvertures de masque, sur quatre canaux permutés :
+16 777 216 pixels contre l’ordre flottant précédent, sans changement de bit.
+La division par 255 ne présente aucun cas exactement à mi-arrondi.
+`maskedCompositionMatchesScalarReference` compare aussi 8/16 bits, petits/grands
+plans, neuf densités dont 12,34567 %, 49,999 % et 99,999 %, ainsi que le bornage
+au-delà de 100 %. Les calculs à 63 % et 100 % sont également faits sur worker.
+Les facteurs des densités partielles restent flottants, sans arrondi intermédiaire.
+
+Les 50 suites, les contrôles ciblés Qt 6.8/CPU portable et le rendu natif
+Cocoa/Metal de la pile passent.
+La sonde de création de fréquences 24 Mpx/16 bits, masque gris à pleine densité,
+a été alternée trois fois avec `DocumentFilters.cpp` recompilé depuis `899716c` :
+les médianes de calcul total passent d’environ 263,6 à 84,3 ms, soumission toujours
+asynchrone. Le même moteur et le même scénario sont utilisés ; mesure locale
+indicative, sans seuil imposé. clang-tidy ne signale pas d’erreur, avec les
+avertissements de nommage préexistants.
+
+
 ## Création asynchrone des sources de fréquences — 3 novembre 2026
 
 Douze comparaisons croisent 8/16 bits, source masquée/composée/fréquences et cache

@@ -39,6 +39,13 @@ existants, dynamiques ou préparés, après réouverture. Le zoom ne change pas 
 les dimensions restent identiques. La précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
+L’application d’un masque à densité maximale multiplie désormais directement
+les quatre canaux prémultipliés 16 bits par la couverture 8 bits, avec arrondi
+entier exact. Les densités partielles utilisent une table de facteurs flottants,
+sans quantification intermédiaire et en gardant l’ordre des opérations antérieur.
+Cela accélère les masques, écrêtages et sources de fréquences qui emploient ce
+chemin CPU ; ni les dimensions de travail ni les tampons natifs ne changent.
+
 La préparation des retouches capture maintenant les `PixelPlane` immuables,
 sans convertir les deux sources en QImage dans la GUI. Le worker matérialise les
 plans nécessaires ; les deux bandes conservent la même identité de source quand

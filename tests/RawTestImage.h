@@ -11,8 +11,10 @@ namespace RawTestImage
 {
 // An original, uncompressed Bayer DNG. No embedded JPEG or external camera
 // sample: a decoder must develop the sensor values to produce an image.
-inline QByteArray dng(int _orientation = 1)
+inline QByteArray dng(int _orientation = 1, int _width = 128, int _height = 96)
 {
+    if (_width < 16 || _height < 16 || _width > 4096 || _height > 4096)
+        return {};
     struct Entry {
         quint16    tag, type;
         quint32    count;
@@ -34,17 +36,17 @@ inline QByteArray dng(int _orientation = 1)
             out << value;
         return bytes;
     };
-    const int      width = 128, height = 96;
-    QVector<Entry> entries{{256, 4, 1, longs({width})},
-                           {257, 4, 1, longs({height})},
+    const int      width = _width, height = _height;
+    QVector<Entry> entries{{256, 4, 1, longs({quint32(width)})},
+                           {257, 4, 1, longs({quint32(height)})},
                            {258, 3, 1, shorts({16})},
                            {259, 3, 1, shorts({1})},
                            {262, 3, 1, shorts({32803})},
                            {273, 4, 1, longs({0})},
                            {274, 3, 1, shorts({quint16(_orientation)})},
                            {277, 3, 1, shorts({1})},
-                           {278, 4, 1, longs({height})},
-                           {279, 4, 1, longs({width * height * 2})},
+                           {278, 4, 1, longs({quint32(height)})},
+                           {279, 4, 1, longs({quint32(width * height * 2)})},
                            {284, 3, 1, shorts({1})},
                            {33421, 3, 2, shorts({2, 2})},
                            {33422, 1, 4, QByteArray::fromHex("00010102")},

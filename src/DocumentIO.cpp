@@ -15,8 +15,10 @@
 #include <QJsonObject>
 #include <QPainter>
 #include <QSaveFile>
+#include <QSignalBlocker>
 #include <QtConcurrentRun>
 #include <limits>
+#include <new>
 
 namespace
 {
@@ -148,45 +150,117 @@ bool Document::openRawFile(const QUrl &_url, bool _asLayer)
         return fail(tr("Choisissez un fichier RAW local."));
     if (m_rawLoading)
         return fail(tr("Un RAW est déjà en cours de lecture."));
+    finishTextEdit();
     endStroke();
+    finishLayerPreview();
     if (_asLayer && (!validSize(width(), height(), int(m_layers.size()) + 1) ||
                      !validLayerStorage(width(), height(), 1)))
         return false;
-    m_rawUrl     = _url;
-    m_rawAsLayer = _asLayer;
-    m_rawSession = m_documentSession;
-    m_rawState   = m_stateId;
-    m_rawCancel  = std::make_shared<std::atomic_bool>(false);
-    m_rawLoading = true;
-    emit          rawLoadingChanged();
-    const QString path   = _url.toLocalFile();
-    const auto    cancel = m_rawCancel;
-    m_rawWatcher.setFuture(
-        QtConcurrent::run([path, cancel] { return RawImageReader::read(path, cancel); }));
+    // Replacing a document does not need to retain its old planes on the worker.
+    m_beforeRawLoad        = _asLayer ? snapshot(tr("Importer un calque")) : Snapshot{};
+    m_rawUrl               = _url;
+    m_rawAsLayer           = _asLayer;
+    m_rawSession           = m_documentSession;
+    m_rawState             = m_stateId;
+    m_rawCancel            = std::make_shared<std::atomic_bool>(false);
+    const auto before      = m_beforeRawLoad;
+    const auto cache       = m_scratchCache;
+    const int  planeRamMiB = m_planeRamMiB;
+    const auto tool        = m_tool;
+    const auto color       = m_color;
+    const auto secondary   = m_secondary;
+    const auto cancel      = m_rawCancel;
+    const QUrl target      = _url;
+    m_rawLoading           = true;
+    emit rawLoadingChanged();
+    m_rawWatcher.setFuture(QtConcurrent::run(
+        [target, cancel, before, cache, planeRamMiB, tool, color, secondary, _asLayer] {
+            PreparedRawResult output;
+            output.cache = cache;
+            try {
+                auto decoded     = RawImageReader::read(target.toLocalFile(), cancel);
+                output.error     = decoded.error;
+                output.cancelled = decoded.cancelled || cancel->load();
+                if (!output.cancelled && !decoded.image.isNull()) {
+                    Document renderer;
+                    renderer.m_backgroundWorker = true;
+                    renderer.m_backgroundCancel = cancel;
+                    renderer.m_tool             = tool;
+                    renderer.m_color            = color;
+                    renderer.m_secondary        = secondary;
+                    if (_asLayer)
+                        renderer.restore(before);
+                    renderer.m_historyBrushSource = {};
+                    renderer.m_undo.clear();
+                    renderer.m_redo.clear();
+                    renderer.m_scratchCache = cache;
+                    renderer.m_planeRamMiB  = planeRamMiB;
+                    QObject::connect(&renderer, &Document::errorOccurred, &renderer,
+                                     [&output](const QString &message) { output.error = message; });
+                    if (renderer.adoptDecodedImage(decoded.image, target, _asLayer) &&
+                        !cancel->load()) {
+                        decoded.image = {};
+                        output.state  = renderer.snapshot({});
+                    }
+                }
+            } catch (const std::bad_alloc &) {
+                output.error = tr("Mémoire insuffisante pour terminer l’opération.");
+            } catch (...) {
+                output.error = tr("Le calcul de l’opération a échoué.");
+            }
+            output.cancelled = output.cancelled || cancel->load();
+            return output;
+        }));
     return true;
 }
 void Document::cancelRawLoad()
 {
     if (m_rawCancel)
         m_rawCancel->store(true);
+    m_beforeRawLoad = {};
 }
 void Document::finishRawLoad()
 {
-    const auto result    = m_rawWatcher.future().takeResult();
-    const bool cancelled = result.cancelled || m_rawCancel->load() ||
+    PreparedRawResult result;
+    try {
+        result = m_rawWatcher.future().takeResult();
+    } catch (...) {
+        result.error = tr("Mémoire insuffisante pour terminer l’opération.");
+    }
+    const bool cancelled = result.cancelled || !m_rawCancel || m_rawCancel->load() ||
                            m_rawSession != m_documentSession || m_rawState != m_stateId;
     const QUrl url       = m_rawUrl;
     const bool asLayer   = m_rawAsLayer;
-    bool       opened    = false;
+    const auto before    = std::move(m_beforeRawLoad);
+    m_beforeRawLoad      = {};
+    bool opened          = false;
     if (!cancelled) {
-        if (result.image.isNull())
+        if (!result.error.isEmpty())
             fail(result.error);
-        else
-            opened = adoptDecodedImage(result.image, url, asLayer);
+        else if (!result.state.layers.isEmpty()) {
+            const bool reuseCache = m_scratchCache == result.cache;
+            if (asLayer) {
+                {
+                    QSignalBlocker blocker(this);
+                    restore(result.state);
+                }
+                commit(before, tr("Importer un calque"));
+                emit documentChanged();
+                emit canvasSizeChanged();
+                emit selectionChanged();
+                emit slicesChanged();
+                emit penPathsChanged();
+            } else
+                adoptFileSnapshot(result.state, url.toLocalFile(), false);
+            if (reuseCache)
+                m_scratchCache = result.cache;
+            opened = true;
+        }
     }
     m_rawLoading = false;
     m_rawCancel.reset();
     emit rawLoadingChanged();
+    emit settingsChanged();
     if (opened && !asLayer)
         emit rawFileOpened(url);
 }

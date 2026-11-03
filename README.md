@@ -42,6 +42,8 @@ Les écritures du cache peuvent être arrêtées entre deux tuiles. Changer de d
 
 Le timer du cache ne parcourt plus chaque plan de chaque état d’historique sur l’interface : il capture les groupes de calques partagés, puis le worker collecte les plans utiles et ignore les plans nuls ou compacts.
 
+Le worker RAW prépare maintenant aussi les tuiles, le centrage et la promotion de profondeur à l’import, avec le budget de cache capturé. L’interface reçoit un état prêt à afficher ou à appliquer en une seule étape d’historique ; le tampon du décodeur n’est pas conservé dans le résultat.
+
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
 Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.

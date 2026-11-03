@@ -75,6 +75,18 @@ Une modification après capture produit de nouvelles versions sans changer le
 travail en attente : une tuile nouvellement peinte reste en RAM jusqu’à la
 prochaine collecte, tandis que les anciennes versions peuvent être déchargées.
 
+Le worker RAW développe le capteur puis prépare un snapshot complet : tuilage,
+centrage si import, promotion éventuelle des anciens plans et déchargement selon
+le budget capturé. L’image QImage du décodeur est libérée avant de transmettre le
+résultat ; `retainedDecoderBytes` reste donc nul pour les résultats terminés.
+L’ouverture seule ne capture pas les anciens plans du document sur ce worker.
+L’import capture l’état initial et crée une seule étape d’historique lors de la
+validation GUI, avec profondeur et masques restaurables. Le cache des mappings
+suit l’ouverture comme pour les autres formats. Annulation, session ou état devenu
+caduc rejette le snapshot préparé. Les allocations internes courantes de LibRaw
+et son image développée restent nécessaires pendant le calcul et hors du budget
+des tuiles ; certains appels peuvent finir après la demande d’annulation.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

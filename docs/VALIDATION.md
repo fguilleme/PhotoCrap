@@ -1,5 +1,25 @@
 # Validation
 
+## Préparation complète des RAW sur worker — 3 novembre 2026
+
+Un DNG Bayer original synthétique de 1 024 × 768, orienté à 90°, est développé en
+16 bits puis ouvert ou importé. Sur cache disponible ou indisponible, pixels,
+calques, masques, outil et taille de brosse correspondent à la référence. Tuilage,
+centrage, promotion et déchargement sont déjà terminés avant l’accusé GUI ; l’ancien
+document reste affiché jusque-là. Le résultat terminé ne retient aucun tampon
+QImage du décodeur. L’import crée une seule étape et Annuler restaure profondeur,
+pixels et état enregistré précédents.
+
+Dix scénarios croisent ouverture/import avec annulation en attente ou après
+préparation, nouveau document, nouveau geste et destruction. Une promotion
+refusée par la limite de stockage logique conserve les douze calques 8 bits du
+document 24 Mpx. Le smoke test passe par le dialogue RAW et Échap. Il a aussi révélé que le
+raccourci hors du popup modal était bloqué : le popup prend désormais le focus et
+son contenu porte le raccourci, vérifié sous Qt 6.8/6.12. La suite
+Opérations compte 132 réussites et cinq sondes optionnelles. Les tests RAW
+historiques (développement, orientation, erreur et annulation) restent présents.
+Ces fixtures originales ne remplacent pas une matrice de boîtiers réels.
+
 ## Collecte des groupes du cache sur worker — 3 novembre 2026
 
 Le timer GUI capture les vecteurs de calques partagés sans développer leurs plans.

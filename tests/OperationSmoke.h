@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "RawTestImage.h"
 #ifdef Q_OS_MACOS
 #include "MacToolCursorTest.h"
 #endif
@@ -186,6 +187,31 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
     if (!require(!document.operationBusy() && document.composite() == before &&
                      document.history() == history,
                  "Escape cancels the queued layer import"))
+        return false;
+    const auto raw = QUrl::fromLocalFile(directory.filePath("sample.dng"));
+    QFile      rawFile(raw.toLocalFile());
+    if (!require(rawFile.open(QIODevice::WriteOnly), "create RAW input for the picker"))
+        return false;
+    rawFile.write(RawTestImage::dng());
+    rawFile.close();
+    if (!require(openDialog->setProperty("selectedFile", raw) &&
+                     QMetaObject::invokeMethod(openDialog, "accepted"),
+                 "the RAW picker starts its prepared load"))
+        return false;
+    QTest::qWait(50);
+    auto *rawPopup = window->findChild<QObject *>("rawLoadPopup");
+    if (!require(document.rawLoading() && rawPopup && rawPopup->property("visible").toBool() &&
+                     document.composite() == before,
+                 "RAW progress leaves the current canvas visible"))
+        return false;
+    QTest::keyClick(window, Qt::Key_Escape);
+    QTest::qWait(50);
+    // Let the cancelled RAW task acknowledge its token and close the popup.
+    release.release();
+    pool->waitForDone();
+    if (!require(QTest::qWaitFor([&] { return !document.rawLoading(); }, 10000) &&
+                     document.composite() == before && document.history() == history,
+                 "Escape rejects the prepared RAW result"))
         return false;
     return true;
 }

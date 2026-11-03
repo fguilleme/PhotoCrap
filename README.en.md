@@ -42,6 +42,8 @@ Scratch writes can stop between tiles. Changing documents, cache folders or RAM 
 
 The cache timer no longer walks every plane in every history state on the interface thread: it captures shared layer groups, then the worker collects useful planes and skips null or compact ones.
 
+The RAW worker now also prepares tiles, centering and import bit-depth promotion using the captured cache budget. The interface receives a ready snapshot to display or commit in one history entry; the decoder buffer is not retained in the result.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

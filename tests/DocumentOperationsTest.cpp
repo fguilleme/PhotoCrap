@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "RawTestImage.h"
 #include <QColorSpace>
 #include <QElapsedTimer>
 #include <QFile>
@@ -81,6 +82,188 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void rawPlanesArePreparedBeforeTheGuiCallback_data()
+    {
+        QTest::addColumn<bool>("import");
+        QTest::addColumn<bool>("cacheAvailable");
+        for (bool import : {false, true})
+            for (bool cache : {false, true})
+                QTest::newRow(qPrintable(QString(import ? "import-" : "open-") +
+                                         (cache ? "disk" : "unavailable")))
+                    << import << cache;
+    }
+    void rawPlanesArePreparedBeforeTheGuiCallback()
+    {
+        QFETCH(bool, import);
+        QFETCH(bool, cacheAvailable);
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("large.dng"));
+        QFile         file(target.toLocalFile());
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(RawTestImage::dng(6, 1024, 768));
+        file.close();
+        Document   d, reference;
+        const auto project = QUrl::fromLocalFile(directory.filePath("original.pcr"));
+        for (Document *doc : {&d, &reference}) {
+            doc->setBackgroundEditThreshold(-1);
+            QVERIFY(doc->newDocument(512, 512, false, 8));
+            doc->setTool("brush");
+            doc->setColor(Qt::red);
+            doc->setBrushSize(12);
+            doc->setBrushSmoothing(0);
+            doc->beginStroke(100, 100);
+            doc->endStroke();
+            doc->addLayerMask();
+            doc->setColor(Qt::black);
+            doc->beginStroke(100, 100);
+            doc->endStroke();
+            doc->setEditingMask(false);
+            QVERIFY(doc->saveProject(project));
+        }
+        QVERIFY(import ? reference.importLayer(target) : reference.openFile(target));
+        const auto expected = reference.composite();
+        const auto before   = d.composite();
+        const auto history  = d.history();
+        const int  index    = d.historyIndex();
+        QString    cache    = directory.filePath("cache");
+        if (!cacheAvailable) {
+            QFile blocker(cache);
+            QVERIFY(blocker.open(QIODevice::WriteOnly));
+        }
+        d.configureScratchCache(cache, 64LL * 1024 * 1024);
+        d.configurePlaneRamMiB(0);
+        d.setTool("eraser");
+        d.setBrushSize(39);
+        QSignalSpy opened(&d, &Document::rawFileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        {
+            BlockPool blocked;
+            QVERIFY(d.openRawFile(target, import));
+            QVERIFY(d.rawLoading());
+            QCOMPARE(d.composite(), before);
+            QCOMPARE(d.history(), history);
+        }
+        // Decode, tiling, centering, depth promotion and spill have all finished;
+        // the GUI still has not accepted their prepared snapshot.
+        QVERIFY(d.rawLoading());
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.channelBits(), 8);
+        if (cacheAvailable)
+            QVERIFY(d.scratchCacheUsage()["diskBytes"].toLongLong() > 0);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.rawLoading(), 10000);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(opened.size(), import ? 0 : 1);
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.composite(), expected);
+        QCOMPARE(d.layers(), reference.layers());
+        QCOMPARE(d.historyIndex(), import ? index + 1 : 0);
+        QCOMPARE(d.projectUrl(), import ? project : QUrl{});
+        QCOMPARE(d.tool(), QString("eraser"));
+        QCOMPARE(d.brushSize(), 39.);
+        QCOMPARE(d.memoryUsage()["retainedDecoderBytes"].toLongLong(), qint64(0));
+        const auto stack = d.gpuLayerStack();
+        QVERIFY(stack.valid);
+        qint64 heap = 0;
+        for (const auto &layer : stack.layers)
+            for (auto bytes : layer.image.tiles().heapBlocks())
+                heap += bytes;
+        if (cacheAvailable) {
+            QCOMPARE(heap, qint64(0));
+            QVERIFY(d.scratchCacheUsage()["diskBytes"].toLongLong() > 0);
+        } else {
+            QVERIFY(heap > 0);
+            QVERIFY(!d.scratchCacheUsage()["error"].toString().isEmpty());
+        }
+        d.clearScratchCache();
+        QCOMPARE(d.layerImage(d.activeLayer()), reference.layerImage(reference.activeLayer()));
+        if (import) {
+            d.undo();
+            QCOMPARE(d.channelBits(), 8);
+            QCOMPARE(d.composite(), before);
+            QVERIFY(!d.modified());
+            d.redo();
+            QCOMPARE(d.composite(), expected);
+        }
+    }
+    void rawPreparationCanBeDiscardedAtEveryHandoff_data()
+    {
+        QTest::addColumn<bool>("import");
+        QTest::addColumn<QString>("action");
+        for (bool import : {false, true})
+            for (const auto *name :
+                 {"queued", "finished", "new-document", "new-gesture", "destroy"})
+                QTest::newRow(qPrintable(QString(import ? "import-" : "open-") + name))
+                    << import << QString(name);
+    }
+    void rawPreparationCanBeDiscardedAtEveryHandoff()
+    {
+        QFETCH(bool, import);
+        QFETCH(QString, action);
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("sample.dng"));
+        QFile         file(target.toLocalFile());
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(RawTestImage::dng());
+        file.close();
+        auto d = std::make_unique<Document>();
+        populate(*d, 8);
+        const auto before  = d->composite();
+        const auto history = d->history();
+        QSignalSpy opened(d.get(), &Document::rawFileOpened);
+        QSignalSpy errors(d.get(), &Document::errorOccurred);
+        {
+            BlockPool blocked;
+            QVERIFY(d->openRawFile(target, import));
+            if (action == "queued")
+                d->cancelRawLoad();
+            else if (action == "new-document")
+                QVERIFY(d->newDocument(31, 23, true));
+            else if (action == "new-gesture") {
+                d->setTool("brush");
+                d->beginStroke(40, 20);
+                d->endStroke();
+            } else if (action == "destroy")
+                d.reset();
+        }
+        if (d) {
+            if (action == "finished")
+                d->cancelRawLoad();
+            const auto current        = d->composite();
+            const auto currentHistory = d->history();
+            QTRY_VERIFY_WITH_TIMEOUT(!d->rawLoading(), 10000);
+            QCOMPARE(d->composite(), current);
+            QCOMPARE(d->history(), currentHistory);
+            if (action == "queued" || action == "finished") {
+                QCOMPARE(d->composite(), before);
+                QCOMPARE(d->history(), history);
+            }
+            QCOMPARE(opened.size(), 0);
+            QCOMPARE(errors.size(), 0);
+        }
+    }
+    void rawImportDepthLimitFailureDoesNotChangeTheLiveStack()
+    {
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("sample.dng"));
+        QFile         file(target.toLocalFile());
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(RawTestImage::dng());
+        file.close();
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 8));
+        for (int i = 0; i < 11; ++i)
+            d.duplicateLayer();
+        QCOMPARE(d.layers().size(), 12);
+        const auto layers  = d.layers();
+        const auto history = d.history();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        QVERIFY(d.openRawFile(target, true));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.rawLoading(), 10000);
+        QCOMPARE(errors.size(), 1);
+        QCOMPARE(d.channelBits(), 8);
+        QCOMPARE(d.layers(), layers);
+        QCOMPARE(d.history(), history);
+    }
     void queuedOffloadGroupsStayImmutableWhileTheDocumentIsPainted()
     {
         QTemporaryDir directory;

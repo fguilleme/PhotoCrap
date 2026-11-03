@@ -129,7 +129,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
                 }
             }));
     });
-    connect(&m_rawWatcher, &QFutureWatcher<RawImageResult>::finished, this,
+    connect(&m_rawWatcher, &QFutureWatcher<PreparedRawResult>::finished, this,
             &Document::finishRawLoad);
     m_gpuToneAuxTimer.setSingleShot(true);
     m_gpuStackAuxTimer.setSingleShot(true);
@@ -528,10 +528,8 @@ QVariantMap Document::memoryUsage() const
     qint64 tileHeapBytes = 0;
     for (auto bytes : heapBlocks)
         tileHeapBytes += bytes;
-    qint64     retainedDecoderBytes = 0;
-    const auto rawFuture            = m_rawWatcher.future();
-    if (rawFuture.isValid() && rawFuture.isFinished() && rawFuture.resultCount() > 0)
-        retainedDecoderBytes = rawFuture.result().image.sizeInBytes();
+    // Completed RAW futures contain sealed planes, never a retained decoder image.
+    const qint64 retainedDecoderBytes = 0;
     return {{"tileHeapBytes", tileHeapBytes},
             {"retainedDecoderBytes", retainedDecoderBytes},
             {"layerCount", m_layers.size()},

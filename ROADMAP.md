@@ -38,6 +38,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Collecte du cache hors du thread de l’interface, sur groupes immuables
   de calques/historique, sans parcourir tous leurs plans lors du timer GUI.
 
+- [x] RAW : développement, tuilage, centrage, promotion des calques et cache
+  préparés sur worker ; snapshot prêt à afficher/appliquer, tampon décodeur libéré.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

@@ -3748,9 +3748,11 @@ ApplicationWindow {
         width: 300
         padding: 20
         modal: true
+        focus: true
         visible: editor.rawLoading
         closePolicy: Popup.NoAutoClose
         contentItem: ColumnLayout {
+            Shortcut { objectName: "rawCancelShortcut"; sequence: "Escape"; enabled: editor.rawLoading; onActivated: editor.cancelRawLoad() }
             BusyIndicator { running: editor.rawLoading; Layout.alignment: Qt.AlignHCenter }
             Label { text: qsTr("Développement du RAW…"); Layout.alignment: Qt.AlignHCenter }
             DialogActionButton {
@@ -3760,7 +3762,6 @@ ApplicationWindow {
             }
         }
     }
-    Shortcut { sequence: "Escape"; enabled: editor.rawLoading; onActivated: editor.cancelRawLoad() }
     FileDialog {
         id: saveDialog; objectName: "saveDialog"; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("Projet PhotoCrap (*.pcr)")]; defaultSuffix: "pcr"

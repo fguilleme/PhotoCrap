@@ -1417,8 +1417,15 @@ private:
     QPointF m_mixerLastEnd;
     bool    m_mixerLastEndValid = false;
 
-    quint64                           m_documentSession = 0;
-    QFutureWatcher<RawImageResult>    m_rawWatcher;
+    quint64 m_documentSession = 0;
+    struct PreparedRawResult {
+        Snapshot                           state{};
+        QString                            error;
+        bool                               cancelled = false;
+        std::shared_ptr<ScratchImageCache> cache;
+    };
+    QFutureWatcher<PreparedRawResult> m_rawWatcher;
+    Snapshot                          m_beforeRawLoad{};
     std::shared_ptr<std::atomic_bool> m_rawCancel;
     bool                              m_rawLoading = false;
     quint64                           m_rawSession = 0, m_rawState = 0;

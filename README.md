@@ -26,6 +26,8 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 
 Les opérations complètes coûteuses (géométrie, profondeur depuis le menu, fusion vers le bas, remplissages, masques et filtres directs) calculent sur un snapshot dans un worker de faible priorité à partir de quatre millions de pixels traités. Une barre affiche la progression et propose Annuler ; Échap et Annuler/Rétablir rejettent également le calcul. Seule une fin encore valide crée une étape d’historique. Les entrées/sorties de projets et l’export restent synchrones.
 
+Le cache graphique partage une cible entre les canevas et compte photos, masques, effets et intermédiaires. Il évince la réserve hors écran et conserve les ressources visibles ; ce n’est pas un plafond VRAM du pilote.
+
 Le [guide calques et mémoire](docs/LAYER_MEMORY.md) décrit le fonctionnement et les mesures. Les plans de calques, masques, sources de fréquences et leurs versions d’historique sont stockés par tuiles partagées de 256 × 256, déchargeables sur disque après une pause. Le budget RAM des tuiles est configurable (256 Mio par défaut). Pinceau, Crayon et Gomme écrivent directement les régions touchées ; les autres opérations peuvent encore demander un tampon complet temporaire. Le composite CPU et les sélections restent séparés de ce budget. Les limites de 32 Mpx, 512 calques et 2 Gio de plans de calques restent en place. L’application écrit le format `.pcr` v9 avec texte éditable et lit aussi les projets v1 à v8. Les [fonctions de sélection de v0.14](CHANGELOG.md#v014--28-octobre-2026) restent disponibles.
 
 En développement après v0.16 : la pile de pixels, texte et Couleur unie peut être

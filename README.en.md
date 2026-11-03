@@ -26,6 +26,8 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Project I/O and export remain synchronous.
 
+The graphics cache shares a target across canvases and accounts for photos, masks, effects and intermediate targets. It evicts offscreen reserves while pinning visible resources; it is not a driver VRAM cap.
+
 The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Layer planes, masks, frequency sources and history versions now use shared 256 × 256 tiles, offloaded to disk after an editing pause. The tile RAM target is configurable (256 MiB by default). Brush, Pencil and Eraser write regional pixels directly; other operations may still request temporary full-sized buffers. The CPU composite and selections remain outside this budget. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The `.pcr` format remains at version 8, with support for reading versions 1–7. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
 
 In development after v0.16: pixel, text and Solid Color stacks can be composited

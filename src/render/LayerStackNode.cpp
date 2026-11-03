@@ -100,6 +100,8 @@ public:
     ~Tile() override
     {
         counters->bytes.fetch_sub(quint64(accountedBytes));
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
         if (image && image->parent())
             image->parent()->removeChildNode(image);
         delete image;
@@ -381,6 +383,8 @@ public:
         else
             counters->bytes.fetch_sub(quint64(accountedBytes - current));
         accountedBytes = current;
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
     }
 };
 } // namespace

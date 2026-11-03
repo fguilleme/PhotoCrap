@@ -3,11 +3,13 @@
 #include "SpatialFilterSettings.h"
 #include <QVector>
 #include <atomic>
+#include <functional>
 
 namespace PhotoCrap::Render
 {
 struct StackStatistics {
-    std::atomic<quint64> uploads{0}, passes{0}, bytes{0};
+    std::atomic<quint64>         uploads{0}, passes{0}, bytes{0};
+    std::function<void(quint64)> changed;
 };
 struct StackLayer {
     PixelPlane            image, mask;

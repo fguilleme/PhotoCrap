@@ -268,6 +268,21 @@ QCursor magicWandCursor(int _selectionMode)
 
 CanvasItem::CanvasItem(QQuickItem *_parent) : QQuickItem(_parent)
 {
+    m_graphicsClient = PhotoCrap::Render::GraphicsBudget::attach(
+        PhotoCrap::Render::GraphicsBudget::shared(), qint64(m_textureCacheMiB) * 1024 * 1024);
+    m_graphicsClient->invalidateWith([guard = QPointer<CanvasItem>(this)] {
+        if (guard)
+            QMetaObject::invokeMethod(
+                guard,
+                [guard] {
+                    if (guard)
+                        guard->queueFrame(false, false);
+                },
+                Qt::QueuedConnection);
+    });
+    m_stackStatistics->changed = [client = m_graphicsClient](quint64 bytes) {
+        client->report(PhotoCrap::Render::GraphicsBudget::Stack, qint64(bytes));
+    };
     setFlag(ItemHasContents);
     connect(this, &QQuickItem::windowChanged, this, [this] { queueFrame(false, true); });
 }
@@ -348,12 +363,22 @@ void CanvasItem::setSelectionPhase(qreal _phase)
     }
     emit selectionPhaseChanged();
 }
+QVariantMap CanvasItem::graphicsMemoryUsage() const
+{
+    const auto usage = PhotoCrap::Render::GraphicsBudget::shared()->usage();
+    return {{"resident", usage.resident},     {"pinned", usage.pinned},
+            {"target", usage.target},         {"peak", usage.peak},
+            {"photo", usage.categories[0]},   {"mask", usage.categories[1]},
+            {"effects", usage.categories[2]}, {"stack", usage.categories[3]},
+            {"other", usage.categories[4]}};
+}
 void CanvasItem::setTextureCacheMiB(int _value)
 {
     _value = qBound(0, _value, 1024);
     if (_value == m_textureCacheMiB)
         return;
     m_textureCacheMiB = _value;
+    m_graphicsClient->configure(qint64(_value) * 1024 * 1024);
     queueFrame(false, false);
     emit textureCacheChanged();
 }

@@ -1,5 +1,17 @@
 # Validation
 
+## Budget graphique partagé — 3 novembre 2026
+
+- Tests de partage de réserve entre clients, cibles différentes, ressources
+  visibles dépassant la cible, désactivation, retrait et comptage par catégorie.
+  Les notifications peuvent relire le budget sans verrou réentrant.
+- Rendu du canevas, cache LRU, pile, filtres spatiaux et teintes passent en
+  logiciel ; le canevas et les 64 cas spatiaux passent sur Metal. Le compteur
+  total correspond à la somme des catégories et conserve son pic.
+- Les tailles des textures demandées sont comptées ; les allocations privées
+  Qt/pilote et les ressources temporairement en vol ne sont pas un plafond garanti.
+
+
 ## Opérations complètes asynchrones — 3 novembre 2026
 
 - 24 comparaisons exactes synchrone/worker en 8/16 bits : redimensionnement,

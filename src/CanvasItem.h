@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "render/GraphicsBudget.h"
 #include "render/PatchMesh.h"
 #include "render/RegionMesh.h"
 #include "render/SelectionMesh.h"
@@ -52,8 +53,9 @@ public:
     {
         return m_gpuStackEnabled;
     }
-    void setGpuStackEnabled(bool enabled);
-    int  textureCacheMiB() const
+    void                    setGpuStackEnabled(bool enabled);
+    Q_INVOKABLE QVariantMap graphicsMemoryUsage() const;
+    int                     textureCacheMiB() const
     {
         return m_textureCacheMiB;
     }
@@ -194,18 +196,19 @@ private:
 #ifdef PHOTOCRAP_TESTING
     std::atomic<bool> m_gpuStackActive{false};
 #endif
-    PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
-    QHash<quint64, QImage>                  m_tileImages, m_maskTileImages;
-    QHash<quint64, quint64>                 m_tileLastUse;
-    QHash<quint64, qint64>                  m_maskTileSourceKeys;
-    quint64                                 m_tileClock        = 0;
-    int                                     m_textureCacheMiB  = 64;
-    qint64                                  m_textureSourceKey = 0;
-    qint64                                  m_textureRevision  = 0;
-    int                                     m_textureLevel     = -1;
-    QSize                                   m_documentSize, m_sourceSize, m_textureSize;
-    QRectF                                  m_viewportRect{-1, -1, -1, -1}, m_overlayRect;
-    bool m_imageDirty = true, m_overlayDirty = true, m_frameQueued = true;
+    PhotoCrap::Filters::ToneMappingSettings                    m_toneSettings;
+    QHash<quint64, QImage>                                     m_tileImages, m_maskTileImages;
+    QHash<quint64, quint64>                                    m_tileLastUse;
+    QHash<quint64, qint64>                                     m_maskTileSourceKeys;
+    quint64                                                    m_tileClock = 0;
+    std::shared_ptr<PhotoCrap::Render::GraphicsBudget::Client> m_graphicsClient;
+    int                                                        m_textureCacheMiB  = 64;
+    qint64                                                     m_textureSourceKey = 0;
+    qint64                                                     m_textureRevision  = 0;
+    int                                                        m_textureLevel     = -1;
+    QSize  m_documentSize, m_sourceSize, m_textureSize;
+    QRectF m_viewportRect{-1, -1, -1, -1}, m_overlayRect;
+    bool   m_imageDirty = true, m_overlayDirty = true, m_frameQueued = true;
 #ifdef PHOTOCRAP_TESTING
     quint64              m_framePreparations = 0, m_phaseOnlyPreparations = 0;
     std::atomic<quint64> m_imageTextureUploads{0};

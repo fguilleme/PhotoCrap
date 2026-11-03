@@ -447,6 +447,15 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
             return false;
         canvas.setTextureCacheMiB(4);
     }
+    const auto usage = canvas.graphicsMemoryUsage();
+    if (!require(usage["resident"].toLongLong() ==
+                         usage["photo"].toLongLong() + usage["mask"].toLongLong() +
+                             usage["effects"].toLongLong() + usage["stack"].toLongLong() +
+                             usage["other"].toLongLong() &&
+                     usage["resident"].toLongLong() > 0 &&
+                     usage["peak"].toLongLong() >= usage["resident"].toLongLong(),
+                 "shared budget reports all texture categories and its peak"))
+        return false;
     canvas.setTextureCacheMiB(0);
     // Remove marks are non-destructive and can coexist with animated selection.
     canvas.setSize({512, 320});

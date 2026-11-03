@@ -127,28 +127,29 @@ public:
 // All nodes and textures live and die on the scene graph thread. No Document
 // methods are called here: updatePolish prepares immutable GUI-thread snapshots.
 struct CanvasNode : QSGTransformNode {
-    LayerStackNode                 *stack = nullptr;
-    QSGTransformNode                background, photo, effects;
-    QHash<quint64, PhotoTileNode *> tiles;
-    QQuickWindow                   *owner    = nullptr;
-    qint64                          imageKey = 0, overlayKey = 0;
-    QSize                           checkerSize;
-    QPoint                          checkerPhase;
-    QSGImageNode                   *checker = nullptr, *overlay = nullptr;
-    QSGSimpleTextureNode           *repeatedChecker = nullptr;
-    QSGTexture                     *toneTable       = nullptr;
-    qint64                          toneTableKey    = 0;
-    ToneMappingSettings             toneSettings;
-    ClippedOverlayNode             *selectionRoot     = nullptr;
-    SelectionOutlineNode           *selection         = nullptr;
-    quint64                         selectionRevision = 0;
-    ClippedOverlayNode             *removeRoot        = nullptr;
-    RegionOverlayNode              *remove            = nullptr;
-    quint64                         removeRevision    = 0;
-    ClippedOverlayNode             *patchRoot         = nullptr;
-    PatchPreviewNode               *patch             = nullptr;
-    qint64                          patchImageKey     = 0;
-    quint64                         patchRevision     = 0;
+    std::shared_ptr<PhotoCrap::Render::GraphicsBudget::Client> budget;
+    LayerStackNode                                            *stack = nullptr;
+    QSGTransformNode                                           background, photo, effects;
+    QHash<quint64, PhotoTileNode *>                            tiles;
+    QQuickWindow                                              *owner    = nullptr;
+    qint64                                                     imageKey = 0, overlayKey = 0;
+    QSize                                                      checkerSize;
+    QPoint                                                     checkerPhase;
+    QSGImageNode         *checker = nullptr, *overlay = nullptr;
+    QSGSimpleTextureNode *repeatedChecker = nullptr;
+    QSGTexture           *toneTable       = nullptr;
+    qint64                toneTableKey    = 0;
+    ToneMappingSettings   toneSettings;
+    ClippedOverlayNode   *selectionRoot     = nullptr;
+    SelectionOutlineNode *selection         = nullptr;
+    quint64               selectionRevision = 0;
+    ClippedOverlayNode   *removeRoot        = nullptr;
+    RegionOverlayNode    *remove            = nullptr;
+    quint64               removeRevision    = 0;
+    ClippedOverlayNode   *patchRoot         = nullptr;
+    PatchPreviewNode     *patch             = nullptr;
+    qint64                patchImageKey     = 0;
+    quint64               patchRevision     = 0;
 
     ~CanvasNode() override
     {
@@ -160,6 +161,11 @@ struct CanvasNode : QSGTransformNode {
         photo.removeAllChildNodes();
         qDeleteAll(tiles);
         delete toneTable;
+        if (budget) {
+            budget->pin(0);
+            for (int i = 0; i < PhotoCrap::Render::GraphicsBudget::CategoryCount; ++i)
+                budget->report(PhotoCrap::Render::GraphicsBudget::Category(i), 0);
+        }
     }
 
     explicit CanvasNode(QQuickWindow *_window) : owner(_window)
@@ -274,9 +280,10 @@ void CanvasItem::updatePolish()
                                      visible.width() * m_stack.size.width() / width(),
                                      visible.height() * m_stack.size.height() / height())
                                   .toAlignedRect();
-        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) >
-            qint64(qMax(16, m_textureCacheMiB)) * 1024 * 1024)
+        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available())
             m_stack = {};
+        else
+            m_graphicsClient->pin(PhotoCrap::Render::stackWorkingBytes(m_stack, native));
     }
     if (previousStack != m_stack.valid)
         m_imageDirty = true;
@@ -436,8 +443,16 @@ void CanvasItem::updatePolish()
             entries.append(
                 {it.key(), bytes, m_tileLastUse.value(it.key()), used.contains(it.key())});
         }
-        const auto retained =
-            PhotoCrap::Render::retainedTiles(entries, qint64(m_textureCacheMiB) * 1024 * 1024);
+        qint64 pinned = 0;
+        for (const auto &entry : entries)
+            if (entry.visible)
+                pinned += entry.bytes;
+        const qint64 effects = qint64(m_overlayImage.width()) * m_overlayImage.height() * 4 +
+                               qint64(m_patchImage.width()) * m_patchImage.height() * 4 +
+                               qint64(m_toneTable.width()) * m_toneTable.height() * 4;
+        m_graphicsClient->pin(pinned + effects);
+        const auto retained = PhotoCrap::Render::retainedTiles(
+            entries, qMax(qint64(0), m_graphicsClient->allowance() - effects));
         for (auto it = m_maskTileImages.begin(); it != m_maskTileImages.end();) {
             if (!retained.contains(it.key())) {
                 m_maskTileSourceKeys.remove(it.key());
@@ -682,8 +697,10 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         delete node;
         node = nullptr;
     }
-    if (!node)
-        node = new CanvasNode(window());
+    if (!node) {
+        node         = new CanvasNode(window());
+        node->budget = m_graphicsClient;
+    }
 
     // Hardware repeats one small texture. The software fallback only rasterizes
     // the visible background, independently of the photo and selection overlay.
@@ -772,8 +789,7 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
             node->stack = new LayerStackNode(window(), failure, m_stackStatistics);
             node->photo.appendChildNode(node->stack);
         }
-        if (!node->stack->update(m_stack, boundingRect(), visible,
-                                 qint64(m_textureCacheMiB) * 1024 * 1024)) {
+        if (!node->stack->update(m_stack, boundingRect(), visible, m_graphicsClient->allowance())) {
             QMetaObject::invokeMethod(
                 this,
                 [this] {
@@ -1063,5 +1079,28 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         }
         node->selection->setPhase(m_selectionPhase);
     }
+    using Budget            = PhotoCrap::Render::GraphicsBudget;
+    const auto textureBytes = [](QSGTexture *texture) -> qint64 {
+        if (!texture)
+            return 0;
+        const auto size = texture->textureSize();
+        return qint64(size.width()) * size.height() * 4;
+    };
+    qint64 photos = 0, masks = 0;
+    for (auto *tile : std::as_const(node->tiles)) {
+        photos += textureBytes(tile->texture);
+        masks += textureBytes(tile->mask);
+    }
+    const qint64 effects =
+        textureBytes(node->toneTable) +
+        (node->overlay ? textureBytes(node->overlay->texture()) : 0) +
+        (node->patch ? qint64(m_patchImage.width()) * m_patchImage.height() * 4 : 0);
+    const qint64 other =
+        (node->checker ? textureBytes(node->checker->texture()) : 0) +
+        (node->repeatedChecker ? textureBytes(node->repeatedChecker->texture()) : 0);
+    m_graphicsClient->report(Budget::Photo, photos);
+    m_graphicsClient->report(Budget::Mask, masks);
+    m_graphicsClient->report(Budget::Effects, effects);
+    m_graphicsClient->report(Budget::Other, other);
     return node;
 }

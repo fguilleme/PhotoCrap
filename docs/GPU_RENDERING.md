@@ -1928,3 +1928,20 @@ les calques ou lignes pour les boucles instrumentées. Annuler rend la main tout
 suite ; une routine Qt non interruptible peut encore terminer son plan en arrière-plan.
 RAW, sélections, recadrage interactif et préparation des fréquences gardent leurs
 workers spécialisés. Sauvegarde/chargement de projets et export restent synchrones.
+
+## Budget partagé des textures
+
+`GraphicsBudget` compte les textures de tous les canevas : photos, masques,
+tables/effets/surimpressions, pile/intermédiaires, et damier. Le total, les catégories,
+les ressources épinglées et le pic sont accessibles par `CanvasItem.graphicsMemoryUsage()`.
+Le maximum des cibles demandées par les canevas constitue la cible commune ; chaque
+canevas garde également sa propre borne de réserve. Les ressources visibles sont
+épinglées et l’espace libre est partagé entre les caches hors écran, évincés par LRU.
+Modifier cette répartition réveille les autres canevas pour qu’ils réduisent leur
+réserve, sans détruire de texture sur le thread d’une autre fenêtre.
+
+Cette mesure utilise les tailles et formats demandés, pas les allocations privées
+du pilote. Elle ne compte ni les polices ni les contrôles Qt, et ne promet pas un
+plafond VRAM strict : les ressources visibles et les remplacements de ressources
+en vol peuvent dépasser la cible. Les piles dont le jeu de travail ne tient pas
+utilisent le repli CPU. Détruire le graphe de scène retire ses ressources du compteur.

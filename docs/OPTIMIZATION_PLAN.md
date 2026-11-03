@@ -76,7 +76,7 @@ restent synchrones et constituent une suite distincte.
 
 - [ ] Pyramide de réduction conservée sur GPU, raccords et phase d’échantillonnage
   vérifiés contre les références actuelles.
-- [ ] Comptabilité partagée des textures photo/masques/intermédiaires/effets,
+- [x] Comptabilité partagée des textures photo/masques/intermédiaires/effets,
   épinglage des ressources en cours d’utilisation et éviction des autres.
 - [ ] Mesures de latence, RAM/VRAM et fidélité par backend ; comportement correct
   sous petit budget et reconstruction après perte de ressources.

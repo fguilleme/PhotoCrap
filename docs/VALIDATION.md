@@ -1,5 +1,28 @@
 # Validation
 
+## Sauvegarde asynchrone et fermeture différée — 3 novembre 2026
+
+Les sauvegardes de nouveaux projets et de projets déjà associés produisent les
+mêmes octets que le helper synchrone en 8/16 bits, avec masques. Avant l’accusé GUI,
+le document garde son ancien nom/URL et son état modifié ; après réussite il est
+marqué enregistré sans changement d’historique, calques, pixels ou réglages.
+Annulation, nouveau geste/document et destruction conservent le fichier précédent.
+Les erreurs et le repli synchrone sont couverts, tout comme la finalisation du texte
+et un remplacement de document depuis le signal de réussite (URL stable).
+
+Le smoke test simule Enregistrer puis fermer, une fermeture pendant le traitement
+et son annulation : la fenêtre reste ouverte et la fermeture différée est oubliée.
+Le scénario Quitter/Enregistrer force aussi une vraie tâche asynchrone et attend
+sa confirmation avant la fermeture des fenêtres outils.
+La suite Opérations compte 57 réussites, avec deux sondes lourdes désactivées par
+défaut. La sonde de sauvegarde réelle annule un projet de 16 Mpx/16 bits pendant
+l’encodage et garde son ancien fichier et son état modifié :
+
+```sh
+PHOTOCRAP_SAVE_CANCEL_STRESS=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  build/photocrap_operation_tests runningSaveCanBeCancelledBeforeFileCommit
+```
+
 ## Export asynchrone en lecture seule — 3 novembre 2026
 
 Les fichiers correspondent octet pour octet à l’export synchrone pour les formats
@@ -53,7 +76,8 @@ Base64 que l’ancien tampon QBuffer. Les projets v9 8/16 bits avec masques, cal
 compacts, réglages sans pixels, noms multilingues et caractères échappés sont
 rechargés à l’identique. Les 301 calques de 24 Mpx et le texte éditable gardent
 leurs tests de persistance. Ces contrôles passent sur Qt 6.8 et 6.12. Le codec PNG
-peut encore demander des tampons natifs complets ; l’interface de sauvegarde reste synchrone.
+peut encore demander des tampons natifs complets ; le passage de la sauvegarde en
+arrière-plan est validé dans l’étape suivante.
 
 ## Rasterisation régionale du texte — 3 novembre 2026
 

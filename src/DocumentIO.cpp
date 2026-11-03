@@ -192,6 +192,39 @@ bool Document::importLayer(const QUrl &_url)
         return false;
     return adoptDecodedImage(image, _url, true);
 }
+void Document::acceptProjectSave(const QString &_path)
+{
+    m_savedId    = m_contentId;
+    m_projectUrl = QUrl::fromLocalFile(_path);
+    m_name       = QFileInfo(_path).completeBaseName();
+    emit documentChanged();
+    emit historyChanged();
+    emit statusMessage(tr("Projet enregistré"));
+}
+void Document::requestSaveProject(const QUrl &_url)
+{
+    QString path = localPath(_url);
+    if (path.isEmpty()) {
+        fail(tr("Chemin de sauvegarde invalide."));
+        return;
+    }
+    if (!path.endsWith(".pcr", Qt::CaseInsensitive))
+        path += ".pcr";
+    const QUrl target = QUrl::fromLocalFile(path);
+    if (!deferOperation(
+            tr("Enregistrer le projet"), editCost(true),
+            [target](Document &_renderer) { _renderer.saveProject(target); }, false,
+            [this, path] {
+                acceptProjectSave(path);
+                const QUrl saved = m_projectUrl;
+                emit       projectSaved(saved);
+            })) {
+        if (saveProject(target)) {
+            const QUrl saved = m_projectUrl;
+            emit       projectSaved(saved);
+        }
+    }
+}
 bool Document::saveProject(const QUrl &_url)
 {
     finishTextEdit();
@@ -204,6 +237,13 @@ bool Document::saveProject(const QUrl &_url)
         return fail(tr("Chemin de sauvegarde invalide."));
     if (!path.endsWith(".pcr", Qt::CaseInsensitive))
         path += ".pcr";
+    int planes = 0;
+    for (const auto &layer : m_layers)
+        planes += !layer.image.isNull() + !layer.mask.isNull() + !layer.source.isNull();
+    const int total     = qMax(2, planes * 2 + 1);
+    int       completed = 0;
+    if (!operationStep(0, total))
+        return false;
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return fail(file.errorString());
@@ -227,9 +267,13 @@ bool Document::saveProject(const QUrl &_url)
     const auto image = [&](const PixelPlane &_plane) {
         if (_plane.isNull())
             return true;
+        if (!operationStep(completed++, total))
+            return false;
+        const QImage pixels = _plane;
+        if (pixels.isNull() || !operationStep(completed++, total))
+            return false;
         Base64WriteDevice encoder(output);
-        const QImage      pixels = _plane;
-        return !pixels.isNull() && pixels.save(&encoder, "PNG") && encoder.finish();
+        return pixels.save(&encoder, "PNG") && encoder.finish() && operationStep(completed, total);
     };
     QJsonObject root{{"format", "PhotoCrap"},
                      {"version", 9},
@@ -248,6 +292,8 @@ bool Document::saveProject(const QUrl &_url)
         return saveError();
     bool first = true;
     for (const auto &layer : m_layers) {
+        if (!operationStep(completed, total))
+            return false;
         if (!first && !write(","))
             return saveError();
         first = false;
@@ -282,14 +328,12 @@ bool Document::saveProject(const QUrl &_url)
     }
     if (!write("]}"))
         return saveError();
+    if (!operationStep(completed, total) || !beginOperationPublication())
+        return false;
+    operationStep(total, total);
     if (!file.commit())
         return fail(file.errorString());
-    m_savedId    = m_contentId;
-    m_projectUrl = QUrl::fromLocalFile(path);
-    m_name       = QFileInfo(path).completeBaseName();
-    emit documentChanged();
-    emit historyChanged();
-    emit statusMessage(tr("Projet enregistré"));
+    acceptProjectSave(path);
     return true;
 }
 bool Document::loadProject(const QString &_path)

@@ -1051,6 +1051,7 @@ public:
         return m_rawLoading;
     }
     Q_INVOKABLE bool saveProject(const QUrl &_url);
+    Q_INVOKABLE void requestSaveProject(const QUrl &_url);
     Q_INVOKABLE bool exportImage(const QUrl &_url);
     Q_INVOKABLE void requestExportImage(const QUrl &_url);
     Q_INVOKABLE void addLayer();
@@ -1226,6 +1227,7 @@ signals:
     void rawLoadingChanged();
     void frequencyRetouchBusyChanged();
     void rawFileOpened(const QUrl &_url);
+    void projectSaved(const QUrl &_url);
     void slicesChanged();
     void cropChanged();
     void canvasSizeChanged();
@@ -1654,6 +1656,7 @@ private:
     QImage    *paintTarget();
     QImage     readImage(const QString &_path);
     bool       loadProject(const QString &_path);
+    void       acceptProjectSave(const QString &_path);
     static QImage applyMask(const QImage &_source, const QImage &_mask, qreal _density = 1,
                             qreal _feather = 0);
     static QImage blendImages(const QImage &_base, const QImage &_source, int _mode,

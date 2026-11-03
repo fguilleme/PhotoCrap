@@ -110,6 +110,14 @@ inline void startShutdownSmoke(QQuickWindow *_window, Document &_document,
         if (!require(_document.saveProject(QUrl::fromLocalFile(path)), "save before native Quit"))
             return;
         QCoreApplication::postEvent(QCoreApplication::instance(), new QEvent(QEvent::Quit));
-    } else
+    } else {
+        if (_save)
+            _document.setBackgroundEditThreshold(0);
         QMetaObject::invokeMethod(decision, "clicked");
+        if (_save && !require(_document.operationBusy() && _window->isVisible() &&
+                                  _window->property("saveInFlight").toBool() && !_window->close() &&
+                                  _window->isVisible(),
+                              "native Quit waits for the asynchronous save acknowledgement"))
+            return;
+    }
 }

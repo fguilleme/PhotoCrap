@@ -77,6 +77,205 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void asynchronousSavePreservesHistoryUntilTheFileIsPublished_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void asynchronousSavePreservesHistoryUntilTheFileIsPublished()
+    {
+        QFETCH(int, bits);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (bool existing : {false, true}) {
+            Document reference, d;
+            populate(reference, bits);
+            populate(d, bits);
+            for (auto *doc : {&reference, &d}) {
+                doc->addLayerMask();
+                doc->setEditingMask(true);
+                doc->setColor(Qt::black);
+                doc->beginStroke(30, 20);
+                doc->endStroke();
+                doc->setEditingMask(false);
+            }
+            if (existing)
+                QVERIFY(d.saveProject(QUrl::fromLocalFile(directory.filePath("original.pcr"))));
+            for (auto *doc : {&reference, &d})
+                doc->renameLayer(doc->activeLayer(), "Changed after previous save");
+            const auto target =
+                QUrl::fromLocalFile(directory.filePath(existing ? "resaved.pcr" : "new.pcr"));
+            const auto expected = QUrl::fromLocalFile(
+                directory.filePath(existing ? "reference-resaved.pcr" : "reference-new.pcr"));
+            QVERIFY(reference.saveProject(expected));
+            const auto pixels  = d.composite();
+            const auto history = d.history();
+            const auto layers  = d.layers();
+            const auto oldUrl  = d.projectUrl();
+            QVERIFY(d.modified());
+            d.setBackgroundEditThreshold(0);
+            QSignalSpy saved(&d, &Document::projectSaved);
+            QSignalSpy errors(&d, &Document::errorOccurred);
+            QSignalSpy images(&d, &Document::imageChanged);
+            {
+                BlockPool block;
+                d.requestSaveProject(target);
+                QVERIFY(d.operationBusy());
+                QVERIFY(d.operationCancellable());
+                QVERIFY(d.modified());
+                QCOMPARE(d.projectUrl(), oldUrl);
+                QCOMPARE(saved.size(), 0);
+                QCOMPARE(d.history(), history);
+                QVERIFY(!QFile::exists(target.toLocalFile()));
+                d.setBrushSize(37);
+                d.setColor(Qt::green);
+                block.release.release();
+                block.pool->waitForDone();
+                QVERIFY(d.operationBusy());
+                QVERIFY(!d.operationCancellable());
+                QVERIFY(d.modified());
+                QCOMPARE(d.projectUrl(), oldUrl);
+                d.cancelOperation(); // Publication has finished; await its GUI acknowledgement.
+                QVERIFY(d.operationBusy());
+                QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+            }
+            QCOMPARE(saved.size(), 1);
+            QCOMPARE(saved[0][0].toUrl(), target);
+            QCOMPARE(errors.size(), 0);
+            QCOMPARE(images.size(), 0);
+            QVERIFY(!d.modified());
+            QCOMPARE(d.projectUrl(), target);
+            QCOMPARE(d.history(), history);
+            QCOMPARE(d.layers(), layers);
+            QCOMPARE(d.composite(), pixels);
+            QCOMPARE(d.brushSize(), 37.);
+            QCOMPARE(d.color(), QColor(Qt::green));
+            QFile actualFile(target.toLocalFile()), expectedFile(expected.toLocalFile());
+            QVERIFY(actualFile.open(QIODevice::ReadOnly));
+            QVERIFY(expectedFile.open(QIODevice::ReadOnly));
+            QCOMPARE(actualFile.readAll(), expectedFile.readAll());
+            Document loaded;
+            QVERIFY(loaded.openFile(target));
+            QCOMPARE(loaded.composite(), pixels);
+        }
+    }
+    void saveErrorsAndSmallSaveKeepTheirCompletionContract()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        populate(d, 16);
+        const auto history = d.history();
+        const auto pixels  = d.composite();
+        const auto url     = d.projectUrl();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        QSignalSpy saved(&d, &Document::projectSaved);
+        d.setBackgroundEditThreshold(0);
+        d.requestSaveProject(QUrl("https://invalid.example/project.pcr"));
+        QVERIFY(!d.operationBusy());
+        d.requestSaveProject(QUrl::fromLocalFile(directory.filePath("missing/project.pcr")));
+        QVERIFY(d.operationBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 2);
+        QCOMPARE(saved.size(), 0);
+        QVERIFY(d.modified());
+        QCOMPARE(d.projectUrl(), url);
+        QCOMPARE(d.history(), history);
+        QCOMPARE(d.composite(), pixels);
+        d.setBackgroundEditThreshold(-1);
+        const auto target = QUrl::fromLocalFile(directory.filePath("small"));
+        d.requestSaveProject(target);
+        QVERIFY(!d.operationBusy());
+        QVERIFY(!d.modified());
+        QCOMPARE(saved.size(), 1);
+        QCOMPARE(d.projectUrl(), QUrl::fromLocalFile(target.toLocalFile() + ".pcr"));
+        QCOMPARE(d.history(), history);
+    }
+    void savingFinalizesTextAndKeepsSignalsStableWhenTheDocumentChanges()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (bool asynchronous : {false, true}) {
+            Document d;
+            QVERIFY(d.newDocument(160, 100, true, 16));
+            d.setTool("text");
+            d.beginStroke(10, 10);
+            d.endStroke();
+            d.setText("Saved while editing");
+            QVERIFY(d.textEditing());
+            d.setBackgroundEditThreshold(asynchronous ? 0 : -1);
+            const auto target =
+                QUrl::fromLocalFile(directory.filePath(asynchronous ? "async.pcr" : "sync.pcr"));
+            QObject::connect(&d, &Document::projectSaved, &d,
+                             [&d] { d.newDocument(27, 19, true); });
+            QSignalSpy saved(&d, &Document::projectSaved);
+            d.requestSaveProject(target);
+            QTRY_COMPARE_WITH_TIMEOUT(saved.size(), 1, 10000);
+            QCOMPARE(saved[0][0].toUrl(), target);
+            QCOMPARE(d.width(), 27);
+            QCOMPARE(d.height(), 19);
+            QVERIFY(!d.textEditing());
+            QVERIFY(!d.operationBusy());
+            Document loaded;
+            QVERIFY(loaded.openFile(target));
+            QCOMPARE(loaded.layers().size(), 2);
+            loaded.editTextLayer(1);
+            QCOMPARE(loaded.text(), QString("Saved while editing"));
+        }
+    }
+    void runningSaveCanBeCancelledBeforeFileCommit()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_SAVE_CANCEL_STRESS"))
+            QSKIP("Opt in with PHOTOCRAP_SAVE_CANCEL_STRESS=1 for the large real project encoder "
+                  "test.");
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto       target = QUrl::fromLocalFile(directory.filePath("project.pcr"));
+        const QByteArray previous("Previous project contents");
+        QFile            file(target.toLocalFile());
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(previous), previous.size());
+        file.close();
+        Document d;
+        QVERIFY(d.newDocument(4096, 4096, false, 16));
+        d.setTool("brush");
+        d.setColor(Qt::red);
+        d.setBrushSize(20);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        QVERIFY(d.modified());
+        const auto history = d.history();
+        const auto url     = d.projectUrl();
+        QSignalSpy saved(&d, &Document::projectSaved);
+        d.setBackgroundEditThreshold(0);
+        d.requestSaveProject(target);
+        QVERIFY(d.operationBusy());
+        QElapsedTimer timer;
+        timer.start();
+        bool encoding = false;
+        while (d.operationBusy() && timer.elapsed() < 10000) {
+            const auto progress = d.operationProgress();
+            if (progress > 0 && progress < .5) {
+                encoding = true;
+                break;
+            }
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 1);
+            QThread::msleep(1);
+        }
+        d.cancelOperation();
+        QVERIFY(!d.operationBusy());
+        QThreadPool::globalInstance()->waitForDone();
+        if (!encoding)
+            QSKIP("The encoder completed before the cancellation window could be observed.");
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QCOMPARE(file.readAll(), previous);
+        QCOMPARE(d.history(), history);
+        QCOMPARE(d.projectUrl(), url);
+        QCOMPARE(saved.size(), 0);
+        QVERIFY(d.modified());
+        qInfo() << "Cancelled a running 16 MP / 16 bit project before atomic file commit";
+    }
     void runningExportCanBeCancelledBeforeFileCommit()
     {
         if (!qEnvironmentVariableIsSet("PHOTOCRAP_EXPORT_CANCEL_STRESS"))
@@ -191,11 +390,19 @@ private slots:
             QCOMPARE(actualFile.readAll(), expectedFile.readAll());
         }
     }
+    void cancelledExportKeepsTheExistingFileAndDocumentLifetime_data()
+    {
+        QTest::addColumn<bool>("save");
+        QTest::newRow("export") << false;
+        QTest::newRow("save") << true;
+    }
     void cancelledExportKeepsTheExistingFileAndDocumentLifetime()
     {
+        QFETCH(bool, save);
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        const auto       target = QUrl::fromLocalFile(directory.filePath("export.png"));
+        const auto target =
+            QUrl::fromLocalFile(directory.filePath(save ? "project.pcr" : "export.png"));
         const QByteArray previous("Previous file contents");
         for (const auto action : {"cancel", "newDocument", "newGesture", "destroy"}) {
             QFile file(target.toLocalFile());
@@ -208,7 +415,10 @@ private slots:
             const auto history = d->history();
             {
                 BlockPool block;
-                d->requestExportImage(target);
+                if (save)
+                    d->requestSaveProject(target);
+                else
+                    d->requestExportImage(target);
                 QVERIFY(d->operationBusy());
                 if (QString(action) == "destroy")
                     d.reset();

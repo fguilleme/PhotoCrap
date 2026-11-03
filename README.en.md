@@ -24,7 +24,7 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 - **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
 - **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
-Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Large image exports use the worker too, without changing history. Project opening and saving remain synchronous.
+Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Large image exports and project saves use the worker too, without changing history. Closing waits for a successful save. Project opening remains synchronous.
 
 Geometric shapes preview only their bounds and stroke margins; gradients restricted to a selection do the same. Shrinking a shape clears its previous preview, and returning to the anchor leaves no empty layer or history entry. Selected Move handles source and destination separately; sparse transparent layers move tile by tile, while dense layers and full-image gradients still use full-sized buffers.
 
@@ -32,7 +32,7 @@ Unchanged GPU borders also retain their textures when another part of their stor
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.
 
-Saving `.pcr` v9 now streams layer JSON and PNG/Base64 payloads into the atomic file without accumulating the encoded project in memory. The 256 MiB limit remains, and saving is still synchronous.
+Saving `.pcr` v9 now streams layer JSON and PNG/Base64 payloads into the atomic file without accumulating the encoded project in memory. The 256 MiB limit remains, and large projects save in the background.
 
 Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
 

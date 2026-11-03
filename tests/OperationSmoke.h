@@ -110,5 +110,29 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      document.history() == history,
                  "Escape cancels the queued file export"))
         return false;
+    auto      *saveDialog = window->findChild<QObject *>("saveDialog");
+    const auto project    = QUrl::fromLocalFile(directory.filePath("project.pcr"));
+    window->setProperty("resumeAfterSave", true);
+    window->setProperty("pendingAction", QStringLiteral("close"));
+    if (!require(saveDialog && saveDialog->setProperty("selectedFile", project) &&
+                     QMetaObject::invokeMethod(saveDialog, "accepted"),
+                 "the project file picker dispatches its selected path"))
+        return false;
+    QTest::qWait(50);
+    if (!require(document.operationBusy() && window->property("saveInFlight").toBool() &&
+                     window->property("resumeAfterSave").toBool() &&
+                     !QFile::exists(project.toLocalFile()),
+                 "Save and Close waits for publication instead of closing early"))
+        return false;
+    if (!require(!window->close() && window->isVisible() && document.operationBusy(),
+                 "closing during a save waits for that save"))
+        return false;
+    QTest::keyClick(window, Qt::Key_Escape);
+    QTest::qWait(50);
+    if (!require(!document.operationBusy() && !window->property("saveInFlight").toBool() &&
+                     !window->property("resumeAfterSave").toBool() && window->isVisible() &&
+                     !QFile::exists(project.toLocalFile()),
+                 "cancelling Save and Close keeps the window and forgets the pending close"))
+        return false;
     return true;
 }

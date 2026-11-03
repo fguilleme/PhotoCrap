@@ -85,7 +85,8 @@ isolée de douze plans synthétiques de 1 Mpx, le pic RSS de l’encodeur passe 
 Mio en 8 bits et de 692 à 122 Mio en 16 bits, avec sorties identiques. Ces mesures
 locales n’incluent pas le composite ni l’historique de l’application. L’encodage PNG
 peut encore matérialiser un plan natif complet et ses buffers de conversion. La
-sauvegarde reste synchrone et la lecture parse encore tout le JSON.
+lecture parse encore tout le JSON ; les grandes sauvegardes utilisent le worker
+décrit ci-dessous.
 
 Le dialogue d’export des grandes images utilise un snapshot dans le worker commun.
 Le composite natif et les conversions du codec restent nécessaires, mais leur
@@ -93,6 +94,13 @@ allocation et leur encodage ne bloquent plus l’interface. Ce traitement est en
 lecture seule : il ne restaure pas de calques, n’ajoute pas d’historique et ne marque
 pas le document comme enregistré. L’annulation rejette le fichier temporaire avant
 le point de publication atomique ; cette dernière phase est ensuite non annulable.
+
+La sauvegarde des grands projets conserve les plans du snapshot par références
+tuilées et écrit le flux sur le worker. Le document reste modifié et conserve son
+ancienne URL jusqu’à l’accusé de réussite après publication. L’annulation entre
+les phases/avant publication conserve le fichier précédent ; le codec courant
+peut encore terminer. La fermeture attend la confirmation et ne se poursuit pas
+en cas d’erreur ou d’annulation. L’historique et les réglages d’outil sont conservés.
 
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états

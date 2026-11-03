@@ -42,6 +42,7 @@ ApplicationWindow {
     property url pendingRecentFile: ""
     property bool allowClose: false
     property bool resumeAfterSave: false
+    property bool saveInFlight: false
     property bool importing: false
     property bool changingSecondary: false
     property bool changingShapeFill: false
@@ -915,6 +916,7 @@ ApplicationWindow {
     function guard(action) {
         editor.endStroke()
         pendingAction = action
+        if (saveInFlight) { resumeAfterSave=true; return }
         if (editor.modified) unsavedDialog.open()
         else perform(action)
     }
@@ -932,16 +934,13 @@ ApplicationWindow {
         if(path.length<=limit) return path
         return path.substring(0,16)+"…"+path.substring(path.length-19)
     }
+    function startProjectSave(url) {
+        saveInFlight = true
+        editor.requestSaveProject(url)
+    }
     function save(asNew) {
-        if (!asNew && editor.projectUrl.toString().length) {
-            if (editor.saveProject(editor.projectUrl)) {
-                recentFiles.add(editor.projectUrl)
-                if(resumeAfterSave) {
-                    resumeAfterSave = false
-                    perform(pendingAction)
-                }
-            }
-        } else saveDialog.open()
+        if (!asNew && editor.projectUrl.toString().length) startProjectSave(editor.projectUrl)
+        else saveDialog.open()
     }
     function adjust(kind, label, initial) {
         adjustment = kind; adjustmentTitle = label; adjustmentSlider.value = initial
@@ -1086,6 +1085,12 @@ ApplicationWindow {
     onClosing: function(event) {
         editor.endStroke()
         saveWorkspaceLayout()
+        if (!allowClose && saveInFlight) {
+            event.accepted=false
+            pendingAction="close"
+            resumeAfterSave=true
+            return
+        }
         if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
         else Qt.callLater(Qt.quit)
     }
@@ -1108,7 +1113,26 @@ ApplicationWindow {
     }
     Connections {
         target: editor
-        function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
+        function onErrorOccurred(message) {
+            window.resumeAfterSave=false
+            window.saveInFlight=false
+            errorLabel.text=message
+            errorDialog.open()
+        }
+        function onProjectSaved(url) {
+            window.saveInFlight=false
+            recentFiles.add(url)
+            if(window.resumeAfterSave) {
+                window.resumeAfterSave=false
+                window.perform(window.pendingAction)
+            }
+        }
+        function onOperationChanged() {
+            if(window.saveInFlight && !editor.operationBusy) {
+                window.saveInFlight=false
+                window.resumeAfterSave=false
+            }
+        }
         function onStatusMessage(message) { window.status = message; statusTimer.restart() }
         function onCanvasSizeChanged() { Qt.callLater(window.fitCanvas) }
     }
@@ -3741,12 +3765,7 @@ ApplicationWindow {
     FileDialog {
         id: saveDialog; objectName: "saveDialog"; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("Projet PhotoCrap (*.pcr)")]; defaultSuffix: "pcr"
-        onAccepted: {
-            if(editor.saveProject(selectedFile)) {
-                recentFiles.add(editor.projectUrl)
-                if(window.resumeAfterSave) { window.resumeAfterSave=false; window.perform(window.pendingAction) }
-            }
-        }
+        onAccepted: window.startProjectSave(selectedFile)
         onRejected: window.resumeAfterSave=false
     }
     FileDialog {

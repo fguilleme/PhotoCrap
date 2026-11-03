@@ -1977,7 +1977,7 @@ La progression est indéterminée pour les appels Qt monolithiques, et avance en
 les calques ou lignes pour les boucles instrumentées. Annuler rend la main tout de
 suite ; une routine Qt non interruptible peut encore terminer son plan en arrière-plan.
 RAW, sélections, recadrage interactif et préparation des fréquences gardent leurs
-workers spécialisés. Sauvegarde et chargement de projets restent synchrones.
+workers spécialisés. Le chargement de projets reste synchrone.
 
 Le dialogue d’export utilise aussi le répartiteur dès quatre millions de pixels
 traités. Le worker compose et encode son snapshot, puis vérifie l’annulation avant
@@ -2004,3 +2004,14 @@ du pilote. Elle ne compte ni les polices ni les contrôles Qt, et ne promet pas 
 plafond VRAM strict : les ressources visibles et les remplacements de ressources
 en vol peuvent dépasser la cible. Les piles dont le jeu de travail ne tient pas
 utilisent le repli CPU. Détruire le graphe de scène retire ses ressources du compteur.
+
+## Sauvegardes asynchrones en lecture seule — 3 novembre 2026
+
+Le dialogue de sauvegarde emploie aussi le répartiteur commun pour les gros plans.
+Le worker écrit un snapshot dans le flux atomique `.pcr` v9, avec progression entre
+matérialisation/encodage des plans. La confirmation GUI met ensuite à jour l’URL,
+le nom et le marqueur d’enregistrement, sans restaurer de calques ni ajouter une
+étape d’historique. La fermeture et les actions en attente se poursuivent seulement
+sur le signal de réussite ; erreur ou annulation les abandonnent. Une fermeture
+demandée pendant une sauvegarde attend celle-ci. Les petites sauvegardes restent
+immédiates. Le helper C++ synchrone conserve son contrat pour les appels directs.

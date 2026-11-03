@@ -231,7 +231,8 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
                         }
                         commit(before, state->label);
                         emit documentChanged();
-                        emit canvasSizeChanged();
+                        if (before.size != m_size)
+                            emit canvasSizeChanged();
                         emit selectionChanged();
                         emit slicesChanged();
                         emit penPathsChanged();

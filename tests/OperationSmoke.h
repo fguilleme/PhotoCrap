@@ -213,5 +213,73 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      document.composite() == before && document.history() == history,
                  "Escape rejects the prepared RAW result"))
         return false;
+    // Expensive frequency sources wait for their worker before opening the
+    // properties panel; cancellation must not open an unrelated layer panel.
+    document.newDocument(80, 60, false);
+    document.addLayerMask();
+    document.setTool("pencil");
+    document.setColor(Qt::black);
+    document.setBrushSize(17);
+    document.beginStroke(30, 22);
+    document.endStroke();
+    document.setEditingMask(false);
+    QTest::qWait(100);
+    window->setProperty("zoom", 2.75);
+    auto *properties = window->findChild<QObject *>("layerPropertiesDialog");
+    if (!require(properties && !properties->property("visible").toBool(),
+                 "frequency properties start closed"))
+        return false;
+    pool->waitForDone();
+    pool->start([&] {
+        entered.release();
+        release.acquire();
+    });
+    entered.acquire();
+    if (!require(QMetaObject::invokeMethod(window, "createFrequencySeparation") &&
+                     document.operationBusy(),
+                 "frequency menu dispatches masked source preparation"))
+        return false;
+    QTest::qWait(50);
+    if (!require(!properties->property("visible").toBool(),
+                 "source properties do not open while queued"))
+        return false;
+    document.cancelOperation();
+    QTest::qWait(50);
+    if (!require(!properties->property("visible").toBool() &&
+                     window->property("frequencyPropertiesLayerCount").toInt() == -1,
+                 "cancelling source preparation clears the pending panel"))
+        return false;
+    const int frequencyHistory = document.historyIndex();
+    if (!require(QMetaObject::invokeMethod(window, "createFrequencySeparation") &&
+                     document.operationBusy(),
+                 "frequency creation can restart after cancellation"))
+        return false;
+    release.release();
+    pool->waitForDone();
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !document.operationBusy() &&
+                                properties->property("visible").toBool();
+                     },
+                     10000),
+                 "only successful frequency preparation opens its properties"))
+        return false;
+    if (!require(document.layers().size() == 3 && document.historyIndex() == frequencyHistory + 1 &&
+                     qFuzzyCompare(window->property("zoom").toDouble(), 2.75),
+                 "frequency publication creates one history step and preserves zoom"))
+        return false;
+    if (!require(QMetaObject::invokeMethod(properties, "reject"), "close the frequency panel"))
+        return false;
+    if (!require(QTest::qWaitFor([&] { return !properties->property("visible").toBool(); }),
+                 "frequency panel closes before the direct-source test"))
+        return false;
+    document.newDocument(80, 60, false);
+    QTest::qWait(50);
+    if (!require(QMetaObject::invokeMethod(window, "createFrequencySeparation") &&
+                     !document.operationBusy() && properties->property("visible").toBool(),
+                 "a direct native source opens its panel immediately"))
+        return false;
+    if (!require(QMetaObject::invokeMethod(properties, "reject"), "close the direct-source panel"))
+        return false;
     return true;
 }

@@ -27,8 +27,16 @@ reste blanc et la densité nulle ignore le masque, comme dans le calcul précéd
 cette source figée. Un fond compact sans masque actif ou avec un masque neutre devient un `PixelPlane`
 de la taille logique du document, avec son seul pixel de fond et sans tuile explicite.
 La normalisation de ce pixel reprend l’arrondi QColor de l’ancienne expansion.
-Les masques qui modifient les pixels et les sources composées gardent leur préparation complète actuelle ;
-la précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
+Les masques qui modifient les pixels et les sources composées demandent encore
+une préparation complète. Pour les grandes sources, elle passe par le worker
+commun annulable : snapshot immuable, masque/composition, scellement des tuiles
+et budget RAM/disque avant publication. Un composite natif déjà terminé est
+partagé avec le worker au lieu de recalculer la pile. Les sources natives ou
+compactes neutres gardent leur voie immédiate. Une fin valide crée les deux
+bandes dans une seule étape d’historique et ouvre les propriétés ; une annulation
+ou un état périmé ne publie rien. Les identités des paires évitent aussi les liens
+existants, dynamiques ou préparés, après réouverture. Le zoom ne change pas quand
+les dimensions restent identiques. La précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
 La préparation des retouches capture maintenant les `PixelPlane` immuables,

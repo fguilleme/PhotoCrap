@@ -357,6 +357,34 @@ ApplicationWindow {
         return info.kind === "pixel" && info.parameters &&
                (info.parameters._frequencyBand === "low" || info.parameters._frequencyBand === "high")
     }
+    property int frequencyPropertiesLayerCount: -1
+    property var frequencyPropertiesSession: 0
+    function createFrequencySeparation() {
+        if(editor.pixelEditBusy)return
+        frequencyPropertiesLayerCount=-1
+        const count=editor.layers.length
+        const session=editor.documentSession
+        editor.addFrequencySeparation(8)
+        if(editor.operationBusy) {
+            frequencyPropertiesLayerCount=count+2
+            frequencyPropertiesSession=session
+        } else if(editor.layers.length===count+2 && activeInfo.kind.indexOf("frequency")===0) {
+            window.openActiveLayerProperties()
+        }
+    }
+    function finishFrequencyPropertiesRequest() {
+        if(frequencyPropertiesLayerCount<0 || editor.operationBusy)return
+        const count=frequencyPropertiesLayerCount
+        const session=frequencyPropertiesSession
+        const pairId=activeInfo.parameters ? activeInfo.parameters.pairId : ""
+        frequencyPropertiesLayerCount=-1
+        Qt.callLater(function() {
+            if(editor.documentSession===session && editor.layers.length===count &&
+               pairId && activeInfo.kind.indexOf("frequency")===0 &&
+               activeInfo.parameters && activeInfo.parameters.pairId===pairId)
+                window.openActiveLayerProperties()
+        })
+    }
     function openActiveLayerProperties() {
         if(activeInfo.kind==="text" && !activeInfo.editingMask) {
             if(!editor.textEditing)editor.editTextLayer(editor.activeLayer)
@@ -1127,6 +1155,7 @@ ApplicationWindow {
             }
         }
         function onOperationChanged() {
+            window.finishFrequencyPropertiesRequest()
             if(window.saveInFlight && !editor.operationBusy) {
                 window.saveInFlight=false
                 window.resumeAfterSave=false
@@ -1360,7 +1389,7 @@ ApplicationWindow {
                     DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: addAdjustmentLayer("noise") }
                 }
             }
-            DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); window.openActiveLayerProperties() } }
+            DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
             MenuSeparator {}
             DarkMenu {
                 title: qsTr("Masque de fusion")
@@ -3558,7 +3587,7 @@ ApplicationWindow {
     DarkMenu {
         id: createLayerMenu
         DarkMenuItem { text: qsTr("Calque de pixels"); onTriggered: editor.addLayer() }
-        DarkMenuItem { text: qsTr("Séparation de fréquences…"); onTriggered: { editor.addFrequencySeparation(8); window.openActiveLayerProperties() } }
+        DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
         DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }

@@ -942,6 +942,7 @@ private slots:
     void cachedHighFrequencyDoesNotRebuildAnEvictedLowBand()
     {
         Document d;
+        d.setBackgroundEditThreshold(-1); // This test drives the native band LRU directly.
         QVERIFY(d.newDocument(4096, 2048, false));
         for (int i = 0; i < 4; ++i) {
             d.setActiveLayer(d.layers().size() - 1);

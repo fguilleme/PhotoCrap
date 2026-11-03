@@ -1,5 +1,34 @@
 # Validation
 
+## Création asynchrone des sources de fréquences — 3 novembre 2026
+
+Douze comparaisons croisent 8/16 bits, source masquée/composée/fréquences et cache
+froid/chaud : mêmes bandes et composite que la voie synchrone, deux calques et
+une étape d’historique seulement à la publication. Huit parcours imposent un
+budget RAM nul avec cache disque disponible ou indisponible ; les nouveaux plans
+sont préparés avant la GUI, les leases restent valides et le repli garde les pixels.
+Seize cas couvrent annulation, Annuler/Rétablir, modification de sélection/calque,
+peinture, remplacement et nouveau travail. La destruction du document pendant
+le travail est testée. Huit sources natives/compactes neutres restent immédiates.
+Le composite natif terminé est réellement partagé pendant la file d’attente,
+puis libéré par le scellement avant publication. Deux projets avec identités de
+paires dynamiques/préparées déjà occupées vérifient l’absence de collision.
+
+Le smoke test ouvre les propriétés après le résultat asynchrone, ne les ouvre
+pas après annulation, conserve le zoom 2,75 et vérifie aussi l’ouverture immédiate
+d’une source neutre. Les éditions asynchrones sans changement de dimensions
+n’émettent plus de faux changement de taille du canevas.
+
+Sonde `PHOTOCRAP_FREQUENCY_CREATE_PROBE=1 build/photocrap_operation_tests
+frequencyPreparationSubmissionProbe`, dégradé 24 Mpx/16 bits et masque gris :
+119,5 ms de soumission sur le module recompilé depuis `680ceb0`, environ 0,076 ms
+avec worker. Le calcul complet prend environ 264 ms en arrière-plan sur ce Mac ;
+ce changement réduit le blocage GUI, pas le temps CPU total. Aucun seuil temporel
+n’est imposé. Les 50 suites passent, ainsi que 50 contrôles ciblés sur Qt 6.8 et CPU portable,
+le smoke test Qt 6.8 et le parcours natif Cocoa/Metal. clang-tidy conserve les
+avertissements de nommage préexistants, sans erreur.
+
+
 ## Masques neutres des sources de fréquences — 3 novembre 2026
 
 40 comparaisons croisent 8/16 bits, source native/compacte, masque blanc compact

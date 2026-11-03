@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "RawTestImage.h"
+#include <QBuffer>
 #include <QColorSpace>
 #include <QElapsedTimer>
 #include <QFile>
@@ -10,6 +11,7 @@
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QThreadPool>
+#include <QTimer>
 #include <QtTest>
 
 namespace
@@ -51,6 +53,29 @@ void populate(Document &d, int bits)
     d.continueStroke(55, 28);
     d.endStroke();
 }
+void frequencyFixture(Document &_document, int _bits, const QString &_kind)
+{
+    populate(_document, _bits);
+    if (_kind == "mask") {
+        _document.addLayerMask();
+        _document.setTool("pencil");
+        _document.setColor(Qt::black);
+        _document.setBrushSize(17);
+        _document.beginStroke(30, 22);
+        _document.endStroke();
+        _document.setEditingMask(false);
+        _document.beginLayerPreview();
+        _document.previewLayerParameter("_maskDensity", 63);
+        _document.previewLayerParameter("_maskFeather", 4);
+        _document.finishLayerPreview("Mask");
+    } else if (_kind == "adjustment") {
+        _document.addAdjustmentLayer("boxBlur");
+        _document.beginLayerPreview();
+        _document.previewLayerParameter("radius", 3);
+        _document.finishLayerPreview("Blur");
+    } else
+        _document.addFrequencySeparation(3);
+}
 void operation(Document &d, const QString &name)
 {
     if (name == "resize")
@@ -82,6 +107,419 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void frequencySourcePreparationMatchesSynchronousWork_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<QString>("kind");
+        QTest::addColumn<bool>("warm");
+        for (int bits : {8, 16})
+            for (const QString kind :
+                 {QString("mask"), QString("adjustment"), QString("frequency")})
+                for (bool warm : {false, true})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3").arg(bits).arg(kind).arg(warm)))
+                        << bits << kind << warm;
+    }
+    void frequencySourcePreparationMatchesSynchronousWork()
+    {
+        QFETCH(int, bits);
+        QFETCH(QString, kind);
+        QFETCH(bool, warm);
+        Document d, reference;
+        frequencyFixture(d, bits, kind);
+        frequencyFixture(reference, bits, kind);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QVERIFY(d.saveProject(QUrl::fromLocalFile(directory.filePath("source.pcr"))));
+        QVERIFY(!d.modified());
+        if (warm)
+            QVERIFY(!d.composite().isNull());
+        const auto before  = d.layers();
+        const auto history = d.history();
+        const int  index = d.historyIndex(), count = d.layers().size();
+        reference.addFrequencySeparation(7);
+        d.setBackgroundEditThreshold(0);
+        QSignalSpy geometry(&d, &Document::canvasSizeChanged);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        {
+            BlockPool blocked;
+            d.addFrequencySeparation(7);
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.layers(), before);
+            QCOMPARE(d.history(), history);
+            QVERIFY(d.modified()); // Pending pixel edits protect Save/Close like other workers.
+            bool heartbeat = false;
+            QTimer::singleShot(0, &d, [&] { heartbeat = true; });
+            QCoreApplication::processEvents();
+            QVERIFY(heartbeat);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QVERIFY(errors.isEmpty());
+        QCOMPARE(geometry.size(), 0);
+        QCOMPARE(d.width(), 80);
+        QCOMPARE(d.height(), 60);
+        QCOMPARE(d.layers().size(), count + 2);
+        QCOMPARE(d.historyIndex(), index + 1);
+        QVERIFY(d.modified());
+        for (int i = 0; i < count + 2; ++i) {
+            const auto actual = d.layers()[i].toMap(), expected = reference.layers()[i].toMap();
+            QCOMPARE(actual["kind"], expected["kind"]);
+            QCOMPARE(actual["parameters"], expected["parameters"]);
+        }
+        const auto low = reference.layerImage(count), high = reference.layerImage(count + 1);
+        QCOMPARE(d.layerImage(count), low);
+        QCOMPARE(d.layerImage(count + 1), high);
+        QCOMPARE(d.composite(), reference.composite());
+        if (kind == "frequency") {
+            QSet<QString> pairs;
+            for (const auto &layer : d.layers()) {
+                const auto info = layer.toMap();
+                if (info["kind"] == "frequencyHigh")
+                    pairs.insert(info["parameters"].toMap()["pairId"].toString());
+            }
+            QCOMPARE(pairs.size(), 2);
+        }
+        d.undo();
+        QCOMPARE(d.layers(), before);
+        QVERIFY(!d.modified());
+        d.redo();
+        QCOMPARE(d.layerImage(count), low);
+        QCOMPARE(d.layerImage(count + 1), high);
+        QCOMPARE(geometry.size(), 0);
+    }
+    void composedFrequencySourceBorrowsItsCompletedNativeImage()
+    {
+        Document d;
+        populate(d, 16);
+        d.selectAllLayers();
+        QVERIFY(d.canGroupSelected());
+        d.groupSelectedLayers();
+        QCOMPARE(d.layers().first().toMap().value("kind").toString(), QString("group"));
+        const int     count = d.layers().size(), index = d.activeLayer();
+        const QImage &completed = d.composite();
+        QVERIFY(completed.isDetached());
+        const auto key = completed.cacheKey();
+        d.setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            d.addFrequencySeparation(7);
+            QVERIFY(d.operationBusy());
+            QVERIFY(!completed.isDetached());
+        }
+        // Sealing the source releases the full-frame borrow before the GUI
+        // accepts the result. Its original cached pixels remain untouched.
+        QVERIFY(completed.isDetached());
+        QCOMPARE(completed.cacheKey(), key);
+        QCOMPARE(d.layers().size(), count);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(d.layers().size(), count + 2);
+        QVERIFY(!d.layerImage(index + 1).isNull());
+        QVERIFY(!d.layerImage(index + 2).isNull());
+    }
+
+    void frequencySourceUsesPreparationBudgetBeforeGuiPublication_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<QString>("kind");
+        QTest::addColumn<bool>("available");
+        for (int bits : {8, 16})
+            for (const QString kind : {QString("mask"), QString("adjustment")})
+                for (bool available : {false, true})
+                    QTest::newRow(
+                        qPrintable(QString("%1-%2-%3").arg(bits).arg(kind).arg(available)))
+                        << bits << kind << available;
+    }
+    void frequencySourceUsesPreparationBudgetBeforeGuiPublication()
+    {
+        QFETCH(int, bits);
+        QFETCH(QString, kind);
+        QFETCH(bool, available);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d, reference;
+        frequencyFixture(d, bits, kind);
+        frequencyFixture(reference, bits, kind);
+        const int count = d.layers().size();
+        reference.addFrequencySeparation(7);
+        const auto before  = d.layers();
+        const auto history = d.history();
+        QString    cache   = directory.filePath("cache");
+        if (!available) {
+            QFile blocker(cache);
+            QVERIFY(blocker.open(QIODevice::WriteOnly));
+        }
+        d.configureScratchCache(cache, 16 * 1024 * 1024);
+        d.configurePlaneRamMiB(0);
+        d.setBackgroundEditThreshold(0);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        {
+            BlockPool blocked;
+            d.addFrequencySeparation(7);
+            QVERIFY(d.operationBusy());
+        }
+        // The worker and its source spill are complete. The GUI has not
+        // accepted its snapshot yet, and cannot have run its spill timer.
+        QVERIFY(d.operationBusy());
+        QCOMPARE(d.layers(), before);
+        QCOMPARE(d.history(), history);
+        if (available)
+            QVERIFY(d.scratchCacheUsage()["diskBytes"].toLongLong() > 0);
+        else
+            QVERIFY(!d.scratchCacheUsage()["error"].toString().isEmpty());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QVERIFY(errors.isEmpty());
+        QCOMPARE(d.layers().size(), count + 2);
+        d.clearScratchCache();
+        QCOMPARE(d.layerImage(count), reference.layerImage(count));
+        QCOMPARE(d.layerImage(count + 1), reference.layerImage(count + 1));
+        QCOMPARE(d.composite(), reference.composite());
+        d.undo();
+        QCOMPARE(d.layers(), before);
+        d.redo();
+        QCOMPARE(d.layerImage(count), reference.layerImage(count));
+        QCOMPARE(d.layerImage(count + 1), reference.layerImage(count + 1));
+    }
+
+    void frequencyPairIdentityAvoidsLoadedAndPreparedLinks_data()
+    {
+        QTest::addColumn<bool>("asynchronous");
+        QTest::newRow("sync") << false;
+        QTest::newRow("async") << true;
+    }
+    void frequencyPairIdentityAvoidsLoadedAndPreparedLinks()
+    {
+        QFETCH(bool, asynchronous);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document original;
+        QVERIFY(original.newDocument(37, 31, false));
+        original.addFrequencySeparation(3);
+        const auto url = QUrl::fromLocalFile(directory.filePath("links.pcr"));
+        QVERIFY(original.saveProject(url));
+        QFile file(url.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        auto       layers  = root["layers"].toArray();
+        const auto setPair = [&](const QString &_id) {
+            for (int i : {1, 2}) {
+                auto layer           = layers[i].toObject();
+                auto parameters      = layer["parameters"].toObject();
+                parameters["pairId"] = _id;
+                layer["parameters"]  = parameters;
+                layers[i]            = layer;
+            }
+        };
+        const auto save = [&] {
+            root["layers"] = layers;
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                return false;
+            const bool ok = file.write(QJsonDocument(root).toJson()) > 0;
+            file.close();
+            return ok;
+        };
+        setPair("existing-dynamic");
+        QVERIFY(save());
+        // Find this freshly opened document's next candidate without relying
+        // on a particular constructor/history counter initialization.
+        Document control;
+        control.setBackgroundEditThreshold(-1);
+        QVERIFY(control.openFile(url));
+        control.addFrequencySeparation(7);
+        QString candidate;
+        for (const auto &value : control.layers()) {
+            const auto info = value.toMap();
+            if (info["layerIndex"].toInt() == control.activeLayer())
+                candidate = info["parameters"].toMap()["pairId"].toString();
+        }
+        QVERIFY(!candidate.isEmpty());
+        setPair(candidate);
+        const QString prepared = candidate + "-1";
+        for (const int i : {1, 2}) {
+            auto layer          = layers[i].toObject();
+            layer["kind"]       = "pixel";
+            layer["visible"]    = false;
+            layer["parameters"] = QJsonObject{{"_frequencyPairId", prepared},
+                                              {"_frequencyBand", i == 1 ? "low" : "high"},
+                                              {"_frequencyRadius", 3}};
+            QByteArray bytes;
+            QBuffer    buffer(&bytes);
+            QVERIFY(buffer.open(QIODevice::WriteOnly));
+            QVERIFY(original.layerImage(i).save(&buffer, "PNG"));
+            layer["png"] = QString::fromLatin1(bytes.toBase64());
+            layers.append(layer);
+        }
+        QVERIFY(save());
+        Document d;
+        QVERIFY(d.openFile(url));
+        d.setBackgroundEditThreshold(asynchronous ? 0 : -1);
+        d.addFrequencySeparation(7);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QString actual;
+        for (const auto &value : d.layers()) {
+            const auto info = value.toMap();
+            if (info["layerIndex"].toInt() == d.activeLayer())
+                actual = info["parameters"].toMap()["pairId"].toString();
+        }
+        QCOMPARE(actual, candidate + "-2");
+        QVERIFY(actual != prepared);
+        QCOMPARE(d.layers().size(), 7);
+        d.undo();
+        QCOMPARE(d.layers().size(), 5);
+        d.redo();
+        QCOMPARE(d.layers().size(), 7);
+    }
+
+    void frequencyPreparationSubmissionProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_FREQUENCY_CREATE_PROBE"))
+            QSKIP("Set PHOTOCRAP_FREQUENCY_CREATE_PROBE=1 to measure 24 MP source preparation.");
+        Document d;
+        d.setBackgroundEditThreshold(-1);
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.setTool("gradient");
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(0, 0);
+        d.continueStroke(6000, 4000);
+        d.endStroke();
+        d.addLayerMask();
+        d.setColor(QColor(127, 127, 127));
+        d.fillWithColor(true);
+        d.setEditingMask(false);
+        d.setBackgroundEditThreshold(4LL * 1024 * 1024);
+        const auto    history = d.historyIndex();
+        QElapsedTimer timer;
+        timer.start();
+        d.addFrequencySeparation(8);
+        const auto submitted = timer.nsecsElapsed();
+        const bool queued    = d.operationBusy();
+        if (queued) {
+            QThreadPool::globalInstance()->waitForDone();
+            QCoreApplication::processEvents();
+            QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        }
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.historyIndex(), history + 1);
+        qInfo() << "24 MP / 16-bit masked source, submit ns, total ns and queued:" << submitted
+                << timer.nsecsElapsed() << queued;
+    }
+
+    void directFrequencySourcesStayImmediate_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("compact");
+        QTest::addColumn<bool>("mask");
+        for (int bits : {8, 16})
+            for (bool compact : {false, true})
+                for (bool mask : {false, true})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3").arg(bits).arg(compact).arg(mask)))
+                        << bits << compact << mask;
+    }
+    void directFrequencySourcesStayImmediate()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, compact);
+        QFETCH(bool, mask);
+        Document d;
+        QVERIFY(d.newDocument(80, 60, false, bits));
+        if (compact)
+            d.addLayer();
+        if (mask) {
+            d.addLayerMask();
+            d.setEditingMask(false);
+        }
+        const int count = d.layers().size(), history = d.historyIndex();
+        d.setBackgroundEditThreshold(0);
+        BlockPool blocked;
+        d.addFrequencySeparation(7);
+        QVERIFY(!d.operationBusy());
+        QCOMPARE(d.layers().size(), count + 2);
+        QCOMPARE(d.historyIndex(), history + 1);
+    }
+    void frequencyPreparationRejectsCancelledAndStaleWork_data()
+    {
+        QTest::addColumn<QString>("kind");
+        QTest::addColumn<QString>("action");
+        for (const QString kind : {QString("mask"), QString("adjustment")})
+            for (const QString action :
+                 {QString("cancel"), QString("undo"), QString("redo"), QString("replace"),
+                  QString("selection"), QString("rename"), QString("paint"),
+                  QString("newOperation")})
+                QTest::newRow(qPrintable(kind + '-' + action)) << kind << action;
+    }
+    void frequencyPreparationRejectsCancelledAndStaleWork()
+    {
+        QFETCH(QString, kind);
+        QFETCH(QString, action);
+        Document d;
+        frequencyFixture(d, 16, kind);
+        if (action == "redo")
+            d.undo();
+        d.setBackgroundEditThreshold(0);
+        QVariantList expected;
+        QStringList  history;
+        QRegion      selection;
+        QImage       pixels;
+        {
+            BlockPool blocked;
+            d.addFrequencySeparation(7);
+            QVERIFY(d.operationBusy());
+            if (action == "cancel")
+                d.cancelOperation();
+            else if (action == "undo")
+                d.undo();
+            else if (action == "redo")
+                d.redo();
+            else if (action == "replace")
+                QVERIFY(d.newDocument(31, 23, true, 16));
+            else if (action == "selection")
+                d.selectAll();
+            else if (action == "rename")
+                d.renameLayer(d.activeLayer(), "New layer name");
+            else if (action == "paint") {
+                d.setActiveLayer(0);
+                d.setEditingMask(false);
+                d.setTool("pencil");
+                d.setColor(Qt::blue);
+                d.setBrushSize(5);
+                d.beginStroke(11, 13);
+                d.endStroke();
+            } else {
+                d.cancelOperation();
+                d.addFrequencySeparation(15);
+                QVERIFY(d.operationBusy());
+            }
+            expected  = d.layers();
+            history   = d.history();
+            selection = d.selectionRegion();
+            pixels    = d.layerImage(0);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        if (action == "newOperation") {
+            QCOMPARE(d.layers().size(), expected.size() + 2);
+            QCOMPARE(d.historyIndex(), history.size());
+            QCOMPARE(d.layers()[0].toMap()["parameters"].toMap()["radius"].toDouble(), 15.);
+            QCOMPARE(d.layers()[1].toMap()["parameters"].toMap()["radius"].toDouble(), 15.);
+        } else {
+            QCOMPARE(d.layers(), expected);
+            QCOMPARE(d.history(), history);
+        }
+        QCOMPARE(d.selectionRegion(), selection);
+        QCOMPARE(d.layerImage(0), pixels);
+    }
+    void frequencyPreparationCanOutliveItsDocument()
+    {
+        for (const QString kind : {QString("mask"), QString("adjustment")}) {
+            BlockPool blocked;
+            auto      d = std::make_unique<Document>();
+            frequencyFixture(*d, 16, kind);
+            d->setBackgroundEditThreshold(0);
+            d->addFrequencySeparation(7);
+            QVERIFY(d->operationBusy());
+            d.reset();
+        }
+    }
+
     void replacementFileLoadsDoNotRetainTheDiscardedDocumentsTiles_data()
     {
         QTest::addColumn<QString>("kind");

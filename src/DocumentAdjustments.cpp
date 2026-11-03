@@ -4,6 +4,7 @@
 #include "filters/SelectiveColorFilter.h"
 
 #include <QPainter>
+#include <QSet>
 #include <QtMath>
 #include <cmath>
 
@@ -157,33 +158,80 @@ void Document::addFrequencySeparation(qreal _radius)
             source = PixelPlane::uniform(m_size, pixel);
         }
     }
-    if (source.isNull()) {
-        QImage pixels = active.kind == "pixel" ? layerImage(m_active) : composite();
-        if (active.kind == "pixel" && active.maskEnabled && !active.mask.isNull())
-            pixels = applyMask(pixels, active.mask,
-                               active.parameters.value("_maskDensity", 100.).toDouble() / 100.,
-                               active.parameters.value("_maskFeather", 0.).toDouble());
-        source = pixels;
-    }
-    const QString pairId = QString::number(m_nextId);
-    edit(tr("Séparation de fréquences"), [&] {
-        const QVariantMap parameters{{"radius", qBound(1., _radius, 100.)}, {"pairId", pairId}};
-        Layer             low;
-        low.name       = tr("Basses fréquences");
-        low.kind       = "frequencyLow";
-        low.source     = source;
-        low.parameters = parameters;
-        Layer high;
-        high.name       = tr("Hautes fréquences");
-        high.kind       = "frequencyHigh";
-        high.source     = source;
-        high.parameters = parameters;
-        high.blend      = 16;
-        m_layers.insert(++m_active, low);
-        m_layers.insert(++m_active, high);
-        m_editingMask = false;
-        selectOnly(m_active);
-    });
+    const bool needsPreparation = source.isNull();
+    // A completed native composite is immutable while this request is pending.
+    // Its seal still belongs on the worker, but the stack need not be rendered again.
+    if (needsPreparation && active.kind != "pixel" && !m_cacheDirty && m_composite.size() == m_size)
+        source = PixelPlane(m_composite);
+    QSet<QString> usedPairs;
+    for (const auto &layer : m_layers)
+        for (const auto &key : {QStringLiteral("pairId"), QStringLiteral("_frequencyPairId")}) {
+            const auto id = layer.parameters.value(key).toString();
+            if (!id.isEmpty())
+                usedPairs.insert(id);
+        }
+    const QString base   = QString::number(m_nextId);
+    QString       pairId = base;
+    for (int suffix = 1; usedPairs.contains(pairId); ++suffix)
+        pairId = base + '-' + QString::number(suffix);
+    // Capture the GUI's pair identity: a renderer has its own history counter.
+    // Only native versions and values cross to the worker, never this Document.
+    auto create = [source, _radius, pairId](Document &_document) mutable {
+        if (!_document.operationStep(0, 3))
+            return;
+        if (source.isNull()) {
+            const auto &active = _document.m_layers[_document.m_active];
+            QImage      pixels = active.kind == "pixel" ? _document.layerImage(_document.m_active)
+                                                        : _document.composite();
+            if (active.kind == "pixel" && active.maskEnabled && !active.mask.isNull())
+                pixels = applyMask(pixels, active.mask,
+                                   active.parameters.value("_maskDensity", 100.).toDouble() / 100.,
+                                   active.parameters.value("_maskFeather", 0.).toDouble());
+            source = pixels;
+        }
+        if (source.isNull()) {
+            _document.fail(tr("Allocation des pixels impossible."));
+            return;
+        }
+        if (!_document.operationStep(1, 3))
+            return;
+        if (_document.m_backgroundWorker) {
+            // Release the assembled QImage before publication. The new source
+            // follows the same preparation budget and disk fallback as imports.
+            if (!source.freeze()) {
+                _document.fail(tr("Allocation des pixels impossible."));
+                return;
+            }
+            PreparedPlaneBudget budget;
+            if (!_document.prepareNativePlane(source, _document.workingFormat(), budget))
+                return;
+        }
+        if (!_document.operationStep(2, 3))
+            return;
+        _document.edit(tr("Séparation de fréquences"), [&] {
+            const QVariantMap parameters{{"radius", qBound(1., _radius, 100.)}, {"pairId", pairId}};
+            Layer             low;
+            low.name       = tr("Basses fréquences");
+            low.kind       = "frequencyLow";
+            low.source     = source;
+            low.parameters = parameters;
+            Layer high;
+            high.name       = tr("Hautes fréquences");
+            high.kind       = "frequencyHigh";
+            high.source     = source;
+            high.parameters = parameters;
+            high.blend      = 16;
+            _document.m_layers.insert(++_document.m_active, low);
+            _document.m_layers.insert(++_document.m_active, high);
+            _document.m_editingMask = false;
+            _document.selectOnly(_document.m_active);
+        });
+        _document.operationStep(3, 3);
+    };
+    if (needsPreparation &&
+        deferEdit(tr("Séparation de fréquences"), editCost(active.kind != "pixel"), create))
+        return;
+    create(*this);
 }
 void Document::resetAdjustmentLayer()
 {

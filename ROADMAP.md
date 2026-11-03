@@ -6,6 +6,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Préparation des grandes sources de fréquences sur worker annulable,
+  composite natif terminé réutilisé, sources préparées selon le budget RAM/disque ;
+  ouverture des propriétés après publication, zoom et historique conservés.
+
 - [x] Sources de fréquences directement partagées avec un masque blanc uniforme
   ou de densité nulle ; masques non neutres toujours appliqués aux pixels natifs.
 

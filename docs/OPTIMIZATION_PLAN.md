@@ -9,6 +9,10 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Préparation des grandes sources de fréquences sur worker annulable,
+  composite natif terminé réutilisé, sources préparées selon le budget RAM/disque ;
+  ouverture des propriétés après publication, zoom et historique conservés.
+
 - [x] Sources de fréquences directement partagées avec un masque blanc uniforme
   ou de densité nulle ; masques non neutres toujours appliqués aux pixels natifs.
 

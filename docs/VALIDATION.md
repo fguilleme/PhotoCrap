@@ -1,5 +1,19 @@
 # Validation
 
+## Réduction rapide régionale CPU — 3 novembre 2026
+
+Comparaison exacte à Qt FastTransformation sur plans couleur 8/16 bits et masques
+8 bits : dimensions impaires, lignes/colonnes, côté de 16 383 px, trois modes
+d’aspect, ratios de pixels et espaces couleur. Les plans source restent mappés
+sans buffer natif retenu. Les tests passent sur Qt 6.8 et 6.12. Les agrandissements
+utilisent la référence Qt ; les interpolations lisses conservent leur chemin actuel.
+
+Mesure isolée de cinq réductions 6000 × 4000/16 bits vers 1000 × 667, source en
+RAM : environ 41 ms par pixels régionaux, 102 ms par reconstruction native et
+réduction Qt. Les sorties sont exactement identiques ; cela ne mesure pas tout
+le rendu, les accès à un disque froid ni la latence d’interaction de l’application.
+
+
 ## Lecture de projets par plans scellés — 3 novembre 2026
 
 Les PNG décodés sont convertis en tuiles immédiatement, avant le plan suivant.

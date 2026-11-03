@@ -101,6 +101,12 @@ public:
     QImage scaled(const QSize &s, Qt::AspectRatioMode a = Qt::IgnoreAspectRatio,
                   Qt::TransformationMode t = Qt::FastTransformation) const
     {
+        if (!m_dirty && !m_tiles.isNull() && t == Qt::FastTransformation && !s.isEmpty()) {
+            auto actual = size().scaled(s, a);
+            actual.setWidth(qMax(1, actual.width()));
+            actual.setHeight(qMax(1, actual.height()));
+            return m_tiles.scaledFast(actual);
+        }
         return QImage(*this).scaled(s, a, t);
     }
     QImage scaled(int w, int h, Qt::AspectRatioMode a = Qt::IgnoreAspectRatio,

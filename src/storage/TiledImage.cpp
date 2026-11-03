@@ -5,6 +5,7 @@
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QVector>
 #include <atomic>
 #include <cstring>
 #include <utility>
@@ -233,6 +234,80 @@ QImage TiledImage::region(const QRect &_region) const
                                 (overlap.left() - bounds.left()) * pixelBytes,
                             size_t(overlap.width()) * pixelBytes);
         }
+    return result;
+}
+
+QImage TiledImage::scaledFast(const QSize &target) const
+{
+    if (!m_data || target.isEmpty())
+        return {};
+    if (target.width() > size().width() || target.height() > size().height())
+        return region(QRect(QPoint{}, size()))
+            .scaled(target, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    if (target == size())
+        return region(QRect(QPoint{}, size()));
+    QImage result = m_data->blank(target);
+    if (result.isNull() || m_data->tiles.isEmpty())
+        return result;
+    // Qt's horizontal and vertical paths can use different rounding. Obtain
+    // each axis in its own direction, in the native wide-pixel format when needed.
+    const auto coordinates = [wide = format() == QImage::Format_RGBA64_Premultiplied](
+                                 int source, int destination, bool vertical, bool otherChanges) {
+        // Preserve Qt's one-axis versus two-axis scaler selection.
+        const int fromOther = otherChanges ? 2 : 1;
+        QImage    strip(vertical ? QSize(fromOther, source) : QSize(source, fromOther),
+                        wide ? QImage::Format_RGBA64_Premultiplied
+                             : QImage::Format_ARGB32_Premultiplied);
+        if (strip.isNull())
+            return QVector<int>{};
+        for (int i = 0; i < source; ++i)
+            for (int other = 0; other < fromOther; ++other) {
+                auto     *row = strip.scanLine(vertical ? i : other);
+                const int x   = vertical ? other : i;
+                if (wide)
+                    reinterpret_cast<QRgba64 *>(row)[x] =
+                        QRgba64::fromRgba64(0, 0, ushort(i), 65535);
+                else
+                    reinterpret_cast<QRgb *>(row)[x] = 0xff000000u | quint32(i);
+            }
+        strip = strip.scaled(vertical ? QSize(1, destination) : QSize(destination, 1),
+                             Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        if (strip.isNull())
+            return QVector<int>{};
+        QVector<int> values(destination);
+        for (int i = 0; i < destination; ++i) {
+            const auto *row = strip.constScanLine(vertical ? i : 0);
+            const int   x   = vertical ? 0 : i;
+            values[i]       = wide ? int(reinterpret_cast<const QRgba64 *>(row)[x].blue())
+                                   : int(reinterpret_cast<const QRgb *>(row)[x] & 0x00ffffffu);
+        }
+        return values;
+    };
+    const auto xs =
+        coordinates(size().width(), target.width(), false, size().height() != target.height());
+    const auto ys =
+        coordinates(size().height(), target.height(), true, size().width() != target.width());
+    if (xs.size() != target.width() || ys.size() != target.height())
+        return {};
+    const int bytes = result.depth() / 8;
+    for (int y = 0; y < target.height(); ++y) {
+        uchar    *output = result.scanLine(y);
+        const int row    = ys[y] / TileSize;
+        for (int x = 0; x < target.width();) {
+            const int column = xs[x] / TileSize;
+            int       end    = x + 1;
+            while (end < target.width() && xs[end] / TileSize == column)
+                ++end;
+            if (const auto tile = m_data->tiles.value(m_data->key(column, row))) {
+                const QImage pixels = tile->image();
+                const uchar *input  = pixels.constScanLine(ys[y] - row * TileSize);
+                for (; x < end; ++x)
+                    std::memcpy(output + x * bytes, input + (xs[x] - column * TileSize) * bytes,
+                                size_t(bytes));
+            } else
+                x = end; // Uniform pixels were already filled by blank().
+        }
+    }
     return result;
 }
 

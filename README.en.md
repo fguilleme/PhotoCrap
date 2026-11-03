@@ -26,6 +26,8 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Project I/O and export remain synchronous.
 
+Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
+
 Eligible GPU stacks retain four reduced GPU levels (1/2 through 1/16). Zoom changes reuse textures and tile boundaries follow the document’s global sampling grid, including odd dimensions. Oversized or unsupported stacks retain the CPU fallback.
 
 The graphics cache shares a target across canvases and accounts for photos, masks, effects and intermediate targets. It evicts offscreen reserves while pinning visible resources; it is not a driver VRAM cap.

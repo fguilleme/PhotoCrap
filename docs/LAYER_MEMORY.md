@@ -43,6 +43,17 @@ le suivant. Elle ne retient plus une pile de buffers PNG complets en parallèle
 avec les plans importés. La validation de tous les calques et tracés précède
 toujours le remplacement du document courant ; le format du fichier ne change pas.
 
+Les réductions CPU `FastTransformation` des plans figés lisent directement les
+pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
+Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par
+format, y compris lorsque les deux dimensions changent. Alpha, profondeur,
+espace couleur et ratio de pixels sont préservés. Les agrandissements et les
+transformations lisses conservent leur chemin Qt complet.
+
+Sur un plan dense 24 Mpx/16 bits, cinq aperçus 1000 × 667 prennent environ 41 ms
+par lecture régionale, contre 102 ms pour reconstruction native puis réduction,
+avec les mêmes pixels. C’est une mesure isolée en RAM, pas un gain global de l’UI.
+
 ## Tests denses et disque plein — 3 novembre 2026
 
 Le scénario optionnel `denseTwentyFourMegapixelPlanesSurviveOffloadAndReload`

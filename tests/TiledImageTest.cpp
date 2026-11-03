@@ -3,6 +3,7 @@
 #include "storage/ScratchImageCache.h"
 
 #include <QColorSpace>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QStorageInfo>
 #include <QTemporaryDir>
@@ -81,6 +82,90 @@ private slots:
         QVERIFY(plane.paint({0, 0, 10, 10},
                             [](QPainter &p) { p.fillRect(QRect(0, 0, 10, 10), Qt::blue); }));
         QVERIFY(plane.regionKey({0, 0, 256, 256}) != key);
+    }
+
+    void regionalFastScalingMatchesQt()
+    {
+        QTemporaryDir     directory;
+        ScratchImageCache cache({directory.path(), 64 * 1024 * 1024, 0});
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8})
+            for (QSize size : {QSize(991, 777), QSize(517, 301), QSize(1, 37), QSize(39, 1),
+                               QSize(3, 7), QSize(3, 16383), QSize(16383, 3)}) {
+                QImage image(size, format);
+                image.setColorSpace(QColorSpace::SRgb);
+                image.setDevicePixelRatio(2);
+                image.setDotsPerMeterX(11811);
+                image.setDotsPerMeterY(11811);
+                for (int y = 0; y < size.height(); ++y)
+                    for (int x = 0; x < size.width(); ++x)
+                        image.setPixelColor(x, y,
+                                            QColor::fromRgba64(ushort(x * 173), ushort(y * 199),
+                                                               ushort(x * 37 + y * 67),
+                                                               ushort(20000 + (x + y) % 40000)));
+                PixelPlane plane(image);
+                QVERIFY(plane.offload(cache));
+                for (QSize target : {QSize(128, 73), QSize(51, 33), QSize(1, 1), QSize(2, 3),
+                                     QSize(733, 413), QSize(0, 10)})
+                    for (auto aspect : {Qt::IgnoreAspectRatio, Qt::KeepAspectRatio,
+                                        Qt::KeepAspectRatioByExpanding}) {
+                        const auto projected = image.size().scaled(target, aspect);
+                        if (qint64(projected.width()) * projected.height() > 1000000)
+                            continue;
+                        const auto expected = image.scaled(target, aspect, Qt::FastTransformation);
+                        const auto actual   = plane.scaled(target, aspect, Qt::FastTransformation);
+                        if (actual != expected) {
+                            qInfo() << "Scale mismatch" << format << size << target << aspect
+                                    << actual.size() << expected.size() << actual.format()
+                                    << expected.format();
+                            bool found = false;
+                            for (int y = 0; y < qMin(actual.height(), expected.height()) && !found;
+                                 ++y)
+                                for (int x = 0; x < qMin(actual.width(), expected.width()); ++x)
+                                    if (actual.pixelColor(x, y) != expected.pixelColor(x, y)) {
+                                        qInfo()
+                                            << "First differing sample" << x << y
+                                            << actual.pixelColor(x, y) << expected.pixelColor(x, y);
+                                        found = true;
+                                        break;
+                                    }
+                        }
+                        QCOMPARE(actual, expected);
+                        QCOMPARE(actual.colorSpace(), expected.colorSpace());
+                        QCOMPARE(actual.devicePixelRatio(), expected.devicePixelRatio());
+                    }
+                QVERIFY(plane.heapBlocks().isEmpty());
+            }
+    }
+
+    void denseFastPreviewBenchmark()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_DENSE_MEMORY_TEST"))
+            QSKIP("Optional 24 MP preview benchmark.");
+        QImage image(6000, 4000, QImage::Format_RGBA64_Premultiplied);
+        for (int y = 0; y < image.height(); ++y) {
+            auto *row = reinterpret_cast<QRgba64 *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x)
+                row[x] = QRgba64::fromRgba64(ushort(x * 13 + y * 7), ushort(x * 5 + y * 19),
+                                             ushort(x * 3 + y * 11), 65535);
+        }
+        PixelPlane plane(image);
+        QVERIFY(plane.freeze());
+        image = {};
+        QElapsedTimer timer;
+        QImage        regional, native;
+        timer.start();
+        for (int i = 0; i < 5; ++i)
+            regional = plane.scaled({1000, 667}, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        const auto regionalMs = timer.nsecsElapsed() / 1e6;
+        timer.restart();
+        for (int i = 0; i < 5; ++i)
+            native =
+                QImage(plane).scaled({1000, 667}, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        const auto nativeMs = timer.nsecsElapsed() / 1e6;
+        QCOMPARE(regional, native);
+        qInfo() << "Five native 24 MP to 1000x667 previews ms; regional" << regionalMs
+                << "materialized reference" << nativeMs;
     }
 
     void noOpConversionsKeepMappedStorageAndVersions()

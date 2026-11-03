@@ -26,6 +26,8 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 
 Les opérations complètes coûteuses (géométrie, profondeur depuis le menu, fusion vers le bas, remplissages, masques et filtres directs) calculent sur un snapshot dans un worker de faible priorité à partir de quatre millions de pixels traités. Une barre affiche la progression et propose Annuler ; Échap et Annuler/Rétablir rejettent également le calcul. Seule une fin encore valide crée une étape d’historique. Les entrées/sorties de projets et l’export restent synchrones.
 
+Les aperçus CPU rapides lisent directement les pixels utiles dans les tuiles, sans reconstruire d’abord le plan complet. Les agrandissements et les réductions lisses gardent leur chemin Qt.
+
 Les piles GPU éligibles conservent quatre niveaux réduits sur GPU (1/2 à 1/16). Les zooms réutilisent les textures et les raccords suivent la grille du document, même sur des dimensions impaires. Les piles trop lourdes ou incompatibles gardent leur repli CPU.
 
 Le cache graphique partage une cible entre les canevas et compte photos, masques, effets et intermédiaires. Il évince la réserve hors écran et conserve les ressources visibles ; ce n’est pas un plafond VRAM du pilote.

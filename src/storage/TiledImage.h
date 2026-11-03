@@ -38,7 +38,9 @@ public:
     QHash<qint64, qint64> heapBlocks() const;
     QByteArray            regionKey(const QRect &_region) const;
     QImage                region(const QRect &_region) const;
-    bool paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);
+    // Nearest-neighbor reductions read only sampled pixels; upscales use Qt.
+    QImage scaledFast(const QSize &_size) const;
+    bool   paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);
     // Reuse unique tiles for disposable gesture buffers. On failure the caller
     // must discard this buffer; shared snapshots are still protected.
     bool paintTransient(const QRect &_region, const std::function<void(QPainter &)> &_paint);

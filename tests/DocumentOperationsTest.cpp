@@ -81,6 +81,106 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void preparedPlanesUseTheCapturedRamBudgetBeforePublication_data()
+    {
+        QTest::addColumn<bool>("import");
+        QTest::addColumn<int>("cacheMode");
+        for (bool import : {false, true})
+            for (int cache : {0, 1, 2})
+                QTest::newRow(qPrintable(QString(import ? "import-" : "depth-") +
+                                         (cache == 1   ? "disk"
+                                          : cache == 2 ? "capacity"
+                                                       : "unavailable")))
+                    << import << cache;
+    }
+    void preparedPlanesUseTheCapturedRamBudgetBeforePublication()
+    {
+        QFETCH(bool, import);
+        QFETCH(int, cacheMode);
+        const bool    cacheAvailable = cacheMode == 1;
+        QTemporaryDir directory;
+        const auto    input    = QUrl::fromLocalFile(directory.filePath("source.png"));
+        const auto    imported = QUrl::fromLocalFile(directory.filePath("import.png"));
+        QImage        source(512, 512, QImage::Format_ARGB32_Premultiplied);
+        source.setColorSpace(QColorSpace::SRgb);
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x)
+                source.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+        QVERIFY(source.save(input.toLocalFile()));
+        QVERIFY(source.convertToFormat(QImage::Format_RGBA64_Premultiplied)
+                    .save(imported.toLocalFile()));
+        Document d, reference;
+        for (Document *doc : {&d, &reference}) {
+            doc->setBackgroundEditThreshold(-1);
+            QVERIFY(doc->openFile(input));
+            doc->duplicateLayer();
+        }
+        const auto before  = d.composite();
+        const auto history = d.history();
+        const int  index   = d.historyIndex();
+        QVERIFY(import ? reference.importLayer(imported) : reference.setChannelBits(16));
+        const auto expected = reference.composite();
+        QString    cache    = directory.filePath("cache");
+        if (cacheMode == 0) {
+            QFile blocker(cache);
+            QVERIFY(blocker.open(QIODevice::WriteOnly));
+        }
+        d.configureScratchCache(cache, (cacheMode == 2 ? 1LL : 64LL) * 1024 * 1024);
+        // This must be captured by the worker, rather than using its default 256 MiB.
+        d.configurePlaneRamMiB(1);
+        d.setBackgroundEditThreshold(0);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        {
+            BlockPool blocked;
+            if (import)
+                d.requestImportLayer(imported);
+            else
+                d.requestChannelBits(16);
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.channelBits(), 8);
+            QCOMPARE(d.history(), history);
+        }
+        // The file cache is populated before the GUI applies the prepared planes.
+        QCOMPARE(d.channelBits(), 8);
+        QVERIFY(d.operationBusy());
+        const auto usage = d.scratchCacheUsage();
+        if (cacheAvailable) {
+            QVERIFY(usage["diskBytes"].toLongLong() >= 4LL * 1024 * 1024);
+            QVERIFY(usage["error"].toString().isEmpty());
+        } else {
+            QVERIFY(!usage["error"].toString().isEmpty());
+            if (cacheMode == 2) {
+                QVERIFY(usage["diskBytes"].toLongLong() > 0);
+                QVERIFY(usage["diskBytes"].toLongLong() <= 1024 * 1024);
+            }
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.historyIndex(), index + 1);
+        QCOMPARE(d.composite(), expected);
+        const auto stack = d.gpuLayerStack();
+        QVERIFY(stack.valid);
+        qint64 heap = 0;
+        for (const auto &layer : stack.layers)
+            for (auto bytes : layer.image.tiles().heapBlocks())
+                heap += bytes;
+        if (cacheAvailable)
+            QCOMPARE(heap, qint64(0));
+        else if (cacheMode == 0)
+            QCOMPARE(heap, (import ? 6LL : 4LL) * 1024 * 1024);
+        else {
+            QVERIFY(heap > 0);
+            QVERIFY(heap < (import ? 6LL : 4LL) * 1024 * 1024);
+        }
+        d.clearScratchCache();
+        QCOMPARE(d.composite(), expected);
+        d.undo();
+        QCOMPARE(d.channelBits(), 8);
+        QCOMPARE(d.composite(), before);
+        d.redo();
+        QCOMPARE(d.composite(), expected);
+    }
     void asynchronousLayerImportMatchesCenteredNativePixels_data()
     {
         QTest::addColumn<int>("documentBits");

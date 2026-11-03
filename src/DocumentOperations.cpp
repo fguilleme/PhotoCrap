@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "storage/ScratchImageCache.h"
 #include <QPointer>
 #include <QPromise>
 #include <QSignalBlocker>
@@ -107,6 +108,43 @@ void Document::cancelOperation()
     emit settingsChanged();
     emit statusMessage(tr("Opération annulée."));
 }
+bool Document::prepareNativePlane(PixelPlane &_plane, QImage::Format _format,
+                                  PreparedPlaneBudget &_budget)
+{
+    const auto keepGoing = [this] { return operationStep(0, 1); };
+    if (!keepGoing())
+        return false;
+    if (_plane.isNull())
+        return true;
+    if (!_plane.convertTo(_format, keepGoing)) {
+        if (!keepGoing())
+            return false;
+        return fail(tr("Allocation des pixels impossible."));
+    }
+    if (!m_backgroundWorker || !m_scratchCache || !_budget.cacheAvailable ||
+        m_scratchCache->options().maxBytes <= 0)
+        return keepGoing();
+    if (!_plane.freeze())
+        return fail(tr("Allocation des pixels impossible."));
+    const auto before = _plane.tiles().heapBlocks();
+    for (auto it = before.cbegin(); it != before.cend(); ++it)
+        if (!_budget.blocks.contains(it.key())) {
+            _budget.blocks.insert(it.key(), it.value());
+            _budget.heap += it.value();
+        }
+    if (!before.isEmpty() && _budget.heap > qint64(m_planeRamMiB) * 1024 * 1024) {
+        const bool cached = _plane.offload(*m_scratchCache);
+        const auto after  = _plane.tiles().heapBlocks();
+        for (auto it = before.cbegin(); it != before.cend(); ++it)
+            if (!after.contains(it.key()) && _budget.blocks.contains(it.key()))
+                _budget.heap -= _budget.blocks.take(it.key());
+        // Cache failure is non-fatal. Retain native pixels and stop repeated
+        // write attempts for subsequent planes; the user can inspect the error.
+        if (!cached)
+            _budget.cacheAvailable = false;
+    }
+    return keepGoing();
+}
 bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(Document &)> work,
                          bool mayRemoveMask)
 {
@@ -144,10 +182,11 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
     const auto   before = state->before;
     const auto   tool   = m_tool;
     const QColor color = m_color, secondary = m_secondary;
-    const auto   scratch  = m_scratchCache;
-    const bool   readOnly = bool(_completed);
-    using Result          = BackgroundOperation::Result;
-    auto promise          = std::make_shared<QPromise<Result>>();
+    const auto   scratch     = m_scratchCache;
+    const int    planeRamMiB = m_planeRamMiB;
+    const bool   readOnly    = bool(_completed);
+    using Result             = BackgroundOperation::Result;
+    auto promise             = std::make_shared<QPromise<Result>>();
     promise->start();
     auto *watcher  = new QFutureWatcher<Result>(this);
     state->watcher = watcher;
@@ -208,8 +247,8 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
     // Lower priority than interactive preview jobs. Nothing on this worker
     // captures the live Document; closing/changing it never waits for this task.
     QThreadPool::globalInstance()->start(
-        [promise, task, before, tool, color, secondary, scratch, _work = std::move(_work),
-         _mayRemoveMask, readOnly]() mutable {
+        [promise, task, before, tool, color, secondary, scratch, planeRamMiB,
+         _work = std::move(_work), _mayRemoveMask, readOnly]() mutable {
             Result result;
             if (!task->cancelled.load()) {
                 try {
@@ -229,6 +268,7 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
                     renderer.m_undo.clear();
                     renderer.m_redo.clear();
                     renderer.m_scratchCache = scratch;
+                    renderer.m_planeRamMiB  = planeRamMiB;
                     QObject::connect(&renderer, &Document::errorOccurred, &renderer,
                                      [&result](const QString &message) { result.error = message; });
                     _work(renderer);

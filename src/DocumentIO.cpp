@@ -217,19 +217,13 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
         }
         if (target.isNull() || !operationStep(0, 1))
             return false;
-        auto       layers    = m_layers;
-        const auto keepGoing = [this] { return operationStep(0, 1); };
-        for (auto &layer : layers) {
-            if (!keepGoing())
+        auto                layers = m_layers;
+        PreparedPlaneBudget budget;
+        for (auto &layer : layers)
+            if (!prepareNativePlane(layer.image, format, budget) ||
+                !prepareNativePlane(layer.source, format, budget))
                 return false;
-            if ((!layer.image.isNull() && !layer.image.convertTo(format, keepGoing)) ||
-                (!layer.source.isNull() && !layer.source.convertTo(format, keepGoing))) {
-                if (!keepGoing())
-                    return false;
-                return fail(tr("Allocation des pixels impossible."));
-            }
-        }
-        if (!keepGoing())
+        if (!prepareNativePlane(target, format, budget))
             return false;
         edit(tr("Importer un calque"), [&] {
             m_channelBits = bits;

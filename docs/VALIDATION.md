@@ -1,5 +1,22 @@
 # Validation
 
+## Budget RAM pendant la préparation — 3 novembre 2026
+
+Six cas croisent conversion de profondeur/import avec disque disponible,
+indisponible ou limité à 1 Mio. Un budget réglé à 1 Mio est capturé par le worker, au lieu de son
+ancien défaut de 256 Mio. Deux plans natifs convertis de 2 Mio chacun sont déjà
+sur disque avant l’accusé GUI, alors que le document affiche encore ses pixels et
+sa profondeur d’origine. Après application, les plans actifs n’ont plus de tuiles
+sur le tas dans ce scénario. L’import prépare également son nouveau plan.
+
+Sur disque indisponible ou saturé par ses blocs encore mappés, la préparation
+conserve les pixels restants sur le tas et expose
+l’erreur dans l’état du cache, sans échec de l’édition. Dans les deux cas, pixels,
+unique étape d’historique, Annuler/Rétablir et nettoyage du cache restent corrects.
+La suite Opérations compte 107 réussites, plus cinq sondes optionnelles.
+Ce test vérifie le budget des blocs préparés ; anciens plans/historique, buffers
+du codec et pages mappées restent distincts du RSS total.
+
 ## Conversions natives de profondeur par tuiles — 3 novembre 2026
 
 Les neuf couples ARGB32 prémultiplié/RGBA64 prémultiplié/Gray8 sont comparés au

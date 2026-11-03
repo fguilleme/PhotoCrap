@@ -1273,6 +1273,13 @@ private:
     qint64 editCost(bool allLayers, const QSize &target = {}) const;
     bool   operationStep(int completed, int total);
     bool   beginOperationPublication();
+    struct PreparedPlaneBudget {
+        QHash<qint64, qint64> blocks;
+        qint64                heap           = 0;
+        bool                  cacheAvailable = true;
+    };
+    bool prepareNativePlane(PixelPlane &_plane, QImage::Format _format,
+                            PreparedPlaneBudget &_budget);
     struct Snapshot {
         QVector<Layer>   layers;
         QSize            size;

@@ -34,6 +34,8 @@ Placing a small imported image also uses a native region and compact transparent
 
 Native bit-depth changes also convert existing tiles and their compact background without rebuilding the full canvas. Masks remain 8-bit; conversions and import promotions are prepared before publication and remain undoable.
 
+Asynchronous conversion and import preparation also captures the configured RAM budget. When prepared planes exceed it, the current plane is offloaded to the scratch cache before publication. An unavailable cache keeps pixels in RAM without failing the edit or undo.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

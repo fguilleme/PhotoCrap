@@ -38,6 +38,18 @@ Les plans actuellement actifs et leurs anciennes versions restent comptés dans
 leurs budgets respectifs ; aucun tampon natif de canevas complet n’est nécessaire
 pour convertir les formats natifs stockés par tuiles.
 
+Le worker capture le budget RAM réglé dans Cache de travail. Pendant les conversions
+et les imports, les blocs des plans préparés sont comptés sans doublonner leurs
+versions partagées. Si ce sous-ensemble dépasse le budget, le plan courant est
+déchargé sur disque avant publication. L’échec du cache évite de nouvelles tentatives
+pour les plans suivants et conserve les pixels en RAM ; il ne transforme pas une édition
+valide en erreur. Les clés, mappings et leases restent valides après nettoyage.
+Ce contrôle intervient entre plans : le plan en conversion, le décodeur source et
+les anciennes versions d’historique peuvent encore s’ajouter temporairement. Le
+budget global de la pile et de l’historique reste géré par le worker de déchargement
+après une pause ; ces nombres ne sont pas une limite du RSS ou des pages mappées.
+Les helpers synchrones ne font pas ces écritures disque sur le thread GUI.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

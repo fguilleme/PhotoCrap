@@ -26,6 +26,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   tampon de canevas complet ; masques et snapshots conservés, annulation entre
   tuiles et publication de la pile en une seule étape d’historique.
 
+- [x] Budget RAM des plans préparés appliqué pendant les conversions/imports
+  asynchrones ; mappings publiés valides et repli RAM si le cache est indisponible.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

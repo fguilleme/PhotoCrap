@@ -1,5 +1,15 @@
 # Validation
 
+## Tampons par tuiles — 3 novembre 2026
+
+La duplication est comparée pixel par pixel à un QPainter travaillant sur les
+images complètes en 8/16 bits : source transparente, décalages fractionnaires,
+frontières de tuiles et bords du document. Les tests existants couvrent alignement,
+sélection, sources dessous/tous calques, masques, motifs personnalisés et historique.
+Sur 24 Mpx/16 bits, les tampons de duplication et de motif sont contrôlés pendant
+un geste sur pixels puis masque : au plus une tuile de couverture de 512 Kio et
+une tuile supplémentaire de pixels ; annulation et libération de la couverture.
+
 ## Retouches locales par tuiles — 3 novembre 2026
 
 Flou, Netteté, Densité −/+, Éponge : comparaison avant/après migration des empreintes

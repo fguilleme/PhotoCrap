@@ -55,6 +55,13 @@ import en tuiles, ni après annulation ou erreur. `retainedDecoderBytes` expose 
 octets d’un résultat terminé encore retenu ; ce compteur n’inclut pas les buffers
 de travail du décodeur pendant son exécution.
 
+Les tampons de duplication et de motif écrivent aussi des régions et utilisent
+une couverture tuilée, sur pixels comme sur masques. La source du calque actif
+reste un snapshot de tuiles pendant tout le geste ; seul le rectangle échantillonné
+est lu, avec son décalage fractionnaire et ses bords transparents. Les motifs
+restent de petites images répétées. Les modes d’échantillonnage « actif et dessous »
+et « tous les calques » préparent encore un composite natif complet par geste.
+
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
 Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par

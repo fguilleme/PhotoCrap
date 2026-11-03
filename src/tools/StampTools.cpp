@@ -4,7 +4,6 @@
 #include <QPainter>
 #include <QtMath>
 #include <cmath>
-#include <cstring>
 
 void Document::setStampAligned(bool _value)
 {
@@ -98,10 +97,11 @@ bool Document::prepareStampStroke()
         m_cloneOffsetValid = true;
         emit settingsChanged();
     }
-    // Hold the source fixed for the gesture, including overlapping source and
-    // destination. QImage shares pixels until the destination is changed.
+    // Immutable tile versions preserve overlapping source/destination strokes
+    // without materializing the active plane. Composite sample modes still
+    // prepare their full source once per gesture.
     if (m_editingMask || m_cloneSampleMode == 0)
-        m_stampSource = *paintTarget();
+        m_stampSource = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
     else if (m_cloneSampleMode == 2)
         m_stampSource = composite();
     else {
@@ -116,8 +116,7 @@ bool Document::prepareStampStroke()
 
 void Document::renderStampStroke()
 {
-    QImage *target = paintTarget();
-    if (!target || m_stampSource.isNull() || m_strokeBase.isNull())
+    if (m_stampSource.isNull() || m_strokePlaneBase.isNull())
         return;
     QRect region = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
@@ -128,32 +127,47 @@ void Document::renderStampStroke()
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? region : m_dirtyRegion.united(region);
 
     // All temporary images, blending and copies cover only the touched pixels.
-    QImage   overlay = ImageUtils::blank(region.size(), ImageUtils::workingFormat(m_strokeBase));
+    const QImage coverage = m_tiledStrokeCoverage.region(region);
+    QImage overlay = ImageUtils::blank(region.size(), ImageUtils::workingFormat(m_strokePlaneBase));
+    if (coverage.isNull() || overlay.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     QPainter sampler(&overlay);
     if (hasSelection())
         sampler.setClipRegion(m_selectionRegion.translated(-region.topLeft()));
-    if (m_tool == "cloneStamp")
-        sampler.drawImage(-QPointF(region.topLeft()) - m_cloneOffset, m_stampSource);
-    else {
+    if (m_tool == "cloneStamp") {
+        const QRect sourceBounds = QRectF(QPointF(region.topLeft()) + m_cloneOffset, region.size())
+                                       .toAlignedRect()
+                                       .adjusted(-1, -1, 1, 1)
+                                       .intersected(QRect(QPoint{}, m_size));
+        if (!sourceBounds.isEmpty()) {
+            const QImage sample = m_stampSource.region(sourceBounds);
+            if (sample.isNull()) {
+                m_strokeCoverageFailed = true;
+                return;
+            }
+            sampler.drawImage(QPointF(sourceBounds.topLeft() - region.topLeft()) - m_cloneOffset,
+                              sample);
+        }
+    } else {
         sampler.setBrushOrigin(m_patternOrigin - QPointF(region.topLeft()));
-        sampler.fillRect(overlay.rect(), QBrush(m_stampSource));
+        sampler.fillRect(overlay.rect(), QBrush(QImage(m_stampSource)));
     }
     sampler.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-    sampler.drawImage(0, 0, m_strokeCoverage.copy(region));
+    sampler.drawImage(0, 0, coverage);
     sampler.end();
 
     SelectionCoverage::attenuate(overlay, m_selectionMask, region.topLeft());
-    QImage canvas =
-        m_strokeBase.copy(region).convertToFormat(ImageUtils::workingFormat(m_strokeBase));
-    canvas = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
-    if (m_editingMask) {
-        const QImage gray = canvas.convertToFormat(QImage::Format_Grayscale8);
-        for (int y = 0; y < region.height(); ++y)
-            memcpy(target->scanLine(region.y() + y) + region.x(), gray.constScanLine(y),
-                   size_t(region.width()));
-    } else {
-        QPainter output(target);
-        output.setCompositionMode(QPainter::CompositionMode_Source);
-        output.drawImage(region.topLeft(), canvas);
+    QImage canvas = m_strokePlaneBase.region(region).convertToFormat(
+        ImageUtils::workingFormat(m_strokePlaneBase));
+    if (canvas.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
     }
+    canvas              = blendImages(canvas, overlay, m_brushBlend, m_brushOpacity);
+    PixelPlane  &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+    const QImage patch = m_editingMask ? canvas.convertToFormat(QImage::Format_Grayscale8) : canvas;
+    if (!target.writeRegion(region.topLeft(), patch, m_size))
+        m_strokeCoverageFailed = true;
 }

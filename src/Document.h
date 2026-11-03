@@ -1374,7 +1374,8 @@ private:
     QPointF                           m_cloneSource, m_cloneOffset, m_patternOrigin;
     bool                              m_patternOriginValid = false;
     int                               m_stampPattern       = 0;
-    QImage                            m_customStampPattern, m_stampSource;
+    QImage                            m_customStampPattern;
+    PixelPlane                        m_stampSource;
 
     bool   m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
     QImage m_smudgePickup, m_smudgeMask, m_smudgeSample;

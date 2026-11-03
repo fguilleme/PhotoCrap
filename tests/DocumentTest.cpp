@@ -4443,6 +4443,92 @@ private slots:
         d.undo();
         QCOMPARE(d.maskImage(destination).pixelColor(24, 16), QColor(Qt::white));
     }
+    void tiledCloneSamplingMatchesFullPainter()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            QImage source(523, 531,
+                          bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                     : QImage::Format_ARGB32_Premultiplied);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(x, y,
+                                         QColor::fromRgba64((x * 197 + y * 31) % 65536,
+                                                            (y * 173 + x * 17) % 65536,
+                                                            (x * 113 + y * 227) % 65536,
+                                                            20001 + (x * 67 + y * 13) % 45535));
+            const auto url = QUrl::fromLocalFile(directory.filePath("clone.png"));
+            QVERIFY(source.save(url.toLocalFile()));
+            for (const auto anchor :
+                 {QPointF(260.25, 264.75), QPointF(4.25, 3.75), QPointF(520.75, 528.25)}) {
+                Document d;
+                QVERIFY(d.openFile(url));
+                const QImage before      = d.layerImage(0);
+                const QPoint sourcePoint = anchor.x() < 10 ? QPoint(0, 0) : QPoint(254, 255);
+                QImage       coverage    = ImageUtils::blank(before.size(), before.format());
+                {
+                    QPainter p(&coverage);
+                    p.setRenderHint(QPainter::Antialiasing);
+                    p.setPen(Qt::NoPen);
+                    p.setBrush(Qt::white);
+                    p.drawEllipse(anchor, 13.5, 13.5);
+                }
+                QImage overlay = ImageUtils::blank(before.size(), before.format());
+                {
+                    QPainter p(&overlay);
+                    p.drawImage(anchor - sourcePoint, before);
+                    p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+                    p.drawImage(0, 0, coverage);
+                }
+                QImage expected = before.copy();
+                {
+                    QPainter p(&expected);
+                    p.drawImage(0, 0, overlay);
+                }
+                d.setTool("cloneStamp");
+                d.setBrushSize(27);
+                d.setBrushHardness(1);
+                d.setBrushFlow(1);
+                d.setBrushOpacity(1);
+                d.setCloneSource(sourcePoint.x(), sourcePoint.y());
+                d.beginStroke(anchor.x(), anchor.y());
+                d.endStroke();
+                QCOMPARE(d.layerImage(0), expected);
+                d.undo();
+                QCOMPARE(d.layerImage(0), before);
+                d.redo();
+                QCOMPARE(d.layerImage(0), expected);
+            }
+        }
+    }
+    void stampsAllocateOnlyLocalTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.setColor(Qt::blue);
+        d.setBrushSize(12);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        d.setBrushSmoothing(0);
+        d.setCloneSource(80, 80);
+        for (bool mask : {false, true}) {
+            if (mask)
+                d.addLayerMask();
+            for (const auto &tool : {"cloneStamp", "patternStamp"}) {
+                d.setTool(tool);
+                const auto before = d.memoryUsage()["tileHeapBytes"].toLongLong();
+                d.beginStroke(100, 100);
+                d.continueStroke(110, 110);
+                const auto usage = d.memoryUsage();
+                QVERIFY(usage["strokeCoverageTiles"].toInt() > 0);
+                QVERIFY(usage["strokeCoverageBytes"].toLongLong() <= 256LL * 256 * 8);
+                QVERIFY(usage["tileHeapBytes"].toLongLong() - before <= 256LL * 256 * 8);
+                d.cancelStroke();
+                QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(0));
+            }
+        }
+    }
     void patternStampRepeatsAndDefinesCustomPatterns()
     {
         Document d;

@@ -9117,6 +9117,93 @@ private slots:
             }
     }
 
+    void frequencyCompactSourceDigest()
+    {
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        QTemporaryDir      directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16})
+            for (const QColor color : {QColor(Qt::white), QColor(Qt::transparent),
+                                       QColor::fromRgba64(23456, 45678, 12345, 34567)}) {
+                QImage pixel(1, 1,
+                             bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                        : QImage::Format_ARGB32_Premultiplied);
+                pixel.fill(color);
+                QByteArray encoded;
+                QBuffer    buffer(&encoded);
+                QVERIFY(buffer.open(QIODevice::WriteOnly));
+                QVERIFY(pixel.save(&buffer, "PNG"));
+                const QJsonObject layer{{"kind", "pixel"},
+                                        {"opacity", 1},
+                                        {"blend", 0},
+                                        {"compactPixels", true},
+                                        {"png", QString::fromLatin1(encoded.toBase64())}};
+                const QJsonObject root{
+                    {"format", "PhotoCrap"},   {"version", 9},        {"width", 257},
+                    {"height", 259},           {"channelBits", bits}, {"layers", QJsonArray{layer}},
+                    {"penPaths", QJsonArray{}}};
+                const auto url = QUrl::fromLocalFile(directory.filePath("compact.pcr"));
+                QFile      file(url.toLocalFile());
+                QVERIFY(file.open(QIODevice::WriteOnly));
+                QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+                file.close();
+                Document d;
+                QVERIFY(d.openFile(url));
+                const auto original = d.layerImage(0);
+                d.addFrequencySeparation(7);
+                QList<QImage> images{d.layerImage(1), d.layerImage(2), d.composite()};
+                for (const auto &image : images)
+                    for (int y = 0; y < image.height(); ++y)
+                        hash.addData(
+                            QByteArrayView(reinterpret_cast<const char *>(image.constScanLine(y)),
+                                           image.width() * image.depth() / 8));
+                const auto saved = QUrl::fromLocalFile(directory.filePath("pair.pcr"));
+                QVERIFY(d.saveProject(saved));
+                Document loaded;
+                QVERIFY(loaded.openFile(saved));
+                QCOMPARE(loaded.layerImage(1), images[0]);
+                QCOMPARE(loaded.layerImage(2), images[1]);
+                const auto reloaded = loaded.composite();
+                for (int y = 0; y < reloaded.height(); ++y)
+                    hash.addData(
+                        QByteArrayView(reinterpret_cast<const char *>(reloaded.constScanLine(y)),
+                                       reloaded.width() * reloaded.depth() / 8));
+                d.undo();
+                QCOMPARE(d.layers().size(), 1);
+                QCOMPARE(d.layerImage(0), original);
+                d.redo();
+                QCOMPARE(d.layerImage(1), images[0]);
+                QCOMPARE(d.layerImage(2), images[1]);
+                d.setActiveLayer(0);
+                d.setTool("pencil");
+                d.setBrushSize(5);
+                d.setColor(Qt::blue);
+                d.beginStroke(17, 19);
+                d.endStroke();
+                QCOMPARE(d.layerImage(1), images[0]);
+                QCOMPARE(d.layerImage(2), images[1]);
+                d.undo();
+                QCOMPARE(d.layerImage(0), original);
+            }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("dd036f867da23c181872b768564b7adc47266f9f3225df9b63020fac0faa84ce"));
+    }
+    void largeCompactFrequencySourceProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_COMPACT_FREQUENCY_SOURCE_PROBE"))
+            QSKIP(
+                "Set PHOTOCRAP_COMPACT_FREQUENCY_SOURCE_PROBE=1 to measure uniform 24 MP sources.");
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.addLayer();
+        QElapsedTimer timer;
+        timer.start();
+        d.addFrequencySeparation(8);
+        const auto elapsed = timer.nsecsElapsed();
+        QCOMPARE(d.layers().size(), 4);
+        qInfo() << "Compact 24 MP / 16-bit frequency creation ns:" << elapsed;
+    }
+
     void largeFrequencySourceProbe()
     {
         if (!qEnvironmentVariableIsSet("PHOTOCRAP_FREQUENCY_SOURCE_PROBE"))

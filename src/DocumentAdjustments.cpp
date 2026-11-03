@@ -137,10 +137,20 @@ void Document::addFrequencySeparation(qreal _radius)
         return;
     PixelPlane  source;
     const auto &active = m_layers[m_active];
-    if (active.kind == "pixel" && (!active.maskEnabled || active.mask.isNull()) &&
-        active.image.size() == m_size)
-        source = active.image; // Immutable tile versions are already a frozen source.
-    else {
+    if (active.kind == "pixel" && (!active.maskEnabled || active.mask.isNull())) {
+        if (active.image.size() == m_size)
+            source = active.image; // Immutable tile versions are already a frozen source.
+        else if (ImageUtils::compact(active.image)) {
+            const QImage compact = active.image;
+            QImage       pixel(1, 1, compact.format());
+            // Match expandedPlane's QColor rounding and colour metadata, but
+            // normalize only one pixel instead of allocating the whole canvas.
+            pixel.fill(compact.pixelColor(0, 0));
+            pixel.setColorSpace(compact.colorSpace());
+            source = PixelPlane::uniform(m_size, pixel);
+        }
+    }
+    if (source.isNull()) {
         QImage pixels = active.kind == "pixel" ? layerImage(m_active) : composite();
         if (active.kind == "pixel" && active.maskEnabled && !active.mask.isNull())
             pixels = applyMask(pixels, active.mask,

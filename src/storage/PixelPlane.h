@@ -13,6 +13,16 @@ public:
         : m_image(image), m_key(image.cacheKey()), m_readKey(image.cacheKey())
     {
     }
+    // Give a native one-pixel background logical dimensions without expanding
+    // its pixels. Geometry is part of the plane's identity, not the pixel key.
+    static PixelPlane uniform(const QSize &_size, const QImage &_pixel)
+    {
+        PixelPlane result;
+        result.m_tiles = TiledImage(_size, _pixel);
+        if (!result.m_tiles.isNull())
+            result.m_key = nextVersionKey();
+        return result;
+    }
     bool isNull() const
     {
         return m_image.isNull() && m_tiles.isNull();
@@ -250,14 +260,18 @@ public:
         if (!changed)
             return true;
         m_tiles = std::move(next);
-        static std::atomic<qint64> nextVersion{1};
-        m_key   = -nextVersion.fetch_add(1);
+        m_key   = nextVersionKey();
         m_dirty = false;
         m_image = {};
         return true;
     }
 
 private:
+    static qint64 nextVersionKey()
+    {
+        static std::atomic<qint64> nextVersion{1};
+        return -nextVersion.fetch_add(1);
+    }
     const QImage &read() const
     {
         if (m_image.isNull() && !m_tiles.isNull()) {

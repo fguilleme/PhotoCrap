@@ -16,6 +16,79 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void logicalUniformPlanesKeepNativeBitsAndIndependentVersions()
+    {
+        QSet<qint64> versions;
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage pixel(1, 1, format);
+            if (format == QImage::Format_RGBA64_Premultiplied)
+                *reinterpret_cast<QRgba64 *>(pixel.bits()) =
+                    QRgba64::fromRgba64(123, 456, 789, 12345);
+            else if (format == QImage::Format_ARGB32_Premultiplied)
+                *reinterpret_cast<QRgb *>(pixel.bits()) = qRgba(17, 31, 49, 103);
+            else
+                pixel.bits()[0] = 71;
+            pixel.setColorSpace(QColorSpace::DisplayP3);
+            pixel.setDevicePixelRatio(1.5);
+            pixel.setDotsPerMeterX(4200);
+            pixel.setDotsPerMeterY(4300);
+            auto plane = PixelPlane::uniform({6000, 4000}, pixel);
+            QVERIFY(!plane.isNull());
+            QVERIFY(plane.isUniform());
+            QCOMPARE(plane.size(), QSize(6000, 4000));
+            QCOMPARE(plane.format(), format);
+            QCOMPARE(plane.sizeInBytes(), qint64(0));
+            QVERIFY(plane.heapBlocks().isEmpty());
+            QCOMPARE(plane.tiles().tileCount(), 0);
+            const auto region = plane.region({5997, 3998, 3, 2});
+            QCOMPARE(region.colorSpace(), pixel.colorSpace());
+            QCOMPARE(region.devicePixelRatio(), pixel.devicePixelRatio());
+            QCOMPARE(region.dotsPerMeterX(), 4200);
+            QCOMPARE(region.dotsPerMeterY(), 4300);
+            for (int y = 0; y < region.height(); ++y)
+                for (int x = 0; x < region.width(); ++x)
+                    QVERIFY(!std::memcmp(region.constScanLine(y) + x * pixel.depth() / 8,
+                                         pixel.constBits(), size_t(pixel.depth() / 8)));
+            const auto key = plane.cacheKey();
+            QVERIFY(key != 0 && key != pixel.cacheKey());
+            QVERIFY(!versions.contains(key));
+            versions.insert(key);
+            QVERIFY(plane.writeRegion({258, 257}, pixel, plane.size()));
+            QCOMPARE(plane.cacheKey(), key);
+            QCOMPARE(plane.tiles().tileCount(), 0);
+            const auto before  = plane;
+            QImage     changed = pixel.copy();
+            changed.fill(Qt::black);
+            QVERIFY(plane.writeRegion({258, 257}, changed, plane.size()));
+            QVERIFY(plane.cacheKey() != key);
+            QVERIFY(!versions.contains(plane.cacheKey()));
+            versions.insert(plane.cacheKey());
+            QCOMPARE(plane.tiles().tileCount(), 1);
+            QCOMPARE(before.region({258, 257, 1, 1}), pixel);
+            QCOMPARE(plane.region({258, 257, 1, 1}), changed);
+            for (const QSize size : {QSize(1, 1), QSize(601, 503), QSize(6000, 4000)}) {
+                const auto other = PixelPlane::uniform(size, pixel);
+                QVERIFY(!other.isNull());
+                QVERIFY(!versions.contains(other.cacheKey()));
+                versions.insert(other.cacheKey());
+                QCOMPARE(other.size(), size);
+                QCOMPARE(other.tileImage(0, 0), pixel);
+            }
+        }
+    }
+    void logicalUniformPlanesRejectInvalidInputs()
+    {
+        QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+        pixel.fill(Qt::white);
+        QVERIFY(PixelPlane::uniform({}, pixel).isNull());
+        QVERIFY(PixelPlane::uniform({16385, 1}, pixel).isNull());
+        QVERIFY(PixelPlane::uniform({16384, 16384}, pixel).isNull());
+        QVERIFY(PixelPlane::uniform({32, 32}, {}).isNull());
+        QVERIFY(PixelPlane::uniform({32, 32}, QImage(2, 2, pixel.format())).isNull());
+        QVERIFY(PixelPlane::uniform({32, 32}, QImage(1, 1, QImage::Format_RGB888)).isNull());
+    }
+
     void borrowedTileImagesKeepSnapshotsAndDiskLeases()
     {
         for (auto format : {QImage::Format_ARGB32_Premultiplied,

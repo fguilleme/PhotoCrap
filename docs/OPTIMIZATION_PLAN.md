@@ -9,6 +9,9 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Fonds compacts des fréquences étendus en plans de taille logique, sans
+  pixels de canevas alloués ; versions distinctes et rendu natif inchangé.
+
 - [x] Préparation des retouches de fréquences capturant les plans natifs partagés ;
   matérialisation des sources déplacée de la GUI au worker, leases disque préservés.
 

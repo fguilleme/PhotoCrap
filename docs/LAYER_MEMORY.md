@@ -14,9 +14,11 @@ complète temporaire. Les profondeurs prises en charge par chaque outil ne chang
 La création d’une séparation de fréquences sur un calque de pixels à la taille du
 document, sans masque actif, partage directement ses versions de tuiles entre la
 source et les deux bandes. Modifier ensuite le calque d’origine ne change pas
-cette source figée. Les masques activés, plans compacts et sources composées
-conservent leur préparation complète actuelle ; la précision et les calculs des
-bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
+cette source figée. Un fond compact sans masque actif devient un `PixelPlane`
+de la taille logique du document, avec son seul pixel de fond et sans tuile explicite.
+La normalisation de ce pixel reprend l’arrondi QColor de l’ancienne expansion.
+Les masques activés et sources composées gardent leur préparation complète actuelle ;
+la précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
 La préparation des retouches capture maintenant les `PixelPlane` immuables,
@@ -26,6 +28,13 @@ elles partagent leurs tuiles. Le cache peut donc réutiliser la bande basse selo
 son budget. Les leases disque restent possédés jusqu’à la fin du travail.
 Les grandes images des bandes et leur intégration finale restent des coûts distincts ;
 ce changement réduit la soumission, sans rendre tout le flou régional.
+
+`PixelPlane::uniform` utilise le constructeur natif de `TiledImage` et conserve
+les bits prémultipliés, l’espace couleur, le DPR et la résolution du pixel fourni.
+Chaque nouveau plan logique reçoit une version distincte de celles des autres
+plans et des écritures régionales. Une copie garde sa version jusqu’à une véritable
+modification ; une écriture identique n’alloue pas de tuile. Les buffers des filtres
+et la sérialisation peuvent toujours matérialiser ce plan logique complet.
 
 Lors de l’import initial d’un plan natif, le fond compact est choisi parmi les
 couleurs des tuiles entièrement uniformes, pondérées par leur allocation native

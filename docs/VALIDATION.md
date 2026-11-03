@@ -1,5 +1,28 @@
 # Validation
 
+## Plans logiques des sources compactes de fréquences — 3 novembre 2026
+
+Six cas (8/16 bits, blanc, transparent et couleur avec alpha) comparent une empreinte
+relevée avant changement sur `0d55829` : bandes, composite et composite après
+rechargement. Les bandes rechargées sont comparées directement ; peinture de
+l’original, Annuler/Rétablir et source figée sont aussi vérifiés. L’empreinte est
+identique sur Accelerate et sur le CPU portable :
+`dd036f867da23c181872b768564b7adc47266f9f3225df9b63020fac0faa84ce`.
+
+Le plan uniforme logique est testé séparément en RVBA prémultiplié 8/16 bits et
+masque 8 bits : bits natifs exacts, métadonnées P3/DPR/résolution, région au dernier
+pixel d’un document 24 Mpx, absence de tuiles, écriture identique, détachement local
+et versions uniques entre création et écriture. Les géométries, formats et pixels
+d’entrée invalides sont rejetés.
+
+La sonde `PHOTOCRAP_COMPACT_FREQUENCY_SOURCE_PROBE=1 build/photocrap_tests
+largeCompactFrequencySourceProbe` ajoute une paire depuis un calque vide sur
+24 Mpx/16 bits. Création locale 57,3 → 0,011 ms ; temps indicatifs sans seuil de
+test, hors calcul ultérieur des bandes et hors création initiale du document.
+Les 50 suites passent ; les cas ciblés passent aussi sous Qt 6.8 et sur le CPU
+portable. Le contrôle natif Cocoa/Metal de la pile d’affichage passe.
+
+
 ## Sources natives de préparation des fréquences — 3 novembre 2026
 
 La soumission partage les plans natifs sans deux conversions QImage pleine taille

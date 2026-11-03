@@ -1,5 +1,15 @@
 # Validation
 
+## Écritures identiques et versions de tuiles — 3 novembre 2026
+
+ARGB32, RGBA64 et Grayscale8 : un patch identique traversant quatre tuiles conserve
+les identifiants, les versions logiques et zéro allocation RAM après déchargement.
+Un seul pixel différent détache exactement une tuile ; les trois autres gardent
+leurs identifiants et les anciens snapshots restent lisibles après vidage du cache.
+Un plan compact identique reste stocké sur un pixel ; les écritures hors document
+ne créent pas de version. Le compteur de modification n’est validé qu’après
+application atomique de l’ensemble du patch.
+
 ## Bilan des outils à empreintes — 3 novembre 2026
 
 - Build complet Qt 6.12 et 49/49 suites hors contrôles natifs macOS réussies,

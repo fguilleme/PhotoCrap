@@ -14,6 +14,75 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void identicalWritesKeepMappedTilesAndOnlyChangedTilesDetach()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+            TiledImage        plane({768, 512}, format, Qt::white);
+            bool              changed = true;
+            QImage            blank(6, 6, format);
+            blank.fill(Qt::white);
+            const auto emptyKey = plane.regionKey({0, 0, 768, 512});
+            QVERIFY(plane.writeRegion({254, 254}, blank, &changed));
+            QVERIFY(!changed);
+            QCOMPARE(plane.tileCount(), 0);
+            QCOMPARE(plane.regionKey({0, 0, 768, 512}), emptyKey);
+            QVERIFY(plane.paint({0, 0, 512, 256},
+                                [](QPainter &p) { p.fillRect(0, 0, 512, 256, Qt::blue); }));
+            QVERIFY(plane.offload(cache));
+            QCOMPARE(plane.heapBytes(), qint64(0));
+            const auto old    = plane;
+            const auto oldKey = plane.regionKey({0, 0, 768, 512});
+            QImage     patch  = plane.region({254, 254, 6, 6});
+            QVERIFY(plane.writeRegion({254, 254}, patch, &changed));
+            QVERIFY(!changed);
+            QCOMPARE(plane.regionKey({0, 0, 768, 512}), oldKey);
+            QCOMPARE(plane.heapBytes(), qint64(0));
+            patch.setPixelColor(0, 0, Qt::green);
+            QVERIFY(plane.writeRegion({254, 254}, patch, &changed));
+            QVERIFY(changed);
+            QCOMPARE(plane.region({254, 254, 6, 6}), patch);
+            QCOMPARE(plane.heapBytes(), qint64(256) * 256 * patch.depth() / 8);
+            QVERIFY(plane.regionKey({0, 0, 256, 256}) != old.regionKey({0, 0, 256, 256}));
+            for (const auto untouched :
+                 {QRect(256, 0, 256, 256), QRect(0, 256, 256, 256), QRect(256, 256, 256, 256)})
+                QCOMPARE(plane.regionKey(untouched), old.regionKey(untouched));
+            QVERIFY(plane.writeRegion({1000, 1000}, patch, &changed));
+            QVERIFY(!changed);
+            cache.clear();
+            QCOMPARE(old.regionKey({0, 0, 768, 512}), oldKey);
+        }
+    }
+    void identicalPixelPlaneWritesKeepLogicalVersions()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage uniform(1, 1, format);
+            uniform.fill(Qt::white);
+            PixelPlane compact(uniform);
+            QImage     patch(6, 6, format);
+            patch.fill(Qt::white);
+            const auto compactKey = compact.cacheKey();
+            QVERIFY(compact.writeRegion({254, 254}, patch, {768, 512}));
+            QCOMPARE(compact.size(), QSize(1, 1));
+            QCOMPARE(compact.cacheKey(), compactKey);
+            QImage image(768, 512, format);
+            image.fill(Qt::white);
+            image.setPixelColor(255, 255, Qt::red);
+            PixelPlane plane(image);
+            QVERIFY(plane.freeze());
+            const auto key    = plane.cacheKey();
+            const auto blocks = plane.storageBlocks();
+            QVERIFY(plane.writeRegion({254, 254}, plane.region({254, 254, 6, 6}), image.size()));
+            QCOMPARE(plane.cacheKey(), key);
+            QCOMPARE(plane.storageBlocks(), blocks);
+            QVERIFY(plane.writeRegion({1000, 1000}, patch, image.size()));
+            QCOMPARE(plane.cacheKey(), key);
+        }
+    }
     void expandingUniformPlanesPreservesNativeMetadata()
     {
         for (auto format : {QImage::Format_ARGB32_Premultiplied,

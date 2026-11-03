@@ -71,6 +71,13 @@ La lecture d’une région logique d’un seul pixel fonctionne aussi hors de l�
 du pixel stocké, sans retourner une zone transparente. Les régions uniformes
 conservent également la densité et le ratio de pixels avant toute écriture.
 
+Les écritures régionales comparent les octets natifs avant de détacher une tuile.
+Une écriture identique conserve ses identifiants, mappings et versions logiques ;
+un patch traversant plusieurs tuiles ne copie que celles réellement différentes.
+Les plans compacts restent compacts si la couleur écrite est déjà celle du fond.
+Cela évite les nouvelles allocations et les invalidations de textures fondées sur
+les versions de tuiles ; les règles d’historique propres aux outils ne changent pas.
+
 Le Doigt lit et remplace uniquement la zone de chaque empreinte dans la destination
 tuilée, y compris sur un masque. Sa poche et sa pointe restent limitées à la taille
 du pinceau ; il n’alloue pas de couverture du document. La reprise des couleurs

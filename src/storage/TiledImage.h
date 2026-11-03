@@ -32,8 +32,8 @@ public:
     qint64 heapBytes() const;
     // Import native pixels exactly; updates retain immutable versions of
     // unchanged tiles, including their disk leases.
-    bool                  replace(const QImage &_image);
-    bool                  writeRegion(const QPoint &_origin, const QImage &_pixels);
+    bool replace(const QImage &_image);
+    bool writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed = nullptr);
     QImage::Format        format() const;
     QColorSpace           colorSpace() const;
     QHash<qint64, qint64> storageBlocks() const;

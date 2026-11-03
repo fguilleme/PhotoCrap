@@ -208,8 +208,11 @@ public:
                 return false;
             next = m_tiles;
         }
-        if (next.isNull() || !next.writeRegion(origin, pixels))
+        bool changed = false;
+        if (next.isNull() || !next.writeRegion(origin, pixels, &changed))
             return false;
+        if (!changed)
+            return true;
         m_tiles = std::move(next);
         static std::atomic<qint64> nextVersion{1};
         m_key   = -nextVersion.fetch_add(1);

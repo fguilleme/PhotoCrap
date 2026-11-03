@@ -325,20 +325,42 @@ bool TiledImage::paint(const QRect &_region, const std::function<void(QPainter &
     return paintRegion(_region, _paint, true);
 }
 
-bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels)
+bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed)
 {
+    if (_changed)
+        *_changed = false;
     if (!m_data || _pixels.isNull() || _pixels.format() != format())
         return false;
     const QRect region = QRect(_origin, _pixels.size()).intersected(QRect(QPoint{}, size()));
     if (region.isEmpty())
         return true;
-    auto      next  = std::make_shared<Data>(*m_data);
-    const int bytes = _pixels.depth() / 8;
+    std::shared_ptr<Data> next;
+    const int             bytes = _pixels.depth() / 8;
     for (int y = region.top() / TileSize; y <= region.bottom() / TileSize; ++y)
         for (int x = region.left() / TileSize; x <= region.right() / TileSize; ++x) {
-            const QRect bounds = next->rect(x, y), overlap = region.intersected(bounds);
-            const auto  previous = next->tiles.value(next->key(x, y));
-            QImage      image    = previous ? previous->image().copy() : next->blank(bounds.size());
+            const QRect  bounds = m_data->rect(x, y), overlap = region.intersected(bounds);
+            const auto   previous = m_data->tiles.value(m_data->key(x, y));
+            const QImage old      = previous ? previous->image() : QImage{};
+            if (previous && old.isNull())
+                return false;
+            bool equal = true;
+            for (int row = overlap.top(); row <= overlap.bottom() && equal; ++row) {
+                const auto *input =
+                    _pixels.constScanLine(row - _origin.y()) + (overlap.x() - _origin.x()) * bytes;
+                if (previous)
+                    equal = std::memcmp(old.constScanLine(row - bounds.y()) +
+                                            (overlap.x() - bounds.x()) * bytes,
+                                        input, size_t(overlap.width()) * bytes) == 0;
+                else
+                    for (int column = 0; column < overlap.width() && equal; ++column)
+                        equal = std::memcmp(input + column * bytes, m_data->background.constBits(),
+                                            size_t(bytes)) == 0;
+            }
+            if (equal)
+                continue;
+            if (!next)
+                next = std::make_shared<Data>(*m_data);
+            QImage image = previous ? old.copy() : next->blank(bounds.size());
             if (image.isNull())
                 return false;
             for (int row = overlap.top(); row <= overlap.bottom(); ++row)
@@ -348,7 +370,11 @@ bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels)
                             size_t(overlap.width()) * bytes);
             next->tiles.insert(next->key(x, y), std::make_shared<Tile>(image));
         }
-    m_data = std::move(next);
+    if (next) {
+        m_data = std::move(next);
+        if (_changed)
+            *_changed = true;
+    }
     return true;
 }
 

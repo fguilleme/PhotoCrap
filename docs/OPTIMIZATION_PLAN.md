@@ -16,9 +16,11 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 - [x] Validation édition/Annuler/Rétablir/sauvegarde après éviction, disque plein,
   documents chargés en 8/16 bits et mesures du pic réel de RAM.
 
-Les calques, masques et sources de fréquences utilisent `PixelPlane`. Pinceau,
-Crayon et Gomme écrivent des régions directement ; les autres outils peuvent
-encore matérialiser un plan temporaire pendant leur opération. Le budget de
+Les calques, masques et sources de fréquences utilisent `PixelPlane`. Les outils
+à empreintes (pinceaux, retouches, tampons, formes d’historique et correcteurs)
+lisent et écrivent des régions directement ; leurs sources composées et les
+autres outils peuvent encore matérialiser un plan temporaire. Les tuiles identiques
+gardent leurs versions et leurs mappings lors des écritures régionales. Le budget de
 256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
 global. Le composite complet CPU, les sélections et les buffers temporaires
 restent à compter séparément. Le pic de RAM est mesuré sur des gestes localisés et sur quatre plans remplis de

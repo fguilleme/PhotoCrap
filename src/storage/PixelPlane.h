@@ -199,7 +199,7 @@ public:
     {
         TiledImage next;
         if (size() == QSize(1, 1)) {
-            next = TiledImage(documentSize, format(), pixelColor(0, 0));
+            next = TiledImage(documentSize, m_image);
         } else {
             if (!freeze())
                 return false;

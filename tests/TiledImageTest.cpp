@@ -14,6 +14,38 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void expandingUniformPlanesPreservesNativeMetadata()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8})
+            for (const auto space : {QColorSpace{}, QColorSpace(QColorSpace::DisplayP3)}) {
+                QImage uniform(1, 1, format);
+                uniform.fill(QColor::fromRgba64(12345, 23456, 34567, 45678));
+                uniform.setColorSpace(space);
+                uniform.setDevicePixelRatio(2);
+                uniform.setDotsPerMeterX(4200);
+                uniform.setDotsPerMeterY(4300);
+                PixelPlane plane(uniform);
+                const auto before = plane;
+                QImage     patch(3, 4, format);
+                patch.fill(Qt::black);
+                QVERIFY(plane.writeRegion({258, 257}, patch, {600, 500}));
+                const auto outside = plane.region({10, 10, 7, 9});
+                QCOMPARE(outside.colorSpace(), space);
+                QCOMPARE(outside.devicePixelRatio(), uniform.devicePixelRatio());
+                QCOMPARE(outside.dotsPerMeterX(), uniform.dotsPerMeterX());
+                QCOMPARE(outside.dotsPerMeterY(), uniform.dotsPerMeterY());
+                for (int y = 0; y < outside.height(); ++y)
+                    for (int x = 0; x < outside.width(); ++x)
+                        QCOMPARE(outside.pixelColor(x, y), uniform.pixelColor(0, 0));
+                QCOMPARE(plane.region({258, 257, 3, 4}).pixelColor(0, 0), patch.pixelColor(0, 0));
+                QCOMPARE(before.size(), QSize(1, 1));
+                QCOMPARE(before.pixelColor(0, 0), uniform.pixelColor(0, 0));
+                QCOMPARE(plane.tiles().tileCount(), 1);
+            }
+        QVERIFY(TiledImage({600, 500}, QImage{}).isNull());
+        QVERIFY(TiledImage({600, 500}, QImage(2, 2, QImage::Format_ARGB32_Premultiplied)).isNull());
+    }
     void realDiskFullPreservesMappedVersions()
     {
         const auto root = qEnvironmentVariable("PHOTOCRAP_FULL_DISK_DIRECTORY");

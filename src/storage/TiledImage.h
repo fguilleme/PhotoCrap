@@ -19,6 +19,8 @@ public:
     static constexpr int TileSize = 256;
     TiledImage()                  = default;
     TiledImage(const QSize &_size, QImage::Format _format, const QColor &_background);
+    // Expand a one-pixel plane logically, preserving native bits and metadata.
+    TiledImage(const QSize &_size, const QImage &_uniform);
 
     bool isNull() const
     {

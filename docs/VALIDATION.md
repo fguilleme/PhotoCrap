@@ -1,5 +1,12 @@
 # Validation
 
+## Métadonnées des plans compacts — 3 novembre 2026
+
+Expansion régionale d’un plan d’un pixel en ARGB32, RGBA64 et Grayscale8, avec
+profil absent ou Display P3, ratio 2 et résolutions X/Y différentes : couleurs
+natives, métadonnées et snapshot initial conservés, une seule tuile allouée.
+Les sources nulles ou non uniformes sont refusées par le constructeur dédié.
+
 ## Tampons par tuiles — 3 novembre 2026
 
 La duplication est comparée pixel par pixel à un QPainter travaillant sur les

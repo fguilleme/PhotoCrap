@@ -62,6 +62,10 @@ est lu, avec son décalage fractionnaire et ses bords transparents. Les motifs
 restent de petites images répétées. Les modes d’échantillonnage « actif et dessous »
 et « tous les calques » préparent encore un composite natif complet par geste.
 
+Le passage d’un plan compact d’un pixel à des tuiles conserve ses valeurs natives,
+son espace couleur (y compris absent pour les masques), sa densité de pixels et
+son ratio de pixels. Il n’ajoute plus implicitement un profil sRGB à un masque.
+
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
 Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par

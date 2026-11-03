@@ -76,6 +76,15 @@ TiledImage::TiledImage(const QSize &_size, QImage::Format _format, const QColor 
     m_data->background.setColorSpace(QColorSpace::SRgb);
 }
 
+TiledImage::TiledImage(const QSize &_size, const QImage &_uniform)
+    : TiledImage(_size, _uniform.format(), Qt::transparent)
+{
+    if (_uniform.size() != QSize(1, 1))
+        m_data.reset();
+    else if (m_data)
+        m_data->background = _uniform;
+}
+
 QSize TiledImage::size() const
 {
     return m_data ? m_data->size : QSize{};

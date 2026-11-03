@@ -78,6 +78,11 @@ par pixel dans une couverture tuilée. Chaque empreinte lit et remplace son seul
 rectangle ; les règles d’échantillonnage, de tolérance, de contiguïté et de recherche
 des contours restent identiques. Cet outil reste limité aux plans couleur 8 bits.
 
+La Forme d’historique conserve le plan source par versions de tuiles, même lorsque
+son état n’appartient plus à la branche d’historique courante. Couverture, source,
+destination et mélange sont régionaux. Les versions mappées restent utilisables
+après vidage du cache. La variante artistique conserve encore son chemin distinct.
+
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
 Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par

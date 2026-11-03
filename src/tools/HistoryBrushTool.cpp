@@ -61,7 +61,10 @@ bool Document::prepareHistoryBrushStroke()
         if (layer.historyId == id) {
             // Immutable for the gesture, including restoration from a future
             // state after Undo. Layer identity survives reordering and renaming.
-            m_historyStrokeSource = ImageUtils::expandedPlane(layer.image, m_size);
+            if (m_tool == "artHistoryBrush")
+                m_historyStrokeSource = ImageUtils::expandedPlane(layer.image, m_size);
+            else
+                m_historyStrokeSource = layer.image;
             return true;
         }
     return false;
@@ -69,23 +72,33 @@ bool Document::prepareHistoryBrushStroke()
 
 void Document::renderHistoryBrushStroke()
 {
-    QImage *target = paintTarget();
-    if (!target || m_historyStrokeSource.isNull() || m_strokeBase.isNull()) {
+    if (m_historyStrokeSource.isNull() || m_strokePlaneBase.isNull()) {
         m_strokeBounds = {};
         return;
     }
-    const QRect   bounds = m_strokeBounds.toAlignedRect().intersected(target->rect());
+    const QRect   bounds = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
     const QRegion region = hasSelection() ? QRegion(bounds) & m_selectionRegion : QRegion(bounds);
     if (region.isEmpty()) {
         m_strokeBounds = {};
         return;
     }
     const QRect work = region.boundingRect();
-    QImage output    = m_strokeBase.copy(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage      output =
+        m_strokePlaneBase.region(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     QImage sample =
-        m_historyStrokeSource.copy(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        m_historyStrokeSource.region(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const QImage coverage = m_tiledStrokeCoverage.region(work);
+    QImage       current  = m_layers[m_active].image.region(work);
+    if (output.isNull() || sample.isNull() || coverage.isNull() || current.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     if (m_brushBlend != 0)
         sample = blendImages(output, sample, m_brushBlend, 1.);
+    if (sample.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     const int opacity = qRound(m_brushOpacity * 255);
     QRect     dirty;
     // Restore all premultiplied channels, including alpha: transparent source
@@ -94,21 +107,21 @@ void Document::renderHistoryBrushStroke()
         for (int y = span.top(); y <= span.bottom(); ++y) {
             auto       *out    = reinterpret_cast<QRgb *>(output.scanLine(y - work.y()));
             const auto *source = reinterpret_cast<const QRgb *>(sample.constScanLine(y - work.y()));
-            const auto *mask   = reinterpret_cast<const QRgb *>(m_strokeCoverage.constScanLine(y));
-            const auto *old    = reinterpret_cast<const QRgb *>(target->constScanLine(y));
+            const auto *mask = reinterpret_cast<const QRgb *>(coverage.constScanLine(y - work.y()));
+            const auto *old  = reinterpret_cast<const QRgb *>(current.constScanLine(y - work.y()));
             for (int x = span.left(); x <= span.right(); ++x) {
+                const int column = x - work.x();
                 const int amount =
-                    (qAlpha(mask[x]) * opacity * selectionCoverage(x, y) + 32512) / 65025;
+                    (qAlpha(mask[column]) * opacity * selectionCoverage(x, y) + 32512) / 65025;
                 if (amount == 0)
                     continue;
-                const int  column = x - work.x();
                 const QRgb a = out[column], b = source[column];
                 const auto mix = [amount](int _a, int _b) {
                     return (_a * (255 - amount) + _b * amount + 127) / 255;
                 };
                 out[column] = qRgba(mix(qRed(a), qRed(b)), mix(qGreen(a), qGreen(b)),
                                     mix(qBlue(a), qBlue(b)), mix(qAlpha(a), qAlpha(b)));
-                if (out[column] != old[x])
+                if (out[column] != old[column])
                     dirty |= QRect(x, y, 1, 1);
             }
         }
@@ -116,11 +129,15 @@ void Document::renderHistoryBrushStroke()
         m_strokeBounds = {};
         return;
     }
-    QPainter painter(target);
-    painter.setClipRegion(region);
+    QPainter painter(&current);
+    painter.setClipRegion(region.translated(-work.topLeft()));
     painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.drawImage(work.topLeft(), output);
+    painter.drawImage(0, 0, output);
     painter.end();
+    if (!m_layers[m_active].image.writeRegion(work.topLeft(), current, m_size)) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     if (!m_fullCompositeDirty)
         m_dirtyRegion = m_dirtyRegion.united(dirty);
 }

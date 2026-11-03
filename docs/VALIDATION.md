@@ -1,5 +1,15 @@
 # Validation
 
+## Forme d’historique par tuiles — 3 novembre 2026
+
+Empreinte de pixels identique avant/après migration pour trois modes de fusion,
+avec source transparente et sélection elliptique progressive franchissant les
+frontières de tuiles. Les états futurs, branches supprimées, identité des calques,
+effacement par source transparente, opacité/débit et absence d’historique sans
+modification restent couverts. Sur 24 Mpx/8 bits après déchargement, le geste
+alloue au plus une tuile de 256 Kio de couverture et une tuile de destination ;
+vidage du cache, Annuler/Rétablir et pixels exacts restent vérifiés.
+
 ## Remplacement de couleur régional — 3 novembre 2026
 
 Les 36 combinaisons de quatre modes, trois échantillonnages et trois limites

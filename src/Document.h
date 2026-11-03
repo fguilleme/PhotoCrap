@@ -1461,7 +1461,7 @@ private:
     QVector<Snapshot> m_undo, m_redo;
     Snapshot          m_historyBrushSource;
     QString           m_historyBrushSourceLabel;
-    QImage            m_historyStrokeSource;
+    PixelPlane        m_historyStrokeSource;
     bool              prepareHistoryBrushStroke();
     void              renderHistoryBrushStroke();
     void              artHistoryDab(const QPointF &_point);

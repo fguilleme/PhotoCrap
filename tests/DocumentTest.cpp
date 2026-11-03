@@ -1914,6 +1914,90 @@ private slots:
         QCOMPARE(d.historyIndex(), history + 1);
     }
 
+    void historyBrushUsesMappedVersionsAndLocalTiles()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto before = d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30});
+        d.configureScratchCache(directory.path(), 256LL * 1024 * 1024);
+        d.configurePlaneRamMiB(0);
+        QTRY_VERIFY_WITH_TIMEOUT(d.scratchCacheUsage()["diskBytes"].toLongLong() > 0, 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(d.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0), 10000);
+        d.setTool("historyBrush");
+        QVERIFY(d.historyBrushSourceAvailable());
+        d.beginStroke(100, 100);
+        d.continueStroke(110, 110);
+        const auto usage = d.memoryUsage();
+        QVERIFY(usage["strokeCoverageTiles"].toInt() > 0);
+        QVERIFY(usage["strokeCoverageBytes"].toLongLong() <= 256LL * 256 * 4);
+        QVERIFY(usage["tileHeapBytes"].toLongLong() <= 256LL * 256 * 4);
+        d.endStroke();
+        const auto after = d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30});
+        QVERIFY(after != before);
+        d.clearScratchCache();
+        d.undo();
+        QCOMPARE(d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30}), before);
+        d.redo();
+        QCOMPARE(d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30}), after);
+    }
+    void historyBrushTileBordersKeepNativeReference()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage image(523, 531, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(x, y,
+                                    QColor((x * 17 + y * 3) % 256, (y * 13) % 256,
+                                           (x * 5 + y * 11) % 256, (x + y * 3) % 256));
+        const auto url = QUrl::fromLocalFile(directory.filePath("history.png"));
+        QVERIFY(image.save(url.toLocalFile()));
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int blend : {0, 3, 7}) {
+            Document d;
+            QVERIFY(d.openFile(url));
+            d.setHistoryBrushSource(0);
+            d.setColor(QColor(220, 40, 90));
+            d.fillWithColor(true);
+            const auto before = d.layerImage(0);
+            d.setTool("ellipticalSelect");
+            d.beginStroke(242, 241);
+            d.continueStroke(289, 284);
+            d.endStroke();
+            d.modifySelection("feather", 2);
+            d.setTool("historyBrush");
+            d.setBrushBlend(blend);
+            d.setBrushSize(27);
+            d.setBrushHardness(.51);
+            d.setBrushFlow(.57);
+            d.setBrushOpacity(.63);
+            d.setBrushSmoothing(0);
+            d.beginStroke(253.25, 251.75);
+            d.continueStroke(271.5, 266.25);
+            d.endStroke();
+            const auto after = d.layerImage(0);
+            QVERIFY(after != before);
+            pixels.addData(QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                          after.sizeInBytes()));
+            for (const QRect &outside : QRegion(after.rect()) - QRegion(235, 233, 55, 55))
+                QCOMPARE(after.copy(outside), before.copy(outside));
+            d.undo();
+            QCOMPARE(d.layerImage(0), before);
+            d.redo();
+            QCOMPARE(d.layerImage(0), after);
+            d.beginStroke(260, 260);
+            d.cancelStroke();
+            QCOMPARE(d.layerImage(0), after);
+        }
+        qInfo() << "History brush pixels" << pixels.result().toHex();
+    }
     void historyBrushRestoresOnlyPaintedPixelsAndUndoesOnce()
     {
         Document d;

@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Images et masques PNG identiques décodés une fois par format natif,
+  copies indépendantes à l’édition et réservations logiques conservées.
+
 - [x] Sources PNG identiques des fréquences décodées une fois par projet, plans
   et leases partagés ; reconstruction transparente préservée après réouverture.
 

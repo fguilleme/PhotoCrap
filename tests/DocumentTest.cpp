@@ -9191,6 +9191,158 @@ private slots:
             }
     }
 
+    void projectRepeatedPlanesAreDecodedOnce_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("variableMask");
+        QTest::addColumn<bool>("disk");
+        for (int bits : {8, 16})
+            for (bool variable : {false, true})
+                for (bool disk : {false, true})
+                    QTest::newRow(qPrintable(QString::number(bits) +
+                                             (variable ? "-variable-" : "-uniform-") +
+                                             (disk ? "disk" : "ram")))
+                        << bits << variable << disk;
+    }
+    void projectRepeatedPlanesAreDecodedOnce()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, variableMask);
+        QFETCH(bool, disk);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage input(517, 523,
+                     bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                : QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < input.height(); ++y)
+            for (int x = 0; x < input.width(); ++x)
+                input.setPixelColor(
+                    x, y,
+                    QColor((x * 13 + y) % 256, (x + y * 5) % 256, (x * 3 + y * 7) % 256, 173));
+        const auto image = QUrl::fromLocalFile(directory.filePath("source.png"));
+        QVERIFY(input.save(image.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(image));
+        d.addLayerMask();
+        if (variableMask) {
+            d.setTool("pencil");
+            d.setColor(Qt::black);
+            d.setBrushSize(31);
+            d.beginStroke(255, 255);
+            d.endStroke();
+        }
+        d.setEditingMask(false);
+        const auto bytes    = d.memoryUsage()["layerBytes"];
+        const auto original = d.layerImage(0);
+        const auto mask     = d.maskImage(0);
+        for (int i = 0; i < 4; ++i)
+            d.duplicateLayer();
+        const auto reserved  = d.memoryUsage()["reservedLayerBytes"];
+        const auto composite = d.composite();
+        const auto project   = QUrl::fromLocalFile(directory.filePath("copies.pcr"));
+        QVERIFY(d.saveProject(project));
+        Document loaded;
+        loaded.configureScratchCache(directory.filePath("cache"), 32 * 1024 * 1024);
+        loaded.configurePlaneRamMiB(disk ? 0 : 4096);
+        loaded.setBackgroundEditThreshold(0);
+        loaded.requestOpenFile(project);
+        QTRY_VERIFY_WITH_TIMEOUT(!loaded.operationBusy(), 10000);
+        QCOMPARE(loaded.layers().size(), 5);
+        if (qEnvironmentVariableIsSet("PHOTOCRAP_PROJECT_PLANES_PROBE"))
+            qInfo() << "Repeated project bits, variable mask, disk, initial bytes, reopened bytes:"
+                    << bits << variableMask << disk << bytes << loaded.memoryUsage()["layerBytes"];
+        QCOMPARE(loaded.memoryUsage()["layerBytes"], bytes);
+        QCOMPARE(loaded.memoryUsage()["reservedLayerBytes"], reserved);
+        if (disk) {
+            // A compact one-pixel mask remains in RAM, shared by all copies.
+            QCOMPARE(loaded.memoryUsage()["tileHeapBytes"].toLongLong(),
+                     variableMask ? qint64(0) : qint64(4));
+            loaded.clearScratchCache();
+        }
+        QCOMPARE(loaded.composite(), composite);
+        for (int i = 0; i < 5; ++i) {
+            QCOMPARE(loaded.layerImage(i), original);
+            QCOMPARE(loaded.maskImage(i), mask);
+        }
+        loaded.setActiveLayer(0);
+        loaded.setEditingMask(false);
+        loaded.setTool("pencil");
+        loaded.setBrushSize(5);
+        loaded.setColor(Qt::blue);
+        loaded.beginStroke(100, 100);
+        loaded.endStroke();
+        QVERIFY(loaded.layerImage(0) != original);
+        for (int i = 1; i < 5; ++i)
+            QCOMPARE(loaded.layerImage(i), original);
+        loaded.undo();
+        QCOMPARE(loaded.composite(), composite);
+        loaded.setEditingMask(true);
+        loaded.setColor(Qt::black);
+        loaded.beginStroke(100, 100);
+        loaded.endStroke();
+        QVERIFY(loaded.maskImage(0) != mask);
+        for (int i = 1; i < 5; ++i)
+            QCOMPARE(loaded.maskImage(i), mask);
+        loaded.undo();
+        QCOMPARE(loaded.composite(), composite);
+    }
+    void projectPlaneSharingIncludesTheNativeTargetFormat_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void projectPlaneSharingIncludesTheNativeTargetFormat()
+    {
+        QFETCH(int, bits);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage image(37, 31,
+                     bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                : QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(x, y, QColor(x * 5, y * 7, (x + y) * 3));
+        const auto png = QUrl::fromLocalFile(directory.filePath("color.png"));
+        QVERIFY(image.save(png.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(png));
+        const auto original = d.layerImage(0);
+        const auto mask     = original.convertToFormat(QImage::Format_Grayscale8);
+        const auto project  = QUrl::fromLocalFile(directory.filePath("color-mask.pcr"));
+        QVERIFY(d.saveProject(project));
+        QFile file(project.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        auto layer           = root["layers"].toArray()[0].toObject();
+        layer["mask"]        = layer["png"]; // Exact same encoded PNG, different output formats.
+        layer["compactMask"] = false;
+        root["layers"]       = QJsonArray{layer, layer};
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+        file.close();
+        Document loaded;
+        QVERIFY(loaded.openFile(project));
+        QCOMPARE(loaded.layerImage(0), original);
+        QCOMPARE(loaded.layerImage(1), original);
+        QCOMPARE(loaded.maskImage(0), mask);
+        QCOMPARE(loaded.maskImage(1), mask);
+        QCOMPARE(loaded.maskImage(0).format(), QImage::Format_Grayscale8);
+        QCOMPARE(loaded.memoryUsage()["layerBytes"].toLongLong(),
+                 original.sizeInBytes() + mask.sizeInBytes());
+        loaded.setActiveLayer(0);
+        loaded.setEditingMask(true);
+        loaded.setTool("pencil");
+        loaded.setBrushSize(5);
+        loaded.setColor(Qt::black);
+        loaded.beginStroke(17, 19);
+        loaded.endStroke();
+        QCOMPARE(loaded.maskImage(1), mask);
+        QCOMPARE(loaded.layerImage(0), original);
+        QCOMPARE(loaded.layerImage(1), original);
+    }
+
     void projectFrequencySourcesShareTheirDecodedPlane_data()
     {
         QTest::addColumn<int>("bits");
@@ -9234,9 +9386,9 @@ private slots:
         if (qEnvironmentVariableIsSet("PHOTOCRAP_FREQUENCY_PROJECT_PROBE"))
             qInfo() << "Reloaded frequency project bits, disk, plane bytes, total native bytes:"
                     << bits << disk << planeBytes << loaded.memoryUsage()["layerBytes"];
-        // The original image has its own decoded plane; the two frequency
-        // sources share one additional plane, not two.
-        QCOMPARE(loaded.memoryUsage()["layerBytes"].toLongLong(), 2 * planeBytes);
+        // The original and both frequency sources now share one decoded
+        // native plane. Subsequent edits detach only their touched tiles.
+        QCOMPARE(loaded.memoryUsage()["layerBytes"].toLongLong(), planeBytes);
         if (disk) {
             QCOMPARE(loaded.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0));
             QVERIFY(loaded.scratchCacheUsage()["diskBytes"].toLongLong() > 0);

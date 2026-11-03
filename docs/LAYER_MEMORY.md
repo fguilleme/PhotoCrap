@@ -43,12 +43,16 @@ plans et des écritures régionales. Une copie garde sa version jusqu’à une v
 modification ; une écriture identique n’alloue pas de tuile. Les buffers des filtres
 et la sérialisation peuvent toujours matérialiser ce plan logique complet.
 
-La lecture d’un projet mémorise les sources de fréquences déjà décodées avec
-une clé SHA-256 des octets PNG, après validation Base64 et dimensions. Deux PNG
-strictement identiques partagent le même `PixelPlane` et ses leases ; la table ne
-retient pas une copie supplémentaire des chaînes Base64. Elle disparaît après
-chargement. L’image du calque original reste un décodage distinct. La réservation
-logique compte toujours chaque source de calque avant décodage, même partagée.
+La lecture d’un projet mémorise tous les plans déjà décodés avec une clé SHA-256
+des octets PNG et leur format natif cible, après validation Base64 et dimensions.
+Deux PNG strictement identiques au même format partagent le `PixelPlane` et ses
+leases : images de calques dupliqués, masques et sources de fréquences, y compris
+avec leur image originale. Un PNG utilisé à la fois en couleur et comme masque
+reste converti en deux formats distincts. La table ne conserve pas de copie
+supplémentaire des chaînes Base64 et disparaît après chargement. Une retouche ne
+détache que les tuiles touchées, sans changer les copies ni leur historique.
+La réservation logique compte toujours chaque plan de calque avant décodage,
+même partagé ; le budget de préparation suit les blocs physiques uniques.
 
 Ce partage restaure aussi la reconnaissance des paires intactes : avant, les deux
 sources rechargées recevaient des identités distinctes et le composite ne pouvait

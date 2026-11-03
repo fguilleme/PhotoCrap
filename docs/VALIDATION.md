@@ -1,5 +1,29 @@
 # Validation
 
+## PNG d’images et masques partagés à l’ouverture — 3 novembre 2026
+
+Huit parcours croisent 8/16 bits, masque uniforme/peint et RAM/disque : cinq calques
+identiques se rechargent avec le stockage physique du seul calque initial, tandis
+que leur réservation logique reste identique. Pixels et composite sont comparés ;
+peindre une image ou un masque ne modifie pas les quatre autres copies, et
+Annuler restaure l’ensemble. Le nettoyage du cache disque conserve les leases.
+Le masque compact reste un unique pixel partagé de quatre octets en RAM.
+
+Deux contrôles placent exactement le même PNG dans les champs image et masque de
+deux calques. Le format cible doit séparer les pixels RVBA 8/16 bits du masque
+Grayscale8 ; les copies au même format restent partagées. L’édition du masque
+laisse les couleurs et l’autre masque inchangés.
+
+La fixture 16 bits, masque peint, passe de cinq fois 2 425 272 octets à
+2 425 272 octets après réouverture. Ce compte de plans natifs exclut les buffers
+du codec, du composite et le RSS global. Sonde : `PHOTOCRAP_PROJECT_PLANES_PROBE=1
+build/photocrap_tests projectRepeatedPlanesAreDecodedOnce`.
+Le contrôle échoue avec le décodeur recompilé depuis `068414e` (12 126 360 octets
+pour la fixture 16 bits avec masque peint), puis passe avec le partage généralisé.
+Les 50 suites, les cas ciblés Qt 6.8/CPU portable et les opérations natives
+Cocoa/Metal passent.
+
+
 ## Sources de fréquences partagées au rechargement — 3 novembre 2026
 
 Quatre parcours croisent 8/16 bits et stockage en RAM/sur disque, avec une image
@@ -11,8 +35,9 @@ vérifie le rejet d’un PNG corrompu sans remplacement du document ouvert.
 
 Les quatre contrôles de stockage et celui du composite semi-transparent échouent
 avec `DocumentIO.cpp` recompilé depuis `df9d1c5`, puis passent avec le partage par
-SHA-256. Sur cette fixture, les plans uniques passent de 3 à 2, original inclus :
-3 244 692 → 2 163 128 octets en 8 bits ; 6 489 384 → 4 326 256 octets en 16 bits.
+SHA-256. Étendu aux images, le partage ramène cette fixture de 3 plans uniques à
+1, original inclus : 3 244 692 → 1 081 564 octets en 8 bits ;
+6 489 384 → 2 163 128 octets en 16 bits.
 C’est une mesure du stockage natif, pas du RSS total. Sonde optionnelle :
 `PHOTOCRAP_FREQUENCY_PROJECT_PROBE=1 build/photocrap_tests
 projectFrequencySourcesShareTheirDecodedPlane`.

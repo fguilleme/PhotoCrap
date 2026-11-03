@@ -1,5 +1,36 @@
 # Canevas et accélération graphique
 
+## Niveaux de détail conservés sur GPU — 3 novembre 2026
+
+Les piles GPU éligibles possèdent quatre niveaux d’affichage (1/2 à 1/16), calculés
+par deux passes d’aire sur le composite natif de chaque tuile. La grille est celle
+du document complet ; les deux coordonnées globales servent à définir les poids,
+y compris pour les dimensions impaires. Une marge native fixe de 33 pixels,
+ajoutée au halo spatial, fournit les voisins nécessaires au filtrage des niveaux.
+Chaque niveau garde une passe horizontale RGBA32F et une sortie RGBA8 ou RGBA32F
+selon la profondeur du document. Les réductions 8/16 bits conservent l’alpha
+prémultiplié ; la sortie est quantifiée selon la profondeur native.
+
+Les niveaux sont créés à la demande. Un zoom vers un niveau déjà calculé réutilise
+sa texture, sans nouveau transfert, recomposition native ou réduction. Une version
+native modifiée invalide ces niveaux ; seul le niveau demandé est recalculé.
+Leur stockage et leurs intermédiaires sont comptés dans le budget partagé et dans
+la réserve conservatrice du jeu de travail visible. Les tuiles hors écran restent
+évincées par LRU. La destruction du graphe libère aussi les niveaux.
+
+Le CPU conserve son chemin réduit pour les piles incompatibles, les formats
+manquants, le zoom au-delà du niveau 1/16 et les jeux de travail trop grands. Les
+entrées et accumulateurs natifs restent nécessaires : cette première pyramide ne
+transforme pas une pile native dépassant le budget en pile GPU éligible. Export,
+sauvegarde et référence pleine résolution restent natifs CPU.
+
+Les tests contrôlent tous les pixels d’une image 1057 × 545 en 8/16 bits, avec
+transparence, masque et opacité ; ils couvrent les raccords, les zooms aller-retour,
+le repli sous petit budget et la recréation des ressources. Qt décrit la libération
+anticipée comme dépendante du backend : si la demande est ignorée, le test détruit
+puis recrée sa fenêtre dédiée ([QQuickWindow::releaseResources](https://doc.qt.io/qt-6/qquickwindow.html#releaseResources)).
+
+
 ## Filtres spatiaux dans la pile GPU — 3 novembre 2026
 
 Flou de boîte, Flou gaussien, Flou directionnel, Netteté et Passe-haut utilisent

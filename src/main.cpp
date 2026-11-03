@@ -37,6 +37,7 @@
 #include "../tests/ColorWheelSmoke.h"
 #include "../tests/CropOverlaySmoke.h"
 #include "../tests/CurvesGraphSmoke.h"
+#include "../tests/DisplayPyramidSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/HistogramRenderSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
@@ -298,6 +299,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--stack-render-test")) {
                 passed = window && runLayerStackSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--display-pyramid-test")) {
+                passed = window && runDisplayPyramidSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

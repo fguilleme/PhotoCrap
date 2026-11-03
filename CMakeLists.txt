@@ -25,6 +25,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/PenBandGeometry.cpp
     src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
+    src/render/DisplayPyramidPass.cpp src/render/DisplayPyramidPass.h
     src/render/LayerStackNode.cpp
     src/render/SpatialFilterPass.cpp
     src/render/SelectionOutlineNode.cpp
@@ -442,6 +443,7 @@ qt_add_executable(PhotoCrap
     src/render/CanvasFonts.h
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
+    src/render/DisplayPyramidPass.cpp src/render/DisplayPyramidPass.h
     src/render/LayerStackNode.cpp src/render/LayerStackNode.h src/render/LayerStack.h
     src/render/SpatialFilterPass.cpp src/render/SpatialFilterPass.h src/render/SpatialFilterSettings.h
     src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
@@ -469,6 +471,7 @@ qt_add_shaders(PhotoCrap stack_shaders
     PREFIX "/PhotoCrap"
     GLSL "330,300es"
     FILES src/render/shaders/stack.vert src/render/shaders/stack.frag src/render/shaders/spatial.frag
+        src/render/shaders/pyramid.vert src/render/shaders/pyramid.frag
 )
 if(TARGET Qt6::GuiPrivate AND Qt6_VERSION VERSION_GREATER_EQUAL 6.6)
     target_link_libraries(PhotoCrap PRIVATE Qt6::GuiPrivate)
@@ -723,6 +726,9 @@ if(BUILD_TESTING)
     set_tests_properties(scratch_cache PROPERTIES TIMEOUT 30)
     qt_add_executable(photocrap_operation_tests tests/DocumentOperationsTest.cpp)
     target_link_libraries(photocrap_operation_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME display_pyramid COMMAND PhotoCrap --smoke-test --display-pyramid-test)
+    set_tests_properties(display_pyramid PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
     add_test(NAME operation_progress COMMAND PhotoCrap --smoke-test --operation-test)
     set_tests_properties(operation_progress PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)

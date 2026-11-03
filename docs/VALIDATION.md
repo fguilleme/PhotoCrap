@@ -1,5 +1,28 @@
 # Validation
 
+## Niveaux réduits GPU — 3 novembre 2026
+
+- Chaque pixel des niveaux 1/2, 1/4, 1/8 et 1/16 d’une image 1057 × 545 est
+  comparé à la réduction Qt du composite natif, en 8/16 bits, avec un calque
+  transparent, opacité et masque. Écart maximal observé : une unité d’affichage
+  sur Metal Qt 6.8/6.12 et OpenGL moderne Qt 6.12, raccords compris.
+- Les allers-retours entre niveaux déjà calculés n’ajoutent ni transferts,
+  recompositions natives, réductions GPU ou réduction CPU. Les textures suivies
+  de ce canevas atteignent environ 21 Mio en 8 bits et 49 Mio en 16 bits ; ces
+  chiffres ne mesurent ni la RAM totale du processus ni la VRAM privée du pilote.
+- Sur ce Mac, dix zooms déjà en cache donnent une soumission de trame médiane
+  d’environ 16,6 ms (cadence 60 Hz) sur Metal et OpenGL. C’est un délai jusqu’au
+  signal `frameSwapped`, pas la durée d’un kernel GPU ni une comparaison avant/après.
+- Petit budget : repli CPU complet et retour GPU. Libération/recréation du
+  graphe : compteurs à zéro, puis restitution correcte. Le backend OpenGL basic
+  pouvant ignorer la demande de libération anticipée, le test recrée sa fenêtre
+  dédiée pour forcer la destruction des nœuds et ressources.
+- Les 49 tests hors interaction native macOS passent avec Qt 6.12. Moteur,
+  opérations, budget, niveaux réduits, pile et filtres passent aussi en logiciel
+  avec Qt 6.8. Les 64 cas spatiaux natifs Metal restent verts. Les backends
+  Vulkan/Direct3D et une perte réelle de périphérique ne sont pas validés ici.
+
+
 ## Budget graphique partagé — 3 novembre 2026
 
 - Tests de partage de réserve entre clients, cibles différentes, ressources

@@ -61,6 +61,10 @@ public:
     }
     void setTextureCacheMiB(int _value);
 #ifdef PHOTOCRAP_TESTING
+    quint64 gpuReductionPasses() const
+    {
+        return m_stackStatistics->reductions.load();
+    }
     quint64 stackTextureUploads() const
     {
         return m_stackStatistics->uploads.load();

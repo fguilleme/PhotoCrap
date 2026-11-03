@@ -274,13 +274,18 @@ void CanvasItem::updatePolish()
             ? m_document->gpuLayerStack()
             : PhotoCrap::Render::LayerStack{};
     if (m_stack.valid && width() > 0 && height() > 0) {
-        const auto  visible = visibleBounds(m_viewportRect, boundingRect());
-        const QRect native  = QRectF(visible.x() * m_stack.size.width() / width(),
-                                     visible.y() * m_stack.size.height() / height(),
-                                     visible.width() * m_stack.size.width() / width(),
-                                     visible.height() * m_stack.size.height() / height())
-                                  .toAlignedRect();
-        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available())
+        const qreal ratio = window()->effectiveDevicePixelRatio();
+        const qreal scale =
+            qMin(width() * ratio / m_stack.size.width(), height() * ratio / m_stack.size.height());
+        m_stack.displayLevel = qMax(0, int(std::floor(std::log2(1. / scale))));
+        const auto  visible  = visibleBounds(m_viewportRect, boundingRect());
+        const QRect native   = QRectF(visible.x() * m_stack.size.width() / width(),
+                                      visible.y() * m_stack.size.height() / height(),
+                                      visible.width() * m_stack.size.width() / width(),
+                                      visible.height() * m_stack.size.height() / height())
+                                   .toAlignedRect();
+        if (m_stack.displayLevel > 4 ||
+            PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available())
             m_stack = {};
         else
             m_graphicsClient->pin(PhotoCrap::Render::stackWorkingBytes(m_stack, native));
@@ -770,7 +775,8 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         std::any_of(m_stack.layers.cbegin(), m_stack.layers.cend(), [](const auto &layer) {
             return layer.spatial.type != PhotoCrap::Render::SpatialFilter::None;
         });
-    if (m_stack.valid && LayerStackNode::supported(window(), m_stack.bits, spatial)) {
+    if (m_stack.valid &&
+        LayerStackNode::supported(window(), m_stack.bits, spatial || m_stack.displayLevel > 0)) {
         if (!node->stack) {
             for (auto *tile : std::as_const(node->tiles))
                 if (tile->parent())

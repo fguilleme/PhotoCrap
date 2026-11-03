@@ -8,7 +8,7 @@
 namespace PhotoCrap::Render
 {
 struct StackStatistics {
-    std::atomic<quint64>         uploads{0}, passes{0}, bytes{0};
+    std::atomic<quint64>         uploads{0}, passes{0}, bytes{0}, reductions{0};
     std::function<void(quint64)> changed;
 };
 struct StackLayer {
@@ -22,8 +22,9 @@ struct StackLayer {
 // to the scene graph thread; no live Document is accessed there.
 struct LayerStack {
     QSize               size;
-    int                 bits = 8;
-    int                 halo = 0;
+    int                 bits         = 8;
+    int                 halo         = 0;
+    int                 displayLevel = 0;
     QVector<StackLayer> layers;
     bool                valid = false;
 };
@@ -38,7 +39,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     qint64 bytes = 0;
     for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
         for (int x = area.left() / tile; x <= area.right() / tile; ++x) {
-            const int    padding = stack.halo + 1;
+            const int    padding = stack.halo + 33;
             const auto   size    = QRect(x * tile - padding, y * tile - padding, tile + 2 * padding,
                                          tile + 2 * padding)
                                        .intersected(QRect(QPoint{}, stack.size))
@@ -59,6 +60,8 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             }
             if (spatial)
                 bytes += pixels * (colorBytes + 16) + 64;
+            // Four retained reductions, including their horizontal FP32 targets.
+            bytes += pixels * (16 + (colorBytes + 2) / 3) + 4 * 256 + 64;
         }
     return bytes;
 }

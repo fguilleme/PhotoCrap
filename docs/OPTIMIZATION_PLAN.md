@@ -36,12 +36,14 @@ Dissoudre/Mélange maximal/TSL et les contours progressifs utilisent encore le
 composite CPU, ainsi que les backends sans formats requis. Ce rendu concerne
 l'affichage ; les exports et projets gardent leur référence native CPU.
 
-- [ ] Composition des calques visibles par tuiles, masques et modes de fusion,
+- [x] Composition des calques pris en charge par tuiles, masques et modes de fusion,
   invalidation régionale et conservation des intermédiaires utiles.
-- [ ] Choix explicite des formats/précisions intermédiaires, références CPU et
+- [x] Choix explicite des formats/précisions intermédiaires, références CPU et
   replis pour les combinaisons non prises en charge et le backend logiciel.
-- [ ] Vérification des groupes, écrêtages, transparences, ordre des effets,
-  redimensionnement, perte du contexte et limites de texture.
+- [x] Vérification des groupes, écrêtages, transparences, ordre des effets,
+  redimensionnement, recréation de fenêtre/graphe et limites de texture.
+- [ ] Essais physiques de perte de périphérique et backends Vulkan/Direct3D sur
+  leurs plateformes ; ces mesures ne sont pas disponibles sur ce Mac.
 
 ## 3. Filtres spatiaux sur GPU
 
@@ -74,9 +76,19 @@ restent synchrones et constituent une suite distincte.
 
 ## 5. Niveaux de détail GPU et budget graphique global
 
-- [ ] Pyramide de réduction conservée sur GPU, raccords et phase d’échantillonnage
+- [x] Pyramide de réduction conservée sur GPU, raccords et phase d’échantillonnage
   vérifiés contre les références actuelles.
 - [x] Comptabilité partagée des textures photo/masques/intermédiaires/effets,
   épinglage des ressources en cours d’utilisation et éviction des autres.
-- [ ] Mesures de latence, RAM/VRAM et fidélité par backend ; comportement correct
-  sous petit budget et reconstruction après perte de ressources.
+- [x] Mesures locales de soumission de trame, tailles de textures et fidélité sur
+  Metal/OpenGL ; repli sous petit budget et reconstruction après libération du graphe.
+- [ ] Mesures de VRAM physique du pilote et validation Vulkan/Direct3D.
+
+Les tuiles des piles GPU éligibles conservent les réductions 1/2, 1/4, 1/8 et
+1/16 sur GPU. Leurs deux passes d’aire partent du composite natif de la tuile,
+avec une grille globale au document, y compris pour les dimensions impaires.
+Elles ne remplacent pas le calcul natif des filtres ou les exports. Le jeu de
+travail inclut toujours la tuile native et ses entrées : si cette réserve ne tient
+pas, si le zoom demande un niveau plus petit, ou si la pile est incompatible,
+l’affichage réduit conserve son chemin CPU. Il n’y a pas de promesse de réduction
+GPU de toutes les piles ni de plafond sur la VRAM totale du pilote.

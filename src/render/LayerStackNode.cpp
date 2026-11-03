@@ -1,4 +1,5 @@
 #include "LayerStackNode.h"
+#include "DisplayPyramidPass.h"
 #include <QQuickWindow>
 #ifdef PHOTOCRAP_RHI_STACK
 #include "SpatialFilterPass.h"
@@ -91,6 +92,11 @@ public:
     QSGTexture                                             *wrapper        = nullptr;
     int                                                     output         = -1;
     qint64                                                  accountedBytes = 0;
+    std::unique_ptr<DisplayPyramidPass>                     pyramid;
+    QSize                                                   pyramidDocument;
+    int                                                     displayLevel = 0;
+    quint64                                                 generation   = 0;
+    QRhiTexture                                            *displayed    = nullptr;
     Tile(QQuickWindow *owner, const QRect &bounds, int depth, Counters *stats,
          std::function<void()> rejected)
         : window(owner), rhi(owner->rhi()), counters(stats), failure(std::move(rejected)),
@@ -144,25 +150,56 @@ public:
     void setStack(const PhotoCrap::Render::LayerStack &value, const QRect &content,
                   const QRectF &rect)
     {
-        stack          = value;
-        geometry       = rect;
-        const int last = stack.layers.isEmpty() ? 0 : int(stack.layers.size()) % 2;
-        if (last != output) {
-            auto *next = new BorrowedTexture(colors[last].get());
+        stack        = value;
+        displayLevel = stack.displayLevel;
+        if (pyramidDocument != stack.size) {
+            pyramid.reset();
+            pyramidDocument = stack.size;
+        }
+        const int last       = stack.layers.isEmpty() ? 0 : int(stack.layers.size()) % 2;
+        output               = last;
+        QRhiTexture *texture = colors[last].get();
+        QSize        size    = stack.size;
+        QRect        box = content, textureRegion = region;
+        if (displayLevel > 0) {
+            if (!pyramid)
+                pyramid = std::make_unique<DisplayPyramidPass>(rhi, region, stack.size, bits);
+            texture = pyramid->ensure(texture, displayLevel);
+            if (!texture) {
+                reject();
+                return;
+            }
+            size           = QSize(qMax(1, size.width() >> displayLevel),
+                                   qMax(1, size.height() >> displayLevel));
+            const int left = qint64(content.x()) * size.width() / stack.size.width();
+            const int top  = qint64(content.y()) * size.height() / stack.size.height();
+            box            = QRect(
+                left, top,
+                qint64(content.x() + content.width()) * size.width() / stack.size.width() - left,
+                qint64(content.y() + content.height()) * size.height() / stack.size.height() - top);
+            textureRegion = pyramid->region(displayLevel);
+        }
+        if (displayed != texture) {
+            auto *next = new BorrowedTexture(texture);
             image->setTexture(next);
             delete wrapper;
-            wrapper = next;
-            output  = last;
+            wrapper   = next;
+            displayed = texture;
         }
-        QRect source = content.translated(-region.topLeft());
+        QRect source = box.translated(-textureRegion.topLeft());
         if (rhi->isYUpInFramebuffer())
-            source.moveTop(region.height() - source.y() - source.height());
+            source.moveTop(textureRegion.height() - source.y() - source.height());
         image->setSourceRect(source);
-        image->setRect(rect);
-        image->setFiltering(rect.width() < content.width() ? QSGTexture::Linear
+        geometry = QRectF(rect.x() + box.x() * rect.width() / size.width(),
+                          rect.y() + box.y() * rect.height() / size.height(),
+                          box.width() * rect.width() / size.width(),
+                          box.height() * rect.height() / size.height());
+        image->setRect(geometry);
+        image->setFiltering(geometry.width() < box.width() ? QSGTexture::Linear
                                                            : QSGTexture::Nearest);
         image->setTextureCoordinatesTransform(
             rhi->isYUpInFramebuffer() ? QSGImageNode::MirrorVertically : QSGImageNode::NoTransform);
+        updateBytes();
         markDirty(DirtyGeometry);
     }
     void reject()
@@ -231,8 +268,13 @@ public:
             key += layer.spatial.key();
         }
         key += QByteArray::number(stack.bits);
-        if (key == renderedKey)
+        if (key == renderedKey) {
+            if (pyramid && displayLevel > 0) {
+                const auto count = pyramid->render(commandBuffer(), displayLevel, generation);
+                counters->reductions.fetch_add(count);
+            }
             return;
+        }
         auto       *updates = rhi->nextResourceUpdateBatch();
         const float quad[]  = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
         if (renderedKey.isEmpty())
@@ -351,6 +393,9 @@ public:
             else
                 ++it;
         renderedKey = key;
+        ++generation;
+        if (pyramid && displayLevel > 0)
+            counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
         updateBytes();
     }
     void render(const RenderState *) override
@@ -373,7 +418,8 @@ public:
         qint64 result = qint64(region.width()) * region.height() * (bits == 16 ? 34 : 10) + 64;
         for (const auto &value : inputs)
             result += value->bytes;
-        return result + qint64(passes.size()) * 96 + (spatial ? spatial->bytes() : 0);
+        return result + qint64(passes.size()) * 96 + (spatial ? spatial->bytes() : 0) +
+               (pyramid ? pyramid->bytes() : 0);
     }
     void updateBytes()
     {
@@ -455,7 +501,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
             const QRect   content =
                 QRect(x * tileSize, y * tileSize, tileSize, tileSize).intersected(bounds);
             const QRect padded =
-                content.adjusted(-stack.halo - 1, -stack.halo - 1, stack.halo + 1, stack.halo + 1)
+                content
+                    .adjusted(-stack.halo - 33, -stack.halo - 33, stack.halo + 33, stack.halo + 33)
                     .intersected(bounds);
             auto *tile = d->tiles.value(key);
             if (tile && (tile->region != padded || tile->bits != stack.bits)) {
@@ -480,9 +527,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                 if (!tile->image->parent())
                     appendChildNode(tile->image);
             }
-            tile->setStack(stack, content,
-                           QRectF(content.x() * sx, content.y() * sy, content.width() * sx,
-                                  content.height() * sy));
+            tile->setStack(stack, content, item);
             used.insert(key);
             d->lastUse.insert(key, d->clock);
         }

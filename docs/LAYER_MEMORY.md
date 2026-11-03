@@ -25,8 +25,18 @@ uniquement l’intersection de l’image centrée avec le canevas, avec une marg
 rasterisation. Les images de taille identique/DPR 1 gardent le chemin de conversion
 directe ; les autres conservent les coordonnées et le DPR du rendu QPainter
 précédent. Le résultat est transféré comme `PixelPlane`, sans conversion implicite
-vers une image complète lors de la construction du calque. Le codec source et
-les promotions des calques déjà présents peuvent encore demander des plans entiers.
+vers une image complète lors de la construction du calque. Le codec source peut encore demander un plan entier.
+
+Les conversions entre les formats natifs convertissent le pixel de fond puis
+chaque tuile stockée, avec vérification d’annulation entre les tuiles. Un format
+inchangé garde ses versions et ses mappings ; une conversion réussie obtient de
+nouvelles versions. Échec ou annulation laisse le plan source intact. Les masques
+ne changent pas de profondeur lors des conversions du document. Les conversions
+non natives gardent le repli QImage. Changement de profondeur et promotion à
+l’import préparent la nouvelle pile avant d’appliquer une unique étape d’historique.
+Les plans actuellement actifs et leurs anciennes versions restent comptés dans
+leurs budgets respectifs ; aucun tampon natif de canevas complet n’est nécessaire
+pour convertir les formats natifs stockés par tuiles.
 
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px

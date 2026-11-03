@@ -327,6 +327,36 @@ bool TiledImage::replace(const QImage &_image)
     return true;
 }
 
+TiledImage TiledImage::convertedTo(QImage::Format               _format,
+                                   const std::function<bool()> &_continue) const
+{
+    if (!m_data || (_continue && !_continue()))
+        return {};
+    if (_format == format())
+        return *this;
+    if (_format != QImage::Format_ARGB32_Premultiplied &&
+        _format != QImage::Format_RGBA64_Premultiplied && _format != QImage::Format_Grayscale8)
+        return {};
+    const auto background = m_data->background.convertToFormat(_format);
+    if (background.isNull())
+        return {};
+    TiledImage converted(size(), background);
+    if (converted.isNull())
+        return {};
+    for (auto it = m_data->tiles.cbegin(); it != m_data->tiles.cend(); ++it) {
+        if (_continue && !_continue())
+            return {};
+        const QImage pixels = it.value()->image().convertToFormat(_format);
+        if (pixels.isNull())
+            return {};
+        if (pixels != converted.m_data->blank(pixels.size()))
+            converted.m_data->tiles.insert(it.key(), std::make_shared<Tile>(pixels));
+    }
+    if (_continue && !_continue())
+        return {};
+    return converted;
+}
+
 QImage TiledImage::tileImage(int _column, int _row) const
 {
     if (!m_data || _column < 0 || _row < 0 ||

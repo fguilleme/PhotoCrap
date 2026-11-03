@@ -963,17 +963,26 @@ bool Document::setChannelBits(int _bits)
     if (!validLayerStorage(width(), height(), 0, 0, _bits))
         return false;
     endStroke();
+    auto       layers = m_layers;
+    const auto format =
+        _bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
+    const auto keepGoing = [this] { return operationStep(0, 1); };
+    int        completed = 0;
+    for (auto &layer : layers) {
+        if (!operationStep(completed++, int(layers.size())))
+            return false;
+        if ((!layer.image.isNull() && !layer.image.convertTo(format, keepGoing)) ||
+            (!layer.source.isNull() && !layer.source.convertTo(format, keepGoing))) {
+            if (!keepGoing())
+                return false;
+            return fail(tr("Allocation des pixels impossible."));
+        }
+    }
+    if (!keepGoing())
+        return false;
     edit(tr("Profondeur des couleurs"), [&] {
         m_channelBits = _bits;
-        int completed = 0;
-        for (auto &layer : m_layers) {
-            if (!operationStep(completed++, int(m_layers.size())))
-                return;
-            if (!layer.image.isNull())
-                layer.image.convertTo(workingFormat());
-            if (!layer.source.isNull())
-                layer.source.convertTo(workingFormat());
-        }
+        m_layers      = std::move(layers);
     });
     return true;
 }

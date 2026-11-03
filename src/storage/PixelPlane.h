@@ -118,10 +118,34 @@ public:
     {
         return QImage(*this).convertToFormat(f);
     }
-    void convertTo(QImage::Format f)
+    bool convertTo(QImage::Format _format, const std::function<bool()> &_keepGoing = {})
     {
-        if (format() != f)
-            write().convertTo(f);
+        if (format() == _format)
+            return true;
+        if (_keepGoing && !_keepGoing())
+            return false;
+        const auto native = [](QImage::Format _value) {
+            return _value == QImage::Format_ARGB32_Premultiplied ||
+                   _value == QImage::Format_RGBA64_Premultiplied ||
+                   _value == QImage::Format_Grayscale8;
+        };
+        if (size() != QSize(1, 1) && native(format()) && native(_format)) {
+            if (!freeze())
+                return false;
+            auto converted = m_tiles.convertedTo(_format, _keepGoing);
+            if (converted.isNull())
+                return false;
+            m_key   = converted.backgroundPixel().cacheKey();
+            m_tiles = std::move(converted);
+            m_image = {};
+            m_dirty = false;
+            return true;
+        }
+        const QImage converted = QImage(*this).convertToFormat(_format);
+        if (converted.isNull() || (_keepGoing && !_keepGoing()))
+            return false;
+        *this = PixelPlane(converted);
+        return true;
     }
     void invertPixels()
     {

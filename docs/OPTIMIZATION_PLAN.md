@@ -7,6 +7,8 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Conversions natives par tuiles et fond compact, annulables entre tuiles,
+  préparation atomique de la profondeur et des promotions à l’import.
 - [x] Choix du fond compact par poids des tuiles uniformes à l’import initial ;
   réouverture des plans presque uniformes sans allocation de toutes leurs tuiles.
 - [x] Import exact des plans existants dans `TiledImage`, remplacement atomique et

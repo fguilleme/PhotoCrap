@@ -22,6 +22,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Placement des calques importés limité à leur emprise native ; petit import
   dans un document 24 Mpx/16 bits : une tuile de 512 Kio, rendu QPainter inchangé.
 
+- [x] Profondeur native convertie par tuiles présentes et pixel de fond, sans
+  tampon de canevas complet ; masques et snapshots conservés, annulation entre
+  tuiles et publication de la pile en une seule étape d’historique.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

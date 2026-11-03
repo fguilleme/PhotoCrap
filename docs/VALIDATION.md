@@ -1,5 +1,22 @@
 # Validation
 
+## Conversions natives de profondeur par tuiles — 3 novembre 2026
+
+Les neuf couples ARGB32 prémultiplié/RGBA64 prémultiplié/Gray8 sont comparés au
+convertisseur Qt sur des pixels variables, avec métadonnées Display P3, DPR 2 et
+résolution. Les mêmes formats gardent leurs clés et leurs leases ; une conversion
+change la version logique. Snapshots, mappings et pixels sources restent valides
+après conversion, nettoyage du cache ou annulation après une première tuile.
+Les conversions non natives gardent le repli QImage.
+
+Sur un document 24 Mpx à six calques et un masque retouché, le passage 8→16 bits
+utilise 1 114 144 octets de plans actifs (environ 1,06 Mio) et 524 312 octets
+supplémentaires d’historique, sans tampon de canevas complet pour la conversion.
+Masques et leurs versions sont inchangés ; Annuler/Rétablir restitue les versions
+natives, puis le retour en 8 bits conserve la faible emprise. Ces nombres décrivent
+les blocs de plans/historique, pas le RSS total. Les douze cas d’import continuent
+à vérifier le centrage, la promotion et l’unique étape d’annulation.
+
 ## Placement régional des images importées — 3 novembre 2026
 
 Quarante combinaisons document/source 8/16 bits, dimensions de 1 × 1 à 800 × 600

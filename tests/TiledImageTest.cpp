@@ -543,6 +543,110 @@ private slots:
         QCOMPARE(plane.allocatedBytes(), qint64(256 * 256));
         QCOMPARE(plane.region(source.rect()), source);
     }
+    void tiledNativeConversionsMatchQtAndKeepSnapshots()
+    {
+        QTemporaryDir     directory;
+        ScratchImageCache cache({directory.path(), 32 * 1024 * 1024, 0});
+        for (auto sourceFormat : {QImage::Format_ARGB32_Premultiplied,
+                                  QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8})
+            for (auto targetFormat :
+                 {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied,
+                  QImage::Format_Grayscale8}) {
+                QImage source(517, 301, sourceFormat);
+                source.setColorSpace(QColorSpace::DisplayP3);
+                source.setDevicePixelRatio(2);
+                source.setDotsPerMeterX(4200);
+                source.setDotsPerMeterY(4300);
+                for (int y = 0; y < source.height(); ++y)
+                    for (int x = 0; x < source.width(); ++x)
+                        source.setPixelColor(x, y,
+                                             QColor::fromRgba64(ushort(x * 173), ushort(y * 199),
+                                                                ushort(x * 37 + y * 67),
+                                                                ushort(20000 + (x + y) % 40000)));
+                TiledImage plane;
+                QVERIFY(plane.replace(source));
+                QVERIFY(plane.offload(cache));
+                const auto key       = plane.regionKey(source.rect());
+                const auto blocks    = plane.storageBlocks();
+                const auto converted = plane.convertedTo(targetFormat);
+                QVERIFY(!converted.isNull());
+                const auto output   = converted.region(source.rect());
+                const auto expected = source.convertToFormat(targetFormat);
+                QCOMPARE(output, expected);
+                QCOMPARE(output.colorSpace(), expected.colorSpace());
+                QCOMPARE(output.devicePixelRatio(), 2.);
+                QCOMPARE(output.dotsPerMeterX(), 4200);
+                QCOMPARE(output.dotsPerMeterY(), 4300);
+                QCOMPARE(plane.regionKey(source.rect()), key);
+                QCOMPARE(plane.storageBlocks(), blocks);
+                QCOMPARE(plane.heapBytes(), qint64(0));
+                if (sourceFormat == targetFormat)
+                    QCOMPARE(converted.storageBlocks(), blocks);
+                else {
+                    int calls = 0;
+                    QVERIFY(plane.convertedTo(targetFormat, [&] { return ++calls < 3; }).isNull());
+                    QCOMPARE(calls, 3);
+                    QCOMPARE(plane.region(source.rect()), source);
+                }
+                QVERIFY(plane.convertedTo(QImage::Format_Mono).isNull());
+                PixelPlane pixels(source);
+                QVERIFY(pixels.freeze());
+                QVERIFY(pixels.offload(cache));
+                const auto before   = pixels;
+                const auto pixelKey = pixels.cacheKey();
+                if (sourceFormat != targetFormat) {
+                    int        calls     = 0;
+                    const auto oldBlocks = pixels.storageBlocks();
+                    QVERIFY(!pixels.convertTo(targetFormat, [&] { return ++calls < 3; }));
+                    QCOMPARE(calls, 3);
+                    QCOMPARE(pixels.cacheKey(), pixelKey);
+                    QCOMPARE(pixels.storageBlocks(), oldBlocks);
+                    QCOMPARE(pixels.format(), sourceFormat);
+                }
+                QVERIFY(pixels.convertTo(targetFormat));
+                QCOMPARE(QImage(pixels), expected);
+                QCOMPARE(QImage(before), source);
+                if (sourceFormat == targetFormat)
+                    QCOMPARE(pixels.cacheKey(), pixelKey);
+                else
+                    QVERIFY(pixels.cacheKey() != pixelKey);
+                const auto convertedKey = pixels.cacheKey();
+                QVERIFY(pixels.convertTo(targetFormat));
+                QCOMPARE(pixels.cacheKey(), convertedKey);
+                cache.clear();
+                QCOMPARE(plane.region(source.rect()), source);
+                QCOMPARE(QImage(pixels), expected);
+            }
+    }
+    void sparseDepthConversionAllocatesOnlyPresentTiles()
+    {
+        TiledImage plane({6000, 4000}, QImage::Format_ARGB32_Premultiplied, Qt::white);
+        QVERIFY(plane.paint({100, 100, 12, 12},
+                            [](QPainter &p) { p.fillRect(100, 100, 12, 12, Qt::red); }));
+        QCOMPARE(plane.tileCount(), 1);
+        const auto converted = plane.convertedTo(QImage::Format_RGBA64_Premultiplied);
+        QCOMPARE(converted.tileCount(), 1);
+        QCOMPARE(converted.allocatedBytes(), 256LL * 256 * 8);
+        QCOMPARE(
+            converted.region({90, 90, 40, 40}),
+            plane.region({90, 90, 40, 40}).convertToFormat(QImage::Format_RGBA64_Premultiplied));
+        QCOMPARE(converted.region({4000, 3000, 1, 1}).pixelColor(0, 0), QColor(Qt::white));
+        QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+        pixel.fill(Qt::white);
+        PixelPlane pixels(pixel);
+        QImage     patch(12, 12, pixel.format());
+        patch.fill(Qt::red);
+        QVERIFY(pixels.writeRegion({100, 100}, patch, {6000, 4000}));
+        const auto before = pixels;
+        const auto key    = pixels.cacheKey();
+        QVERIFY(!pixels.convertTo(QImage::Format_RGBA64_Premultiplied, [] { return false; }));
+        QCOMPARE(pixels.cacheKey(), key);
+        QVERIFY(pixels.convertTo(QImage::Format_RGBA64_Premultiplied));
+        QCOMPARE(pixels.size(), QSize(6000, 4000));
+        QCOMPARE(pixels.sizeInBytes(), 256LL * 256 * 8);
+        QCOMPARE(before.sizeInBytes(), 256LL * 256 * 4);
+        QCOMPARE(pixels.region({100, 100, 12, 12}), patch.convertToFormat(pixels.format()));
+    }
     void importedPixelsAndVersionsRemainExact()
     {
         QTemporaryDir dir;

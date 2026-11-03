@@ -217,18 +217,23 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
         }
         if (target.isNull() || !operationStep(0, 1))
             return false;
+        auto       layers    = m_layers;
+        const auto keepGoing = [this] { return operationStep(0, 1); };
+        for (auto &layer : layers) {
+            if (!keepGoing())
+                return false;
+            if ((!layer.image.isNull() && !layer.image.convertTo(format, keepGoing)) ||
+                (!layer.source.isNull() && !layer.source.convertTo(format, keepGoing))) {
+                if (!keepGoing())
+                    return false;
+                return fail(tr("Allocation des pixels impossible."));
+            }
+        }
+        if (!keepGoing())
+            return false;
         edit(tr("Importer un calque"), [&] {
             m_channelBits = bits;
-            for (auto &layer : m_layers) {
-                if (!operationStep(0, 1))
-                    return;
-                if (!layer.image.isNull())
-                    layer.image.convertTo(workingFormat());
-                if (!layer.source.isNull())
-                    layer.source.convertTo(workingFormat());
-            }
-            if (!operationStep(0, 1))
-                return;
+            m_layers      = std::move(layers);
             Layer layer;
             layer.name  = QFileInfo(_url.toLocalFile()).completeBaseName();
             layer.image = std::move(target);

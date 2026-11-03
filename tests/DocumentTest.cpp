@@ -351,6 +351,56 @@ private slots:
         d.redo();
         QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 8 + 32);
     }
+    void sparseDocumentDepthChangesKeepNativeTileFootprintsAndMasks()
+    {
+        Document d;
+        d.setBackgroundEditThreshold(-1);
+        QVERIFY(d.newDocument(6000, 4000, true, 8));
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        for (int i = 0; i < 5; ++i)
+            d.addLayer();
+        d.setColor(Qt::blue);
+        d.beginStroke(400, 100);
+        d.endStroke();
+        d.addLayerMask();
+        d.setColor(Qt::black);
+        d.beginStroke(400, 100);
+        d.endStroke();
+        d.setEditingMask(false);
+        const auto before  = d.gpuLayerStack();
+        const auto maskKey = before.layers.last().mask.cacheKey();
+        const int  history = d.historyIndex();
+        QVERIFY(d.setChannelBits(16));
+        const auto converted = d.gpuLayerStack();
+        QVERIFY(converted.valid);
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(converted.layers.size(), before.layers.size());
+        QCOMPARE(converted.layers.last().mask.cacheKey(), maskKey);
+        for (int i = 0; i < converted.layers.size(); ++i)
+            for (const QRect area :
+                 {QRect(90, 90, 32, 32), QRect(390, 90, 32, 32), QRect(5000, 3000, 1, 1)})
+                QCOMPARE(converted.layers[i].image.region(area),
+                         before.layers[i].image.region(area).convertToFormat(
+                             QImage::Format_RGBA64_Premultiplied));
+        qInfo() << "Sparse 24 MP depth conversion:" << d.memoryUsage();
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 2LL * 256 * 256 * 8 + 256 * 256 + 64);
+        d.undo();
+        QCOMPARE(d.channelBits(), 8);
+        QCOMPARE(d.gpuLayerStack().layers.last().image.cacheKey(),
+                 before.layers.last().image.cacheKey());
+        d.redo();
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.gpuLayerStack().layers.last().image.cacheKey(),
+                 converted.layers.last().image.cacheKey());
+        QVERIFY(d.setChannelBits(8));
+        QCOMPARE(d.gpuLayerStack().layers.last().mask.cacheKey(), maskKey);
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 2LL * 256 * 256 * 4 + 256 * 256 + 64);
+    }
     void sparseLargeProjectReloadPreservesCompactTileFootprints()
     {
         QTemporaryDir directory;

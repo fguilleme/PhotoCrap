@@ -33,7 +33,11 @@ public:
     // Import native pixels exactly; updates retain immutable versions of
     // unchanged tiles, including their disk leases.
     bool replace(const QImage &_image);
-    bool writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed = nullptr);
+    // Convert native pixels per stored tile; failure/cancellation leaves this
+    // snapshot intact. The callback is checked between tile conversions.
+    TiledImage convertedTo(QImage::Format               _format,
+                           const std::function<bool()> &_continue = {}) const;
+    bool       writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed = nullptr);
     QImage::Format        format() const;
     QColorSpace           colorSpace() const;
     QHash<qint64, qint64> storageBlocks() const;

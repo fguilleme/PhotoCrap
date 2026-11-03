@@ -9313,6 +9313,158 @@ private slots:
             filterReference("05f6ee8bb2a0fc1c457699d9babbf0ed07a0c7aee79b96d42f96b1266e17250d",
                             "36170c0ebf9a9e6e2ab623ae60a5930c8c32f18255c09337de74f44c09e79d30"));
     }
+    void frequencyNeutralMasksKeepNativeSources_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("compact");
+        QTest::addColumn<QString>("maskKind");
+        QTest::addColumn<int>("feather");
+        for (int bits : {8, 16})
+            for (bool compact : {false, true})
+                for (const QString kind :
+                     {QString("compactWhite"), QString("fullWhite"), QString("paintedZero"),
+                      QString("blackZero"), QString("disabled")})
+                    for (int feather : {0, 7})
+                        QTest::newRow(qPrintable(
+                            QString("%1-%2-%3-%4").arg(bits).arg(compact).arg(kind).arg(feather)))
+                            << bits << compact << kind << feather;
+    }
+    void frequencyNeutralMasksKeepNativeSources()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, compact);
+        QFETCH(QString, maskKind);
+        QFETCH(int, feather);
+        Document d, reference;
+        for (Document *doc : {&d, &reference}) {
+            QVERIFY(doc->newDocument(517, 523, true, bits));
+            if (compact)
+                doc->addLayer();
+            else {
+                doc->setBrushSize(81);
+                doc->setColor(QColor::fromRgba64(23456, 45678, 12345, 34567));
+                doc->beginStroke(255, 256);
+                doc->endStroke();
+            }
+        }
+        const int index = d.activeLayer();
+        if (maskKind == "fullWhite")
+            d.selectAll();
+        d.addLayerMask(maskKind != "blackZero" && maskKind != "disabled");
+        d.deselect();
+        if (maskKind == "paintedZero") {
+            d.setTool("pencil");
+            d.setBrushSize(31);
+            d.setColor(Qt::black);
+            d.beginStroke(255, 255);
+            d.endStroke();
+        }
+        d.setEditingMask(false);
+        if (maskKind == "disabled")
+            d.setMaskEnabled(false);
+        d.beginLayerPreview();
+        d.previewLayerParameter("_maskFeather", feather);
+        if (maskKind == "paintedZero" || maskKind == "blackZero")
+            d.previewLayerParameter("_maskDensity", 0);
+        d.finishLayerPreview("Mask");
+        const auto mask     = d.maskImage(index);
+        const auto original = d.layerImage(index);
+        const auto heap     = d.memoryUsage()["tileHeapBytes"];
+        const int  count    = d.layers().size();
+        reference.addFrequencySeparation(7);
+        d.addFrequencySeparation(7);
+        const auto low  = reference.layerImage(index + 1);
+        const auto high = reference.layerImage(index + 2);
+        QCOMPARE(d.layerImage(index + 1), low);
+        QCOMPARE(d.layerImage(index + 2), high);
+        QCOMPARE(d.maskImage(index), mask);
+        QCOMPARE(d.layerImage(index), original);
+        QCOMPARE(d.memoryUsage()["tileHeapBytes"], heap);
+        d.undo();
+        QCOMPARE(d.layers().size(), count);
+        d.redo();
+        QCOMPARE(d.memoryUsage()["tileHeapBytes"], heap);
+        QCOMPARE(d.layerImage(index + 1), low);
+        QCOMPARE(d.layerImage(index + 2), high);
+        d.setActiveLayer(index);
+        d.setTool("pencil");
+        d.setColor(Qt::blue);
+        d.setBrushSize(5);
+        d.beginStroke(80, 80);
+        d.endStroke();
+        QCOMPARE(d.layerImage(index + 1), low);
+        QCOMPARE(d.layerImage(index + 2), high);
+    }
+    void frequencyNonNeutralMasksStillBakeTheSource_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<int>("density");
+        QTest::addColumn<int>("feather");
+        for (int bits : {8, 16})
+            for (int density : {50, 100})
+                for (int feather : {0, 7})
+                    QTest::newRow(
+                        qPrintable(QString("%1-%2-%3").arg(bits).arg(density).arg(feather)))
+                        << bits << density << feather;
+    }
+    void frequencyNonNeutralMasksStillBakeTheSource()
+    {
+        QFETCH(int, bits);
+        QFETCH(int, density);
+        QFETCH(int, feather);
+        Document d, reference;
+        for (Document *doc : {&d, &reference}) {
+            QVERIFY(doc->newDocument(517, 523, true, bits));
+            doc->setBrushSize(81);
+            doc->setColor(QColor::fromRgba64(23456, 45678, 12345, 34567));
+            doc->beginStroke(255, 256);
+            doc->endStroke();
+        }
+        d.addLayerMask();
+        d.setColor(QColor(127, 127, 127));
+        d.fillWithColor(true);
+        d.setEditingMask(false);
+        d.beginLayerPreview();
+        d.previewLayerParameter("_maskDensity", density);
+        d.previewLayerParameter("_maskFeather", feather);
+        d.finishLayerPreview("Mask");
+        const auto original = d.layerImage(0);
+        const auto before   = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        reference.addFrequencySeparation(7);
+        d.addFrequencySeparation(7);
+        QVERIFY(d.layerImage(1) != reference.layerImage(1));
+        QVERIFY(d.layerImage(2) != reference.layerImage(2));
+        QCOMPARE(d.layerImage(0), original);
+        QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() > before);
+    }
+
+    void largeNeutralFrequencySourceProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_NEUTRAL_FREQUENCY_SOURCE_PROBE"))
+            QSKIP(
+                "Set PHOTOCRAP_NEUTRAL_FREQUENCY_SOURCE_PROBE=1 to measure neutral mask sources.");
+        Document d;
+        d.setBackgroundEditThreshold(-1);
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.setTool("gradient");
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(0, 0);
+        d.continueStroke(6000, 4000);
+        d.endStroke();
+        d.addLayerMask();
+        d.setEditingMask(false);
+        const auto    before = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        QElapsedTimer timer;
+        timer.start();
+        d.addFrequencySeparation(8);
+        const auto elapsed = timer.nsecsElapsed();
+        const auto added   = d.memoryUsage()["tileHeapBytes"].toLongLong() - before;
+        QCOMPARE(d.layers().size(), 3);
+        qInfo() << "24 MP / 16-bit frequency creation with a neutral mask, ns and added heap:"
+                << elapsed << added;
+    }
+
     void frequencySourcesShareUnmaskedNativeTiles()
     {
         for (int bits : {8, 16})

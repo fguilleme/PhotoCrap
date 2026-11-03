@@ -26,7 +26,7 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 ## Optimizations in development after v0.16
 
-- **Shared 256 × 256 tiled planes and history**: compact backgrounds from document creation, allocation of touched tiles only, reuse of unchanged versions and native 8/16-bit conversions without rebuilding the canvas. Frequency separation shares tiles from its unmasked native source, gives compact backgrounds logical dimensions and reuses identical image, mask and source PNGs per native format when reopening projects.
+- **Shared 256 × 256 tiled planes and history**: compact backgrounds from document creation, allocation of touched tiles only, reuse of unchanged versions and native 8/16-bit conversions without rebuilding the canvas. Frequency separation shares native source tiles when its mask is absent, disabled or neutral, gives compact backgrounds logical dimensions and reuses identical image, mask and source PNGs per native format when reopening projects.
 - **Regional processing** for eyedroppers, dab-based tools and their supported composited sources, path fills, shapes, text, selected gradients, selected-area clipboard copies and imported-image placement. Magic Wand reads tiles on demand with a bounded cache; recognized uniform sources are selected without scanning their pixels. Quick Selection and feathered masks use their search regions and required halos. Move handles source and destination separately; sparse transparent layers move tile by tile. Global selections, nonlocal effects, dense layers and full-image gradients may still need full-sized buffers.
 - **Background loading and expensive operations**: images, projects, RAW, imports, geometry, bit depth, merges, fills, direct filters and Magic Wand on large documents. Only current results are applied; edits create one undoable step. The previous document stays visible while opening a file and is not needlessly retained after replacement. General operations use a worker from four million processed pixels; small edits retain their direct path.
 - **Asynchronous saving and export**: atomic `.pcr` v9 PNG/Base64/JSON streaming without accumulating the encoded project; an 8 MiB cache reuses small repeated plane payloads. Closing waits for save confirmation. Cancellation preserves the previous file until the final publication point, which is then non-cancellable.
@@ -41,6 +41,7 @@ Selected local measurements, with conditions documented in [validation](docs/VAL
 | Reopening a lightly retouched layer and mask, 24 MP/16-bit | 576 KiB of planes |
 | Importing 33 × 27 px into a 24 MP/16-bit document | One 512 KiB tile |
 | Dense frequency source, 24 MP/16-bit without a mask | 95 → 0.10 ms; 183 MiB of additional tiles avoided |
+| Frequency source with a neutral mask, 24 MP/16-bit | 70 → 0.073 ms; 183 MiB of additional tiles avoided |
 | Retouch-preparation submission, 24 MP/16-bit | 36 → 0.055 ms; bands subsequently computed on worker |
 | Compact frequency source, 24 MP/16-bit | 57 → 0.011 ms; no full-sized expansion |
 | New white/transparent document, 24 MP/16-bit | 40–57 → 0.003–0.004 ms; logical native background |

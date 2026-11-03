@@ -19,12 +19,15 @@ ne crée que ses tuiles. Cela ne change pas la réservation logique du calque, l
 limites de dimensions ni les tampons éventuels des filtres, affichages et exports.
 
 La création d’une séparation de fréquences sur un calque de pixels à la taille du
-document, sans masque actif, partage directement ses versions de tuiles entre la
-source et les deux bandes. Modifier ensuite le calque d’origine ne change pas
-cette source figée. Un fond compact sans masque actif devient un `PixelPlane`
+document, sans masque actif ou avec un masque neutre, partage directement ses
+versions de tuiles entre la source et les deux bandes. Un masque blanc uniforme,
+compact ou tuilé sans pixels explicites, ainsi qu’une densité nulle sont reconnus
+avant toute expansion de la source. Le contour progressif d’un blanc uniforme
+reste blanc et la densité nulle ignore le masque, comme dans le calcul précédent. Modifier ensuite le calque d’origine ne change pas
+cette source figée. Un fond compact sans masque actif ou avec un masque neutre devient un `PixelPlane`
 de la taille logique du document, avec son seul pixel de fond et sans tuile explicite.
 La normalisation de ce pixel reprend l’arrondi QColor de l’ancienne expansion.
-Les masques activés et sources composées gardent leur préparation complète actuelle ;
+Les masques qui modifient les pixels et les sources composées gardent leur préparation complète actuelle ;
 la précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 

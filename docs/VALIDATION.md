@@ -1,5 +1,27 @@
 # Validation
 
+## Masques neutres des sources de fréquences — 3 novembre 2026
+
+40 comparaisons croisent 8/16 bits, source native/compacte, masque blanc compact
+ou pleine taille, masque peint/noir de densité nulle, masque désactivé et contour
+progressif 0/7. Les bandes doivent être celles de la même source sans masque,
+sans nouveau stockage de tuiles. Masque et original restent inchangés ;
+Annuler/Rétablir et la retouche ultérieure de l’original conservent les sources.
+Huit contre-exemples avec masque gris, densité 50/100 et contour 0/7 vérifient
+que le masque continue à modifier les bandes et à préparer sa source distincte.
+
+Le cas natif 16 bits, blanc pleine taille, contour 7 échoue sur le stockage avec
+`DocumentAdjustments.cpp` recompilé depuis `8db4653` : 4 194 304 au lieu de
+2 097 152 octets. Les pixels sont déjà comparés avant cette assertion.
+Sonde `PHOTOCRAP_NEUTRAL_FREQUENCY_SOURCE_PROBE=1 build/photocrap_tests
+largeNeutralFrequencySourceProbe`, 24 Mpx/16 bits avec masque blanc :
+70,4 → 0,073 ms et 192 000 000 → 0 octet de tuiles supplémentaires. Ce sont les
+plans natifs, hors RSS, cache de bandes et buffers du rendu ; aucun seuil temporel
+n’est imposé aux tests.
+Les 50 suites, les 52 contrôles ciblés Qt 6.8/CPU portable et le rendu natif
+Cocoa/Metal de la pile passent.
+
+
 ## Payloads répétés de sauvegarde — 3 novembre 2026
 
 Quatre parcours croisent 8/16 bits et sauvegarde synchrone/asynchrone : images,

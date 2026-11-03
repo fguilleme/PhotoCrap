@@ -137,7 +137,14 @@ void Document::addFrequencySeparation(qreal _radius)
         return;
     PixelPlane  source;
     const auto &active = m_layers[m_active];
-    if (active.kind == "pixel" && (!active.maskEnabled || active.mask.isNull())) {
+    const bool  neutralMask =
+        !active.maskEnabled || active.mask.isNull() ||
+        active.parameters.value("_maskDensity", 100.).toDouble() <= 0 ||
+        (active.mask.isUniform() && active.mask.format() == QImage::Format_Grayscale8 &&
+         active.mask.tileImage(0, 0).constScanLine(0)[0] == 255);
+    // A neutral mask leaves every native pixel unchanged, including with a
+    // feather radius. Recognize it before materializing the source image.
+    if (active.kind == "pixel" && neutralMask) {
         if (active.image.size() == m_size)
             source = active.image; // Immutable tile versions are already a frozen source.
         else if (ImageUtils::compact(active.image)) {

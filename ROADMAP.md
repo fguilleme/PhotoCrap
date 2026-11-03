@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Sources de fréquences directement partagées avec un masque blanc uniforme
+  ou de densité nulle ; masques non neutres toujours appliqués aux pixels natifs.
+
 - [x] Réutilisation des petits payloads de plans répétés pendant une sauvegarde,
   cache LRU de 8 Mio ; gros payloads en flux, sans expansion/réencodage sur hit.
 

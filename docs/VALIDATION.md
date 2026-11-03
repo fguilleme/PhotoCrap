@@ -1,5 +1,21 @@
 # Validation
 
+## Copie régionale des sélections — 3 novembre 2026
+
+Référence avant modification sur 24 copies : 8/16 bits, rectangle/ellipse,
+couverture dure/progressive, pile simple/flou/bruit, transparence et fusion.
+Le digest des pixels natifs du presse-papiers reste identique :
+`c775db53fad8e01d5fbf270fbed9745d586c59884cd1aac2dd050eed1bdcb77c`.
+La visualisation d’un canal n’altère pas les couleurs copiées. L’historique est
+inchangé, le cache d’affichage reste intact pour les piles compatibles et Copier
+sans sélection conserve le composite complet. Tests exécutés avec le presse-papiers
+virtuel du backend offscreen, sans remplacer celui de la session utilisateur.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/photocrap_tests selectedClipboardDigest
+```
+
+
 ## Contours progressifs de masque régionaux — 3 novembre 2026
 
 La référence native avant modification couvre 16 piles : 8/16 bits, rayons

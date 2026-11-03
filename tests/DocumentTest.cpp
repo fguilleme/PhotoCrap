@@ -29,6 +29,7 @@
 #include "tools/RegionHealing.h"
 #include "tools/SelectionMove.h"
 #include <QBuffer>
+#include <QClipboard>
 #include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QFile>
@@ -1934,6 +1935,58 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void selectedClipboardDigest()
+    {
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (bool ellipse : {false, true})
+                for (bool feather : {false, true})
+                    for (const QString &effect :
+                         {QString{}, QStringLiteral("boxBlur"), QStringLiteral("noise")}) {
+                        Document d;
+                        QVERIFY(d.newDocument(517, 523, true, bits));
+                        d.setBrushSize(81);
+                        d.setColor(QColor::fromRgba64(23456, 45678, 12345, 34567));
+                        d.beginStroke(256, 255);
+                        d.endStroke();
+                        d.addLayer();
+                        d.setColor(QColor::fromRgba64(45678, 12345, 56789, 23456));
+                        d.beginStroke(263, 260);
+                        d.endStroke();
+                        d.setLayerBlend(1, 8);
+                        if (!effect.isEmpty())
+                            d.addAdjustmentLayer(effect);
+                        d.setTool(ellipse ? "ellipticalSelect" : "select");
+                        d.beginStroke(247, 249);
+                        d.continueStroke(279, 280);
+                        d.endStroke();
+                        if (feather)
+                            d.modifySelection("feather", 2);
+                        d.setDisplayChannel(1);
+                        const QImage &cache = d.composite();
+                        const auto    key   = cache.cacheKey();
+                        d.setLayerVisible(0, false);
+                        d.setLayerVisible(0, true);
+                        const int history = d.historyIndex();
+                        d.copy();
+                        const QImage image = QGuiApplication::clipboard()->image();
+                        QVERIFY(!image.isNull());
+                        QCOMPARE(image.format(), d.workingFormat());
+                        QCOMPARE(d.historyIndex(), history);
+                        for (int y = 0; y < image.height(); ++y)
+                            hash.addData(QByteArrayView(
+                                reinterpret_cast<const char *>(image.constScanLine(y)),
+                                image.width() * image.depth() / 8));
+                        if (effect != "noise")
+                            QCOMPARE(cache.cacheKey(), key);
+                        d.deselect();
+                        d.copy();
+                        QCOMPARE(QGuiApplication::clipboard()->image(), d.composite());
+                    }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("c775db53fad8e01d5fbf270fbed9745d586c59884cd1aac2dd050eed1bdcb77c"));
+    }
+
     void adjustmentPipettesPreserveNativeSamplesAndDisplayCache()
     {
         for (int bits : {8, 16}) {

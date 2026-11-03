@@ -46,6 +46,8 @@ restent à compter séparément. Le pic de RAM est mesuré sur des gestes locali
 plans remplis de 24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie
 le refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
 
+- [x] Copie de sélection limitée à son rectangle, forme et couverture progressive
+  conservées dans les pixels natifs du presse-papiers.
 - [x] Contour progressif des masques flouté sur la région utile avec son halo,
   pixels du rendu complet conservés en 8/16 bits.
 - [x] Sélection rapide : lecture, conversion de comparaison et table de visite

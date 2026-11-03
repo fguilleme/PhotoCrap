@@ -12,7 +12,7 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   texte, déplacements et imports ;
   sources composées du tampon, du Doigt et du mélangeur figées et lues par région ; anciennes versions
   et masques conservés par Annuler/Rétablir. Pipettes de réglages, recherche de Sélection rapide et contours progressifs
-  des masques régionaux.
+  des masques régionaux ; copie du composite limitée à la sélection.
 - [x] Ouverture d’images/projets/RAW et préparation des imports sur worker,
   avec contrôle de session/état, annulation et absence de capture inutile de
   l’ancien document lors d’une ouverture de remplacement.

@@ -209,7 +209,7 @@ void Document::copy()
         QImage   selection = ImageUtils::blank(m_selection.size(), workingFormat());
         QPainter painter(&selection);
         painter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
-        painter.drawImage(-m_selection.topLeft(), composite());
+        painter.drawImage(QPoint{}, compositeRegion(m_selection));
         painter.end();
         SelectionCoverage::attenuate(selection, m_selectionMask, m_selection.topLeft());
         QGuiApplication::clipboard()->setImage(selection);

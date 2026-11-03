@@ -115,6 +115,11 @@ un rendu intégral calcule toujours le masque intégral. Densité, précision de
 couleurs et masques compacts restent identiques. Les contours progressifs peuvent
 donc aussi être lus régionalement ; leur affichage de pile reste sur le repli CPU.
 
+Copier une sélection compose uniquement son rectangle englobant, avant le même
+écrêtage par sa forme et sa couverture progressive. Les pixels natifs du
+presse-papiers gardent leur profondeur. Sans sélection, la copie conserve
+l’image complète ; une pile non locale peut aussi nécessiter le repli complet.
+
 Le tampon de duplication conserve une pile native immuable au début du geste pour
 les modes « calque actif et inférieurs » et « tous les calques ». Seules les
 régions source nécessaires sont composées ; un chevauchement source/destination

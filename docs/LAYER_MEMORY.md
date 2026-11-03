@@ -37,7 +37,11 @@ les écritures à une version privée avant de remplacer le calque. Il n’allou
 de masque ni de tampon couleur complet pour une petite zone fermée.
 La contiguïté, les masques, la sélection progressive, l’opacité et les pixels 16 bits
 sont conservés. La composante modifiée invalide localement le composite et la vignette.
-Les grands remplissages restent synchrones à cette étape.
+À partir de quatre millions de pixels dans l’emprise de recherche, le remplissage
+est délégué au worker commun : source immuable, progression, annulation pendant
+le parcours ou l’écriture et validation atomique en une étape d’historique.
+Les petites emprises restent synchrones. Un nouveau geste de modification annule
+l’ancien calcul dès la pression, avant même le premier déplacement.
 
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états

@@ -36,6 +36,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QStorageInfo>
 #include <QTemporaryDir>
@@ -6350,6 +6351,36 @@ private slots:
         QVERIFY(center.green() > 180);
         QVERIFY(center.red() < 80);
         QCOMPARE(d.historyIndex(), 1);
+    }
+    void bucketFillCancelsDuringSparseTraversal()
+    {
+        QImage pixel(1, 1, QImage::Format_RGBA64_Premultiplied);
+        pixel.fill(Qt::white);
+        const PixelPlane                   source(pixel);
+        const auto                         key = source.cacheKey();
+        PhotoCrap::Tools::FloodFillOptions options;
+        options.size          = {6000, 4000};
+        options.replacement   = Qt::blue;
+        options.overlayFormat = pixel.format();
+        const auto cancelled  = std::make_shared<std::atomic_bool>(false);
+        const auto progress   = std::make_shared<std::atomic_int>(-1);
+        auto       future     = QtConcurrent::run([source, options, cancelled, progress] {
+            return PhotoCrap::Tools::floodFill(source, {100, 100}, options, cancelled, progress);
+        });
+        const auto cleanup    = qScopeGuard([&] {
+            cancelled->store(true);
+            future.waitForFinished();
+        });
+        QTRY_VERIFY_WITH_TIMEOUT(progress->load() >= 1, 10000);
+        QVERIFY(progress->load() < 50);
+        cancelled->store(true);
+        QTRY_VERIFY_WITH_TIMEOUT(future.isFinished(), 5000);
+        const auto result = future.result();
+        QVERIFY(result.cancelled);
+        QVERIFY(!result.valid);
+        QVERIFY(result.filledPixels > 0);
+        QCOMPARE(source.cacheKey(), key);
+        QCOMPARE(source.size(), QSize(1, 1));
     }
     void bucketFillInvalidatesOnlyItsComponentAndUpdatesThumbnails()
     {

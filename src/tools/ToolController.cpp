@@ -208,6 +208,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         (!validSize(width(), height(), int(m_layers.size()) + 1) ||
          !validLayerStorage(width(), height(), 1, !m_layers[m_active].mask.isNull())))
         return;
+    // A press begins an immutable gesture snapshot even before the first drag
+    // changes pixels (Move, shapes and Red Eye). An older worker must not replace it.
+    cancelOperation();
     m_strokeCreatedLayer = false;
     if (newLayer) {
         if (!startToolLayer(toolLabel(m_tool)))

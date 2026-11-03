@@ -67,7 +67,7 @@ l'affichage ; les exports et projets gardent leur référence native CPU.
 
 Le répartiteur commun couvre redimensionnement, rotations/miroirs, recadrage de
 sélection, profondeur depuis le menu, fusion vers le bas, remplissages/effacement,
-inversion des masques et filtres directs. À partir de quatre millions de pixels
+inversion des masques, pot de peinture contigu et filtres directs. À partir de quatre millions de pixels
 traités, un worker de faible priorité calcule sur un snapshot ; seule la fin valide
 applique une étape d’historique. Échap, Annuler ou Annuler/Rétablir rejettent la
 demande. Le document peut être fermé ou remplacé sans attendre le worker. Un appel

@@ -1,5 +1,17 @@
 # Validation
 
+## Pot de peinture asynchrone — 3 novembre 2026
+
+Les opérations complètes comptent maintenant 42 réussites : comparaisons exactes
+synchrone/asynchrone du pot de peinture en 8/16 bits, sur pixels, masque et sélection
+progressive ; image et historique inchangés avant la fin, une seule validation et
+Annuler/Rétablir. Le pool bloqué vérifie annulation, changement de document et
+priorité d’une nouvelle pression Déplacement/Œil rouge/Rectangle avant son premier
+glissement. Couleur et opacité sont capturées sans écraser les réglages suivants.
+Un remplissage de 24 Mpx est annulé pendant son parcours, après progression réelle,
+avant toute écriture ; la source compacte reste intacte. Une couleur déjà identique
+ne démarre pas de worker et n’ajoute pas d’historique.
+
 ## Pot de peinture parcimonieux — 3 novembre 2026
 
 Empreinte de pixels identique à l’ancien calcul pour seize combinaisons : couleur

@@ -31,8 +31,32 @@ void Document::floodFill(QPoint _point)
     options.replacement   = solid.pixelColor(0, 0);
     options.opacity       = m_brushOpacity;
     options.overlayFormat = workingFormat();
-    auto result           = PhotoCrap::Tools::floodFill(target, _point, options, m_backgroundCancel,
-                                                        m_backgroundProgress);
+    const QRect documentRect(QPoint{}, m_size);
+    const QRect bounds =
+        hasSelection() ? m_selectionRegion.boundingRect().intersected(documentRect) : documentRect;
+    if (!bounds.contains(_point) || (hasSelection() && !m_selectionRegion.contains(_point)))
+        return;
+    const QImage seedTile =
+        target.tileImage(_point.x() / TiledImage::TileSize, _point.y() / TiledImage::TileSize);
+    if (seedTile.isNull()) {
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
+    const QColor seedColor = seedTile.size() == QSize(1, 1)
+                                 ? seedTile.pixelColor(0, 0)
+                                 : seedTile.pixelColor(_point.x() % TiledImage::TileSize,
+                                                       _point.y() % TiledImage::TileSize);
+    if (seedColor == options.replacement && qFuzzyCompare(m_brushOpacity, 1.))
+        return;
+    const qreal opacity = m_brushOpacity;
+    if (deferEdit(tr("Remplissage"), qint64(bounds.width()) * bounds.height(),
+                  [point = _point, opacity](Document &worker) {
+                      worker.m_brushOpacity = opacity;
+                      worker.floodFill(point);
+                  }))
+        return;
+    auto result = PhotoCrap::Tools::floodFill(target, _point, options, m_backgroundCancel,
+                                              m_backgroundProgress);
     if (result.cancelled)
         return;
     if (!result.valid) {

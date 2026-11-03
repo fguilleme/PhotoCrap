@@ -53,7 +53,12 @@ void operation(Document &d, const QString &name)
         d.requestChannelBits(d.channelBits() == 8 ? 16 : 8);
     else if (name == "fill")
         d.fillWithColor(true, true);
-    else if (name == "clear")
+    else if (name.startsWith("bucket")) {
+        d.setTool("fill");
+        d.setBrushOpacity(.63);
+        d.setColor(QColor::fromRgba64(14321, 32123, 54321, 41234));
+        d.beginStroke(10, 15);
+    } else if (name == "clear")
         d.clearSelected();
     else if (name == "merge")
         d.mergeDown();
@@ -69,14 +74,95 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void bucketCanBeCancelledOrSupersededBeforeAFirstDrag()
+    {
+        Document d;
+        populate(d, 8);
+        d.setBackgroundEditThreshold(0);
+        const auto before  = d.layerImage(d.activeLayer());
+        const auto history = d.history();
+        {
+            BlockPool block;
+            for (const auto &tool : {"move", "redEye", "rectangle"}) {
+                d.setTool("fill");
+                d.setColor(Qt::green);
+                d.beginStroke(4, 4);
+                QVERIFY(d.operationBusy());
+                QCOMPARE(d.layerImage(d.activeLayer()), before);
+                QCOMPARE(d.history(), history);
+                d.setShapeNewLayer(false);
+                d.setTool(tool);
+                d.beginStroke(30, 30);
+                QVERIFY(!d.operationBusy());
+                d.cancelStroke();
+                QCOMPARE(d.layerImage(d.activeLayer()), before);
+                QCOMPARE(d.history(), history);
+            }
+            d.setTool("fill");
+            d.beginStroke(4, 4);
+            QVERIFY(d.operationBusy());
+            d.cancelOperation();
+            QVERIFY(!d.operationBusy());
+            QCOMPARE(d.history(), history);
+            d.beginStroke(4, 4);
+            QVERIFY(d.operationBusy());
+            QVERIFY(d.newDocument(27, 19, true));
+            QVERIFY(!d.operationBusy());
+        }
+        QCoreApplication::processEvents();
+        QCOMPARE(d.width(), 27);
+        QCOMPARE(d.height(), 19);
+        QCOMPARE(d.composite().pixelColor(0, 0).alpha(), 0);
+        QCOMPARE(d.historyIndex(), 0);
+    }
+    void bucketCapturesInkAndOpacityAndKeepsLaterToolSettings()
+    {
+        Document   reference, asynchronous;
+        const auto ink = QColor::fromRgba64(51321, 12345, 23456, 45678);
+        for (auto *d : {&reference, &asynchronous}) {
+            d->setBackgroundEditThreshold(-1);
+            QVERIFY(d->newDocument(40, 30, false, 16));
+            d->setTool("fill");
+            d->setColor(ink);
+            d->setBrushOpacity(.37);
+        }
+        reference.beginStroke(4, 4);
+        {
+            BlockPool block;
+            asynchronous.setBackgroundEditThreshold(0);
+            asynchronous.beginStroke(4, 4);
+            QVERIFY(asynchronous.operationBusy());
+            asynchronous.setColor(Qt::blue);
+            asynchronous.setBrushOpacity(.91);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!asynchronous.operationBusy(), 10000);
+        QCOMPARE(asynchronous.composite(), reference.composite());
+        QCOMPARE(asynchronous.color(), QColor(Qt::blue));
+        QCOMPARE(asynchronous.brushOpacity(), qreal(.91));
+    }
+    void sameColourBucketDoesNotQueueOrCommit()
+    {
+        Document d;
+        QVERIFY(d.newDocument(40, 30, false, 16));
+        d.setTool("fill");
+        d.setColor(Qt::white);
+        d.setBrushOpacity(1);
+        d.setBackgroundEditThreshold(0);
+        const auto history = d.history();
+        QSignalSpy operations(&d, &Document::operationChanged);
+        d.beginStroke(4, 4);
+        QVERIFY(!d.operationBusy());
+        QCOMPARE(operations.size(), 0);
+        QCOMPARE(d.history(), history);
+    }
     void exactAndAtomic_data()
     {
         QTest::addColumn<int>("bits");
         QTest::addColumn<QString>("name");
         for (int bits : {8, 16})
             for (const QString name :
-                 {"resize", "crop", "depth", "fill", "clear", "merge", "invertMask", "filter",
-                  "rotateLeft", "rotateRight", "flipH", "flipV"})
+                 {"resize", "crop", "depth", "fill", "bucket", "bucketMask", "bucketSoft", "clear",
+                  "merge", "invertMask", "filter", "rotateLeft", "rotateRight", "flipH", "flipV"})
                 QTest::newRow(qPrintable(QString::number(bits) + name)) << bits << name;
     }
     void exactAndAtomic()
@@ -93,7 +179,14 @@ private slots:
                 d->endStroke();
                 QVERIFY(d->hasSelection());
             }
-            if (name == "invertMask") {
+            if (name == "bucketSoft") {
+                d->setTool("ellipticalSelect");
+                d->beginStroke(0, 0);
+                d->continueStroke(70, 50);
+                d->endStroke();
+                d->modifySelection("feather", 2);
+            }
+            if (name == "invertMask" || name == "bucketMask") {
                 d->addLayerMask();
                 d->setColor(Qt::black);
                 d->beginStroke(10, 10);

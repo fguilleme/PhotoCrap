@@ -346,8 +346,9 @@ QColor Document::sampleCurvePoint(const QString &_mode, int _x, int _y)
     if (!modes.contains(_mode) || m_active < 0 || m_active >= m_layers.size() ||
         m_layers[m_active].adjustmentType != QStringLiteral("curves") || m_size.isEmpty())
         return {};
-    const QColor sampled = composite().pixelColor(qBound(0, _x, m_size.width() - 1),
-                                                  qBound(0, _y, m_size.height() - 1));
+    const QColor sampled = sampleCompositeColor(_x, _y);
+    if (!sampled.isValid())
+        return {};
     beginLayerPreview();
     previewLayerParameter(_mode + QStringLiteral("Sample"),
                           QVariantList{sampled.red(), sampled.green(), sampled.blue()});
@@ -359,8 +360,9 @@ QColor Document::sampleCompositeColor(int _x, int _y) const
 {
     if (m_size.isEmpty())
         return {};
-    return composite().pixelColor(qBound(0, _x, m_size.width() - 1),
-                                  qBound(0, _y, m_size.height() - 1));
+    const QPoint point(qBound(0, _x, m_size.width() - 1), qBound(0, _y, m_size.height() - 1));
+    const QImage sample = compositeRegion(QRect(point, QSize(1, 1)));
+    return sample.isNull() ? QColor{} : sample.pixelColor(0, 0);
 }
 
 QVariantList Document::autoBlackWhiteValues() const

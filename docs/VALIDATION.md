@@ -1,5 +1,22 @@
 # Validation
 
+## Pipettes de réglages régionales — 3 novembre 2026
+
+Les lectures de couleur des réglages et les pipettes noir/gris/blanc de Courbes
+utilisent un pixel du composite régional. Le test compare directement la couleur
+native du rendu complet en 8/16 bits, avec alpha, bords de tuiles et coordonnées
+hors image bornées comme auparavant. Le cache d’affichage reste intact et une
+lecture simple ne crée aucun historique. Les tests existants de neutralisation
+des courbes restent la référence du réglage appliqué. Les piles non locales
+conservent le même repli complet que les autres lecteurs régionaux.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/photocrap_tests \
+  adjustmentPipettesPreserveNativeSamplesAndDisplayCache \
+  curveEyedroppersSampleColorsAndNeutralizeGray
+```
+
+
 ## Source et prélèvement du Pinceau mélangeur — 3 novembre 2026
 
 Les 54 gestes enregistrés avant modification conservent leur digest :

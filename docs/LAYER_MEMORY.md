@@ -101,7 +101,9 @@ sont inchangées, sans création d’historique. La source composite conserve se
 règles de cache/proxy. Si aucun rendu terminé n’est disponible, elle compose
 uniquement la zone prélevée, avec la somme des halos des filtres spatiaux, sans
 remplacer le cache d’affichage ni effacer ses zones invalidées. Le moteur est
-commun au rendu complet et régional. Dissoudre, bruit, mosaïque, fréquences,
+commun au rendu complet et régional. Les pipettes de Courbes et les lectures de
+couleur des réglages utilisent aussi cette voie pour leur pixel natif, avec les
+mêmes coordonnées bornées aux limites du document. Dissoudre, bruit, mosaïque, fréquences,
 masques à contour progressif, prévisualisations provisoires et plans à DPR non
 unitaire conservent le repli complet pour préserver leurs coordonnées et pixels.
 

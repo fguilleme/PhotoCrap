@@ -46,6 +46,8 @@ restent à compter séparément. Le pic de RAM est mesuré sur des gestes locali
 plans remplis de 24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie
 le refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
 
+- [x] Pipettes de Courbes et lectures de couleur des réglages limitées au pixel
+  natif, précision et cache d’affichage conservés.
 - [x] Pinceau mélangeur : pile figée par geste et prélèvement Option/Alt régional
   (pixel ou texture), réservoir et moyennes conservés.
 - [x] Prise de couleur régionale du Doigt sur pile figée, couverture et mélange

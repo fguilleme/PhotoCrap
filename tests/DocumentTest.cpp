@@ -1834,6 +1834,43 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void adjustmentPipettesPreserveNativeSamplesAndDisplayCache()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(517, 523, true, bits));
+            d.setBrushSize(81);
+            d.setColor(QColor::fromRgba64(23456, 45678, 12345, 34567));
+            d.beginStroke(256, 255);
+            d.endStroke();
+            d.addAdjustmentLayer("curves");
+            const QImage  reference = d.composite();
+            const QImage &cache     = d.composite();
+            for (QPoint point :
+                 {QPoint(-10, -3), QPoint(254, 255), QPoint(256, 256), QPoint(600, 600)}) {
+                const auto key = cache.cacheKey();
+                d.setLayerVisible(0, false);
+                d.setLayerVisible(0, true);
+                const int    history = d.historyIndex();
+                const QPoint clamped(qBound(0, point.x(), d.width() - 1),
+                                     qBound(0, point.y(), d.height() - 1));
+                QCOMPARE(d.sampleCompositeColor(point.x(), point.y()),
+                         reference.pixelColor(clamped));
+                QCOMPARE(cache.cacheKey(), key);
+                QCOMPARE(d.historyIndex(), history);
+            }
+            for (const QString &mode :
+                 {QStringLiteral("black"), QStringLiteral("gray"), QStringLiteral("white")}) {
+                const QColor expected = d.composite().pixelColor(255, 255);
+                const auto   key      = cache.cacheKey();
+                d.setLayerVisible(0, false);
+                d.setLayerVisible(0, true);
+                QCOMPARE(d.sampleCurvePoint(mode, 255, 255), expected);
+                QCOMPARE(cache.cacheKey(), key);
+            }
+        }
+    }
+
     void eyedropperNativeTileBoundaryDigest()
     {
         QTemporaryDir      directory;

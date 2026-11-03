@@ -22,6 +22,12 @@ actif, puis remplace le rectangle des pixels corrigés. Le clic et le cadre gard
 la même recherche de composante rouge, les reflets et les réglages de pupille.
 L’outil couleur reste limité aux documents 8 bits.
 
+Le remplissage des tracés de Plume lit et remplace uniquement leur emprise
+intersectée par la sélection, sur pixels 8/16 bits comme sur masques. Le masque
+de sélection progressif est recadré à cette région. Le rendu conserve la profondeur
+native ; le changement d’origine du rasteriseur peut modifier légèrement
+l’anticrénelage d’un bord de courbe, sans agrandir les tampons au document entier.
+
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états
 historiques sont parcourus avant les plans actifs. Les versions en cours d’utilisation

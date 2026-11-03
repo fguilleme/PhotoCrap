@@ -1,5 +1,16 @@
 # Validation
 
+## Remplissage régional de Plume — 3 novembre 2026
+
+Référence QPainter indépendante en pleine image : courbe fractionnaire traversant
+les tuiles, sélection elliptique progressive, opacité et couleurs natives 8/16 bits,
+puis masques. Sur le cas testé, les masques sont identiques ; un seul pixel couleur
+diffère d’un niveau 8 bits ou de 79 unités 16 bits, lors du changement d’origine
+d’anticrénelage. Le test borne tout écart à un niveau 8 bits (257 unités 16 bits),
+et vérifie pixels extérieurs, précision native et Annuler/Rétablir.
+Sur 24 Mpx/16 bits, le petit tracé alloue au plus une tuile couleur de 512 Kio,
+puis une tuile de masque de 64 Kio. La suite Plume passe sur Qt 6.8 et 6.12.
+
 ## Œil rouge régional — 3 novembre 2026
 
 Les dix-huit combinaisons clic/cadre, taille de pupille et assombrissement

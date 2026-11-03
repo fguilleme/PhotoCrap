@@ -1,8 +1,10 @@
 #include "Document.h"
 #include "tools/PenPath.h"
+#include <QCryptographicHash>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -35,6 +37,126 @@ class PenToolTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void smallPathFillOnlyAllocatesTouchedTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setTool("pen");
+        click(d, 100, 100);
+        click(d, 120, 100);
+        click(d, 120, 120);
+        click(d, 100, 120);
+        d.closePenPath();
+        for (bool mask : {false, true}) {
+            if (mask)
+                d.addLayerMask(false);
+            const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+            d.setColor(Qt::red);
+            d.fillPenPath();
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 8);
+            if (!mask) {
+                const auto patch =
+                    d.gpuLayerStack().layers.first().image.region({100, 100, 20, 20});
+                QCOMPARE(patch.pixelColor(10, 10), QColor(Qt::red));
+                d.undo();
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), qint64(0));
+                d.redo();
+                QCOMPARE(d.gpuLayerStack().layers.first().image.region({100, 100, 20, 20}), patch);
+            } else {
+                // Inspect the native mask without expanding it to document size.
+                const auto bytes = d.memoryUsage()["layerBytes"].toLongLong();
+                QVERIFY(bytes <= 256LL * 256 * 9);
+                d.undo();
+                QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() < bytes);
+                d.redo();
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), bytes);
+            }
+        }
+    }
+    void regionalFillKeepsCurvesSelectionAndNativeDepth()
+    {
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (bool mask : {false, true}) {
+                Document d;
+                QVERIFY(d.newDocument(523, 531, false, bits));
+                if (mask)
+                    d.addLayerMask(false);
+                d.setTool("ellipticalSelect");
+                d.beginStroke(249, 247);
+                d.continueStroke(273, 273);
+                d.endStroke();
+                d.modifySelection("feather", 3);
+                d.setTool("pen");
+                click(d, 248.25, 245.5);
+                d.beginPenGesture(274.5, 249.25, 2);
+                d.updatePenGesture(279.5, 243.25);
+                d.endPenGesture();
+                click(d, 267.75, 278.25);
+                click(d, 246.5, 269.75);
+                d.closePenPath();
+                const auto before  = mask ? d.maskImage(0) : d.layerImage(0);
+                const auto history = d.historyIndex();
+                d.setColor(QColor::fromRgba64(14321, 32123, 54321, 41234));
+                d.setBrushOpacity(.63);
+                PenPath referencePath;
+                referencePath.closed = true;
+                for (int i = 0; i < 4; ++i) {
+                    const auto p = node(d, i);
+                    referencePath.points.append({position(d, i),
+                                                 {p["inX"].toReal(), p["inY"].toReal()},
+                                                 {p["outX"].toReal(), p["outY"].toReal()},
+                                                 p["smooth"].toBool()});
+                }
+                const auto path      = referencePath.painterPath();
+                const auto bounds    = path.boundingRect()
+                                           .toAlignedRect()
+                                           .adjusted(-1, -1, 1, 1)
+                                           .intersected(before.rect())
+                                           .intersected(d.selectionRegion().boundingRect());
+                QImage     reference = before.copy();
+                {
+                    QPainter painter(&reference);
+                    painter.setRenderHint(QPainter::Antialiasing);
+                    painter.setClipRect(bounds);
+                    painter.setClipRegion(d.selectionRegion(), Qt::IntersectClip);
+                    painter.setOpacity(d.brushOpacity());
+                    painter.fillPath(path, d.color());
+                }
+                SelectionCoverage::blend(reference, before, d.selectionMask(), bounds);
+                d.fillPenPath();
+                const auto after = mask ? d.maskImage(0) : d.layerImage(0);
+                QVERIFY(after != before);
+                QCOMPARE(after.format(), before.format());
+                QCOMPARE(d.historyIndex(), history + 1);
+                for (const QRect &outside : QRegion(after.rect()) - QRegion(235, 230, 55, 60))
+                    QCOMPARE(after.copy(outside), before.copy(outside));
+                int maximum = 0, different = 0;
+                for (int y = 0; y < after.height(); ++y)
+                    for (int x = 0; x < after.width(); ++x) {
+                        const auto a = after.pixelColor(x, y).rgba64();
+                        const auto b = reference.pixelColor(x, y).rgba64();
+                        const int  delta =
+                            qMax(qMax(qAbs(a.red() - b.red()), qAbs(a.green() - b.green())),
+                                 qMax(qAbs(a.blue() - b.blue()), qAbs(a.alpha() - b.alpha())));
+                        maximum = qMax(maximum, delta);
+                        different += delta != 0;
+                    }
+                // Device-local curve clipping may shift one AA coverage unit.
+                QVERIFY(maximum <= (mask ? 0 : 257));
+                qInfo() << "Pen fill full-painter difference" << bits << mask << different
+                        << maximum;
+                const QImage hashed =
+                    mask ? after.convertToFormat(QImage::Format_ARGB32_Premultiplied) : after;
+                pixels.addData(QByteArrayView(reinterpret_cast<const char *>(hashed.constBits()),
+                                              hashed.sizeInBytes()));
+                d.undo();
+                QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), before);
+                d.redo();
+                QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), after);
+            }
+        qInfo() << "Pen fill pixels, native colour and masks" << pixels.result().toHex();
+    }
     void anchorsHandlesAndHistory()
     {
         Document d;

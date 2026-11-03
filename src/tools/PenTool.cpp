@@ -522,21 +522,29 @@ void Document::fillPenPath()
         bounds = bounds.intersected(m_selectionRegion.boundingRect());
     if (bounds.isEmpty() || path.isEmpty())
         return;
-    const auto before = snapshot({});
-    QImage    *target = paintTarget();
-    if (!target)
+    const auto   before   = snapshot({});
+    PixelPlane  &target   = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+    const QImage original = target.region(bounds);
+    QImage       output   = original.copy();
+    const QImage coverage = m_selectionMask.isNull() ? QImage{} : m_selectionMask.copy(bounds);
+    if (original.isNull() || output.isNull() || (!m_selectionMask.isNull() && coverage.isNull())) {
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
         return;
-    QPainter painter(target);
+    }
+    QPainter painter(&output);
     painter.setRenderHint(QPainter::Antialiasing);
+    painter.translate(-bounds.topLeft());
     painter.setClipRect(bounds);
     if (hasSelection())
         painter.setClipRegion(m_selectionRegion, Qt::IntersectClip);
     painter.setOpacity(m_brushOpacity);
     painter.fillPath(path, m_color);
     painter.end();
-    SelectionCoverage::blend(
-        *target, m_editingMask ? before.layers[m_active].mask : before.layers[m_active].image,
-        m_selectionMask, bounds);
+    SelectionCoverage::blend(output, original, coverage, output.rect());
+    if (!target.writeRegion(bounds.topLeft(), output, m_size)) {
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
     m_dirtyRegion = m_dirtyRegion.united(bounds);
     commit(before, tr("Remplir le tracé"), false);
     ++m_thumbnailRevision;

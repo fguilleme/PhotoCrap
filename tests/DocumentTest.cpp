@@ -1834,6 +1834,82 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 8), QColor(Qt::cyan));
         QCOMPARE(d.composite().pixelColor(24, 8), QColor(Qt::yellow));
     }
+    void eyedropperNativeTileBoundaryDigest()
+    {
+        QTemporaryDir      directory;
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16}) {
+            QImage source(517, 523,
+                          bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                     : QImage::Format_ARGB32_Premultiplied);
+            source.setColorSpace(QColorSpace::DisplayP3);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(x, y,
+                                         QColor::fromRgba64(ushort(x * 173), ushort(y * 199),
+                                                            ushort(x * 37 + y * 67),
+                                                            ushort((x * 137 + y * 211) % 65536)));
+            const auto file = QUrl::fromLocalFile(directory.filePath("picker.png"));
+            QVERIFY(source.save(file.toLocalFile()));
+            Document d;
+            QVERIFY(d.openFile(file));
+            d.setEyedropperSource(1);
+            for (bool mask : {false, true}) {
+                if (mask) {
+                    d.addLayerMask();
+                    d.setColor(Qt::black);
+                    d.setBrushSize(35);
+                    d.setBrushHardness(1);
+                    d.setBrushSmoothing(0);
+                    d.beginStroke(255, 255);
+                    d.endStroke();
+                }
+                const auto history = d.history();
+                const auto bytes   = d.memoryUsage()["layerBytes"];
+                for (int size : {1, 3, 5, 11, 31, 51, 101}) {
+                    d.setEyedropperSize(size);
+                    for (QPoint point : {QPoint(0, 0), QPoint(255, 255), QPoint(256, 256),
+                                         QPoint(513, 519), QPoint(516, 522)}) {
+                        const auto  color = d.sampleToolColor(point.x(), point.y()).rgba64();
+                        QByteArray  encoded;
+                        QDataStream stream(&encoded, QIODevice::WriteOnly);
+                        stream << color.red() << color.green() << color.blue() << color.alpha();
+                        hash.addData(encoded);
+                    }
+                }
+                QCOMPARE(d.history(), history);
+                QCOMPARE(d.memoryUsage()["layerBytes"], bytes);
+            }
+        }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("8cbfba681bbdb74e073f0ded5b4bbc6d854d6aff4d899953dcdb89fd98b20317"));
+    }
+    void largeNativeEyedropperProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_EYEDROPPER_PROBE"))
+            QSKIP("Set PHOTOCRAP_EYEDROPPER_PROBE=1 to measure repeated native 24 MP sampling.");
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setBrushSize(12);
+        d.setBrushHardness(1);
+        d.setColor(Qt::red);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        d.setEyedropperSource(1);
+        d.setEyedropperSize(101);
+        QElapsedTimer timer;
+        timer.start();
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int i = 0; i < 30; ++i) {
+            const auto  color = d.sampleToolColor(80 + i, 80 + i).rgba64();
+            QByteArray  encoded;
+            QDataStream stream(&encoded, QIODevice::WriteOnly);
+            stream << color.red() << color.green() << color.blue() << color.alpha();
+            hash.addData(encoded);
+        }
+        qInfo() << "Thirty 24 MP / 16-bit active-layer samples:" << timer.elapsed() << "ms"
+                << hash.result().toHex();
+    }
     void eyedropperPointAveragesSourcesAndBackgroundDoNotEditPixels()
     {
         QTemporaryDir dir;

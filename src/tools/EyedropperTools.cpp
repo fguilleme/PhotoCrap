@@ -28,11 +28,21 @@ QColor Document::sampleToolColor(int _x, int _y) const
 {
     if (_x < 0 || _y < 0 || _x >= m_size.width() || _y >= m_size.height())
         return {};
-    QImage image;
+    const int   radius = m_eyedropperSize / 2;
+    const QRect requested(_x - radius, _y - radius, m_eyedropperSize, m_eyedropperSize);
+    const QRect clipped = requested.intersected(QRect(QPoint{}, m_size));
+    QImage      image;
+    bool        regional = false;
     if (m_eyedropperSource == 1) {
         if (m_active < 0 || m_active >= m_layers.size())
             return {};
-        image = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+        const auto &plane = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+        if (ImageUtils::compact(plane))
+            image = plane.tileImage(0, 0);
+        else {
+            image    = plane.region(clipped);
+            regional = true;
+        }
     } else {
         // Sample the latest finished colour render. Channel visualizations and
         // selection/cursor overlays are deliberately excluded. No full render
@@ -48,13 +58,12 @@ QColor Document::sampleToolColor(int _x, int _y) const
     }
     if (image.isNull())
         return {};
-    const int   radius = m_eyedropperSize / 2;
-    const QRect requested(_x - radius, _y - radius, m_eyedropperSize, m_eyedropperSize);
-    const QRect clipped = requested.intersected(QRect(QPoint{}, m_size));
-    const qreal sx      = qreal(image.width()) / m_size.width(),
-                sy      = qreal(image.height()) / m_size.height();
-    const QRect area(QPoint(qFloor(clipped.left() * sx), qFloor(clipped.top() * sy)),
-                     QPoint(qFloor(clipped.right() * sx), qFloor(clipped.bottom() * sy)));
+    const qreal sx = qreal(image.width()) / m_size.width(),
+                sy = qreal(image.height()) / m_size.height();
+    const QRect area =
+        regional ? image.rect()
+                 : QRect(QPoint(qFloor(clipped.left() * sx), qFloor(clipped.top() * sy)),
+                         QPoint(qFloor(clipped.right() * sx), qFloor(clipped.bottom() * sy)));
     if (ImageUtils::is16Bit(image)) {
         const QImage sample = image.copy(area.intersected(image.rect()))
                                   .convertToFormat(QImage::Format_RGBA64_Premultiplied);

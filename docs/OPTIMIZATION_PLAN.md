@@ -7,6 +7,8 @@ indisponibles sont laissés explicitement ouverts.
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Pipette sur calque actif/masque limitée à son échantillon natif,
+  moyennes et précision identiques aux prélèvements précédents.
 - [x] Ouvertures de remplacement sans capture des anciens plans, session/état
   toujours contrôlés ; snapshots requis conservés pour éditions, sauvegarde et export.
 - [x] Collecte des plans de l’historique déplacée dans le worker ; la GUI

@@ -1,5 +1,26 @@
 # Validation
 
+## Pipette native régionale — 3 novembre 2026
+
+La référence a été relevée avant modification sur 140 prélèvements : pixels
+8/16 bits et masques, sept tailles de 1 à 101, bords du document et frontières
+de tuiles, alpha variable et source Display P3 normalisée à l’import. Le digest
+RGBA64 est identique :
+`8cbfba681bbdb74e073f0ded5b4bbc6d854d6aff4d899953dcdb89fd98b20317`.
+Pixels stockés et historique restent inchangés. Les tests de valeurs connues,
+alpha prémultiplié, masque uniforme et rendu complet final restent présents.
+
+Sonde locale Qt 6.12 : trente échantillons 101 × 101 sur le calque actif d’un
+document 24 Mpx/16 bits passent de 86 ms à moins de 1 ms, sans seuil de vitesse
+imposé aux tests. Le digest des couleurs reste
+`360e0251e3f2961b8964f08ebf2dc0d2f2a1466433a65c80563e69a50e57d746`.
+Il s’agit du temps des prélèvements, hors création du document et affichage.
+
+```sh
+PHOTOCRAP_EYEDROPPER_PROBE=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  build/photocrap_tests eyedropperNativeTileBoundaryDigest largeNativeEyedropperProbe
+```
+
 ## Absence de rétention de l’ancien document — 3 novembre 2026
 
 Pour image ordinaire, projet et RAW, une tâche d’ouverture est mise en attente

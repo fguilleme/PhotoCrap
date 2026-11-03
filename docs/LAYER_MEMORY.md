@@ -94,6 +94,12 @@ ces tâches ne prolongent donc pas la vie de ses tuiles. Les éditions, sauvegar
 et exports conservent leur capture indispensable. Le répartiteur force cette
 capture pour les éditions, même si un appelant lui demandait de l’omettre.
 
+La pipette en mode calque actif lit uniquement le carré prélevé dans les tuiles,
+au plus 101 × 101 pixels, sur les pixels 8/16 bits et les masques. Les plans
+compacts restent prélevés sur leur pixel natif. Les moyennes pondérées par alpha
+sont inchangées, sans création d’historique. La source composite conserve pour
+l’instant ses règles de cache/proxy et son repli complet.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

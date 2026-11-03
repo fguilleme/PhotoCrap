@@ -1,5 +1,15 @@
 # Validation
 
+## Forme d’historique artistique par tuiles — 3 novembre 2026
+
+Les dix styles produisent la même empreinte de pixels avant/après migration sur
+un geste fractionnaire franchissant les deux axes de tuiles, avec dispersion
+déterministe. Tolérance, opacité, sélection, historique et protection restent
+couverts. Chaque style est testé pendant un petit geste sur 24 Mpx/8 bits : une
+tuile de couverture de 256 Kio et au plus une tuile de destination supplémentaire.
+Une zone de 500 px avec pinceau de 1 000 px sur une image de 31 × 29 vérifie les
+lectures de source aux bords. Les tests passent sur Qt 6.8 et 6.12.
+
 ## Forme d’historique par tuiles — 3 novembre 2026
 
 Empreinte de pixels identique avant/après migration pour trois modes de fusion,

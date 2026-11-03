@@ -1728,10 +1728,43 @@ private slots:
                  "Moving the eyedropper must reuse the completed composition");
     }
 
+    void artHistoryAllocatesOnlyLocalTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto before     = d.gpuLayerStack().layers.first().image.region({70, 70, 70, 70});
+        const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        d.setTool("artHistoryBrush");
+        d.setArtHistoryArea(20);
+        for (int style = 0; style < 10; ++style) {
+            d.setArtHistoryStyle(style);
+            d.beginStroke(100, 100);
+            d.continueStroke(110, 110);
+            const auto usage = d.memoryUsage();
+            QVERIFY(usage["strokeCoverageTiles"].toInt() > 0);
+            QVERIFY(usage["strokeCoverageBytes"].toLongLong() <= 256LL * 256 * 4);
+            QVERIFY(usage["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 4);
+            d.cancelStroke();
+            QCOMPARE(d.gpuLayerStack().layers.first().image.region({70, 70, 70, 70}), before);
+        }
+        // Extreme clusters clipped by a tiny image still sample valid source pixels.
+        QVERIFY(d.newDocument(31, 29, false));
+        d.setArtHistoryArea(500);
+        d.setBrushSize(1000);
+        d.beginStroke(.25, .75);
+        d.continueStroke(30.75, 28.25);
+        d.endStroke();
+        QCOMPARE(d.layerImage(0).size(), QSize(31, 29));
+    }
     void artHistoryStylesInterpretSourceLocallyAndUndo()
     {
         QTemporaryDir dir;
-        QImage        texture(200, 160, QImage::Format_ARGB32_Premultiplied);
+        QImage        texture(523, 531, QImage::Format_ARGB32_Premultiplied);
         for (int y = 0; y < texture.height(); ++y)
             for (int x = 0; x < texture.width(); ++x)
                 texture.setPixel(
@@ -1751,12 +1784,13 @@ private slots:
         d.setBrushBlend(0);
         d.setBrushSmoothing(0);
         d.setArtHistoryArea(40);
-        QList<QImage> results;
-        const int     history = d.historyIndex();
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        QList<QImage>      results;
+        const int          history = d.historyIndex();
         for (int style = 0; style < 10; ++style) {
             d.setArtHistoryStyle(style);
-            d.beginStroke(80, 80);
-            d.continueStroke(120, 80);
+            d.beginStroke(253.25, 251.75);
+            d.continueStroke(291.5, 266.25);
             d.endStroke();
             const QImage painted = d.layerImage(0);
             QVERIFY(painted != original);
@@ -1766,14 +1800,17 @@ private slots:
             for (const QImage &other : results)
                 QVERIFY(painted != other);
             results.append(painted);
+            pixels.addData(QByteArrayView(reinterpret_cast<const char *>(painted.constBits()),
+                                          painted.sizeInBytes()));
             d.undo();
             QCOMPARE(d.layerImage(0), original);
             d.redo();
             QCOMPARE(d.layerImage(0), painted);
             d.undo();
         }
-        d.beginStroke(80, 80);
-        d.continueStroke(120, 80);
+        qInfo() << "Art history pixels, ten styles" << pixels.result().toHex();
+        d.beginStroke(253.25, 251.75);
+        d.continueStroke(291.5, 266.25);
         d.cancelStroke();
         QCOMPARE(d.layerImage(0), original);
         QCOMPARE(d.historyIndex(), history);

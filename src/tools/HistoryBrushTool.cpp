@@ -61,10 +61,7 @@ bool Document::prepareHistoryBrushStroke()
         if (layer.historyId == id) {
             // Immutable for the gesture, including restoration from a future
             // state after Undo. Layer identity survives reordering and renaming.
-            if (m_tool == "artHistoryBrush")
-                m_historyStrokeSource = ImageUtils::expandedPlane(layer.image, m_size);
-            else
-                m_historyStrokeSource = layer.image;
+            m_historyStrokeSource = layer.image;
             return true;
         }
     return false;

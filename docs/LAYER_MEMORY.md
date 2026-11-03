@@ -81,7 +81,13 @@ des contours restent identiques. Cet outil reste limité aux plans couleur 8 bit
 La Forme d’historique conserve le plan source par versions de tuiles, même lorsque
 son état n’appartient plus à la branche d’historique courante. Couverture, source,
 destination et mélange sont régionaux. Les versions mappées restent utilisables
-après vidage du cache. La variante artistique conserve encore son chemin distinct.
+après vidage du cache.
+
+La variante artistique conserve également source, destination et couverture en
+tuiles. Une petite région source fournit les couleurs et gradients du groupe de
+touches ; la même dispersion déterministe est peinte dans les tuiles concernées.
+La tolérance et le mélange restent locaux. Les deux variantes couleur restent
+limitées aux documents 8 bits.
 
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.

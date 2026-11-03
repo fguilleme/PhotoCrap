@@ -73,6 +73,11 @@ continue à lire la destination déjà modifiée pendant le geste. L’échantil
 de tous les calques prépare encore un composite complet une fois ; le traitement
 des plans couleur reste limité aux documents 8 bits, comme auparavant.
 
+Remplacement de couleur conserve sa source en tuiles et sa couverture maximale
+par pixel dans une couverture tuilée. Chaque empreinte lit et remplace son seul
+rectangle ; les règles d’échantillonnage, de tolérance, de contiguïté et de recherche
+des contours restent identiques. Cet outil reste limité aux plans couleur 8 bits.
+
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
 Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par

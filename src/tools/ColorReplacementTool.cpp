@@ -102,13 +102,14 @@ void Document::setReplacementAntialias(bool _value)
 
 void Document::colorReplacementDab(const QPointF &_point)
 {
-    QImage *target = paintTarget();
-    if (!target || m_strokeBase.isNull() || m_editingMask)
+    if (m_strokePlaneBase.isNull() || m_editingMask)
         return;
     const QPoint center(qFloor(_point.x()), qFloor(_point.y()));
-    if (!m_strokeBase.rect().contains(center))
+    if (!QRect(QPoint{}, m_size).contains(center))
         return;
-    const QColor sample = m_replacementSampling == 0   ? m_strokeBase.pixelColor(center)
+    const QPoint stored = m_strokePlaneBase.size() == QSize(1, 1) ? QPoint{} : center;
+    const QColor sample = m_replacementSampling == 0
+                              ? m_strokePlaneBase.pixelColor(stored.x(), stored.y())
                           : m_replacementSampling == 1 ? m_replacementSample
                                                        : m_secondary;
     if (!sample.isValid() || sample.alpha() == 0)
@@ -117,16 +118,22 @@ void Document::colorReplacementDab(const QPointF &_point)
     QRect       region =
         QRectF(_point.x() - radius - 2, _point.y() - radius - 2, 2 * radius + 4, 2 * radius + 4)
             .toAlignedRect()
-            .intersected(target->rect());
+            .intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
     // Sampling and colour calculations read the original pixels throughout a
     // gesture. Only the brush-sized patch is copied or visited on each dab.
-    const QImage base = m_strokeBase.copy(region).convertToFormat(QImage::Format_ARGB32);
+    const QImage base = m_strokePlaneBase.region(region).convertToFormat(QImage::Format_ARGB32);
     QImage       tip  = ImageUtils::blank(region.size());
-    QPainter     brush(&tip);
+    QImage       coveragePatch = m_tiledStrokeCoverage.region(region);
+    QImage       output        = m_layers[m_active].image.region(region);
+    if (base.isNull() || tip.isNull() || coveragePatch.isNull() || output.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
+    QPainter brush(&tip);
     brush.setRenderHint(QPainter::Antialiasing, m_replacementAntialias);
     brush.translate(_point - region.topLeft());
     brush.rotate(m_brushAngle);
@@ -184,11 +191,10 @@ void Document::colorReplacementDab(const QPointF &_point)
     const Color ink = channels(m_strokeInkColor.rgb());
     QRect       touched;
     for (int y = 0; y < height; ++y) {
-        const auto *src  = reinterpret_cast<const QRgb *>(base.constScanLine(y));
-        const auto *mask = reinterpret_cast<const QRgb *>(tip.constScanLine(y));
-        auto       *coverage =
-            reinterpret_cast<QRgb *>(m_strokeCoverage.scanLine(region.y() + y)) + region.x();
-        auto *dst = reinterpret_cast<QRgb *>(target->scanLine(region.y() + y)) + region.x();
+        const auto *src      = reinterpret_cast<const QRgb *>(base.constScanLine(y));
+        const auto *mask     = reinterpret_cast<const QRgb *>(tip.constScanLine(y));
+        auto       *coverage = reinterpret_cast<QRgb *>(coveragePatch.scanLine(y));
+        auto       *dst      = reinterpret_cast<QRgb *>(output.scanLine(y));
         for (int x = 0; x < width; ++x) {
             if (!connected.testBit(y * width + x))
                 continue;
@@ -231,8 +237,19 @@ void Document::colorReplacementDab(const QPointF &_point)
             touched = touched.united(QRect(region.topLeft() + QPoint(x, y), QSize(1, 1)));
         }
     }
+    if (!m_tiledStrokeCoverage.paintTransient(region, [&](QPainter &p) {
+            p.setCompositionMode(QPainter::CompositionMode_Source);
+            p.drawImage(region.topLeft(), coveragePatch);
+        })) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     if (touched.isEmpty())
         return;
+    if (!m_layers[m_active].image.writeRegion(region.topLeft(), output, m_size)) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(touched) : m_strokeBounds.united(touched);
     if (!m_fullCompositeDirty)
         m_dirtyRegion = m_dirtyRegion.isEmpty() ? touched : m_dirtyRegion.united(touched);

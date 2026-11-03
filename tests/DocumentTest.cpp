@@ -4233,6 +4233,88 @@ private slots:
         QVERIFY(d.layerImage(0).pixelColor(16, 12) != original);
         QCOMPARE(d.layerImage(0).pixelColor(10, 6), image.pixelColor(10, 6));
     }
+    void replacementAllocatesOnlyTouchedTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.setColor(Qt::red);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto original = d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30});
+        d.setTool("colorReplacement");
+        d.setColor(Qt::blue);
+        const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.beginStroke(100, 100);
+        d.continueStroke(110, 110);
+        const auto usage = d.memoryUsage();
+        QVERIFY(usage["strokeCoverageTiles"].toInt() > 0);
+        QVERIFY(usage["strokeCoverageBytes"].toLongLong() <= 256LL * 256 * 4);
+        QVERIFY(usage["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 4);
+        d.endStroke();
+        const auto after = d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30});
+        QVERIFY(after != original);
+        d.undo();
+        QCOMPARE(d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30}), original);
+        d.redo();
+        QCOMPARE(d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30}), after);
+        QCOMPARE(errors.size(), 0);
+    }
+    void replacementTileBoundariesKeepSamplingAndLimits()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage image(523, 531, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(
+                    x, y,
+                    QColor(140 + x % 60, 70 + y % 50, 40 + (x + y) % 40, 150 + (x * 3 + y) % 106));
+        const auto url = QUrl::fromLocalFile(directory.filePath("replacement.png"));
+        QVERIFY(image.save(url.toLocalFile()));
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int mode = 0; mode < 4; ++mode)
+            for (int sampling = 0; sampling < 3; ++sampling)
+                for (int limits = 0; limits < 3; ++limits) {
+                    Document d;
+                    QVERIFY(d.openFile(url));
+                    const auto before = d.layerImage(0);
+                    d.setTool("select");
+                    d.beginStroke(245, 244);
+                    d.continueStroke(283, 280);
+                    d.endStroke();
+                    d.modifySelection("feather", 2);
+                    d.setTool("colorReplacement");
+                    d.setColor(QColor(21, 67, 189));
+                    d.setSecondaryColor(before.pixelColor(253, 251));
+                    d.setReplacementMode(mode);
+                    d.setReplacementSampling(sampling);
+                    d.setReplacementLimits(limits);
+                    d.setReplacementTolerance(70);
+                    d.setBrushSize(25);
+                    d.setBrushHardness(.54);
+                    d.setBrushSmoothing(0);
+                    d.beginStroke(253.25, 251.75);
+                    d.continueStroke(269.5, 266.25);
+                    d.endStroke();
+                    const auto after = d.layerImage(0);
+                    QVERIFY(after != before);
+                    for (const QRect &outside : QRegion(after.rect()) - QRegion(235, 233, 50, 50))
+                        QCOMPARE(after.copy(outside), before.copy(outside));
+                    pixels.addData(QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                                  after.sizeInBytes()));
+                    d.undo();
+                    QCOMPARE(d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(d.layerImage(0), after);
+                    d.beginStroke(260, 260);
+                    d.cancelStroke();
+                    QCOMPARE(d.layerImage(0), after);
+                }
+        qInfo() << "Replacement pixels, 36 combinations" << pixels.result().toHex();
+    }
     void smudgeTransportsPaintOnlyAlongTheStrokeAndRemainsUndoable()
     {
         Document d;

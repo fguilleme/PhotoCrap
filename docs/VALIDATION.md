@@ -1,5 +1,14 @@
 # Validation
 
+## Remplacement de couleur régional — 3 novembre 2026
+
+Les 36 combinaisons de quatre modes, trois échantillonnages et trois limites
+produisent la même empreinte de pixels avant/après migration, sur le même Qt.
+Le geste traverse les deux axes de tuiles avec une sélection progressive et de
+la transparence ; pixels extérieurs, Annuler/Rétablir et annulation sont vérifiés.
+Le scénario 24 Mpx/8 bits vérifie pendant le geste au plus une tuile de 256 Kio
+de couverture et une tuile supplémentaire pour le plan, puis l’historique.
+
 ## Doigt régional — 3 novembre 2026
 
 Les empreintes des pixels avant/après migration sont identiques pour le plan

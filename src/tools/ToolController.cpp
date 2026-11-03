@@ -224,11 +224,12 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_redEyeRegion = {};
         emit redEyeRegionChanged();
     } else if (isPaintStrokeTool(m_tool)) {
-        const bool regionalPaint =
-            m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser" || m_tool == "blur" ||
-            m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" || m_tool == "sponge" ||
-            m_tool == "cloneStamp" || m_tool == "patternStamp" || m_tool == "smudge";
-        QImage *target = regionalPaint ? nullptr : paintTarget();
+        const bool regionalPaint = m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser" ||
+                                   m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" ||
+                                   m_tool == "burn" || m_tool == "sponge" ||
+                                   m_tool == "cloneStamp" || m_tool == "patternStamp" ||
+                                   m_tool == "smudge" || m_tool == "colorReplacement";
+        QImage    *target        = regionalPaint ? nullptr : paintTarget();
         if (!regionalPaint && !target) {
             m_drawing = false;
             return;
@@ -257,8 +258,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_strokeInkColor = m_color;
         if (m_tool == "colorReplacement") {
             const QPoint sample(int(std::floor(_x)), int(std::floor(_y)));
-            m_replacementSample =
-                target->rect().contains(sample) ? target->pixelColor(sample) : QColor{};
+            const QPoint stored = m_strokePlaneBase.size() == QSize(1, 1) ? QPoint{} : sample;
+            m_replacementSample = QRect(QPoint{}, m_size).contains(sample)
+                                      ? m_strokePlaneBase.pixelColor(stored.x(), stored.y())
+                                      : QColor{};
         }
         if (m_tool == "pencil" && m_pencilAutoErase &&
             QRect(QPoint{}, m_size).contains(QPoint(int(_x), int(_y))) &&

@@ -121,8 +121,6 @@ QImage Document::compositeRegion(const QRect &_region) const
                 return !_plane.isNull() && _plane.tileImage(0, 0).devicePixelRatio() != 1.;
             };
             return requiresFullComposite(_layer) || _layer.kind.startsWith("frequency") ||
-                   (_layer.maskEnabled && !_layer.mask.isNull() &&
-                    _layer.parameters.value("_maskFeather").toDouble() >= .5) ||
                    scaled(_layer.image) || scaled(_layer.source) ||
                    (_layer.maskEnabled && scaled(_layer.mask));
         });
@@ -241,13 +239,22 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                            ? ImageUtils::expandedPlane(layer.image, _region.size())
                            : layer.image.region(_region);
         if (layer.maskEnabled && !layer.mask.isNull()) {
-            const qreal  density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
-            const qreal  feather = layer.parameters.value("_maskFeather", 0.).toDouble();
-            const QImage maskRegion = ImageUtils::compact(layer.mask) ? QImage(layer.mask)
-                                      : feather >= .5
-                                          ? regionImage(blurImage(layer.mask, qRound(feather)))
-                                          : layer.mask.region(_region);
-            rendered                = applyMask(rendered, maskRegion, density, 0);
+            const qreal density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
+            const qreal feather = layer.parameters.value("_maskFeather", 0.).toDouble();
+            QImage      maskRegion;
+            if (ImageUtils::compact(layer.mask))
+                maskRegion = QImage(layer.mask);
+            else if (feather >= .5) {
+                const int    radius     = qBound(1, qRound(feather), 100);
+                const QRect  maskBounds = expanded(_region, radius, QRect(QPoint{}, m_size));
+                const QImage blurred    = blurImage(layer.mask.region(maskBounds), radius);
+                maskRegion = maskBounds == _region
+                                 ? blurred
+                                 : blurred.copy(QRect(_region.topLeft() - maskBounds.topLeft(),
+                                                      _region.size()));
+            } else
+                maskRegion = layer.mask.region(_region);
+            rendered = applyMask(rendered, maskRegion, density, 0);
         }
         if (layer.clippingMask) {
             if (clippingBase.isNull())

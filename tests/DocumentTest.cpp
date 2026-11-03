@@ -8534,6 +8534,80 @@ private slots:
         QVERIFY(qAbs(d.composite().pixelColor(12, 12).red() - original.pixelColor(12, 12).red()) <=
                 1);
     }
+    void featheredMasksRegionalDigest()
+    {
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (int feather : {1, 7, 40, 100})
+                for (int density : {27, 100}) {
+                    Document d;
+                    QVERIFY(d.newDocument(517, 523, false, bits));
+                    d.addLayer();
+                    d.setColor(QColor::fromRgba64(43210, 12345, 56789, 34567));
+                    d.fillWithColor(true);
+                    d.setLayerOpacity(1, .63);
+                    d.setLayerBlend(1, 8);
+                    d.addLayerMask();
+                    d.setBrushSize(81);
+                    d.setBrushHardness(.7);
+                    d.setColor(Qt::black);
+                    for (QPoint point : {QPoint(0, 0), QPoint(255, 255), QPoint(516, 522)}) {
+                        d.beginStroke(point.x(), point.y());
+                        d.endStroke();
+                    }
+                    d.previewLayerParameter("_maskDensity", density);
+                    d.previewLayerParameter("_maskFeather", feather);
+                    d.finishLayerPreview();
+                    const QImage reference = d.composite();
+                    d.setBrushSize(13);
+                    d.beginStroke(320, 311);
+                    d.endStroke();
+                    const QImage partial = d.composite();
+                    d.setLayerVisible(1, false);
+                    d.setLayerVisible(1, true);
+                    QCOMPARE(d.composite(), partial);
+                    for (const QImage &image : {reference, partial})
+                        for (int y = 0; y < image.height(); ++y)
+                            hash.addData(QByteArrayView(
+                                reinterpret_cast<const char *>(image.constScanLine(y)),
+                                image.width() * image.depth() / 8));
+                    for (const QRect region :
+                         {QRect(0, 0, 19, 23), QRect(247, 245, 31, 29), QRect(503, 505, 14, 18)}) {
+                        d.setLayerVisible(1, false);
+                        d.setLayerVisible(1, true);
+                        QCOMPARE(d.compositeRegion(region), partial.copy(region));
+                    }
+                }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("06919da73b9e9e92e8328a5f41ef123953e032e7290fe75e88a73b6d37f15c44"));
+    }
+    void largeFeatheredMaskRegionProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_FEATHER_REGION_PROBE"))
+            QSKIP("Set PHOTOCRAP_FEATHER_REGION_PROBE=1 to measure 24 MP feathered-mask sampling.");
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.addLayerMask();
+        d.setBrushSize(35);
+        d.setColor(Qt::black);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        d.previewLayerParameter("_maskFeather", 12.);
+        d.finishLayerPreview();
+        QElapsedTimer timer;
+        timer.start();
+        const QImage sample  = d.compositeRegion({80, 80, 101, 101});
+        const auto   elapsed = timer.nsecsElapsed();
+        QVERIFY(!sample.isNull());
+        const auto digest = QCryptographicHash::hash(
+            QByteArrayView(reinterpret_cast<const char *>(sample.constBits()),
+                           sample.sizeInBytes()),
+            QCryptographicHash::Sha256);
+        QCOMPARE(digest.toHex(),
+                 QByteArray("71da737a76aaf3e21ed9b09234dc56dfab99f380cdb2dab345996b1531729417"));
+        qInfo() << "24 MP / 16-bit feathered-mask sample (ns):" << elapsed;
+    }
+
     void compositeRegionMatchesFullRender_data()
     {
         QTest::addColumn<int>("bits");
@@ -8611,8 +8685,8 @@ private slots:
         for (const QRect &region : regions)
             samples.append(d.compositeRegion(region));
         QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
-        const bool fallback = mode == 1 || effect == "maskFeather" || effect == "frequency" ||
-                              effect == "mosaic" || effect == "noise";
+        const bool fallback =
+            mode == 1 || effect == "frequency" || effect == "mosaic" || effect == "noise";
         if (!fallback)
             QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
         const QImage reference = d.composite();

@@ -1,5 +1,28 @@
 # Validation
 
+## Contours progressifs de masque régionaux — 3 novembre 2026
+
+La référence native avant modification couvre 16 piles : 8/16 bits, rayons
+1/7/40/100 et densités 27/100 %, masque peint aux bords et aux frontières de
+tuiles, couleur translucide, opacité et mode de fusion. Le rendu après retouche
+locale est égal au rendu intégral ; les prélèvements régionaux correspondent aussi
+aux pixels intégraux. Le digest des rendus reste identique :
+`06919da73b9e9e92e8328a5f41ef123953e032e7290fe75e88a73b6d37f15c44`.
+
+Sonde locale Qt 6.12, 24 Mpx/16 bits, contour de rayon 12 : une lecture 101² passe
+de 297 ms à 0,45 ms. Digest inchangé :
+`71da737a76aaf3e21ed9b09234dc56dfab99f380cdb2dab345996b1531729417`.
+Les tests du compositeur contrôlent maintenant que ce cas conserve le cache
+d’affichage. Aucun seuil de durée n’est imposé aux tests.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_FEATHER_REGION_PROBE=1 build/photocrap_tests \
+  featheredMasksRegionalDigest largeFeatheredMaskRegionProbe \
+  compositeRegionMatchesFullRender compositeUpdateBounds
+```
+
+
 ## Recherche régionale de Sélection rapide — 3 novembre 2026
 
 Référence relevée avant modification sur 96 gestes : documents 8/16 bits,

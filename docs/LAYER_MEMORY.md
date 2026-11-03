@@ -103,9 +103,17 @@ uniquement la zone prélevée, avec la somme des halos des filtres spatiaux, san
 remplacer le cache d’affichage ni effacer ses zones invalidées. Le moteur est
 commun au rendu complet et régional. Les pipettes de Courbes et les lectures de
 couleur des réglages utilisent aussi cette voie pour leur pixel natif, avec les
-mêmes coordonnées bornées aux limites du document. Dissoudre, bruit, mosaïque, fréquences,
-masques à contour progressif, prévisualisations provisoires et plans à DPR non
-unitaire conservent le repli complet pour préserver leurs coordonnées et pixels.
+mêmes coordonnées bornées aux limites du document. Dissoudre, bruit, mosaïque,
+fréquences, prévisualisations provisoires et plans à DPR non unitaire conservent
+le repli complet pour préserver leurs coordonnées et pixels.
+
+Le contour progressif d’un masque natif est flouté uniquement sur la région
+nécessaire, augmentée du rayon de voisinage puis recadrée. Les vrais bords du
+document conservent la même extension que le flou complet. Cette voie sert aux
+petites recompositions après retouche et aux lectures régionales des outils ;
+un rendu intégral calcule toujours le masque intégral. Densité, précision des
+couleurs et masques compacts restent identiques. Les contours progressifs peuvent
+donc aussi être lus régionalement ; leur affichage de pile reste sur le repli CPU.
 
 Le tampon de duplication conserve une pile native immuable au début du geste pour
 les modes « calque actif et inférieurs » et « tous les calques ». Seules les

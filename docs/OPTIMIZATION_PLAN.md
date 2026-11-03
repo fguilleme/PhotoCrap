@@ -7,6 +7,8 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Collecte des plans de l’historique déplacée dans le worker ; la GUI
+  capture seulement les groupes partagés, plans nuls/compacts ignorés.
 - [x] Déchargements disque annulables entre tuiles ; tâches caduques arrêtées
   sur changement de document, de cache ou de budget, et à la destruction.
 - [x] Budget RAM capturé par le worker et déchargement des plans préparés

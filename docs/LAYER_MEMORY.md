@@ -67,6 +67,14 @@ contrôle. Les mappings déjà créés gardent leurs leases, pixels et identifia
 versions. La préparation des conversions/imports/décodages transmet aussi son
 jeton, afin de ne pas finir inutilement le plan entier après une annulation.
 
+La collecte du déchargement capture sur la GUI uniquement les vecteurs de calques
+partagés de l’état actif, d’Annuler/Rétablir et de la source de forme d’historique.
+Le worker parcourt ces groupes immuables, ignore plans nuls/compacts et compte les
+blocs uniques. L’ordre de préférence des anciennes versions reste identique.
+Une modification après capture produit de nouvelles versions sans changer le
+travail en attente : une tuile nouvellement peinte reste en RAM jusqu’à la
+prochaine collecte, tandis que les anciennes versions peuvent être déchargées.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

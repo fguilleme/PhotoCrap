@@ -35,6 +35,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Déchargement du cache annulable entre tuiles ; abandon des tâches
   devenues caduques et conservation des mappings déjà créés.
 
+- [x] Collecte du cache hors du thread de l’interface, sur groupes immuables
+  de calques/historique, sans parcourir tous leurs plans lors du timer GUI.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

@@ -1,5 +1,15 @@
 # Validation
 
+## Collecte des groupes du cache sur worker — 3 novembre 2026
+
+Le timer GUI capture les vecteurs de calques partagés sans développer leurs plans.
+Un test bloque la file de travail, attend la collecte, puis peint une nouvelle
+tuile avant de libérer le worker. Les groupes capturés déchargent les anciennes
+versions ; les trois tuiles inchangées sont partagées et la nouvelle tuile de
+256 Kio reste en RAM jusqu’à la prochaine collecte. Annuler/Rétablir conserve
+les pixels attendus. La suite Opérations compte 117 réussites et cinq sondes
+optionnelles. Aucun seuil artificiel de latence n’est imposé aux machines CI.
+
 ## Annulation des écritures du cache — 3 novembre 2026
 
 En ARGB32/RGBA64 prémultiplié et Gray8, un arrêt avant écriture ne crée pas de

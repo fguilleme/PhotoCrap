@@ -40,6 +40,8 @@ Le chargement applique également ce budget entre les plans décodés. Le cache 
 
 Les écritures du cache peuvent être arrêtées entre deux tuiles. Changer de document, de dossier de cache ou de budget abandonne les tâches devenues caduques ; les tuiles déjà mappées restent valides. Les annulations de conversion/import/décodage utilisent aussi ce contrôle.
 
+Le timer du cache ne parcourt plus chaque plan de chaque état d’historique sur l’interface : il capture les groupes de calques partagés, puis le worker collecte les plans utiles et ignore les plans nuls ou compacts.
+
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
 Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.

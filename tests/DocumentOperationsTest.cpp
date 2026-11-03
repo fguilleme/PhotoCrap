@@ -81,6 +81,46 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void queuedOffloadGroupsStayImmutableWhileTheDocumentIsPainted()
+    {
+        QTemporaryDir directory;
+        const auto    input = QUrl::fromLocalFile(directory.filePath("source.png"));
+        QImage        pixels(512, 512, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < pixels.height(); ++y)
+            for (int x = 0; x < pixels.width(); ++x)
+                pixels.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+        QVERIFY(pixels.save(input.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(input));
+        const auto                    original = d.gpuLayerStack();
+        const auto                    before   = d.composite();
+        PhotoCrap::Render::LayerStack painted;
+        {
+            BlockPool blocked;
+            d.configureScratchCache(directory.filePath("cache"), 64LL * 1024 * 1024);
+            d.configurePlaneRamMiB(0);
+            QTest::qWait(650);
+            d.setTool("brush");
+            d.setColor(Qt::red);
+            d.setBrushSize(12);
+            d.setBrushHardness(1);
+            d.setBrushSmoothing(0);
+            d.beginStroke(100, 100);
+            d.endStroke();
+            painted = d.gpuLayerStack();
+            QVERIFY(painted.layers.first().image.cacheKey() !=
+                    original.layers.first().image.cacheKey());
+        }
+        // The worker walks its captured groups, not the now-painted live layers.
+        QCOMPARE(original.layers.first().image.tiles().heapBytes(), qint64(0));
+        QCOMPARE(painted.layers.first().image.tiles().heapBytes(), 256LL * 256 * 4);
+        const auto after = painted.layers.first().image.region({0, 0, 512, 512});
+        QVERIFY(after != before);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+        d.redo();
+        QCOMPARE(d.composite(), after);
+    }
     void staleQueuedOffloadsStopWhenTheirContextChanges_data()
     {
         QTest::addColumn<QString>("action");

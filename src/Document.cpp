@@ -80,25 +80,30 @@ Document::Document(QObject *_parent) : QObject(_parent)
         const auto cache = m_scratchCache;
         if (!cache || cache->options().maxBytes <= 0)
             return;
-        QVector<PixelPlane> planes;
-        const auto          collect = [&](const QVector<Layer> &layers) {
-            for (const auto &layer : layers) {
-                planes.append(layer.image);
-                planes.append(layer.mask);
-                planes.append(layer.source);
-            }
-        };
-        collect(m_layers);
+        // Copy only implicitly shared layer groups on the GUI thread. Walking
+        // every plane in every undo/redo state belongs to the offload worker.
+        QVector<QVector<Layer>> groups;
+        groups.reserve(2 + m_undo.size() + m_redo.size());
+        groups.append(m_layers);
         for (const auto &state : m_undo)
-            collect(state.layers);
+            groups.append(state.layers);
         for (const auto &state : m_redo)
-            collect(state.layers);
-        collect(m_historyBrushSource.layers);
+            groups.append(state.layers);
+        groups.append(m_historyBrushSource.layers);
         const qint64 budget  = qint64(m_planeRamMiB) * 1024 * 1024;
         const auto   cancel  = std::make_shared<std::atomic_bool>(false);
         m_planeOffloadCancel = cancel;
         m_planeOffloadWatcher.setFuture(
-            QtConcurrent::run([cache, budget, cancel, planes = std::move(planes)] {
+            QtConcurrent::run([cache, budget, cancel, groups = std::move(groups)] {
+                QVector<PixelPlane> planes;
+                for (const auto &layers : groups)
+                    for (const auto &layer : layers) {
+                        if (cancel->load())
+                            return;
+                        for (const PixelPlane *plane : {&layer.image, &layer.mask, &layer.source})
+                            if (!plane->isNull() && !ImageUtils::compact(*plane))
+                                planes.append(*plane);
+                    }
                 QHash<qint64, qint64> blocks;
                 for (const auto &plane : planes) {
                     if (cancel->load())

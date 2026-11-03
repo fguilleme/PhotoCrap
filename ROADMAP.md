@@ -12,6 +12,8 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   sources composées des pinceaux, tampons et correcteurs figées par geste.
   Sélection rapide, contours progressifs des masques et copie de sélection régionaux,
   avec anciennes versions et masques conservés par Annuler/Rétablir.
+- [x] Références de pixels spécifiques aux filtres Accelerate/portables, comparées
+  au rendu intégral ; option CMake pour contrôler le chemin portable sur Mac.
 - [x] Séparation de fréquences partageant la source native non masquée, sans copie
   complète supplémentaire ; retouches ultérieures isolées par versions de tuiles.
 - [x] Ouverture d’images/projets/RAW et préparation des imports sur worker,

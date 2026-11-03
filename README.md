@@ -90,7 +90,7 @@ CMake télécharge les sources LibRaw et zlib épinglées et vérifie leurs SHA-
 
 ## Compilation
 
-Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs, QtQuick.Shapes et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; chaque binaire doit être compilé avec le kit Qt de sa plateforme.
+Prérequis : CMake ≥ 3.24, compilateur C++20 et **Qt ≥ 6.5** avec Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools et Test (pour les tests). Les modules QML QtQuick.Dialogs, QtQuick.Shapes et QtQml.Models sont également nécessaires. Qt Image Formats ajoute notamment WebP et TIFF. Le flou utilise Accelerate/vImage sur macOS et Qt Concurrent sur les autres plateformes ; `-DPHOTOCRAP_ENABLE_ACCELERATE=OFF` permet de tester ce chemin portable sur Mac. Les références de tests suivent le backend sélectionné. Chaque binaire doit être compilé avec le kit Qt de sa plateforme.
 
 ### macOS
 

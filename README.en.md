@@ -80,7 +80,7 @@ See the [layer and memory guide](docs/LAYER_MEMORY.md), [GPU formats and fallbac
 
 ## Building
 
-Requirements: CMake ≥ 3.24, a C++20 compiler, and **Qt ≥ 6.5** with Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools, and Test (for tests). The QtQuick.Dialogs, QtQuick.Shapes, and QtQml.Models QML modules are also required. Qt Image Formats adds formats including WebP and TIFF. Blur uses Accelerate/vImage on macOS and Qt Concurrent on other platforms; each binary must be built with the Qt kit for its target platform.
+Requirements: CMake ≥ 3.24, a C++20 compiler, and **Qt ≥ 6.5** with Core, Gui, Concurrent, Qml, Quick, QuickControls2, ShaderTools, LinguistTools, and Test (for tests). The QtQuick.Dialogs, QtQuick.Shapes, and QtQml.Models QML modules are also required. Qt Image Formats adds formats including WebP and TIFF. Blur uses Accelerate/vImage on macOS and Qt Concurrent on other platforms; `-DPHOTOCRAP_ENABLE_ACCELERATE=OFF` tests the portable path on Mac. Test references follow the selected backend. Each binary must be built with the Qt kit for its target platform.
 
 ### macOS
 

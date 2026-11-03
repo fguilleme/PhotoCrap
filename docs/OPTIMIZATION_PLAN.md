@@ -3,7 +3,9 @@
 Travail demandé le 2 novembre 2026 : réaliser les cinq chantiers ci-dessous dans l’ordre, avec
 commits distincts et validation avant chaque livraison. Les cinq bases sont désormais
 implémentées ; les cases cochées décrivent leur périmètre validé. Les essais matériels encore
-indisponibles sont laissés explicitement ouverts.
+indisponibles sont laissés explicitement ouverts. Les filtres CPU sont contrôlés
+avec Accelerate et avec leur chemin portable ; leurs arrondis préexistants ont des
+références séparées et les lectures régionales sont comparées au rendu intégral.
 
 ## 1. Plans éditables et historique par tuiles
 

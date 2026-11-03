@@ -1,5 +1,44 @@
 # Validation
 
+## Références des deux chemins CPU — 3 novembre 2026
+
+Les références relevées sur Accelerate ne sont pas toutes celles du flou de boîte
+portable : leurs arrondis étaient déjà différents. Six digests de la série ont
+été vérifiés sur le chemin portable, puis comparés à une variante de référence
+qui prélève chaque source composée sur l’image intégrale et utilise l’ancien
+flou global des masques. Les pixels régionaux sont identiques à cette référence.
+Les comparaisons de cache et d’historique restent également actives dans les
+suites normales ; aucun test n’est ignoré pour cette différence de backend.
+
+| Cas | SHA-256 du chemin portable |
+|---|---|
+| Tampon | `4e9144d74453c0546afde97b06f273757033eb93ae831eee49a4219fe999da34` |
+| Doigt | `252c539838bd1b2d888a71c3d725c1890c7dacc9dc7947497883c6c8d0825ad4` |
+| Mélangeur | `96907b36823647dd022699c833614511df6f71f5d3e8ff899dc25ca4e2297d5c` |
+| Copie sélectionnée | `fba56b9c727d606f5ac31b5831999b03a4e9e7314f4c15672df73f92376bfef9` |
+| Sélection rapide | `668592579e0d8efb126cf66b5c9357783a185dbc78d05c5ec7eb9e3124b1faa8` |
+| Sources de fréquences | `36170c0ebf9a9e6e2ab623ae60a5930c8c32f18255c09337de74f44c09e79d30` |
+
+`PHOTOCRAP_ENABLE_ACCELERATE` vaut ON par défaut ; sur les plateformes sans
+Accelerate, le chemin portable et ses références restent toujours utilisés.
+Sur Mac, OFF permet de reconstruire et contrôler ce chemin entièrement :
+
+```sh
+cmake -S . -B build-portable -DCMAKE_BUILD_TYPE=Release -DPHOTOCRAP_ENABLE_ACCELERATE=OFF
+cmake --build build-portable --parallel 8
+ctest --test-dir build-portable -E '^macos_' --parallel 2 --output-on-failure
+```
+
+Résultats locaux Qt 6.12 : 50/50 suites avec Accelerate, puis 50/50 sans
+Accelerate ; les suites Document/Sélection/QML ont aussi été relancées après
+l’ajout du contrôle de copie progressive. Dix cas ciblés de références et de
+copie passent sous Qt 6.8. Les essais Cocoa/Metal des opérations et de la pile
+complètent cette validation.
+
+Cela vérifie le code CPU portable sur ce Mac, sans remplacer les essais physiques
+Linux/Windows, Vulkan/Direct3D et VRAM encore ouverts.
+
+
 ## Source native partagée des fréquences — 3 novembre 2026
 
 La référence avant modification couvre 8 scénarios en 8/16 bits, masque absent,
@@ -48,16 +87,22 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 ## Copie régionale des sélections — 3 novembre 2026
 
 Référence avant modification sur 24 copies : 8/16 bits, rectangle/ellipse,
-couverture dure/progressive, pile simple/flou/bruit, transparence et fusion.
+pile simple/flou/bruit, transparence et fusion. Une demande de contour progressif
+encore en file est annulée lors du changement de source, comme auparavant.
 Le digest des pixels natifs du presse-papiers reste identique :
 `c775db53fad8e01d5fbf270fbed9745d586c59884cd1aac2dd050eed1bdcb77c`.
 La visualisation d’un canal n’altère pas les couleurs copiées. L’historique est
 inchangé, le cache d’affichage reste intact pour les piles compatibles et Copier
 sans sélection conserve le composite complet. Tests exécutés avec le presse-papiers
 virtuel du backend offscreen, sans remplacer celui de la session utilisateur.
+Un contrôle distinct attend réellement la fin du contour progressif et vérifie la
+présence de valeurs intermédiaires dans son masque : huit copies 8/16 bits,
+rectangle/ellipse et flou/bruit sont ensuite comparées au prélèvement sur l’image
+intégrale, avec leur forme et leur couverture exactes.
 
 ```sh
-QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/photocrap_tests selectedClipboardDigest
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/photocrap_tests \
+  selectedClipboardDigest featheredClipboardMatchesWholeImageReference
 ```
 
 

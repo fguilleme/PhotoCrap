@@ -41,6 +41,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] RAW : développement, tuilage, centrage, promotion des calques et cache
   préparés sur worker ; snapshot prêt à afficher/appliquer, tampon décodeur libéré.
 
+- [x] Chargements de remplacement sans rétention des anciennes tuiles dans
+  la tâche, avec contrôle de session/état et snapshots d’édition inchangés.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

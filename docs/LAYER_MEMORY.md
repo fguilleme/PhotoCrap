@@ -87,6 +87,13 @@ caduc rejette le snapshot préparé. Les allocations internes courantes de LibRa
 et son image développée restent nécessaires pendant le calcul et hors du budget
 des tuiles ; certains appels peuvent finir après la demande d’annulation.
 
+Les tâches qui ouvrent un fichier de remplacement ne capturent pas les anciens
+plans du document ; seuls les identifiants de session/état restent nécessaires
+pour rejeter un résultat périmé. Après annulation et remplacement du document,
+ces tâches ne prolongent donc pas la vie de ses tuiles. Les éditions, sauvegardes
+et exports conservent leur capture indispensable. Le répartiteur force cette
+capture pour les éditions, même si un appelant lui demandait de l’omettre.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

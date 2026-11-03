@@ -152,7 +152,7 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
 }
 bool Document::deferOperation(const QString &_label, qint64 _cost,
                               std::function<void(Document &)> _work, bool _mayRemoveMask,
-                              std::function<void()> _completed)
+                              std::function<void()> _completed, bool _captureCurrent)
 {
     if (m_backgroundWorker || _cost < m_backgroundEditThreshold)
         return false;
@@ -171,16 +171,17 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
                 emit operationChanged();
         });
     }
-    const auto state    = m_backgroundOperation;
-    state->before       = snapshot(_label);
-    state->label        = _label;
-    state->session      = m_documentSession;
-    state->state        = m_stateId;
-    state->task         = std::make_shared<BackgroundOperation::Task>();
-    state->busy         = true;
-    const auto   task   = state->task;
-    const auto   before = state->before;
-    const auto   tool   = m_tool;
+    const auto state          = m_backgroundOperation;
+    const bool captureCurrent = _captureCurrent || !_completed;
+    state->before             = captureCurrent ? snapshot(_label) : Snapshot{};
+    state->label              = _label;
+    state->session            = m_documentSession;
+    state->state              = m_stateId;
+    state->task               = std::make_shared<BackgroundOperation::Task>();
+    state->busy               = true;
+    const auto   task         = state->task;
+    const auto   before       = state->before;
+    const auto   tool         = m_tool;
     const QColor color = m_color, secondary = m_secondary;
     const auto   scratch     = m_scratchCache;
     const int    planeRamMiB = m_planeRamMiB;
@@ -248,7 +249,7 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
     // captures the live Document; closing/changing it never waits for this task.
     QThreadPool::globalInstance()->start(
         [promise, task, before, tool, color, secondary, scratch, planeRamMiB,
-         _work = std::move(_work), _mayRemoveMask, readOnly]() mutable {
+         _work = std::move(_work), _mayRemoveMask, readOnly, captureCurrent]() mutable {
             Result result;
             if (!task->cancelled.load()) {
                 try {
@@ -263,7 +264,8 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
                     renderer.m_tool      = tool;
                     renderer.m_color     = color;
                     renderer.m_secondary = secondary;
-                    renderer.restore(before);
+                    if (captureCurrent)
+                        renderer.restore(before);
                     renderer.m_historyBrushSource = {};
                     renderer.m_undo.clear();
                     renderer.m_redo.clear();

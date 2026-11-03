@@ -44,6 +44,8 @@ Le timer du cache ne parcourt plus chaque plan de chaque état d’historique su
 
 Le worker RAW prépare maintenant aussi les tuiles, le centrage et la promotion de profondeur à l’import, avec le budget de cache capturé. L’interface reçoit un état prêt à afficher ou à appliquer en une seule étape d’historique ; le tampon du décodeur n’est pas conservé dans le résultat.
 
+L’ouverture d’un fichier de remplacement ne capture plus les anciens plans du document dans la tâche. Après annulation et changement de document, celle-ci ne retient donc pas inutilement leurs pixels ; sauvegarde, export et éditions gardent les snapshots dont ils ont besoin.
+
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
 Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.

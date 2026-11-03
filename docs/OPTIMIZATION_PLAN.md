@@ -7,6 +7,8 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Ouvertures de remplacement sans capture des anciens plans, session/état
+  toujours contrôlés ; snapshots requis conservés pour éditions, save/export.
 - [x] Collecte des plans de l’historique déplacée dans le worker ; la GUI
   capture seulement les groupes partagés, plans nuls/compacts ignorés.
 - [x] Déchargements disque annulables entre tuiles ; tâches caduques arrêtées

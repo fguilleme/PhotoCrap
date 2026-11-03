@@ -44,6 +44,8 @@ The cache timer no longer walks every plane in every history state on the interf
 
 The RAW worker now also prepares tiles, centering and import bit-depth promotion using the captured cache budget. The interface receives a ready snapshot to display or commit in one history entry; the decoder buffer is not retained in the result.
 
+Opening a replacement file no longer captures the previous document’s planes in the task. After cancellation and a document change, the task does not needlessly retain their pixels; saving, exporting and edits keep their required snapshots.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

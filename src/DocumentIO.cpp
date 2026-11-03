@@ -130,7 +130,8 @@ void Document::requestOpenFile(const QUrl &_url)
                     if (reuseCache)
                         m_scratchCache = loaded->cache;
                     emit fileOpened(target);
-                }))
+                },
+                false))
             return;
     }
     if (openFile(target))

@@ -1270,7 +1270,8 @@ private:
     bool deferEdit(const QString &label, qint64 cost, std::function<void(Document &)> work,
                    bool mayRemoveMask = false);
     bool deferOperation(const QString &_label, qint64 _cost, std::function<void(Document &)> _work,
-                        bool _mayRemoveMask, std::function<void()> _completed);
+                        bool _mayRemoveMask, std::function<void()> _completed,
+                        bool _captureCurrent = true);
     qint64 editCost(bool allLayers, const QSize &target = {}) const;
     bool   operationStep(int completed, int total);
     bool   beginOperationPublication();

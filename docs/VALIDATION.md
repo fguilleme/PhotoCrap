@@ -1,5 +1,16 @@
 # Validation
 
+## Absence de rétention de l’ancien document — 3 novembre 2026
+
+Pour image ordinaire, projet et RAW, une tâche d’ouverture est mise en attente
+puis le document affiché est remplacé. Un QImage témoin d’une ancienne tuile
+devient son unique propriétaire avant même de libérer le worker : ni la tâche ni
+son contexte ne gardent les anciens plans/historique. Le résultat devenu caduc
+ne remplace pas le nouveau document. Les sauvegardes, exports et éditions gardent
+leurs snapshots requis et continuent de passer leurs comparaisons de pixels et
+leurs tests d’annulation. La suite Opérations compte 135 réussites et cinq sondes
+optionnelles.
+
 ## Préparation complète des RAW sur worker — 3 novembre 2026
 
 Un DNG Bayer original synthétique de 1 024 × 768, orienté à 90°, est développé en

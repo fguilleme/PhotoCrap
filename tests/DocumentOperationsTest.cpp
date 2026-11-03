@@ -82,6 +82,59 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void replacementFileLoadsDoNotRetainTheDiscardedDocumentsTiles_data()
+    {
+        QTest::addColumn<QString>("kind");
+        QTest::newRow("image") << QString("image");
+        QTest::newRow("project") << QString("project");
+        QTest::newRow("raw") << QString("raw");
+    }
+    void replacementFileLoadsDoNotRetainTheDiscardedDocumentsTiles()
+    {
+        QFETCH(QString, kind);
+        QTemporaryDir directory;
+        const auto    input = QUrl::fromLocalFile(directory.filePath("source.png"));
+        QImage        pixels(512, 512, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < pixels.height(); ++y)
+            for (int x = 0; x < pixels.width(); ++x)
+                pixels.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+        QVERIFY(pixels.save(input.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(input));
+        QImage tile;
+        {
+            const auto stack = d.gpuLayerStack();
+            QVERIFY(stack.valid);
+            tile = stack.layers.first().image.tileImage(0, 0);
+        }
+        QVERIFY(!tile.isDetached());
+        QUrl target = input;
+        if (kind == "project") {
+            target = QUrl::fromLocalFile(directory.filePath("source.pcr"));
+            QVERIFY(d.saveProject(target));
+        } else if (kind == "raw") {
+            target = QUrl::fromLocalFile(directory.filePath("sample.dng"));
+            QFile file(target.toLocalFile());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(RawTestImage::dng());
+        }
+        d.setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            if (kind == "raw")
+                QVERIFY(d.openRawFile(target));
+            else
+                d.requestOpenFile(target);
+            QVERIFY(d.newDocument(31, 23, true));
+            // This QImage is now the only owner of its native pixels. The queued
+            // file load must not pin the old layer/history snapshot behind it.
+            QVERIFY(tile.isDetached());
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy() && !d.rawLoading(), 10000);
+        QCOMPARE(d.width(), 31);
+        QCOMPARE(d.height(), 23);
+        QVERIFY(tile.isDetached());
+    }
     void rawPlanesArePreparedBeforeTheGuiCallback_data()
     {
         QTest::addColumn<bool>("import");

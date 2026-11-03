@@ -78,6 +78,12 @@ par pixel dans une couverture tuilée. Chaque empreinte lit et remplace son seul
 rectangle ; les règles d’échantillonnage, de tolérance, de contiguïté et de recherche
 des contours restent identiques. Cet outil reste limité aux plans couleur 8 bits.
 
+Le Pinceau mélangeur utilise une source figée par tuiles et une destination
+régionale sur pixels/masques. Le prélèvement Alt-clic, uni ou multicolore, ne
+matérialise plus le calque ; seuls le réservoir et l’empreinte sont préparés.
+Les modes de mélange, la reprise et l’épuisement de la charge sont conservés.
+L’échantillonnage de tous les calques garde son composite complet par geste.
+
 La Forme d’historique conserve le plan source par versions de tuiles, même lorsque
 son état n’appartient plus à la branche d’historique courante. Couverture, source,
 destination et mélange sont régionaux. Les versions mappées restent utilisables

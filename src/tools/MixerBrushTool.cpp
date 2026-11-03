@@ -4,7 +4,6 @@
 #include <QPainter>
 #include <QtMath>
 #include <cmath>
-#include <cstring>
 
 namespace
 {
@@ -13,6 +12,21 @@ QImage patch(const QImage &_source, const QRect &_rect)
     QImage   image = ImageUtils::blank(_rect.size());
     QPainter painter(&image);
     painter.drawImage(-_rect.topLeft(), _source);
+    return image;
+}
+QImage patch(const PixelPlane &_source, const QRect &_rect, const QSize &_size)
+{
+    QImage image = ImageUtils::blank(_rect.size());
+    if (image.isNull())
+        return {};
+    const QRect region = _rect.intersected(QRect(QPoint{}, _size));
+    if (!region.isEmpty()) {
+        const QImage pixels = _source.region(region);
+        if (pixels.isNull())
+            return {};
+        QPainter painter(&image);
+        painter.drawImage(region.topLeft() - _rect.topLeft(), pixels);
+    }
     return image;
 }
 QRgb interpolate(QRgb _a, QRgb _b, qreal _weight)
@@ -182,19 +196,29 @@ void Document::sampleMixerBrush(qreal _x, qreal _y)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    const QImage source = m_mixerSampleAllLayers && !m_editingMask ? composite()
-                          : paintTarget()                          ? *paintTarget()
-                                                                   : composite();
+    PixelPlane source;
+    if (m_mixerSampleAllLayers && !m_editingMask)
+        source = composite();
+    else if (m_active >= 0 && m_active < m_layers.size() && m_editingMask &&
+             !m_layers[m_active].mask.isNull())
+        source = m_layers[m_active].mask;
+    else if (m_active >= 0 && m_active < m_layers.size() && m_layers[m_active].kind == "pixel")
+        source = m_layers[m_active].image;
+    else
+        source = composite();
     const QPoint center(qFloor(_x), qFloor(_y));
-    if (!source.rect().contains(center))
+    if (source.isNull() || !QRect(QPoint{}, m_size).contains(center))
         return;
     const int size = qCeil(m_brushSize) + 4;
     if (m_mixerSolidOnly) {
-        m_mixerPaint = ImageUtils::blank(QSize(1, 1));
-        m_mixerPaint.fill(source.pixelColor(center));
+        m_mixerPaint        = ImageUtils::blank(QSize(1, 1));
+        const QPoint stored = source.size() == QSize(1, 1) ? QPoint{} : center;
+        m_mixerPaint.fill(source.pixelColor(stored.x(), stored.y()));
     } else
         m_mixerPaint =
-            patch(source, QRect(center.x() - size / 2, center.y() - size / 2, size, size));
+            patch(source, QRect(center.x() - size / 2, center.y() - size / 2, size, size), m_size);
+    if (m_mixerPaint.isNull())
+        return;
     m_mixerColor  = averageColor(m_mixerPaint);
     m_mixerPickup = {};
     reloadMixerPaint();
@@ -215,6 +239,10 @@ void Document::prepareMixerStroke()
             ? ImageUtils::blank(QSize(size, size))
             : m_mixerPaint.scaled(size, size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     m_mixerTip = ImageUtils::blank(QSize(size, size));
+    if (m_mixerPickup.isNull() || m_mixerReservoirTip.isNull() || m_mixerTip.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     QPainter painter(&m_mixerTip);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.translate(size / 2., size / 2.);
@@ -258,19 +286,24 @@ void Document::finishMixerStroke(bool _cancel)
 }
 void Document::mixerDab(const QPointF &_point)
 {
-    QImage *target = paintTarget();
-    if (!target || m_mixerTip.isNull() || m_mixerFlow <= 0)
+    if (m_mixerTip.isNull() || m_mixerFlow <= 0)
         return;
-    const int   size = m_mixerTip.width();
+    PixelPlane &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+    const int   size   = m_mixerTip.width();
     const QRect dab(qFloor(_point.x()) - size / 2, qFloor(_point.y()) - size / 2, size, size);
-    QRect       region = dab.intersected(target->rect());
+    QRect       region = dab.intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
-    const QImage sampled = patch(m_mixerSample.isNull() ? m_strokeBase : m_mixerSample, dab);
-    QImage       paint   = ImageUtils::blank(region.size());
-    const QPoint offset  = region.topLeft() - dab.topLeft();
+    const QImage sampled =
+        m_mixerSample.isNull() ? patch(m_strokePlaneBase, dab, m_size) : patch(m_mixerSample, dab);
+    QImage paint = ImageUtils::blank(region.size());
+    if (sampled.isNull() || paint.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
+    const QPoint offset = region.topLeft() - dab.topLeft();
     for (int y = 0; y < region.height(); ++y) {
         auto       *pickup = reinterpret_cast<QRgb *>(m_mixerPickup.scanLine(offset.y() + y));
         const auto *src    = reinterpret_cast<const QRgb *>(sampled.constScanLine(offset.y() + y));
@@ -304,21 +337,21 @@ void Document::mixerDab(const QPointF &_point)
                                         selectionCoverage(region.x() + x, region.y() + y) / 255.);
         }
     }
-    const QImage before = patch(*target, region);
-    QImage       output = before;
-    QPainter     painter(&output);
+    const QImage before = patch(target, region, m_size);
+    if (before.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
+    QImage   output = before;
+    QPainter painter(&output);
     painter.drawImage(0, 0, paint);
     painter.end();
     if (output != before) {
-        if (m_editingMask) {
-            const QImage gray = output.convertToFormat(QImage::Format_Grayscale8);
-            for (int y = 0; y < region.height(); ++y)
-                memcpy(target->scanLine(region.y() + y) + region.x(), gray.constScanLine(y),
-                       size_t(region.width()));
-        } else {
-            QPainter writer(target);
-            writer.setCompositionMode(QPainter::CompositionMode_Source);
-            writer.drawImage(region.topLeft(), output);
+        const QImage pixels =
+            m_editingMask ? output.convertToFormat(QImage::Format_Grayscale8) : output;
+        if (!target.writeRegion(region.topLeft(), pixels, m_size)) {
+            m_strokeCoverageFailed = true;
+            return;
         }
         m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(region) : m_strokeBounds.united(region);
         if (!m_fullCompositeDirty)

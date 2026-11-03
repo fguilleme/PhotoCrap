@@ -3917,6 +3917,84 @@ private slots:
         QCOMPARE(d.redEyeDarken(), 1.);
         QCOMPARE(d.redEyePupilSize(), 1.);
     }
+    void mixerPickingAndPaintingAllocateOnlyLocalTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.setTool("mixerBrush");
+        d.setMixerWet(0);
+        d.setMixerMix(0);
+        for (bool mask : {false, true}) {
+            if (mask)
+                d.addLayerMask();
+            const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+            d.setMixerSolidOnly(false);
+            d.sampleMixerBrush(100, 100);
+            QCOMPARE(d.memoryUsage()["tileHeapBytes"].toLongLong(), heapBefore);
+            d.setMixerSolidOnly(true);
+            d.sampleMixerBrush(100, 100);
+            QCOMPARE(d.memoryUsage()["tileHeapBytes"].toLongLong(), heapBefore);
+            d.setColor(Qt::black);
+            d.beginStroke(100, 100);
+            d.continueStroke(110, 110);
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 4);
+            QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(0));
+            d.cancelStroke();
+        }
+    }
+    void mixerTileBordersKeepReservoirAndPickup()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage image(523, 531, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(x, y,
+                                    QColor((x * 17 + y * 3) % 256, (y * 13) % 256,
+                                           (x * 5 + y * 11) % 256, 100 + (x + y) % 156));
+        const auto url = QUrl::fromLocalFile(directory.filePath("mixer.png"));
+        QVERIFY(image.save(url.toLocalFile()));
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int preset = 1; preset <= 4; ++preset) {
+            Document d;
+            QVERIFY(d.openFile(url));
+            const auto before = d.layerImage(0);
+            d.setTool("ellipticalSelect");
+            d.beginStroke(242, 241);
+            d.continueStroke(289, 284);
+            d.endStroke();
+            d.modifySelection("feather", 2);
+            d.setTool("mixerBrush");
+            d.setBrushSize(27);
+            d.setBrushHardness(.51);
+            d.setBrushSmoothing(0);
+            d.setColor(QColor(210, 40, 90));
+            d.applyMixerPreset(preset);
+            d.setMixerAutoClean(false);
+            d.setMixerAutoLoad(false);
+            d.beginStroke(253.25, 251.75);
+            d.continueStroke(271.5, 266.25);
+            d.endStroke();
+            const auto after = d.layerImage(0);
+            QVERIFY(after != before);
+            pixels.addData(QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                          after.sizeInBytes()));
+            for (const QRect &outside : QRegion(after.rect()) - QRegion(235, 233, 55, 55))
+                QCOMPARE(after.copy(outside), before.copy(outside));
+            d.undo();
+            QCOMPARE(d.layerImage(0), before);
+            d.redo();
+            QCOMPARE(d.layerImage(0), after);
+            const bool loaded = d.mixerLoaded();
+            d.beginStroke(260, 260);
+            d.cancelStroke();
+            QCOMPARE(d.layerImage(0), after);
+            QCOMPARE(d.mixerLoaded(), loaded);
+        }
+        qInfo() << "Mixer pixels, four presets" << pixels.result().toHex();
+    }
     void mixerDryPaintFlowAndReservoirDepletion()
     {
         Document d;

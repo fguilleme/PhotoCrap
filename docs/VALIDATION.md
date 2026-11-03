@@ -1,5 +1,14 @@
 # Validation
 
+## Pinceau mélangeur régional — 3 novembre 2026
+
+Les quatre préréglages reproduisent exactement l’empreinte de pixels précédente
+sur un geste fractionnaire traversant les tuiles avec sélection progressive.
+Charge, mélange humide/sec, consommation, prélèvements Alt uni/multicolore,
+échantillonnage visible, masques et restauration du réservoir à l’annulation sont
+testés. Sur 24 Mpx, les deux prélèvements n’ajoutent pas d’allocation du plan ;
+le petit geste ajoute au plus une tuile de 256 Kio et aucune couverture complète.
+
 ## Forme d’historique artistique par tuiles — 3 novembre 2026
 
 Les dix styles produisent la même empreinte de pixels avant/après migration sur

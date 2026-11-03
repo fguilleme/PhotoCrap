@@ -1,5 +1,28 @@
 # Validation
 
+## Sources régionales des correcteurs — 3 novembre 2026
+
+Références avant modification : 36 gestes du Correcteur et 12 du Correcteur
+localisé. Les cas couvrent source active/inférieurs/tous selon l’outil,
+exclusion des réglages, modes normal/remplacement, textures, bords du document,
+frontières de tuiles, chevauchement et annulation. Les digests restent identiques :
+
+- Correcteur : `8e6a6d00405dbb88b78e48f55a9fa35b7d529f65372aa6a904618a1f622649db`.
+- Correcteur localisé : `6801707827136d7d089a459db3c844ad00f41da8171196b0b07687a2b8897687`.
+
+Sonde Qt 6.12 locale, petite réparation sur calque vide en 24 Mpx/8 bits :
+Correcteur 20,4 ms → 0,68 ms ; Correcteur localisé 12,8 ms → 0,81 ms. Une seule
+étape d’historique est créée. Aucun seuil de durée n’est imposé. Le modèle
+8 bits des algorithmes reste inchangé ; les piles non locales gardent leur rendu
+complet paresseux.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_COMPOSITE_HEALING_PROBE=1 build/photocrap_tests \
+  compositedHealingStrokeDigest largeCompositeHealingProbe
+```
+
+
 ## Copie régionale des sélections — 3 novembre 2026
 
 Référence avant modification sur 24 copies : 8/16 bits, rectangle/ellipse,

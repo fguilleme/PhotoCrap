@@ -1363,7 +1363,8 @@ private:
     bool       m_healingOffsetBeforeStrokeValid = false;
     QPointF    m_healingSource, m_healingOffset, m_healingOffsetBeforeStroke;
     PixelPlane m_healingSample;
-    QImage     m_healingTip;
+    std::unique_ptr<Document> m_healingCompositeSource;
+    QImage                    m_healingTip;
     bool m_removeSampleAllLayers = false, m_removeAfterEachStroke = true, m_removeSubtract = false;
     bool m_removeBusy = false, m_removeStrokeSubtract = false;
     quint64                           m_removeGeneration = 0;
@@ -1390,6 +1391,7 @@ private:
     bool                              m_spotHealingSampleAllLayers = false;
     int                               m_spotHealingMode            = 0;
     PixelPlane                        m_spotHealingSample;
+    std::unique_ptr<Document>         m_spotHealingCompositeSource;
     QImage                            m_spotHealingTip;
     QRegion                           m_spotHealingExcluded;
     bool                              m_stampAligned     = true;
@@ -1618,71 +1620,72 @@ private:
     bool                              m_frequencyRetouchBusy = false;
     std::shared_ptr<std::atomic_bool> m_frequencyRetouchCancel;
 
-    void       commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
-                      bool _notifyImage = true);
-    void       trimHistory();
-    void       beginContentMove(const QPointF &_point);
-    void       finishContentMove(bool _cancel);
-    void       invalidateContentMove(bool _restoreSelection = false);
-    void       continueRegionDrag(const QPointF &_point, bool _sourceMode);
-    void       beginPatch(const QPointF &_point);
-    void       continuePatch(const QPointF &_point);
-    void       finishPatch(bool _cancel);
-    void       clearPatch();
-    void       startPatchRepair();
-    void       invalidatePatch(bool _restoreSelection = false);
-    void       beginLasso(qreal _x, qreal _y);
-    void       continueLasso(qreal _x, qreal _y);
-    void       finishLasso();
-    void       applyMagicWand(const QPoint &_point);
-    void       applySelectionCandidate(const QRegion &_candidate, bool _firstDab);
-    void       beginQuickSelection(const QPointF &_point);
-    void       continueQuickSelection(const QPointF &_point);
-    void       finishQuickSelection();
-    void       cancelQuickSelection();
-    void       selectOnly(int _index);
-    void       changed(bool _metadata = true, bool _notifyImage = true);
-    void       resetHistory(bool _clean);
-    bool       validSize(int _width, int _height, int _layerCount = 1);
-    bool       validStorageBytes(qint64 _bytes);
-    bool       validLayerStorage(int _width, int _height, int _extraColors = 0, int _extraMasks = 0,
-                                 int _bits = 0);
-    bool       editable(bool _materialize = true, bool _allowText = false);
-    bool       fail(const QString &_message);
-    void       edit(const QString &_label, const std::function<void()> &_operation);
-    void       paintSegment(const QPointF &_from, const QPointF &_to);
-    void       stampBrush(const QPointF &_point);
-    void       renderBrushStroke();
-    void       renderRetouchStroke();
-    void       prepareSmudgeStroke(bool _alternate);
-    void       correctRedEye();
-    bool       prepareHealingStroke();
-    void       healingDab(const QPointF &_point);
-    PixelPlane sampleHealingLayers(int _sampleMode, bool _ignoreAdjustments);
-    QImage     makeHealingTip() const;
-    void       applyHealingDab(const QPointF &_point, const PixelPlane &_sample, const QImage &_tip,
-                               const QPoint &_sourceOffset, int _mode, int _diffusion,
-                               bool _selectionBoundary = true);
-    void       prepareSpotHealingStroke();
-    void       spotHealingDab(const QPointF &_point);
-    void       finishSpotHealingStroke();
-    void       finishHealingStroke(bool _cancel);
-    void       smudgeDab(const QPointF &_point);
-    void       colorReplacementDab(const QPointF &_point);
-    void       prepareMixerStroke();
-    void       mixerDab(const QPointF &_point);
-    void       finishMixerStroke(bool _cancel);
-    void       reloadMixerPaint();
-    bool       prepareStampStroke();
-    void       renderStampStroke();
-    QImage     stampPatternImage() const;
-    void       renderShape(const QPointF &_to);
-    void       floodFill(QPoint _point);
-    QImage    *paintTarget();
-    QImage     readImage(const QString &_path);
-    bool       loadProject(const QString &_path);
-    void       adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project);
-    void       acceptProjectSave(const QString &_path);
+    void    commit(const Snapshot &_before, const QString &_label, bool _invalidateFull = true,
+                   bool _notifyImage = true);
+    void    trimHistory();
+    void    beginContentMove(const QPointF &_point);
+    void    finishContentMove(bool _cancel);
+    void    invalidateContentMove(bool _restoreSelection = false);
+    void    continueRegionDrag(const QPointF &_point, bool _sourceMode);
+    void    beginPatch(const QPointF &_point);
+    void    continuePatch(const QPointF &_point);
+    void    finishPatch(bool _cancel);
+    void    clearPatch();
+    void    startPatchRepair();
+    void    invalidatePatch(bool _restoreSelection = false);
+    void    beginLasso(qreal _x, qreal _y);
+    void    continueLasso(qreal _x, qreal _y);
+    void    finishLasso();
+    void    applyMagicWand(const QPoint &_point);
+    void    applySelectionCandidate(const QRegion &_candidate, bool _firstDab);
+    void    beginQuickSelection(const QPointF &_point);
+    void    continueQuickSelection(const QPointF &_point);
+    void    finishQuickSelection();
+    void    cancelQuickSelection();
+    void    selectOnly(int _index);
+    void    changed(bool _metadata = true, bool _notifyImage = true);
+    void    resetHistory(bool _clean);
+    bool    validSize(int _width, int _height, int _layerCount = 1);
+    bool    validStorageBytes(qint64 _bytes);
+    bool    validLayerStorage(int _width, int _height, int _extraColors = 0, int _extraMasks = 0,
+                              int _bits = 0);
+    bool    editable(bool _materialize = true, bool _allowText = false);
+    bool    fail(const QString &_message);
+    void    edit(const QString &_label, const std::function<void()> &_operation);
+    void    paintSegment(const QPointF &_from, const QPointF &_to);
+    void    stampBrush(const QPointF &_point);
+    void    renderBrushStroke();
+    void    renderRetouchStroke();
+    void    prepareSmudgeStroke(bool _alternate);
+    void    correctRedEye();
+    bool    prepareHealingStroke();
+    void    healingDab(const QPointF &_point);
+    bool    prepareHealingSample(PixelPlane &_sample, std::unique_ptr<Document> &_composite,
+                                 int _sampleMode, bool _ignoreAdjustments);
+    QImage  makeHealingTip() const;
+    void    applyHealingDab(const QPointF &_point, const PixelPlane &_sample, const QImage &_tip,
+                            const QPoint &_sourceOffset, int _mode, int _diffusion,
+                            bool _selectionBoundary = true, const Document *_composite = nullptr);
+    void    prepareSpotHealingStroke();
+    void    spotHealingDab(const QPointF &_point);
+    void    finishSpotHealingStroke();
+    void    finishHealingStroke(bool _cancel);
+    void    smudgeDab(const QPointF &_point);
+    void    colorReplacementDab(const QPointF &_point);
+    void    prepareMixerStroke();
+    void    mixerDab(const QPointF &_point);
+    void    finishMixerStroke(bool _cancel);
+    void    reloadMixerPaint();
+    bool    prepareStampStroke();
+    void    renderStampStroke();
+    QImage  stampPatternImage() const;
+    void    renderShape(const QPointF &_to);
+    void    floodFill(QPoint _point);
+    QImage *paintTarget();
+    QImage  readImage(const QString &_path);
+    bool    loadProject(const QString &_path);
+    void    adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project);
+    void    acceptProjectSave(const QString &_path);
     static QImage applyMask(const QImage &_source, const QImage &_mask, qreal _density = 1,
                             qreal _feather = 0);
     static QImage blendImages(const QImage &_base, const QImage &_source, int _mode,

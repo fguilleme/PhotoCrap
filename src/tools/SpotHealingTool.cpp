@@ -22,16 +22,18 @@ void Document::setSpotHealingMode(int _value)
 void Document::prepareSpotHealingStroke()
 {
     // One immutable source per gesture; overlapping dabs never resample repairs.
-    m_spotHealingSample   = sampleHealingLayers(m_spotHealingSampleAllLayers ? 2 : 0, false);
+    const bool sampled    = prepareHealingSample(m_spotHealingSample, m_spotHealingCompositeSource,
+                                                 m_spotHealingSampleAllLayers ? 2 : 0, false);
     m_spotHealingTip      = makeHealingTip();
     m_spotHealingExcluded = {};
-    if (m_spotHealingSample.isNull() || m_spotHealingTip.isNull())
+    if (!sampled || m_spotHealingTip.isNull())
         m_strokeCoverageFailed = true;
 }
 
 void Document::spotHealingDab(const QPointF &_point)
 {
-    if (m_spotHealingSample.isNull() || m_brushOpacity <= 0 || m_brushFlow <= 0)
+    if ((!m_spotHealingCompositeSource && m_spotHealingSample.isNull()) || m_brushOpacity <= 0 ||
+        m_brushFlow <= 0)
         return;
     const QPoint centre(qFloor(_point.x()), qFloor(_point.y()));
     const int    side = m_spotHealingTip.width();
@@ -46,7 +48,9 @@ void Document::spotHealingDab(const QPointF &_point)
     const QRect sourceBounds =
         QRect(centre - QPoint(reach, reach), QSize(2 * reach + 1, 2 * reach + 1))
             .intersected(documentRect);
-    const QImage sourcePatch = m_spotHealingSample.region(sourceBounds);
+    const QImage sourcePatch = m_spotHealingCompositeSource
+                                   ? m_spotHealingCompositeSource->compositeRegion(sourceBounds)
+                                   : m_spotHealingSample.region(sourceBounds);
     if (sourcePatch.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -146,11 +150,12 @@ void Document::spotHealingDab(const QPointF &_point)
     }
     if (found)
         applyHealingDab(_point, m_spotHealingSample, m_spotHealingTip, bestOffset,
-                        m_spotHealingMode, 5, false);
+                        m_spotHealingMode, 5, false, m_spotHealingCompositeSource.get());
 }
 
 void Document::finishSpotHealingStroke()
 {
+    m_spotHealingCompositeSource.reset();
     m_spotHealingSample   = {};
     m_spotHealingTip      = {};
     m_spotHealingExcluded = {};

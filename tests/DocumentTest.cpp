@@ -3924,6 +3924,118 @@ private slots:
             }
         qInfo() << "Healing pixels, sixteen combinations" << pixels.result().toHex();
     }
+    void compositedHealingStrokeDigest_data()
+    {
+        QTest::addColumn<QString>("tool");
+        QTest::newRow("healing") << QStringLiteral("healing");
+        QTest::newRow("spot") << QStringLiteral("spotHealing");
+    }
+    void compositedHealingStrokeDigest()
+    {
+        QFETCH(QString, tool);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage source(517, 523, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x) {
+                const int texture = (x * 13 + y * 17) % 19;
+                source.setPixelColor(x, y,
+                                     QColor(90 + (x / 7) % 30 + texture,
+                                            120 + (y / 11) % 30 + texture, 140 + texture));
+            }
+        const auto file = QUrl::fromLocalFile(directory.filePath("healing.png"));
+        QVERIFY(source.save(file.toLocalFile()));
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int sampleMode : {0, 1, 2})
+            for (bool ignore : {false, true})
+                for (int mode : {0, 1})
+                    for (const QPoint anchor : {QPoint(3, 3), QPoint(260, 260), QPoint(510, 517)}) {
+                        if (tool == "spotHealing" && (ignore || sampleMode == 2))
+                            continue;
+                        Document d;
+                        QVERIFY(d.openFile(file));
+                        d.duplicateLayer();
+                        d.setBrushSize(5);
+                        d.setBrushHardness(1);
+                        d.setColor(Qt::black);
+                        d.beginStroke(anchor.x(), anchor.y());
+                        d.endStroke();
+                        d.addLayer();
+                        d.setBrushSize(45);
+                        d.setColor(QColor(41, 191, 83, 151));
+                        d.beginStroke(254, 255);
+                        d.endStroke();
+                        d.addAdjustmentLayer("invert");
+                        d.setActiveLayer(1);
+                        d.setTool(tool);
+                        d.setBrushSize(17);
+                        d.setBrushHardness(.6);
+                        d.setBrushSmoothing(0);
+                        d.setHealingSampleMode(sampleMode);
+                        d.setHealingIgnoreAdjustments(ignore);
+                        d.setHealingMode(mode);
+                        d.setHealingDiffusion(3);
+                        d.setHealingSource(254, 255);
+                        d.setSpotHealingSampleAllLayers(sampleMode != 0);
+                        d.setSpotHealingMode(mode);
+                        const QImage before  = d.layerImage(1);
+                        const int    history = d.historyIndex();
+                        d.beginStroke(anchor.x() + .25, anchor.y() + .75);
+                        d.continueStroke(anchor.x() + 5.25, anchor.y() + 3.75);
+                        d.endStroke();
+                        const QImage result = d.layerImage(1);
+                        for (int y = 0; y < result.height(); ++y)
+                            hash.addData(QByteArrayView(
+                                reinterpret_cast<const char *>(result.constScanLine(y)),
+                                result.width() * result.depth() / 8));
+                        if (d.historyIndex() != history) {
+                            d.undo();
+                            QCOMPARE(d.layerImage(1), before);
+                            d.redo();
+                            QCOMPARE(d.layerImage(1), result);
+                        }
+                        d.beginStroke(301, 280);
+                        d.cancelStroke();
+                        QCOMPARE(d.layerImage(1), result);
+                    }
+        QCOMPARE(
+            hash.result().toHex(),
+            tool == "healing"
+                ? QByteArray("8e6a6d00405dbb88b78e48f55a9fa35b7d529f65372aa6a904618a1f622649db")
+                : QByteArray("6801707827136d7d089a459db3c844ad00f41da8171196b0b07687a2b8897687"));
+    }
+    void largeCompositeHealingProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_COMPOSITE_HEALING_PROBE"))
+            QSKIP("Set PHOTOCRAP_COMPOSITE_HEALING_PROBE=1 to measure 24 MP healing sources.");
+        for (const QString &tool : {QStringLiteral("healing"), QStringLiteral("spotHealing")}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, false, 8));
+            d.setColor(QColor(140, 150, 160));
+            d.fillWithColor(true);
+            d.setBrushSize(4);
+            d.setColor(Qt::black);
+            d.beginStroke(100, 100);
+            d.endStroke();
+            d.addLayer();
+            d.setTool(tool);
+            d.setBrushSize(12);
+            d.setBrushSmoothing(0);
+            d.setHealingSource(80, 80);
+            d.setHealingSampleMode(2);
+            d.setSpotHealingSampleAllLayers(true);
+            const int     history = d.historyIndex();
+            QElapsedTimer timer;
+            timer.start();
+            d.beginStroke(100, 100);
+            d.continueStroke(105, 100);
+            d.endStroke();
+            const auto elapsed = timer.nsecsElapsed();
+            QCOMPARE(d.historyIndex(), history + 1);
+            qInfo() << "24 MP / 8-bit healing tool and ns:" << tool << elapsed;
+        }
+    }
+
     void spotHealingAutomaticallyRepairsLocallyAndUndoes()
     {
         QTemporaryDir dir;

@@ -745,8 +745,9 @@ void Document::resetHistory(bool _clean)
     m_mixerLastEndValid       = false;
     m_healingSourceValid      = false;
     m_healingOffsetValid      = false;
-    m_healingSample           = {};
-    m_healingTip              = {};
+    m_healingCompositeSource.reset();
+    m_healingSample = {};
+    m_healingTip    = {};
     finishSpotHealingStroke();
     clearPatch();
     m_cloneSourceValid   = false;

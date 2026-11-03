@@ -142,6 +142,15 @@ de brosse en mode texturé, sans reconstruire puis convertir tout le composite
 en plan tuilé. Les couleurs moyennées et le comportement des masques restent
 identiques. Les replis complets des piles non locales sont conservés.
 
+Les deux correcteurs utilisent aussi une source native figée sans composer le
+canevas complet à la préparation. Le Correcteur lit ses rectangles de texture
+et de référence ; le Correcteur localisé lit son voisinage borné de recherche,
+puis les rectangles de la correction choisie. Les modes de source et l’option
+ignorer les réglages conservent leur filtrage de pile. Les piles non locales
+gardent un rendu complet paresseux, réutilisé pendant le geste. Les sources sont
+libérées à la fin et à l’annulation ; la limitation actuelle aux pixels 8 bits
+reste inchangée.
+
 Sélection rapide lit uniquement sa fenêtre de recherche, aussi bien sur le calque
 actif que sur une pile compatible. La conversion de comparaison en 8 bits et la
 table des pixels visités ont la taille de cette fenêtre. Les coordonnées sont

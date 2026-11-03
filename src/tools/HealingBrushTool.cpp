@@ -14,14 +14,16 @@ struct ToneField {
     QVector<Tone> values;
 };
 
-QImage patchAt(const PixelPlane &_image, const QRect &_rect, const QSize &_size)
+QImage patchAt(const PixelPlane &_image, const QRect &_rect, const QSize &_size,
+               const Document *_composite)
 {
     QImage patch = ImageUtils::blank(_rect.size());
     if (patch.isNull())
         return {};
     const QRect region = _rect.intersected(QRect(QPoint{}, _size));
     if (!region.isEmpty()) {
-        const QImage pixels = _image.region(region);
+        const QImage pixels =
+            _composite ? _composite->compositeRegion(region) : _image.region(region);
         if (pixels.isNull())
             return {};
         QPainter painter(&patch);
@@ -185,31 +187,32 @@ bool Document::prepareHealingStroke()
         m_healingOffsetValid = true;
         emit settingsChanged();
     }
-    m_healingSample = sampleHealingLayers(m_healingSampleMode, m_healingIgnoreAdjustments);
-    m_healingTip    = makeHealingTip();
-    if (m_healingSample.isNull() || m_healingTip.isNull()) {
+    const bool sampled = prepareHealingSample(m_healingSample, m_healingCompositeSource,
+                                              m_healingSampleMode, m_healingIgnoreAdjustments);
+    m_healingTip       = makeHealingTip();
+    if (!sampled || m_healingTip.isNull()) {
         finishHealingStroke(true);
         return fail(tr("Mémoire insuffisante pour la couverture du trait."));
     }
     return true;
 }
 
-PixelPlane Document::sampleHealingLayers(int _sampleMode, bool _ignoreAdjustments)
+bool Document::prepareHealingSample(PixelPlane &_sample, std::unique_ptr<Document> &_composite,
+                                    int _sampleMode, bool _ignoreAdjustments)
 {
-    // A shared, fixed source per gesture prevents overlapping edits feeding
-    // back into the sample. All-layer composition occurs once, never per dab.
+    _sample = {};
+    _composite.reset();
     if (_sampleMode == 0)
-        return m_layers[m_active].image;
-    else if (_sampleMode == 2 && !_ignoreAdjustments)
-        return composite();
+        _sample = m_layers[m_active].image;
     else {
         auto layers = m_layers;
         for (int i = 0; i < layers.size(); ++i)
             if ((_sampleMode == 1 && i > m_active && layers[i].kind != "group") ||
                 (_ignoreAdjustments && layers[i].kind == "adjustment"))
                 layers[i].visible = false;
-        return renderPreviewSnapshot(std::move(layers), m_size, m_size, false);
+        _composite = nativeCompositeSource(std::move(layers));
     }
+    return !_sample.isNull() || bool(_composite);
 }
 
 QImage Document::makeHealingTip() const
@@ -241,14 +244,15 @@ QImage Document::makeHealingTip() const
 void Document::healingDab(const QPointF &_point)
 {
     applyHealingDab(_point, m_healingSample, m_healingTip, m_healingOffset.toPoint(), m_healingMode,
-                    m_healingDiffusion);
+                    m_healingDiffusion, true, m_healingCompositeSource.get());
 }
 
 void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample, const QImage &_tip,
                                const QPoint &_sourceOffset, int _mode, int _diffusion,
-                               bool _selectionBoundary)
+                               bool _selectionBoundary, const Document *_composite)
 {
-    if (_sample.isNull() || _tip.isNull() || m_brushFlow <= 0 || m_brushOpacity <= 0)
+    if ((!_composite && _sample.isNull()) || _tip.isNull() || m_brushFlow <= 0 ||
+        m_brushOpacity <= 0)
         return;
     const int   size = _tip.width();
     const QRect dab(qFloor(_point.x()) - size / 2, qFloor(_point.y()) - size / 2, size, size);
@@ -258,8 +262,8 @@ void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample,
     if (region.isEmpty())
         return;
     const QRect  sourceRect(dab.topLeft() + _sourceOffset, dab.size());
-    const QImage sampled   = patchAt(_sample, sourceRect, m_size);
-    const QImage reference = patchAt(_sample, dab, m_size);
+    const QImage sampled   = patchAt(_sample, sourceRect, m_size, _composite);
+    const QImage reference = patchAt(_sample, dab, m_size, _composite);
     if (sampled.isNull() || reference.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -341,6 +345,7 @@ void Document::finishHealingStroke(bool _cancel)
         m_healingOffsetValid = m_healingOffsetBeforeStrokeValid;
         emit settingsChanged();
     }
+    m_healingCompositeSource.reset();
     m_healingSample = {};
     m_healingTip    = {};
 }

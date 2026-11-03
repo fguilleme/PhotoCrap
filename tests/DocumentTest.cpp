@@ -8290,6 +8290,152 @@ private slots:
             }
         }
     }
+    void opaqueUniformCoverDigest()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        const QSize        size(83, 79);
+        const auto         encoded = [](const QImage &_image) {
+            QByteArray bytes;
+            QBuffer    buffer(&bytes);
+            if (!buffer.open(QIODevice::WriteOnly) || !_image.save(&buffer, "PNG"))
+                return QString{};
+            return QString::fromLatin1(bytes.toBase64());
+        };
+        int cases = 0;
+        for (int bits : {8, 16}) {
+            const auto format = bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                           : QImage::Format_ARGB32_Premultiplied;
+            QImage     source(size, format), overlay(1, 1, format);
+            for (int y = 0; y < size.height(); ++y)
+                for (int x = 0; x < size.width(); ++x)
+                    source.setPixelColor(
+                        x, y, QColor((x * 7) % 256, (y * 11) % 256, ((x + y) * 13) % 256, 191));
+            overlay.fill(QColor(213, 53, 113, 173));
+            const auto png = encoded(source), top = encoded(overlay);
+            QVERIFY(!png.isEmpty());
+            QVERIFY(!top.isEmpty());
+            for (bool compact : {false, true})
+                for (const QString kind :
+                     {QString("plain"), QString("white"), QString("zero"), QString("disabled"),
+                      QString("opacity"), QString("alpha"), QString("blend"), QString("clipped"),
+                      QString("gray"), QString("black"), QString("hidden"), QString("hiddenGroup"),
+                      QString("visibleGroup"), QString("nonuniform")}) {
+                    QImage cover(compact && kind != "nonuniform" ? QSize(1, 1) : size, format);
+                    cover.fill(QColor::fromRgba64(12345, 45678, 23456,
+                                                  kind == "alpha" ? (bits == 16 ? 65534 : 254 * 257)
+                                                                  : 65535));
+                    if (kind == "nonuniform")
+                        cover.setPixelColor(17, 19, QColor(27, 61, 93));
+                    const bool masked = kind == "white" || kind == "zero" || kind == "disabled" ||
+                                        kind == "gray" || kind == "black";
+                    QImage     mask(size, QImage::Format_Grayscale8);
+                    mask.fill(kind == "white" ? 255 : kind == "gray" ? 127 : 0);
+                    QJsonObject base{{"kind", "pixel"}, {"png", png}, {"opacity", 1}, {"blend", 0}};
+                    QJsonObject frequency{
+                        {"kind", "frequencyLow"},
+                        {"source", png},
+                        {"opacity", .65},
+                        {"blend", 0},
+                        {"parameters", QJsonObject{{"radius", 3}, {"pairId", "solo"}}}};
+                    QJsonObject layer{
+                        {"kind", "pixel"},
+                        {"png", encoded(cover)},
+                        {"compactPixels", cover.size() == QSize(1, 1)},
+                        {"visible", kind != "hidden"},
+                        {"opacity", kind == "opacity" ? .999999 : 1.},
+                        {"blend", kind == "blend" ? 5 : 0},
+                        {"clippingMask", kind == "clipped"},
+                        {"maskEnabled", kind != "disabled"},
+                        {"mask", masked ? encoded(mask) : QString{}},
+                        {"compactMask", false},
+                        {"parameters", QJsonObject{{"_maskDensity", kind == "zero" ? 0 : 100},
+                                                   {"_maskFeather", 4}}}};
+                    QJsonObject clipped{{"kind", "pixel"}, {"png", top}, {"compactPixels", true},
+                                        {"opacity", .8},   {"blend", 0}, {"clippingMask", true}};
+                    QJsonArray  layers{base, frequency, layer, clipped};
+                    if (kind.endsWith("Group")) {
+                        layer["groupId"]   = "cover-group";
+                        clipped["groupId"] = "cover-group";
+                        layers[2]          = layer;
+                        layers[3]          = clipped;
+                        layers.append(QJsonObject{{"kind", "group"},
+                                                  {"groupId", "cover-group"},
+                                                  {"visible", kind == "visibleGroup"},
+                                                  {"opacity", 1},
+                                                  {"blend", 0}});
+                    }
+                    QJsonObject root{{"format", "PhotoCrap"},   {"version", 9},
+                                     {"width", size.width()},   {"height", size.height()},
+                                     {"channelBits", bits},     {"layers", layers},
+                                     {"penPaths", QJsonArray{}}};
+                    const auto  url = QUrl::fromLocalFile(directory.filePath("opaque.pcr"));
+                    QFile       file(url.toLocalFile());
+                    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+                    QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+                    file.close();
+                    Document d;
+                    QVERIFY(d.openFile(url));
+                    QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), qint64(0));
+                    const auto  before = d.historyIndex();
+                    const QRect sample(13, 17, 27, 31);
+                    const auto  region = d.compositeRegion(sample), full = d.composite();
+                    QCOMPARE(region, full.copy(sample));
+                    QCOMPARE(d.historyIndex(), before);
+                    const bool covered = kind == "plain" || kind == "white" || kind == "zero" ||
+                                         kind == "disabled" || kind == "visibleGroup";
+                    const auto cache   = d.memoryUsage()["frequencyCacheBytes"].toLongLong();
+                    if (covered)
+                        QCOMPARE(cache, qint64(0));
+                    else
+                        QVERIFY2(cache > 0, qPrintable(kind));
+
+                    for (int y = 0; y < full.height(); ++y)
+                        hash.addData(
+                            QByteArrayView(reinterpret_cast<const char *>(full.constScanLine(y)),
+                                           full.width() * full.depth() / 8));
+                    ++cases;
+                }
+        }
+        QCOMPARE(cases, 56);
+        QCOMPARE(
+            hash.result().toHex(),
+            filterReference("993ab1b5af16ca8702cc04efc780eafcacf5f56ec1ab01b36b0ec2171866dfe7",
+                            "51188a22e3391e86a0f4e4ea476865574befde98674e9b2c739f9e9c8c7a2fa7"));
+    }
+    void opaqueUniformCoverProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_OPAQUE_COVER_PROBE"))
+            QSKIP("Set PHOTOCRAP_OPAQUE_COVER_PROBE=1 for an opaque 24 MP cover.");
+        Document d;
+        d.setBackgroundEditThreshold(-1);
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setTool("gradient");
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(0, 0);
+        d.continueStroke(6000, 4000);
+        d.endStroke();
+        d.addFrequencySeparation(8);
+        d.setLayerOpacity(2, .75);
+        d.addLayer();
+        d.setColor(Qt::white);
+        d.fillWithColor(true);
+        QCOMPARE(d.layers().size(), 4);
+        QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), qint64(0));
+        const auto    before = d.historyIndex();
+        QElapsedTimer timer;
+        timer.start();
+        const auto result  = d.composite();
+        const auto elapsed = timer.nsecsElapsed();
+        QCOMPARE(result.pixelColor(200, 200), QColor(Qt::white));
+        QCOMPARE(result.pixelColor(5700, 3700), QColor(Qt::white));
+        QCOMPARE(d.historyIndex(), before);
+        qInfo() << "24 MP / 16-bit, two frequency bands under an opaque cover, render ns:"
+                << elapsed;
+    }
+
     void uniformCompositeMetadataDigest()
     {
         QTemporaryDir directory;

@@ -1,5 +1,27 @@
 # Validation
 
+## Couches cachées sous un aplat opaque — 3 novembre 2026
+
+56 piles croisent 8/16 bits, aplat compact/natif et quatorze cas : couverture
+pleine, masque blanc, densité nulle, masque désactivé, opacité 0,999999, alpha
+65 534/65 535 (254/255 en 8 bits), mode de fusion, écrêtage, masque gris/noir,
+visibilité, groupe caché/visible et image non uniforme. Une bande basse se trouve
+sous l’aplat et un calque écrêté au-dessus. Les composites complets conservent
+les SHA-256 relevés sur `8d29002`, avec références Accelerate/portable séparées.
+Les lectures régionales égalent les extraits complets. Le cache de fréquences
+reste vide pour les cas couverts et est alimenté pour les autres : la bande est
+réellement ignorée, pas seulement recouverte après son calcul.
+
+Sonde `PHOTOCRAP_OPAQUE_COVER_PROBE=1 build/photocrap_tests
+opaqueUniformCoverProbe` : deux bandes de fréquences sous un aplat blanc,
+24 Mpx/16 bits, environ 838 → 15 ms de composition sur ce Mac. Les pixels et
+l’historique sont vérifiés, aucun seuil temporel n’est imposé. Ce raccourci ne
+s’applique qu’à un aplat reconnu par métadonnées, pas à toute image opaque.
+Les 50 suites, les trois contrôles ciblés Qt 6.8/CPU portable et le rendu
+natif Cocoa/Metal de la pile passent ; clang-tidy conserve seulement les
+avertissements de nommage préexistants.
+
+
 ## Plans uniformes du composite CPU — 3 novembre 2026
 
 96 compositions croisent 8/16 bits, pixels ordinaires ou transparents,

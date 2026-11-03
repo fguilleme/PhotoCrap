@@ -42,6 +42,29 @@ bool contributes(const Layer &_layer)
     return true;
 }
 
+int opaqueCoverIndex(const QVector<Layer> &_layers, const QSize &_size)
+{
+    QHash<QString, bool> groups;
+    for (const auto &layer : _layers)
+        if (layer.kind == QStringLiteral("group"))
+            groups.insert(layer.groupId, layer.visible);
+    for (int i = int(_layers.size()) - 1; i > 0; --i) {
+        const auto &layer = _layers[i];
+        if (layer.kind != QStringLiteral("pixel") || !layer.visible || layer.opacity < 1. ||
+            layer.blend != 0 || layer.clippingMask || needsMask(layer) ||
+            (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true)) ||
+            !layer.image.isUniform() ||
+            (layer.image.size() != _size && !ImageUtils::compact(layer.image)))
+            continue;
+        const auto pixel = layer.image.tileImage(0, 0);
+        // A device-scaled image may cover only part of its native dimensions.
+        // Fractional opacity/alpha must keep every underlying layer, too.
+        if (pixel.devicePixelRatio() == 1. && pixel.pixelColor(0, 0).alphaF() == 1.)
+            return i;
+    }
+    return 0;
+}
+
 bool requiresFullComposite(const Layer &_layer)
 {
     // These filters currently depend on absolute image coordinates. The blur
@@ -89,15 +112,16 @@ const QImage &Document::composite() const
     if (!m_cacheDirty)
         return m_composite;
     const QRect documentRect(QPoint{}, m_size);
-    const bool  fullEffect = std::any_of(m_layers.cbegin(), m_layers.cend(), requiresFullComposite);
-    const bool  fullRender = m_fullCompositeDirty || fullEffect || m_composite.size() != m_size;
+    const auto  first       = m_layers.cbegin() + opaqueCoverIndex(m_layers, m_size);
+    const bool  fullEffect  = std::any_of(first, m_layers.cend(), requiresFullComposite);
+    const bool  fullRender  = m_fullCompositeDirty || fullEffect || m_composite.size() != m_size;
     const QRect dirtyRegion = fullRender ? documentRect : m_dirtyRegion.intersected(documentRect);
     if (dirtyRegion.isEmpty()) {
         m_cacheDirty = false;
         return m_composite;
     }
     const int totalMargin =
-        std::accumulate(m_layers.cbegin(), m_layers.cend(), 0,
+        std::accumulate(first, m_layers.cend(), 0,
                         [](int _sum, const Layer &_layer) { return _sum + effectMargin(_layer); });
     // The first expansion is the area whose pixels can change. The second is
     // a halo that supplies neighbouring pixels to the filters. Only the first
@@ -135,9 +159,9 @@ QImage Document::compositeRegion(const QRect &_region) const
         return m_composite.copy(region);
     // Preserve coordinate-dependent effects, draft rendering, and native image
     // scaling until those paths support an explicit document-space origin.
+    const auto first = m_layers.cbegin() + opaqueCoverIndex(m_layers, m_size);
     const bool full =
-        m_previewingLayer ||
-        std::any_of(m_layers.cbegin(), m_layers.cend(), [](const Layer &_layer) {
+        m_previewingLayer || std::any_of(first, m_layers.cend(), [](const Layer &_layer) {
             if (!contributes(_layer))
                 return false;
             const auto scaled = [](const PixelPlane &_plane) {
@@ -150,7 +174,7 @@ QImage Document::compositeRegion(const QRect &_region) const
     if (full)
         return composite().copy(region);
     const int margin =
-        std::accumulate(m_layers.cbegin(), m_layers.cend(), 0,
+        std::accumulate(first, m_layers.cend(), 0,
                         [](int _sum, const Layer &_layer) { return _sum + effectMargin(_layer); });
     const QRect workRegion = expanded(region, margin, bounds);
     return renderCompositeRect(workRegion)
@@ -185,7 +209,8 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     for (const auto &layer : m_layers)
         if (layer.kind == QStringLiteral("group"))
             groupVisibility.insert(layer.groupId, layer.visible);
-    for (int layerIndex = 0; layerIndex < m_layers.size(); ++layerIndex) {
+    for (int layerIndex = opaqueCoverIndex(m_layers, m_size); layerIndex < m_layers.size();
+         ++layerIndex) {
         const auto &layer = m_layers[layerIndex];
         if (layer.kind == QStringLiteral("group")) {
             resetClipping();

@@ -39,6 +39,15 @@ existants, dynamiques ou préparés, après réouverture. Le zoom ne change pas 
 les dimensions restent identiques. La précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
+Le composite CPU commence désormais au dernier calque de pixels uniforme qui
+recouvre entièrement le document en mode Normal, à opacité et alpha exactement
+pleins, sans écrêtage ni masque modifiant la couverture et dans un groupe visible.
+Les couches inférieures ne sont ni rendues ni prises en compte pour les marges et
+les restrictions de lecture régionale. Les pixels restent présents et éditables ;
+seul ce rendu les ignore. Opacité fractionnaire, alpha 65 534/65 535, mode de fusion,
+masque gris/noir, groupe caché, image non uniforme ou DPR différent de 1 empêchent
+ce raccourci. Les couches écrêtées suivantes utilisent toujours l’aplat comme base.
+
 Le composite CPU consulte aussi les métadonnées des plans uniformes avant de
 matérialiser leurs pixels. Un fond natif transparent ne fournit aucune couverture ;
 un masque noir uniforme à pleine densité masque entièrement le calque. Ces cas

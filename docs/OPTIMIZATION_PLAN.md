@@ -9,6 +9,9 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Composite CPU ignorant les couches situées sous un aplat uniforme
+  pleinement opaque ; effets, marges et lectures régionales limités à la pile visible.
+
 - [x] Composite CPU ignorant les fonds natifs uniformes transparents et masques
   noirs uniformes opaques ; masques blancs ou de densité nulle reconnus avant
   expansion, flou et marges, en conservant les chaînes d’écrêtage.

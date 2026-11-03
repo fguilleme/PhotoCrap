@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Composite CPU ignorant les couches situées sous un aplat uniforme
+  pleinement opaque ; effets, marges et lectures régionales limités à la pile visible.
+
 - [x] Composite CPU ignorant les fonds natifs uniformes transparents et masques
   noirs uniformes opaques ; masques blancs ou de densité nulle reconnus avant
   expansion, flou et marges, en conservant les chaînes d’écrêtage.

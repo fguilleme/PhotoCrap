@@ -19,6 +19,14 @@ conservent leur préparation complète actuelle ; la précision et les calculs d
 bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
+La préparation des retouches capture maintenant les `PixelPlane` immuables,
+sans convertir les deux sources en QImage dans la GUI. Le worker matérialise les
+plans nécessaires ; les deux bandes conservent la même identité de source quand
+elles partagent leurs tuiles. Le cache peut donc réutiliser la bande basse selon
+son budget. Les leases disque restent possédés jusqu’à la fin du travail.
+Les grandes images des bandes et leur intégration finale restent des coûts distincts ;
+ce changement réduit la soumission, sans rendre tout le flou régional.
+
 Lors de l’import initial d’un plan natif, le fond compact est choisi parmi les
 couleurs des tuiles entièrement uniformes, pondérées par leur allocation native
 (y compris les bords incomplets). Les autres tuiles gardent leurs bits exacts.

@@ -1,5 +1,22 @@
 # Validation
 
+## Sources natives de préparation des fréquences — 3 novembre 2026
+
+La soumission partage les plans natifs sans deux conversions QImage pleine taille
+sur le thread GUI. Le calcul continue sur le worker existant et les sources liées
+gardent leur identité. Les références 8/16 bits, masques, paramètres, retour au
+rayon, annulation et résultats caducs restent vérifiés. Deux nouveaux parcours
+déchargent tous les pixels natifs sur disque avant préparation, comparent les deux
+bandes aux références et exercent Annuler/Rétablir sans modifier l’original.
+Les contrôles ciblés passent sous Qt 6.12, Qt 6.8 et sur le CPU portable.
+Les 50 suites Qt 6.12 et le contrôle natif des opérations Cocoa/Metal passent.
+
+Sonde `PHOTOCRAP_FREQUENCY_RETOUCH_PROBE=1 build/photocrap_tests
+largeFrequencyRetouchSubmissionProbe` : pool bloqué, document dégradé 24 Mpx en
+16 bits, annulation avant calcul. Soumission locale 35,9 → 0,055 ms, sans seuil de
+durée imposé. Ce temps exclut le calcul des bandes et leur publication finale.
+
+
 ## Baguette magique sur sources uniformes — 3 novembre 2026
 
 16 cas vérifient les plans 8/16 bits, source active/composée, fonds blancs,

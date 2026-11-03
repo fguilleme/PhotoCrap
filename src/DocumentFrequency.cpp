@@ -51,11 +51,13 @@ bool Document::prepareFrequencyRetouch()
     // after edits and project reload, independently of the undo history.
     if (!validLayerStorage(width(), height(), 2))
         return false;
-    const QString  label     = tr("Préparer la retouche des fréquences");
-    const Snapshot before    = snapshot(label);
-    const quint64  session   = m_documentSession;
-    const QImage   lowSource = low.source, highSource = high.source;
-    const auto     cancel    = std::make_shared<std::atomic_bool>(false);
+    const QString  label   = tr("Préparer la retouche des fréquences");
+    const Snapshot before  = snapshot(label);
+    const quint64  session = m_documentSession;
+    // Keep immutable native versions here. Materializing each tiled source as
+    // a full QImage belongs on the worker, even when both bands share a source.
+    const PixelPlane lowSource = low.source, highSource = high.source;
+    const auto       cancel  = std::make_shared<std::atomic_bool>(false);
     m_frequencyRetouchCancel = cancel;
     m_frequencyRetouchBusy   = true;
     emit  frequencyRetouchBusyChanged();

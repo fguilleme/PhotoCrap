@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Préparation des retouches de fréquences capturant les plans natifs partagés ;
+  matérialisation des sources déplacée de la GUI au worker, leases disque préservés.
+
 - [x] Baguette magique immédiate sur les sources uniformes reconnues : pas de
   lecture de pixels ni de tâche en arrière-plan ; effets spatiaux exclus.
 

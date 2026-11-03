@@ -42,6 +42,7 @@
 #include <QJsonObject>
 #include <QPainter>
 #include <QScopeGuard>
+#include <QSemaphore>
 #include <QSettings>
 #include <QStorageInfo>
 #include <QTemporaryDir>
@@ -8898,6 +8899,51 @@ private slots:
         QCOMPARE(d.layerImage(1), low);
         QCOMPARE(d.layerImage(2), high);
     }
+    void frequencyRetouchReadsOffloadedNativeSources_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void frequencyRetouchReadsOffloadedNativeSources()
+    {
+        QFETCH(int, bits);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(517, 523, false, bits));
+        d.setTool("gradient");
+        d.setColor(QColor(200, 40, 80));
+        d.setSecondaryColor(QColor(30, 160, 220));
+        d.beginStroke(0, 0);
+        d.continueStroke(517, 523);
+        d.endStroke();
+        const QImage original = d.layerImage(0);
+        d.addFrequencySeparation(7);
+        const QImage low  = d.layerImage(1).convertToFormat(ImageUtils::workingFormat(original));
+        const QImage high = d.layerImage(2).convertToFormat(ImageUtils::workingFormat(original));
+        d.configureScratchCache(directory.path(), 32 * 1024 * 1024);
+        d.configurePlaneRamMiB(0);
+        QTRY_COMPARE_WITH_TIMEOUT(d.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0), 10000);
+        QVERIFY(d.scratchCacheUsage()["diskBytes"].toLongLong() > 0);
+        const int  history = d.historyIndex();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        QVERIFY(d.prepareFrequencyRetouch());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QVERIFY(errors.isEmpty());
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layerImage(1), low);
+        QCOMPARE(d.layerImage(2), high);
+        QCOMPARE(d.layerImage(0), original);
+        d.undo();
+        QCOMPARE(d.layers()[0].toMap()["kind"].toString(), QString("frequencyHigh"));
+        QCOMPARE(d.layerImage(1).convertToFormat(ImageUtils::workingFormat(original)), low);
+        QCOMPARE(d.layerImage(2), high);
+        d.redo();
+        QCOMPARE(d.layerImage(1), low);
+        QCOMPARE(d.layerImage(2), high);
+    }
+
     void frequencyRetouchPreservesMasksAndLayerMetadata()
     {
         Document d;
@@ -9095,6 +9141,54 @@ private slots:
         QCOMPARE(after, before);
         qInfo() << "Dense 24 MP / 16-bit frequency creation, ns and added heap bytes:" << elapsed
                 << after - before;
+    }
+
+    void largeFrequencyRetouchSubmissionProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_FREQUENCY_RETOUCH_PROBE"))
+            QSKIP("Set PHOTOCRAP_FREQUENCY_RETOUCH_PROBE=1 to measure 24 MP retouch submission.");
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.setTool("gradient");
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(0, 0);
+        d.continueStroke(6000, 4000);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        d.addFrequencySeparation(8);
+        const auto layers  = d.layers();
+        const auto history = d.history();
+        auto      *pool    = QThreadPool::globalInstance();
+        pool->waitForDone();
+        const int maximum = pool->maxThreadCount();
+        pool->setMaxThreadCount(1);
+        QSemaphore entered, release;
+        pool->start([&] {
+            entered.release();
+            release.acquire();
+        });
+        entered.acquire();
+        qint64 elapsed = 0;
+        {
+            const auto    cleanup = qScopeGuard([&] {
+                d.cancelFrequencyRetouch();
+                release.release();
+                pool->waitForDone();
+                pool->setMaxThreadCount(maximum);
+            });
+            QElapsedTimer timer;
+            timer.start();
+            QVERIFY(d.prepareFrequencyRetouch());
+            elapsed = timer.nsecsElapsed();
+            QVERIFY(d.frequencyRetouchBusy());
+            QCOMPARE(d.layers(), layers);
+            QCOMPARE(d.history(), history);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.frequencyRetouchBusy(), 10000);
+        QCOMPARE(d.layers(), layers);
+        QCOMPARE(d.history(), history);
+        qInfo() << "24 MP / 16-bit frequency retouch submission ns:" << elapsed;
     }
 
     void frequencySeparationHasRealtimePreview()

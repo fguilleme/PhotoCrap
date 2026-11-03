@@ -965,6 +965,7 @@ public:
     // exact before/after composite, even if another consumer rendered first.
     QRect compositeUpdateRegion(qint64 _before, qint64 _after) const;
     void  setGpuTonePreviewEnabled(bool _enabled);
+    void  setGpuStackDisplayActive(bool active);
     bool  gpuTonePreviewActive() const;
     void  setGpuToneNearestSampling(bool _nearest);
     PhotoCrap::Filters::ToneMappingSettings gpuTonePreviewSettings() const;
@@ -1202,6 +1203,7 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void gpuStackChanged();
     void penPathsChanged();
     void penHoverChanged();
     void penOptionsChanged();
@@ -1513,6 +1515,8 @@ private:
     qint64  m_gpuToneMaskSourceKey = 0;
     int     m_gpuToneMaskFeather   = 0;
     QTimer  m_gpuToneAuxTimer;
+    QTimer  m_gpuStackAuxTimer;
+    bool    m_gpuStackDisplayActive = false;
     QFutureWatcher<PreviewRenderResult> m_previewRenderWatcher;
     QVector<Layer>                      m_pendingPreviewLayers;
     QSize                               m_pendingPreviewSize;

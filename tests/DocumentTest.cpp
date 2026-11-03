@@ -66,11 +66,26 @@ private slots:
         d.addAdjustmentLayer("solidColor");
         QVERIFY(d.gpuLayerStack().valid);
         d.addAdjustmentLayer("boxBlur");
+        QVERIFY(d.gpuLayerStack().valid);
+        QVERIFY(d.gpuLayerStack().halo > 0);
+        d.addAdjustmentLayer("noise");
         QVERIFY(!d.gpuLayerStack().valid);
         d.setLayerVisible(d.activeLayer(), false);
         QVERIFY(d.gpuLayerStack().valid);
         d.setDisplayChannel(1);
         QVERIFY(!d.gpuLayerStack().valid);
+    }
+
+    void emptyLayersDoNotCreateGpuPasses()
+    {
+        Document d;
+        QVERIFY(d.newDocument(16, 16, false));
+        for (int i = 0; i < 30; ++i)
+            d.addLayer();
+        QCOMPARE(d.gpuLayerStack().layers.size(), qsizetype(2));
+        QVERIFY(d.newDocument(16, 16, true));
+        QCOMPARE(d.gpuLayerStack().layers.size(), qsizetype(1));
+        QVERIFY(d.gpuLayerStack().layers.first().reset);
     }
 
     void initTestCase()

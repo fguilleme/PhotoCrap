@@ -134,13 +134,21 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
     m_previewRenderPending     = true;
     m_previewRenderActive.store(true);
     ++m_previewRequestGeneration;
-    if (!m_previewRenderWatcher.isRunning())
+    emit gpuStackChanged();
+    if (_draft && m_previewingLayer && m_gpuStackDisplayActive) {
+        if (!m_gpuStackAuxTimer.isActive())
+            m_gpuStackAuxTimer.start();
+    } else {
+        m_gpuStackAuxTimer.stop();
+    }
+    if (!m_previewRenderWatcher.isRunning() && !m_gpuStackAuxTimer.isActive())
         startPendingPreviewRender();
 }
 
 void Document::startPendingPreviewRender()
 {
-    if (!m_previewRenderPending || m_previewRenderWatcher.isRunning())
+    if (!m_previewRenderPending || m_previewRenderWatcher.isRunning() ||
+        m_gpuStackAuxTimer.isActive())
         return;
     QVector<Layer> layers      = std::move(m_pendingPreviewLayers);
     const QSize    size        = m_pendingPreviewSize;

@@ -28,7 +28,9 @@ Le [guide calques et mémoire](docs/LAYER_MEMORY.md) décrit le fonctionnement e
 
 En développement après v0.16 : la pile de pixels, texte et Couleur unie peut être
 composée par tuiles sur GPU, avec masques, écrêtage et 21 modes de fusion. Le chemin
-CPU est conservé pour les autres piles et pour le rendu final. Les ressources sont
+CPU est conservé pour les autres piles et pour le rendu final. Les flous de boîte,
+gaussien et directionnel, la netteté et le passe-haut disposent aussi de passes
+GPU avec halos, masques et annulation immédiate. Les ressources sont
 réutilisées par version régionale et le jeu de travail est borné avant allocation.
 Voir les [formats et limites du rendu](docs/GPU_RENDERING.md).
 

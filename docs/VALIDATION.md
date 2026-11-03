@@ -1,5 +1,28 @@
 # Validation
 
+## Filtres spatiaux GPU — 3 novembre 2026
+
+- 64 configurations comparées au composite natif : boîte, gaussien, directionnel,
+  netteté et passe-haut, rayons/distances 0, 1, 8, 31 et 100, en 8/16 bits. Les
+  points de contrôle couvrent les limites du document, les raccords horizontaux
+  et verticaux, les masques/opacités, les chaînes de deux filtres et l'alpha.
+- Sur Metal Qt 6.8 et 6.12, et OpenGL moderne Qt 6.12, l'écart maximal observé aux
+  points de contrôle est d'une unité d'affichage 8 bits. Cette mesure ne constitue
+  pas une comparaison exhaustive de tous les pixels ni un gain de vitesse global.
+- Un test bloque le pool CPU : le changement GPU reste visible avant toute
+  notification d'image CPU. Annuler retrouve l'image précédente et n'ajoute pas
+  d'historique. Les paramètres périmés ne sont pas réappliqués par le worker.
+- Le passage 1056 × 96 → 544 × 544 → 1056 × 96 vérifie la réutilisation d'une
+  tuile précédemment hors écran. Le retrait du document ramène à zéro les
+  allocations suivies de la pile et des cibles spatiales.
+- Les 45 tests hors interaction native macOS passent sur Qt 6.12. Les tests
+  moteur, pile et filtres passent aussi sur Qt 6.8 en logiciel ; les aperçus
+  tonals existants restent verts. L'ancien contexte OpenGL sur Mac utilise
+  bien le repli CPU, sans erreur de shader. Le test OpenGL moderne est lancé avec
+  `PHOTOCRAP_TEST_GL_CORE=1 QSG_RHI_BACKEND=opengl QSG_RENDER_LOOP=basic` ; la variable
+  de profil n'est prise en compte que par les builds de test.
+
+
 ## Première composition GPU de la pile — 3 novembre 2026
 
 - Comparaisons Metal en 8/16 bits pour les 21 modes autorisés, opacité partielle,

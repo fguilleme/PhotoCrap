@@ -21,6 +21,10 @@ public:
     {
         return m_image.isNull() ? m_tiles.size() : m_image.size();
     }
+    bool isUniform() const
+    {
+        return size() == QSize(1, 1) || (!m_dirty && !m_tiles.isNull() && m_tiles.tileCount() == 0);
+    }
     QRect rect() const
     {
         return QRect(QPoint{}, size());

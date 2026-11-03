@@ -152,6 +152,11 @@ struct CanvasNode : QSGTransformNode {
 
     ~CanvasNode() override
     {
+        if (stack) {
+            if (stack->parent())
+                photo.removeChildNode(stack);
+            delete stack;
+        }
         photo.removeAllChildNodes();
         qDeleteAll(tiles);
         delete toneTable;
@@ -275,6 +280,8 @@ void CanvasItem::updatePolish()
     }
     if (previousStack != m_stack.valid)
         m_imageDirty = true;
+    if (m_document)
+        m_document->setGpuStackDisplayActive(m_stack.valid);
     QImage      source;
     QRect       updateRegion;
     const QSize previousSize = m_sourceSize;
@@ -666,6 +673,7 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
     if (!window() || m_textureSize.isEmpty() || visible.isEmpty()) {
         delete node;
 #ifdef PHOTOCRAP_TESTING
+        m_gpuStackActive       = false;
         m_residentTextureBytes = 0;
 #endif
         return nullptr;
@@ -741,7 +749,11 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         node->checker->setSourceRect(QRectF(QPointF{}, checkerSize));
     }
 
-    if (m_stack.valid && LayerStackNode::supported(window(), m_stack.bits)) {
+    const bool spatial =
+        std::any_of(m_stack.layers.cbegin(), m_stack.layers.cend(), [](const auto &layer) {
+            return layer.spatial.type != PhotoCrap::Render::SpatialFilter::None;
+        });
+    if (m_stack.valid && LayerStackNode::supported(window(), m_stack.bits, spatial)) {
         if (!node->stack) {
             for (auto *tile : std::as_const(node->tiles))
                 if (tile->parent())

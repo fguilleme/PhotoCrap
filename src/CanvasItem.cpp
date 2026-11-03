@@ -273,6 +273,8 @@ CanvasItem::CanvasItem(QQuickItem *_parent) : QQuickItem(_parent)
 }
 CanvasItem::~CanvasItem()
 {
+    if (m_document)
+        m_document->setGpuStackDisplayActive(false);
     if (m_systemCursorActive)
         QGuiApplication::restoreOverrideCursor();
 }
@@ -283,6 +285,7 @@ void CanvasItem::setDocument(Document *_document)
     if (m_document) {
         disconnect(m_document, nullptr, this, nullptr);
         m_document->setGpuTonePreviewEnabled(false);
+        m_document->setGpuStackDisplayActive(false);
     }
     m_document         = _document;
     m_patchGpuRejected = false;
@@ -292,6 +295,10 @@ void CanvasItem::setDocument(Document *_document)
         connect(_document, &Document::imageChanged, this, [this] { queueFrame(true, false); });
         connect(_document, &Document::gpuTonePreviewChanged, this,
                 [this] { queueFrame(true, false); });
+        connect(_document, &Document::gpuStackChanged, this, [this] {
+            if (m_gpuStackEnabled && m_stack.valid && !m_gpuStackRejected)
+                queueFrame(true, false);
+        });
         connect(_document, &Document::documentChanged, this, [this] { queueFrame(true, true); });
         connect(_document, &Document::selectionChanged, this, [this] { queueFrame(false, true); });
         connect(_document, &Document::selectionDisplayChanged, this,

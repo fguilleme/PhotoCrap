@@ -13,7 +13,7 @@ public:
     LayerStackNode(QQuickWindow *window, std::function<void()> failure,
                    std::shared_ptr<PhotoCrap::Render::StackStatistics> statistics);
     ~LayerStackNode() override;
-    static bool supported(QQuickWindow *window, int bits);
+    static bool supported(QQuickWindow *window, int bits, bool spatial);
     bool        update(const PhotoCrap::Render::LayerStack &stack, const QRectF &item,
                        const QRectF &visible, qint64 cacheBytes);
     quint64     uploads() const;

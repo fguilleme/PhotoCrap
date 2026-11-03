@@ -1,5 +1,6 @@
 #pragma once
 #include "../storage/PixelPlane.h"
+#include "SpatialFilterSettings.h"
 #include <QVector>
 #include <atomic>
 
@@ -9,16 +10,18 @@ struct StackStatistics {
     std::atomic<quint64> uploads{0}, passes{0}, bytes{0};
 };
 struct StackLayer {
-    PixelPlane image, mask;
-    float      opacity = 1, density = 1;
-    int        blend   = 0;
-    bool       clipped = false, reset = false;
+    PixelPlane            image, mask;
+    float                 opacity = 1, density = 1;
+    int                   blend   = 0;
+    bool                  clipped = false, reset = false;
+    SpatialFilterSettings spatial;
 };
 // Immutable, shallow GUI-thread snapshot. Pixel reads and GPU resources belong
 // to the scene graph thread; no live Document is accessed there.
 struct LayerStack {
     QSize               size;
     int                 bits = 8;
+    int                 halo = 0;
     QVector<StackLayer> layers;
     bool                valid = false;
 };
@@ -33,19 +36,27 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     qint64 bytes = 0;
     for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
         for (int x = area.left() / tile; x <= area.right() / tile; ++x) {
-            const auto   size       = QRect(x * tile - 1, y * tile - 1, tile + 2, tile + 2)
-                                          .intersected(QRect(QPoint{}, stack.size))
-                                          .size();
-            const qint64 pixels     = qint64(size.width()) * size.height();
+            const int    padding = stack.halo + 1;
+            const auto   size    = QRect(x * tile - padding, y * tile - padding, tile + 2 * padding,
+                                         tile + 2 * padding)
+                                       .intersected(QRect(QPoint{}, stack.size))
+                                       .size();
+            const qint64 pixels  = qint64(size.width()) * size.height();
             const int    colorBytes = stack.bits == 16 ? 16 : 4;
             bytes += pixels * (colorBytes + 1) * 2 + 64;
+            bool spatial = false;
             for (const auto &layer : stack.layers) {
+                spatial |= layer.spatial.type != SpatialFilter::None;
                 bytes += layer.image.size() == QSize(1, 1) || layer.image.isNull()
                              ? colorBytes
                              : pixels * colorBytes;
                 bytes += layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
                 bytes += 96;
+                if (layer.spatial.type != SpatialFilter::None)
+                    bytes += 7 * 96;
             }
+            if (spatial)
+                bytes += pixels * (colorBytes + 16) + 64;
         }
     return bytes;
 }

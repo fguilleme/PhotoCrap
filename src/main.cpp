@@ -28,6 +28,7 @@
 #include <QQuickWindow>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QSurfaceFormat>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
 #include "../tests/BrushCursorSmoke.h"
@@ -46,6 +47,7 @@
 #include "../tests/PresetPreviewSmoke.h"
 #include "../tests/ShutdownSmoke.h"
 #include "../tests/SliceOverlaySmoke.h"
+#include "../tests/SpatialRenderSmoke.h"
 #include "../tests/ThresholdGraphSmoke.h"
 #include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
@@ -176,6 +178,14 @@ public:
 
 int main(int argc, char *argv[])
 {
+#ifdef PHOTOCRAP_TESTING
+    if (qEnvironmentVariableIntValue("PHOTOCRAP_TEST_GL_CORE") == 1) {
+        QSurfaceFormat format;
+        format.setVersion(3, 3);
+        format.setProfile(QSurfaceFormat::CoreProfile);
+        QSurfaceFormat::setDefaultFormat(format);
+    }
+#endif
     Application app(argc, argv);
     app.setApplicationName("PhotoCrap");
     app.setOrganizationName("PhotoCrap");
@@ -287,6 +297,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--stack-render-test")) {
                 passed = window && runLayerStackSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--spatial-render-test")) {
+                passed = window && runSpatialRenderSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

@@ -1,8 +1,10 @@
 #include "LayerStackNode.h"
 #include <QQuickWindow>
 #ifdef PHOTOCRAP_RHI_STACK
+#include "SpatialFilterPass.h"
 #include "TileCache.h"
 #include <QFile>
+#include <QOpenGLContext>
 #include <QSGImageNode>
 #include <QSGRenderNode>
 #include <QSGTexture>
@@ -82,6 +84,7 @@ public:
     std::unique_ptr<QRhiSampler>                            sampler;
     std::unique_ptr<QRhiBuffer>                             vertices;
     std::unique_ptr<QRhiGraphicsPipeline>                   pipeline;
+    std::unique_ptr<SpatialFilterPass>                      spatial;
     QHash<QByteArray, std::shared_ptr<Input>>               inputs;
     std::vector<std::unique_ptr<Pass>>                      passes;
     QSGImageNode                                           *image          = nullptr;
@@ -149,7 +152,10 @@ public:
             wrapper = next;
             output  = last;
         }
-        image->setSourceRect(content.translated(-region.topLeft()));
+        QRect source = content.translated(-region.topLeft());
+        if (rhi->isYUpInFramebuffer())
+            source.moveTop(region.height() - source.y() - source.height());
+        image->setSourceRect(source);
         image->setRect(rect);
         image->setFiltering(rect.width() < content.width() ? QSGTexture::Linear
                                                            : QSGTexture::Nearest);
@@ -220,6 +226,7 @@ public:
             key.append(char(layer.blend));
             key.append(char(layer.clipped));
             key.append(char(layer.reset));
+            key += layer.spatial.key();
         }
         key += QByteArray::number(stack.bits);
         if (key == renderedKey)
@@ -229,6 +236,9 @@ public:
         if (renderedKey.isEmpty())
             updates->uploadStaticBuffer(vertices.get(), quad);
         QSet<QByteArray> used;
+        std::vector<int> filterRuns;
+        if (spatial)
+            spatial->resetFrame();
         passes.clear();
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
@@ -239,6 +249,21 @@ public:
                 ok = false;
                 break;
             }
+            QRhiTexture *source = color->texture.get();
+            int          run    = -1;
+            if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
+                if (!spatial)
+                    spatial = std::make_unique<SpatialFilterPass>(rhi, region.size(), bits);
+                const auto prepared =
+                    spatial->prepare(colors[index % 2].get(), layer.spatial, updates);
+                if (!prepared.texture) {
+                    ok = false;
+                    break;
+                }
+                source = prepared.texture;
+                run    = prepared.index;
+            }
+            filterRuns.push_back(run);
             auto pass = std::make_unique<Pass>();
             pass->uniform.reset(rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 96));
             if (!pass->uniform->create()) {
@@ -248,7 +273,8 @@ public:
             QByteArray uniform(96, 0);
             const auto matrix = rhi->clipSpaceCorrMatrix();
             std::memcpy(uniform.data(), matrix.constData(), 64);
-            const qint32 modes[]  = {layer.blend, layer.clipped, layer.reset, index == 0};
+            const qint32 modes[]  = {layer.blend, layer.clipped,
+                                     int(layer.reset) + (run >= 0 ? 2 : 0), index == 0};
             const float  values[] = {layer.opacity, layer.density,
                                      stack.bits == 16 ? 65535.f : 255.f,
                                      rhi->isYUpInFramebuffer() ? 1.f : 0.f};
@@ -262,8 +288,7 @@ public:
                      0, stage | QRhiShaderResourceBinding::VertexStage, pass->uniform.get()),
                  QRhiShaderResourceBinding::sampledTexture(1, stage, colors[index % 2].get(),
                                                            sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(2, stage, color->texture.get(),
-                                                           sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(3, stage, mask->texture.get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(4, stage, clips[index % 2].get(),
@@ -300,9 +325,15 @@ public:
         }
         pipeline->setShaderResourceBindings(passes.front()->bindings.get());
         auto *cb = commandBuffer();
+        cb->resourceUpdate(updates);
+        if (!filterRuns.empty() && filterRuns.front() >= 0) {
+            cb->beginPass(targets[0].get(), Qt::transparent, {1.f, 0});
+            cb->endPass();
+        }
         for (size_t index = 0; index < passes.size(); ++index) {
-            cb->beginPass(targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0},
-                          index == 0 ? updates : nullptr);
+            if (filterRuns[index] >= 0)
+                counters->passes.fetch_add(spatial->render(cb, filterRuns[index]));
+            cb->beginPass(targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0});
             cb->setGraphicsPipeline(pipeline.get());
             cb->setViewport(QRhiViewport(0, 0, region.width(), region.height()));
             cb->setShaderResources(passes[index]->bindings.get());
@@ -340,7 +371,7 @@ public:
         qint64 result = qint64(region.width()) * region.height() * (bits == 16 ? 34 : 10) + 64;
         for (const auto &value : inputs)
             result += value->bytes;
-        return result + qint64(passes.size()) * 96;
+        return result + qint64(passes.size()) * 96 + (spatial ? spatial->bytes() : 0);
     }
     void updateBytes()
     {
@@ -373,16 +404,33 @@ LayerStackNode::LayerStackNode(QQuickWindow *window, std::function<void()> failu
 LayerStackNode::~LayerStackNode()
 {
     for (auto *tile : std::as_const(d->tiles)) {
-        removeChildNode(tile);
+        if (tile->parent())
+            removeChildNode(tile);
         delete tile;
     }
 }
-bool LayerStackNode::supported(QQuickWindow *window, int bits)
+bool LayerStackNode::supported(QQuickWindow *window, int bits, bool spatial)
 {
     const auto *rhi = window ? window->rhi() : nullptr;
+    if (rhi && rhi->backend() == QRhi::OpenGLES2) {
+#if QT_CONFIG(opengl)
+        const auto *context = QOpenGLContext::currentContext();
+        if (!context)
+            return false;
+        const auto format = context->format();
+        if (context->isOpenGLES() ? format.majorVersion() < 3
+                                  : format.majorVersion() < 3 ||
+                                        (format.majorVersion() == 3 && format.minorVersion() < 3))
+            return false;
+#else
+        return false;
+#endif
+    }
     return rhi && rhi->resourceLimit(QRhi::TextureSizeMax) >= tileSize + 2 &&
+           rhi->isFeatureSupported(QRhi::TexelFetch) &&
            rhi->resourceLimit(QRhi::MaxColorAttachments) >= 2 &&
-           rhi->isTextureFormatSupported(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
+           rhi->isTextureFormatSupported(bits == 16 || spatial ? QRhiTexture::RGBA32F
+                                                               : QRhiTexture::RGBA8,
                                          QRhiTexture::RenderTarget) &&
            rhi->isTextureFormatSupported(QRhiTexture::R8, QRhiTexture::RenderTarget);
 }
@@ -402,10 +450,13 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
             const quint64 key = (quint64(quint32(y)) << 32) | quint32(x);
             const QRect   content =
                 QRect(x * tileSize, y * tileSize, tileSize, tileSize).intersected(bounds);
-            const QRect padded = content.adjusted(-1, -1, 1, 1).intersected(bounds);
-            auto       *tile   = d->tiles.value(key);
+            const QRect padded =
+                content.adjusted(-stack.halo - 1, -stack.halo - 1, stack.halo + 1, stack.halo + 1)
+                    .intersected(bounds);
+            auto *tile = d->tiles.value(key);
             if (tile && (tile->region != padded || tile->bits != stack.bits)) {
-                removeChildNode(tile);
+                if (tile->parent())
+                    removeChildNode(tile);
                 delete tile;
                 d->tiles.remove(key);
                 tile = nullptr;
@@ -480,7 +531,7 @@ LayerStackNode::LayerStackNode(QQuickWindow *, std::function<void()>,
 {
 }
 LayerStackNode::~LayerStackNode() = default;
-bool LayerStackNode::supported(QQuickWindow *, int)
+bool LayerStackNode::supported(QQuickWindow *, int, bool)
 {
     return false;
 }

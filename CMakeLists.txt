@@ -26,6 +26,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
     src/render/LayerStackNode.cpp
+    src/render/SpatialFilterPass.cpp
     src/render/SelectionOutlineNode.cpp
     src/render/RegionOverlayNode.cpp
     src/render/PatchPreviewNode.cpp
@@ -140,6 +141,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/ToneMappingNode.h
     src/render/LayerStackNode.h
     src/render/LayerStack.h
+    src/render/SpatialFilterPass.h
+    src/render/SpatialFilterSettings.h
     src/render/SelectionOutlineNode.h
     src/render/RegionOverlayNode.h
     src/render/PatchPreviewNode.h
@@ -219,6 +222,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/PatchMeshTest.cpp
     tests/ToneRenderSmoke.h
     tests/LayerStackSmoke.h
+    tests/SpatialRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
     tests/GpuDissolvePreviewTest.cpp
@@ -435,6 +439,7 @@ qt_add_executable(PhotoCrap
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
     src/render/LayerStackNode.cpp src/render/LayerStackNode.h src/render/LayerStack.h
+    src/render/SpatialFilterPass.cpp src/render/SpatialFilterPass.h src/render/SpatialFilterSettings.h
     src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
     src/render/RegionOverlayNode.cpp src/render/RegionOverlayNode.h
     src/render/PatchPreviewNode.cpp src/render/PatchPreviewNode.h
@@ -458,8 +463,8 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
 )
 qt_add_shaders(PhotoCrap stack_shaders
     PREFIX "/PhotoCrap"
-    GLSL "150,300es"
-    FILES src/render/shaders/stack.vert src/render/shaders/stack.frag
+    GLSL "330,300es"
+    FILES src/render/shaders/stack.vert src/render/shaders/stack.frag src/render/shaders/spatial.frag
 )
 if(TARGET Qt6::GuiPrivate AND Qt6_VERSION VERSION_GREATER_EQUAL 6.6)
     target_link_libraries(PhotoCrap PRIVATE Qt6::GuiPrivate)
@@ -734,6 +739,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME canvas_render COMMAND PhotoCrap --smoke-test --canvas-render-test)
     add_test(NAME stack_render COMMAND PhotoCrap --smoke-test --stack-render-test)
+    add_test(NAME spatial_render COMMAND PhotoCrap --smoke-test --spatial-render-test)
+    set_tests_properties(spatial_render PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
     set_tests_properties(stack_render PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     set_tests_properties(canvas_render PROPERTIES

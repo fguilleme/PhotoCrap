@@ -44,12 +44,12 @@ void main()
     vec2 framebufferUV = ubuf.values.w > 0.5 ? vec2(uv.x, 1.0 - uv.y) : uv;
     vec4 base = ubuf.modes.w != 0 ? vec4(0.0) : texture(backdropTexture, framebufferUV);
     float clip = ubuf.modes.w != 0 ? 0.0 : texture(coverageTexture, framebufferUV).r;
-    if (ubuf.modes.z != 0) {
+    if ((ubuf.modes.z & 1) != 0) {
         composite = base;
         coverage = vec4(0.0);
         return;
     }
-    vec4 source = texture(sourceTexture, uv);
+    vec4 source = texture(sourceTexture, (ubuf.modes.z & 2) != 0 ? framebufferUV : uv);
     float mask = floor(255.0 - (255.0 - texture(maskTexture, uv).r * 255.0) * ubuf.values.y + 0.5) / 255.0;
     source = native(source * mask);
     if (ubuf.modes.y != 0)

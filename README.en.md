@@ -28,7 +28,9 @@ The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the impleme
 
 In development after v0.16: pixel, text and Solid Color stacks can be composited
 in GPU tiles, with masks, clipping and 21 blend modes. Other stacks and final native
-renders retain the CPU path. Regional versions reuse textures and completed tiles;
+renders retain the CPU path. Box, Gaussian and motion blur, unsharp mask and
+high-pass previews also use GPU passes with halos, masks and immediate cancellation.
+Regional versions reuse textures and completed tiles;
 the visible working set is checked before allocation. See the
 [rendering formats and limits](docs/GPU_RENDERING.md).
 

@@ -121,6 +121,9 @@ Document::Document(QObject *_parent) : QObject(_parent)
     connect(&m_rawWatcher, &QFutureWatcher<RawImageResult>::finished, this,
             &Document::finishRawLoad);
     m_gpuToneAuxTimer.setSingleShot(true);
+    m_gpuStackAuxTimer.setSingleShot(true);
+    m_gpuStackAuxTimer.setInterval(100);
+    connect(&m_gpuStackAuxTimer, &QTimer::timeout, this, &Document::startPendingPreviewRender);
     m_gpuToneAuxTimer.setInterval(100);
     connect(&m_gpuToneAuxTimer, &QTimer::timeout, this, [this] {
         if (m_previewingLayer && gpuTonePreviewActive())
@@ -593,6 +596,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    m_gpuStackAuxTimer.stop();
     if (!m_preserveGpuTonePreview)
         invalidateGpuTonePreview();
     cancelMagicErase();

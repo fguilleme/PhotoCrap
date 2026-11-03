@@ -19,6 +19,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
     canvas.setDocument(&document);
     canvas.setGpuStackEnabled(true);
     const bool hardware =
+        !qEnvironmentVariableIsSet("PHOTOCRAP_TEST_GL_LEGACY") &&
         QSGRendererInterface::isApiRhiBased(window->rendererInterface()->graphicsApi());
     const auto frame = [&] {
         window->update();

@@ -1,12 +1,40 @@
 # Canevas et accélération graphique
 
+## Filtres spatiaux dans la pile GPU — 3 novembre 2026
+
+Flou de boîte, Flou gaussien, Flou directionnel, Netteté et Passe-haut utilisent
+maintenant des passes séparées sur les tuiles visibles. Le halo de lecture est
+la somme des voisinages de la pile, puis seul le centre de la tuile est affiché.
+Les passes conservent l'alpha prémultiplié, les masques et la fusion du calque.
+
+Le gaussien reprend les trois convolutions de boîte du moteur. En 16 bits, chaque
+passe conserve sa troncature native. Pour le flou 8 bits accéléré sur Mac, la passe
+horizontale conserve la somme entière dans une cible RGBA32F ; l'arrondi 2D n'est
+appliqué qu'après la verticale, comme dans la référence vImage. Le flou directionnel
+reprend les positions et le nombre d'échantillons du CPU. Netteté et Passe-haut
+utilisent l'image originale et le gaussien sans écraser l'accumulateur de la pile.
+Les deux cibles auxiliaires sont réutilisées par les filtres successifs et comptées
+dans le budget avant allocation.
+
+Les paramètres actualisent directement le snapshot GPU, indépendamment d'un
+worker CPU occupé. Les aperçus CPU auxiliaires du Navigateur/histogramme sont
+limités à un lancement toutes les 100 ms pendant le geste ; seule la dernière
+demande en attente est conservée. La validation finale reste un calcul CPU natif
+asynchrone. Annuler restaure immédiatement le snapshot précédent ; un résultat
+CPU périmé ne remplace pas ce nouvel état.
+
+Les modes et combinaisons non pris en charge, les masques adoucis, les formats
+indisponibles et les jeux de travail trop grands conservent le repli CPU. Les
+calques uniformément transparents ne créent pas de passes ; les ruptures de
+chaînes d'écrêtage consécutives sont regroupées.
+
 ## Composition tuilée de la pile — 3 novembre 2026
 
 `LayerStackNode` utilise QRhi et des passes hors écran par tuile de 512 px. Les
 calques de pixels, le texte et Couleur unie sont composés avec leurs masques,
 opacités et écrêtages, en respectant les groupes masqués. Les 21 modes pris en
 charge sont comparés au CPU en 8 et 16 bits. Les modes 1, 18 et 23–26, les
-réglages autres que Couleur unie et les masques adoucis déclenchent un repli de
+réglages tonals autres que Couleur unie et les masques adoucis déclenchent un repli de
 toute la pile vers le chemin existant. Le rendu final natif CPU reste la référence.
 
 Les entrées et les cibles sont RGBA8 en 8 bits. En 16 bits, les entrées et les
@@ -20,6 +48,13 @@ pas du QImage reconstruit. Une modification distante ou un déchargement disque
 ne provoque donc aucun transfert de la région inchangée. Le résultat de la
 composition reste sur GPU entre les images. Les snapshots de plans sont libérés
 après leur préparation ; les tuiles hors écran sont évincées selon leur ancienneté.
+OpenGL utilise des shaders GLSL 330 avec emplacements de sorties explicites :
+les couleurs et la couverture ont deux cibles distinctes. Les contextes de bureau
+antérieurs à 3.3 et OpenGL ES antérieur à 3.0 conservent le repli CPU sans tentative
+de compilation incompatible. Avec les framebuffers à axe Y inversé, la zone
+source est réfléchie dans la texture entière avant son inversion, afin de ne pas
+décaler la marge de voisinage dans la partie visible.
+
 Le jeu de travail visible est estimé avant allocation ; s'il dépasse le budget,
 l'affichage utilise le chemin CPU. Le budget graphique global et les niveaux de
 détail GPU restent les étapes suivantes du plan de migration.

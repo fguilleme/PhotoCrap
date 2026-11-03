@@ -67,6 +67,10 @@ public:
     {
         return m_stackStatistics->passes.load();
     }
+    quint64 stackTextureBytes() const
+    {
+        return m_stackStatistics->bytes.load();
+    }
     bool gpuStackActive() const
     {
         return m_gpuStackActive.load();

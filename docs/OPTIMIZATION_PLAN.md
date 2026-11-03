@@ -21,8 +21,8 @@ Crayon et Gomme écrivent des régions directement ; les autres outils peuvent
 encore matérialiser un plan temporaire pendant leur opération. Le budget de
 256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
 global. Le composite complet CPU, les sélections et les buffers temporaires
-restent à compter séparément. Les essais sur disque réellement saturé et les
-mesures du pic de RAM global restent ouverts.
+restent à compter séparément. Le pic de RAM est mesuré sur des scénarios localisés ; les essais sur disque
+réellement saturé et les mesures sur des piles entièrement remplies restent ouverts.
 
 ## 2. Composition de la pile sur GPU
 
@@ -31,7 +31,7 @@ Couleur unie, masques sans contour progressif, visibilité des groupes et écrê
 Les 21 modes pris en charge utilisent RGBA8 pour les documents 8 bits et RGBA32F
 pour les intermédiaires 16 bits ; les couvertures sont en R8. Les versions
 régionales conservent les textures et composites de tuiles inchangées. Le budget
-du jeu de travail visible est vérifié avant allocation. Les réglages, les modes
+du jeu de travail visible est vérifié avant allocation. Les réglages tonals, les modes
 Dissoudre/Mélange maximal/TSL et les contours progressifs utilisent encore le
 composite CPU, ainsi que les backends sans formats requis. Ce rendu concerne
 l'affichage ; les exports et projets gardent leur référence native CPU.
@@ -45,10 +45,12 @@ l'affichage ; les exports et projets gardent leur référence native CPU.
 
 ## 3. Filtres spatiaux sur GPU
 
-- [ ] Flous séparables et voisinages avec halos de tuiles, puis netteté et effets
-  dérivés ; précision native préservée lorsque ce chemin produit le rendu final.
-- [ ] Annulation et rejet des rendus périmés ; comparaison CPU aux rayons limites
-  et aux frontières des tuiles en 8/16 bits.
+- [x] Flous de boîte, gaussien et directionnel, netteté et passe-haut dans la pile
+  GPU, avec halos cumulés et passes réutilisées. L’affichage est accéléré ; le
+  rendu final natif reste la référence CPU en 8/16 bits.
+- [x] Aperçu GPU pendant le blocage du worker CPU, annulation immédiate et rejet
+  des rendus CPU périmés ; comparaisons aux rayons 0/1/8/31/100 et aux frontières
+  horizontales/verticales, avec alpha et masques, en 8/16 bits.
 
 ## 4. Généralisation de l’asynchrone
 

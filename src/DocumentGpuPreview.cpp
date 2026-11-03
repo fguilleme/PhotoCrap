@@ -15,22 +15,61 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         if (layer.kind == "group")
             groups.insert(layer.groupId, layer.visible);
     for (const auto &layer : m_layers) {
-        if (layer.kind == "group" || !layer.visible || layer.opacity <= 0 ||
-            (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
-            if (!layer.clippingMask)
+        const bool emptyMask   = layer.maskEnabled && ImageUtils::compact(layer.mask) &&
+                                 layer.mask.constScanLine(0)[0] == 0 &&
+                                 layer.parameters.value("_maskDensity", 100.).toDouble() >= 100.;
+        const bool emptyPixels = layer.kind == "pixel" && layer.image.isUniform() &&
+                                 layer.image.pixelColor(0, 0).alpha() == 0;
+        if (layer.kind == "group" || !layer.visible || layer.opacity <= 0 || emptyMask ||
+            emptyPixels || (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
+            if (!layer.clippingMask && !stack.layers.isEmpty() && !stack.layers.constLast().reset)
                 stack.layers.append(StackLayer{.reset = true});
             continue;
         }
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
-        if ((layer.kind != "pixel" && !solid && layer.kind != "text") ||
-            (!solid && layer.image.isNull()) || layer.blend == 1 || layer.blend == 18 ||
-            layer.blend >= 23 ||
+        static const QHash<QString, SpatialFilter> spatialTypes{
+            {"boxBlur", SpatialFilter::Box},
+            {"gaussianBlur", SpatialFilter::Gaussian},
+            {"motionBlur", SpatialFilter::Motion},
+            {"unsharpMask", SpatialFilter::Unsharp},
+            {"highPass", SpatialFilter::HighPass}};
+        const auto spatial = layer.kind == "adjustment"
+                                 ? spatialTypes.value(layer.adjustmentType, SpatialFilter::None)
+                                 : SpatialFilter::None;
+        if ((layer.kind != "pixel" && !solid && layer.kind != "text" &&
+             spatial == SpatialFilter::None) ||
+            (!solid && spatial == SpatialFilter::None && layer.image.isNull()) ||
+            layer.blend == 1 || layer.blend == 18 || layer.blend >= 23 ||
             (layer.maskEnabled && !layer.mask.isNull() &&
              layer.parameters.value("_maskFeather", 0.).toDouble() >= .5))
             return {};
         StackLayer entry;
+        entry.spatial.type = spatial;
+        if (spatial != SpatialFilter::None) {
+            const double radius  = layer.parameters
+                                       .value("radius", spatial == SpatialFilter::Unsharp    ? 2.
+                                                        : spatial == SpatialFilter::HighPass ? 4.
+                                                                                             : 8.)
+                                       .toDouble();
+            entry.spatial.radius = qBound(
+                spatial == SpatialFilter::Box || (spatial == SpatialFilter::Gaussian && radius <= 0)
+                    ? 0
+                    : 1,
+                qRound(radius), 100);
+            entry.spatial.distance =
+                float(qBound(0., layer.parameters.value("distance", 20.).toDouble(), 200.));
+            entry.spatial.angle = float(layer.parameters.value("angle", 0.).toDouble());
+            entry.spatial.amount =
+                float(qBound(0., layer.parameters.value("amount", 100.).toDouble(), 300.));
+            entry.spatial.threshold =
+                qBound(0, layer.parameters.value("threshold", 0).toInt(), 255);
+#ifdef PHOTOCRAP_USE_ACCELERATE
+            entry.spatial.roundBox2D = m_channelBits == 8;
+#endif
+            stack.halo += entry.spatial.halo();
+        }
         entry.image = layer.image;
         if (solid) {
             QImage color(1, 1, workingFormat());
@@ -45,6 +84,8 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         entry.clipped = layer.clippingMask;
         stack.layers.append(std::move(entry));
     }
+    if (stack.layers.isEmpty())
+        stack.layers.append(StackLayer{.reset = true});
     stack.valid = true;
     return stack;
 }
@@ -58,6 +99,17 @@ void Document::setGpuTonePreviewEnabled(bool _enabled)
         invalidateGpuTonePreview();
         if (m_previewingLayer && m_layerPreviewChanged)
             requestPreviewRender(true);
+    }
+}
+
+void Document::setGpuStackDisplayActive(bool active)
+{
+    if (m_gpuStackDisplayActive == active)
+        return;
+    m_gpuStackDisplayActive = active;
+    if (!active && m_gpuStackAuxTimer.isActive()) {
+        m_gpuStackAuxTimer.stop();
+        QTimer::singleShot(0, this, &Document::startPendingPreviewRender);
     }
 }
 

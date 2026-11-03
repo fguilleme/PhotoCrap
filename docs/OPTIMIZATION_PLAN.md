@@ -9,6 +9,9 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Baguette magique immédiate sur les sources uniformes reconnues : pas de
+  lecture de pixels ni de tâche en arrière-plan ; effets spatiaux exclus.
+
 - [x] Dispatch de la Baguette magique sur worker pour les grands documents,
   résultat courant seulement, annulation et historique de sélection préservés.
 - [x] Baguette magique : lectures natives à la demande, cache de comparaison

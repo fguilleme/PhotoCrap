@@ -94,6 +94,114 @@ class SelectionTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void uniformWandSourcesDoNotQueueOrAllocatePlanes_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("all");
+        QTest::addColumn<QString>("kind");
+        for (int bits : {8, 16})
+            for (bool all : {false, true})
+                for (const QString kind :
+                     {QString("white"), QString("transparent"), QString("color"), QString("stack")})
+                    QTest::newRow(
+                        qPrintable(QString::number(bits) + (all ? "-all-" : "-active-") + kind))
+                        << bits << all << kind;
+    }
+    void uniformWandSourcesDoNotQueueOrAllocatePlanes()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, all);
+        QFETCH(QString, kind);
+        Document    doc;
+        const QSize size = kind == "color" || kind == "stack" ? QSize(517, 523) : QSize(6000, 4000);
+        doc.setBackgroundEditThreshold(-1);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        if (kind == "color" || kind == "stack") {
+            QImage image(size, bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                          : QImage::Format_ARGB32_Premultiplied);
+            image.fill(QColor::fromRgba64(12345, 45678, 23456, 34567));
+            const auto path = directory.filePath("uniform.png");
+            QVERIFY(image.save(path));
+            QVERIFY(doc.openFile(QUrl::fromLocalFile(path)));
+        } else
+            QVERIFY(doc.newDocument(size.width(), size.height(), kind != "white", bits));
+        if (kind == "stack") {
+            QImage image(size, bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                          : QImage::Format_ARGB32_Premultiplied);
+            image.fill(QColor(40, 190, 100, 137));
+            const auto path = directory.filePath("upper.png");
+            QVERIFY(image.save(path));
+            QVERIFY(doc.importLayer(QUrl::fromLocalFile(path)));
+            doc.setLayerBlend(doc.activeLayer(), 8);
+            doc.addLayerMask();
+            doc.setEditingMask(false);
+            doc.setLayerOpacity(doc.activeLayer(), .63);
+        }
+        doc.setTool("magicWand");
+        doc.setSelectionSampleAllLayers(all);
+        doc.setSelectionTolerance(0);
+        doc.setBackgroundEditThreshold(0);
+        const auto heap     = doc.memoryUsage()["tileHeapBytes"];
+        const bool modified = doc.modified();
+        const int  history  = doc.historyIndex();
+        {
+            SelectionPoolBlock blocked;
+            doc.beginStroke(size.width() - 1, size.height() - 1);
+            QVERIFY(!doc.selectionBusy());
+            QCOMPARE(doc.selectionRegion(), QRegion(QRect(QPoint{}, size)));
+        }
+        QCOMPARE(doc.memoryUsage()["tileHeapBytes"], heap);
+        QCOMPARE(doc.historyIndex(), history + 1);
+        QCOMPARE(doc.modified(), modified);
+        doc.undo();
+        QVERIFY(!doc.hasSelection());
+        doc.redo();
+        QCOMPARE(doc.selectionRegion(), QRegion(QRect(QPoint{}, size)));
+    }
+    void spatialWandSourcesKeepTheirNormalPath_data()
+    {
+        QTest::addColumn<QString>("kind");
+        for (const QString kind :
+             {QString("pixels"), QString("mask"), QString("dissolve"), QString("noise")})
+            QTest::newRow(qPrintable(kind)) << kind;
+    }
+    void spatialWandSourcesKeepTheirNormalPath()
+    {
+        QFETCH(QString, kind);
+        Document doc, reference;
+        for (Document *current : {&doc, &reference}) {
+            QVERIFY(current->newDocument(97, 81, false, 16));
+            if (kind == "mask")
+                current->addLayerMask();
+            if (kind == "pixels" || kind == "mask") {
+                current->setColor(Qt::black);
+                current->setBrushSize(21);
+                current->beginStroke(40, 40);
+                current->endStroke();
+                current->setEditingMask(false);
+            } else if (kind == "dissolve") {
+                current->setLayerBlend(0, 1);
+                current->setLayerOpacity(0, .5);
+            } else
+                current->addAdjustmentLayer("noise");
+            current->setTool("magicWand");
+            current->setSelectionSampleAllLayers(true);
+            current->setSelectionTolerance(0);
+            current->setBackgroundEditThreshold(-1);
+        }
+        reference.beginStroke(40, 40);
+        doc.setBackgroundEditThreshold(0);
+        {
+            SelectionPoolBlock blocked;
+            doc.beginStroke(40, 40);
+            QVERIFY(doc.selectionBusy());
+            QVERIFY(!doc.hasSelection());
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.selectionBusy(), 10000);
+        QCOMPARE(doc.selectionRegion(), reference.selectionRegion());
+    }
+
     void backgroundWandMatchesSynchronousSelection_data()
     {
         QTest::addColumn<int>("bits");

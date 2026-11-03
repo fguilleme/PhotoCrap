@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Baguette magique immédiate sur les sources uniformes reconnues : pas de
+  lecture de pixels ni de tâche en arrière-plan ; effets spatiaux exclus.
+
 - [x] Baguette magique en arrière-plan sur grands documents, annulation et
   invalidation des demandes périmées ; sélection et historique appliqués une fois.
 - [x] Baguette magique lisant les tuiles natives à la demande, cache de comparaison

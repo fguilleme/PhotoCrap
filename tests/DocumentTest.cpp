@@ -1957,6 +1957,32 @@ private slots:
         QCOMPARE(result.visitedBytes, 0);
         QVERIFY(result.peakCachedBytes <= 10LL * 256 * 256 * 4);
     }
+    void largeUniformWandProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_UNIFORM_WAND_PROBE"))
+            QSKIP("Set PHOTOCRAP_UNIFORM_WAND_PROBE=1 to measure uniform 24 MP selections.");
+        for (bool all : {false, true}) {
+            Document doc;
+            QVERIFY(doc.newDocument(6000, 4000, false, 16));
+            doc.setTool("magicWand");
+            doc.setSelectionSampleAllLayers(all);
+            doc.setSelectionTolerance(0);
+            const auto    heap = doc.memoryUsage()["tileHeapBytes"];
+            QSignalSpy    finished(&doc, &Document::selectionChanged);
+            QElapsedTimer timer;
+            timer.start();
+            doc.beginStroke(100, 100);
+            const auto submitted = timer.nsecsElapsed();
+            if (doc.selectionBusy())
+                QVERIFY(finished.wait(10000));
+            const auto elapsed = timer.nsecsElapsed();
+            QCOMPARE(doc.selectionRegion(), QRegion(QRect(0, 0, 6000, 4000)));
+            QCOMPARE(doc.memoryUsage()["tileHeapBytes"], heap);
+            qInfo() << "Uniform 24 MP / 16-bit wand, all, submit ns and result ns:" << all
+                    << submitted << elapsed;
+        }
+    }
+
     void largeWandNativeProbe()
     {
         if (!qEnvironmentVariableIsSet("PHOTOCRAP_WAND_PROBE"))

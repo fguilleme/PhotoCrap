@@ -177,6 +177,13 @@ Les images natives de lecture et les replis complets des piles non locales reste
 à compter séparément. Une sélection complexe peut aussi nécessiter une grande
 région géométrique finale.
 
+Les sources natives uniformes reconnues (fond compact ou plan tuilé sans tuile
+explicite) donnent directement une sélection pleine surface. Une pile composée
+uniforme de calques pixel est aussi admissible, avec opacité, écrêtage et masques
+uniformes. Fondu, réglages et autres sources potentiellement spatiales restent
+sur le parcours normal. Cette décision lit seulement les métadonnées des plans ;
+elle ne cherche pas à prouver l’uniformité de calques denses.
+
 À partir du seuil partagé de quatre millions de pixels, la Baguette magique
 capture les versions natives et calcule sur worker. Un composite natif complet
 encore courant est réutilisé par partage ; le worker ne reconstruit une pile que

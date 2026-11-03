@@ -1,5 +1,23 @@
 # Validation
 
+## Baguette magique sur sources uniformes — 3 novembre 2026
+
+16 cas vérifient les plans 8/16 bits, source active/composée, fonds blancs,
+transparents et couleurs importées avec alpha, ainsi qu’une pile uniforme avec
+masque et opacité. Le pool bloqué confirme qu’aucun worker n’est utilisé ; les
+pixels de tuiles ne sont pas alloués et Annuler/Rétablir restaure la sélection.
+Quatre contre-exemples (pixels peints, masque peint, Fondu et Bruit) conservent
+le parcours normal, comparé à sa référence synchrone.
+
+Sur la sonde locale 24 Mpx/16 bits, le résultat complet passe de 264 ms (calque
+actif) / 306 ms (composite) à environ 0,035 / 0,039 ms. Mesures indicatives par
+`PHOTOCRAP_UNIFORM_WAND_PROBE=1 build/photocrap_tests largeUniformWandProbe` ;
+les tests n’imposent pas de seuil temporel. Le gain ne concerne que les sources
+reconnues uniformes par leurs métadonnées, sans recherche exhaustive préalable.
+Les 50 suites passent avec Qt 6.12 ; les 22 cas ciblés passent aussi avec Qt 6.8
+et avec le CPU portable. Le contrôle natif Cocoa/Metal des opérations passe.
+
+
 ## Baguette magique en arrière-plan — 3 novembre 2026
 
 128 comparaisons vérifient l’égalité avec le chemin synchrone : 8/16 bits,

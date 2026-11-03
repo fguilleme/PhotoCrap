@@ -17,6 +17,25 @@ bool similarPixel(QRgb _pixel, QRgb _reference, int _tolerance)
            qAbs(qAlpha(_pixel) - qAlpha(_reference)) <= _tolerance;
 }
 
+bool uniformWandStack(const QVector<Layer> &_layers, const QSize &_size)
+{
+    const auto uniform = [&](const PixelPlane &_plane) {
+        return _plane.isNull() ||
+               (_plane.isUniform() && (_plane.size() == QSize(1, 1) || _plane.size() == _size) &&
+                _plane.tileImage(0, 0).devicePixelRatio() == 1.);
+    };
+    for (const auto &layer : _layers) {
+        if (layer.kind == "group" || !layer.visible || layer.opacity <= 0)
+            continue;
+        // Dissolve is coordinate-dependent even when its input is constant.
+        // Other layer kinds remain on the normal path, including adjustments.
+        if (layer.kind != "pixel" || layer.blend == 1 || !uniform(layer.image) ||
+            (layer.maskEnabled && !uniform(layer.mask)))
+            return false;
+    }
+    return true;
+}
+
 QRegion colorRegion(const QImage &_input, const QPoint &_seed, int _tolerance, bool _contiguous,
                     const QRect &_limit)
 {
@@ -142,6 +161,17 @@ void Document::applyMagicWand(const QPoint &_point)
     const PixelPlane source     = composed ? PixelPlane{} : m_layers[m_active].image;
     const int        tolerance  = m_selectionTolerance;
     const bool       contiguous = m_selectionContiguous;
+    const bool       uniform =
+        composed ? uniformWandStack(m_layers, m_size)
+                 : source.isUniform() && (source.size() == QSize(1, 1) || source.size() == m_size);
+    if (uniform) {
+        // Every source pixel has the sampled value, so both connectivity modes
+        // produce the whole document without reading or converting any pixels.
+        rememberSelection();
+        applySelectionCandidate(QRegion(QRect(QPoint{}, m_size)), true);
+        finishSelectionGesture();
+        return;
+    }
     if (!m_backgroundWorker && editCost(false) >= m_backgroundEditThreshold) {
         finishLayerPreview();
         cancelSelectionOperation();

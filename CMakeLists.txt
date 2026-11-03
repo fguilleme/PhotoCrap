@@ -166,6 +166,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/DisplayLevel.h
     src/render/TileSnapshot.h
     src/render/TileCache.h
+    src/Layer.h
+    src/render/LayerVisibility.h
     src/Document.h
     src/ImageUtils.h
     src/ImageHistogram.h
@@ -338,6 +340,8 @@ qt_add_library(photocrap_core STATIC
     src/ImageHistogram.cpp
     src/ImageAlpha.cpp
     src/Document.cpp
+    src/Layer.h
+    src/render/LayerVisibility.h
     src/Document.h
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp

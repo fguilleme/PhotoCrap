@@ -39,6 +39,16 @@ existants, dynamiques ou préparés, après réouverture. Le zoom ne change pas 
 les dimensions restent identiques. La précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
+`Layer` est défini dans `src/Layer.h` ; les règles de couverture et de visibilité
+sont communes dans `src/render/LayerVisibility.h`. La pile GPU utilise le même
+point de départ opaque que le CPU et élimine les mêmes plans sans couverture.
+Les masques blancs ou de densité nulle n’y créent plus d’entrée de masque, même
+avec contour progressif. Un effet incompatible entièrement caché sous un aplat
+opaque ne force plus le CPU ; dès que cette couverture cesse, le repli complet
+revient. Les contraintes d’effets, formats et modes de fusion réellement visibles
+restent applicables. Le suivi graphique ne compte que les entrées conservées ;
+il ne mesure toujours pas la VRAM physique du pilote.
+
 Le composite CPU commence désormais au dernier calque de pixels uniforme qui
 recouvre entièrement le document en mode Normal, à opacité et alpha exactement
 pleins, sans écrêtage ni masque modifiant la couverture et dans un groupe visible.

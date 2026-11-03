@@ -9,6 +9,10 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Règles de couverture partagées CPU/GPU, pile GPU limitée aux couches
+  visibles ; effets incompatibles cachés ignorés, masques neutres sans passe et
+  alphas natifs faibles conservés. Retour CPU dès que l’occlusion cesse.
+
 - [x] Composite CPU ignorant les couches situées sous un aplat uniforme
   pleinement opaque ; effets, marges et lectures régionales limités à la pile visible.
 

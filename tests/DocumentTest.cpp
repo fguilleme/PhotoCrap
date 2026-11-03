@@ -8290,6 +8290,71 @@ private slots:
             }
         }
     }
+    void gpuUniformMaskMetadataAvoidsRedundantPasses()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto url = QUrl::fromLocalFile(directory.filePath("masks.pcr"));
+        for (int bits : {8, 16}) {
+            Document original;
+            QVERIFY(original.newDocument(83, 79, false, bits));
+            original.addLayer();
+            original.setColor(QColor(31, 61, 91));
+            original.fillWithColor(true);
+            original.setLayerOpacity(1, .6);
+            original.addLayerMask();
+            original.setEditingMask(false);
+            QVERIFY(original.saveProject(url));
+            QFile file(url.toLocalFile());
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            const auto source = QJsonDocument::fromJson(file.readAll()).object();
+            file.close();
+            for (bool compact : {false, true})
+                for (int value : {0, 127, 255})
+                    for (int density : {0, 63, 100})
+                        for (int feather : {0, 4}) {
+                            QImage mask(compact ? QSize(1, 1) : QSize(83, 79),
+                                        QImage::Format_Grayscale8);
+                            mask.fill(value);
+                            QByteArray bytes;
+                            QBuffer    buffer(&bytes);
+                            QVERIFY(buffer.open(QIODevice::WriteOnly));
+                            QVERIFY(mask.save(&buffer, "PNG"));
+                            auto root            = source;
+                            auto layers          = root["layers"].toArray();
+                            auto layer           = layers[1].toObject();
+                            layer["mask"]        = QString::fromLatin1(bytes.toBase64());
+                            layer["compactMask"] = compact;
+                            layer["parameters"] =
+                                QJsonObject{{"_maskDensity", density}, {"_maskFeather", feather}};
+                            layers[1]      = layer;
+                            root["layers"] = layers;
+                            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+                            QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+                            file.close();
+                            Document d;
+                            QVERIFY(d.openFile(url));
+                            const auto heap   = d.memoryUsage()["tileHeapBytes"];
+                            const auto stack  = d.gpuLayerStack();
+                            const bool empty  = value == 0 && density == 100;
+                            const bool masked = value != 255 && density > 0;
+                            const bool valid  = empty || !masked || feather == 0;
+                            QCOMPARE(stack.valid, valid);
+                            if (valid) {
+                                int entries = 0;
+                                for (const auto &entry : stack.layers)
+                                    if (!entry.reset)
+                                        ++entries;
+                                QCOMPARE(entries, empty ? 1 : 2);
+                                if (!empty)
+                                    QCOMPARE(stack.layers.last().mask.isNull(), !masked);
+                                QCOMPARE(stack.halo, 0);
+                            }
+                            QCOMPARE(d.memoryUsage()["tileHeapBytes"], heap);
+                        }
+        }
+    }
+
     void opaqueUniformCoverDigest()
     {
         QTemporaryDir directory;
@@ -8378,6 +8443,16 @@ private slots:
                     Document d;
                     QVERIFY(d.openFile(url));
                     QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), qint64(0));
+                    const auto gpu      = d.gpuLayerStack();
+                    const bool eligible = kind == "plain" || kind == "white" || kind == "zero" ||
+                                          kind == "disabled" || kind == "visibleGroup";
+                    QCOMPARE(gpu.valid, eligible);
+                    if (eligible) {
+                        QCOMPARE(gpu.layers.size(),
+                                 kind == "visibleGroup" ? qsizetype(3) : qsizetype(2));
+                        QVERIFY(gpu.layers.first().mask.isNull());
+                        QCOMPARE(gpu.halo, 0);
+                    }
                     const auto  before = d.historyIndex();
                     const QRect sample(13, 17, 27, 31);
                     const auto  region = d.compositeRegion(sample), full = d.composite();
@@ -8555,6 +8630,14 @@ private slots:
                 if (bits == 16)
                     QCOMPARE(reinterpret_cast<const QRgba64 *>(native.constScanLine(0))[0].alpha(),
                              ushort(alpha));
+                if (bits == 16) {
+                    const auto stack = d.gpuLayerStack();
+                    QVERIFY(stack.valid);
+                    QCOMPARE(stack.layers.size(), qsizetype(1));
+                    QVERIFY(!stack.layers.first().reset);
+                    QCOMPARE(stack.layers.first().image.region({0, 0, 1, 1}),
+                             native.copy(0, 0, 1, 1));
+                }
                 // Compare the decoded native plane: PNG conversion and the
                 // sRGB import tag are separate from compositor coverage.
                 // A full-size alpha of 1/65535 must not be treated as zero.

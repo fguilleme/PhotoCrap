@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "filters/ToneMappingTable.h"
+#include "render/LayerVisibility.h"
 
 PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
 {
@@ -14,21 +15,19 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     for (const auto &layer : m_layers)
         if (layer.kind == "group")
             groups.insert(layer.groupId, layer.visible);
-    for (const auto &layer : m_layers) {
-        const bool emptyMask   = layer.maskEnabled && ImageUtils::compact(layer.mask) &&
-                                 layer.mask.constScanLine(0)[0] == 0 &&
-                                 layer.parameters.value("_maskDensity", 100.).toDouble() >= 100.;
-        const bool emptyPixels = layer.kind == "pixel" && layer.image.isUniform() &&
-                                 layer.image.pixelColor(0, 0).alpha() == 0;
-        if (layer.kind == "group" || !layer.visible || layer.opacity <= 0 || emptyMask ||
-            emptyPixels || (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
+    for (int index = LayerVisibility::opaqueCoverIndex(m_layers, m_size); index < m_layers.size();
+         ++index) {
+        const auto &layer = m_layers[index];
+        if (layer.kind == "group" || !LayerVisibility::contributes(layer) ||
+            (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
             if (!layer.clippingMask && !stack.layers.isEmpty() && !stack.layers.constLast().reset)
                 stack.layers.append(StackLayer{.reset = true});
             continue;
         }
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
-        const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
+        const bool solid  = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
+        const bool masked = LayerVisibility::needsMask(layer);
         static const QHash<QString, SpatialFilter> spatialTypes{
             {"boxBlur", SpatialFilter::Box},
             {"gaussianBlur", SpatialFilter::Gaussian},
@@ -42,8 +41,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
              spatial == SpatialFilter::None) ||
             (!solid && spatial == SpatialFilter::None && layer.image.isNull()) ||
             layer.blend == 1 || layer.blend == 18 || layer.blend >= 23 ||
-            (layer.maskEnabled && !layer.mask.isNull() &&
-             layer.parameters.value("_maskFeather", 0.).toDouble() >= .5))
+            (masked && layer.parameters.value("_maskFeather", 0.).toDouble() >= .5))
             return {};
         StackLayer entry;
         entry.spatial.type = spatial;
@@ -76,7 +74,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             color.fill(QColor(layer.parameters.value("color", "#000000").toString()));
             entry.image = color;
         }
-        entry.mask    = layer.maskEnabled ? layer.mask : PixelPlane{};
+        entry.mask    = masked ? layer.mask : PixelPlane{};
         entry.opacity = float(qBound(0., layer.opacity, 1.));
         entry.density =
             float(qBound(0., layer.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.));

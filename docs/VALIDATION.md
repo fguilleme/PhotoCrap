@@ -1,5 +1,32 @@
 # Validation
 
+## Visibilité commune CPU/GPU — 3 novembre 2026
+
+Les 56 piles de la couverture opaque vérifient maintenant aussi l’éligibilité GPU :
+deux entrées utiles (et une rupture de groupe si nécessaire), aucun masque neutre
+ni halo ; une couche incompatible encore visible conserve le repli complet.
+72 combinaisons supplémentaires croisent 8/16 bits, masque compact/natif,
+noir/gris/blanc, densité 0/63/100 et contour 0/4. Elles vérifient l’élimination des
+passes neutres, le maintien des masques utiles et le repli des contours utiles,
+sans nouveau stockage de tuiles pendant le snapshot. Les cinq faibles alphas
+natifs 16 bits sont aussi présents dans la pile, notamment 1/65 535.
+
+Le smoke test de pile ajoute en 8/16 bits un bruit incompatible sous un aplat,
+un masque blanc progressif et une couche écrêtée au-dessus. Il vérifie GPU actif
+sur backend matériel, les pixels contre le CPU, puis GPU → CPU → GPU lors du
+passage d’opacité 100 → 50 → 100 %. Le backend logiciel conserve son repli normal.
+`Layer` et les règles partagées sont séparés de `Document.h` pour éviter deux
+implémentations divergentes de cette visibilité. Les fichiers et la profondeur
+native ne changent pas.
+
+Les 50 suites passent, ainsi que les six contrôles ciblés sur Qt 6.8 et CPU
+portable. Le smoke test matériel passe sur Metal Qt 6.8/6.12 et OpenGL Core
+Qt 6.12 (`PHOTOCRAP_TEST_GL_CORE=1 QSG_RENDER_LOOP=basic`), avec comparaison
+aux pixels CPU. Le backend logiciel et le repli de l’ancien contexte OpenGL
+(`PHOTOCRAP_TEST_GL_LEGACY=1`) passent aussi. Les avertissements de nommage
+préexistants de clang-tidy ne sont pas des erreurs de compilation.
+
+
 ## Couches cachées sous un aplat opaque — 3 novembre 2026
 
 56 piles croisent 8/16 bits, aplat compact/natif et quatorze cas : couverture

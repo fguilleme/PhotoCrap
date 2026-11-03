@@ -128,6 +128,53 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
     for (int bits : {8, 16}) {
         if (!document.newDocument(1200, 128, false, bits))
             return false;
+        document.addAdjustmentLayer("noise");
+        document.addLayer();
+        document.setColor(QColor(45, 98, 187));
+        document.fillWithColor(true);
+        const int cover = document.activeLayer();
+        document.addLayerMask();
+        document.beginLayerPreview();
+        document.previewLayerParameter("_maskFeather", 7);
+        document.finishLayerPreview("White mask");
+        document.setEditingMask(false);
+        document.addLayer();
+        document.setColor(QColor(57, 213, 113, 143));
+        document.fillWithColor(true);
+        document.setClippingMask(true);
+        frame();
+        const auto rendered = frame(), reference = document.composite();
+        if (!require(document.gpuLayerStack().valid && canvas.gpuStackActive() == hardware,
+                     "an opaque cover keeps hidden unsupported effects off the GPU stack"))
+            return false;
+        const double ratio = double(rendered.width()) / window->width();
+        for (int x : {10, 255, 511, 512, 1023, 1024, 1190}) {
+            const auto point = canvas.mapToScene({(x + .5) * .5, 64.5});
+            const auto actual =
+                rendered.pixelColor(qFloor(point.x() * ratio), qFloor(point.y() * ratio));
+            const auto expected = reference.pixelColor(x, 64);
+            if (!require(qAbs(actual.red() - expected.red()) <= 2 &&
+                             qAbs(actual.green() - expected.green()) <= 2 &&
+                             qAbs(actual.blue() - expected.blue()) <= 2,
+                         "opaque culling and its clipped overlay match the CPU"))
+                return false;
+        }
+        document.setLayerOpacity(cover, .5);
+        frame();
+        frame();
+        if (!require(!document.gpuLayerStack().valid && !canvas.gpuStackActive(),
+                     "fractional cover opacity restores the complete CPU fallback"))
+            return false;
+        document.setLayerOpacity(cover, 1.);
+        frame();
+        frame();
+        if (!require(document.gpuLayerStack().valid && canvas.gpuStackActive() == hardware,
+                     "restoring opacity reconstructs the eligible GPU stack"))
+            return false;
+    }
+    for (int bits : {8, 16}) {
+        if (!document.newDocument(1200, 128, false, bits))
+            return false;
         document.addLayer();
         document.setShapeNewLayer(false);
         document.setShapeStrokeEnabled(false);

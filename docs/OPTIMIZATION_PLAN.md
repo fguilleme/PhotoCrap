@@ -1,9 +1,9 @@
 # Migration des gros documents et du rendu
 
 Travail demandé le 2 novembre 2026 : réaliser les cinq chantiers ci-dessous dans
-l’ordre, avec commits distincts et validation avant chaque livraison. Cette liste
-décrit le travail restant ; elle ne constitue pas une déclaration de fonctionnalités
-déjà disponibles.
+l’ordre, avec commits distincts et validation avant chaque livraison. Les cinq
+bases sont désormais implémentées ; les cases cochées décrivent leur périmètre
+validé. Les essais matériels encore indisponibles sont laissés explicitement ouverts.
 
 ## 1. Plans éditables et historique par tuiles
 

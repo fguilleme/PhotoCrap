@@ -808,18 +808,23 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
         QCOMPARE(opened.size(), 1);
         QCOMPARE(document.channelBits(), 16);
+        QVERIFY(document.memoryUsage().contains("retainedDecoderBytes"));
+        QCOMPARE(document.memoryUsage()["retainedDecoderBytes"].toLongLong(), qint64(0));
         const auto before = document.composite();
         QVERIFY(document.openRawFile(QUrl::fromLocalFile(dir.filePath("missing.dng"))));
         QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
+        QCOMPARE(document.memoryUsage()["retainedDecoderBytes"].toLongLong(), qint64(0));
         QCOMPARE(document.composite(), before);
         QVERIFY(document.openRawFile(QUrl::fromLocalFile(file.fileName())));
         document.cancelRawLoad();
         QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
+        QCOMPARE(document.memoryUsage()["retainedDecoderBytes"].toLongLong(), qint64(0));
         QCOMPARE(opened.size(), 1);
         QCOMPARE(document.composite(), before);
         QVERIFY(document.openRawFile(QUrl::fromLocalFile(file.fileName()), true));
         QTRY_VERIFY_WITH_TIMEOUT(!document.rawLoading(), 10000);
         QCOMPARE(document.layers().size(), 2);
+        QCOMPARE(document.memoryUsage()["retainedDecoderBytes"].toLongLong(), qint64(0));
         document.undo();
         QCOMPARE(document.layers().size(), 1);
     }

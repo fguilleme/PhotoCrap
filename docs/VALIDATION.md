@@ -1,5 +1,14 @@
 # Validation
 
+## Libération du résultat RAW — 3 novembre 2026
+
+Le test DNG asynchrone vérifie que `retainedDecoderBytes` vaut zéro après ouverture,
+import comme calque, annulation et fichier absent. Le document reste intact en cas
+d’erreur ou d’annulation, et l’import reste annulable. Ce compteur concerne le
+résultat terminé du worker, pas sa mémoire de travail pendant le décodage.
+Le scénario passe avec Qt 6.8.3 et 6.12.0 ; les suites `document` et
+`document_operations` repassent après ce changement.
+
 ## Gestes récents et résultats périmés — 3 novembre 2026
 
 Pool bloqué : commencer un réglage, un survol de fusion, un tracé ou une tranche

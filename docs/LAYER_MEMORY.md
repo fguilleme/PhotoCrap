@@ -43,6 +43,12 @@ le suivant. Elle ne retient plus une pile de buffers PNG complets en parallèle
 avec les plans importés. La validation de tous les calques et tracés précède
 toujours le remplacement du document courant ; le format du fichier ne change pas.
 
+L’ouverture RAW consomme le résultat du worker par déplacement et vide son stockage
+de résultat. Le décodeur ne conserve ainsi plus une image native complète après
+import en tuiles, ni après annulation ou erreur. `retainedDecoderBytes` expose les
+octets d’un résultat terminé encore retenu ; ce compteur n’inclut pas les buffers
+de travail du décodeur pendant son exécution.
+
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
 Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par

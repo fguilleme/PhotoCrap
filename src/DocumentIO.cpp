@@ -119,7 +119,7 @@ void Document::cancelRawLoad()
 }
 void Document::finishRawLoad()
 {
-    const auto result    = m_rawWatcher.result();
+    const auto result    = m_rawWatcher.future().takeResult();
     const bool cancelled = result.cancelled || m_rawCancel->load() ||
                            m_rawSession != m_documentSession || m_rawState != m_stateId;
     const QUrl url       = m_rawUrl;

@@ -121,6 +121,80 @@ class DocumentTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void newDocumentsStartWithLogicalUniformPixels_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("transparent");
+        QTest::addColumn<QSize>("size");
+        for (int bits : {8, 16})
+            for (bool transparent : {false, true})
+                for (const QSize size : {QSize(1, 1), QSize(517, 523), QSize(6000, 4000)})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3-%4")
+                                                 .arg(bits)
+                                                 .arg(transparent)
+                                                 .arg(size.width())
+                                                 .arg(size.height())))
+                        << bits << transparent << size;
+    }
+    void newDocumentsStartWithLogicalUniformPixels()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, transparent);
+        QFETCH(QSize, size);
+        Document      d;
+        QElapsedTimer timer;
+        timer.start();
+        QVERIFY(d.newDocument(size.width(), size.height(), transparent, bits));
+        const auto elapsed = timer.nsecsElapsed();
+        if (size == QSize(6000, 4000) && qEnvironmentVariableIsSet("PHOTOCRAP_NEW_DOCUMENT_PROBE"))
+            qInfo() << "New 24 MP document bits, transparent, ns:" << bits << transparent
+                    << elapsed;
+        QCOMPARE(d.width(), size.width());
+        QCOMPARE(d.height(), size.height());
+        QCOMPARE(d.channelBits(), bits);
+        QCOMPARE(d.layers().size(), 1);
+        QCOMPARE(d.activeLayer(), 0);
+        QCOMPARE(d.historyIndex(), 0);
+        QVERIFY(!d.modified());
+        QVERIFY(d.projectUrl().isEmpty());
+        QCOMPARE(d.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0));
+        const QColor background(transparent ? Qt::transparent : Qt::white);
+        const QPoint corner(size.width() - 1, size.height() - 1);
+        d.setEyedropperSource(1);
+        QCOMPARE(d.sampleToolColor(0, 0), background);
+        QCOMPARE(d.sampleToolColor(corner.x(), corner.y()), background);
+        const auto stack = d.gpuLayerStack();
+        QVERIFY(stack.valid);
+        d.setTool("pencil");
+        d.setBrushSize(5);
+        d.setColor(Qt::blue);
+        d.beginStroke(corner.x() + .5, corner.y() + .5);
+        d.endStroke();
+        QCOMPARE(d.sampleToolColor(corner.x(), corner.y()), QColor(Qt::blue));
+        QVERIFY(d.modified());
+        QCOMPARE(d.historyIndex(), 1);
+        QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() <= 256 * 256 * (bits == 16 ? 8 : 4));
+        d.undo();
+        QVERIFY(!d.modified());
+        QCOMPARE(d.sampleToolColor(corner.x(), corner.y()), background);
+        d.redo();
+        QCOMPARE(d.sampleToolColor(corner.x(), corner.y()), QColor(Qt::blue));
+        if (!transparent) {
+            const auto plane = stack.layers.first().image;
+            QCOMPARE(plane.region({corner, QSize(1, 1)}).pixelColor(0, 0), background);
+        }
+        if (size.width() < 6000) {
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            const auto url = QUrl::fromLocalFile(directory.filePath("new.pcr"));
+            QVERIFY(d.saveProject(url));
+            Document loaded;
+            QVERIFY(loaded.openFile(url));
+            QCOMPARE(loaded.layerImage(0), d.layerImage(0));
+            QCOMPARE(loaded.channelBits(), bits);
+        }
+    }
+
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {
         Document d;

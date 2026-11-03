@@ -26,7 +26,7 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 
 ## Optimisations en développement après v0.16
 
-- **Plans et historique par tuiles partagées de 256 × 256** : fonds compacts, allocation des seules tuiles modifiées, versions inchangées réutilisées et conversions natives 8/16 bits sans reconstruire le canevas. La séparation de fréquences partage les tuiles de sa source native non masquée et étend les fonds compacts par leur seule taille logique.
+- **Plans et historique par tuiles partagées de 256 × 256** : fonds compacts dès la création des documents, allocation des seules tuiles modifiées, versions inchangées réutilisées et conversions natives 8/16 bits sans reconstruire le canevas. La séparation de fréquences partage les tuiles de sa source native non masquée et étend les fonds compacts par leur seule taille logique.
 - **Calculs locaux** pour les pipettes, outils à empreintes et leurs sources composées compatibles, tracés, formes, texte, dégradés sélectionnés, copie de sélection et placement des imports. La Baguette magique lit ses tuiles à la demande avec un cache borné ; les sources uniformes reconnues sont sélectionnées sans parcours des pixels. Sélection rapide et contours progressifs des masques travaillent aussi dans leur région utile, avec les halos requis. Le déplacement sépare source et destination ; les calques transparents peu remplis se déplacent par tuiles. Les sélections globales, piles à effets non locaux, calques denses et dégradés pleine image peuvent encore demander des tampons complets.
 - **Chargements et opérations coûteuses en arrière-plan** : images, projets, RAW, imports, géométrie, profondeur, fusion, remplissages, filtres directs et Baguette magique sur les grands documents. Seul un résultat encore courant est appliqué ; les éditions ajoutent une étape annulable. L’ancien document reste affiché pendant une ouverture et n’est pas retenu inutilement après son remplacement. Les opérations générales passent sur worker à partir de quatre millions de pixels traités ; les petites éditions gardent leur chemin direct.
 - **Sauvegarde et export asynchrones** : écriture `.pcr` v9 par flux PNG/Base64/JSON atomique, sans accumuler le projet encodé. La fermeture attend la confirmation d’enregistrement. L’annulation conserve le fichier précédent jusqu’au point de publication final, ensuite non annulable.
@@ -43,6 +43,7 @@ Quelques mesures locales, dont les conditions sont décrites dans la [validation
 | Source de fréquences dense, 24 Mpx/16 bits sans masque | 95 → 0,10 ms ; 183 Mio de tuiles supplémentaires évités |
 | Soumission de la préparation de retouche, 24 Mpx/16 bits | 36 → 0,055 ms ; calcul des bandes ensuite sur worker |
 | Source de fréquences compacte, 24 Mpx/16 bits | 57 → 0,011 ms ; aucune expansion pleine taille |
+| Nouveau document blanc/transparent, 24 Mpx/16 bits | 40–57 → 0,003–0,004 ms ; fond natif logique |
 | Lecture 101², cache froid, masque progressif de rayon 12, 24 Mpx/16 bits | 297 → 0,45 ms, mêmes pixels |
 | Encodeur isolé de douze plans de 1 Mpx | Pic RSS 324 → 74 Mio en 8 bits ; 692 → 122 Mio en 16 bits |
 

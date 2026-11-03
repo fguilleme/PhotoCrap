@@ -1,5 +1,23 @@
 # Validation
 
+## Nouveaux documents à fond natif logique — 3 novembre 2026
+
+Douze parcours croisent 8/16 bits, blanc/transparent et dimensions 1 × 1,
+517 × 523, 6 000 × 4 000. Ils contrôlent géométrie, profondeur, état initial propre,
+absence de tuiles de pixels, prélèvement aux deux coins, peinture en bordure,
+annulation/rétablissement et immutabilité du snapshot d’affichage initial.
+Les deux petites tailles sont également sauvegardées/rechargées puis comparées.
+
+Sonde indépendante liée au même moteur avant/après, 24 Mpx : création 8 bits
+29/21 ms et 16 bits 57/40 ms (blanc/transparent) → environ 0,017/0,003 ms et
+0,004/0,003 ms. Les mesures excluent le constructeur QObject, l’affichage et
+la première retouche, sans seuil de test. `PHOTOCRAP_NEW_DOCUMENT_PROBE=1
+build/photocrap_tests newDocumentsStartWithLogicalUniformPixels` permet aussi de
+relever les temps ; les assertions de stockage et de résultat restent actives.
+Les 50 suites Qt 6.12 passent, ainsi que les cas ciblés Qt 6.8/CPU portable et
+le contrôle natif Cocoa/Metal des opérations.
+
+
 ## Plans logiques des sources compactes de fréquences — 3 novembre 2026
 
 Six cas (8/16 bits, blanc, transparent et couleur avec alpha) comparent une empreinte

@@ -9,6 +9,9 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Nouveaux documents blancs/transparents créés directement comme fonds natifs
+  logiques ; aucune image pleine taille provisoire avant la première retouche.
+
 - [x] Fonds compacts des fréquences étendus en plans de taille logique, sans
   pixels de canevas alloués ; versions distinctes et rendu natif inchangé.
 

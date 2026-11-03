@@ -11,6 +11,13 @@ régions nécessaires sans retenir de copie complète du calque. Les autres outi
 transformations, filtres et sauvegardes peuvent encore matérialiser une image
 complète temporaire. Les profondeurs prises en charge par chaque outil ne changent pas.
 
+La création d’un document blanc ou transparent construit aussi directement son
+fond natif logique, sans QImage provisoire de la taille du document ni parcours de
+scellement de ce fond. Le pixel stocké est en sRGB et dans la profondeur demandée ;
+les dimensions et l’identité du plan sont celles du document. La première retouche
+ne crée que ses tuiles. Cela ne change pas la réservation logique du calque, les
+limites de dimensions ni les tampons éventuels des filtres, affichages et exports.
+
 La création d’une séparation de fréquences sur un calque de pixels à la taille du
 document, sans masque actif, partage directement ses versions de tuiles entre la
 source et les deux bandes. Modifier ensuite le calque d’origine ne change pas

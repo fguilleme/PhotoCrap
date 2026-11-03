@@ -34,15 +34,20 @@ bool Document::newDocument(int _w, int _h, bool _transparent, int _bits)
 {
     if ((_bits != 8 && _bits != 16) || !validSize(_w, _h))
         return false;
-    m_channelBits = _bits;
-    m_size        = {_w, _h};
-    QImage image  = ImageUtils::blank(m_size, workingFormat());
+    QImage image = ImageUtils::blank({1, 1}, _bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                         : QImage::Format_ARGB32_Premultiplied);
     if (!_transparent)
         image.fill(Qt::white);
-    m_layers     = {{tr("Arrière-plan"), image}};
-    m_active     = 0;
-    m_name       = tr("Sans titre");
-    m_projectUrl = QUrl{};
+    Layer layer{tr("Arrière-plan"), QImage{}};
+    layer.image = PixelPlane::uniform({_w, _h}, image);
+    if (layer.image.isNull())
+        return fail(tr("Allocation des pixels impossible."));
+    m_channelBits = _bits;
+    m_size        = {_w, _h};
+    m_layers      = {layer};
+    m_active      = 0;
+    m_name        = tr("Sans titre");
+    m_projectUrl  = QUrl{};
     resetHistory(true);
     return true;
 }

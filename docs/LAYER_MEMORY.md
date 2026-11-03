@@ -17,6 +17,11 @@ sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouve
 tuile de 512 Kio, sans reconstruire le calque. La lecture de l’alpha de couverture
 respecte désormais les 16 bits au lieu d’interpréter ses lignes en pixels 8 bits.
 
+Œil rouge lit uniquement sa zone de recherche locale dans les tuiles du calque
+actif, puis remplace le rectangle des pixels corrigés. Le clic et le cadre gardent
+la même recherche de composante rouge, les reflets et les réglages de pupille.
+L’outil couleur reste limité aux documents 8 bits.
+
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états
 historiques sont parcourus avant les plans actifs. Les versions en cours d’utilisation

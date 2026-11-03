@@ -1,7 +1,6 @@
 #include "Document.h"
 
 #include <QByteArray>
-#include <QPainter>
 #include <QtMath>
 #include <cmath>
 #include <limits>
@@ -51,11 +50,12 @@ void Document::setRedEyeDarken(qreal _value)
 
 void Document::correctRedEye()
 {
-    QImage *target = paintTarget();
-    if (!target || m_editingMask)
+    if (m_active < 0 || m_active >= m_layers.size() || m_editingMask)
         return;
-    const bool dragged = m_redEyeRegion.width() >= 3 && m_redEyeRegion.height() >= 3;
-    if (!dragged && !QRectF(target->rect()).contains(m_anchor))
+    PixelPlane &target = m_layers[m_active].image;
+    const QRect documentRect(QPoint{}, m_size);
+    const bool  dragged = m_redEyeRegion.width() >= 3 && m_redEyeRegion.height() >= 3;
+    if (!dragged && !QRectF(documentRect).contains(m_anchor))
         return;
     QRectF pupilArea;
     QRect  region;
@@ -65,21 +65,25 @@ void Document::correctRedEye()
         const QSizeF size = m_redEyeRegion.size() * m_redEyePupilSize;
         pupilArea =
             QRectF(m_redEyeRegion.center() - QPointF(size.width(), size.height()) / 2., size);
-        region = pupilArea.toAlignedRect().intersected(target->rect());
+        region = pupilArea.toAlignedRect().intersected(documentRect);
     } else {
         // A click searches locally, including when it falls on a white catchlight.
         // Never scan the full document to find a distant red object.
         const int radius = qBound(16, qRound(qMin(width(), height()) * .05), 128);
         region = QRect(qFloor(m_anchor.x()) - radius, qFloor(m_anchor.y()) - radius, 2 * radius + 1,
                        2 * radius + 1)
-                     .intersected(target->rect());
+                     .intersected(documentRect);
     }
     if (hasSelection())
         region = region.intersected(m_selectionRegion.boundingRect());
     if (region.isEmpty())
         return;
 
-    QImage        patch = target->copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage patch = target.region(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if (patch.isNull()) {
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
     const QPointF centre    = dragged ? m_redEyeRegion.center() : m_anchor;
     const auto    candidate = [&](int _x, int _y) {
         const QPoint imagePoint = region.topLeft() + QPoint(_x, _y);
@@ -156,10 +160,10 @@ void Document::correctRedEye()
     if (modified.isEmpty())
         return;
     const QRect dirty = modified.translated(region.topLeft());
-    QPainter    painter(target);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.drawImage(dirty.topLeft(), patch, modified);
-    painter.end();
+    if (!target.writeRegion(dirty.topLeft(), patch.copy(modified), m_size)) {
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
     m_dirtyRegion   = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
     m_strokeChanged = true;
 }

@@ -3842,6 +3842,80 @@ private slots:
         d.setHealingDiffusion(-1);
         QCOMPARE(d.healingDiffusion(), 1);
     }
+    void redEyeOnlyAllocatesCorrectedTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto before     = d.gpuLayerStack().layers.first().image.region({80, 80, 40, 40});
+        const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        d.setTool("redEye");
+        d.beginStroke(100, 100);
+        d.endStroke();
+        QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 4);
+        const auto after = d.gpuLayerStack().layers.first().image.region({80, 80, 40, 40});
+        QVERIFY(after != before);
+        d.undo();
+        QCOMPARE(d.gpuLayerStack().layers.first().image.region({80, 80, 40, 40}), before);
+        d.redo();
+        QCOMPARE(d.gpuLayerStack().layers.first().image.region({80, 80, 40, 40}), after);
+    }
+    void redEyeTileBordersKeepNativeCorrections()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage image(523, 531, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(210, 165, 140, 180));
+        {
+            QPainter p(&image);
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(230, 40, 35, 190));
+            p.drawEllipse(QRect(244, 244, 24, 24));
+            p.drawEllipse(QRect(292, 244, 18, 18));
+            p.setBrush(Qt::white);
+            p.drawEllipse(QRect(253, 251, 4, 4));
+        }
+        const auto url = QUrl::fromLocalFile(directory.filePath("pupils.png"));
+        QVERIFY(image.save(url.toLocalFile()));
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (bool box : {false, true})
+            for (qreal size : {.1, .5, 1.})
+                for (qreal darken : {0., .5, 1.}) {
+                    Document d;
+                    QVERIFY(d.openFile(url));
+                    const auto before = d.layerImage(0);
+                    d.setTool("ellipticalSelect");
+                    d.beginStroke(235, 233);
+                    d.continueStroke(281, 283);
+                    d.endStroke();
+                    d.modifySelection("feather", 2);
+                    d.setTool("redEye");
+                    d.setRedEyePupilSize(size);
+                    d.setRedEyeDarken(darken);
+                    const auto history = d.historyIndex();
+                    d.beginStroke(box ? 236.25 : 254.25, box ? 236.75 : 253.75);
+                    if (box)
+                        d.continueStroke(278.5, 279.25);
+                    d.endStroke();
+                    const auto after = d.layerImage(0);
+                    pixels.addData(QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                                  after.sizeInBytes()));
+                    for (const QRect &outside : QRegion(after.rect()) - QRegion(243, 243, 26, 26))
+                        QCOMPARE(after.copy(outside), before.copy(outside));
+                    if (after != before) {
+                        QCOMPARE(d.historyIndex(), history + 1);
+                        d.undo();
+                        QCOMPARE(d.layerImage(0), before);
+                        d.redo();
+                        QCOMPARE(d.layerImage(0), after);
+                    } else
+                        QCOMPARE(d.historyIndex(), history);
+                }
+        qInfo() << "Red eye pixels, eighteen combinations" << pixels.result().toHex();
+    }
     void redEyeClickCorrectsOnePupilPreservesHighlightsAndUndo()
     {
         QTemporaryDir dir;

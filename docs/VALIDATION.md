@@ -1,5 +1,14 @@
 # Validation
 
+## Œil rouge régional — 3 novembre 2026
+
+Les dix-huit combinaisons clic/cadre, taille de pupille et assombrissement
+produisent exactement les mêmes pixels avant/après migration, avec transparence,
+reflet, sélection progressive et frontières de tuiles. Les pixels extérieurs et
+Annuler/Rétablir sont comparés ; les gestes sans effet gardent leur historique.
+Sur 24 Mpx/8 bits, une correction réelle ajoute au plus une tuile de 256 Kio,
+sans reconstruire le calque complet.
+
 ## Écritures identiques et versions de tuiles — 3 novembre 2026
 
 ARGB32, RGBA64 et Grayscale8 : un patch identique traversant quatre tuiles conserve

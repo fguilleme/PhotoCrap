@@ -734,9 +734,9 @@ void Document::resetHistory(bool _clean)
     m_strokeBounds          = {};
     m_stampSource           = {};
     m_stampCompositeSource.reset();
-    m_smudgePickup            = {};
-    m_smudgeMask              = {};
-    m_smudgeSample            = {};
+    m_smudgePickup = {};
+    m_smudgeMask   = {};
+    m_smudgeCompositeSource.reset();
     m_mixerPickup             = {};
     m_mixerSample             = {};
     m_mixerTip                = {};

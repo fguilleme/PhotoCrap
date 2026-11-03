@@ -4961,6 +4961,133 @@ private slots:
                 }
         qInfo() << "Replacement pixels, 36 combinations" << pixels.result().toHex();
     }
+    void compositedPickupStrokeDigest_data()
+    {
+        QTest::addColumn<QString>("tool");
+        QTest::newRow("smudge") << QStringLiteral("smudge");
+        QTest::newRow("mixer") << QStringLiteral("mixerBrush");
+    }
+    void compositedPickupStrokeDigest()
+    {
+        QFETCH(QString, tool);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16}) {
+            QImage source(517, 523, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(
+                        x, y,
+                        QColor::fromRgba64(ushort(x * 173 + y * 17), ushort(y * 199 + x * 23),
+                                           ushort(x * 37 + y * 67),
+                                           ushort(30000 + (x * 137 + y * 211) % 35536)));
+            const auto file = QUrl::fromLocalFile(directory.filePath("pickup.png"));
+            QVERIFY(source.save(file.toLocalFile()));
+            for (bool allLayers : {false, true})
+                for (const QString &effect :
+                     {QString{}, QStringLiteral("boxBlur"), QStringLiteral("noise")})
+                    for (bool mask : {false, true})
+                        for (const QPoint &anchor :
+                             {QPoint(2, 2), QPoint(255, 256), QPoint(510, 518)}) {
+                            if (bits == 16 && !mask)
+                                continue;
+                            Document d;
+                            QVERIFY(d.openFile(file));
+                            d.addLayer();
+                            d.setBrushSize(80);
+                            d.setColor(QColor(17, 221, 53, 197));
+                            d.beginStroke(anchor.x(), anchor.y());
+                            d.endStroke();
+                            d.addLayer();
+                            d.setColor(QColor(231, 27, 118, 173));
+                            d.beginStroke(anchor.x(), anchor.y());
+                            d.endStroke();
+                            if (!effect.isEmpty())
+                                d.addAdjustmentLayer(effect);
+                            d.setActiveLayer(1);
+                            if (mask) {
+                                d.addLayerMask();
+                                d.setColor(Qt::black);
+                                d.beginStroke(anchor.x(), anchor.y());
+                                d.endStroke();
+                            }
+                            d.setTool(tool);
+                            d.setBrushSize(17);
+                            d.setBrushHardness(.6);
+                            d.setBrushSmoothing(0);
+                            d.setToolStrength(.63);
+                            d.setSmudgeSampleAllLayers(allLayers);
+                            d.setMixerSampleAllLayers(allLayers);
+                            d.setMixerWet(.7);
+                            d.setMixerMix(.6);
+                            d.setMixerFlow(.8);
+                            d.setMixerLoad(.8);
+                            d.setMixerAutoClean(false);
+                            d.setMixerAutoLoad(false);
+                            d.setMixerSolidOnly(false);
+                            if (tool == "mixerBrush")
+                                d.sampleMixerBrush(anchor.x(), anchor.y());
+                            const QImage before  = mask ? d.maskImage(1) : d.layerImage(1);
+                            const int    history = d.historyIndex();
+                            d.beginStroke(anchor.x() + .25, anchor.y() + .75);
+                            d.continueStroke(anchor.x() + 12.25, anchor.y() + 7.75);
+                            d.continueStroke(anchor.x() + 3.25, anchor.y() + 2.75);
+                            d.endStroke();
+                            const QImage result = mask ? d.maskImage(1) : d.layerImage(1);
+                            for (int y = 0; y < result.height(); ++y)
+                                hash.addData(QByteArrayView(
+                                    reinterpret_cast<const char *>(result.constScanLine(y)),
+                                    result.width() * result.depth() / 8));
+                            if (d.historyIndex() != history) {
+                                d.undo();
+                                QCOMPARE(mask ? d.maskImage(1) : d.layerImage(1), before);
+                                d.redo();
+                                QCOMPARE(mask ? d.maskImage(1) : d.layerImage(1), result);
+                            }
+                            d.beginStroke(301, 280);
+                            d.cancelStroke();
+                            QCOMPARE(mask ? d.maskImage(1) : d.layerImage(1), result);
+                        }
+        }
+        QCOMPARE(
+            hash.result().toHex(),
+            tool == "smudge"
+                ? QByteArray("78315359d8def1e00cf94dd46b784e1a213f50482a70606d436e894bef7d4e15")
+                : QByteArray("08863a90f51429679357eab832355d59906e10a8ca22e9d604d27872a0450026"));
+    }
+    void largeCompositePickupProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_COMPOSITE_PICKUP_PROBE"))
+            QSKIP("Set PHOTOCRAP_COMPOSITE_PICKUP_PROBE=1 to measure 24 MP pickup tools.");
+        for (const QString &tool : {QStringLiteral("smudge"), QStringLiteral("mixerBrush")}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, false, 8));
+            d.setBrushSize(12);
+            d.setBrushHardness(1);
+            d.setColor(Qt::red);
+            d.beginStroke(80, 80);
+            d.endStroke();
+            d.addLayer();
+            d.setTool(tool);
+            d.setBrushSmoothing(0);
+            d.setSmudgeSampleAllLayers(true);
+            d.setMixerSampleAllLayers(true);
+            QElapsedTimer timer;
+            timer.start();
+            const int history = d.historyIndex();
+            d.beginStroke(80, 80);
+            d.continueStroke(85, 85);
+            d.endStroke();
+            const auto elapsed = timer.nsecsElapsed();
+            QCOMPARE(d.historyIndex(), history + 1);
+            d.setEyedropperSource(1);
+            d.setEyedropperSize(1);
+            qInfo() << "24 MP / 8-bit pickup tool, ns and sample:" << tool << elapsed
+                    << d.sampleToolColor(80, 80);
+        }
+    }
+
     void smudgeTransportsPaintOnlyAlongTheStrokeAndRemainsUndoable()
     {
         Document d;

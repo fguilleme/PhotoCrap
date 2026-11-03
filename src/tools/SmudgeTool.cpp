@@ -6,22 +6,16 @@
 
 namespace
 {
-QImage samplePatch(const QImage &_image, const QRect &_rect)
-{
-    QImage   patch = ImageUtils::blank(_rect.size());
-    QPainter painter(&patch);
-    painter.drawImage(-_rect.topLeft(), _image);
-    return patch;
-}
-
-QImage samplePatch(const PixelPlane &_image, const QRect &_rect, const QSize &_size)
+QImage samplePatch(const PixelPlane &_image, const QRect &_rect, const QSize &_size,
+                   const Document *_composite)
 {
     QImage patch = ImageUtils::blank(_rect.size());
     if (patch.isNull())
         return {};
     const QRect region = _rect.intersected(QRect(QPoint{}, _size));
     if (!region.isEmpty()) {
-        const QImage pixels = _image.region(region);
+        const QImage pixels =
+            _composite ? _composite->compositeRegion(region) : _image.region(region);
         if (pixels.isNull())
             return {};
         QPainter painter(&patch);
@@ -62,12 +56,12 @@ void Document::prepareSmudgeStroke(bool _alternate)
 {
     const int   size = qCeil(m_brushSize) + 4;
     const QRect rect(qFloor(m_anchor.x()) - size / 2, qFloor(m_anchor.y()) - size / 2, size, size);
-    // All-layer sampling takes one shared snapshot per gesture; motion never
-    // recomposes the document. Pickup and brush work remain brush-sized.
-    m_smudgeSample           = m_smudgeSampleAllLayers && !m_editingMask ? composite() : QImage{};
+    // Keep native tile versions fixed for all-layer pickup; render only the
+    // brush-sized patches encountered during this gesture.
+    m_smudgeCompositeSource =
+        m_smudgeSampleAllLayers && !m_editingMask ? nativeCompositeSource(m_layers) : nullptr;
     const PixelPlane &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
-    m_smudgePickup           = m_smudgeSample.isNull() ? samplePatch(target, rect, m_size)
-                                                       : samplePatch(m_smudgeSample, rect);
+    m_smudgePickup           = samplePatch(target, rect, m_size, m_smudgeCompositeSource.get());
     m_smudgeMask             = ImageUtils::blank(QSize(size, size));
     if (m_smudgePickup.isNull() || m_smudgeMask.isNull()) {
         m_strokeCoverageFailed = true;
@@ -112,8 +106,7 @@ void Document::smudgeDab(const QPointF &_point)
     if (region.isEmpty())
         return;
 
-    const QImage sampled = m_smudgeSample.isNull() ? samplePatch(target, dab, m_size)
-                                                   : samplePatch(m_smudgeSample, dab);
+    const QImage sampled = samplePatch(target, dab, m_size, m_smudgeCompositeSource.get());
     QImage output = target.region(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     const QPoint offset = region.topLeft() - dab.topLeft();
     const QImage effect =

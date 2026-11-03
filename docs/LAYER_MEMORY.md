@@ -113,6 +113,13 @@ ne réinjecte pas les pixels fraîchement peints. La pile est libérée à la fi
 le rendu local gardent un composite complet, réutilisé pendant le geste. La
 définition d’un motif prélève aussi uniquement sa sélection, limitée à 1 024².
 
+Le Doigt en mode « tous les calques » réutilise également une pile figée ; la
+prise de couleur lit des carrés de la taille de la brosse, avec transparence hors
+canevas. L’accumulation de peinture dans la brosse reste identique. Son ancien
+composite complet permanent pendant le geste disparaît pour les piles compatibles.
+L’édition des pixels reste limitée aux documents 8 bits, les masques aux profondeurs
+déjà prises en charge ; cette optimisation n’ajoute pas une conversion silencieuse.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

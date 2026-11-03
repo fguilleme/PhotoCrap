@@ -1,5 +1,31 @@
 # Validation
 
+## Source composée du Doigt — 3 novembre 2026
+
+Référence enregistrée avant modification sur 54 gestes par outil : pixels
+8 bits, masques de documents 8/16 bits, source active/tous les calques, pile
+simple/flou/bruit, bords du document et frontières de tuiles. Traits fractionnaires,
+chevauchement, annulation du geste et Annuler/Rétablir sont contrôlés. Les gestes
+sans modification ne consomment pas d’étape d’historique.
+
+Digest du Doigt inchangé :
+`78315359d8def1e00cf94dd46b784e1a213f50482a70606d436e894bef7d4e15`.
+Le test fige aussi le mélangeur, afin de détecter un effet indirect du moteur
+commun. Son optimisation vient séparément.
+
+Sonde locale Qt 6.12, 24 Mpx/8 bits : le petit geste du Doigt « tous les calques »
+passe de 19,5 ms à 0,64 ms, avec le même pixel prélevé. Aucun seuil de vitesse
+n’est imposé. La suite Document contient 352 cas réussis et quatre sondes ignorées
+lors de ce passage avec la sonde de prise de couleur activée ; contrôle Qt 6.8
+et essai natif Cocoa/Metal effectués.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_COMPOSITE_PICKUP_PROBE=1 build/photocrap_tests \
+  compositedPickupStrokeDigest largeCompositePickupProbe
+```
+
+
 ## Sources composées du tampon — 3 novembre 2026
 
 La référence avant modification couvre 36 traits : 8/16 bits, trois modes de

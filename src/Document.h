@@ -1402,8 +1402,9 @@ private:
     PixelPlane                        m_stampSource;
     std::unique_ptr<Document>         m_stampCompositeSource;
 
-    bool   m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
-    QImage m_smudgePickup, m_smudgeMask, m_smudgeSample;
+    bool                      m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
+    QImage                    m_smudgePickup, m_smudgeMask;
+    std::unique_ptr<Document> m_smudgeCompositeSource;
 
     int    m_replacementMode = 0, m_replacementSampling = 0, m_replacementLimits = 0;
     int    m_replacementTolerance = 30;

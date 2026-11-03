@@ -524,7 +524,7 @@ void Document::endStroke()
     m_stampCompositeSource.reset();
     m_smudgePickup = {};
     m_smudgeMask   = {};
-    m_smudgeSample = {};
+    m_smudgeCompositeSource.reset();
 }
 void Document::cancelStroke()
 {
@@ -599,7 +599,7 @@ void Document::cancelStroke()
     m_stampCompositeSource.reset();
     m_smudgePickup = {};
     m_smudgeMask   = {};
-    m_smudgeSample = {};
+    m_smudgeCompositeSource.reset();
 }
 QImage *Document::paintTarget()
 {

@@ -53,7 +53,8 @@ QColor Document::sampleToolColor(int _x, int _y) const
                                                               : m_previewComposite;
         if (!m_previewRenderActive.load() && m_cacheDirty && m_previewComposite.isNull()) {
             lock.unlock();
-            image = composite();
+            image    = compositeRegion(clipped);
+            regional = true;
         }
     }
     if (image.isNull())

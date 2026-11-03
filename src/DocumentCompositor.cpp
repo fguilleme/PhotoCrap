@@ -83,7 +83,62 @@ const QImage &Document::composite() const
         fullRender ? documentRect : expanded(dirtyRegion, totalMargin, documentRect);
     const QRect workRegion =
         fullRender ? documentRect : expanded(outputRegion, totalMargin, documentRect);
-    QImage     regionComposite = ImageUtils::blank(workRegion.size(), workingFormat());
+    const QImage regionComposite = renderCompositeRect(workRegion);
+    const qint64 before          = m_composite.cacheKey();
+    if (outputRegion == documentRect)
+        m_composite = regionComposite;
+    else {
+        QPainter painter(&m_composite);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        const QRect sourceRect(outputRegion.topLeft() - workRegion.topLeft(), outputRegion.size());
+        painter.drawImage(outputRegion.topLeft(), regionComposite, sourceRect);
+    }
+    m_compositeUpdateBefore = before;
+    m_compositeUpdateAfter  = m_composite.cacheKey();
+    m_compositeUpdateRegion = outputRegion;
+    m_cacheDirty            = false;
+    m_fullCompositeDirty    = false;
+    m_dirtyRegion           = {};
+    return m_composite;
+}
+
+QImage Document::compositeRegion(const QRect &_region) const
+{
+    const QRect bounds(QPoint{}, m_size);
+    const QRect region = _region.intersected(bounds);
+    if (region.isEmpty())
+        return {};
+    if (!m_cacheDirty && m_composite.size() == m_size)
+        return m_composite.copy(region);
+    // Preserve coordinate-dependent effects, draft rendering, and native image
+    // scaling until those paths support an explicit document-space origin.
+    const bool full =
+        m_previewingLayer ||
+        std::any_of(m_layers.cbegin(), m_layers.cend(), [](const Layer &_layer) {
+            if (!contributes(_layer))
+                return false;
+            const auto scaled = [](const PixelPlane &_plane) {
+                return !_plane.isNull() && _plane.tileImage(0, 0).devicePixelRatio() != 1.;
+            };
+            return requiresFullComposite(_layer) || _layer.kind.startsWith("frequency") ||
+                   (_layer.maskEnabled && !_layer.mask.isNull() &&
+                    _layer.parameters.value("_maskFeather").toDouble() >= .5) ||
+                   scaled(_layer.image) || scaled(_layer.source) ||
+                   (_layer.maskEnabled && scaled(_layer.mask));
+        });
+    if (full)
+        return composite().copy(region);
+    const int margin =
+        std::accumulate(m_layers.cbegin(), m_layers.cend(), 0,
+                        [](int _sum, const Layer &_layer) { return _sum + effectMargin(_layer); });
+    const QRect workRegion = expanded(region, margin, bounds);
+    return renderCompositeRect(workRegion)
+        .copy(QRect(region.topLeft() - workRegion.topLeft(), region.size()));
+}
+
+QImage Document::renderCompositeRect(const QRect &_region) const
+{
+    QImage     regionComposite = ImageUtils::blank(_region.size(), workingFormat());
     const auto compositeLayer  = [&](const QImage &_source, int _mode, qreal _opacity) {
         if (_mode == 0) {
             // The accumulator belongs to this render. Painting into it avoids
@@ -97,7 +152,7 @@ const QImage &Document::composite() const
     const auto regionImage = [&](const QImage &_image) {
         // QImage keeps immutable source pixels shared. Only a partial render
         // needs a cropped allocation; a full render can read the original.
-        return workRegion == _image.rect() ? _image : _image.copy(workRegion);
+        return _region == _image.rect() ? _image : _image.copy(_region);
     };
     QImage     clippingBase, clippingCoverage;
     qreal      clippingBaseOpacity = 1.;
@@ -183,15 +238,15 @@ const QImage &Document::composite() const
             rendered = regionImage(frequencyImage(layer));
         else
             rendered = ImageUtils::compact(layer.image)
-                           ? ImageUtils::expandedPlane(layer.image, workRegion.size())
-                           : layer.image.region(workRegion);
+                           ? ImageUtils::expandedPlane(layer.image, _region.size())
+                           : layer.image.region(_region);
         if (layer.maskEnabled && !layer.mask.isNull()) {
             const qreal  density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal  feather = layer.parameters.value("_maskFeather", 0.).toDouble();
             const QImage maskRegion = ImageUtils::compact(layer.mask) ? QImage(layer.mask)
                                       : feather >= .5
                                           ? regionImage(blurImage(layer.mask, qRound(feather)))
-                                          : layer.mask.region(workRegion);
+                                          : layer.mask.region(_region);
             rendered                = applyMask(rendered, maskRegion, density, 0);
         }
         if (layer.clippingMask) {
@@ -207,22 +262,7 @@ const QImage &Document::composite() const
         }
         compositeLayer(rendered, layer.blend, layer.opacity);
     }
-    const qint64 before = m_composite.cacheKey();
-    if (outputRegion == documentRect)
-        m_composite = regionComposite;
-    else {
-        QPainter painter(&m_composite);
-        painter.setCompositionMode(QPainter::CompositionMode_Source);
-        const QRect sourceRect(outputRegion.topLeft() - workRegion.topLeft(), outputRegion.size());
-        painter.drawImage(outputRegion.topLeft(), regionComposite, sourceRect);
-    }
-    m_compositeUpdateBefore = before;
-    m_compositeUpdateAfter  = m_composite.cacheKey();
-    m_compositeUpdateRegion = outputRegion;
-    m_cacheDirty            = false;
-    m_fullCompositeDirty    = false;
-    m_dirtyRegion           = {};
-    return m_composite;
+    return regionComposite;
 }
 
 QRect Document::compositeUpdateRegion(qint64 _before, qint64 _after) const

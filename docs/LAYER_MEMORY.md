@@ -97,8 +97,13 @@ capture pour les éditions, même si un appelant lui demandait de l’omettre.
 La pipette en mode calque actif lit uniquement le carré prélevé dans les tuiles,
 au plus 101 × 101 pixels, sur les pixels 8/16 bits et les masques. Les plans
 compacts restent prélevés sur leur pixel natif. Les moyennes pondérées par alpha
-sont inchangées, sans création d’historique. La source composite conserve pour
-l’instant ses règles de cache/proxy et son repli complet.
+sont inchangées, sans création d’historique. La source composite conserve ses
+règles de cache/proxy. Si aucun rendu terminé n’est disponible, elle compose
+uniquement la zone prélevée, avec la somme des halos des filtres spatiaux, sans
+remplacer le cache d’affichage ni effacer ses zones invalidées. Le moteur est
+commun au rendu complet et régional. Dissoudre, bruit, mosaïque, fréquences,
+masques à contour progressif, prévisualisations provisoires et plans à DPR non
+unitaire conservent le repli complet pour préserver leurs coordonnées et pixels.
 
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px

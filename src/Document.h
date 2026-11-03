@@ -974,6 +974,7 @@ public:
         return index >= 0 && index < m_layers.size() ? m_layers[index].image.cacheKey() : 0;
     }
     const QImage                 &composite() const;
+    QImage                        compositeRegion(const QRect &_region) const;
     QImage                        displayComposite() const;
     PhotoCrap::Render::LayerStack gpuLayerStack() const;
     // Empty means the caller must refresh the whole image. Keys identify the
@@ -1697,6 +1698,7 @@ private:
     void          requestPreviewRender(bool _draft, bool _refine = false, bool _allowGpu = true);
     void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();
+    QImage        renderCompositeRect(const QRect &_region) const;
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                         const QSize &_targetSize, bool _draft,
                                         std::shared_ptr<ScratchImageCache> _scratch = {});

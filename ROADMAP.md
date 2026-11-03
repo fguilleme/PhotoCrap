@@ -8,7 +8,7 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 - [x] Plans, masques et historique par tuiles partagées ; fonds compacts à la
   réouverture et conversions natives de profondeur sans canevas complet.
-- [x] Emprises régionales des outils, pipette sur calque actif/masque, formes,
+- [x] Emprises régionales des outils, pipette sur calque actif/masque et pile compatible, formes,
   texte, déplacements et imports ;
   anciennes versions et masques conservés par Annuler/Rétablir.
 - [x] Ouverture d’images/projets/RAW et préparation des imports sur worker,

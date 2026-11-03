@@ -46,6 +46,9 @@ restent à compter séparément. Le pic de RAM est mesuré sur des gestes locali
 plans remplis de 24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie
 le refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
 
+- [x] Lecture native régionale d’une pile compatible pour la pipette, halos
+  cumulés et cache d’affichage intact ; repli complet des effets non locaux.
+
 ## 2. Composition de la pile sur GPU
 
 Premier chemin disponible : tuiles visibles de 512 px, calques de pixels, texte, Couleur unie,

@@ -8134,6 +8134,150 @@ private slots:
         QVERIFY(qAbs(d.composite().pixelColor(12, 12).red() - original.pixelColor(12, 12).red()) <=
                 1);
     }
+    void compositeRegionMatchesFullRender_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<int>("mode");
+        QTest::addColumn<QString>("effect");
+        for (int bits : {8, 16}) {
+            for (int mode = 0; mode < 27; ++mode)
+                QTest::newRow(qPrintable(QString("blend-%1-%2").arg(mode).arg(bits)))
+                    << bits << mode << QString{};
+            for (const QString &effect :
+                 {QStringLiteral("gaussianBlur"), QStringLiteral("boxBlur"),
+                  QStringLiteral("motionBlur"), QStringLiteral("unsharpMask"),
+                  QStringLiteral("highPass"), QStringLiteral("light"), QStringLiteral("noise"),
+                  QStringLiteral("mosaic"), QStringLiteral("maskFeather"),
+                  QStringLiteral("frequency")})
+                QTest::newRow(qPrintable(effect + QString::number(bits))) << bits << 0 << effect;
+        }
+    }
+    void compositeRegionMatchesFullRender()
+    {
+        QFETCH(int, bits);
+        QFETCH(int, mode);
+        QFETCH(QString, effect);
+        Document d;
+        QVERIFY(d.newDocument(517, 389, true, bits));
+        d.setBrushSize(110);
+        d.setBrushHardness(.4);
+        d.setColor(QColor::fromRgba64(43210, 12345, 56789, 45678));
+        d.beginStroke(255, 256);
+        d.continueStroke(6, 6);
+        d.endStroke();
+        d.addLayer();
+        d.setColor(QColor::fromRgba64(12345, 54321, 23456, 34567));
+        d.beginStroke(260, 250);
+        d.continueStroke(505, 380);
+        d.endStroke();
+        d.setLayerOpacity(1, .63);
+        d.setLayerBlend(1, mode);
+        d.addLayerMask(true);
+        d.setBrushSize(50);
+        d.setColor(Qt::black);
+        d.beginStroke(256, 256);
+        d.endStroke();
+        d.previewLayerParameter("_maskDensity", 61.);
+        d.finishLayerPreview();
+        d.setEditingMask(false);
+        if (effect == "maskFeather") {
+            d.previewLayerParameter("_maskFeather", 8.);
+            d.finishLayerPreview();
+        } else if (effect == "frequency") {
+            d.addFrequencySeparation(4);
+        } else if (!effect.isEmpty()) {
+            d.addAdjustmentLayer(effect);
+            d.previewLayerParameter("radius", 4.);
+            d.finishLayerPreview();
+            // Exercise accumulation of filtering halos, not only isolated filters.
+            d.addAdjustmentLayer("boxBlur");
+            d.previewLayerParameter("radius", 2.);
+            d.finishLayerPreview();
+        }
+        const QImage &cache = d.composite();
+        const auto    key   = cache.cacheKey();
+        d.setActiveLayer(0);
+        d.setColor(Qt::yellow);
+        d.setBrushSize(17);
+        d.beginStroke(254, 254);
+        d.endStroke();
+        const auto         history = d.history();
+        const QList<QRect> regions{{0, 0, 17, 21},
+                                   {242, 245, 41, 35},
+                                   {500, 375, 50, 50},
+                                   {-6, -9, 10, 12},
+                                   {50, 300, 3, 1}};
+        QList<QImage>      samples;
+        for (const QRect &region : regions)
+            samples.append(d.compositeRegion(region));
+        QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
+        const bool fallback = mode == 1 || effect == "maskFeather" || effect == "frequency" ||
+                              effect == "mosaic" || effect == "noise";
+        if (!fallback)
+            QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
+        const QImage reference = d.composite();
+        for (int i = 0; i < regions.size(); ++i) {
+            QCOMPARE(samples[i], reference.copy(regions[i].intersected(reference.rect())));
+            QCOMPARE(d.compositeRegion(regions[i]), samples[i]); // Warm cache has the same pixels.
+        }
+        QCOMPARE(d.history(), history);
+    }
+
+    void compositeRegionPreservesGroupsAndClipping()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(517, 389, true, bits));
+            d.setBrushSize(90);
+            d.setBrushHardness(.3);
+            d.setColor(Qt::red);
+            d.beginStroke(256, 256);
+            d.endStroke();
+            d.addLayer();
+            d.setColor(Qt::green);
+            d.fillWithColor(true);
+            d.setClippingMask(true);
+            d.setLayerOpacity(1, .4);
+            d.addLayer();
+            d.setColor(Qt::blue);
+            d.fillWithColor(true);
+            d.setClippingMask(true);
+            d.selectLayer(0);
+            d.selectLayer(1, true);
+            d.selectLayer(2, true);
+            d.groupSelectedLayers();
+            const int group = d.activeLayer();
+            for (bool visible : {false, true}) {
+                d.setLayerVisible(group, visible);
+                const QImage sample = d.compositeRegion({240, 243, 43, 31});
+                QCOMPARE(sample, d.composite().copy(240, 243, 43, 31));
+                QCOMPARE(sample.pixelColor(16, 13).alpha() > 0, visible);
+            }
+        }
+    }
+    void largeCompositeRegionProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_COMPOSITE_REGION_PROBE"))
+            QSKIP("Set PHOTOCRAP_COMPOSITE_REGION_PROBE=1 to measure cold 24 MP sampling.");
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setBrushSize(90);
+        d.setColor(Qt::red);
+        d.beginStroke(256, 256);
+        d.endStroke();
+        d.addAdjustmentLayer("invert");
+        QElapsedTimer timer;
+        timer.start();
+        const QImage sample       = d.compositeRegion({230, 230, 101, 101});
+        const auto   regionalTime = timer.nsecsElapsed();
+        timer.restart();
+        const QImage full     = d.composite();
+        const auto   fullTime = timer.nsecsElapsed();
+        QCOMPARE(sample, full.copy(230, 230, 101, 101));
+        qInfo() << "Cold 24 MP / 16-bit composite, 101x101 vs full (ns):" << regionalTime
+                << fullTime;
+    }
+
     void compositeUpdateBounds_data()
     {
         QTest::addColumn<int>("bits");

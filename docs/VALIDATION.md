@@ -1,5 +1,28 @@
 # Validation
 
+## Composition régionale pour la pipette — 3 novembre 2026
+
+Le moteur CPU est commun au rendu complet et aux lectures régionales. La
+comparaison est exacte en 8/16 bits sur les 27 modes de fusion, les cinq filtres
+spatiaux, leurs halos cumulés, un réglage Lumière, les masques et leur densité,
+les groupes visibles/masqués et l’écrêtage. Les bords du document et de tuiles
+sont inclus ; une lecture régionale compatible ne remplace pas le cache affiché
+et ne modifie pas l’historique. Les replis complets des effets à coordonnées
+absolues, fréquences et contours progressifs sont aussi comparés.
+
+Sonde Qt 6.12 locale : 24 Mpx/16 bits, trait rouge et réglage Négatif, cache froid.
+Une lecture 101 × 101 a pris 0,38 ms, contre 248 ms pour le rendu entier de la même
+pile ; pixels identiques. Cette mesure n’est pas un engagement de temps réel pour
+toutes les piles et n’impose aucun seuil aux tests.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_COMPOSITE_REGION_PROBE=1 build/photocrap_tests \
+  compositeRegionMatchesFullRender compositeRegionPreservesGroupsAndClipping \
+  largeCompositeRegionProbe
+```
+
+
 ## Pipette native régionale — 3 novembre 2026
 
 La référence a été relevée avant modification sur 140 prélèvements : pixels

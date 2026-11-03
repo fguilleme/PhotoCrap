@@ -55,6 +55,46 @@ private slots:
             QCOMPARE(tiny.region({123, 123, 1, 1}).pixelColor(0, 0), pixel.pixelColor(0, 0));
         }
     }
+    void repeatedOnePixelWritesPreserveNativePixelsAndVersions()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage background(1, 1, format);
+            background.fill(Qt::black);
+            background.setColorSpace(QColorSpace::DisplayP3);
+            background.setDotsPerMeterX(4200);
+            background.setDotsPerMeterY(4300);
+            PixelPlane plane(background);
+            QImage     first = background.copy();
+            first.fill(QColor::fromRgba64(23456, 34567, 45678, 50000));
+            QVERIFY(plane.writeRegion({}, first, {1, 1}));
+            const auto old       = plane;
+            const auto key       = plane.cacheKey();
+            const auto pixelsKey = plane.regionKey({0, 0, 1, 1});
+            const auto blocks    = plane.storageBlocks();
+            QVERIFY(plane.freeze());
+            QVERIFY(plane.writeRegion({}, first, {1, 1}));
+            QCOMPARE(plane.cacheKey(), key);
+            QCOMPARE(plane.storageBlocks(), blocks);
+            QCOMPARE(plane.regionKey({0, 0, 1, 1}), pixelsKey);
+            QImage second = background.copy();
+            second.fill(QColor::fromRgba64(45678, 56789, 12345, 60000));
+            QVERIFY(plane.writeRegion({}, second, {1, 1}));
+            QVERIFY(plane.cacheKey() != key);
+            QVERIFY(plane.regionKey({0, 0, 1, 1}) != pixelsKey);
+            QCOMPARE(plane.region({0, 0, 1, 1}), second);
+            QCOMPARE(old.region({0, 0, 1, 1}), first);
+            const auto pixel = plane.tileImage(0, 0);
+            QCOMPARE(pixel.colorSpace(), background.colorSpace());
+            QCOMPARE(pixel.dotsPerMeterX(), 4200);
+            QCOMPARE(pixel.dotsPerMeterY(), 4300);
+            PixelPlane expanded = old;
+            QVERIFY(expanded.writeRegion({258, 257}, second, {600, 500}));
+            QCOMPARE(expanded.region({10, 10, 1, 1}), first);
+            QCOMPARE(expanded.region({258, 257, 1, 1}), second);
+            QCOMPARE(old.region({0, 0, 1, 1}), first);
+        }
+    }
     void identicalWritesKeepMappedTilesAndOnlyChangedTilesDetach()
     {
         for (auto format : {QImage::Format_ARGB32_Premultiplied,

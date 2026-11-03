@@ -234,6 +234,31 @@ private slots:
         d.undo();
         QCOMPARE(d.composite(), painted);
     }
+    void onePixelDocumentCanBePaintedRepeatedly()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(1, 1, true, bits));
+            d.setTool("brush");
+            d.setBrushHardness(1);
+            d.setBrushSize(10);
+            d.setColor(Qt::red);
+            d.beginStroke(0, 0);
+            d.endStroke();
+            const auto red = d.composite();
+            QCOMPARE(red.pixelColor(0, 0), QColor(Qt::red));
+            d.setColor(Qt::blue);
+            d.beginStroke(0, 0);
+            d.endStroke();
+            const auto blue = d.composite();
+            QCOMPARE(blue.pixelColor(0, 0), QColor(Qt::blue));
+            QCOMPARE(d.historyIndex(), 2);
+            d.undo();
+            QCOMPARE(d.composite(), red);
+            d.redo();
+            QCOMPARE(d.composite(), blue);
+        }
+    }
     void largeEditablePlanesAllocateOnlyTouchedTiles()
     {
         Document d;

@@ -1,5 +1,14 @@
 # Validation
 
+## Réédition des plans d’un pixel — 3 novembre 2026
+
+Le test reproduit le refus de la seconde écriture après stockage tuilé d’un
+pixel. Le correctif relit le pixel courant pour l’expansion et pour la clé
+régionale de rendu. Écriture identique sans changement de version, réédition,
+expansion logique à 600 × 500, snapshots immuables, précision native et métadonnées
+Display P3/résolution sont vérifiés en 8/16 bits et niveaux de gris. Un document
+1 × 1 est peint deux fois puis annulé/rétabli sans perte ni aperçu périmé.
+
 ## Déplacement régional de sélection — 3 novembre 2026
 
 Les douze combinaisons 8/16 bits, déplacement/copie Alt, sélection rectangulaire,

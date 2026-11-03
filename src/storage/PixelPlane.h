@@ -190,10 +190,11 @@ public:
     {
         if (isNull())
             return "null";
-        if (size() == QSize(1, 1))
+        if (size() == QSize(1, 1)) {
+            const QImage pixel = tileImage(0, 0);
             return QByteArray("uniform:") + QByteArray::number(int(format())) + ':' +
-                   QByteArray(reinterpret_cast<const char *>(m_image.constBits()),
-                              m_image.depth() / 8);
+                   QByteArray(reinterpret_cast<const char *>(pixel.constBits()), pixel.depth() / 8);
+        }
         if (!m_dirty && !m_tiles.isNull())
             return m_tiles.regionKey(r);
         return QByteArray::number(cacheKey()) + ':' + QByteArray::number(r.x()) + ':' +
@@ -213,7 +214,7 @@ public:
     {
         TiledImage next;
         if (size() == QSize(1, 1)) {
-            next = TiledImage(documentSize, m_image);
+            next = TiledImage(documentSize, tileImage(0, 0));
         } else {
             if (!freeze())
                 return false;

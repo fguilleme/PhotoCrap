@@ -32,8 +32,8 @@ Les six formes géométriques relisent uniquement leur emprise dans un snapshot 
 avec une marge couvrant le contour et ses jointures. Chaque aperçu repart de la
 source et invalide l’union des anciennes/nouvelles emprises, sans recopier le calque.
 Le retour au point de départ retire l’aperçu et un éventuel calque vide. Le dégradé
-sélectionné suit le même chemin ; Déplacement et dégradé pleine image restent
-complets. Une petite forme sur 24 Mpx/16 bits ajoute au plus une tuile de 512 Kio.
+sélectionné suit le même chemin ; le déplacement du calque entier et le dégradé
+pleine image restent complets. Une petite forme sur 24 Mpx/16 bits ajoute au plus une tuile de 512 Kio.
 
 Déplacement avec une sélection prépare séparément les régions source et destination.
 Le masque progressif et le mode copie Alt gardent le même mélange natif. Un saut
@@ -63,6 +63,10 @@ restent valides grâce aux références immuables et aux leases des fichiers. Un
 d’écriture garde les pixels en mémoire ; vider le cache ne détruit pas les tuiles
 encore utilisées. Les limites de dimensions/calques et la réservation logique de
 2 Gio ne sont pas relevées.
+
+Les plans d’un pixel restent rééditables après leur première écriture tuilée :
+la réexpansion et les clés de rendu utilisent le pixel courant, avec ses bits
+natifs et ses métadonnées, plutôt que l’ancien tampon libéré.
 
 `memoryUsage()` compte les versions de tuiles partagées une fois et expose
 `tileHeapBytes` pour leurs allocations natives. Ce chiffre ne représente pas toute

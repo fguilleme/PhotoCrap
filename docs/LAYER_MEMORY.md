@@ -26,6 +26,36 @@ Les tests vérifient un trait et un masque local sur 24 Mpx/16 bits avec au plus
 576 Kio de plans persistants, ainsi qu’édition, déchargement, vidage du cache,
 Annuler/Rétablir et sauvegarde/rechargement d’un document 16 bits.
 
+## Tests denses et disque plein — 3 novembre 2026
+
+Le scénario optionnel `denseTwentyFourMegapixelPlanesSurviveOffloadAndReload`
+charge quatre images entièrement remplies de 6 000 × 4 000 en 16 bits, soit
+768 000 000 octets de plans natifs. Le déchargement conserve 1 536 blocs et ramène
+`tileHeapBytes` à zéro ; les mappings conservent ces 768 Mo, dont la résidence
+physique est gérée par le système. Un trait recrée moins de 1 Mio de tuiles RAM.
+Les versions précédentes, Annuler/Rétablir, sauvegarde et rechargement sont vérifiés.
+
+Première mesure locale de toute cette séquence, avec le document initial et celui
+rechargé coexistants : pic RSS 3 359 752 192 octets (3,13 Gio), empreinte maximale
+2 562 313 216 octets (2,39 Gio), environ 14 s. Le scénario inclut le décodage PNG,
+les copies temporaires d’import, l’encodage du projet et son rechargement. Il
+illustre pourquoi le budget des tuiles ne constitue pas un plafond du processus.
+
+```sh
+PHOTOCRAP_DENSE_MEMORY_TEST=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  build/photocrap_tests denseTwentyFourMegapixelPlanesSurviveOffloadAndReload
+# macOS : préfixer la commande par /usr/bin/time -l pour les mesures RSS.
+tests/run-full-disk-test.sh
+```
+
+Le second script macOS crée et sature un volume HFS+ temporaire de 32 Mio, lance
+le test, puis démonte et supprime le volume. Le test vérifie que son chemin est
+la racine d’un petit système de fichiers marqué ; il refuse de remplir un dossier
+ordinaire. Les mappings antérieurs restent lisibles, le nouveau plan conserve sa
+tuile RAM après refus, et une nouvelle modification reste possible après vidage
+du cache. Ces deux scénarios sont optionnels dans la suite ordinaire, pour éviter
+une forte consommation de mémoire ou un montage de volume en CI.
+
 ## État historique avant cette migration
 
 
@@ -147,8 +177,9 @@ La suite `scratch_cache` couvre formats 8/16 bits et masques, fidélité des oct
 métadonnées, copie à l’écriture, durée de vie des mappings, LRU, blocs retenus, corruption,
 stockage indisponible, réserve d’espace et concurrence avec vidage. Les tests du document
 vérifient la réutilisation entre workers de prévisualisation et le repli sans cache ; le
-smoke test QML couvre la page de réglages. La réserve insuffisante est simulée ; les essais
-sur un disque réellement saturé et les mesures sur disques lents restent à compléter.
+smoke test QML couvre la page de réglages. La réserve insuffisante est simulée dans la suite ordinaire ; le scénario isolé
+décrit plus haut vérifie aussi un disque réellement saturé. Les mesures sur
+disques lents restent à compléter.
 
 Ce premier usage conserve des rendus recalculables. Il ne décharge pas encore les plans
 éditables ni l’historique et ne relève aucune limite du document. Le même stockage de

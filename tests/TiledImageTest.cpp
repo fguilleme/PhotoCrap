@@ -3,6 +3,8 @@
 #include "storage/ScratchImageCache.h"
 
 #include <QColorSpace>
+#include <QFile>
+#include <QStorageInfo>
 #include <QTemporaryDir>
 #include <QtConcurrent>
 #include <QtTest>
@@ -11,6 +13,58 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void realDiskFullPreservesMappedVersions()
+    {
+        const auto root = qEnvironmentVariable("PHOTOCRAP_FULL_DISK_DIRECTORY");
+        if (root.isEmpty())
+            QSKIP("Use tests/run-full-disk-test.sh for the isolated-volume test.");
+        QStorageInfo storage(root);
+        QVERIFY(storage.isValid());
+        // Never fill an ordinary host folder, even if the environment is wrong.
+        QCOMPARE(QFileInfo(storage.rootPath()).canonicalFilePath(),
+                 QFileInfo(root).canonicalFilePath());
+        QVERIFY(storage.bytesTotal() > 0 && storage.bytesTotal() <= 64LL * 1024 * 1024);
+        QVERIFY(QFileInfo::exists(root + "/photocrap-isolated-test"));
+        ScratchImageCache cache({root, 64LL * 1024 * 1024, 0});
+        TiledImage        plane({768, 512}, QImage::Format_RGBA64_Premultiplied, Qt::white);
+        QVERIFY(plane.paint({4, 4, 12, 12},
+                            [](QPainter &p) { p.fillRect(QRect(4, 4, 12, 12), Qt::red); }));
+        QVERIFY(plane.offload(cache));
+        QCOMPARE(plane.heapBytes(), qint64(0));
+        const auto previous         = plane;
+        const auto expectedPrevious = previous.region({0, 0, 768, 512});
+        QVERIFY(plane.paint({400, 20, 12, 12},
+                            [](QPainter &p) { p.fillRect(QRect(400, 20, 12, 12), Qt::blue); }));
+        const auto expected = plane.region({0, 0, 768, 512});
+        QFile      filler(root + "/filler");
+        QVERIFY(filler.open(QIODevice::WriteOnly));
+        const QByteArray block(1024 * 1024, 'f');
+        for (int i = 0; i < 64; ++i)
+            if (filler.write(block) != block.size())
+                break;
+        filler.flush();
+        filler.close();
+        QVERIFY(filler.open(QIODevice::Append));
+        const QByteArray tail(4096, 't');
+        for (int i = 0; i < 256; ++i)
+            if (filler.write(tail) != tail.size())
+                break;
+        filler.flush();
+        filler.close();
+        storage.refresh();
+        QVERIFY(storage.bytesAvailable() < 256LL * 256 * 8);
+        QVERIFY(!plane.offload(cache));
+        QVERIFY(!cache.statistics()["error"].toString().isEmpty());
+        QVERIFY(plane.heapBytes() > 0);
+        QCOMPARE(plane.region({0, 0, 768, 512}), expected);
+        QCOMPARE(previous.region({0, 0, 768, 512}), expectedPrevious);
+        cache.clear();
+        QCOMPARE(previous.region({0, 0, 768, 512}), expectedPrevious);
+        QVERIFY(plane.paint({500, 300, 8, 8},
+                            [](QPainter &p) { p.fillRect(QRect(500, 300, 8, 8), Qt::green); }));
+        QCOMPARE(plane.region({500, 300, 8, 8}).pixelColor(2, 2), QColor(Qt::green));
+        QCOMPARE(previous.region({0, 0, 768, 512}), expectedPrevious);
+    }
     void regionalVersionsSurviveOffloadAndIgnoreRemoteEdits()
     {
         QTemporaryDir     directory;

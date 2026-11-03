@@ -1,5 +1,18 @@
 # Validation
 
+## Documents denses et volume saturé — 3 novembre 2026
+
+- Quatre calques remplis de 24 Mpx/16 bits : 768 Mo de plans, 1 536 blocs disque,
+  allocations RAM des tuiles ramenées à zéro. Un trait alloue au plus 1 Mio ;
+  versions, Annuler/Rétablir et sauvegarde/rechargement conservent les pixels natifs.
+- Séquence complète avec les deux documents coexistants : environ 14 s, pic RSS
+  3 359 752 192 octets, empreinte maximale 2 562 313 216 octets sur ce Mac.
+  Les buffers temporaires PNG/projet/import et les pages mappées sont inclus.
+- Volume HFS+ de 32 Mio effectivement rempli : refus du cache, maintien de la
+  nouvelle tuile en RAM, anciennes versions mappées intactes, puis édition après
+  vidage. Le script de test démonte et supprime son volume temporaire.
+
+
 ## Niveaux réduits GPU — 3 novembre 2026
 
 - Chaque pixel des niveaux 1/2, 1/4, 1/8 et 1/16 d’une image 1057 × 545 est

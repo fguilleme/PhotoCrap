@@ -34,6 +34,7 @@
 #include <QJsonObject>
 #include <QPainter>
 #include <QSettings>
+#include <QStorageInfo>
 #include <QTemporaryDir>
 #include <QThreadPool>
 #include <QtTest>
@@ -92,6 +93,73 @@ private slots:
     {
         // Match the smallest GitHub runners and catch nested global-pool waits.
         QThreadPool::globalInstance()->setMaxThreadCount(2);
+    }
+
+    void denseTwentyFourMegapixelPlanesSurviveOffloadAndReload()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_DENSE_MEMORY_TEST"))
+            QSKIP("Set PHOTOCRAP_DENSE_MEMORY_TEST=1 for the four-plane 24 MP memory benchmark.");
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QVERIFY(QStorageInfo(directory.path()).bytesAvailable() > 4LL * 1024 * 1024 * 1024);
+        QImage source(6000, 4000, QImage::Format_RGBA64_Premultiplied);
+        for (int y = 0; y < source.height(); ++y) {
+            auto *row = reinterpret_cast<QRgba64 *>(source.scanLine(y));
+            for (int x = 0; x < source.width(); ++x)
+                row[x] = QRgba64::fromRgba64(ushort(1000 + (x * 13 + y * 7) % 60000),
+                                             ushort(2000 + (x * 5 + y * 19) % 60000),
+                                             ushort(3000 + (x * 3 + y * 11) % 60000), 65535);
+        }
+        auto       expected = source.copy({90, 90, 20, 20});
+        const auto url      = QUrl::fromLocalFile(directory.filePath("dense.png"));
+        QVERIFY(source.save(url.toLocalFile()));
+        source = {};
+        Document d;
+        QVERIFY(d.openFile(url));
+        QCOMPARE(d.channelBits(), 16);
+        for (int i = 0; i < 3; ++i)
+            QVERIFY(d.importLayer(url));
+        QCOMPARE(d.layers().size(), 4);
+        QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() > 700LL * 1024 * 1024);
+        const auto original = d.gpuLayerStack();
+        QVERIFY(original.valid);
+        const auto imported = original.layers.last().image.region({90, 90, 20, 20});
+        for (int y = 0; y < 20; ++y)
+            for (int x = 0; x < 20; ++x)
+                QCOMPARE(imported.pixelColor(x, y), expected.pixelColor(x, y));
+        // Compare the stored plane's metadata as well as pixels across offload,
+        // rather than assuming the PNG loader leaves untagged metadata unchanged.
+        expected = imported;
+        d.configureScratchCache(directory.path(), 2LL * 1024 * 1024 * 1024);
+        d.configurePlaneRamMiB(0);
+        QTRY_COMPARE_WITH_TIMEOUT(d.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0), 120000);
+        qInfo() << "Dense 24 MP x 4 offloaded planes" << d.memoryUsage() << d.scratchCacheUsage();
+        d.setColor(Qt::red);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() <= 1024LL * 1024);
+        QCOMPARE(d.gpuLayerStack().layers.last().image.region({100, 100, 1, 1}).pixelColor(0, 0),
+                 QColor(Qt::red));
+        d.undo();
+        QCOMPARE(d.gpuLayerStack().layers.last().image.region({90, 90, 20, 20}), expected);
+        d.redo();
+        QCOMPARE(d.gpuLayerStack().layers.last().image.region({100, 100, 1, 1}).pixelColor(0, 0),
+                 QColor(Qt::red));
+        QCOMPARE(original.layers.last().image.region({90, 90, 20, 20}), expected);
+        const auto project = QUrl::fromLocalFile(directory.filePath("dense.pcr"));
+        QVERIFY(d.saveProject(project));
+        d.clearScratchCache();
+        Document loaded;
+        QVERIFY(loaded.openFile(project));
+        QCOMPARE(loaded.layers().size(), 4);
+        QCOMPARE(loaded.channelBits(), 16);
+        const auto planes = loaded.gpuLayerStack();
+        QVERIFY(planes.valid);
+        QCOMPARE(planes.layers.first().image.region({90, 90, 20, 20}), expected);
+        QCOMPARE(planes.layers.last().image.region({100, 100, 1, 1}).pixelColor(0, 0),
+                 QColor(Qt::red));
     }
 
     void tiledHistorySurvivesEvictionAndCacheClearing()

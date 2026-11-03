@@ -13,7 +13,7 @@ déjà disponibles.
   ces plans ; lectures régionales par la composition et les outils.
 - [x] Suppression des copies complètes permanentes, déchargement asynchrone des
   tuiles non utilisées, budgets RAM/disque et état de la pression mémoire.
-- [ ] Validation édition/Annuler/Rétablir/sauvegarde après éviction, disque plein,
+- [x] Validation édition/Annuler/Rétablir/sauvegarde après éviction, disque plein,
   documents chargés en 8/16 bits et mesures du pic réel de RAM.
 
 Les calques, masques et sources de fréquences utilisent `PixelPlane`. Pinceau,
@@ -21,8 +21,9 @@ Crayon et Gomme écrivent des régions directement ; les autres outils peuvent
 encore matérialiser un plan temporaire pendant leur opération. Le budget de
 256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
 global. Le composite complet CPU, les sélections et les buffers temporaires
-restent à compter séparément. Le pic de RAM est mesuré sur des scénarios localisés ; les essais sur disque
-réellement saturé et les mesures sur des piles entièrement remplies restent ouverts.
+restent à compter séparément. Le pic de RAM est mesuré sur des gestes localisés et sur quatre plans remplis de
+24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie le
+refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
 
 ## 2. Composition de la pile sur GPU
 

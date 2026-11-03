@@ -1,5 +1,13 @@
 # Validation
 
+## Conversions de plan sans changement — 3 novembre 2026
+
+Un plan 16 bits déchargé sur disque conserve zéro allocation RAM et la même
+version lorsque le format et l’espace couleur demandés sont déjà actifs. Une
+conversion effective vers 8 bits est comparée à Qt et préserve le snapshot natif.
+L’import cesse ainsi de reconstruire les calques existants à profondeur identique.
+
+
 ## Documents denses et volume saturé — 3 novembre 2026
 
 - Quatre calques remplis de 24 Mpx/16 bits : 768 Mo de plans, 1 536 blocs disque,

@@ -26,6 +26,12 @@ Les tests vérifient un trait et un masque local sur 24 Mpx/16 bits avec au plus
 576 Kio de plans persistants, ainsi qu’édition, déchargement, vidage du cache,
 Annuler/Rétablir et sauvegarde/rechargement d’un document 16 bits.
 
+Les conversions vers un format déjà actif et la réaffectation du même espace
+couleur ne matérialisent plus le plan complet. En particulier, importer une image
+n’ouvre plus un buffer natif pour chaque calque existant resté à la même profondeur.
+Le test sur un plan mappé vérifie que ces opérations ne créent aucun bloc RAM et
+ne changent pas sa version ; une conversion effective conserve son chemin natif.
+
 ## Tests denses et disque plein — 3 novembre 2026
 
 Le scénario optionnel `denseTwentyFourMegapixelPlanesSurviveOffloadAndReload`

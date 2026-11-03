@@ -114,7 +114,8 @@ public:
     }
     void convertTo(QImage::Format f)
     {
-        write().convertTo(f);
+        if (format() != f)
+            write().convertTo(f);
     }
     void invertPixels()
     {
@@ -122,7 +123,8 @@ public:
     }
     void setColorSpace(const QColorSpace &s)
     {
-        write().setColorSpace(s);
+        if (colorSpace() != s)
+            write().setColorSpace(s);
     }
     bool freeze() const
     {

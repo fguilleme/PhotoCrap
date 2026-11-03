@@ -83,6 +83,31 @@ private slots:
         QVERIFY(plane.regionKey({0, 0, 256, 256}) != key);
     }
 
+    void noOpConversionsKeepMappedStorageAndVersions()
+    {
+        QTemporaryDir     directory;
+        ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+        QImage            image(512, 512, QImage::Format_RGBA64_Premultiplied);
+        image.fill(Qt::white);
+        image.setPixelColor(300, 300, QColor::fromRgba64(12345, 34567, 45678, 65535));
+        image.setColorSpace(QColorSpace::SRgb);
+        PixelPlane plane(image);
+        QVERIFY(plane.offload(cache));
+        const auto before = plane;
+        const auto key    = plane.cacheKey();
+        QVERIFY(plane.heapBlocks().isEmpty());
+        plane.convertTo(plane.format());
+        plane.setColorSpace(plane.colorSpace());
+        QVERIFY(plane.heapBlocks().isEmpty());
+        QCOMPARE(plane.cacheKey(), key);
+        QCOMPARE(plane.region(image.rect()), image);
+        plane.convertTo(QImage::Format_ARGB32_Premultiplied);
+        QVERIFY(plane.freeze());
+        QCOMPARE(plane.region(image.rect()),
+                 image.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+        QCOMPARE(before.region(image.rect()), image);
+    }
+
     void pixelPlaneVersionsAndRegionalWrites()
     {
         QImage image(512, 512, QImage::Format_RGBA64_Premultiplied);

@@ -1,5 +1,27 @@
 # Validation
 
+## Source et prélèvement du Pinceau mélangeur — 3 novembre 2026
+
+Les 54 gestes enregistrés avant modification conservent leur digest :
+`08863a90f51429679357eab832355d59906e10a8ca22e9d604d27872a0450026`.
+Ils couvrent pixels 8 bits, masques 8/16 bits, sources active/composite,
+chevauchements, frontières et annulation. Le test de prélèvement de couleur unie
+compare 16 lectures natives actives/composées, avec transparence et tuiles :
+`aac30ae02e3b14043f16fb31f3aa180f76f08a46e25b55eb393cc260cf3d8b5a`.
+L’historique et le cache d’affichage restent inchangés pendant ces prélèvements.
+
+Sonde locale Qt 6.12 : le petit geste sur 24 Mpx/8 bits passe de 12,3 ms à 0,73 ms,
+sans changement du pixel échantillonné. La lecture texturée est également couverte
+par le digest des gestes. Les replis non locaux restent nécessaires ; aucun seuil
+de durée n’est imposé aux tests.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_COMPOSITE_PICKUP_PROBE=1 build/photocrap_tests \
+  compositedPickupStrokeDigest largeCompositePickupProbe mixerSolidPickingDigest
+```
+
+
 ## Source composée du Doigt — 3 novembre 2026
 
 Référence enregistrée avant modification sur 54 gestes par outil : pixels

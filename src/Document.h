@@ -1411,15 +1411,16 @@ private:
     bool   m_replacementAntialias = true;
     QColor m_replacementSample;
 
-    qreal   m_mixerWet = .5, m_mixerLoad = .5, m_mixerMix = .5, m_mixerFlow = 1.;
-    bool    m_mixerSampleAllLayers = false, m_mixerAutoLoad = true, m_mixerAutoClean = true;
-    bool    m_mixerSolidOnly = false;
-    QColor  m_mixerColor{Qt::black};
-    QImage  m_mixerPaint, m_mixerPickup, m_mixerTip, m_mixerSample, m_mixerReservoirTip;
-    QImage  m_mixerPickupBeforeStroke;
-    qreal   m_mixerRemaining = 1., m_mixerRemainingBeforeStroke = 1.;
-    QPointF m_mixerLastEnd;
-    bool    m_mixerLastEndValid = false;
+    qreal  m_mixerWet = .5, m_mixerLoad = .5, m_mixerMix = .5, m_mixerFlow = 1.;
+    bool   m_mixerSampleAllLayers = false, m_mixerAutoLoad = true, m_mixerAutoClean = true;
+    bool   m_mixerSolidOnly = false;
+    QColor m_mixerColor{Qt::black};
+    QImage m_mixerPaint, m_mixerPickup, m_mixerTip, m_mixerReservoirTip;
+    std::unique_ptr<Document> m_mixerCompositeSource;
+    QImage                    m_mixerPickupBeforeStroke;
+    qreal                     m_mixerRemaining = 1., m_mixerRemainingBeforeStroke = 1.;
+    QPointF                   m_mixerLastEnd;
+    bool                      m_mixerLastEndValid = false;
 
     quint64 m_documentSession = 0;
     struct PreparedRawResult {

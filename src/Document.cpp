@@ -737,8 +737,8 @@ void Document::resetHistory(bool _clean)
     m_smudgePickup = {};
     m_smudgeMask   = {};
     m_smudgeCompositeSource.reset();
-    m_mixerPickup             = {};
-    m_mixerSample             = {};
+    m_mixerPickup = {};
+    m_mixerCompositeSource.reset();
     m_mixerTip                = {};
     m_mixerReservoirTip       = {};
     m_mixerPickupBeforeStroke = {};

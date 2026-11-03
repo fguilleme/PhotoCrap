@@ -4364,6 +4364,45 @@ private slots:
         QCOMPARE(d.redEyeDarken(), 1.);
         QCOMPARE(d.redEyePupilSize(), 1.);
     }
+    void mixerSolidPickingDigest()
+    {
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(517, 523, true, bits));
+            d.setColor(QColor::fromRgba64(12345, 54321, 23456, 43210));
+            d.fillWithColor(true);
+            d.addLayer();
+            d.setBrushSize(81);
+            d.setColor(QColor::fromRgba64(45678, 23456, 56789, 34567));
+            d.beginStroke(255, 255);
+            d.endStroke();
+            d.setActiveLayer(0);
+            d.setMixerSolidOnly(true);
+            for (bool all : {false, true}) {
+                d.setMixerSampleAllLayers(all);
+                for (QPoint point :
+                     {QPoint(0, 0), QPoint(254, 255), QPoint(256, 256), QPoint(516, 522)}) {
+                    const QImage &cache = d.composite();
+                    const auto    key   = cache.cacheKey();
+                    d.setLayerVisible(1, false);
+                    d.setLayerVisible(1, true);
+                    const int history = d.historyIndex();
+                    d.sampleMixerBrush(point.x(), point.y());
+                    const auto  color = d.mixerLoadColor().rgba64();
+                    QByteArray  data;
+                    QDataStream stream(&data, QIODevice::WriteOnly);
+                    stream << color.red() << color.green() << color.blue() << color.alpha();
+                    hash.addData(data);
+                    QCOMPARE(d.historyIndex(), history);
+                    QCOMPARE(cache.cacheKey(), key);
+                }
+            }
+        }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("aac30ae02e3b14043f16fb31f3aa180f76f08a46e25b55eb393cc260cf3d8b5a"));
+    }
+
     void mixerPickingAndPaintingAllocateOnlyLocalTiles()
     {
         Document d;

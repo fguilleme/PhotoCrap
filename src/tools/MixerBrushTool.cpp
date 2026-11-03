@@ -7,21 +7,16 @@
 
 namespace
 {
-QImage patch(const QImage &_source, const QRect &_rect)
-{
-    QImage   image = ImageUtils::blank(_rect.size());
-    QPainter painter(&image);
-    painter.drawImage(-_rect.topLeft(), _source);
-    return image;
-}
-QImage patch(const PixelPlane &_source, const QRect &_rect, const QSize &_size)
+QImage patch(const PixelPlane &_source, const QRect &_rect, const QSize &_size,
+             const Document *_composite = nullptr)
 {
     QImage image = ImageUtils::blank(_rect.size());
     if (image.isNull())
         return {};
     const QRect region = _rect.intersected(QRect(QPoint{}, _size));
     if (!region.isEmpty()) {
-        const QImage pixels = _source.region(region);
+        const QImage pixels =
+            _composite ? _composite->compositeRegion(region) : _source.region(region);
         if (pixels.isNull())
             return {};
         QPainter painter(&image);
@@ -196,27 +191,40 @@ void Document::sampleMixerBrush(qreal _x, qreal _y)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    PixelPlane source;
-    if (m_mixerSampleAllLayers && !m_editingMask)
-        source = composite();
-    else if (m_active >= 0 && m_active < m_layers.size() && m_editingMask &&
-             !m_layers[m_active].mask.isNull())
-        source = m_layers[m_active].mask;
-    else if (m_active >= 0 && m_active < m_layers.size() && m_layers[m_active].kind == "pixel")
-        source = m_layers[m_active].image;
-    else
-        source = composite();
     const QPoint center(qFloor(_x), qFloor(_y));
-    if (source.isNull() || !QRect(QPoint{}, m_size).contains(center))
+    if (!QRect(QPoint{}, m_size).contains(center))
+        return;
+    PixelPlane source;
+    bool       composed = m_mixerSampleAllLayers && !m_editingMask;
+    if (!composed) {
+        if (m_active >= 0 && m_active < m_layers.size() && m_editingMask &&
+            !m_layers[m_active].mask.isNull())
+            source = m_layers[m_active].mask;
+        else if (m_active >= 0 && m_active < m_layers.size() && m_layers[m_active].kind == "pixel")
+            source = m_layers[m_active].image;
+        else
+            composed = true;
+    }
+    if (!composed && source.isNull())
         return;
     const int size = qCeil(m_brushSize) + 4;
     if (m_mixerSolidOnly) {
-        m_mixerPaint        = ImageUtils::blank(QSize(1, 1));
-        const QPoint stored = source.size() == QSize(1, 1) ? QPoint{} : center;
-        m_mixerPaint.fill(source.pixelColor(stored.x(), stored.y()));
+        QColor color;
+        if (composed) {
+            const QImage sample = compositeRegion(QRect(center, QSize(1, 1)));
+            if (sample.isNull())
+                return;
+            color = sample.pixelColor(0, 0);
+        } else {
+            const QPoint stored = source.size() == QSize(1, 1) ? QPoint{} : center;
+            color               = source.pixelColor(stored.x(), stored.y());
+        }
+        m_mixerPaint = ImageUtils::blank(QSize(1, 1));
+        m_mixerPaint.fill(color);
     } else
         m_mixerPaint =
-            patch(source, QRect(center.x() - size / 2, center.y() - size / 2, size, size), m_size);
+            patch(source, QRect(center.x() - size / 2, center.y() - size / 2, size, size), m_size,
+                  composed ? this : nullptr);
     if (m_mixerPaint.isNull())
         return;
     m_mixerColor  = averageColor(m_mixerPaint);
@@ -259,9 +267,9 @@ void Document::prepareMixerStroke()
     }
     painter.drawEllipse(QPointF{}, m_brushSize / 2., m_brushSize / 2.);
     painter.end();
-    // A shared composite snapshot is needed once only for all-layer sampling;
-    // pickup, blending and image writes below always remain brush-sized.
-    m_mixerSample = m_mixerSampleAllLayers && !m_editingMask ? composite() : QImage{};
+    // Hold source tile versions stable without preparing a full-sized image.
+    m_mixerCompositeSource =
+        m_mixerSampleAllLayers && !m_editingMask ? nativeCompositeSource(m_layers) : nullptr;
 }
 void Document::finishMixerStroke(bool _cancel)
 {
@@ -281,7 +289,7 @@ void Document::finishMixerStroke(bool _cancel)
     m_mixerPickupBeforeStroke = {};
     m_mixerTip                = {};
     m_mixerReservoirTip       = {};
-    m_mixerSample             = {};
+    m_mixerCompositeSource.reset();
     emit settingsChanged();
 }
 void Document::mixerDab(const QPointF &_point)
@@ -296,9 +304,8 @@ void Document::mixerDab(const QPointF &_point)
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
-    const QImage sampled =
-        m_mixerSample.isNull() ? patch(m_strokePlaneBase, dab, m_size) : patch(m_mixerSample, dab);
-    QImage paint = ImageUtils::blank(region.size());
+    const QImage sampled = patch(m_strokePlaneBase, dab, m_size, m_mixerCompositeSource.get());
+    QImage       paint   = ImageUtils::blank(region.size());
     if (sampled.isNull() || paint.isNull()) {
         m_strokeCoverageFailed = true;
         return;

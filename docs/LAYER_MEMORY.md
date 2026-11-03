@@ -120,6 +120,13 @@ composite complet permanent pendant le geste disparaît pour les piles compatibl
 L’édition des pixels reste limitée aux documents 8 bits, les masques aux profondeurs
 déjà prises en charge ; cette optimisation n’ajoute pas une conversion silencieuse.
 
+Le Pinceau mélangeur partage la même stratégie pour « tous les calques » : une
+pile figée, des lectures à la taille de la brosse et le même état de réservoir.
+Son prélèvement Option/Alt lit un seul pixel en mode couleur unie, ou l’empreinte
+de brosse en mode texturé, sans reconstruire puis convertir tout le composite
+en plan tuilé. Les couleurs moyennées et le comportement des masques restent
+identiques. Les replis complets des piles non locales sont conservés.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

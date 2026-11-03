@@ -11,9 +11,11 @@ struct Document::BackgroundOperation {
     struct Task {
         std::atomic_bool cancelled{false};
         std::atomic_int  progress{-1};
+        // 0: cancellable, 1: final file publication claimed, 2: cancelled.
+        std::atomic_int publication{0};
     };
     struct Result {
-        Snapshot after;
+        Snapshot after{};
         QString  error;
         bool     valid = false, cancelled = false;
     };
@@ -28,6 +30,22 @@ struct Document::BackgroundOperation {
 bool Document::operationBusy() const
 {
     return m_backgroundOperation && m_backgroundOperation->busy;
+}
+bool Document::operationCancellable() const
+{
+    return operationBusy() && m_backgroundOperation->task &&
+           m_backgroundOperation->task->publication.load() == 0;
+}
+bool Document::beginOperationPublication()
+{
+    if (!m_backgroundWorker)
+        return true;
+    if (m_backgroundCancel && m_backgroundCancel->load())
+        return false;
+    if (!m_backgroundPublication)
+        return true;
+    int expected = 0;
+    return m_backgroundPublication->compare_exchange_strong(expected, 1);
 }
 QString Document::operationLabel() const
 {
@@ -72,8 +90,12 @@ void Document::cancelOperation()
     if (!operationBusy())
         return;
     const auto state = m_backgroundOperation;
-    if (state->task)
+    if (state->task) {
+        int expected = 0;
+        if (!state->task->publication.compare_exchange_strong(expected, 2) && expected == 1)
+            return; // A file already at its atomic publication point cannot be cancelled.
         state->task->cancelled.store(true);
+    }
     state->busy = false;
     state->progress.stop();
     if (state->watcher)
@@ -88,7 +110,13 @@ void Document::cancelOperation()
 bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(Document &)> work,
                          bool mayRemoveMask)
 {
-    if (m_backgroundWorker || cost < m_backgroundEditThreshold)
+    return deferOperation(label, cost, std::move(work), mayRemoveMask, {});
+}
+bool Document::deferOperation(const QString &_label, qint64 _cost,
+                              std::function<void(Document &)> _work, bool _mayRemoveMask,
+                              std::function<void()> _completed)
+{
+    if (m_backgroundWorker || _cost < m_backgroundEditThreshold)
         return false;
     if (pixelEditBusy()) {
         fail(tr("Terminez ou annulez l’opération en cours."));
@@ -106,8 +134,8 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
         });
     }
     const auto state    = m_backgroundOperation;
-    state->before       = snapshot(label);
-    state->label        = label;
+    state->before       = snapshot(_label);
+    state->label        = _label;
     state->session      = m_documentSession;
     state->state        = m_stateId;
     state->task         = std::make_shared<BackgroundOperation::Task>();
@@ -116,56 +144,63 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
     const auto   before = state->before;
     const auto   tool   = m_tool;
     const QColor color = m_color, secondary = m_secondary;
-    const auto   scratch = m_scratchCache;
-    using Result         = BackgroundOperation::Result;
-    auto promise         = std::make_shared<QPromise<Result>>();
+    const auto   scratch  = m_scratchCache;
+    const bool   readOnly = bool(_completed);
+    using Result          = BackgroundOperation::Result;
+    auto promise          = std::make_shared<QPromise<Result>>();
     promise->start();
     auto *watcher  = new QFutureWatcher<Result>(this);
     state->watcher = watcher;
-    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, task] {
-        const auto state = m_backgroundOperation;
-        if (!state || state->watcher != watcher) {
-            watcher->deleteLater();
-            return;
-        }
-        Result result;
-        try {
-            result = watcher->result();
-        } catch (...) {
-            result.error = tr("Mémoire insuffisante pour terminer l’opération.");
-        }
-        watcher->deleteLater();
-        state->watcher.clear();
-        state->progress.stop();
-        const bool current = state->busy && state->task == task && !task->cancelled.load() &&
-                             state->session == m_documentSession && state->state == m_stateId;
-        const auto before  = std::move(state->before);
-        state->busy        = false;
-        state->task.reset();
-        if (current && result.valid && !result.cancelled) {
-            // restore() centralizes selection/path/size invariants, but its
-            // intermediate notifications must not expose the worker's IDs.
-            {
-                QSignalBlocker blocker(this);
-                const auto     isolation = m_visibilityBeforeIsolation;
-                const auto     isolated  = m_isolatedLayer;
-                restore(result.after);
-                if (isolation.size() == m_layers.size()) {
-                    m_visibilityBeforeIsolation = isolation;
-                    m_isolatedLayer             = isolated;
+    connect(watcher, &QFutureWatcher<Result>::finished, this,
+            [this, watcher, task, _completed = std::move(_completed)] {
+                const auto state = m_backgroundOperation;
+                if (!state || state->watcher != watcher) {
+                    watcher->deleteLater();
+                    return;
                 }
-            }
-            commit(before, state->label);
-            emit documentChanged();
-            emit canvasSizeChanged();
-            emit selectionChanged();
-            emit slicesChanged();
-            emit penPathsChanged();
-        } else if (current && !result.error.isEmpty())
-            fail(tr("Impossible de terminer « %1 » : %2").arg(state->label, result.error));
-        emit operationChanged();
-        emit settingsChanged();
-    });
+                Result result;
+                try {
+                    result = watcher->result();
+                } catch (...) {
+                    result.error = tr("Mémoire insuffisante pour terminer l’opération.");
+                }
+                watcher->deleteLater();
+                state->watcher.clear();
+                state->progress.stop();
+                const bool current =
+                    state->busy && state->task == task && !task->cancelled.load() &&
+                    state->session == m_documentSession && state->state == m_stateId;
+                const auto before = std::move(state->before);
+                state->busy       = false;
+                state->task.reset();
+                if (current && result.valid && !result.cancelled) {
+                    if (_completed)
+                        _completed();
+                    else {
+                        // restore() centralizes selection/path/size invariants, but its
+                        // intermediate notifications must not expose the worker's IDs.
+                        {
+                            QSignalBlocker blocker(this);
+                            const auto     isolation = m_visibilityBeforeIsolation;
+                            const auto     isolated  = m_isolatedLayer;
+                            restore(result.after);
+                            if (isolation.size() == m_layers.size()) {
+                                m_visibilityBeforeIsolation = isolation;
+                                m_isolatedLayer             = isolated;
+                            }
+                        }
+                        commit(before, state->label);
+                        emit documentChanged();
+                        emit canvasSizeChanged();
+                        emit selectionChanged();
+                        emit slicesChanged();
+                        emit penPathsChanged();
+                    }
+                } else if (current && !result.error.isEmpty())
+                    fail(tr("Impossible de terminer « %1 » : %2").arg(state->label, result.error));
+                emit operationChanged();
+                emit settingsChanged();
+            });
     watcher->setFuture(promise->future());
     state->progress.start();
     emit operationChanged();
@@ -173,8 +208,8 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
     // Lower priority than interactive preview jobs. Nothing on this worker
     // captures the live Document; closing/changing it never waits for this task.
     QThreadPool::globalInstance()->start(
-        [promise, task, before, tool, color, secondary, scratch, work = std::move(work),
-         mayRemoveMask]() mutable {
+        [promise, task, before, tool, color, secondary, scratch, _work = std::move(_work),
+         _mayRemoveMask, readOnly]() mutable {
             Result result;
             if (!task->cancelled.load()) {
                 try {
@@ -184,6 +219,8 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
                         std::shared_ptr<std::atomic_bool>(task, &task->cancelled);
                     renderer.m_backgroundProgress =
                         std::shared_ptr<std::atomic_int>(task, &task->progress);
+                    renderer.m_backgroundPublication =
+                        std::shared_ptr<std::atomic_int>(task, &task->publication);
                     renderer.m_tool      = tool;
                     renderer.m_color     = color;
                     renderer.m_secondary = secondary;
@@ -194,24 +231,28 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
                     renderer.m_scratchCache = scratch;
                     QObject::connect(&renderer, &Document::errorOccurred, &renderer,
                                      [&result](const QString &message) { result.error = message; });
-                    work(renderer);
+                    _work(renderer);
                     if (!task->cancelled.load() && result.error.isEmpty()) {
-                        result.after = renderer.snapshot({});
-                        QHash<QString, const Layer *> originals;
-                        for (const auto &layer : before.layers)
-                            originals.insert(layer.historyId, &layer);
-                        for (const auto &layer : result.after.layers) {
-                            const auto *original = originals.value(layer.historyId);
-                            if (((layer.kind == "pixel" || layer.kind == "text") &&
-                                 layer.image.isNull()) ||
-                                (layer.kind.startsWith("frequency") && layer.source.isNull()) ||
-                                (!mayRemoveMask && original && !original->mask.isNull() &&
-                                 layer.mask.isNull())) {
-                                result.error = tr("Allocation des pixels impossible.");
-                                break;
+                        if (readOnly)
+                            result.valid = true;
+                        else {
+                            result.after = renderer.snapshot({});
+                            QHash<QString, const Layer *> originals;
+                            for (const auto &layer : before.layers)
+                                originals.insert(layer.historyId, &layer);
+                            for (const auto &layer : result.after.layers) {
+                                const auto *original = originals.value(layer.historyId);
+                                if (((layer.kind == "pixel" || layer.kind == "text") &&
+                                     layer.image.isNull()) ||
+                                    (layer.kind.startsWith("frequency") && layer.source.isNull()) ||
+                                    (!_mayRemoveMask && original && !original->mask.isNull() &&
+                                     layer.mask.isNull())) {
+                                    result.error = tr("Allocation des pixels impossible.");
+                                    break;
+                                }
                             }
+                            result.valid = result.error.isEmpty();
                         }
-                        result.valid = result.error.isEmpty();
                     }
                 } catch (const std::bad_alloc &) {
                     result.error = tr("Mémoire insuffisante pour terminer l’opération.");

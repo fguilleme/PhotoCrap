@@ -1,6 +1,9 @@
 #include "Document.h"
 #include <QElapsedTimer>
+#include <QFile>
+#include <QImageWriter>
 #include <QSemaphore>
+#include <QTemporaryDir>
 #include <QThreadPool>
 #include <QtTest>
 
@@ -74,6 +77,185 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void runningExportCanBeCancelledBeforeFileCommit()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_EXPORT_CANCEL_STRESS"))
+            QSKIP("Opt in with PHOTOCRAP_EXPORT_CANCEL_STRESS=1 for the large real encoder test.");
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto       target = QUrl::fromLocalFile(directory.filePath("export.png"));
+        const QByteArray previous("Previous file contents");
+        QFile            file(target.toLocalFile());
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(previous), previous.size());
+        file.close();
+        Document d;
+        QVERIFY(d.newDocument(4096, 4096, false, 16));
+        d.setBackgroundEditThreshold(0);
+        const auto history = d.history();
+        d.requestExportImage(target);
+        QVERIFY(d.operationBusy());
+        QElapsedTimer timer;
+        timer.start();
+        bool encoding = false;
+        while (d.operationBusy() && timer.elapsed() < 10000) {
+            if (d.operationProgress() == .5) {
+                encoding = true;
+                break;
+            }
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 1);
+            QThread::msleep(1);
+        }
+        d.cancelOperation();
+        QVERIFY(!d.operationBusy());
+        QThreadPool::globalInstance()->waitForDone();
+        if (!encoding)
+            QSKIP("The encoder completed before the cancellation window could be observed.");
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QCOMPARE(file.readAll(), previous);
+        QCOMPARE(d.history(), history);
+        qInfo() << "Cancelled a running 16 MP / 16 bit PNG before atomic file commit";
+    }
+    void asynchronousExportMatchesSynchronous_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<QString>("suffix");
+        for (int bits : {8, 16})
+            for (const auto suffix : {"png", "jpg", "bmp", "webp"}) {
+                if (!QImageWriter::supportedImageFormats().contains(QByteArray(suffix)))
+                    continue;
+                QTest::newRow(qPrintable(QString::number(bits) + "-" + suffix))
+                    << bits << QString(suffix);
+            }
+    }
+    void asynchronousExportMatchesSynchronous()
+    {
+        QFETCH(int, bits);
+        QFETCH(QString, suffix);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (bool saved : {false, true}) {
+            Document reference, d;
+            populate(reference, bits);
+            populate(d, bits);
+            const auto tag      = saved ? "saved" : "modified";
+            const auto original = QUrl::fromLocalFile(directory.filePath(QString(tag) + ".pcr"));
+            if (saved)
+                QVERIFY(d.saveProject(original));
+            const auto expected =
+                QUrl::fromLocalFile(directory.filePath(QString(tag) + "-reference." + suffix));
+            const auto target =
+                QUrl::fromLocalFile(directory.filePath(QString(tag) + "-async." + suffix));
+            QVERIFY(reference.exportImage(expected));
+            const auto pixels   = d.composite();
+            const auto history  = d.history();
+            const auto layers   = d.layers();
+            const auto url      = d.projectUrl();
+            const bool modified = d.modified();
+            d.setBackgroundEditThreshold(0);
+            QSignalSpy errors(&d, &Document::errorOccurred);
+            QSignalSpy messages(&d, &Document::statusMessage);
+            QSignalSpy images(&d, &Document::imageChanged);
+            {
+                BlockPool block;
+                d.requestExportImage(target);
+                QVERIFY(d.operationBusy());
+                QVERIFY(!QFile::exists(target.toLocalFile()));
+                QCOMPARE(d.composite(), pixels);
+                QCOMPARE(d.history(), history);
+                d.setBrushSize(37);
+                d.setColor(Qt::green);
+                block.release.release();
+                block.pool->waitForDone();
+                // The file is already published, but its GUI completion is queued.
+                // Escape must not report a successful publication as cancelled.
+                QVERIFY(d.operationBusy());
+                QVERIFY(!d.operationCancellable());
+                d.cancelOperation();
+                QVERIFY(d.operationBusy());
+                QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+            }
+            QCOMPARE(errors.size(), 0);
+            QCOMPARE(messages.size(), 1);
+            QCOMPARE(images.size(), 0);
+            QCOMPARE(d.composite(), pixels);
+            QCOMPARE(d.history(), history);
+            QCOMPARE(d.layers(), layers);
+            QCOMPARE(d.projectUrl(), url);
+            QCOMPARE(d.modified(), modified);
+            QCOMPARE(d.brushSize(), 37.);
+            QCOMPARE(d.color(), QColor(Qt::green));
+            QFile actualFile(target.toLocalFile()), expectedFile(expected.toLocalFile());
+            QVERIFY(actualFile.open(QIODevice::ReadOnly));
+            QVERIFY(expectedFile.open(QIODevice::ReadOnly));
+            QCOMPARE(actualFile.readAll(), expectedFile.readAll());
+        }
+    }
+    void cancelledExportKeepsTheExistingFileAndDocumentLifetime()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto       target = QUrl::fromLocalFile(directory.filePath("export.png"));
+        const QByteArray previous("Previous file contents");
+        for (const auto action : {"cancel", "newDocument", "newGesture", "destroy"}) {
+            QFile file(target.toLocalFile());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QCOMPARE(file.write(previous), previous.size());
+            file.close();
+            auto d = std::make_unique<Document>();
+            populate(*d, 16);
+            d->setBackgroundEditThreshold(0);
+            const auto history = d->history();
+            {
+                BlockPool block;
+                d->requestExportImage(target);
+                QVERIFY(d->operationBusy());
+                if (QString(action) == "destroy")
+                    d.reset();
+                else if (QString(action) == "newDocument")
+                    QVERIFY(d->newDocument(27, 19, true));
+                else if (QString(action) == "newGesture") {
+                    d->setTool("brush");
+                    d->beginStroke(20, 20);
+                    d->cancelStroke();
+                } else
+                    d->cancelOperation();
+                if (d)
+                    QVERIFY(!d->operationBusy());
+            }
+            QCoreApplication::processEvents();
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            QCOMPARE(file.readAll(), previous);
+            if (d && QString(action) != "newDocument")
+                QCOMPARE(d->history(), history);
+        }
+    }
+    void exportErrorsLeaveHistoryAndPixelsUnchanged()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        populate(d, 8);
+        const auto pixels  = d.composite();
+        const auto history = d.history();
+        d.setBackgroundEditThreshold(0);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        for (const auto target : {"unsupported.bad", "missing/export.png"}) {
+            d.requestExportImage(QUrl::fromLocalFile(directory.filePath(target)));
+            QVERIFY(d.operationBusy());
+            QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+            QCOMPARE(d.composite(), pixels);
+            QCOMPARE(d.history(), history);
+            QVERIFY(!QFile::exists(directory.filePath(target)));
+        }
+        QCOMPARE(errors.size(), 2);
+        d.setBackgroundEditThreshold(-1);
+        const auto target = QUrl::fromLocalFile(directory.filePath("small.png"));
+        d.requestExportImage(target);
+        QVERIFY(!d.operationBusy());
+        QVERIFY(QFile::exists(target.toLocalFile()));
+        QCOMPARE(d.history(), history);
+    }
     void bucketCanBeCancelledOrSupersededBeforeAFirstDrag()
     {
         Document d;

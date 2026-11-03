@@ -1977,7 +1977,16 @@ La progression est indéterminée pour les appels Qt monolithiques, et avance en
 les calques ou lignes pour les boucles instrumentées. Annuler rend la main tout de
 suite ; une routine Qt non interruptible peut encore terminer son plan en arrière-plan.
 RAW, sélections, recadrage interactif et préparation des fréquences gardent leurs
-workers spécialisés. Sauvegarde/chargement de projets et export restent synchrones.
+workers spécialisés. Sauvegarde et chargement de projets restent synchrones.
+
+Le dialogue d’export utilise aussi le répartiteur dès quatre millions de pixels
+traités. Le worker compose et encode son snapshot, puis vérifie l’annulation avant
+la publication atomique du fichier. Il ne renvoie pas d’état de calques à restaurer
+et ne modifie ni l’historique ni le marqueur d’enregistrement. La phase finale de
+publication est réclamée atomiquement ; Annuler ne peut plus la présenter comme
+abandonnée une fois le fichier validé, même si la notification GUI attend encore.
+Un codec Qt en cours peut terminer après une annulation ; son fichier temporaire
+est alors abandonné avant publication. Les petits exports restent immédiats.
 
 ## Budget partagé des textures
 

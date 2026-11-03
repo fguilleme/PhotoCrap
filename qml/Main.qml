@@ -1531,7 +1531,7 @@ ApplicationWindow {
             anchors.fill: parent; anchors.margins: 10
             RowLayout {
                 Label { text: editor.operationLabel; color: "#dbe1e8"; Layout.fillWidth: true; elide: Text.ElideRight }
-                Button { objectName: "operationCancel"; text: qsTr("Annuler"); onClicked: editor.cancelOperation() }
+                Button { objectName: "operationCancel"; text: qsTr("Annuler"); enabled: editor.operationCancellable; onClicked: editor.cancelOperation() }
             }
             ProgressBar { Layout.fillWidth: true; from: 0; to: 1; value: Math.max(0,editor.operationProgress); indeterminate: editor.operationProgress < 0 }
         }
@@ -3753,7 +3753,7 @@ ApplicationWindow {
         id: exportDialog; objectName: "exportDialog"; title: qsTr("Exporter l’image aplatie"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("PNG (*.png)"),qsTr("JPEG (*.jpg *.jpeg)"),qsTr("BMP (*.bmp)"),qsTr("WebP (*.webp)")]
         defaultSuffix: selectedNameFilter.index===1?"jpg":selectedNameFilter.index===2?"bmp":selectedNameFilter.index===3?"webp":"png"
-        onAccepted: editor.exportImage(selectedFile)
+        onAccepted: editor.requestExportImage(selectedFile)
     }
     ColorDialog {
         id: colorDialog

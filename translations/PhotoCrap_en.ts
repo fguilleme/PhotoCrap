@@ -113,6 +113,7 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Exporter l’image</source><translation>Export image</translation></message>
     <message>
         <source>Opération annulée.</source>
         <translation>Operation cancelled.</translation>

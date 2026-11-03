@@ -24,7 +24,7 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 - **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
 - **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
-Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Project I/O and export remain synchronous.
+Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Large image exports use the worker too, without changing history. Project opening and saving remain synchronous.
 
 Geometric shapes preview only their bounds and stroke margins; gradients restricted to a selection do the same. Shrinking a shape clears its previous preview, and returning to the anchor leaves no empty layer or history entry. Selected Move handles source and destination separately; sparse transparent layers move tile by tile, while dense layers and full-image gradients still use full-sized buffers.
 

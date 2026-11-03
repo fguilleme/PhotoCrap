@@ -81,8 +81,9 @@ demande. Le document peut être fermé ou remplacé sans attendre le worker. Un 
 Qt non interruptible peut terminer son plan courant après l’annulation ; son
 résultat n’est jamais appliqué. Les modifications compactes restent synchrones.
 L’ouverture RAW, le recadrage interactif, les sélections et la retouche de fréquences
-conservent leurs workers spécialisés. Les entrées/sorties de projets et l’export
-restent synchrones et constituent une suite distincte. La sauvegarde v9 écrit
+conservent leurs workers spécialisés. L’export des grandes images utilise maintenant le même répartiteur en lecture
+seule, sans restaurer un snapshot dans le document ni créer d’historique. Les
+entrées/sorties de projets restent synchrones et constituent une suite distincte. La sauvegarde v9 écrit
 désormais ses PNG/Base64 et son JSON en flux atomique pour éviter l’accumulation
 des données encodées ; le codec peut encore demander un plan natif complet.
 

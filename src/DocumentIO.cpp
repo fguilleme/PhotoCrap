@@ -441,6 +441,14 @@ bool Document::loadProject(const QString &_path)
     emit slicesChanged();
     return true;
 }
+void Document::requestExportImage(const QUrl &_url)
+{
+    if (!deferOperation(
+            tr("Exporter l’image"), qMax(editCost(false), editCost(true)),
+            [_url](Document &_renderer) { _renderer.exportImage(_url); }, false,
+            [this] { emit statusMessage(tr("Image exportée")); }))
+        exportImage(_url);
+}
 bool Document::exportImage(const QUrl &_url)
 {
     finishTextEdit();
@@ -460,7 +468,11 @@ bool Document::exportImage(const QUrl &_url)
         suffix != "webp")
         return fail(
             tr("Export disponible en PNG, JPEG, BMP ou WebP (si le module Qt est installé)."));
+    if (!operationStep(0, 4))
+        return false;
     QImage result = composite();
+    if (!operationStep(1, 4))
+        return false;
     if (suffix == "jpg" || suffix == "jpeg" || suffix == "bmp") {
         QImage white(result.size(), QImage::Format_RGB32);
         white.fill(Qt::white);
@@ -473,10 +485,15 @@ bool Document::exportImage(const QUrl &_url)
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return fail(file.errorString());
+    if (!operationStep(2, 4))
+        return false;
     QImageWriter writer(&file, suffix.toLatin1());
     writer.setQuality(95);
     if (!writer.write(result))
         return fail(writer.errorString());
+    if (!operationStep(3, 4) || !beginOperationPublication())
+        return false;
+    operationStep(4, 4);
     if (!file.commit())
         return fail(file.errorString());
     emit statusMessage(tr("Image exportée"));

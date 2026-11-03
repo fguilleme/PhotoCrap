@@ -267,6 +267,7 @@ class Document : public QObject
     Q_PROPERTY(bool magicEraserBusy READ magicEraserBusy NOTIFY settingsChanged)
     Q_PROPERTY(bool pixelEditBusy READ pixelEditBusy NOTIFY settingsChanged)
     Q_PROPERTY(bool operationBusy READ operationBusy NOTIFY operationChanged)
+    Q_PROPERTY(bool operationCancellable READ operationCancellable NOTIFY operationChanged)
     Q_PROPERTY(QString operationLabel READ operationLabel NOTIFY operationChanged)
     Q_PROPERTY(qreal operationProgress READ operationProgress NOTIFY operationChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
@@ -630,6 +631,7 @@ public:
                m_magicEraserBusy;
     }
     bool             operationBusy() const;
+    bool             operationCancellable() const;
     QString          operationLabel() const;
     qreal            operationProgress() const;
     Q_INVOKABLE void cancelOperation();
@@ -1050,6 +1052,7 @@ public:
     }
     Q_INVOKABLE bool saveProject(const QUrl &_url);
     Q_INVOKABLE bool exportImage(const QUrl &_url);
+    Q_INVOKABLE void requestExportImage(const QUrl &_url);
     Q_INVOKABLE void addLayer();
     Q_INVOKABLE void duplicateLayer();
     Q_INVOKABLE void removeLayer();
@@ -1257,10 +1260,14 @@ private:
     bool                                 m_backgroundWorker        = false;
     std::shared_ptr<std::atomic_bool>    m_backgroundCancel;
     std::shared_ptr<std::atomic_int>     m_backgroundProgress;
-    bool   deferEdit(const QString &label, qint64 cost, std::function<void(Document &)> work,
-                     bool mayRemoveMask = false);
+    std::shared_ptr<std::atomic_int>     m_backgroundPublication;
+    bool deferEdit(const QString &label, qint64 cost, std::function<void(Document &)> work,
+                   bool mayRemoveMask = false);
+    bool deferOperation(const QString &_label, qint64 _cost, std::function<void(Document &)> _work,
+                        bool _mayRemoveMask, std::function<void()> _completed);
     qint64 editCost(bool allLayers, const QSize &target = {}) const;
     bool   operationStep(int completed, int total);
+    bool   beginOperationPublication();
     struct Snapshot {
         QVector<Layer>   layers;
         QSize            size;

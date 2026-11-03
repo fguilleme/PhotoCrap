@@ -3,11 +3,13 @@
 #ifdef Q_OS_MACOS
 #include "MacToolCursorTest.h"
 #endif
+#include <QFile>
 #include <QGuiApplication>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QScopeGuard>
 #include <QSemaphore>
+#include <QTemporaryDir>
 #include <QThreadPool>
 #include <QtTest>
 #ifdef PHOTOCRAP_RHI_STACK
@@ -87,6 +89,26 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
     QTest::keyClick(window, Qt::Key_Escape);
     QTest::qWait(50);
     if (!require(!document.operationBusy(), "Escape cancels background operation"))
+        return false;
+    QTemporaryDir directory;
+    const auto    target       = QUrl::fromLocalFile(directory.filePath("export.png"));
+    auto         *exportDialog = window->findChild<QObject *>("exportDialog");
+    const auto    history      = document.history();
+    if (!require(directory.isValid() && exportDialog &&
+                     exportDialog->setProperty("selectedFile", target) &&
+                     QMetaObject::invokeMethod(exportDialog, "accepted"),
+                 "the export file picker dispatches its selected path"))
+        return false;
+    QTest::qWait(100);
+    if (!require(document.operationBusy() && progress->isVisible() &&
+                     !QFile::exists(target.toLocalFile()) && document.history() == history,
+                 "file picker export queues without writing or changing history"))
+        return false;
+    QTest::keyClick(window, Qt::Key_Escape);
+    QTest::qWait(50);
+    if (!require(!document.operationBusy() && !QFile::exists(target.toLocalFile()) &&
+                     document.history() == history,
+                 "Escape cancels the queued file export"))
         return false;
     return true;
 }

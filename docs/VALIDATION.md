@@ -1,5 +1,25 @@
 # Validation
 
+## Export asynchrone en lecture seule — 3 novembre 2026
+
+Les fichiers correspondent octet pour octet à l’export synchrone pour les formats
+PNG, JPEG, BMP et WebP disponibles, en 8/16 bits, avec documents enregistrés ou
+modifiés. Historique, calques, pixels, URL du projet et réglages d’outil restent
+inchangés. Annulation, nouveau document/geste et destruction pendant la file
+conservent le fichier précédent. Les erreurs sont reportées sans état partiel.
+Une fin déjà publiée mais pas encore notifiée à la GUI ne peut être présentée
+comme annulée ; le bouton est désactivé pendant cette validation finale.
+Le parcours du dialogue d’export et Échap sont couverts par le smoke test QML.
+
+La suite Opérations compte 52 réussites sous Qt 6.8/6.12, plus une sonde optionnelle
+exécutée localement : un PNG réel de 16 Mpx/16 bits est interrompu pendant
+l’encodage, et son fichier précédent demeure intact après la fin du worker.
+
+```sh
+PHOTOCRAP_EXPORT_CANCEL_STRESS=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  build/photocrap_operation_tests runningExportCanBeCancelledBeforeFileCommit
+```
+
 ## Sauvegarde de projet en flux — 3 novembre 2026
 
 Sonde isolée de l’encodeur : douze plans synthétiques opaques de 1 024 × 1 024,

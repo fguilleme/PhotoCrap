@@ -1,5 +1,25 @@
 # Validation
 
+## Sources composées du tampon — 3 novembre 2026
+
+La référence avant modification couvre 36 traits : 8/16 bits, trois modes de
+source, pixels/masque, pile simple, flou et bruit. Les gestes fractionnaires
+recouvrent leur source et traversent les frontières de tuiles. Annuler, Rétablir
+et annuler le geste sont vérifiés. Le digest natif sans padding reste identique :
+`13537ea6c2f1f78417bfe686cc085a7dd3b969b2061ae2af6830aacac6715d62`.
+
+Sonde locale Qt 6.12, 24 Mpx/16 bits, petite retouche sur un calque vide :
+« actif et inférieurs » passe de 27,2 ms à 0,64 ms ; « tous les calques » de
+14,3 ms à 0,62 ms. Les piles à effets non locaux gardent leur repli complet ;
+aucun seuil de durée n’est imposé aux tests.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_COMPOSITE_CLONE_PROBE=1 build/photocrap_tests \
+  compositeCloneStrokeDigest largeCompositeCloneProbe
+```
+
+
 ## Composition régionale pour la pipette — 3 novembre 2026
 
 Le moteur CPU est commun au rendu complet et aux lectures régionales. La

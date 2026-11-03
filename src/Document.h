@@ -1400,6 +1400,7 @@ private:
     int                               m_stampPattern       = 0;
     QImage                            m_customStampPattern;
     PixelPlane                        m_stampSource;
+    std::unique_ptr<Document>         m_stampCompositeSource;
 
     bool   m_smudgeSampleAllLayers = false, m_smudgeFingerPainting = false;
     QImage m_smudgePickup, m_smudgeMask, m_smudgeSample;
@@ -1699,6 +1700,7 @@ private:
     void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();
     QImage        renderCompositeRect(const QRect &_region) const;
+    std::unique_ptr<Document> nativeCompositeSource(QVector<Layer> _layers) const;
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                         const QSize &_targetSize, bool _draft,
                                         std::shared_ptr<ScratchImageCache> _scratch = {});

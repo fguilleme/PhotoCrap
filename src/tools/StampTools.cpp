@@ -50,7 +50,7 @@ bool Document::defineStampPattern()
         return fail(tr("Sélectionnez une zone rectangulaire pour définir un motif."));
     if (m_selection.width() > 1024 || m_selection.height() > 1024)
         return fail(tr("Un motif peut mesurer jusqu’à 1 024 × 1 024 pixels."));
-    m_customStampPattern = composite().copy(m_selection);
+    m_customStampPattern = compositeRegion(m_selection);
     m_stampPattern       = 3;
     m_patternOriginValid = false;
     emit settingsChanged();
@@ -82,6 +82,8 @@ QImage Document::stampPatternImage() const
 
 bool Document::prepareStampStroke()
 {
+    m_stampSource = {};
+    m_stampCompositeSource.reset();
     if (m_tool == "patternStamp") {
         m_stampSource = stampPatternImage();
         if (!m_stampAligned || !m_patternOriginValid) {
@@ -97,26 +99,25 @@ bool Document::prepareStampStroke()
         m_cloneOffsetValid = true;
         emit settingsChanged();
     }
-    // Immutable tile versions preserve overlapping source/destination strokes
-    // without materializing the active plane. Composite sample modes still
-    // prepare their full source once per gesture.
+    // Freeze shared tile versions once per gesture. Composite sources are
+    // rendered only around the source pixels reached by the stroke, so source
+    // and destination can overlap without feeding new paint back into the sample.
     if (m_editingMask || m_cloneSampleMode == 0)
         m_stampSource = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
-    else if (m_cloneSampleMode == 2)
-        m_stampSource = composite();
     else {
         auto layers = m_layers;
-        for (int i = m_active + 1; i < layers.size(); ++i)
-            if (layers[i].kind != "group")
-                layers[i].visible = false;
-        m_stampSource = renderPreviewSnapshot(std::move(layers), m_size, m_size, false);
+        if (m_cloneSampleMode == 1)
+            for (int i = m_active + 1; i < layers.size(); ++i)
+                if (layers[i].kind != "group")
+                    layers[i].visible = false;
+        m_stampCompositeSource = nativeCompositeSource(std::move(layers));
     }
-    return !m_stampSource.isNull();
+    return !m_stampSource.isNull() || bool(m_stampCompositeSource);
 }
 
 void Document::renderStampStroke()
 {
-    if (m_stampSource.isNull() || m_strokePlaneBase.isNull())
+    if ((!m_stampCompositeSource && m_stampSource.isNull()) || m_strokePlaneBase.isNull())
         return;
     QRect region = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
@@ -142,7 +143,9 @@ void Document::renderStampStroke()
                                        .adjusted(-1, -1, 1, 1)
                                        .intersected(QRect(QPoint{}, m_size));
         if (!sourceBounds.isEmpty()) {
-            const QImage sample = m_stampSource.region(sourceBounds);
+            const QImage sample = m_stampCompositeSource
+                                      ? m_stampCompositeSource->compositeRegion(sourceBounds)
+                                      : m_stampSource.region(sourceBounds);
             if (sample.isNull()) {
                 m_strokeCoverageFailed = true;
                 return;

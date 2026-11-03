@@ -10,7 +10,8 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   réouverture et conversions natives de profondeur sans canevas complet.
 - [x] Emprises régionales des outils, pipette sur calque actif/masque et pile compatible, formes,
   texte, déplacements et imports ;
-  anciennes versions et masques conservés par Annuler/Rétablir.
+  sources composées du tampon figées et lues par région ; anciennes versions
+  et masques conservés par Annuler/Rétablir.
 - [x] Ouverture d’images/projets/RAW et préparation des imports sur worker,
   avec contrôle de session/état, annulation et absence de capture inutile de
   l’ancien document lors d’une ouverture de remplacement.

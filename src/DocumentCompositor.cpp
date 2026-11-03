@@ -265,6 +265,21 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     return regionComposite;
 }
 
+std::unique_ptr<Document> Document::nativeCompositeSource(QVector<Layer> _layers) const
+{
+    auto renderer                  = std::make_unique<Document>();
+    renderer->m_backgroundWorker   = true;
+    renderer->m_scratchCache       = m_scratchCache;
+    renderer->m_historyBrushSource = {};
+    renderer->m_layers             = std::move(_layers);
+    renderer->m_size               = m_size;
+    renderer->m_channelBits        = m_channelBits;
+    renderer->m_cacheDirty         = true;
+    renderer->m_fullCompositeDirty = true;
+    renderer->m_dirtyRegion        = {};
+    return renderer;
+}
+
 QRect Document::compositeUpdateRegion(qint64 _before, qint64 _after) const
 {
     return _before == m_compositeUpdateBefore && _after == m_compositeUpdateAfter

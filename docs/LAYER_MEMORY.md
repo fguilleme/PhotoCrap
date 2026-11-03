@@ -105,6 +105,14 @@ commun au rendu complet et régional. Dissoudre, bruit, mosaïque, fréquences,
 masques à contour progressif, prévisualisations provisoires et plans à DPR non
 unitaire conservent le repli complet pour préserver leurs coordonnées et pixels.
 
+Le tampon de duplication conserve une pile native immuable au début du geste pour
+les modes « calque actif et inférieurs » et « tous les calques ». Seules les
+régions source nécessaires sont composées ; un chevauchement source/destination
+ne réinjecte pas les pixels fraîchement peints. La pile est libérée à la fin,
+à l’annulation et au remplacement du document. Les piles non compatibles avec
+le rendu local gardent un composite complet, réutilisé pendant le geste. La
+définition d’un motif prélève aussi uniquement sa sélection, limitée à 1 024².
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

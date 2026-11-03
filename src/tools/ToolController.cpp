@@ -521,9 +521,10 @@ void Document::endStroke()
     m_strokeBounds         = {};
     m_strokeInkColor       = {};
     m_stampSource          = {};
-    m_smudgePickup         = {};
-    m_smudgeMask           = {};
-    m_smudgeSample         = {};
+    m_stampCompositeSource.reset();
+    m_smudgePickup = {};
+    m_smudgeMask   = {};
+    m_smudgeSample = {};
 }
 void Document::cancelStroke()
 {
@@ -595,9 +596,10 @@ void Document::cancelStroke()
     m_strokeBounds         = {};
     m_strokeInkColor       = {};
     m_stampSource          = {};
-    m_smudgePickup         = {};
-    m_smudgeMask           = {};
-    m_smudgeSample         = {};
+    m_stampCompositeSource.reset();
+    m_smudgePickup = {};
+    m_smudgeMask   = {};
+    m_smudgeSample = {};
 }
 QImage *Document::paintTarget()
 {

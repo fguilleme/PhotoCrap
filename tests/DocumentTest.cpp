@@ -5263,6 +5263,103 @@ private slots:
         d.undo();
         QCOMPARE(d.maskImage(destination).pixelColor(24, 16), QColor(Qt::white));
     }
+    void compositeCloneStrokeDigest()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16}) {
+            QImage source(517, 523, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(
+                        x, y,
+                        QColor::fromRgba64(ushort(x * 173 + y * 17), ushort(y * 199 + x * 23),
+                                           ushort(x * 37 + y * 67),
+                                           ushort(30000 + (x * 137 + y * 211) % 35536)));
+            const auto file = QUrl::fromLocalFile(directory.filePath("clone-source.png"));
+            QVERIFY(source.save(file.toLocalFile()));
+            for (int mode : {0, 1, 2})
+                for (const QString &effect :
+                     {QString{}, QStringLiteral("boxBlur"), QStringLiteral("noise")})
+                    for (bool mask : {false, true}) {
+                        Document d;
+                        QVERIFY(d.openFile(file));
+                        d.addLayer();
+                        d.addLayer();
+                        d.setBrushSize(80);
+                        d.setColor(QColor(17, 221, 53, 197));
+                        d.beginStroke(256, 256);
+                        d.endStroke();
+                        if (!effect.isEmpty())
+                            d.addAdjustmentLayer(effect);
+                        d.setActiveLayer(1);
+                        if (mask) {
+                            d.addLayerMask();
+                            d.setColor(Qt::black);
+                            d.beginStroke(254, 255);
+                            d.endStroke();
+                        }
+                        const QImage before = mask ? d.maskImage(1) : d.layerImage(1);
+                        d.setTool("cloneStamp");
+                        d.setBrushSize(27);
+                        d.setBrushHardness(.6);
+                        d.setBrushSmoothing(0);
+                        d.setBrushFlow(.71);
+                        d.setBrushOpacity(.83);
+                        d.setCloneSampleMode(mode);
+                        d.setCloneSource(254, 255);
+                        d.beginStroke(260.25, 264.75);
+                        d.continueStroke(280.25, 264.75);
+                        d.continueStroke(255.25, 250.75);
+                        d.endStroke();
+                        const QImage result = mask ? d.maskImage(1) : d.layerImage(1);
+                        for (int y = 0; y < result.height(); ++y)
+                            hash.addData(QByteArrayView(
+                                reinterpret_cast<const char *>(result.constScanLine(y)),
+                                result.width() * result.depth() / 8));
+                        d.undo();
+                        QCOMPARE(mask ? d.maskImage(1) : d.layerImage(1), before);
+                        d.redo();
+                        QCOMPARE(mask ? d.maskImage(1) : d.layerImage(1), result);
+                        d.beginStroke(301, 280);
+                        d.cancelStroke();
+                        QCOMPARE(mask ? d.maskImage(1) : d.layerImage(1), result);
+                    }
+        }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("13537ea6c2f1f78417bfe686cc085a7dd3b969b2061ae2af6830aacac6715d62"));
+    }
+    void largeCompositeCloneProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_COMPOSITE_CLONE_PROBE"))
+            QSKIP("Set PHOTOCRAP_COMPOSITE_CLONE_PROBE=1 to measure native 24 MP clone strokes.");
+        for (int mode : {1, 2}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, false, 16));
+            d.setBrushSize(12);
+            d.setBrushHardness(1);
+            d.setColor(Qt::red);
+            d.beginStroke(80, 80);
+            d.endStroke();
+            d.addLayer();
+            d.setTool("cloneStamp");
+            d.setBrushSmoothing(0);
+            d.setCloneSampleMode(mode);
+            d.setCloneSource(80, 80);
+            QElapsedTimer timer;
+            timer.start();
+            d.beginStroke(200, 200);
+            d.continueStroke(205, 205);
+            d.endStroke();
+            const auto elapsed = timer.nsecsElapsed();
+            d.setEyedropperSource(1);
+            d.setEyedropperSize(1);
+            QCOMPARE(d.sampleToolColor(200, 200), QColor(Qt::red));
+            qInfo() << "24 MP / 16-bit clone stroke, mode and ns:" << mode << elapsed;
+        }
+    }
+
     void tiledCloneSamplingMatchesFullPainter()
     {
         QTemporaryDir directory;

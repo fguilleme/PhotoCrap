@@ -1,3 +1,4 @@
+#include "ColorFlood.h"
 #include "Document.h"
 #include "ImageUtils.h"
 
@@ -134,16 +135,18 @@ void Document::applyMagicWand(const QPoint &_point)
 {
     if (!QRect(QPoint{}, m_size).contains(_point))
         return;
-    QImage source;
-    if (m_selectionSampleAllLayers || m_active < 0 || m_active >= m_layers.size() ||
-        m_layers[m_active].kind != QStringLiteral("pixel"))
-        source = composite();
-    else
-        source = layerImage(m_active);
+    const bool composed = m_selectionSampleAllLayers || m_active < 0 ||
+                          m_active >= m_layers.size() || m_layers[m_active].kind != "pixel";
+    const auto result   = PhotoCrap::Tools::colorFlood(
+        m_size, _point, m_selectionTolerance, m_selectionContiguous, [&](const QRect &_region) {
+            return composed ? compositeRegion(_region) : m_layers[m_active].image.region(_region);
+        });
+    if (!result.valid) {
+        fail(tr("Mémoire insuffisante pour modifier la sélection."));
+        return;
+    }
     rememberSelection();
-    QRegion candidate =
-        colorRegion(source, _point, m_selectionTolerance, m_selectionContiguous, source.rect());
-    applySelectionCandidate(candidate, true);
+    applySelectionCandidate(result.region, true);
     finishSelectionGesture();
 }
 

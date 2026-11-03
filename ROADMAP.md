@@ -6,6 +6,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Baguette magique lisant les tuiles natives à la demande, cache de comparaison
+  borné et bits de visite alloués uniquement sur les tuiles explorées. Tolérance,
+  connexité, combinaisons et historique comparés à une recherche indépendante.
+
 - [x] Plans, masques et historique par tuiles partagées ; fonds compacts à la
   réouverture et conversions natives de profondeur sans canevas complet.
 - [x] Emprises régionales des outils, pipettes, formes, texte, déplacements et imports ;

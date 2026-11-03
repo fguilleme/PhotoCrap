@@ -166,7 +166,16 @@ replacées dans le document avant combinaison et amélioration des bords ; les
 modes remplacer/ajouter/soustraire/intersection et l’annulation sont inchangés.
 Un calque uniforme n’est étendu qu’à la taille de la fenêtre. Une très grande
 brosse peut toujours demander une recherche couvrant une large partie du document.
-La Baguette magique conserve son parcours global actuel.
+La Baguette magique garde sa portée globale, mais lit désormais les tuiles à la
+demande. La comparaison utilise les mêmes canaux droits 8 bits que la conversion
+intégrale précédente, y compris pour les documents 16 bits. Un cache retient une
+bande horizontale (au plus 16 Mio pour 16K de largeur), sans image de comparaison
+pleine taille. Les bits de visite sont alloués par tuile touchée : 8 Kio par tuile
+256² ; le mode non contigu n’en utilise pas. Le parcours garde les bandes de région
+dans leur ordre initial pour préserver l’égalité des sélections et leur historique.
+Les images natives de lecture et les replis complets des piles non locales restent
+à compter séparément. Une sélection complexe peut aussi nécessiter une grande
+région géométrique finale.
 
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px

@@ -9,6 +9,9 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Baguette magique : lectures natives à la demande, cache de comparaison
+  borné à une bande et visite binaire par tuiles, sans conversion globale.
+
 - [x] Pipette sur calque actif/masque limitée à son échantillon natif,
   moyennes et précision identiques aux prélèvements précédents.
 - [x] Ouvertures de remplacement sans capture des anciens plans, session/état

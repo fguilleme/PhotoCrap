@@ -1,5 +1,36 @@
 # Validation
 
+## Lecture tuilée de la Baguette magique — 3 novembre 2026
+
+48 cas de recherche native 8/16 bits sont comparés à une recherche indépendante
+pixel par pixel : tolérances 0/25/255, connexité activée/désactivée, coins et
+frontières de tuiles. 32 parcours d’intégration vérifient source active/composée,
+quatre combinaisons, cache froid, Annuler/Rétablir. Le parcours non contigu lit
+exactement les 30 tuiles d’une image 2 305 × 517, sans table de visite. Les erreurs
+de lecture, tailles incorrectes et annulations avant/pendant le parcours sont testées.
+
+Sur un document logique de 24 Mpx, une sélection isolée lit une tuile de 256² et
+utilise 8 Kio de bits de visite, avec 256 Kio de comparaison ; les buffers natifs
+transitoires et la région géométrique ne sont pas inclus dans ces deux métriques.
+Le cache est borné à une bande de tuiles, au plus 16 Mio. La conversion, tolérance
+et structure de région restent celles du parcours intégral précédent.
+
+Sonde locale Qt 6.12, petite zone rouge sur 24 Mpx/16 bits : calque actif
+12,8 ms → 0,11 ms ; tous les calques 46,9 ms → 0,21 ms, région 2 × 2 identique.
+La référence a été recompilée depuis `066e82e` avec le même exécutable de test.
+Aucun seuil de durée n’est imposé aux tests. Les 50 suites, les contrôles ciblés
+Qt 6.8 et l’essai des opérations Cocoa/Metal passent.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_WAND_PROBE=1 build/photocrap_tests \
+  tiledColorFloodMatchesIndependentPixelSearch \
+  tiledColorFloodKeepsSmallSelectionsBoundedAndRejectsFailures \
+  nonContiguousWandReadsEachTileOnce wandTiledSourcesAndCombinationMatchReference \
+  largeWandNativeProbe
+```
+
+
 ## Références des deux chemins CPU — 3 novembre 2026
 
 Les références relevées sur Accelerate ne sont pas toutes celles du flou de boîte

@@ -25,9 +25,11 @@
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
 #include "storage/ScratchImageCache.h"
+#include "tools/ColorFlood.h"
 #include "tools/FloodFill.h"
 #include "tools/RegionHealing.h"
 #include "tools/SelectionMove.h"
+#include <QBitArray>
 #include <QBuffer>
 #include <QClipboard>
 #include <QCryptographicHash>
@@ -62,6 +64,55 @@ QByteArray filterReference(const char *_accelerate, const char *_portable)
     Q_UNUSED(_accelerate);
     return QByteArray(_portable);
 #endif
+}
+QRegion referenceColorFlood(const QImage &_source, const QPoint &_seed, int _tolerance,
+                            bool _contiguous)
+{
+    const QImage image   = _source.convertToFormat(QImage::Format_ARGB32);
+    const QRgb   target  = image.pixel(_seed);
+    const auto   matches = [&](int _index) {
+        const QRgb pixel = image.pixel(_index % image.width(), _index / image.width());
+        return qAbs(qRed(pixel) - qRed(target)) <= _tolerance &&
+               qAbs(qGreen(pixel) - qGreen(target)) <= _tolerance &&
+               qAbs(qBlue(pixel) - qBlue(target)) <= _tolerance &&
+               qAbs(qAlpha(pixel) - qAlpha(target)) <= _tolerance;
+    };
+    QBitArray selected(image.width() * image.height());
+    if (_contiguous) {
+        QBitArray    seen(selected.size());
+        QVector<int> pending{_seed.y() * image.width() + _seed.x()};
+        seen.setBit(pending.first());
+        while (!pending.isEmpty()) {
+            const int index = pending.takeLast();
+            if (!matches(index))
+                continue;
+            selected.setBit(index);
+            const int x = index % image.width(), y = index / image.width();
+            for (const QPoint next :
+                 {QPoint(x - 1, y), QPoint(x + 1, y), QPoint(x, y - 1), QPoint(x, y + 1)})
+                if (image.rect().contains(next)) {
+                    const int neighbour = next.y() * image.width() + next.x();
+                    if (!seen.testBit(neighbour)) {
+                        seen.setBit(neighbour);
+                        pending.append(neighbour);
+                    }
+                }
+        }
+    } else
+        for (int i = 0; i < selected.size(); ++i)
+            selected.setBit(i, matches(i));
+    QRegion result;
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width();) {
+            while (x < image.width() && !selected.testBit(y * image.width() + x))
+                ++x;
+            const int first = x;
+            while (x < image.width() && selected.testBit(y * image.width() + x))
+                ++x;
+            if (first < x)
+                result |= QRect(first, y, x - first, 1);
+        }
+    return result;
 }
 } // namespace
 
@@ -1809,6 +1860,177 @@ private slots:
         QCOMPARE(d.history(), emptyHistory);
         QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 1);
     }
+    void tiledColorFloodMatchesIndependentPixelSearch()
+    {
+        for (int bits : {8, 16}) {
+            QImage source(523, 517,
+                          bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                     : QImage::Format_ARGB32_Premultiplied);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(
+                        x, y,
+                        QColor::fromRgba64(ushort(10000 + ((x / 11) % 4) * 12000),
+                                           ushort(5000 + ((y / 13) % 4) * 15000),
+                                           ushort(20000 + (x % 7) * 1000),
+                                           ushort(30000 + ((x + y) / 19 % 2) * 30000)));
+            for (int tolerance : {0, 25, 255})
+                for (bool contiguous : {false, true})
+                    for (const QPoint seed :
+                         {QPoint(0, 0), QPoint(255, 255), QPoint(256, 256), QPoint(522, 516)}) {
+                        int        reads  = 0;
+                        const auto result = PhotoCrap::Tools::colorFlood(
+                            source.size(), seed, tolerance, contiguous, [&](const QRect &region) {
+                                ++reads;
+                                if (region.width() > 256 || region.height() > 256)
+                                    return QImage{};
+                                return source.copy(region);
+                            });
+                        QVERIFY(result.valid);
+                        QCOMPARE(result.region,
+                                 referenceColorFlood(source, seed, tolerance, contiguous));
+                        QCOMPARE(result.tileReads, reads);
+                        QVERIFY(result.peakCachedBytes <= 3LL * 256 * 256 * 4);
+                        qint64 pixels = 0;
+                        for (const QRect rect : result.region)
+                            pixels += qint64(rect.width()) * rect.height();
+                        QCOMPARE(result.selectedPixels, pixels);
+                        if (!contiguous) {
+                            QCOMPARE(result.visitedBytes, 0);
+                            QCOMPARE(result.visitedTiles, 0);
+                        }
+                    }
+        }
+    }
+    void tiledColorFloodKeepsSmallSelectionsBoundedAndRejectsFailures()
+    {
+        const QSize size(6000, 4000);
+        int         reads  = 0;
+        auto        cancel = std::make_shared<std::atomic_bool>(false);
+        const auto  read   = [&](const QRect &region) {
+            ++reads;
+            QImage tile(region.size(), QImage::Format_ARGB32_Premultiplied);
+            tile.fill(Qt::white);
+            if (region.contains(100, 100))
+                tile.setPixelColor(QPoint(100, 100) - region.topLeft(), Qt::red);
+            return tile;
+        };
+        const auto result = PhotoCrap::Tools::colorFlood(size, {100, 100}, 0, true, read);
+        QVERIFY(result.valid);
+        QCOMPARE(result.region, QRegion(QRect(100, 100, 1, 1)));
+        QCOMPARE(result.visitedTiles, 1);
+        QCOMPARE(result.visitedBytes, 8192);
+        QCOMPARE(reads, 1);
+        QCOMPARE(result.peakCachedBytes, 256LL * 256 * 4);
+        cancel->store(true);
+        const auto stopped = PhotoCrap::Tools::colorFlood(size, {100, 100}, 0, true, read, cancel);
+        QVERIFY(stopped.cancelled && !stopped.valid);
+        QCOMPARE(reads, 1);
+        cancel->store(false);
+        const auto duringRead = PhotoCrap::Tools::colorFlood(
+            size, {100, 100}, 0, false,
+            [&](const QRect &region) {
+                cancel->store(true);
+                return read(region);
+            },
+            cancel);
+        QVERIFY(duringRead.cancelled && !duringRead.valid);
+        const auto missing = PhotoCrap::Tools::colorFlood(size, {100, 100}, 0, true,
+                                                          [](const QRect &) { return QImage{}; });
+        QVERIFY(!missing.valid && !missing.cancelled);
+        const auto shortRead =
+            PhotoCrap::Tools::colorFlood(size, {100, 100}, 0, true, [](const QRect &) {
+                return QImage(1, 1, QImage::Format_ARGB32);
+            });
+        QVERIFY(!shortRead.valid);
+    }
+    void nonContiguousWandReadsEachTileOnce()
+    {
+        QImage source(2305, 517, QImage::Format_ARGB32_Premultiplied);
+        source.fill(QColor(70, 110, 150, 177));
+        const auto result =
+            PhotoCrap::Tools::colorFlood(source.size(), {0, 0}, 0, false,
+                                         [&](const QRect &region) { return source.copy(region); });
+        QVERIFY(result.valid);
+        QCOMPARE(result.region, QRegion(source.rect()));
+        QCOMPARE(result.tileReads, 30);
+        QCOMPARE(result.visitedBytes, 0);
+        QVERIFY(result.peakCachedBytes <= 10LL * 256 * 256 * 4);
+    }
+    void largeWandNativeProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_WAND_PROBE"))
+            QSKIP("Set PHOTOCRAP_WAND_PROBE=1 to measure small native 24 MP wand selections.");
+        for (bool all : {false, true}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, false, 16));
+            d.setBrushSize(4);
+            d.setBrushHardness(1);
+            d.setColor(Qt::red);
+            d.beginStroke(100, 100);
+            d.endStroke();
+            d.setTool("magicWand");
+            d.setSelectionTolerance(0);
+            d.setSelectionContiguous(true);
+            d.setSelectionSampleAllLayers(all);
+            QElapsedTimer timer;
+            timer.start();
+            d.beginStroke(100, 100);
+            const auto elapsed = timer.nsecsElapsed();
+            QVERIFY(d.selectionRegion().contains(QPoint(100, 100)));
+            QVERIFY(d.selectionRegion().boundingRect().width() <= 8);
+            qInfo() << "24 MP / 16-bit wand, all layers, ns and region:" << all << elapsed
+                    << d.selectionRegion();
+        }
+    }
+
+    void wandTiledSourcesAndCombinationMatchReference()
+    {
+        for (int bits : {8, 16})
+            for (bool all : {false, true})
+                for (bool contiguous : {false, true})
+                    for (int mode : {0, 1, 2, 3}) {
+                        Document d;
+                        QVERIFY(d.newDocument(517, 523, false, bits));
+                        d.setBrushSize(41);
+                        d.setColor(QColor(210, 40, 70, 187));
+                        d.beginStroke(255, 255);
+                        d.endStroke();
+                        const QImage active = d.layerImage(0);
+                        d.addAdjustmentLayer("invert");
+                        d.setActiveLayer(0);
+                        const QImage source = all ? d.composite() : active;
+                        d.setTool("ellipticalSelect");
+                        d.beginStroke(244, 244);
+                        d.continueStroke(281, 282);
+                        d.endStroke();
+                        const auto before = d.selectionRegion();
+                        const auto candidate =
+                            referenceColorFlood(source, {255, 255}, 25, contiguous);
+                        const QRegion expected = mode == 1   ? before.united(candidate)
+                                                 : mode == 2 ? before.subtracted(candidate)
+                                                 : mode == 3 ? before.intersected(candidate)
+                                                             : candidate;
+                        d.setSelectionSampleAllLayers(all);
+                        d.setSelectionContiguous(contiguous);
+                        d.setSelectionTolerance(25);
+                        d.setSelectionMode(mode);
+                        d.setTool("magicWand");
+                        d.setLayerVisible(0, false);
+                        d.setLayerVisible(0, true);
+                        const int history = d.historyIndex();
+                        d.beginStroke(255, 255);
+                        QCOMPARE(d.selectionRegion(), expected);
+                        if (expected != before) {
+                            QCOMPARE(d.historyIndex(), history + 1);
+                            d.undo();
+                            QCOMPARE(d.selectionRegion(), before);
+                            d.redo();
+                            QCOMPARE(d.selectionRegion(), expected);
+                        }
+                    }
+    }
+
     void quickSelectionRegionalDigest()
     {
         QCryptographicHash hash(QCryptographicHash::Sha256);

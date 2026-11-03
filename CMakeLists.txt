@@ -63,6 +63,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/PenPath.cpp
     src/tools/FillTool.cpp
     src/tools/FloodFill.cpp
+    src/tools/ColorFlood.cpp
+    src/tools/ColorFlood.h
     src/tools/FloodFill.h
     src/tools/SelectionMove.cpp
     src/tools/SelectionMove.h
@@ -354,6 +356,8 @@ qt_add_library(photocrap_core STATIC
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
     src/tools/FloodFill.cpp
+    src/tools/ColorFlood.cpp
+    src/tools/ColorFlood.h
     src/tools/FloodFill.h
     src/tools/SelectionMove.cpp
     src/tools/SelectionMove.h

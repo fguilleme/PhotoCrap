@@ -156,11 +156,16 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
                 if (!layer.source.isNull())
                     layer.source.convertTo(workingFormat());
             }
-            QImage   target = ImageUtils::blank(m_size, workingFormat());
-            QPainter painter(&target);
-            painter.drawImage((width() - _image.width()) / 2, (height() - _image.height()) / 2,
-                              _image);
-            painter.end();
+            QImage target;
+            if (_image.size() == m_size && _image.devicePixelRatio() == 1.)
+                target = _image.convertToFormat(workingFormat());
+            else {
+                target = ImageUtils::blank(m_size, workingFormat());
+                QPainter painter(&target);
+                painter.drawImage((width() - _image.width()) / 2, (height() - _image.height()) / 2,
+                                  _image);
+                painter.end();
+            }
             m_layers.insert(++m_active, {QFileInfo(_url.toLocalFile()).completeBaseName(), target});
             selectOnly(m_active);
         });

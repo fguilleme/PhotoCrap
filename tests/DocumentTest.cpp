@@ -95,6 +95,40 @@ private slots:
         QThreadPool::globalInstance()->setMaxThreadCount(2);
     }
 
+    void equalSizeImportsPreserveNativeTransparentPixels()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            QImage image(113, 79,
+                         bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                    : QImage::Format_ARGB32_Premultiplied);
+            image.fill(QColor(37, 129, 201, 117));
+            image.setPixelColor(55, 30, Qt::transparent);
+            image.setColorSpace(QColorSpace::SRgb);
+            const auto url =
+                QUrl::fromLocalFile(directory.filePath(QString("import-%1.png").arg(bits)));
+            QVERIFY(image.save(url.toLocalFile()));
+            // PNG's premultiplication round-trip is the independent input reference.
+            const auto decoded = QImage(url.toLocalFile()).convertToFormat(image.format());
+            Document   d;
+            QVERIFY(d.newDocument(image.width(), image.height(), true, bits));
+            QVERIFY(d.importLayer(url));
+            QCOMPARE(d.channelBits(), bits);
+            const auto actual = d.layerImage(d.activeLayer());
+            QCOMPARE(actual.format(), image.format());
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    QCOMPARE(actual.pixelColor(x, y), decoded.pixelColor(x, y));
+            d.setColor(Qt::red);
+            d.setBrushSize(8);
+            d.beginStroke(20, 20);
+            d.endStroke();
+            d.undo();
+            QCOMPARE(d.layerImage(d.activeLayer()), actual);
+        }
+    }
+
     void denseTwentyFourMegapixelPlanesSurviveOffloadAndReload()
     {
         if (!qEnvironmentVariableIsSet("PHOTOCRAP_DENSE_MEMORY_TEST"))

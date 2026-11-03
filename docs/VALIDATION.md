@@ -1,5 +1,12 @@
 # Validation
 
+## Import à la taille du document — 3 novembre 2026
+
+L’import à ratio 1 et dimensions identiques évite le buffer vide et sa peinture.
+Chaque pixel d’une source transparente 8/16 bits est comparé au PNG décodé natif,
+puis une modification est annulée. Les imports à centrer gardent leur composition.
+
+
 ## Conversions de plan sans changement — 3 novembre 2026
 
 Un plan 16 bits déchargé sur disque conserve zéro allocation RAM et la même

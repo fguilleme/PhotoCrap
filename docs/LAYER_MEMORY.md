@@ -32,6 +32,12 @@ n’ouvre plus un buffer natif pour chaque calque existant resté à la même pr
 Le test sur un plan mappé vérifie que ces opérations ne créent aucun bloc RAM et
 ne changent pas sa version ; une conversion effective conserve son chemin natif.
 
+L’import d’une image à la taille exacte du document et au ratio de pixels 1
+réutilise aussi le plan décodé, après conversion éventuelle à la profondeur de
+travail. Il n’alloue plus une image vide complète pour la repeindre à l’identique.
+Les imports centrés ou à ratio différent gardent leur chemin de composition.
+Les pixels transparents natifs sont comparés en 8/16 bits et l’annulation est vérifiée.
+
 ## Tests denses et disque plein — 3 novembre 2026
 
 Le scénario optionnel `denseTwentyFourMegapixelPlanesSurviveOffloadAndReload`

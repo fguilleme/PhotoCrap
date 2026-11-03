@@ -81,6 +81,49 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void staleQueuedOffloadsStopWhenTheirContextChanges_data()
+    {
+        QTest::addColumn<QString>("action");
+        for (const auto *name : {"new-document", "directory", "budget", "destroy"})
+            QTest::newRow(name) << QString(name);
+    }
+    void staleQueuedOffloadsStopWhenTheirContextChanges()
+    {
+        QFETCH(QString, action);
+        QTemporaryDir directory;
+        const auto    input = QUrl::fromLocalFile(directory.filePath("source.png"));
+        QImage        pixels(512, 512, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < pixels.height(); ++y)
+            for (int x = 0; x < pixels.width(); ++x)
+                pixels.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+        QVERIFY(pixels.save(input.toLocalFile()));
+        auto d = std::make_unique<Document>();
+        QVERIFY(d->openFile(input));
+        const auto original = d->gpuLayerStack();
+        QVERIFY(original.valid);
+        const auto heap = original.layers.first().image.tiles().heapBytes();
+        QVERIFY(heap > 0);
+        const auto expected = original.layers.first().image.region({0, 0, 512, 512});
+        {
+            BlockPool blocked;
+            d->configureScratchCache(directory.filePath("cache"), 64LL * 1024 * 1024);
+            d->configurePlaneRamMiB(0);
+            // The timer fires, but its offload is queued behind the blocked pool.
+            QTest::qWait(650);
+            QCOMPARE(original.layers.first().image.tiles().heapBytes(), heap);
+            if (action == "new-document")
+                QVERIFY(d->newDocument(31, 23, true));
+            else if (action == "directory")
+                d->configureScratchCache(directory.filePath("replacement"), 64LL * 1024 * 1024);
+            else if (action == "budget")
+                d->configurePlaneRamMiB(8);
+            else
+                d.reset();
+        }
+        // No GUI event is needed to stop the stale worker once it gets its turn.
+        QCOMPARE(original.layers.first().image.tiles().heapBytes(), heap);
+        QCOMPARE(original.layers.first().image.region({0, 0, 512, 512}), expected);
+    }
     void decodedPlanesUseTheRamBudgetAndKeepTheirCacheAfterOpen_data()
     {
         QTest::addColumn<bool>("project");

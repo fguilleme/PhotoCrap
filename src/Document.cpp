@@ -94,22 +94,28 @@ Document::Document(QObject *_parent) : QObject(_parent)
         for (const auto &state : m_redo)
             collect(state.layers);
         collect(m_historyBrushSource.layers);
-        const qint64 budget = qint64(m_planeRamMiB) * 1024 * 1024;
+        const qint64 budget  = qint64(m_planeRamMiB) * 1024 * 1024;
+        const auto   cancel  = std::make_shared<std::atomic_bool>(false);
+        m_planeOffloadCancel = cancel;
         m_planeOffloadWatcher.setFuture(
-            QtConcurrent::run([cache, budget, planes = std::move(planes)] {
+            QtConcurrent::run([cache, budget, cancel, planes = std::move(planes)] {
                 QHash<qint64, qint64> blocks;
-                for (const auto &plane : planes)
+                for (const auto &plane : planes) {
+                    if (cancel->load())
+                        return;
                     blocks.insert(plane.tiles().heapBlocks());
+                }
                 qint64 bytes = 0;
                 for (auto value : blocks)
                     bytes += value;
                 // Prefer older versions, collected after the live layers, to keep
                 // live editing data in RAM when the budget permits it.
-                for (auto it = planes.crbegin(); it != planes.crend() && bytes > budget; ++it) {
+                for (auto it = planes.crbegin();
+                     it != planes.crend() && bytes > budget && !cancel->load(); ++it) {
                     const auto before = it->tiles().heapBlocks();
                     if (before.isEmpty())
                         continue;
-                    it->offload(*cache);
+                    it->offload(*cache, [cancel] { return !cancel->load(); });
                     const auto after = it->tiles().heapBlocks();
                     for (auto b = before.cbegin(); b != before.cend(); ++b)
                         if (!after.contains(b.key()) && blocks.contains(b.key())) {
@@ -227,6 +233,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
 }
 Document::~Document()
 {
+    cancelPlaneOffload();
     cancelOperation();
     cancelSelectionOperation();
     cancelRawLoad();
@@ -536,12 +543,18 @@ QVariantMap Document::memoryUsage() const
 }
 void Document::configureScratchCache(const QString &_directory, qint64 _maxBytes)
 {
+    cancelPlaneOffload();
     ScratchImageCache::Options options;
     options.directory = _directory;
     options.maxBytes  = qBound(qint64(0), _maxBytes, 64LL * 1024 * 1024 * 1024);
     m_frequencyCache.clear();
     m_scratchCache = std::make_shared<ScratchImageCache>(std::move(options));
     schedulePlaneOffload();
+}
+void Document::cancelPlaneOffload()
+{
+    if (m_planeOffloadCancel)
+        m_planeOffloadCancel->store(true);
 }
 void Document::schedulePlaneOffload()
 {
@@ -658,6 +671,7 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    cancelPlaneOffload();
     cancelSelectionOperation();
     m_selectionGestureRecorded = false;
     m_beforeSelectionGesture   = {};

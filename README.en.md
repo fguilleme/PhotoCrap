@@ -38,6 +38,8 @@ Asynchronous conversion and import preparation also captures the configured RAM 
 
 Loading also applies this budget between decoded planes. The store backing their pixels survives opening; disk errors keep pixels in RAM, and cache settings changed during loading remain respected.
 
+Scratch writes can stop between tiles. Changing documents, cache folders or RAM budgets discards stale jobs; already mapped tiles stay valid. Conversion, import and decoding cancellation uses the same check.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

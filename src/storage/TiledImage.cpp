@@ -577,12 +577,14 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
     return true;
 }
 
-bool TiledImage::offload(ScratchImageCache &_cache) const
+bool TiledImage::offload(ScratchImageCache &_cache, const std::function<bool()> &_continue) const
 {
     if (!m_data)
         return true;
     bool complete = true;
     for (const auto &tile : std::as_const(m_data->tiles)) {
+        if (_continue && !_continue())
+            return false;
         QImage  image;
         QString key;
         {

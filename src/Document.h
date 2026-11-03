@@ -957,6 +957,7 @@ public:
     Q_INVOKABLE void        configureScratchCache(const QString &_directory, qint64 _maxBytes);
     Q_INVOKABLE void        configurePlaneRamMiB(int value)
     {
+        cancelPlaneOffload();
         m_planeRamMiB = qBound(0, value, 4096);
         schedulePlaneOffload();
     }
@@ -1539,6 +1540,8 @@ private:
     std::shared_ptr<ScratchImageCache> m_scratchCache;
     QTimer                             m_planeOffloadTimer;
     int                                m_planeRamMiB = 256;
+    std::shared_ptr<std::atomic_bool>  m_planeOffloadCancel;
+    void                               cancelPlaneOffload();
     QFutureWatcher<void>               m_planeOffloadWatcher;
     void                               schedulePlaneOffload();
     struct PreviewRenderResult {

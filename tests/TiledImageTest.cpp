@@ -543,6 +543,50 @@ private slots:
         QCOMPARE(plane.allocatedBytes(), qint64(256 * 256));
         QCOMPARE(plane.region(source.rect()), source);
     }
+    void tileOffloadCanStopBetweenWritesWithoutChangingPixels()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QTemporaryDir     directory;
+            ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+            TiledImage        plane({768, 512}, format, Qt::white);
+            QVERIFY(plane.paint({0, 0, 768, 512},
+                                [](QPainter &p) { p.fillRect(0, 0, 768, 512, Qt::red); }));
+            QCOMPARE(plane.tileCount(), 6);
+            const auto expected = plane.region({0, 0, 768, 512});
+            const auto key      = plane.regionKey({0, 0, 768, 512});
+            const auto heap     = plane.heapBytes();
+            QVERIFY(!plane.offload(cache, [] { return false; }));
+            QCOMPARE(plane.heapBytes(), heap);
+            QCOMPARE(cache.statistics()["entries"].toInt(), 0);
+            int calls = 0;
+            QVERIFY(!plane.offload(cache, [&] { return ++calls < 2; }));
+            QCOMPARE(calls, 2);
+            QCOMPARE(plane.heapBytes(), heap - 256LL * 256 * expected.depth() / 8);
+            QCOMPARE(cache.statistics()["entries"].toInt(), 1);
+            QVERIFY(cache.statistics()["error"].toString().isEmpty());
+            cache.clear();
+            QCOMPARE(plane.region({0, 0, 768, 512}), expected);
+            QCOMPARE(plane.regionKey({0, 0, 768, 512}), key);
+            QVERIFY(plane.offload(cache));
+            QCOMPARE(plane.heapBytes(), qint64(0));
+            QCOMPARE(plane.region({0, 0, 768, 512}), expected);
+            QImage background(1, 1, format);
+            background.fill(Qt::white);
+            PixelPlane pixels(background);
+            QImage     patch(12, 12, format);
+            patch.fill(Qt::red);
+            QVERIFY(pixels.writeRegion({100, 100}, patch, {768, 512}));
+            const auto oldKey  = pixels.cacheKey();
+            const auto oldHeap = pixels.tiles().heapBytes();
+            QVERIFY(!pixels.offload(cache, [] { return false; }));
+            QCOMPARE(pixels.tiles().heapBytes(), oldHeap);
+            QCOMPARE(pixels.cacheKey(), oldKey);
+            QVERIFY(pixels.offload(cache));
+            QCOMPARE(pixels.tiles().heapBytes(), qint64(0));
+            QCOMPARE(pixels.region({100, 100, 12, 12}), patch);
+        }
+    }
     void tiledNativeConversionsMatchQtAndKeepSnapshots()
     {
         QTemporaryDir     directory;

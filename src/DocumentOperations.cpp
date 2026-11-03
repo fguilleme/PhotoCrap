@@ -133,7 +133,7 @@ bool Document::prepareNativePlane(PixelPlane &_plane, QImage::Format _format,
             _budget.heap += it.value();
         }
     if (!before.isEmpty() && _budget.heap > qint64(m_planeRamMiB) * 1024 * 1024) {
-        const bool cached = _plane.offload(*m_scratchCache);
+        const bool cached = _plane.offload(*m_scratchCache, keepGoing);
         const auto after  = _plane.tiles().heapBlocks();
         for (auto it = before.cbegin(); it != before.cend(); ++it)
             if (!after.contains(it.key()) && _budget.blocks.contains(it.key()))

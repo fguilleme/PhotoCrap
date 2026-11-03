@@ -230,9 +230,9 @@ public:
         freeze();
         return m_tiles;
     }
-    bool offload(ScratchImageCache &cache) const
+    bool offload(ScratchImageCache &_cache, const std::function<bool()> &_continue = {}) const
     {
-        return freeze() && m_tiles.offload(cache);
+        return freeze() && m_tiles.offload(_cache, _continue);
     }
     bool writeRegion(const QPoint &origin, const QImage &pixels, const QSize &documentSize)
     {

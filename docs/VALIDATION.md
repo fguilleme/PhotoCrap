@@ -1,5 +1,19 @@
 # Validation
 
+## Annulation des écritures du cache — 3 novembre 2026
+
+En ARGB32/RGBA64 prémultiplié et Gray8, un arrêt avant écriture ne crée pas de
+bloc ; un arrêt après la première tuile mappe seulement celle-ci. Pixels et clés
+de versions restent identiques, y compris après nettoyage du cache, puis le
+reste peut être déchargé normalement. Le relais PixelPlane est aussi vérifié.
+
+Une file de travail bloquée rend déterministes quatre scénarios : nouveau
+document, dossier de cache remplacé, budget RAM relevé et destruction. Le timer
+a déjà programmé son déchargement, mais après le changement celui-ci ne décharge
+aucun ancien bloc lorsque le worker se libère. Le snapshot témoin garde ses
+pixels et son allocation native. La suite Opérations compte 116 réussites et
+cinq sondes optionnelles ; la suite Tuiles compte 29 réussites et deux sondes.
+
 ## Budget RAM pendant le chargement — 3 novembre 2026
 
 Les projets et images ordinaires sont ouverts avec un budget de 1 Mio, sur disque

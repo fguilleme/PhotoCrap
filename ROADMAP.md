@@ -32,6 +32,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Budget RAM appliqué entre plans décodés des projets/images ; cache et
   mappings conservés après ouverture, nouvelles préférences de cache respectées.
 
+- [x] Déchargement du cache annulable entre tuiles ; abandon des tâches
+  devenues caduques et conservation des mappings déjà créés.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

@@ -58,7 +58,7 @@ public:
     // Run on a worker. Successful tiles keep their own read-only file lease,
     // so clearing/evicting the disposable cache cannot lose editable content.
     // Failure keeps remaining tiles in RAM and never changes their pixels.
-    bool offload(ScratchImageCache &_cache) const;
+    bool offload(ScratchImageCache &_cache, const std::function<bool()> &_continue = {}) const;
 
 private:
     bool paintRegion(const QRect &_region, const std::function<void(QPainter &)> &_paint,

@@ -59,6 +59,14 @@ les leases des anciens mappings préservent les pixels. Un cache indisponible ga
 les plans en RAM sans empêcher l’ouverture. JSON complet et plan courant du codec
 restent hors de ce sous-budget ; ce mécanisme ne limite pas à lui seul le RSS.
 
+Les déchargements vérifient désormais un jeton entre chaque tuile, et les tâches
+du cache sont annulées lors d’un changement de document, de dossier de cache,
+de budget RAM ou à la destruction du document. Un appel d’écriture/mapping
+courant peut finir ; aucune nouvelle tuile n’est démarrée après le prochain
+contrôle. Les mappings déjà créés gardent leurs leases, pixels et identifiants de
+versions. La préparation des conversions/imports/décodages transmet aussi son
+jeton, afin de ne pas finir inutilement le plan entier après une annulation.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

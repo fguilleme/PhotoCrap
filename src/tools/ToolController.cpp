@@ -224,11 +224,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_redEyeRegion = {};
         emit redEyeRegionChanged();
     } else if (isPaintStrokeTool(m_tool)) {
-        const bool regionalPaint = m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser" ||
-                                   m_tool == "blur" || m_tool == "sharpen" || m_tool == "dodge" ||
-                                   m_tool == "burn" || m_tool == "sponge" ||
-                                   m_tool == "cloneStamp" || m_tool == "patternStamp";
-        QImage    *target        = regionalPaint ? nullptr : paintTarget();
+        const bool regionalPaint =
+            m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser" || m_tool == "blur" ||
+            m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" || m_tool == "sponge" ||
+            m_tool == "cloneStamp" || m_tool == "patternStamp" || m_tool == "smudge";
+        QImage *target = regionalPaint ? nullptr : paintTarget();
         if (!regionalPaint && !target) {
             m_drawing = false;
             return;
@@ -276,7 +276,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         }
         m_tiledStrokeCoverage  = {};
         m_strokeCoverageFailed = false;
-        if (regionalPaint) {
+        if (regionalPaint && m_tool != "smudge") {
             m_strokeCoverage       = {};
             m_tiledStrokeCoverage  = TiledImage(m_size, workingFormat(), Qt::transparent);
             m_strokeCoverageFailed = m_tiledStrokeCoverage.isNull();

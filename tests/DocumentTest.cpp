@@ -4351,6 +4351,98 @@ private slots:
         d.undo();
         QCOMPARE(d.maskImage(active).pixelColor(24, 16), QColor(Qt::white));
     }
+    void smudgeAllocatesOnlyLocalDestinationTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.setColor(Qt::black);
+        d.setSmudgeFingerPainting(true);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        for (bool mask : {false, true}) {
+            if (mask)
+                d.addLayerMask();
+            d.setTool("smudge");
+            const auto before = d.memoryUsage()["tileHeapBytes"].toLongLong();
+            d.beginStroke(100, 100);
+            d.continueStroke(110, 110);
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() - before <= 256LL * 256 * 4);
+            QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(0));
+            d.cancelStroke();
+        }
+        QCOMPARE(errors.size(), 0);
+    }
+    void smudgeTileBordersKeepPickupAndHistory()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            QImage image(523, 531,
+                         bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                    : QImage::Format_ARGB32_Premultiplied);
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    image.setPixelColor(x, y,
+                                        QColor::fromRgba64((x * 197 + y * 31) % 65536,
+                                                           (y * 173 + x * 17) % 65536,
+                                                           (x * 113 + y * 227) % 65536,
+                                                           20001 + (x * 67 + y * 13) % 45535));
+            const auto url = QUrl::fromLocalFile(directory.filePath("smudge.png"));
+            QVERIFY(image.save(url.toLocalFile()));
+            for (bool mask : {false, true}) {
+                if (bits == 16 && !mask)
+                    continue; // The legacy Doigt tool still rejects 16-bit colour planes.
+                Document d;
+                QVERIFY(d.openFile(url));
+                if (mask)
+                    d.addLayerMask();
+                const auto before = mask ? d.maskImage(0) : d.layerImage(0);
+                d.setTool("ellipticalSelect");
+                d.beginStroke(245, 241);
+                d.continueStroke(288, 282);
+                d.endStroke();
+                d.modifySelection("feather", 2);
+                d.setTool("smudge");
+                d.setBrushSize(27);
+                d.setBrushHardness(.43);
+                d.setBrushSmoothing(0);
+                d.setBrushAngle(33);
+                d.setBrushRoundness(.62);
+                d.setToolStrength(.72);
+                d.setColor(Qt::black);
+                d.beginStroke(253.25, 251.75, mask);
+                d.continueStroke(271.5, 266.25);
+                d.endStroke();
+                const auto after = mask ? d.maskImage(0) : d.layerImage(0);
+                QCOMPARE(after.format(), before.format());
+                QVERIFY(after != before);
+                const QImage hashed =
+                    mask ? after.convertToFormat(QImage::Format_ARGB32_Premultiplied) : after;
+                qInfo() << "Smudge pixels" << bits << mask
+                        << QCryptographicHash::hash(
+                               QByteArrayView(reinterpret_cast<const char *>(hashed.constBits()),
+                                              hashed.sizeInBytes()),
+                               QCryptographicHash::Sha256)
+                               .toHex();
+                for (const QRect &outside : QRegion(after.rect()) - QRegion(230, 230, 65, 65)) {
+                    // A previously uniform mask is stored as one pixel.
+                    if (before.size() == QSize(1, 1))
+                        QCOMPARE(after.copy(outside).pixelColor(0, 0), before.pixelColor(0, 0));
+                    else
+                        QCOMPARE(after.copy(outside), before.copy(outside));
+                }
+                d.undo();
+                QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), before);
+                d.redo();
+                QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), after);
+                d.beginStroke(2, 2, true);
+                d.continueStroke(20, 5);
+                d.cancelStroke();
+                QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), after);
+            }
+        }
+    }
     void cloneStampKeepsSourceOffsetAndClipsToSelection()
     {
         QTemporaryDir dir;

@@ -3,7 +3,6 @@
 
 #include <QPainter>
 #include <QtMath>
-#include <cstring>
 
 namespace
 {
@@ -12,6 +11,22 @@ QImage samplePatch(const QImage &_image, const QRect &_rect)
     QImage   patch = ImageUtils::blank(_rect.size());
     QPainter painter(&patch);
     painter.drawImage(-_rect.topLeft(), _image);
+    return patch;
+}
+
+QImage samplePatch(const PixelPlane &_image, const QRect &_rect, const QSize &_size)
+{
+    QImage patch = ImageUtils::blank(_rect.size());
+    if (patch.isNull())
+        return {};
+    const QRect region = _rect.intersected(QRect(QPoint{}, _size));
+    if (!region.isEmpty()) {
+        const QImage pixels = _image.region(region);
+        if (pixels.isNull())
+            return {};
+        QPainter painter(&patch);
+        painter.drawImage(region.topLeft() - _rect.topLeft(), pixels);
+    }
     return patch;
 }
 
@@ -49,8 +64,15 @@ void Document::prepareSmudgeStroke(bool _alternate)
     const QRect rect(qFloor(m_anchor.x()) - size / 2, qFloor(m_anchor.y()) - size / 2, size, size);
     // All-layer sampling takes one shared snapshot per gesture; motion never
     // recomposes the document. Pickup and brush work remain brush-sized.
-    m_smudgeSample = m_smudgeSampleAllLayers && !m_editingMask ? composite() : QImage{};
-    m_smudgePickup = samplePatch(m_smudgeSample.isNull() ? *paintTarget() : m_smudgeSample, rect);
+    m_smudgeSample           = m_smudgeSampleAllLayers && !m_editingMask ? composite() : QImage{};
+    const PixelPlane &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+    m_smudgePickup           = m_smudgeSample.isNull() ? samplePatch(target, rect, m_size)
+                                                       : samplePatch(m_smudgeSample, rect);
+    m_smudgeMask             = ImageUtils::blank(QSize(size, size));
+    if (m_smudgePickup.isNull() || m_smudgeMask.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     if (m_smudgeFingerPainting || _alternate) {
         QColor color = m_color;
         if (m_editingMask) {
@@ -59,7 +81,6 @@ void Document::prepareSmudgeStroke(bool _alternate)
         }
         m_smudgePickup.fill(color);
     }
-    m_smudgeMask = ImageUtils::blank(QSize(size, size));
     QPainter painter(&m_smudgeMask);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.translate(size / 2., size / 2.);
@@ -80,10 +101,10 @@ void Document::prepareSmudgeStroke(bool _alternate)
 
 void Document::smudgeDab(const QPointF &_point)
 {
-    QImage *target = paintTarget();
-    if (!target || m_smudgePickup.isNull())
+    if (m_smudgePickup.isNull())
         return;
-    const int   size = m_smudgePickup.width();
+    PixelPlane &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+    const int   size   = m_smudgePickup.width();
     const QRect dab(qFloor(_point.x()) - size / 2, qFloor(_point.y()) - size / 2, size, size);
     QRect       region = dab.intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
@@ -91,13 +112,18 @@ void Document::smudgeDab(const QPointF &_point)
     if (region.isEmpty())
         return;
 
-    const QImage sampled = samplePatch(m_smudgeSample.isNull() ? *target : m_smudgeSample, dab);
-    QImage       output = target->copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const QImage sampled = m_smudgeSample.isNull() ? samplePatch(target, dab, m_size)
+                                                   : samplePatch(m_smudgeSample, dab);
+    QImage output = target.region(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     const QPoint offset = region.topLeft() - dab.topLeft();
     const QImage effect =
         m_brushBlend == 0 ? m_smudgePickup.copy(QRect(offset, region.size()))
                           : blendImages(output, m_smudgePickup.copy(QRect(offset, region.size())),
                                         m_brushBlend, 1.);
+    if (sampled.isNull() || output.isNull() || effect.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     for (int y = 0; y < region.height(); ++y) {
         auto       *dst    = reinterpret_cast<QRgb *>(output.scanLine(y));
         auto       *pickup = reinterpret_cast<QRgb *>(m_smudgePickup.scanLine(offset.y() + y));
@@ -121,15 +147,10 @@ void Document::smudgeDab(const QPointF &_point)
                 mixPixel(pickup[localX], src[localX], coverage * (1. - m_toolStrength));
         }
     }
-    if (m_editingMask) {
-        const QImage gray = output.convertToFormat(QImage::Format_Grayscale8);
-        for (int y = 0; y < region.height(); ++y)
-            memcpy(target->scanLine(region.y() + y) + region.x(), gray.constScanLine(y),
-                   size_t(region.width()));
-    } else {
-        QPainter painter(target);
-        painter.setCompositionMode(QPainter::CompositionMode_Source);
-        painter.drawImage(region.topLeft(), output);
+    const QImage patch = m_editingMask ? output.convertToFormat(QImage::Format_Grayscale8) : output;
+    if (!target.writeRegion(region.topLeft(), patch, m_size)) {
+        m_strokeCoverageFailed = true;
+        return;
     }
     m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(region) : m_strokeBounds.united(region);
     if (!m_fullCompositeDirty)

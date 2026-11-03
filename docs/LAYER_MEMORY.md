@@ -66,6 +66,13 @@ Le passage d’un plan compact d’un pixel à des tuiles conserve ses valeurs n
 son espace couleur (y compris absent pour les masques), sa densité de pixels et
 son ratio de pixels. Il n’ajoute plus implicitement un profil sRGB à un masque.
 
+Le Doigt lit et remplace uniquement la zone de chaque empreinte dans la destination
+tuilée, y compris sur un masque. Sa poche et sa pointe restent limitées à la taille
+du pinceau ; il n’alloue pas de couverture du document. La reprise des couleurs
+continue à lire la destination déjà modifiée pendant le geste. L’échantillonnage
+de tous les calques prépare encore un composite complet une fois ; le traitement
+des plans couleur reste limité aux documents 8 bits, comme auparavant.
+
 Les réductions CPU `FastTransformation` des plans figés lisent directement les
 pixels échantillonnés dans les tuiles, au lieu de reconstruire l’image native.
 Deux petites bandes de coordonnées Qt conservent ses arrondis par axe et par

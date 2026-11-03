@@ -1,5 +1,15 @@
 # Validation
 
+## Doigt régional — 3 novembre 2026
+
+Les empreintes des pixels avant/après migration sont identiques pour le plan
+couleur 8 bits et le masque. Ellipse de sélection progressive traversant les
+frontières de tuiles, angle/aplatissement, reprise des couleurs, peinture au doigt,
+Alt, échantillonnage visible, Annuler/Rétablir et annulation restent testés.
+Le masque d’un document 16 bits utilise aussi ce chemin. Sur 24 Mpx/8 bits, la
+destination du petit geste ajoute au plus une tuile de 256 Kio, sans couverture
+pleine image. Le Doigt couleur 16 bits reste explicitement non pris en charge.
+
 ## Métadonnées des plans compacts — 3 novembre 2026
 
 Expansion régionale d’un plan d’un pixel en ARGB32, RGBA64 et Grayscale8, avec

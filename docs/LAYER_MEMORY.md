@@ -177,6 +177,19 @@ Les images natives de lecture et les replis complets des piles non locales reste
 à compter séparément. Une sélection complexe peut aussi nécessiter une grande
 région géométrique finale.
 
+À partir du seuil partagé de quatre millions de pixels, la Baguette magique
+capture les versions natives et calcule sur worker. Un composite natif complet
+encore courant est réutilisé par partage ; le worker ne reconstruit une pile que
+si ce cache n’est pas disponible. La sélection précédente
+reste affichée jusqu’au résultat, avec l’indicateur et l’annulation existants.
+La session et l’identité d’état sont contrôlées avant application ; annulation,
+nouveau geste ou document remplacé empêchent toute publication périmée. Les
+options du clic sont figées, sans écraser les préférences modifiées pendant le
+calcul. Une seule étape d’historique de sélection est ajoutée, sans marquer les
+pixels enregistrés comme modifiés. La capture conserve les leases des plans
+nécessaires ; un appel natif de composition en cours peut finir avant le prochain
+contrôle d’annulation entre lignes/tuiles.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

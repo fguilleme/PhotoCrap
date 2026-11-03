@@ -4,6 +4,7 @@
 
 #include <QBitArray>
 #include <QLineF>
+#include <QtConcurrent>
 #include <QtMath>
 
 namespace
@@ -104,11 +105,12 @@ QRegion smoothRegion(const QRegion &_region)
 }
 } // namespace
 
-void Document::applySelectionCandidate(const QRegion &_candidate, bool _firstDab)
+void Document::applySelectionCandidate(const QRegion &_candidate, bool _firstDab, int _mode)
 {
     QRegion       candidate = _candidate & QRegion(QRect(QPoint{}, m_size));
     const QRegion base      = _firstDab ? m_selectionRegionBeforeStroke : m_selectionRegion;
-    const int     mode      = m_selectionMode == 0 && !_firstDab ? 1 : m_selectionMode;
+    const int     requested = _mode < 0 ? m_selectionMode : _mode;
+    const int     mode      = requested == 0 && !_firstDab ? 1 : requested;
     switch (mode) {
     case 1:
         m_selectionRegion = base.united(candidate);
@@ -135,11 +137,89 @@ void Document::applyMagicWand(const QPoint &_point)
 {
     if (!QRect(QPoint{}, m_size).contains(_point))
         return;
-    const bool composed = m_selectionSampleAllLayers || m_active < 0 ||
-                          m_active >= m_layers.size() || m_layers[m_active].kind != "pixel";
-    const auto result   = PhotoCrap::Tools::colorFlood(
-        m_size, _point, m_selectionTolerance, m_selectionContiguous, [&](const QRect &_region) {
-            return composed ? compositeRegion(_region) : m_layers[m_active].image.region(_region);
+    const bool       composed   = m_selectionSampleAllLayers || m_active < 0 ||
+                                  m_active >= m_layers.size() || m_layers[m_active].kind != "pixel";
+    const PixelPlane source     = composed ? PixelPlane{} : m_layers[m_active].image;
+    const int        tolerance  = m_selectionTolerance;
+    const bool       contiguous = m_selectionContiguous;
+    if (!m_backgroundWorker && editCost(false) >= m_backgroundEditThreshold) {
+        finishLayerPreview();
+        cancelSelectionOperation();
+        const auto   before  = snapshot({});
+        const auto   session = m_documentSession;
+        const int    mode    = m_selectionMode;
+        const auto   size    = m_size;
+        const int    bits    = m_channelBits;
+        const auto   scratch = m_scratchCache;
+        const QImage completed =
+            composed && !m_cacheDirty && m_composite.size() == m_size ? m_composite : QImage{};
+        auto layers            = composed && completed.isNull() ? before.layers : QVector<Layer>{};
+        auto cancel            = std::make_shared<std::atomic_bool>(false);
+        m_selectionCancel      = cancel;
+        m_selectionTaskStateId = before.id;
+        emit selectionOperationChanged();
+        using Result  = PhotoCrap::Tools::ColorFloodResult;
+        auto *watcher = new QFutureWatcher<Result>(this);
+        connect(watcher, &QFutureWatcher<Result>::finished, this,
+                [this, watcher, before, session, mode, cancel] {
+                    Result result;
+                    try {
+                        result = watcher->result();
+                    } catch (...) {
+                        result.valid = false;
+                    }
+                    watcher->deleteLater();
+                    if (m_selectionCancel != cancel)
+                        return;
+                    cancelSelectionOperation();
+                    if (session != m_documentSession || before.id != m_stateId || m_drawing ||
+                        m_previewingLayer)
+                        return;
+                    if (!result.valid) {
+                        if (!result.cancelled)
+                            fail(tr("Mémoire insuffisante pour modifier la sélection."));
+                        return;
+                    }
+                    rememberSelection();
+                    applySelectionCandidate(result.region, true, mode);
+                    finishSelectionGesture();
+                });
+        watcher->setFuture(QtConcurrent::run([source, layers = std::move(layers), size, bits,
+                                              composed, tolerance, contiguous, _point, cancel,
+                                              scratch, completed]() mutable {
+            if (cancel->load()) {
+                Result result;
+                result.cancelled = true;
+                return result;
+            }
+            if (!completed.isNull())
+                return PhotoCrap::Tools::colorFlood(
+                    size, _point, tolerance, contiguous,
+                    [&](const QRect &_region) { return completed.copy(_region); }, cancel);
+            if (!composed)
+                return PhotoCrap::Tools::colorFlood(
+                    size, _point, tolerance, contiguous,
+                    [&](const QRect &_region) { return source.region(_region); }, cancel);
+            // Construct the renderer on its worker thread; no GUI QObject or
+            // JavaScript engine is accessed by the immutable layer snapshot.
+            Document renderer;
+            renderer.m_backgroundWorker   = true;
+            renderer.m_historyBrushSource = {};
+            renderer.m_layers             = std::move(layers);
+            renderer.m_size               = size;
+            renderer.m_channelBits        = bits;
+            renderer.m_scratchCache       = scratch;
+            renderer.m_cacheDirty = renderer.m_fullCompositeDirty = true;
+            renderer.m_dirtyRegion                                = {};
+            return PhotoCrap::Tools::colorFlood(
+                size, _point, tolerance, contiguous,
+                [&](const QRect &_region) { return renderer.compositeRegion(_region); }, cancel);
+        }));
+        return;
+    }
+    const auto result = PhotoCrap::Tools::colorFlood(
+        m_size, _point, tolerance, contiguous, [&](const QRect &_region) {
+            return composed ? compositeRegion(_region) : source.region(_region);
         });
     if (!result.valid) {
         fail(tr("Mémoire insuffisante pour modifier la sélection."));

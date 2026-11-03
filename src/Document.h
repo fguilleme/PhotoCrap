@@ -636,7 +636,7 @@ public:
     qreal            operationProgress() const;
     Q_INVOKABLE void cancelOperation();
     // C++ hosts/tests may tune dispatch: zero forces background work, -1 keeps
-    // edits synchronous. The editor defaults to four million processed pixels.
+    // operations synchronous. The editor defaults to four million processed pixels.
     void setBackgroundEditThreshold(qint64 pixels);
     bool magicEraserBusy() const
     {
@@ -1637,7 +1637,7 @@ private:
     void    continueLasso(qreal _x, qreal _y);
     void    finishLasso();
     void    applyMagicWand(const QPoint &_point);
-    void    applySelectionCandidate(const QRegion &_candidate, bool _firstDab);
+    void    applySelectionCandidate(const QRegion &_candidate, bool _firstDab, int _mode = -1);
     void    beginQuickSelection(const QPointF &_point);
     void    continueQuickSelection(const QPointF &_point);
     void    finishQuickSelection();

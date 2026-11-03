@@ -6,6 +6,8 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Baguette magique en arrière-plan sur grands documents, annulation et
+  invalidation des demandes périmées ; sélection et historique appliqués une fois.
 - [x] Baguette magique lisant les tuiles natives à la demande, cache de comparaison
   borné et bits de visite alloués uniquement sur les tuiles explorées. Tolérance,
   connexité, combinaisons et historique comparés à une recherche indépendante.

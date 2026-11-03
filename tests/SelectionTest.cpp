@@ -1,13 +1,55 @@
 #include "Document.h"
 #include "selection/SelectionGeometry.h"
 #include <QFile>
+#include <QSemaphore>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThreadPool>
+#include <QTimer>
 #include <QtTest>
 #include <limits>
 
 namespace
 {
+struct SelectionPoolBlock {
+    QThreadPool *pool    = QThreadPool::globalInstance();
+    int          maximum = pool->maxThreadCount();
+    QSemaphore   entered, release;
+    SelectionPoolBlock()
+    {
+        pool->waitForDone();
+        pool->setMaxThreadCount(1);
+        pool->start([this] {
+            entered.release();
+            release.acquire();
+        });
+        entered.acquire();
+    }
+    ~SelectionPoolBlock()
+    {
+        release.release();
+        pool->waitForDone();
+        pool->setMaxThreadCount(maximum);
+    }
+};
+void wandFixture(Document &_doc, int _bits)
+{
+    _doc.setBackgroundEditThreshold(-1);
+    QVERIFY(_doc.newDocument(517, 523, false, _bits));
+    _doc.setBrushSize(41);
+    _doc.setBrushHardness(.6);
+    _doc.setColor(QColor(210, 40, 70, 187));
+    _doc.beginStroke(255, 255);
+    _doc.endStroke();
+    _doc.addAdjustmentLayer("boxBlur");
+    _doc.setActiveLayer(0);
+    _doc.setTool("ellipticalSelect");
+    _doc.beginStroke(244, 244);
+    _doc.continueStroke(281, 282);
+    _doc.endStroke();
+    _doc.setTool("magicWand");
+    _doc.setSelectionTolerance(25);
+}
 void rectangle(Document &_document, int _x, int _y, int _w, int _h)
 {
     _document.setTool("select");
@@ -52,6 +94,231 @@ class SelectionTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void backgroundWandMatchesSynchronousSelection_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("all");
+        QTest::addColumn<bool>("contiguous");
+        QTest::addColumn<int>("mode");
+        QTest::addColumn<bool>("soft");
+        QTest::addColumn<bool>("warm");
+        for (int bits : {8, 16})
+            for (bool all : {false, true})
+                for (bool contiguous : {false, true})
+                    for (int mode : {0, 1, 2, 3})
+                        for (bool soft : {false, true})
+                            for (bool warm : {false, true})
+                                QTest::newRow(qPrintable(QString("%1-%2-%3-%4-%5-%6")
+                                                             .arg(bits)
+                                                             .arg(all)
+                                                             .arg(contiguous)
+                                                             .arg(mode)
+                                                             .arg(soft)
+                                                             .arg(warm)))
+                                    << bits << all << contiguous << mode << soft << warm;
+    }
+    void backgroundWandMatchesSynchronousSelection()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, all);
+        QFETCH(bool, contiguous);
+        QFETCH(int, mode);
+        QFETCH(bool, soft);
+        QFETCH(bool, warm);
+        Document doc, reference;
+        wandFixture(doc, bits);
+        wandFixture(reference, bits);
+        for (Document *current : {&doc, &reference}) {
+            if (soft) {
+                current->modifySelection("feather", 2);
+                QTRY_VERIFY_WITH_TIMEOUT(!current->selectionBusy(), 5000);
+            }
+            current->setSelectionSampleAllLayers(all);
+            current->setSelectionContiguous(contiguous);
+            current->setSelectionMode(mode);
+        }
+        doc.setLayerVisible(0, false);
+        doc.setLayerVisible(0, true);
+        QTemporaryDir directory;
+        QVERIFY(doc.saveProject(QUrl::fromLocalFile(directory.filePath("clean.pcr"))));
+        const auto beforeRegion = doc.selectionRegion();
+        const auto beforeMask   = doc.selectionMask();
+        const auto beforePixels = doc.layerImage(0);
+        const int  history      = doc.historyIndex();
+        reference.beginStroke(255, 255);
+        const auto expectedRegion = reference.selectionRegion();
+        const auto expectedMask   = reference.selectionMask();
+        if (warm)
+            (void)doc.composite();
+        doc.setBackgroundEditThreshold(0);
+        {
+            SelectionPoolBlock blocked;
+            doc.beginStroke(255, 255);
+            QVERIFY(doc.selectionBusy());
+            QCOMPARE(doc.selectionRegion(), beforeRegion);
+            QCOMPARE(doc.selectionMask(), beforeMask);
+            QCOMPARE(doc.historyIndex(), history);
+            bool tick = false;
+            QTimer::singleShot(0, &doc, [&] { tick = true; });
+            QTRY_VERIFY_WITH_TIMEOUT(tick, 1000);
+            QVERIFY(doc.selectionBusy());
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.selectionBusy(), 10000);
+        QCOMPARE(doc.selectionRegion(), expectedRegion);
+        QCOMPARE(doc.selectionMask(), expectedMask);
+        QCOMPARE(doc.layerImage(0), beforePixels);
+        QVERIFY(!doc.modified());
+        if (beforeRegion != expectedRegion || beforeMask != expectedMask) {
+            QCOMPARE(doc.historyIndex(), history + 1);
+            doc.undo();
+            QCOMPARE(doc.selectionRegion(), beforeRegion);
+            QCOMPARE(doc.selectionMask(), beforeMask);
+            doc.redo();
+            QCOMPARE(doc.selectionRegion(), expectedRegion);
+            QCOMPARE(doc.selectionMask(), expectedMask);
+        }
+    }
+    void backgroundWandSharesAnAlreadyFinishedNativeComposite()
+    {
+        Document doc;
+        QVERIFY(doc.newDocument(517, 523, false, 16));
+        doc.setBrushSize(41);
+        doc.setColor(Qt::red);
+        doc.beginStroke(255, 255);
+        doc.endStroke();
+        doc.setTool("magicWand");
+        doc.setSelectionSampleAllLayers(true);
+        const QImage &cache = doc.composite();
+        const auto    key   = cache.cacheKey();
+        QVERIFY(cache.isDetached());
+        doc.setBackgroundEditThreshold(0);
+        {
+            SelectionPoolBlock blocked;
+            doc.beginStroke(255, 255);
+            QVERIFY(doc.selectionBusy());
+            QVERIFY(!cache.isDetached()); // The queued source shares these finished pixels.
+            QCOMPARE(cache.cacheKey(), key);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.selectionBusy(), 10000);
+        QVERIFY(cache.isDetached());
+        QCOMPARE(cache.cacheKey(), key);
+    }
+
+    void backgroundWandPreservesSubmittedOptions()
+    {
+        Document doc, reference;
+        wandFixture(doc, 16);
+        wandFixture(reference, 16);
+        doc.setSelectionMode(1);
+        reference.setSelectionMode(1);
+        reference.beginStroke(255, 255);
+        doc.setBackgroundEditThreshold(0);
+        {
+            SelectionPoolBlock blocked;
+            doc.beginStroke(255, 255);
+            QVERIFY(doc.selectionBusy());
+            doc.setSelectionMode(2);
+            doc.setSelectionTolerance(255);
+            doc.setSelectionContiguous(false);
+            doc.setSelectionSampleAllLayers(true);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.selectionBusy(), 10000);
+        QCOMPARE(doc.selectionRegion(), reference.selectionRegion());
+        QCOMPARE(doc.selectionMode(), 2);
+        QCOMPARE(doc.selectionTolerance(), 255);
+        QVERIFY(!doc.selectionContiguous());
+        QVERIFY(doc.selectionSampleAllLayers());
+    }
+    void backgroundWandCancellationAndStaleResults_data()
+    {
+        QTest::addColumn<QString>("action");
+        QTest::addColumn<bool>("all");
+        for (const QString action :
+             {QString("cancel"), QString("undo"), QString("redo"), QString("replace"),
+              QString("selection"), QString("pixels"), QString("gesture"), QString("new-wand")})
+            for (bool all : {false, true})
+                QTest::newRow(qPrintable(action + (all ? "-composite" : "-active")))
+                    << action << all;
+    }
+    void backgroundWandCancellationAndStaleResults()
+    {
+        QFETCH(QString, action);
+        QFETCH(bool, all);
+        Document doc;
+        wandFixture(doc, 16);
+        doc.setSelectionSampleAllLayers(all);
+        doc.setBackgroundEditThreshold(0);
+        QRegion expected = doc.selectionRegion();
+        int     history  = doc.historyIndex();
+        {
+            SelectionPoolBlock blocked;
+            doc.beginStroke(255, 255);
+            QVERIFY(doc.selectionBusy());
+            if (action == "cancel")
+                doc.cancelSelectionOperation();
+            else if (action == "undo")
+                doc.undo();
+            else if (action == "redo")
+                doc.redo();
+            else if (action == "replace") {
+                QVERIFY(doc.newDocument(31, 23, true));
+                expected = doc.selectionRegion();
+                history  = doc.historyIndex();
+            } else if (action == "selection") {
+                doc.selectAll();
+                expected = doc.selectionRegion();
+                history  = doc.historyIndex();
+            } else if (action == "pixels") {
+                doc.setLayerOpacity(0, .5);
+                history = doc.historyIndex();
+            } else if (action == "gesture") {
+                doc.setTool("select");
+                doc.beginStroke(10, 10);
+                doc.continueStroke(20, 20);
+                doc.endStroke();
+                expected = doc.selectionRegion();
+                history  = doc.historyIndex();
+            } else {
+                doc.beginStroke(500, 500);
+                QVERIFY(doc.selectionBusy());
+                expected = QRegion(QRect(0, 0, 517, 523));
+            }
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.selectionBusy(), 10000);
+        if (action == "new-wand") {
+            Document reference;
+            wandFixture(reference, 16);
+            reference.setSelectionSampleAllLayers(all);
+            reference.beginStroke(500, 500);
+            expected = reference.selectionRegion();
+            QCOMPARE(doc.historyIndex(), history + 1);
+        } else
+            QCOMPARE(doc.historyIndex(), history);
+        QCOMPARE(doc.selectionRegion(), expected);
+        if (action == "replace") {
+            QCOMPARE(doc.width(), 31);
+            QCOMPARE(doc.height(), 23);
+        }
+    }
+    void backgroundWandCanOutliveItsDocument_data()
+    {
+        QTest::addColumn<bool>("all");
+        QTest::newRow("active") << false;
+        QTest::newRow("composite") << true;
+    }
+    void backgroundWandCanOutliveItsDocument()
+    {
+        QFETCH(bool, all);
+        SelectionPoolBlock blocked;
+        auto               doc = std::make_unique<Document>();
+        wandFixture(*doc, 16);
+        doc->setSelectionSampleAllLayers(all);
+        doc->setBackgroundEditThreshold(0);
+        doc->beginStroke(255, 255);
+        QVERIFY(doc->selectionBusy());
+        doc.reset();
+    }
+
     void lassoGuidesFollowOnlyActiveSelectionGestures()
     {
         Document doc;

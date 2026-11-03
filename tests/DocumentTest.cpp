@@ -1977,6 +1977,7 @@ private slots:
             timer.start();
             d.beginStroke(100, 100);
             const auto elapsed = timer.nsecsElapsed();
+            QTRY_VERIFY_WITH_TIMEOUT(!d.selectionBusy(), 10000);
             QVERIFY(d.selectionRegion().contains(QPoint(100, 100)));
             QVERIFY(d.selectionRegion().boundingRect().width() <= 8);
             qInfo() << "24 MP / 16-bit wand, all layers, ns and region:" << all << elapsed

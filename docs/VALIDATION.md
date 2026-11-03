@@ -1,5 +1,36 @@
 # Validation
 
+## Baguette magique en arrière-plan — 3 novembre 2026
+
+128 comparaisons vérifient l’égalité avec le chemin synchrone : 8/16 bits,
+source active/composée, contigu/non contigu, quatre modes et sélection précédente
+dure/progressive, cache froid/chaud. Le pool bloqué prouve que l’appel retourne avant le calcul,
+que la sélection/historique ne changent pas pendant l’attente et que la boucle
+GUI exécute encore un timer. À la fin, pixels et état enregistré restent inchangés ;
+Annuler/Rétablir restaure les masques exacts.
+
+Les contrôles couvrent aussi les options modifiées après soumission, Annuler,
+Annuler/Rétablir clavier pendant l’attente, document remplacé, autre sélection,
+retouche, nouveau geste et nouveau clic de baguette. La destruction du document
+pendant une demande en file est vérifiée pour les deux sources. Les 150 cas ciblés passent sur Qt 6.12
+et Qt 6.8 ; la recherche pure teste également l’annulation pendant une lecture.
+Le seuil suit les opérations générales (4 194 304 pixels par défaut).
+Une source composée déjà terminée est partagée en lecture seule : le test contrôle
+son partage de pixels pendant l’attente et leur libération après le résultat,
+sans remplacement du cache affiché.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/photocrap_selection_tests \
+  backgroundWandMatchesSynchronousSelection backgroundWandPreservesSubmittedOptions \
+  backgroundWandCancellationAndStaleResults backgroundWandCanOutliveItsDocument
+```
+
+La sonde `PHOTOCRAP_WAND_PROBE=1` rapporte désormais le temps de soumission pour
+les grands documents ; elle attend ensuite le résultat pour en contrôler la région.
+Un rendu natif non interrompable déjà lancé peut finir avant que le jeton soit
+recontrôlé ; son résultat est rejeté si la demande n’est plus courante.
+
+
 ## Lecture tuilée de la Baguette magique — 3 novembre 2026
 
 48 cas de recherche native 8/16 bits sont comparés à une recherche indépendante

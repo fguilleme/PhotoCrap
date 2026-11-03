@@ -52,6 +52,8 @@ QImage Document::readImage(const QString &_path)
             fail(result.error);
         return result.image;
     }
+    if (!operationStep(0, 4))
+        return {};
     QImageReader reader(_path);
     reader.setAutoTransform(true);
     const QSize size = reader.size();
@@ -60,16 +62,23 @@ QImage Document::readImage(const QString &_path)
             fail(tr("Format non reconnu ou image illisible."));
         return {};
     }
+    if (!operationStep(1, 4))
+        return {};
     QImage image = reader.read();
     if (image.isNull()) {
         fail(reader.errorString());
         return {};
     }
+    if (!operationStep(2, 4))
+        return {};
     if (image.colorSpace().isValid())
         image.convertToColorSpace(QColorSpace::SRgb);
     else
         image.setColorSpace(QColorSpace::SRgb);
-    return image.convertToFormat(ImageUtils::workingFormat(image));
+    if (!operationStep(3, 4))
+        return {};
+    image.convertTo(ImageUtils::workingFormat(image));
+    return operationStep(4, 4) ? image : QImage{};
 }
 bool Document::openFile(const QUrl &_url)
 {
@@ -85,23 +94,29 @@ bool Document::openFile(const QUrl &_url)
 }
 void Document::requestOpenFile(const QUrl &_url)
 {
-    const QUrl    target = _url;
-    const QString path   = localPath(target);
-    if (!path.isEmpty() && QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0) {
-        auto loaded = std::make_shared<Snapshot>();
-        // Even a small compressed project can expand to many large native planes.
-        // Keep the explicit synchronous-test override, otherwise always use a worker.
+    const QUrl target = _url;
+    if (isRawFile(target)) {
+        openRawFile(target);
+        return;
+    }
+    const QString path = localPath(target);
+    if (!path.isEmpty()) {
+        const bool project = QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0;
+        auto       loaded  = std::make_shared<Snapshot>();
+        // Even a small compressed file can expand to a large native plane.
+        // Keep the explicit synchronous-test override, otherwise use a worker.
         if (deferOperation(
-                tr("Ouvrir le projet"), std::numeric_limits<qint64>::max() - 1,
-                [path, loaded](Document &_renderer) {
-                    if (_renderer.loadProject(path))
+                project ? tr("Ouvrir le projet") : tr("Ouvrir l’image"),
+                std::numeric_limits<qint64>::max() - 1,
+                [target, loaded](Document &_renderer) {
+                    if (_renderer.openFile(target))
                         *loaded = _renderer.snapshot({});
                 },
                 false,
-                [this, path, loaded, target] {
+                [this, path, loaded, target, project] {
                     if (loaded->layers.isEmpty())
                         return;
-                    adoptProjectSnapshot(*loaded, path);
+                    adoptFileSnapshot(*loaded, path, project);
                     emit fileOpened(target);
                 }))
             return;
@@ -516,19 +531,19 @@ bool Document::loadProject(const QString &_path)
     loaded.penPaths      = std::move(penPaths);
     loaded.activePenPath = activePenPath;
     loaded.slices        = std::move(slices);
-    adoptProjectSnapshot(loaded, _path);
+    adoptFileSnapshot(loaded, _path, true);
     return true;
 }
-void Document::adoptProjectSnapshot(const Snapshot &_loaded, const QString &_path)
+void Document::adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project)
 {
     // Only replace the current document after validating every layer and path.
     m_channelBits = _loaded.channelBits;
     m_layers      = _loaded.layers;
     m_size        = _loaded.size;
     m_active      = _loaded.active;
-    m_projectUrl  = QUrl::fromLocalFile(_path);
+    m_projectUrl  = _project ? QUrl::fromLocalFile(_path) : QUrl{};
     m_name        = QFileInfo(_path).completeBaseName();
-    resetHistory(true);
+    resetHistory(_project);
     m_penPaths      = _loaded.penPaths;
     m_activePenPath = _loaded.activePenPath;
     emit penPathsChanged();

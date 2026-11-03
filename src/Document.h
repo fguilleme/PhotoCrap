@@ -1658,7 +1658,7 @@ private:
     QImage    *paintTarget();
     QImage     readImage(const QString &_path);
     bool       loadProject(const QString &_path);
-    void       adoptProjectSnapshot(const Snapshot &_loaded, const QString &_path);
+    void       adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project);
     void       acceptProjectSave(const QString &_path);
     static QImage applyMask(const QImage &_source, const QImage &_mask, qreal _density = 1,
                             qreal _feather = 0);

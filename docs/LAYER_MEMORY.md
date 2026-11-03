@@ -120,8 +120,13 @@ reste disponible pour les tests et les miniatures déjà calculées hors GUI.
 Les appels Qt en cours (lecture/parse/codec) peuvent finir après l’annulation ;
 leurs résultats sont rejetés. Le JSON complet, le plan natif décodé et les deux
 documents peuvent temporairement coexister : ce changement évite le blocage de
-l’interface mais ne promet pas une baisse du pic RSS. Les images ordinaires et
-leur import comme calques restent à migrer.
+l’interface mais ne promet pas une baisse du pic RSS.
+
+L’ouverture des images ordinaires utilise aussi un snapshot de remplacement sur
+le worker. Le codec applique l’orientation, puis les conversions sRGB et de format
+natif sont réalisées avant de créer les tuiles. Seul le résultat courant devient
+un nouveau document modifié, sans URL de projet ni ancien historique. Les RAW
+conservent leur développeur dédié. Les imports comme calques restent à migrer.
 
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états

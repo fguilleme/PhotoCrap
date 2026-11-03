@@ -155,5 +155,21 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      document.history() == history,
                  "Escape cancels the queued project open"))
         return false;
+    const auto image = QUrl::fromLocalFile(directory.filePath("image.png"));
+    if (!require(source.exportImage(image) && openDialog->setProperty("selectedFile", image) &&
+                     QMetaObject::invokeMethod(openDialog, "accepted"),
+                 "the open picker dispatches an image asynchronously"))
+        return false;
+    QTest::qWait(50);
+    if (!require(document.operationBusy() && progress->isVisible() &&
+                     document.composite() == before,
+                 "image decoding leaves the old document visible"))
+        return false;
+    QTest::keyClick(window, Qt::Key_Escape);
+    QTest::qWait(50);
+    if (!require(!document.operationBusy() && document.composite() == before &&
+                     document.history() == history,
+                 "Escape cancels the queued image open"))
+        return false;
     return true;
 }

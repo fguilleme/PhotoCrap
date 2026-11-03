@@ -1,5 +1,21 @@
 # Validation
 
+## Décodage d’images en arrière-plan — 3 novembre 2026
+
+PNG 8/16 bits, JPEG, BMP, WebP et TIFF 16 bits, selon les plugins du kit, sont
+comparés au chargement synchrone à partir de sources Display P3 avec alpha et
+variations natives. Pixels, profondeur, nom et calques correspondent ; le nouveau
+document est modifié, son URL de projet est vide et son historique précédent est
+effacé. Outil et taille de brosse restent inchangés.
+
+Annulation dans la file ou après décodage, nouveau document/geste, destruction et
+fichiers absents/illisibles/non locaux préservent le document courant. Le parcours
+du dialogue Ouvrir vérifie Échap et la conservation de l’ancien canevas pendant
+l’attente. La suite Opérations compte 81 réussites et quatre sondes optionnelles.
+La sonde `PHOTOCRAP_OPEN_CANCEL_STRESS=1` couvre désormais deux jeux de données :
+projet `.pcr` et PNG direct, tous deux en 16 Mpx/16 bits. Un appel de codec courant
+peut terminer après l’annulation, mais son résultat n’est pas publié.
+
 ## Ouverture asynchrone des projets — 3 novembre 2026
 
 En 8/16 bits, les projets contenant pixels, masques, réglages, texte éditable,

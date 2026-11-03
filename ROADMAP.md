@@ -12,6 +12,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   l’argument de lancement ; validation complète avant remplacement, annulation,
   résultats caducs rejetés et conservation des réglages d’outil.
 
+- [x] Ouverture des images ordinaires en arrière-plan : orientation, profil sRGB,
+  profondeur native et tuilage avant publication ; annulation et mêmes pixels
+  que le chemin synchrone pour PNG/JPEG/BMP/WebP/TIFF disponibles.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

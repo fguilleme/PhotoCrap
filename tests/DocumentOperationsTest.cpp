@@ -1,4 +1,5 @@
 #include "Document.h"
+#include <QColorSpace>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImageWriter>
@@ -80,6 +81,106 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void asynchronousImageOpenMatchesNativeDecoding_data()
+    {
+        QTest::addColumn<QByteArray>("format");
+        QTest::addColumn<int>("bits");
+        QTest::newRow("png8") << QByteArray("png") << 8;
+        QTest::newRow("png16") << QByteArray("png") << 16;
+        QTest::newRow("jpeg") << QByteArray("jpg") << 8;
+        QTest::newRow("bmp") << QByteArray("bmp") << 8;
+        QTest::newRow("webp") << QByteArray("webp") << 8;
+        QTest::newRow("tiff16") << QByteArray("tiff") << 16;
+    }
+    void asynchronousImageOpenMatchesNativeDecoding()
+    {
+        QFETCH(QByteArray, format);
+        QFETCH(int, bits);
+        if (!QImageWriter::supportedImageFormats().contains(format))
+            QSKIP("This Qt kit does not include the image writer plugin.");
+        QTemporaryDir directory;
+        const auto    target =
+            QUrl::fromLocalFile(directory.filePath("image." + QString::fromLatin1(format)));
+        QImage source(139, 97,
+                      bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                 : QImage::Format_ARGB32_Premultiplied);
+        source.setColorSpace(QColorSpace::DisplayP3);
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x)
+                source.setPixelColor(x, y,
+                                     QColor::fromRgba64(ushort(x * 439), ushort(y * 587),
+                                                        ushort(x * 217 + y * 113),
+                                                        ushort(25000 + (x + y) * 151)));
+        QVERIFY(source.save(target.toLocalFile(), format.constData()));
+        Document reference;
+        QVERIFY(reference.openFile(target));
+        const auto expected = reference.composite();
+        Document   d;
+        populate(d, 8);
+        d.setTool("eraser");
+        d.setBrushSize(39);
+        const auto before  = d.composite();
+        const auto history = d.history();
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            d.requestOpenFile(target);
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.composite(), before);
+            QCOMPARE(d.history(), history);
+            QCOMPARE(opened.size(), 0);
+        }
+        QCOMPARE(d.composite(), before);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(opened.size(), 1);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(opened[0][0].toUrl(), target);
+        QCOMPARE(d.composite(), expected);
+        QCOMPARE(d.layers(), reference.layers());
+        QCOMPARE(d.channelBits(), reference.channelBits());
+        QCOMPARE(d.name(), reference.name());
+        QVERIFY(d.projectUrl().isEmpty());
+        QVERIFY(d.modified());
+        QCOMPARE(d.historyIndex(), 0);
+        QCOMPARE(d.tool(), QString("eraser"));
+        QCOMPARE(d.brushSize(), 39.);
+        d.undo();
+        QCOMPARE(d.composite(), expected);
+    }
+    void invalidImageOpenKeepsTheCurrentDocument_data()
+    {
+        QTest::addColumn<QString>("kind");
+        for (const auto *name : {"missing", "unreadable", "remote"})
+            QTest::newRow(name) << QString(name);
+    }
+    void invalidImageOpenKeepsTheCurrentDocument()
+    {
+        QFETCH(QString, kind);
+        QTemporaryDir directory;
+        Document      d;
+        populate(d, 16);
+        const auto before  = d.composite();
+        const auto history = d.history();
+        QUrl       target  = QUrl::fromLocalFile(directory.filePath("bad.png"));
+        if (kind == "unreadable") {
+            QFile file(target.toLocalFile());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("not an image");
+        } else if (kind == "remote")
+            target = QUrl("https://example.invalid/image.png");
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBackgroundEditThreshold(0);
+        d.requestOpenFile(target);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 1);
+        QCOMPARE(opened.size(), 0);
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.history(), history);
+        QVERIFY(d.modified());
+    }
     void asynchronousProjectOpenAppliesOnlyACompleteValidatedDocument_data()
     {
         QTest::addColumn<int>("bits");
@@ -167,17 +268,23 @@ private slots:
     void cancelledOrStaleProjectOpenKeepsTheCurrentDocument_data()
     {
         QTest::addColumn<QString>("action");
-        for (const auto *name : {"queued", "finished", "new-document", "new-gesture", "destroyed"})
-            QTest::newRow(name) << QString(name);
+        QTest::addColumn<bool>("image");
+        for (bool image : {false, true})
+            for (const auto *name :
+                 {"queued", "finished", "new-document", "new-gesture", "destroyed"})
+                QTest::newRow(qPrintable(QString(image ? "image-" : "project-") + name))
+                    << QString(name) << image;
     }
     void cancelledOrStaleProjectOpenKeepsTheCurrentDocument()
     {
         QFETCH(QString, action);
+        QFETCH(bool, image);
         QTemporaryDir directory;
-        const auto    target = QUrl::fromLocalFile(directory.filePath("open.pcr"));
-        Document      source;
+        const auto    target =
+            QUrl::fromLocalFile(directory.filePath(image ? "open.png" : "open.pcr"));
+        Document source;
         populate(source, 16);
-        QVERIFY(source.saveProject(target));
+        QVERIFY(image ? source.exportImage(target) : source.saveProject(target));
         auto d = std::make_unique<Document>();
         populate(*d, 8);
         const auto before  = d->composite();
@@ -304,12 +411,20 @@ private slots:
         QCOMPARE(d.history(), history);
         QVERIFY(d.modified());
     }
+    void runningProjectDecodeCanBeCancelledWithoutReplacingTheDocument_data()
+    {
+        QTest::addColumn<bool>("image");
+        QTest::newRow("project") << false;
+        QTest::newRow("image") << true;
+    }
     void runningProjectDecodeCanBeCancelledWithoutReplacingTheDocument()
     {
+        QFETCH(bool, image);
         if (!qEnvironmentVariableIsSet("PHOTOCRAP_OPEN_CANCEL_STRESS"))
             QSKIP("Set PHOTOCRAP_OPEN_CANCEL_STRESS=1 to interrupt real native PNG decoding.");
         QTemporaryDir directory;
-        const auto    target = QUrl::fromLocalFile(directory.filePath("large.pcr"));
+        const auto    target =
+            QUrl::fromLocalFile(directory.filePath(image ? "large.png" : "large.pcr"));
         {
             Document source;
             source.setBackgroundEditThreshold(-1);
@@ -318,7 +433,7 @@ private slots:
             source.setBrushSize(12);
             source.beginStroke(100, 100);
             source.endStroke();
-            QVERIFY(source.saveProject(target));
+            QVERIFY(image ? source.exportImage(target) : source.saveProject(target));
         }
         Document d;
         populate(d, 8);

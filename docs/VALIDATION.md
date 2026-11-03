@@ -1,5 +1,29 @@
 # Validation
 
+## Fonds compacts des plans importés — 3 novembre 2026
+
+Les tests couvrent trois formats natifs (ARGB32 prémultiplié, RGBA64 prémultiplié
+et masque Gray8), un premier pixel trompeur, les bords incomplets pondérés par
+leurs octets alloués, les bits prémultipliés non canoniques et les métadonnées
+Display P3/DPR/résolution. Les remplacements gardent les clés des tuiles inchangées
+et les snapshots restent valides après éviction et nettoyage du cache.
+
+Un projet de 24 Mpx/16 bits avec fond blanc, petit trait rouge et masque blanc
+retouché est enregistré puis rechargé : les plans utilisent exactement 589 824
+octets (576 Kio), contre 216 000 000 octets de réservation logique. Cette mesure
+ne représente pas le RSS : décodeur, composite et copies de référence du test sont
+séparés. Pixels et masque sont identiques ; une nouvelle retouche du masque,
+Annuler/Rétablir et le déchargement complet des tuiles passent sous Qt 6.8/6.12.
+Le test de cache des fréquences utilise désormais un détail dans chaque tuile :
+les plans uniformes n’ont plus de blocs à écrire. Réutilisation et repli sur disque
+indisponible restent ainsi effectivement testés. Le rendu natif Metal passe aussi.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  build/photocrap_tests sparseLargeProjectReloadPreservesCompactTileFootprints
+build/photocrap_tiled_tests
+```
+
 ## Sauvegarde asynchrone et fermeture différée — 3 novembre 2026
 
 Les sauvegardes de nouveaux projets et de projets déjà associés produisent les

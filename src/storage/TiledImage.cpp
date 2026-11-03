@@ -8,6 +8,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QVector>
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <utility>
@@ -37,6 +38,43 @@ QByteArray uniformRegionKey(const QImage &_pixel, const QSize &_size)
     const auto result = hash.result();
     cache.insert(key, new QByteArray(result));
     return result;
+}
+
+// Only uniform tiles can be represented by the shared background. Choose the
+// native pixel that saves the most allocated bytes, including partial edge tiles.
+QImage importedBackground(const QImage &_image)
+{
+    const int              bytes = _image.depth() / 8;
+    QHash<quint64, qint64> weights;
+    qint64                 bestWeight = 0;
+    QPoint                 best;
+    bool                   found = false;
+    for (int top = 0; top < _image.height(); top += TiledImage::TileSize)
+        for (int left = 0; left < _image.width(); left += TiledImage::TileSize) {
+            const int   width   = qMin(TiledImage::TileSize, _image.width() - left);
+            const int   height  = qMin(TiledImage::TileSize, _image.height() - top);
+            const auto *row     = _image.constScanLine(top) + left * bytes;
+            bool        uniform = true;
+            for (int x = 1; x < width; ++x)
+                if (std::memcmp(row, row + x * bytes, size_t(bytes))) {
+                    uniform = false;
+                    break;
+                }
+            for (int y = 1; uniform && y < height; ++y)
+                uniform = std::memcmp(row, _image.constScanLine(top + y) + left * bytes,
+                                      size_t(width) * bytes) == 0;
+            if (!uniform)
+                continue;
+            quint64 pixel = 0;
+            std::memcpy(&pixel, row, size_t(bytes));
+            const auto weight = (weights[pixel] += qint64((width * bytes + 3) & ~3) * height);
+            if (weight > bestWeight) {
+                bestWeight = weight;
+                best       = {left, top};
+                found      = true;
+            }
+        }
+    return found ? _image.copy(QRect(best, QSize(1, 1))) : QImage{};
 }
 
 struct Tile {
@@ -95,10 +133,20 @@ struct TiledImage::Data {
     QImage blank(const QSize &_size) const
     {
         QImage image(_size, background.format());
+        if (image.isNull())
+            return {};
         if (background.format() == QImage::Format_Grayscale8)
             image.fill(background.constScanLine(0)[0]);
-        else
-            image.fill(background.pixelColor(0, 0));
+        else if (background.format() == QImage::Format_ARGB32_Premultiplied) {
+            quint32 pixel = 0;
+            std::memcpy(&pixel, background.constBits(), sizeof(pixel));
+            image.fill(pixel);
+        } else {
+            quint64 pixel = 0;
+            std::memcpy(&pixel, background.constBits(), sizeof(pixel));
+            for (int y = 0; y < image.height(); ++y)
+                std::fill_n(reinterpret_cast<quint64 *>(image.scanLine(y)), image.width(), pixel);
+        }
         image.setColorSpace(background.colorSpace());
         image.setDevicePixelRatio(background.devicePixelRatio());
         image.setDotsPerMeterX(background.dotsPerMeterX());
@@ -240,7 +288,12 @@ bool TiledImage::replace(const QImage &_image)
     const bool reuse = m_data && m_data->size == _image.size() &&
                        m_data->background.format() == _image.format() &&
                        m_data->background.colorSpace() == _image.colorSpace();
-    auto       next  = reuse ? std::make_shared<Data>(*m_data) : initial.m_data;
+    if (!reuse) {
+        const auto background = importedBackground(_image);
+        if (!background.isNull())
+            initial = TiledImage(_image.size(), background);
+    }
+    auto next = reuse ? std::make_shared<Data>(*m_data) : initial.m_data;
     next->background.setColorSpace(_image.colorSpace());
     next->background.setDevicePixelRatio(_image.devicePixelRatio());
     next->background.setDotsPerMeterX(_image.dotsPerMeterX());

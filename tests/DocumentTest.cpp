@@ -278,6 +278,53 @@ private slots:
         d.redo();
         QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 9);
     }
+    void sparseLargeProjectReloadPreservesCompactTileFootprints()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.setTool("brush");
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.setColor(Qt::red);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        d.addLayerMask();
+        d.setColor(Qt::black);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto   expectedMask = d.maskImage(0);
+        const auto   expected     = d.composite();
+        const qint64 budget       = 256LL * 256 * 9;
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= budget);
+        const auto url = QUrl::fromLocalFile(directory.filePath("sparse.pcr"));
+        QVERIFY(d.saveProject(url));
+        Document loaded;
+        QVERIFY(loaded.openFile(url));
+        qInfo() << "Reloaded 24 MP / 16 bit with painted white mask:" << loaded.memoryUsage();
+        QVERIFY(loaded.memoryUsage()["layerBytes"].toLongLong() <= budget);
+        QCOMPARE(loaded.composite(), expected);
+        QCOMPARE(loaded.maskImage(0), expectedMask);
+        QCOMPARE(loaded.channelBits(), 16);
+        loaded.configureScratchCache(directory.filePath("scratch"), 8 * 1024 * 1024);
+        loaded.configurePlaneRamMiB(0);
+        QTRY_COMPARE_WITH_TIMEOUT(loaded.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0),
+                                  10000);
+        loaded.clearScratchCache();
+        loaded.setEditingMask(true);
+        loaded.setTool("brush");
+        loaded.setBrushSize(12);
+        loaded.setColor(Qt::black);
+        loaded.beginStroke(400, 100);
+        loaded.endStroke();
+        QVERIFY(loaded.maskImage(0) != expectedMask);
+        loaded.undo();
+        QCOMPARE(loaded.maskImage(0), expectedMask);
+        loaded.redo();
+        QVERIFY(loaded.maskImage(0) != expectedMask);
+        QVERIFY(loaded.memoryUsage()["layerBytes"].toLongLong() <= budget + 256LL * 256);
+    }
     void refusedTileOffloadKeepsEditableHistoryInMemory()
     {
         QTemporaryDir directory;
@@ -663,7 +710,17 @@ private slots:
             QVERIFY(blocker.open(QIODevice::WriteOnly));
         }
         d.configureScratchCache(directory, 128LL * 1024 * 1024);
-        d.fillSelectedWithColor(QColor("#4a6a8b"));
+        // Uniform frequency bands now need no disk blocks. Put a small detail
+        // in every tile so this test still exercises real disk reuse/failure.
+        QImage source(2048, 2048, QImage::Format_ARGB32_Premultiplied);
+        source.fill(QColor("#4a6a8b"));
+        for (int y = 128; y < source.height(); y += 256)
+            for (int x = 128; x < source.width(); x += 256)
+                source.setPixelColor(x, y, Qt::white);
+        const auto input = root.filePath("textured.png");
+        QVERIFY(source.save(input));
+        source = {};
+        QVERIFY(d.openFile(QUrl::fromLocalFile(input)));
         d.addFrequencySeparation(3);
         d.addLayerMask(); // Prevent the untouched pair shortcut from hiding the bands.
         d.setEditingMask(false);

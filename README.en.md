@@ -28,6 +28,8 @@ Expensive whole-plane operations (geometry, depth from the menu, merge down, fil
 
 Geometric shapes preview only their bounds and stroke margins; gradients restricted to a selection do the same. Shrinking a shape clears its previous preview, and returning to the anchor leaves no empty layer or history entry. Selected Move handles source and destination separately; sparse transparent layers move tile by tile, while dense layers and full-image gradients still use full-sized buffers.
 
+On reopening, nearly uniform layers and masks choose a compact background from their uniform tiles: only differing tiles are stored. A lightly retouched 24 MP/16-bit image and mask retain a 576 KiB layer-pixel footprint without a project format change. Decoders and the composite still have temporary allocations.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

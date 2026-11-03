@@ -28,6 +28,8 @@ Les opérations complètes coûteuses (géométrie, profondeur depuis le menu, f
 
 Les formes géométriques prévisualisent uniquement leur emprise, avec les marges du contour ; les dégradés limités à une sélection font de même. Rétrécir la forme efface son ancien aperçu, et revenir au point de départ annule le dessin sans créer de calque vide. Les sélections déplacées sont aussi traitées par régions source/destination ; le déplacement d’un calque peu rempli sur fond transparent parcourt ses tuiles, tandis que les calques denses et les dégradés pleine image gardent leurs tampons complets.
 
+À la réouverture, les calques et masques presque uniformes choisissent leur fond compact à partir des tuiles uniformes : seules les tuiles différentes sont stockées. Une image 24 Mpx/16 bits et son masque légèrement retouchés retrouvent ainsi une emprise de 576 Kio de pixels de calques, sans changement de format de projet. Les décodeurs et le composite conservent leurs allocations temporaires.
+
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
 Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.

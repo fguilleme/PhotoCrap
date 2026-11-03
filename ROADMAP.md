@@ -4,6 +4,10 @@
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
+- [x] Réouverture compacte des plans presque uniformes : fond pondéré par les
+  tuiles uniformes, pixels 8/16 bits exacts, masques, métadonnées et versions
+  inchangées conservés ; test de projet 24 Mpx/16 bits à 576 Kio de plans.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

@@ -9,6 +9,7 @@
 #include <QTemporaryDir>
 #include <QtConcurrent>
 #include <QtTest>
+#include <cstring>
 #include <limits>
 
 class TiledImageTest : public QObject
@@ -469,6 +470,79 @@ private slots:
         QCOMPARE(plane.cacheKey(), after);
         QCOMPARE(QImage(plane), image);
     }
+    void initialImportCompactsDominantUniformTilesExactly()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage source(800, 520, format);
+            source.fill(Qt::white);
+            source.setColorSpace(QColorSpace::DisplayP3);
+            source.setDevicePixelRatio(2);
+            source.setDotsPerMeterX(4200);
+            source.setDotsPerMeterY(4300);
+            // The first pixel is deliberately not representative of the background.
+            source.setPixelColor(0, 0, Qt::black);
+            for (int y = 0; y < 256; ++y)
+                for (int x = 256; x < 512; ++x)
+                    source.setPixelColor(x, y, Qt::black);
+            source.setPixelColor(780, 510, Qt::black);
+            TiledImage plane;
+            QVERIFY(plane.replace(source));
+            QCOMPARE(plane.tileCount(), 3);
+            const auto output = plane.region(source.rect());
+            QCOMPARE(output, source);
+            QCOMPARE(output.colorSpace(), source.colorSpace());
+            QCOMPARE(output.devicePixelRatio(), 2);
+            QCOMPARE(output.dotsPerMeterX(), 4200);
+            QCOMPARE(output.dotsPerMeterY(), 4300);
+            QCOMPARE(plane.backgroundPixel().pixelColor(0, 0), QColor(Qt::white));
+            const auto        old = plane;
+            const auto        key = plane.regionKey({256, 0, 256, 256});
+            QTemporaryDir     dir;
+            ScratchImageCache cache({dir.path(), 8 * 1024 * 1024, 0});
+            QVERIFY(plane.offload(cache));
+            source.setPixelColor(10, 10, Qt::black);
+            QVERIFY(plane.replace(source));
+            QCOMPARE(plane.region(source.rect()), source);
+            QCOMPARE(plane.regionKey({256, 0, 256, 256}), key);
+            QCOMPARE(plane.backgroundPixel(), old.backgroundPixel());
+            cache.clear();
+            QCOMPARE(old.region({10, 10, 1, 1}).pixelColor(0, 0), QColor(Qt::white));
+        }
+    }
+    void importedUniformBackgroundPreservesRawPremultipliedBits()
+    {
+        for (auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
+            QImage    source(513, 300, format);
+            const int bytes = source.depth() / 8;
+            // Raw native values, including noncanonical premultiplied channels.
+            const QByteArray pixel =
+                QByteArray::fromHex(bytes == 4 ? "05040302" : "0500040003000200");
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    std::memcpy(source.scanLine(y) + x * bytes, pixel.constData(), size_t(bytes));
+            TiledImage plane;
+            QVERIFY(plane.replace(source));
+            QCOMPARE(plane.tileCount(), 0);
+            QCOMPARE(plane.region(source.rect()), source);
+        }
+    }
+    void dominantBackgroundWeightsNativeEdgeAllocations()
+    {
+        QImage source(257, 512, QImage::Format_Grayscale8);
+        source.fill(Qt::black);
+        for (int y = 0; y < 256; ++y)
+            std::memset(source.scanLine(y), 255, 256);
+        // Two narrow black tiles weigh less than the large white one, but together
+        // with the large black tile they make black the optimal background.
+        TiledImage plane;
+        QVERIFY(plane.replace(source));
+        QCOMPARE(plane.backgroundPixel().constBits()[0], uchar(0));
+        QCOMPARE(plane.tileCount(), 1);
+        QCOMPARE(plane.allocatedBytes(), qint64(256 * 256));
+        QCOMPARE(plane.region(source.rect()), source);
+    }
     void importedPixelsAndVersionsRemainExact()
     {
         QTemporaryDir dir;
@@ -522,7 +596,8 @@ private slots:
     {
         QImage image(513, 300, QImage::Format_RGBA64_Premultiplied);
         image.fill(Qt::red);
-        TiledImage plane;
+        image.setColorSpace(QColorSpace::SRgb);
+        TiledImage plane(image.size(), image.format(), Qt::transparent);
         QVERIFY(plane.replace(image));
         QVERIFY(plane.tileCount() > 0);
         image.fill(Qt::transparent);

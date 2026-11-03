@@ -11,6 +11,15 @@ régions nécessaires sans retenir de copie complète du calque. Les autres outi
 transformations, filtres et sauvegardes peuvent encore matérialiser une image
 complète temporaire. Les profondeurs prises en charge par chaque outil ne changent pas.
 
+Lors de l’import initial d’un plan natif, le fond compact est choisi parmi les
+couleurs des tuiles entièrement uniformes, pondérées par leur allocation native
+(y compris les bords incomplets). Les autres tuiles gardent leurs bits exacts.
+Un remplacement d’un plan compatible conserve son fond, ses versions inchangées
+et ses leases disque. Les fonds prémultipliés sont étendus par copie native, sans
+conversion QColor. Les métadonnées couleur, résolution et DPR sont conservées.
+Cela évite de réallouer tout un masque blanc après quelques retouches lors de la
+réouverture d’un projet ; le décodage PNG matérialise encore un plan temporaire.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

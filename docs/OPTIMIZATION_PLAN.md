@@ -7,6 +7,8 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Choix du fond compact par poids des tuiles uniformes à l’import initial ;
+  réouverture des plans presque uniformes sans allocation de toutes leurs tuiles.
 - [x] Import exact des plans existants dans `TiledImage`, remplacement atomique et
   réutilisation des versions des tuiles inchangées, y compris après déchargement disque.
 - [x] Stockage des plans des calques/masques et de leurs versions d’historique dans

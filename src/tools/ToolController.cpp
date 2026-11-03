@@ -217,7 +217,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             return;
     } else
         m_beforeStroke = snapshot(toolLabel(m_tool));
-    if (isShapeStrokeTool(m_tool) || m_tool == "text")
+    if (isShapeStrokeTool(m_tool) && m_tool != "move" && (m_tool != "gradient" || hasSelection())) {
+        m_strokePlaneBase = m_layers[m_active].image;
+        m_strokeBounds    = {};
+    } else if (isShapeStrokeTool(m_tool) || m_tool == "text")
         m_strokeBase = m_layers[m_active].image;
     if (m_tool == "move" && m_layers[m_active].kind == "text")
         m_textMoveParameters = m_layers[m_active].parameters;
@@ -477,10 +480,12 @@ void Document::endStroke()
             m_selectionPath.translate(offset);
             emit selectionChanged();
         }
-        commit(m_beforeStroke, toolLabel(m_tool),
-               m_strokeCreatedLayer ||
-                   (!isPaintStrokeTool(m_tool) && m_tool != "redEye" && m_tool != "fill"));
-        if (isPaintStrokeTool(m_tool) || m_tool == "redEye" || m_tool == "fill") {
+        const bool regionalEdit = isPaintStrokeTool(m_tool) || m_tool == "redEye" ||
+                                  m_tool == "fill" ||
+                                  (isShapeStrokeTool(m_tool) && m_tool != "move" &&
+                                   (m_tool != "gradient" || hasSelection()));
+        commit(m_beforeStroke, toolLabel(m_tool), m_strokeCreatedLayer || !regionalEdit);
+        if (regionalEdit && !m_strokeCreatedLayer) {
             ++m_thumbnailRevision;
             emit thumbnailsChanged();
         }

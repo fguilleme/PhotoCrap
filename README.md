@@ -26,6 +26,8 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 
 Les opérations complètes coûteuses (géométrie, profondeur depuis le menu, fusion vers le bas, remplissages, masques et filtres directs) calculent sur un snapshot dans un worker de faible priorité à partir de quatre millions de pixels traités. Une barre affiche la progression et propose Annuler ; Échap et Annuler/Rétablir rejettent également le calcul. Seule une fin encore valide crée une étape d’historique. Les entrées/sorties de projets et l’export restent synchrones.
 
+Les formes géométriques prévisualisent uniquement leur emprise, avec les marges du contour ; les dégradés limités à une sélection font de même. Rétrécir la forme efface son ancien aperçu, et revenir au point de départ annule le dessin sans créer de calque vide. Déplacement et dégradés pleine image gardent encore leurs tampons complets.
+
 Les aperçus CPU rapides lisent directement les pixels utiles dans les tuiles, sans reconstruire d’abord le plan complet. Les agrandissements et les réductions lisses gardent leur chemin Qt.
 
 Les piles GPU éligibles conservent quatre niveaux réduits sur GPU (1/2 à 1/16). Les zooms réutilisent les textures et les raccords suivent la grille du document, même sur des dimensions impaires. Les piles trop lourdes ou incompatibles gardent leur repli CPU.

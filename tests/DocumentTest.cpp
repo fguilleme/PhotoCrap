@@ -42,6 +42,7 @@
 #include <QTemporaryDir>
 #include <QThreadPool>
 #include <QtTest>
+#include <cmath>
 #include <limits>
 
 class DocumentTest : public QObject
@@ -6279,6 +6280,207 @@ private slots:
         QCOMPARE(errors.size(), 1);
         QCOMPARE(d.layers().size(), 512);
         QCOMPARE(d.historyIndex(), history);
+    }
+    void shapeTileBordersKeepFillStrokeAndSelection()
+    {
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (const auto &tool : {"rectangle", "ellipse", "triangle", "polygon", "star", "line"})
+                for (int style = 0; style < 3; ++style) {
+                    Document d;
+                    QVERIFY(d.newDocument(523, 531, false, bits));
+                    d.setShapeNewLayer(false);
+                    d.setTool("ellipticalSelect");
+                    d.beginStroke(235, 233);
+                    d.continueStroke(293, 295);
+                    d.endStroke();
+                    d.modifySelection("feather", 2);
+                    d.setTool(tool);
+                    d.setShapeFillColor(QColor::fromRgba64(21984, 43210, 14321, 43000));
+                    d.setShapeStrokeColor(QColor(30, 80, 220, 180));
+                    d.setShapeStrokeWidth(style == 0 ? 14 : 3.5);
+                    d.setShapeStrokeStyle(style);
+                    d.setFilledShapes(style != 2);
+                    d.setShapeCornerRadius(7);
+                    d.setShapeAlignPixels(style != 1);
+                    d.setShapeSides(7);
+                    d.setShapeStarRatio(.2);
+                    d.setBrushOpacity(.63);
+                    const auto before  = d.layerImage(0);
+                    const auto history = d.historyIndex();
+                    d.beginStroke(246.25, 244.5);
+                    d.continueStroke(280.75, 276.25);
+                    d.continueStroke(270, 262);
+                    d.continueStroke(280.75, 276.25);
+                    d.endStroke();
+                    const auto after = d.layerImage(0);
+                    QVERIFY(after != before);
+                    QCOMPARE(after.format(), before.format());
+                    QCOMPARE(d.historyIndex(), history + 1);
+                    pixels.addData(QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                                  after.sizeInBytes()));
+                    for (const QRect &outside : QRegion(after.rect()) - QRegion(200, 200, 130, 130))
+                        QCOMPARE(after.copy(outside), before.copy(outside));
+                    d.undo();
+                    QCOMPARE(d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(d.layerImage(0), after);
+                }
+        qInfo() << "Shape pixels, thirty-six combinations" << pixels.result().toHex();
+    }
+    void regionalStarKeepsThickMiterJoins()
+    {
+        for (int bits : {8, 16})
+            for (bool reverse : {false, true}) {
+                Document d;
+                QVERIFY(d.newDocument(301, 289, true, bits));
+                d.setShapeNewLayer(false);
+                d.setTool("star");
+                d.setShapeSides(3);
+                d.setShapeStarRatio(.05);
+                d.setShapeStrokeWidth(40);
+                d.setShapeStrokeColor(Qt::blue);
+                d.setShapeFillColor(Qt::red);
+                d.setShapeAlignPixels(false);
+                const QPointF a      = reverse ? QPointF(200.4, 190.7) : QPointF(100.2, 90.3);
+                const QPointF b      = reverse ? QPointF(100.2, 90.3) : QPointF(200.4, 190.7);
+                const QRectF  bounds = QRectF(a, b).normalized();
+                QPolygonF     star;
+                for (int i = 0; i < 6; ++i) {
+                    const qreal scale = i % 2 ? .05 : 1.;
+                    const qreal angle = -M_PI_2 + i * M_PI / 3.;
+                    star.append(bounds.center() +
+                                QPointF(std::cos(angle) * bounds.width() * scale / 2.,
+                                        std::sin(angle) * bounds.height() * scale / 2.));
+                }
+                QImage   expected = d.layerImage(0);
+                QPainter painter(&expected);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setPen(QPen(Qt::blue, 40, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+                painter.setBrush(Qt::red);
+                painter.drawPolygon(star);
+                painter.end();
+                d.beginStroke(a.x(), a.y());
+                d.continueStroke(b.x(), b.y());
+                d.endStroke();
+                QCOMPARE(d.layerImage(0), expected);
+            }
+    }
+    void smallShapePreviewsKeepTwentyFourMegapixelPlanesCompact()
+    {
+        for (const auto &tool : {"rectangle", "ellipse", "triangle", "polygon", "star", "line"})
+            for (bool newLayer : {false, true}) {
+                Document d;
+                QVERIFY(d.newDocument(6000, 4000, true, 16));
+                d.setShapeNewLayer(newLayer);
+                d.setTool(tool);
+                d.setShapeFillColor(Qt::red);
+                d.setShapeStrokeColor(Qt::blue);
+                d.setShapeStrokeWidth(4);
+                const auto bytes   = d.memoryUsage()["layerBytes"].toLongLong();
+                const int  history = d.historyIndex();
+                d.beginStroke(100, 100);
+                d.continueStroke(140, 145);
+                d.continueStroke(120, 125);
+                QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= bytes + 256LL * 256 * 8);
+                d.continueStroke(100, 100); // Returning to the anchor erases the preview.
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), bytes + (newLayer ? 8 : 0));
+                d.endStroke();
+                QCOMPARE(d.layers().size(), 1);
+                QCOMPARE(d.historyIndex(), history);
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), bytes);
+                d.beginStroke(100, 100);
+                d.continueStroke(140, 145);
+                d.cancelStroke();
+                QCOMPARE(d.layers().size(), 1);
+                QCOMPARE(d.historyIndex(), history);
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), bytes);
+            }
+    }
+    void shrinkingShapePreviewInvalidatesItsPreviousFootprint()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(523, 531, true, bits));
+            d.setShapeNewLayer(false);
+            d.setTool("rectangle");
+            d.setShapeFillColor(Qt::red);
+            d.setShapeStrokeEnabled(false);
+            const QImage before = d.composite();
+            d.beginStroke(100, 100);
+            d.continueStroke(490, 495);
+            QVERIFY(d.composite().pixelColor(480, 480).alpha() > 0);
+            d.continueStroke(140, 145);
+            const QImage small = d.composite();
+            QCOMPARE(small, d.layerImage(0));
+            QCOMPARE(small.pixelColor(480, 480).alpha(), 0);
+            QVERIFY(small.pixelColor(120, 120).alpha() > 0);
+            d.continueStroke(100, 100);
+            QCOMPARE(d.composite(), before);
+            d.endStroke();
+            QCOMPARE(d.historyIndex(), 0);
+            d.beginStroke(100, 100);
+            d.continueStroke(140, 145);
+            QSignalSpy thumbnails(&d, &Document::thumbnailsChanged);
+            d.endStroke();
+            QCOMPARE(thumbnails.size(), 1);
+            QCOMPARE(d.composite(), small);
+            d.undo();
+            QCOMPARE(d.composite(), before);
+            d.redo();
+            QCOMPARE(d.composite(), small);
+        }
+    }
+    void selectedGradientMatchesFullImagePainter()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(523, 531, false, bits));
+            d.setTool("ellipticalSelect");
+            d.beginStroke(235, 233);
+            d.continueStroke(293, 295);
+            d.endStroke();
+            d.modifySelection("feather", 2);
+            const auto      before   = d.layerImage(0);
+            QImage          expected = before.copy();
+            const QColor    foreground(200, 40, 70, 180), background(20, 190, 150, 210);
+            QLinearGradient gradient(QPointF(246.25, 244.5), QPointF(280.75, 276.25));
+            gradient.setColorAt(0, foreground);
+            gradient.setColorAt(1, background);
+            QPainter painter(&expected);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setClipRegion(d.selectionRegion());
+            painter.setOpacity(.63);
+            painter.fillRect(expected.rect(), gradient);
+            painter.end();
+            SelectionCoverage::blend(expected, before, d.selectionMask(), expected.rect());
+            d.setTool("gradient");
+            d.setColor(foreground);
+            d.setSecondaryColor(background);
+            d.setBrushOpacity(.63);
+            const auto history = d.historyIndex();
+            d.beginStroke(246.25, 244.5);
+            d.continueStroke(280.75, 276.25);
+            d.endStroke();
+            QCOMPARE(d.layerImage(0), expected);
+            QCOMPARE(d.historyIndex(), history + 1);
+            d.undo();
+            QCOMPARE(d.layerImage(0), before);
+            d.redo();
+            QCOMPARE(d.layerImage(0), expected);
+        }
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        d.setTool("select");
+        d.beginStroke(100, 100);
+        d.continueStroke(132, 128);
+        d.endStroke();
+        d.setTool("gradient");
+        d.setColor(Qt::red);
+        d.beginStroke(100, 100);
+        d.continueStroke(132, 128);
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 8);
+        d.endStroke();
     }
     void shapePreviewIsSingleUndoOperation()
     {

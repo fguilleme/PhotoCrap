@@ -1,5 +1,18 @@
 # Validation
 
+## Aperçus régionaux de formes — 3 novembre 2026
+
+Les 36 combinaisons de six formes, trois contours et deux profondeurs conservent
+exactement l’empreinte de pixels de l’ancien rendu, sur une sélection elliptique
+progressive traversant les tuiles. Une référence QPainter pleine image vérifie
+les étoiles étroites à contour épais et leurs jointures, dans les deux directions.
+Le dégradé sélectionné correspond exactement à sa référence QPainter 8/16 bits.
+Les tests de 24 Mpx/16 bits bornent une petite forme ou un petit dégradé sélectionné
+à une nouvelle tuile de 512 Kio. Rétrécissement, retour à l’ancre, Annuler/Rétablir,
+annulation d’un calque créé et notification unique de miniature sont vérifiés.
+La marge tient compte du [miter limit Qt](https://doc.qt.io/qt-6/qpen.html#miterLimit)
+exprimé en largeurs de plume. Déplacement et dégradés pleine image restent complets.
+
 ## Pot de peinture asynchrone — 3 novembre 2026
 
 Les opérations complètes comptent maintenant 42 réussites : comparaisons exactes

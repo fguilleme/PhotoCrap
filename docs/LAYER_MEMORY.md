@@ -28,6 +28,13 @@ de sélection progressif est recadré à cette région. Le rendu conserve la pro
 native ; le changement d’origine du rasteriseur peut modifier légèrement
 l’anticrénelage d’un bord de courbe, sans agrandir les tampons au document entier.
 
+Les six formes géométriques relisent uniquement leur emprise dans un snapshot tuilé,
+avec une marge couvrant le contour et ses jointures. Chaque aperçu repart de la
+source et invalide l’union des anciennes/nouvelles emprises, sans recopier le calque.
+Le retour au point de départ retire l’aperçu et un éventuel calque vide. Le dégradé
+sélectionné suit le même chemin ; Déplacement et dégradé pleine image restent
+complets. Une petite forme sur 24 Mpx/16 bits ajoute au plus une tuile de 512 Kio.
+
 Le pot de peinture parcourt la composante contiguë avec des vues de tuiles natives
 partagées et une couverture de visite parcimonieuse de 256 × 256 en niveaux de
 gris. Une tuile absente se lit comme son pixel de fond uniforme ; les vues gardent

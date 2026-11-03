@@ -19,7 +19,9 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 Les calques, masques et sources de fréquences utilisent `PixelPlane`. Les outils
 à empreintes (pinceaux, retouches, tampons, formes d’historique et correcteurs)
 lisent et écrivent des régions directement ; leurs sources composées et les
-autres outils peuvent encore matérialiser un plan temporaire. Les tuiles identiques
+autres outils peuvent encore matérialiser un plan temporaire. Les formes géométriques
+et les dégradés sélectionnés prévisualisent aussi leur seule emprise. Déplacement
+et dégradés pleine image gardent leur chemin complet. Les tuiles identiques
 gardent leurs versions et leurs mappings lors des écritures régionales. Le budget de
 256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
 global. Le composite complet CPU, les sélections et les buffers temporaires

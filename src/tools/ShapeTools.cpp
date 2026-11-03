@@ -61,8 +61,105 @@ void Document::renderShape(const QPointF &_to)
         changed(false);
         return;
     }
-    if (m_tool != "move" && m_tool != "gradient" && _to == m_anchor)
+    const bool geometric = m_tool != "move" && m_tool != "gradient";
+    const bool regional  = geometric || (m_tool == "gradient" && hasSelection());
+    const auto draw      = [&](QPainter &painter) {
+        painter.setRenderHint(QPainter::Antialiasing);
+        if (hasSelection())
+            painter.setClipRegion(m_selectionRegion);
+        painter.setOpacity(m_brushOpacity);
+        if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
+            m_tool == "polygon" || m_tool == "star" || m_tool == "line") {
+            const auto penStyle = m_shapeStrokeStyle == 1   ? Qt::DashLine
+                                  : m_shapeStrokeStyle == 2 ? Qt::DotLine
+                                                            : Qt::SolidLine;
+            painter.setPen(m_shapeStrokeEnabled ? QPen(shapeStrokeColor(), m_shapeStrokeWidth,
+                                                       penStyle, Qt::SquareCap, Qt::MiterJoin)
+                                                : QPen(Qt::NoPen));
+            painter.setBrush(m_filledShapes ? QBrush(shapeFillColor()) : Qt::NoBrush);
+        } else
+            painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        QRectF rect = toolRectangle(m_anchor, _to, m_toolAlternate);
+        if (m_shapeAlignPixels &&
+            (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
+             m_tool == "polygon" || m_tool == "star" || m_tool == "line"))
+            rect = QRectF(qRound(rect.left()), qRound(rect.top()), qRound(rect.width()),
+                          qRound(rect.height()));
+        if (m_tool == "rectangle") {
+            const qreal radius = qMin(m_shapeCornerRadius, qMin(rect.width(), rect.height()) / 2.);
+            painter.drawRoundedRect(rect, radius, radius);
+        } else if (m_tool == "ellipse")
+            painter.drawEllipse(rect);
+        else if (m_tool == "triangle")
+            painter.drawPolygon(regularPolygon(rect, 3));
+        else if (m_tool == "polygon")
+            painter.drawPolygon(regularPolygon(rect, m_shapeSides));
+        else if (m_tool == "star")
+            painter.drawPolygon(regularPolygon(rect, m_shapeSides, m_shapeStarRatio));
+        else if (m_tool == "line") {
+            QPointF from = m_anchor;
+            QPointF to   = _to;
+            if (m_shapeAlignPixels) {
+                from = QPointF(qRound(from.x()), qRound(from.y()));
+                to   = QPointF(qRound(to.x()), qRound(to.y()));
+            }
+            painter.drawLine(from, to);
+        } else if (m_tool == "gradient") {
+            QLinearGradient gradient(m_anchor, _to);
+            gradient.setColorAt(0, m_color);
+            gradient.setColorAt(1, m_secondary);
+            painter.fillRect(QRect(QPoint{}, m_size), gradient);
+        }
+    };
+    if (regional) {
+        const QRect previous = m_strokeBounds.toAlignedRect();
+        QRect       bounds;
+        PixelPlane  next = m_strokePlaneBase;
+        if (!geometric || _to != m_anchor) {
+            const QPen pen(shapeStrokeColor(), m_shapeStrokeWidth, Qt::SolidLine, Qt::SquareCap,
+                           Qt::MiterJoin);
+            // Qt measures the miter limit in pen widths. Include the join and
+            // antialiasing fringe, even for narrow stars with a thick outline.
+            const int margin = m_shapeStrokeEnabled
+                                   ? qCeil(qMax(qreal(1), pen.widthF()) * pen.miterLimit()) + 4
+                                   : 4;
+            bounds           = geometric ? toolRectangle(m_anchor, _to, m_toolAlternate)
+                                               .toAlignedRect()
+                                               .adjusted(-margin, -margin, margin, margin)
+                                         : QRect(QPoint{}, m_size);
+            bounds           = bounds.intersected(QRect(QPoint{}, m_size));
+            if (hasSelection())
+                bounds = bounds.intersected(m_selectionRegion.boundingRect());
+            if (!bounds.isEmpty()) {
+                const QImage before = m_strokePlaneBase.region(bounds);
+                QImage       image  = before.copy();
+                if (image.isNull()) {
+                    cancelStroke();
+                    fail(tr("Mémoire insuffisante pour dessiner la forme."));
+                    return;
+                }
+                QPainter painter(&image);
+                painter.translate(-bounds.topLeft());
+                draw(painter);
+                painter.end();
+                SelectionCoverage::blend(image, before,
+                                         m_selectionMask.isNull() ? QImage{}
+                                                                  : m_selectionMask.copy(bounds),
+                                         image.rect());
+                if (!next.writeRegion(bounds.topLeft(), image, m_size)) {
+                    cancelStroke();
+                    fail(tr("Mémoire insuffisante pour dessiner la forme."));
+                    return;
+                }
+            }
+        }
+        m_layers[m_active].image = std::move(next);
+        m_strokeBounds           = bounds;
+        m_strokeChanged = m_layers[m_active].image.cacheKey() != m_strokePlaneBase.cacheKey();
+        m_dirtyRegion   = m_dirtyRegion.united(previous.united(bounds));
+        changed(false);
         return;
+    }
     const QImage sourceImage = ImageUtils::expandedPlane(m_strokeBase, m_size);
     if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
         _to != m_anchor) {
@@ -110,61 +207,10 @@ void Document::renderShape(const QPointF &_to)
         m_layers[m_active].image = result;
     } else {
         QPainter painter(&m_layers[m_active].image.edit());
-        painter.setRenderHint(QPainter::Antialiasing);
-        if (hasSelection())
-            painter.setClipRegion(m_selectionRegion);
-        painter.setOpacity(m_brushOpacity);
-        if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
-            m_tool == "polygon" || m_tool == "star" || m_tool == "line") {
-            const auto penStyle = m_shapeStrokeStyle == 1   ? Qt::DashLine
-                                  : m_shapeStrokeStyle == 2 ? Qt::DotLine
-                                                            : Qt::SolidLine;
-            painter.setPen(m_shapeStrokeEnabled ? QPen(shapeStrokeColor(), m_shapeStrokeWidth,
-                                                       penStyle, Qt::SquareCap, Qt::MiterJoin)
-                                                : QPen(Qt::NoPen));
-            painter.setBrush(m_filledShapes ? QBrush(shapeFillColor()) : Qt::NoBrush);
-        } else
-            painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        QRectF rect = toolRectangle(m_anchor, _to, m_toolAlternate);
-        if (m_shapeAlignPixels &&
-            (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
-             m_tool == "polygon" || m_tool == "star" || m_tool == "line"))
-            rect = QRectF(qRound(rect.left()), qRound(rect.top()), qRound(rect.width()),
-                          qRound(rect.height()));
-        if (m_tool == "rectangle") {
-            const qreal radius = qMin(m_shapeCornerRadius, qMin(rect.width(), rect.height()) / 2.);
-            painter.drawRoundedRect(rect, radius, radius);
-        } else if (m_tool == "ellipse")
-            painter.drawEllipse(rect);
-        else if (m_tool == "triangle")
-            painter.drawPolygon(regularPolygon(rect, 3));
-        else if (m_tool == "polygon")
-            painter.drawPolygon(regularPolygon(rect, m_shapeSides));
-        else if (m_tool == "star")
-            painter.drawPolygon(regularPolygon(rect, m_shapeSides, m_shapeStarRatio));
-        else if (m_tool == "line") {
-            QPointF from = m_anchor;
-            QPointF to   = _to;
-            if (m_shapeAlignPixels) {
-                from = QPointF(qRound(from.x()), qRound(from.y()));
-                to   = QPointF(qRound(to.x()), qRound(to.y()));
-            }
-            painter.drawLine(from, to);
-        } else if (m_tool == "gradient") {
-            QLinearGradient gradient(m_anchor, _to);
-            gradient.setColorAt(0, m_color);
-            gradient.setColorAt(1, m_secondary);
-            painter.fillRect(QRect(QPoint{}, m_size), gradient);
-        }
-    }
-    if (m_tool != "move") {
-        const int   margin = qCeil(qMax(m_shapeStrokeWidth, m_brushSize)) + 2;
-        const QRect bounds = m_tool == "gradient" ? QRect(QPoint{}, m_size)
-                                                  : toolRectangle(m_anchor, _to, m_toolAlternate)
-                                                        .toAlignedRect()
-                                                        .adjusted(-margin, -margin, margin, margin);
+        draw(painter);
+        painter.end();
         SelectionCoverage::blend(m_layers[m_active].image.edit(), sourceImage, m_selectionMask,
-                                 bounds);
+                                 QRect(QPoint{}, m_size));
     }
     m_strokeChanged      = true;
     m_fullCompositeDirty = true;

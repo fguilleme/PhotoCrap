@@ -26,6 +26,8 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Project I/O and export remain synchronous.
 
+Geometric shapes preview only their bounds and stroke margins; gradients restricted to a selection do the same. Shrinking a shape clears its previous preview, and returning to the anchor leaves no empty layer or history entry. Move and full-image gradients still use full-sized buffers.
+
 Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
 
 Eligible GPU stacks retain four reduced GPU levels (1/2 through 1/16). Zoom changes reuse textures and tile boundaries follow the document’s global sampling grid, including odd dimensions. Oversized or unsupported stacks retain the CPU fallback.

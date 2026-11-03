@@ -1,5 +1,24 @@
 # Validation
 
+## Placement régional des images importées — 3 novembre 2026
+
+Quarante combinaisons document/source 8/16 bits, dimensions de 1 × 1 à 800 × 600
+et DPR 1/2 (`@2x`) sont comparées à un QPainter indépendant sur canevas complet.
+Tous les pixels correspondent exactement, après conversion sRGB et format natif.
+Annuler/Rétablir conservent le résultat et l’unique étape d’import.
+
+Un PNG de 33 × 27 px dans un document transparent de 24 Mpx/16 bits utilise
+524 288 octets de tuiles natives, soit 512 Kio ; les deux plans gardent leur
+réservation logique de 384 000 000 octets. Le placement n’alloue plus son tampon
+natif à la taille du document. Cette mesure ne représente pas le RSS : décodeur,
+composite éventuel et promotion de profondeur sont distincts.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/photocrap_tests \
+  regionalLayerImportMatchesIndependentFullCanvasPainting \
+  smallImportIntoLargeDocumentAllocatesOnlyItsNativeTiles
+```
+
 ## Import asynchrone comme calque — 3 novembre 2026
 
 Douze cas combinent document/import 8 ou 16 bits et image plus petite, identique

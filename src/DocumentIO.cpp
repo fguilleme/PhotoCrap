@@ -191,6 +191,32 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
         const int bits = qMax(m_channelBits, ImageUtils::is16Bit(_image) ? 16 : 8);
         if (!validLayerStorage(width(), height(), 1, 0, bits))
             return false;
+        const auto format =
+            bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
+        PixelPlane target;
+        if (_image.size() == m_size && _image.devicePixelRatio() == 1.)
+            target = _image.convertToFormat(format);
+        else {
+            target = ImageUtils::blank({1, 1}, format);
+            const QPoint origin((width() - _image.width()) / 2, (height() - _image.height()) / 2);
+            const QSizeF logicalSize = QSizeF(_image.size()) / _image.devicePixelRatio();
+            const QRect  bounds      = QRectF(QPointF(origin), logicalSize)
+                                           .toAlignedRect()
+                                           .adjusted(-1, -1, 1, 1)
+                                           .intersected(QRect(QPoint{}, m_size));
+            if (!bounds.isEmpty()) {
+                QImage patch = ImageUtils::blank(bounds.size(), format);
+                if (patch.isNull())
+                    return fail(tr("Allocation des pixels impossible."));
+                QPainter painter(&patch);
+                painter.drawImage(origin - bounds.topLeft(), _image);
+                painter.end();
+                if (!target.writeRegion(bounds.topLeft(), patch, m_size))
+                    return fail(tr("Allocation des pixels impossible."));
+            }
+        }
+        if (target.isNull() || !operationStep(0, 1))
+            return false;
         edit(tr("Importer un calque"), [&] {
             m_channelBits = bits;
             for (auto &layer : m_layers) {
@@ -203,19 +229,10 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
             }
             if (!operationStep(0, 1))
                 return;
-            QImage target;
-            if (_image.size() == m_size && _image.devicePixelRatio() == 1.)
-                target = _image.convertToFormat(workingFormat());
-            else {
-                target = ImageUtils::blank(m_size, workingFormat());
-                QPainter painter(&target);
-                painter.drawImage((width() - _image.width()) / 2, (height() - _image.height()) / 2,
-                                  _image);
-                painter.end();
-            }
-            if (!operationStep(0, 1))
-                return;
-            m_layers.insert(++m_active, {QFileInfo(_url.toLocalFile()).completeBaseName(), target});
+            Layer layer;
+            layer.name  = QFileInfo(_url.toLocalFile()).completeBaseName();
+            layer.image = std::move(target);
+            m_layers.insert(++m_active, std::move(layer));
             selectOnly(m_active);
         });
         return true;

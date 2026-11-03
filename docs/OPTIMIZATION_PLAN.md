@@ -22,7 +22,8 @@ Les calques, masques et sources de fréquences utilisent `PixelPlane`. Les outil
 à empreintes (pinceaux, retouches, tampons, formes d’historique et correcteurs)
 lisent et écrivent des régions directement ; leurs sources composées et les
 autres outils peuvent encore matérialiser un plan temporaire. Les formes géométriques
-et les dégradés sélectionnés prévisualisent aussi leur seule emprise. Le déplacement d’une sélection traite séparément sa source et sa destination ;
+et les dégradés sélectionnés prévisualisent aussi leur seule emprise. Le placement
+des images importées est également régional, sur fond transparent compact. Le déplacement d’une sélection traite séparément sa source et sa destination ;
 les calques parcimonieux transparents se déplacent par tuiles et le texte est
 rasterisé dans son emprise utile. Les calques denses et les dégradés pleine image
 restent complets. Les tuiles identiques

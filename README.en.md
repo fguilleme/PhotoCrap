@@ -30,6 +30,8 @@ Geometric shapes preview only their bounds and stroke margins; gradients restric
 
 On reopening, nearly uniform layers and masks choose a compact background from their uniform tiles: only differing tiles are stored. A lightly retouched 24 MP/16-bit image and mask retain a 576 KiB layer-pixel footprint without a project format change. Decoders and the composite still have temporary allocations.
 
+Placing a small imported image also uses a native region and compact transparent background instead of a canvas-sized buffer. A 33 × 27 px import into a 24 MP/16-bit document occupies one 512 KiB tile; source decoding and bit-depth promotions can still use their own buffers.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

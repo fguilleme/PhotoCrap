@@ -19,6 +19,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Import d’images comme calques sur worker annulable : centrage, promotion
   native 8→16 bits, masques préservés et une seule étape d’historique.
 
+- [x] Placement des calques importés limité à leur emprise native ; petit import
+  dans un document 24 Mpx/16 bits : une tuile de 512 Kio, rendu QPainter inchangé.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

@@ -30,6 +30,8 @@ Les formes géométriques prévisualisent uniquement leur emprise, avec les marg
 
 À la réouverture, les calques et masques presque uniformes choisissent leur fond compact à partir des tuiles uniformes : seules les tuiles différentes sont stockées. Une image 24 Mpx/16 bits et son masque légèrement retouchés retrouvent ainsi une emprise de 576 Kio de pixels de calques, sans changement de format de projet. Les décodeurs et le composite conservent leurs allocations temporaires.
 
+Le placement d’une petite image importée utilise aussi une région native et un fond transparent compact, au lieu d’un tampon à la taille du canevas. Un import de 33 × 27 px dans un document de 24 Mpx/16 bits occupe une tuile de 512 Kio ; le décodage de l’image source et les promotions de profondeur peuvent encore utiliser leurs propres tampons.
+
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
 Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.

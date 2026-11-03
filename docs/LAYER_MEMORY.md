@@ -20,6 +20,14 @@ conversion QColor. Les métadonnées couleur, résolution et DPR sont conservée
 Cela évite de réallouer tout un masque blanc après quelques retouches lors de la
 réouverture d’un projet ; le décodage PNG matérialise encore un plan temporaire.
 
+Le placement d’un calque importé construit un fond transparent compact et peint
+uniquement l’intersection de l’image centrée avec le canevas, avec une marge de
+rasterisation. Les images de taille identique/DPR 1 gardent le chemin de conversion
+directe ; les autres conservent les coordonnées et le DPR du rendu QPainter
+précédent. Le résultat est transféré comme `PixelPlane`, sans conversion implicite
+vers une image complète lors de la construction du calque. Le codec source et
+les promotions des calques déjà présents peuvent encore demander des plans entiers.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

@@ -33,6 +33,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -277,6 +278,78 @@ private slots:
         d.undo();
         d.redo();
         QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 9);
+    }
+    void regionalLayerImportMatchesIndependentFullCanvasPainting()
+    {
+        QTemporaryDir directory;
+        for (int documentBits : {8, 16})
+            for (int imageBits : {8, 16})
+                for (bool retina : {false, true})
+                    for (const QSize size : {QSize(1, 1), QSize(33, 27), QSize(80, 60),
+                                             QSize(139, 97), QSize(800, 600)}) {
+                        QImage source(size, imageBits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                            : QImage::Format_ARGB32_Premultiplied);
+                        source.setColorSpace(QColorSpace::DisplayP3);
+                        for (int y = 0; y < size.height(); ++y)
+                            for (int x = 0; x < size.width(); ++x)
+                                source.setPixelColor(
+                                    x, y,
+                                    QColor::fromRgba64(ushort(x * 439), ushort(y * 587),
+                                                       ushort(x * 217 + y * 113),
+                                                       ushort(25000 + (x + y) % 40000)));
+                        const auto path =
+                            directory.filePath(retina ? "import@2x.png" : "import.png");
+                        QVERIFY(source.save(path));
+                        QImageReader reader(path);
+                        reader.setAutoTransform(true);
+                        QImage decoded = reader.read();
+                        QVERIFY(!decoded.isNull());
+                        decoded.convertToColorSpace(QColorSpace::SRgb);
+                        decoded.convertTo(ImageUtils::workingFormat(decoded));
+                        if (retina)
+                            QCOMPARE(decoded.devicePixelRatio(), 2.);
+                        const auto format   = qMax(documentBits, imageBits) == 16
+                                                  ? QImage::Format_RGBA64_Premultiplied
+                                                  : QImage::Format_ARGB32_Premultiplied;
+                        QImage     expected = ImageUtils::blank({80, 60}, format);
+                        QPainter   painter(&expected);
+                        painter.drawImage((80 - decoded.width()) / 2, (60 - decoded.height()) / 2,
+                                          decoded);
+                        painter.end();
+                        Document d;
+                        d.setBackgroundEditThreshold(-1);
+                        QVERIFY(d.newDocument(80, 60, true, documentBits));
+                        QVERIFY(d.importLayer(QUrl::fromLocalFile(path)));
+                        QCOMPARE(d.layerImage(d.activeLayer()), expected);
+                        QCOMPARE(d.historyIndex(), 1);
+                        d.undo();
+                        QCOMPARE(d.layers().size(), 1);
+                        d.redo();
+                        QCOMPARE(d.layerImage(d.activeLayer()), expected);
+                    }
+    }
+    void smallImportIntoLargeDocumentAllocatesOnlyItsNativeTiles()
+    {
+        QTemporaryDir directory;
+        const auto    path = directory.filePath("small.png");
+        QImage        source(33, 27, QImage::Format_RGBA64_Premultiplied);
+        source.fill(QColor::fromRgba64(14321, 32123, 54321, 41234));
+        source.setColorSpace(QColorSpace::SRgb);
+        QVERIFY(source.save(path));
+        Document d;
+        d.setBackgroundEditThreshold(-1);
+        QVERIFY(d.newDocument(6000, 4000, true, 16));
+        QVERIFY(d.importLayer(QUrl::fromLocalFile(path)));
+        const auto usage = d.memoryUsage();
+        qInfo() << "Small imported image in 24 MP / 16 bit:" << usage;
+        QVERIFY(usage["layerBytes"].toLongLong() <= 256LL * 256 * 8 + 32);
+        QVERIFY(usage["tileHeapBytes"].toLongLong() <= 256LL * 256 * 8);
+        QCOMPARE(d.historyIndex(), 1);
+        d.undo();
+        QCOMPARE(d.layers().size(), 1);
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 32);
+        d.redo();
+        QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 256LL * 256 * 8 + 32);
     }
     void sparseLargeProjectReloadPreservesCompactTileFootprints()
     {

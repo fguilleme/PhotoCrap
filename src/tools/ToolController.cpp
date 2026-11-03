@@ -224,17 +224,6 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_redEyeRegion = {};
         emit redEyeRegionChanged();
     } else if (isPaintStrokeTool(m_tool)) {
-        const bool regionalPaint =
-            m_tool == "brush" || m_tool == "pencil" || m_tool == "eraser" || m_tool == "blur" ||
-            m_tool == "sharpen" || m_tool == "dodge" || m_tool == "burn" || m_tool == "sponge" ||
-            m_tool == "cloneStamp" || m_tool == "patternStamp" || m_tool == "smudge" ||
-            m_tool == "colorReplacement" || m_tool == "historyBrush" ||
-            m_tool == "artHistoryBrush" || m_tool == "mixerBrush";
-        QImage *target = regionalPaint ? nullptr : paintTarget();
-        if (!regionalPaint && !target) {
-            m_drawing = false;
-            return;
-        }
         if ((m_tool == "cloneStamp" || m_tool == "patternStamp") && !prepareStampStroke()) {
             m_drawing      = false;
             m_beforeStroke = {};
@@ -252,11 +241,8 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             return;
         }
         m_artHistoryDabIndex = 0;
-        if (regionalPaint)
-            m_strokePlaneBase = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
-        else
-            m_strokeBase = *target;
-        m_strokeInkColor = m_color;
+        m_strokePlaneBase    = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+        m_strokeInkColor     = m_color;
         if (m_tool == "colorReplacement") {
             const QPoint sample(int(std::floor(_x)), int(std::floor(_y)));
             const QPoint stored = m_strokePlaneBase.size() == QSize(1, 1) ? QPoint{} : sample;
@@ -280,15 +266,11 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         }
         m_tiledStrokeCoverage  = {};
         m_strokeCoverageFailed = false;
-        if (regionalPaint && m_tool != "smudge" && m_tool != "mixerBrush") {
-            m_strokeCoverage       = {};
+        if (m_tool != "smudge" && m_tool != "mixerBrush" && m_tool != "healing" &&
+            m_tool != "spotHealing") {
             m_tiledStrokeCoverage  = TiledImage(m_size, workingFormat(), Qt::transparent);
             m_strokeCoverageFailed = m_tiledStrokeCoverage.isNull();
-        } else
-            m_strokeCoverage = (m_tool == "smudge" || m_tool == "mixerBrush" ||
-                                m_tool == "healing" || m_tool == "spotHealing")
-                                   ? QImage{}
-                                   : ImageUtils::blank(m_size, workingFormat());
+        }
         if (m_tool == "spotHealing")
             prepareSpotHealingStroke();
         if (m_tool == "smudge")
@@ -520,7 +502,6 @@ void Document::endStroke()
     m_strokeCreatedLayer   = false;
     m_strokeBase           = {};
     m_strokePlaneBase      = {};
-    m_strokeCoverage       = {};
     m_tiledStrokeCoverage  = {};
     m_strokeCoverageFailed = false;
     m_strokeBounds         = {};
@@ -595,7 +576,6 @@ void Document::cancelStroke()
     m_strokeCreatedLayer   = false;
     m_strokeBase           = {};
     m_strokePlaneBase      = {};
-    m_strokeCoverage       = {};
     m_tiledStrokeCoverage  = {};
     m_strokeCoverageFailed = false;
     m_strokeBounds         = {};

@@ -1,5 +1,32 @@
 # Validation
 
+## Bilan des outils à empreintes — 3 novembre 2026
+
+- Build complet Qt 6.12 et 49/49 suites hors contrôles natifs macOS réussies,
+  après la migration et les correctifs des plans uniformes.
+- Build de l’application et suite moteur Qt 6.8.3 : 249 réussites, aucun échec,
+  un test de charge optionnel ignoré. Les contrôles de plans tuilés passent aussi
+  sur les deux versions de Qt.
+- Canevas et composition de pile contrôlés sur Cocoa/Metal matériel avec les
+  nouvelles lectures/écritures de plans ; les deux tests réussissent.
+- Les comparaisons avant/après conservent les pixels des modes déjà corrects ;
+  la couverture de retouche 16 bits et les régions uniformes d’un pixel ont leurs
+  tests de reproduction. Les tests 24 Mpx vérifient les allocations régionales,
+  sans prétendre mesurer toute la RAM résidente du processus.
+
+## Correcteurs régionaux — 3 novembre 2026
+
+Les seize combinaisons des deux correcteurs et de leurs huit modes produisent
+la même empreinte de pixels qu’avant migration : geste fractionnaire traversant
+les tuiles avec sélection progressive. Diffusion, alignement, sources composées,
+recherche de donneurs, exclusion des zones déjà traitées, verrouillage et absence
+d’historique sans effet restent couverts. Sur 24 Mpx/8 bits, chaque correcteur
+modifie réellement les pixels avec au plus une tuile de destination de 256 Kio,
+sans couverture pleine image ; Annuler restitue le patch original.
+
+L’ancienne couverture raster du document est retirée du contrôleur commun des
+outils à empreintes : ils passent tous par les tuiles ou par leur pointe locale.
+
 ## Pinceau mélangeur régional — 3 novembre 2026
 
 Les quatre préréglages reproduisent exactement l’empreinte de pixels précédente

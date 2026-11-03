@@ -531,8 +531,7 @@ QVariantMap Document::memoryUsage() const
             {"reservedLayerBytes",
              DocumentStorage::estimateBytes(width(), height(), colors, masks, m_channelBits)},
             {"frequencyCacheBytes", qint64(m_frequencyCache.totalCost()) * 1024},
-            {"strokeCoverageBytes",
-             m_strokeCoverage.sizeInBytes() + m_tiledStrokeCoverage.allocatedBytes()},
+            {"strokeCoverageBytes", m_tiledStrokeCoverage.allocatedBytes()},
             {"strokeCoverageTiles", m_tiledStrokeCoverage.tileCount()}};
 }
 void Document::configureScratchCache(const QString &_directory, qint64 _maxBytes)
@@ -713,7 +712,6 @@ void Document::resetHistory(bool _clean)
     m_beforeLayerPreview      = {};
     m_strokeBase              = {};
     m_strokePlaneBase         = {};
-    m_strokeCoverage          = {};
     m_tiledStrokeCoverage     = {};
     m_strokeCoverageFailed    = false;
     m_strokeBounds            = {};

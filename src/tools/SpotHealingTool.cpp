@@ -25,6 +25,8 @@ void Document::prepareSpotHealingStroke()
     m_spotHealingSample   = sampleHealingLayers(m_spotHealingSampleAllLayers ? 2 : 0, false);
     m_spotHealingTip      = makeHealingTip();
     m_spotHealingExcluded = {};
+    if (m_spotHealingSample.isNull() || m_spotHealingTip.isNull())
+        m_strokeCoverageFailed = true;
 }
 
 void Document::spotHealingDab(const QPointF &_point)
@@ -34,10 +36,21 @@ void Document::spotHealingDab(const QPointF &_point)
     const QPoint centre(qFloor(_point.x()), qFloor(_point.y()));
     const int    side = m_spotHealingTip.width();
     const QRect  dab(centre - QPoint(side / 2, side / 2), QSize(side, side));
-    if (!dab.intersects(m_spotHealingSample.rect()) ||
-        (hasSelection() && !m_selectionRegion.intersects(dab)))
+    const QRect  documentRect(QPoint{}, m_size);
+    if (!dab.intersects(documentRect) || (hasSelection() && !m_selectionRegion.intersects(dab)))
         return;
     m_spotHealingExcluded |= dab;
+    // Every candidate lies within 2.6 tip widths; include its interior and rim.
+    // Read this bounded neighbourhood once instead of mapping a full plane.
+    const int   reach = qCeil(3.2 * side) + 3;
+    const QRect sourceBounds =
+        QRect(centre - QPoint(reach, reach), QSize(2 * reach + 1, 2 * reach + 1))
+            .intersected(documentRect);
+    const QImage sourcePatch = m_spotHealingSample.region(sourceBounds);
+    if (sourcePatch.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
 
     // Proximity match: bounded local patch search, comparing the healthy rim
     // rather than the defect at the centre. No document-wide scan or mask.
@@ -60,8 +73,7 @@ void Document::spotHealingDab(const QPointF &_point)
             const QPoint offset(qRound(distance * std::cos(theta)),
                                 qRound(distance * std::sin(theta)));
             const QRect  sourceRect = dab.translated(offset);
-            if (!m_spotHealingSample.rect().contains(sourceRect) ||
-                m_spotHealingExcluded.intersects(sourceRect))
+            if (!documentRect.contains(sourceRect) || m_spotHealingExcluded.intersects(sourceRect))
                 continue;
 
             // Don't copy transparent holes into a repair on an empty retouch
@@ -72,7 +84,8 @@ void Document::spotHealingDab(const QPointF &_point)
             for (int y = -2; y <= 2 && opaque; ++y)
                 for (int x = -2; x <= 2; ++x) {
                     const QPoint probe = centre + offset + QPoint(x * side / 6, y * side / 6);
-                    const QRgb   pixel = qUnpremultiply(m_spotHealingSample.pixel(probe));
+                    const QRgb   pixel =
+                        qUnpremultiply(sourcePatch.pixel(probe - sourceBounds.topLeft()));
                     if (qAlpha(pixel) != 255) {
                         opaque = false;
                         break;
@@ -92,10 +105,12 @@ void Document::spotHealingDab(const QPointF &_point)
             int                  count      = 0;
             for (const QPoint &delta : rim) {
                 const QPoint reference = centre + delta;
-                if (!m_spotHealingSample.rect().contains(reference))
+                if (!documentRect.contains(reference))
                     continue;
-                const QRgb before = qUnpremultiply(m_spotHealingSample.pixel(reference));
-                const QRgb source = qUnpremultiply(m_spotHealingSample.pixel(reference + offset));
+                const QRgb before =
+                    qUnpremultiply(sourcePatch.pixel(reference - sourceBounds.topLeft()));
+                const QRgb source =
+                    qUnpremultiply(sourcePatch.pixel(reference + offset - sourceBounds.topLeft()));
                 if (!qAlpha(before) || qAlpha(source) != 255)
                     continue;
                 const int red   = qRed(source) - qRed(before);

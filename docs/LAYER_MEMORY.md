@@ -4,10 +4,12 @@
 
 `PixelPlane` stocke désormais les plans de calques, masques et sources de fréquences
 et leurs versions d’historique dans `TiledImage`. Les tuiles inchangées sont partagées ;
-les écritures régionales du Pinceau, Crayon, Gomme, Flou, Netteté, Densité −/+
-et Éponge créent uniquement les versions touchées. Le composite CPU lit les régions nécessaires sans retenir de
-copie complète du calque. Les autres outils, transformations, filtres et sauvegardes
-peuvent encore matérialiser une image complète temporaire.
+les outils à empreintes créent uniquement les versions touchées : Pinceau, Crayon,
+Gomme, Flou, Netteté, Densité −/+, Éponge, tampons, Doigt, Remplacement de couleur,
+Pinceau mélangeur, formes d’historique et correcteurs. Le composite CPU lit les
+régions nécessaires sans retenir de copie complète du calque. Les autres outils,
+transformations, filtres et sauvegardes peuvent encore matérialiser une image
+complète temporaire. Les profondeurs prises en charge par chaque outil ne changent pas.
 
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
@@ -86,6 +88,15 @@ régionale sur pixels/masques. Le prélèvement Alt-clic, uni ou multicolore, ne
 matérialise plus le calque ; seuls le réservoir et l’empreinte sont préparés.
 Les modes de mélange, la reprise et l’épuisement de la charge sont conservés.
 L’échantillonnage de tous les calques garde son composite complet par geste.
+
+Les deux correcteurs conservent la source du calque actif par versions de tuiles.
+La diffusion lit ses deux empreintes, puis écrit seulement le rectangle réellement
+modifié. Le Correcteur localisé lit une région bornée couvrant ses candidats
+donneurs, leurs intérieurs et leurs contours, sans reconstruire le plan complet.
+Leurs modes composés préparent encore un composite natif une fois par geste.
+Le contrôleur n’a plus de couverture pleine image ni de destination pleine image
+pour les outils à empreintes ; les outils sans couverture cumulative ne gardent
+que leur pointe locale.
 
 La Forme d’historique conserve le plan source par versions de tuiles, même lorsque
 son état n’appartient plus à la branche d’historique courante. Couverture, source,

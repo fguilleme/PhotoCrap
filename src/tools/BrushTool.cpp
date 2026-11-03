@@ -18,7 +18,7 @@ void Document::paintSegment(const QPointF &_from, const QPointF &_to)
 {
     Q_UNUSED(_from)
     if (m_tool != "smudge" && m_tool != "mixerBrush" && m_tool != "healing" &&
-        m_tool != "spotHealing" && m_strokeCoverage.isNull() && m_tiledStrokeCoverage.isNull())
+        m_tool != "spotHealing" && m_tiledStrokeCoverage.isNull())
         return;
     m_strokeBounds = {};
     if (m_anchor == _to && !m_strokeChanged)
@@ -105,13 +105,8 @@ void Document::stampBrush(const QPointF &_point)
         _painter.setPen(Qt::NoPen);
         _painter.drawEllipse(QPointF{}, radius, radius);
     };
-    if (!m_tiledStrokeCoverage.isNull())
-        m_strokeCoverageFailed =
-            !m_tiledStrokeCoverage.paintTransient(dabBounds.toAlignedRect(), paintDab);
-    else {
-        QPainter painter(&m_strokeCoverage);
-        paintDab(painter);
-    }
+    m_strokeCoverageFailed =
+        !m_tiledStrokeCoverage.paintTransient(dabBounds.toAlignedRect(), paintDab);
     m_strokeBounds = m_strokeBounds.isEmpty() ? dabBounds : m_strokeBounds.united(dabBounds);
 }
 void Document::renderBrushStroke()
@@ -145,8 +140,7 @@ void Document::renderBrushStroke()
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
-    const QImage coverage = m_tiledStrokeCoverage.isNull() ? m_strokeCoverage.copy(region)
-                                                           : m_tiledStrokeCoverage.region(region);
+    const QImage coverage = m_tiledStrokeCoverage.region(region);
     if (coverage.isNull()) {
         m_strokeCoverageFailed = true;
         return;

@@ -3361,6 +3361,93 @@ private slots:
         QCOMPARE(d.layerImage(0), before);
     }
 
+    void healingSourcesAndWritesAllocateOnlyLocalTiles()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false));
+        d.setColor(Qt::black);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto before = d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30});
+        d.setHealingSource(80, 80);
+        d.setHealingMode(1);
+        d.setSpotHealingMode(1);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        for (const auto &tool : {"healing", "spotHealing"}) {
+            d.setTool(tool);
+            const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+            d.beginStroke(100, 100);
+            d.continueStroke(110, 110);
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 4);
+            QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(0));
+            d.endStroke();
+            const auto after = d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30});
+            QVERIFY(after != before);
+            d.undo();
+            QCOMPARE(d.gpuLayerStack().layers.first().image.region({90, 90, 30, 30}), before);
+        }
+        QCOMPARE(errors.size(), 0);
+    }
+    void healingTileBordersKeepDiffusionAndDonors()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage image(523, 531, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                image.setPixelColor(x, y, QColor(130 + y % 13, 140 + y % 17, 150 + x % 7));
+        {
+            QPainter p(&image);
+            p.fillRect(251, 249, 7, 7, Qt::black);
+        }
+        const auto url = QUrl::fromLocalFile(directory.filePath("healing-regional.png"));
+        QVERIFY(image.save(url.toLocalFile()));
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (const auto &tool : {"healing", "spotHealing"})
+            for (int mode = 0; mode < 8; ++mode) {
+                Document d;
+                QVERIFY(d.openFile(url));
+                const auto before = d.layerImage(0);
+                d.setTool("ellipticalSelect");
+                d.beginStroke(240, 239);
+                d.continueStroke(290, 285);
+                d.endStroke();
+                d.modifySelection("feather", 2);
+                d.setTool(tool);
+                d.setHealingMode(mode);
+                d.setSpotHealingMode(mode);
+                d.setHealingDiffusion(4);
+                d.setHealingSource(90, 90);
+                d.setBrushSize(27);
+                d.setBrushHardness(.51);
+                d.setBrushFlow(.57);
+                d.setBrushOpacity(.63);
+                d.setBrushSmoothing(0);
+                const auto history = d.historyIndex();
+                d.beginStroke(253.25, 251.75);
+                d.continueStroke(271.5, 266.25);
+                d.endStroke();
+                const auto after = d.layerImage(0);
+                pixels.addData(QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                              after.sizeInBytes()));
+                for (const QRect &outside : QRegion(after.rect()) - QRegion(230, 230, 65, 65))
+                    QCOMPARE(after.copy(outside), before.copy(outside));
+                if (after != before) {
+                    QCOMPARE(d.historyIndex(), history + 1);
+                    d.undo();
+                    QCOMPARE(d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(d.layerImage(0), after);
+                } else
+                    QCOMPARE(d.historyIndex(), history);
+                d.beginStroke(260, 260);
+                d.cancelStroke();
+                QCOMPARE(d.layerImage(0), after);
+            }
+        qInfo() << "Healing pixels, sixteen combinations" << pixels.result().toHex();
+    }
     void spotHealingAutomaticallyRepairsLocallyAndUndoes()
     {
         QTemporaryDir dir;

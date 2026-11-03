@@ -14,11 +14,19 @@ struct ToneField {
     QVector<Tone> values;
 };
 
-QImage patchAt(const QImage &_image, const QRect &_rect)
+QImage patchAt(const PixelPlane &_image, const QRect &_rect, const QSize &_size)
 {
-    QImage   patch = ImageUtils::blank(_rect.size());
-    QPainter painter(&patch);
-    painter.drawImage(-_rect.topLeft(), _image);
+    QImage patch = ImageUtils::blank(_rect.size());
+    if (patch.isNull())
+        return {};
+    const QRect region = _rect.intersected(QRect(QPoint{}, _size));
+    if (!region.isEmpty()) {
+        const QImage pixels = _image.region(region);
+        if (pixels.isNull())
+            return {};
+        QPainter painter(&patch);
+        painter.drawImage(region.topLeft() - _rect.topLeft(), pixels);
+    }
     return patch;
 }
 
@@ -179,15 +187,19 @@ bool Document::prepareHealingStroke()
     }
     m_healingSample = sampleHealingLayers(m_healingSampleMode, m_healingIgnoreAdjustments);
     m_healingTip    = makeHealingTip();
+    if (m_healingSample.isNull() || m_healingTip.isNull()) {
+        finishHealingStroke(true);
+        return fail(tr("Mémoire insuffisante pour la couverture du trait."));
+    }
     return true;
 }
 
-QImage Document::sampleHealingLayers(int _sampleMode, bool _ignoreAdjustments)
+PixelPlane Document::sampleHealingLayers(int _sampleMode, bool _ignoreAdjustments)
 {
     // A shared, fixed source per gesture prevents overlapping edits feeding
     // back into the sample. All-layer composition occurs once, never per dab.
     if (_sampleMode == 0)
-        return *paintTarget();
+        return m_layers[m_active].image;
     else if (_sampleMode == 2 && !_ignoreAdjustments)
         return composite();
     else {
@@ -204,7 +216,9 @@ QImage Document::makeHealingTip() const
 {
     const int size = qCeil(m_brushSize) + 4;
     QImage    tip  = ImageUtils::blank(QSize(size, size));
-    QPainter  painter(&tip);
+    if (tip.isNull())
+        return {};
+    QPainter painter(&tip);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.translate(size / 2., size / 2.);
     painter.rotate(m_brushAngle);
@@ -230,23 +244,26 @@ void Document::healingDab(const QPointF &_point)
                     m_healingDiffusion);
 }
 
-void Document::applyHealingDab(const QPointF &_point, const QImage &_sample, const QImage &_tip,
+void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample, const QImage &_tip,
                                const QPoint &_sourceOffset, int _mode, int _diffusion,
                                bool _selectionBoundary)
 {
-    QImage *target = paintTarget();
-    if (!target || _sample.isNull() || m_brushFlow <= 0 || m_brushOpacity <= 0)
+    if (_sample.isNull() || _tip.isNull() || m_brushFlow <= 0 || m_brushOpacity <= 0)
         return;
     const int   size = _tip.width();
     const QRect dab(qFloor(_point.x()) - size / 2, qFloor(_point.y()) - size / 2, size, size);
-    QRect       region = dab.intersected(target->rect());
+    QRect       region = dab.intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
         region = region.intersected(m_selectionRegion.boundingRect());
     if (region.isEmpty())
         return;
-    const QRect     sourceRect(dab.topLeft() + _sourceOffset, dab.size());
-    const QImage    sampled   = patchAt(_sample, sourceRect);
-    const QImage    reference = patchAt(_sample, dab);
+    const QRect  sourceRect(dab.topLeft() + _sourceOffset, dab.size());
+    const QImage sampled   = patchAt(_sample, sourceRect, m_size);
+    const QImage reference = patchAt(_sample, dab, m_size);
+    if (sampled.isNull() || reference.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     const ToneField field =
         _mode == 1 ? ToneField{0, {}}
                    : boundaryTone(sampled, reference, m_selectionRegion.translated(-dab.topLeft()),
@@ -254,6 +271,10 @@ void Document::applyHealingDab(const QPointF &_point, const QImage &_sample, con
                                   m_brushRoundness);
     const QPoint offset = region.topLeft() - dab.topLeft();
     QImage       healed = ImageUtils::blank(region.size());
+    if (healed.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     for (int y = 0; y < region.height(); ++y) {
         const auto *source = reinterpret_cast<const QRgb *>(sampled.constScanLine(offset.y() + y));
         auto       *paint  = reinterpret_cast<QRgb *>(healed.scanLine(y));
@@ -271,10 +292,15 @@ void Document::applyHealingDab(const QPointF &_point, const QImage &_sample, con
                                           qAlpha(colour)));
         }
     }
-    QImage output = target->copy(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage output = m_layers[m_active].image.region(region).convertToFormat(
+        QImage::Format_ARGB32_Premultiplied);
     static constexpr int modes[]{0, 0, 3, 8, 2, 7, 25, 26};
     const QImage effect = _mode == 1 ? healed : blendImages(output, healed, modes[_mode], 1.);
-    QRect        modified;
+    if (output.isNull() || effect.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
+    QRect modified;
     for (int y = 0; y < region.height(); ++y) {
         auto       *destination = reinterpret_cast<QRgb *>(output.scanLine(y));
         const auto *paint       = reinterpret_cast<const QRgb *>(effect.constScanLine(y));
@@ -300,10 +326,10 @@ void Document::applyHealingDab(const QPointF &_point, const QImage &_sample, con
     if (modified.isEmpty())
         return;
     const QRect dirty = modified.translated(region.topLeft());
-    QPainter    painter(target);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.drawImage(dirty.topLeft(), output, modified);
-    painter.end();
+    if (!m_layers[m_active].image.writeRegion(dirty.topLeft(), output.copy(modified), m_size)) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(dirty) : m_strokeBounds.united(dirty);
     m_dirtyRegion  = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
 }

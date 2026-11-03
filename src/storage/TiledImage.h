@@ -40,6 +40,9 @@ public:
     QHash<qint64, qint64> heapBlocks() const;
     QByteArray            regionKey(const QRect &_region) const;
     QImage                region(const QRect &_region) const;
+    // Read-only snapshot; absent tiles return the compact uniform background.
+    // QImage's copy-on-write keeps caller edits separate from the stored plane.
+    QImage tileImage(int _column, int _row) const;
     // Nearest-neighbor reductions read only sampled pixels; upscales use Qt.
     QImage scaledFast(const QSize &_size) const;
     bool   paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);

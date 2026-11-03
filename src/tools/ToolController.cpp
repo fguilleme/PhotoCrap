@@ -475,8 +475,9 @@ void Document::endStroke()
             emit selectionChanged();
         }
         commit(m_beforeStroke, toolLabel(m_tool),
-               m_strokeCreatedLayer || (!isPaintStrokeTool(m_tool) && m_tool != "redEye"));
-        if (isPaintStrokeTool(m_tool) || m_tool == "redEye") {
+               m_strokeCreatedLayer ||
+                   (!isPaintStrokeTool(m_tool) && m_tool != "redEye" && m_tool != "fill"));
+        if (isPaintStrokeTool(m_tool) || m_tool == "redEye" || m_tool == "fill") {
             ++m_thumbnailRevision;
             emit thumbnailsChanged();
         }

@@ -58,6 +58,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp
     src/tools/FillTool.cpp
+    src/tools/FloodFill.cpp
+    src/tools/FloodFill.h
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
     src/tools/ToolLayerCreation.cpp
@@ -342,6 +344,8 @@ qt_add_library(photocrap_core STATIC
     src/DocumentGpuPreview.cpp
     src/tools/BrushTool.cpp
     src/tools/FillTool.cpp
+    src/tools/FloodFill.cpp
+    src/tools/FloodFill.h
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
     src/tools/ToolLayerCreation.cpp

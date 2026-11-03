@@ -9,11 +9,52 @@
 #include <QTemporaryDir>
 #include <QtConcurrent>
 #include <QtTest>
+#include <limits>
 
 class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void borrowedTileImagesKeepSnapshotsAndDiskLeases()
+    {
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            TiledImage empty({6000, 4000}, format, Qt::white);
+            QCOMPARE(empty.tileImage(5, 5).size(), QSize(1, 1));
+            QCOMPARE(empty.tileCount(), 0);
+            QCOMPARE(empty.allocatedBytes(), qint64(0));
+            QVERIFY(empty.tileImage(-1, 0).isNull());
+            QVERIFY(empty.tileImage(std::numeric_limits<int>::max(), 0).isNull());
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+            TiledImage        plane({768, 512}, format, Qt::white);
+            QVERIFY(plane.paint({4, 4, 12, 12},
+                                [](QPainter &p) { p.fillRect(4, 4, 12, 12, Qt::red); }));
+            const QImage original = plane.tileImage(0, 0);
+            QCOMPARE(original.constBits(), plane.tileImage(0, 0).constBits());
+            QVERIFY(plane.offload(cache));
+            QCOMPARE(plane.heapBytes(), qint64(0));
+            const QImage mapped   = plane.tileImage(0, 0);
+            QImage       writable = mapped;
+            writable.setPixelColor(5, 5, Qt::blue);
+            QCOMPARE(plane.region({5, 5, 1, 1}).pixelColor(0, 0), mapped.pixelColor(5, 5));
+            const auto before = plane;
+            QVERIFY(plane.paint({4, 4, 12, 12},
+                                [](QPainter &p) { p.fillRect(4, 4, 12, 12, Qt::green); }));
+            cache.clear();
+            QCOMPARE(before.region({5, 5, 1, 1}).pixelColor(0, 0), original.pixelColor(5, 5));
+            QCOMPARE(mapped.pixelColor(5, 5), original.pixelColor(5, 5));
+            QVERIFY(plane.region({5, 5, 1, 1}).pixelColor(0, 0) != original.pixelColor(5, 5));
+            QImage pixel(1, 1, format);
+            pixel.fill(Qt::black);
+            PixelPlane tiny(pixel);
+            pixel.fill(Qt::red);
+            QVERIFY(tiny.writeRegion({}, pixel, {1, 1}));
+            QCOMPARE(tiny.tileImage(7, 3).pixelColor(0, 0), pixel.pixelColor(0, 0));
+            QCOMPARE(tiny.region({123, 123, 1, 1}).pixelColor(0, 0), pixel.pixelColor(0, 0));
+        }
+    }
     void identicalWritesKeepMappedTilesAndOnlyChangedTilesDetach()
     {
         for (auto format : {QImage::Format_ARGB32_Premultiplied,

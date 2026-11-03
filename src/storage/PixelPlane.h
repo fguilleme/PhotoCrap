@@ -165,15 +165,26 @@ public:
     QImage region(const QRect &r) const
     {
         if (size() == QSize(1, 1) && r != rect()) {
+            const QImage pixel = tileImage(0, 0);
+            if (pixel.isNull())
+                return {};
             QImage image(r.size(), format());
-            image.fill(pixelColor(0, 0));
-            image.setColorSpace(colorSpace());
-            image.setDevicePixelRatio(m_image.devicePixelRatio());
-            image.setDotsPerMeterX(m_image.dotsPerMeterX());
-            image.setDotsPerMeterY(m_image.dotsPerMeterY());
+            image.fill(pixel.pixelColor(0, 0));
+            image.setColorSpace(pixel.colorSpace());
+            image.setDevicePixelRatio(pixel.devicePixelRatio());
+            image.setDotsPerMeterX(pixel.dotsPerMeterX());
+            image.setDotsPerMeterY(pixel.dotsPerMeterY());
             return image;
         }
         return copy(r);
+    }
+    QImage tileImage(int column, int row) const
+    {
+        if (column < 0 || row < 0)
+            return {};
+        if (size() == QSize(1, 1))
+            return m_image.isNull() ? m_tiles.tileImage(0, 0) : m_image;
+        return freeze() ? m_tiles.tileImage(column, row) : QImage{};
     }
     QByteArray regionKey(const QRect &r) const
     {

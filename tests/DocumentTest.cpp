@@ -24,6 +24,8 @@
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
+#include "storage/ScratchImageCache.h"
+#include "tools/FloodFill.h"
 #include "tools/RegionHealing.h"
 #include <QBuffer>
 #include <QCryptographicHash>
@@ -6348,6 +6350,150 @@ private slots:
         QVERIFY(center.green() > 180);
         QVERIFY(center.red() < 80);
         QCOMPARE(d.historyIndex(), 1);
+    }
+    void bucketFillInvalidatesOnlyItsComponentAndUpdatesThumbnails()
+    {
+        Document d;
+        QVERIFY(d.newDocument(80, 60, false, 16));
+        d.setColor(Qt::red);
+        d.setBrushSize(16);
+        d.setBrushHardness(1);
+        d.beginStroke(30, 30);
+        d.endStroke();
+        const auto before = d.composite();
+        d.setTool("fill");
+        d.setColor(Qt::blue);
+        QSignalSpy thumbs(&d, &Document::thumbnailsChanged), images(&d, &Document::imageChanged);
+        d.beginStroke(30, 30);
+        const auto after  = d.composite();
+        const auto region = d.compositeUpdateRegion(before.cacheKey(), after.cacheKey());
+        QVERIFY(!region.isEmpty());
+        QVERIFY(region.width() < d.width());
+        QVERIFY(region.height() < d.height());
+        QCOMPARE(after.pixelColor(30, 30), QColor(Qt::blue));
+        QCOMPARE(after.pixelColor(2, 2), before.pixelColor(2, 2));
+        QCOMPARE(thumbs.size(), 1);
+        QCOMPARE(images.size(), 1);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+    }
+    void bucketFillAllocatesSparseCoverageAndKeepsMappedSource()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (auto format : {QImage::Format_ARGB32_Premultiplied,
+                            QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage pixel(1, 1, format);
+            pixel.fill(Qt::black);
+            PixelPlane source(pixel);
+            QImage     basin(32, 32, format);
+            basin.fill(Qt::red);
+            const QSize size(6000, 4000);
+            QVERIFY(source.writeRegion({96, 96}, basin, size));
+            ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+            QVERIFY(source.offload(cache));
+            QVERIFY(source.heapBlocks().isEmpty());
+            const auto                         key = source.cacheKey();
+            PhotoCrap::Tools::FloodFillOptions options;
+            options.size          = size;
+            options.replacement   = format == QImage::Format_Grayscale8 ? QColor(180, 180, 180)
+                                                                        : QColor(40, 80, 210, 123);
+            options.opacity       = .63;
+            options.overlayFormat = format == QImage::Format_ARGB32_Premultiplied
+                                        ? format
+                                        : QImage::Format_RGBA64_Premultiplied;
+            const auto result     = PhotoCrap::Tools::floodFill(source, {100, 100}, options);
+            QVERIFY(result.valid);
+            QCOMPARE(result.visitedTiles, 1);
+            QCOMPARE(result.visitedBytes, qint64(256 * 256));
+            QCOMPARE(result.filledPixels, qint64(32 * 32));
+            QCOMPARE(result.region, QRect(96, 96, 32, 32));
+            QVERIFY(result.image.cacheKey() != key);
+            qint64 heap = 0;
+            for (auto bytes : result.image.heapBlocks())
+                heap += bytes;
+            QVERIFY(heap <= qint64(256) * 256 * pixel.depth() / 8);
+            QCOMPARE(source.cacheKey(), key);
+            QVERIFY(source.heapBlocks().isEmpty());
+            cache.clear();
+            QCOMPARE(source.region({96, 96, 32, 32}), basin);
+            QVERIFY(result.image.region({96, 96, 32, 32}) != basin);
+            const auto cancelled = std::make_shared<std::atomic_bool>(true);
+            QVERIFY(PhotoCrap::Tools::floodFill(source, {100, 100}, options, cancelled).cancelled);
+            options.overlayFormat = QImage::Format_Grayscale8;
+            QVERIFY(!PhotoCrap::Tools::floodFill(source, {100, 100}, options).valid);
+        }
+    }
+    void bucketFillKeepsNativeAlphaAndSelectionComponents()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int bits : {8, 16}) {
+            QImage image(523, 531,
+                         bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                    : QImage::Format_ARGB32_Premultiplied);
+            image.fill(QColor(40, 60, 90, 230));
+            {
+                QPainter p(&image);
+                p.fillRect(240, 240, 48, 48, Qt::black);
+                p.fillRect(244, 244, 40, 40, QColor::fromRgba64(12345, 23456, 34567, 43000));
+                p.setCompositionMode(QPainter::CompositionMode_Source);
+                p.fillRect(320, 300, 16, 16, Qt::transparent);
+            }
+            const auto url = QUrl::fromLocalFile(directory.filePath("bucket.png"));
+            QVERIFY(image.save(url.toLocalFile()));
+            for (bool mask : {false, true})
+                for (int selection = 0; selection < 4; ++selection) {
+                    Document d;
+                    QVERIFY(d.openFile(url));
+                    if (mask) {
+                        d.addLayerMask(false);
+                        d.setTool("select");
+                        d.beginStroke(244, 244);
+                        d.continueStroke(283, 283);
+                        d.endStroke();
+                        d.setColor(Qt::white);
+                        d.fillWithColor(true);
+                        d.deselect();
+                    }
+                    if (selection == 1) {
+                        d.setTool("ellipticalSelect");
+                        d.beginStroke(245, 245);
+                        d.continueStroke(275, 275);
+                        d.endStroke();
+                        d.modifySelection("feather", 3);
+                    } else if (selection == 2) {
+                        d.setTool("select");
+                        d.beginStroke(246, 246);
+                        d.continueStroke(256, 256);
+                        d.endStroke();
+                        d.setSelectionMode(1);
+                        d.beginStroke(270, 270);
+                        d.continueStroke(278, 278);
+                        d.endStroke();
+                    }
+                    const auto before = mask ? d.maskImage(0) : d.layerImage(0);
+                    d.setTool("fill");
+                    d.setColor(QColor(200, 120, 40, 112));
+                    d.setBrushOpacity(.63);
+                    d.beginStroke(selection == 3 ? 326 : 250, selection == 3 ? 306 : 250);
+                    const auto after = mask ? d.maskImage(0) : d.layerImage(0);
+                    QVERIFY(after != before);
+                    if (selection == 2)
+                        QCOMPARE(after.pixelColor(274, 274), before.pixelColor(274, 274));
+                    QCOMPARE(after.format(), before.format());
+                    const QImage hashed =
+                        mask ? after.convertToFormat(QImage::Format_ARGB32_Premultiplied) : after;
+                    pixels.addData(QByteArrayView(
+                        reinterpret_cast<const char *>(hashed.constBits()), hashed.sizeInBytes()));
+                    d.undo();
+                    QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(mask ? d.maskImage(0) : d.layerImage(0), after);
+                }
+        }
+        qInfo() << "Bucket fill pixels, sixteen combinations" << pixels.result().toHex();
     }
     void fillIsContiguousAndHandlesPartialAlpha()
     {

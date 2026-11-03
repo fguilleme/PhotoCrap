@@ -217,6 +217,16 @@ bool TiledImage::replace(const QImage &_image)
     return true;
 }
 
+QImage TiledImage::tileImage(int _column, int _row) const
+{
+    if (!m_data || _column < 0 || _row < 0 ||
+        _column >= (m_data->size.width() + TileSize - 1) / TileSize ||
+        _row >= (m_data->size.height() + TileSize - 1) / TileSize)
+        return {};
+    const auto tile = m_data->tiles.value(m_data->key(_column, _row));
+    return tile ? tile->image() : m_data->background;
+}
+
 QImage TiledImage::region(const QRect &_region) const
 {
     if (!m_data)

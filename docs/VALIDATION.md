@@ -1,5 +1,18 @@
 # Validation
 
+## Pot de peinture parcimonieux — 3 novembre 2026
+
+Empreinte de pixels identique à l’ancien calcul pour seize combinaisons : couleur
+8/16 bits, masques, opacité, transparence, sélection progressive et composantes
+disjointes. Les composantes non cliquées restent intactes, Annuler/Rétablir conserve
+les pixels. Une petite composante de 32 × 32 sur un plan 24 Mpx alloue une seule
+tuile de visite de 64 Kio et au plus une nouvelle tuile couleur/masque, après
+déchargement de la source. Les vues restent valides après vidage du cache et les
+copies QImage modifiables se détachent correctement. Le cas d’un document d’un
+pixel déjà édité est inclus. Les suites moteur, Plume et tuiles passent, ainsi
+que les contrôles ciblés Qt 6.8. L’invalidation régionale du canevas et une seule
+notification de miniature sont vérifiées.
+
 ## Remplissage régional de Plume — 3 novembre 2026
 
 Référence QPainter indépendante en pleine image : courbe fractionnaire traversant

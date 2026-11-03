@@ -28,6 +28,17 @@ de sélection progressif est recadré à cette région. Le rendu conserve la pro
 native ; le changement d’origine du rasteriseur peut modifier légèrement
 l’anticrénelage d’un bord de courbe, sans agrandir les tampons au document entier.
 
+Le pot de peinture parcourt la composante contiguë avec des vues de tuiles natives
+partagées et une couverture de visite parcimonieuse de 256 × 256 en niveaux de
+gris. Une tuile absente se lit comme son pixel de fond uniforme ; les vues gardent
+leurs leases disque et une écriture dans une copie QImage ne modifie pas la source.
+Le mélange ne prépare que l’emprise remplie de chaque tuile, puis applique toutes
+les écritures à une version privée avant de remplacer le calque. Il n’alloue plus
+de masque ni de tampon couleur complet pour une petite zone fermée.
+La contiguïté, les masques, la sélection progressive, l’opacité et les pixels 16 bits
+sont conservés. La composante modifiée invalide localement le composite et la vignette.
+Les grands remplissages restent synchrones à cette étape.
+
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états
 historiques sont parcourus avant les plans actifs. Les versions en cours d’utilisation

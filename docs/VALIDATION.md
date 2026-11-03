@@ -54,6 +54,10 @@ Expansion régionale d’un plan d’un pixel en ARGB32, RGBA64 et Grayscale8, a
 profil absent ou Display P3, ratio 2 et résolutions X/Y différentes : couleurs
 natives, métadonnées et snapshot initial conservés, une seule tuile allouée.
 Les sources nulles ou non uniformes sont refusées par le constructeur dédié.
+La lecture avant écriture est aussi comparée pour une région d’un pixel aux
+coordonnées (10, 10) et une région de 7 × 9 : valeur uniforme, profil, ratio et
+résolutions préservés dans les trois formats. Elle ne dépend pas de la position
+du pixel stocké à l’origine.
 
 ## Tampons par tuiles — 3 novembre 2026
 

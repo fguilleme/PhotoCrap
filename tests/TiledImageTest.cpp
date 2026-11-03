@@ -27,7 +27,16 @@ private slots:
                 uniform.setDotsPerMeterY(4300);
                 PixelPlane plane(uniform);
                 const auto before = plane;
-                QImage     patch(3, 4, format);
+                for (const auto region : {QRect(10, 10, 1, 1), QRect(20, 20, 7, 9)}) {
+                    const auto expanded = plane.region(region);
+                    QCOMPARE(expanded.size(), region.size());
+                    QCOMPARE(expanded.pixelColor(0, 0), uniform.pixelColor(0, 0));
+                    QCOMPARE(expanded.colorSpace(), space);
+                    QCOMPARE(expanded.devicePixelRatio(), uniform.devicePixelRatio());
+                    QCOMPARE(expanded.dotsPerMeterX(), uniform.dotsPerMeterX());
+                    QCOMPARE(expanded.dotsPerMeterY(), uniform.dotsPerMeterY());
+                }
+                QImage patch(3, 4, format);
                 patch.fill(Qt::black);
                 QVERIFY(plane.writeRegion({258, 257}, patch, {600, 500}));
                 const auto outside = plane.region({10, 10, 7, 9});

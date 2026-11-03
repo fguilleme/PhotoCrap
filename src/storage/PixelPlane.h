@@ -164,10 +164,13 @@ public:
     }
     QImage region(const QRect &r) const
     {
-        if (size() == QSize(1, 1) && r.size() != QSize(1, 1)) {
+        if (size() == QSize(1, 1) && r != rect()) {
             QImage image(r.size(), format());
             image.fill(pixelColor(0, 0));
             image.setColorSpace(colorSpace());
+            image.setDevicePixelRatio(m_image.devicePixelRatio());
+            image.setDotsPerMeterX(m_image.dotsPerMeterX());
+            image.setDotsPerMeterY(m_image.dotsPerMeterY());
             return image;
         }
         return copy(r);

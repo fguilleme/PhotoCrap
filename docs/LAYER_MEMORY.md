@@ -65,6 +65,9 @@ et « tous les calques » préparent encore un composite natif complet par geste
 Le passage d’un plan compact d’un pixel à des tuiles conserve ses valeurs natives,
 son espace couleur (y compris absent pour les masques), sa densité de pixels et
 son ratio de pixels. Il n’ajoute plus implicitement un profil sRGB à un masque.
+La lecture d’une région logique d’un seul pixel fonctionne aussi hors de l’origine
+du pixel stocké, sans retourner une zone transparente. Les régions uniformes
+conservent également la densité et le ratio de pixels avant toute écriture.
 
 Le Doigt lit et remplace uniquement la zone de chaque empreinte dans la destination
 tuilée, y compris sur un masque. Sa poche et sa pointe restent limitées à la taille

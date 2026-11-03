@@ -1756,8 +1756,8 @@
     </message>
     <message>
       <location filename="../qml/Main.qml" line="393" />
-      <source>RVB / 8</source>
-      <translation>RGB / 8</translation>
+      <source>RVB</source>
+      <translation>RGB</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="394" />

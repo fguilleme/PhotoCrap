@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "HealingPixels.h"
 
 #include <QByteArray>
 #include <QtMath>
@@ -7,11 +8,13 @@
 
 namespace
 {
-bool redPupilPixel(QRgb _pixel)
+template <typename Pixel>
+bool redPupilPixel(Pixel _pixel)
 {
-    const QRgb colour = qUnpremultiply(_pixel);
-    const int  red = qRed(colour), other = qMax(qGreen(colour), qBlue(colour));
-    return qAlpha(colour) > 0 && red > 60 && red > other * 1.35 && red - other > 25;
+    using P            = HealingPixels::Access<Pixel>;
+    const Pixel colour = P::straight(_pixel);
+    const qreal red = P::red(colour), other = qMax(P::green(colour), P::blue(colour));
+    return P::alpha(colour) > 0 && red > 60 && red > other * 1.35 && red - other > 25;
 }
 
 bool insideEllipse(const QPointF &_point, const QRectF &_ellipse)
@@ -79,91 +82,99 @@ void Document::correctRedEye()
     if (region.isEmpty())
         return;
 
-    QImage patch = target.region(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    if (patch.isNull()) {
-        fail(tr("Mémoire insuffisante pour la couverture du trait."));
-        return;
-    }
-    const QPointF centre    = dragged ? m_redEyeRegion.center() : m_anchor;
-    const auto    candidate = [&](int _x, int _y) {
-        const QPoint imagePoint = region.topLeft() + QPoint(_x, _y);
-        return (!hasSelection() || m_selectionRegion.contains(imagePoint)) &&
-               (!dragged || insideEllipse(QPointF(imagePoint) + QPointF(.5, .5), pupilArea)) &&
-               redPupilPixel(reinterpret_cast<const QRgb *>(patch.constScanLine(_y))[_x]);
-    };
-    QPoint seed(-1, -1);
-    qreal  closest = std::numeric_limits<qreal>::max();
-    for (int y = 0; y < patch.height(); ++y)
-        for (int x = 0; x < patch.width(); ++x) {
-            if (!candidate(x, y))
-                continue;
-            const QPointF delta =
-                QPointF(region.topLeft() + QPoint(x, y)) + QPointF(.5, .5) - centre;
-            const qreal distance = delta.x() * delta.x() + delta.y() * delta.y();
-            if (distance < closest) {
-                closest = distance;
-                seed    = QPoint(x, y);
-            }
+    const auto correct = [&]<typename Pixel>() {
+        using P = HealingPixels::Access<Pixel>;
+        QImage patch =
+            target.region(region).convertToFormat(ImageUtils::PixelAccess<Pixel>::premultiplied);
+        if (patch.isNull()) {
+            fail(tr("Mémoire insuffisante pour la couverture du trait."));
+            return;
         }
-    if (seed.x() < 0) {
-        emit statusMessage(tr("Aucune pupille rouge trouvée dans cette zone."));
-        return;
-    }
+        const QPointF centre    = dragged ? m_redEyeRegion.center() : m_anchor;
+        const auto    candidate = [&](int _x, int _y) {
+            const QPoint imagePoint = region.topLeft() + QPoint(_x, _y);
+            return (!hasSelection() || m_selectionRegion.contains(imagePoint)) &&
+                   (!dragged || insideEllipse(QPointF(imagePoint) + QPointF(.5, .5), pupilArea)) &&
+                   redPupilPixel(reinterpret_cast<const Pixel *>(patch.constScanLine(_y))[_x]);
+        };
+        QPoint seed(-1, -1);
+        qreal  closest = std::numeric_limits<qreal>::max();
+        for (int y = 0; y < patch.height(); ++y)
+            for (int x = 0; x < patch.width(); ++x) {
+                if (!candidate(x, y))
+                    continue;
+                const QPointF delta =
+                    QPointF(region.topLeft() + QPoint(x, y)) + QPointF(.5, .5) - centre;
+                const qreal distance = delta.x() * delta.x() + delta.y() * delta.y();
+                if (distance < closest) {
+                    closest = distance;
+                    seed    = QPoint(x, y);
+                }
+            }
+        if (seed.x() < 0) {
+            emit statusMessage(tr("Aucune pupille rouge trouvée dans cette zone."));
+            return;
+        }
 
-    // Only the connected red component nearest the pointer is corrected, leaving
-    // separate red objects alone even when they are in the local search window.
-    QByteArray      visited(patch.width() * patch.height(), '\0');
-    QVector<QPoint> pixels{seed};
-    visited[seed.y() * patch.width() + seed.x()] = 1;
-    QRect bounds(seed, QSize(1, 1));
-    for (qsizetype i = 0; i < pixels.size(); ++i) {
-        const QPoint point = pixels[i];
-        bounds |= QRect(point, QSize(1, 1));
-        for (int dy = -1; dy <= 1; ++dy)
-            for (int dx = -1; dx <= 1; ++dx) {
-                const QPoint next = point + QPoint(dx, dy);
-                if (!patch.rect().contains(next))
-                    continue;
-                const int index = next.y() * patch.width() + next.x();
-                if (visited[index])
-                    continue;
-                visited[index] = 1;
-                if (candidate(next.x(), next.y()))
-                    pixels.append(next);
-            }
-    }
-    if (!dragged) {
-        const QSizeF size = QSizeF(bounds.size()) * (.5 + m_redEyePupilSize);
-        pupilArea         = QRectF(QRectF(bounds).center() + region.topLeft() -
-                                       QPointF(size.width(), size.height()) / 2.,
-                                   size);
-    }
-    QRect modified;
-    for (const QPoint point : std::as_const(pixels)) {
-        if (!insideEllipse(QPointF(point + region.topLeft()) + QPointF(.5, .5), pupilArea))
-            continue;
-        auto       *line     = reinterpret_cast<QRgb *>(patch.scanLine(point.y()));
-        const QRgb  original = line[point.x()], colour = qUnpremultiply(original);
-        const int   r = qRed(colour), g = qGreen(colour), b = qBlue(colour);
-        const qreal strength  = qBound(0., (r - qMax(g, b) - 15.) / 45., 1.) *
-                                selectionCoverage(region.x() + point.x(), region.y() + point.y()) /
-                                255.;
-        const int   neutral   = qRound((g + b) / 2. * (1. - .9 * m_redEyeDarken));
-        const QRgb  corrected = qPremultiply(
-            qRgba(qRound(r + (neutral - r) * strength), qRound(g + (neutral - g) * strength),
-                  qRound(b + (neutral - b) * strength), qAlpha(colour)));
-        if (corrected != original) {
-            line[point.x()] = corrected;
-            modified |= QRect(point, QSize(1, 1));
+        // Only the connected red component nearest the pointer is corrected, leaving
+        // separate red objects alone even when they are in the local search window.
+        QByteArray      visited(patch.width() * patch.height(), '\0');
+        QVector<QPoint> pixels{seed};
+        visited[seed.y() * patch.width() + seed.x()] = 1;
+        QRect bounds(seed, QSize(1, 1));
+        for (qsizetype i = 0; i < pixels.size(); ++i) {
+            const QPoint point = pixels[i];
+            bounds |= QRect(point, QSize(1, 1));
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const QPoint next = point + QPoint(dx, dy);
+                    if (!patch.rect().contains(next))
+                        continue;
+                    const int index = next.y() * patch.width() + next.x();
+                    if (visited[index])
+                        continue;
+                    visited[index] = 1;
+                    if (candidate(next.x(), next.y()))
+                        pixels.append(next);
+                }
         }
-    }
-    if (modified.isEmpty())
-        return;
-    const QRect dirty = modified.translated(region.topLeft());
-    if (!target.writeRegion(dirty.topLeft(), patch.copy(modified), m_size)) {
-        fail(tr("Mémoire insuffisante pour la couverture du trait."));
-        return;
-    }
-    m_dirtyRegion   = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
-    m_strokeChanged = true;
+        if (!dragged) {
+            const QSizeF size = QSizeF(bounds.size()) * (.5 + m_redEyePupilSize);
+            pupilArea         = QRectF(QRectF(bounds).center() + region.topLeft() -
+                                           QPointF(size.width(), size.height()) / 2.,
+                                       size);
+        }
+        QRect modified;
+        for (const QPoint point : std::as_const(pixels)) {
+            if (!insideEllipse(QPointF(point + region.topLeft()) + QPointF(.5, .5), pupilArea))
+                continue;
+            auto       *line     = reinterpret_cast<Pixel *>(patch.scanLine(point.y()));
+            const Pixel original = line[point.x()], colour = P::straight(original);
+            const qreal r = P::red(colour), g = P::green(colour), b = P::blue(colour);
+            const qreal strength =
+                qBound(0., (r - qMax(g, b) - 15.) / 45., 1.) *
+                selectionCoverage(region.x() + point.x(), region.y() + point.y()) / 255.;
+            const qreal neutral = P::round((g + b) / 2. * (1. - .9 * m_redEyeDarken));
+            const Pixel corrected =
+                P::premultiplied(P::rgba(r + (neutral - r) * strength, g + (neutral - g) * strength,
+                                         b + (neutral - b) * strength, P::alpha(colour)));
+            if (corrected != original) {
+                line[point.x()] = corrected;
+                modified |= QRect(point, QSize(1, 1));
+            }
+        }
+        if (modified.isEmpty())
+            return;
+        const QRect dirty = modified.translated(region.topLeft());
+        if (!target.writeRegion(dirty.topLeft(), patch.copy(modified), m_size)) {
+            fail(tr("Mémoire insuffisante pour la couverture du trait."));
+            return;
+        }
+        m_dirtyRegion   = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
+        m_strokeChanged = true;
+    };
+    if (m_channelBits == 16)
+        correct.template operator()<QRgba64>();
+    else
+        correct.template operator()<QRgb>();
 }

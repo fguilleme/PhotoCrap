@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "HealingPixels.h"
 
 #include <QtMath>
 #include <array>
@@ -88,17 +89,16 @@ void Document::spotHealingDab(const QPointF &_point)
             for (int y = -2; y <= 2 && opaque; ++y)
                 for (int x = -2; x <= 2; ++x) {
                     const QPoint probe = centre + offset + QPoint(x * side / 6, y * side / 6);
-                    const QRgb   pixel =
-                        qUnpremultiply(sourcePatch.pixel(probe - sourceBounds.topLeft()));
-                    if (qAlpha(pixel) != 255) {
+                    const auto   pixel =
+                        HealingPixels::color(sourcePatch, probe - sourceBounds.topLeft());
+                    if (pixel[3] != 255) {
                         opaque = false;
                         break;
                     }
-                    innerSum[0] += qRed(pixel);
-                    innerSum[1] += qGreen(pixel);
-                    innerSum[2] += qBlue(pixel);
-                    innerEnergy += qRed(pixel) * qRed(pixel) + qGreen(pixel) * qGreen(pixel) +
-                                   qBlue(pixel) * qBlue(pixel);
+                    innerSum[0] += pixel[0];
+                    innerSum[1] += pixel[1];
+                    innerSum[2] += pixel[2];
+                    innerEnergy += pixel[0] * pixel[0] + pixel[1] * pixel[1] + pixel[2] * pixel[2];
                 }
             if (!opaque)
                 continue;
@@ -111,21 +111,20 @@ void Document::spotHealingDab(const QPointF &_point)
                 const QPoint reference = centre + delta;
                 if (!documentRect.contains(reference))
                     continue;
-                const QRgb before =
-                    qUnpremultiply(sourcePatch.pixel(reference - sourceBounds.topLeft()));
-                const QRgb source =
-                    qUnpremultiply(sourcePatch.pixel(reference + offset - sourceBounds.topLeft()));
-                if (!qAlpha(before) || qAlpha(source) != 255)
+                const auto before =
+                    HealingPixels::color(sourcePatch, reference - sourceBounds.topLeft());
+                const auto source =
+                    HealingPixels::color(sourcePatch, reference + offset - sourceBounds.topLeft());
+                if (!before[3] || source[3] != 255)
                     continue;
-                const int red   = qRed(source) - qRed(before);
-                const int green = qGreen(source) - qGreen(before);
-                const int blue  = qBlue(source) - qBlue(before);
+                const qreal red   = source[0] - before[0];
+                const qreal green = source[1] - before[1];
+                const qreal blue  = source[2] - before[2];
                 score += red * red + green * green + blue * blue;
-                edgeSum[0] += qRed(source);
-                edgeSum[1] += qGreen(source);
-                edgeSum[2] += qBlue(source);
-                edgeEnergy += qRed(source) * qRed(source) + qGreen(source) * qGreen(source) +
-                              qBlue(source) * qBlue(source);
+                edgeSum[0] += source[0];
+                edgeSum[1] += source[1];
+                edgeSum[2] += source[2];
+                edgeEnergy += source[0] * source[0] + source[1] * source[1] + source[2] * source[2];
                 ++count;
             }
             if (count < 4)

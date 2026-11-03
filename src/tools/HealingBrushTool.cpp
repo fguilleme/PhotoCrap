@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "HealingPixels.h"
 #include "ImageUtils.h"
 
 #include <QPainter>
@@ -17,7 +18,10 @@ struct ToneField {
 QImage patchAt(const PixelPlane &_image, const QRect &_rect, const QSize &_size,
                const Document *_composite)
 {
-    QImage patch = ImageUtils::blank(_rect.size());
+    const auto format = (_composite ? _composite->channelBits() == 16 : ImageUtils::is16Bit(_image))
+                            ? QImage::Format_RGBA64_Premultiplied
+                            : QImage::Format_ARGB32_Premultiplied;
+    QImage     patch  = ImageUtils::blank(_rect.size(), format);
     if (patch.isNull())
         return {};
     const QRect region = _rect.intersected(QRect(QPoint{}, _size));
@@ -67,16 +71,15 @@ ToneField boundaryTone(const QImage &_source, const QImage &_reference, const QR
                 continue;
             int samples = 0;
             for (int y = cell.top(); y <= cell.bottom(); ++y) {
-                const auto *source    = reinterpret_cast<const QRgb *>(_source.constScanLine(y));
-                const auto *reference = reinterpret_cast<const QRgb *>(_reference.constScanLine(y));
                 for (int x = cell.left(); x <= cell.right(); ++x) {
-                    if ((_selected && !_selection.contains(QPoint(x, y))) ||
-                        qAlpha(source[x]) == 0 || qAlpha(reference[x]) == 0)
+                    if (_selected && !_selection.contains(QPoint(x, y)))
                         continue;
-                    const QRgb a = qUnpremultiply(source[x]), b = qUnpremultiply(reference[x]);
-                    field.values[index][0] += qRed(b) - qRed(a);
-                    field.values[index][1] += qGreen(b) - qGreen(a);
-                    field.values[index][2] += qBlue(b) - qBlue(a);
+                    const auto a = HealingPixels::color(_source, {x, y});
+                    const auto b = HealingPixels::color(_reference, {x, y});
+                    if (a[3] == 0 || b[3] == 0)
+                        continue;
+                    for (int c = 0; c < 3; ++c)
+                        field.values[index][c] += b[c] - a[c];
                     ++samples;
                 }
             }
@@ -274,68 +277,78 @@ void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample,
                                   hasSelection() && _selectionBoundary, _diffusion, m_brushAngle,
                                   m_brushRoundness);
     const QPoint offset = region.topLeft() - dab.topLeft();
-    QImage       healed = ImageUtils::blank(region.size());
+    QImage       healed = ImageUtils::blank(region.size(), workingFormat());
     if (healed.isNull()) {
         m_strokeCoverageFailed = true;
         return;
     }
-    for (int y = 0; y < region.height(); ++y) {
-        const auto *source = reinterpret_cast<const QRgb *>(sampled.constScanLine(offset.y() + y));
-        auto       *paint  = reinterpret_cast<QRgb *>(healed.scanLine(y));
-        for (int x = 0; x < region.width(); ++x) {
-            const QRgb colour = qUnpremultiply(source[offset.x() + x]);
-            if (!qAlpha(colour))
-                continue;
-            const Tone correction =
-                field.side ? toneAt(field, (offset.x() + x + .5) * field.side / size - .5,
-                                    (offset.y() + y + .5) * field.side / size - .5)
-                           : Tone{};
-            paint[x] = qPremultiply(qRgba(qBound(0, qRound(qRed(colour) + correction[0]), 255),
-                                          qBound(0, qRound(qGreen(colour) + correction[1]), 255),
-                                          qBound(0, qRound(qBlue(colour) + correction[2]), 255),
-                                          qAlpha(colour)));
+    const auto render = [&]<typename Pixel>() {
+        using P = HealingPixels::Access<Pixel>;
+        for (int y = 0; y < region.height(); ++y) {
+            const auto *source =
+                reinterpret_cast<const Pixel *>(sampled.constScanLine(offset.y() + y));
+            auto *paint = reinterpret_cast<Pixel *>(healed.scanLine(y));
+            for (int x = 0; x < region.width(); ++x) {
+                const Pixel colour = P::straight(source[offset.x() + x]);
+                if (!P::alpha(colour))
+                    continue;
+                const Tone correction =
+                    field.side ? toneAt(field, (offset.x() + x + .5) * field.side / size - .5,
+                                        (offset.y() + y + .5) * field.side / size - .5)
+                               : Tone{};
+                paint[x] = P::premultiplied(
+                    P::rgba(P::red(colour) + correction[0], P::green(colour) + correction[1],
+                            P::blue(colour) + correction[2], P::alpha(colour)));
+            }
         }
-    }
-    QImage output = m_layers[m_active].image.region(region).convertToFormat(
-        QImage::Format_ARGB32_Premultiplied);
-    static constexpr int modes[]{0, 0, 3, 8, 2, 7, 25, 26};
-    const QImage effect = _mode == 1 ? healed : blendImages(output, healed, modes[_mode], 1.);
-    if (output.isNull() || effect.isNull()) {
-        m_strokeCoverageFailed = true;
-        return;
-    }
-    QRect modified;
-    for (int y = 0; y < region.height(); ++y) {
-        auto       *destination = reinterpret_cast<QRgb *>(output.scanLine(y));
-        const auto *paint       = reinterpret_cast<const QRgb *>(effect.constScanLine(y));
-        const auto *source      = reinterpret_cast<const QRgb *>(healed.constScanLine(y));
-        const auto *tip = reinterpret_cast<const QRgb *>(_tip.constScanLine(offset.y() + y));
-        for (int x = 0; x < region.width(); ++x) {
-            if (!qAlpha(source[x]) ||
-                (hasSelection() && !m_selectionRegion.contains(region.topLeft() + QPoint(x, y))))
-                continue;
-            const qreal amount = qAlpha(tip[offset.x() + x]) / 255. * m_brushFlow * m_brushOpacity *
-                                 selectionCoverage(region.x() + x, region.y() + y) / 255.;
-            if (amount <= 0)
-                continue;
-            const QRgb before = destination[x];
-            const auto mix = [amount](int _a, int _b) { return qRound(_a + (_b - _a) * amount); };
-            destination[x] =
-                qRgba(mix(qRed(before), qRed(paint[x])), mix(qGreen(before), qGreen(paint[x])),
-                      mix(qBlue(before), qBlue(paint[x])), mix(qAlpha(before), qAlpha(paint[x])));
-            if (destination[x] != before)
-                modified |= QRect(x, y, 1, 1);
+        QImage output = m_layers[m_active].image.region(region).convertToFormat(
+            ImageUtils::PixelAccess<Pixel>::premultiplied);
+        static constexpr int modes[]{0, 0, 3, 8, 2, 7, 25, 26};
+        const QImage effect = _mode == 1 ? healed : blendImages(output, healed, modes[_mode], 1.);
+        if (output.isNull() || effect.isNull()) {
+            m_strokeCoverageFailed = true;
+            return;
         }
-    }
-    if (modified.isEmpty())
-        return;
-    const QRect dirty = modified.translated(region.topLeft());
-    if (!m_layers[m_active].image.writeRegion(dirty.topLeft(), output.copy(modified), m_size)) {
-        m_strokeCoverageFailed = true;
-        return;
-    }
-    m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(dirty) : m_strokeBounds.united(dirty);
-    m_dirtyRegion  = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
+        QRect modified;
+        for (int y = 0; y < region.height(); ++y) {
+            auto       *destination = reinterpret_cast<Pixel *>(output.scanLine(y));
+            const auto *paint       = reinterpret_cast<const Pixel *>(effect.constScanLine(y));
+            const auto *source      = reinterpret_cast<const Pixel *>(healed.constScanLine(y));
+            const auto *tip = reinterpret_cast<const QRgb *>(_tip.constScanLine(offset.y() + y));
+            for (int x = 0; x < region.width(); ++x) {
+                if (!P::alpha(source[x]) ||
+                    (hasSelection() &&
+                     !m_selectionRegion.contains(region.topLeft() + QPoint(x, y))))
+                    continue;
+                const qreal amount = qAlpha(tip[offset.x() + x]) / 255. * m_brushFlow *
+                                     m_brushOpacity *
+                                     selectionCoverage(region.x() + x, region.y() + y) / 255.;
+                if (amount <= 0)
+                    continue;
+                const Pixel before = destination[x];
+                const auto mix = [amount](double _a, double _b) { return _a + (_b - _a) * amount; };
+                destination[x] = P::rgba(mix(P::red(before), P::red(paint[x])),
+                                         mix(P::green(before), P::green(paint[x])),
+                                         mix(P::blue(before), P::blue(paint[x])),
+                                         mix(P::alpha(before), P::alpha(paint[x])));
+                if (destination[x] != before)
+                    modified |= QRect(x, y, 1, 1);
+            }
+        }
+        if (modified.isEmpty())
+            return;
+        const QRect dirty = modified.translated(region.topLeft());
+        if (!m_layers[m_active].image.writeRegion(dirty.topLeft(), output.copy(modified), m_size)) {
+            m_strokeCoverageFailed = true;
+            return;
+        }
+        m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(dirty) : m_strokeBounds.united(dirty);
+        m_dirtyRegion  = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
+    };
+    if (m_channelBits == 16)
+        render.template operator()<QRgba64>();
+    else
+        render.template operator()<QRgb>();
 }
 
 void Document::finishHealingStroke(bool _cancel)

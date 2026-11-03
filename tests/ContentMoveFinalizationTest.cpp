@@ -9,7 +9,7 @@
 
 namespace
 {
-QImage fixture()
+QImage fixture(int _bits = 8)
 {
     QImage image(240, 180, QImage::Format_ARGB32_Premultiplied);
     for (int y = 0; y < image.height(); ++y)
@@ -17,6 +17,17 @@ QImage fixture()
             image.setPixelColor(x, y, QColor(100 + y % 8, 130 + y % 8, 160 + y % 8, 190));
     QPainter painter(&image);
     painter.fillRect(46, 46, 8, 8, QColor(230, 20, 30));
+    painter.end();
+    if (_bits == 16) {
+        image = image.convertToFormat(QImage::Format_RGBA64_Premultiplied);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                auto &pixel = reinterpret_cast<QRgba64 *>(image.scanLine(y))[x];
+                pixel = QRgba64::fromRgba64(pixel.red() + ushort(x % 17),
+                                            pixel.green() + ushort(y % 19),
+                                            pixel.blue() + ushort((x + y) % 23), pixel.alpha());
+            }
+    }
     return image;
 }
 void select(Document &_doc)
@@ -38,20 +49,23 @@ private slots:
     }
     void softSelectionsMatchRasterReference_data()
     {
+        QTest::addColumn<int>("bits");
         QTest::addColumn<int>("mode");
         QTest::addColumn<int>("dx");
-        QTest::newRow("move-overlap") << 0 << 4;
-        QTest::newRow("move-separated") << 0 << 90;
-        QTest::newRow("extend-overlap") << 1 << 4;
-        QTest::newRow("extend-separated") << 1 << 90;
+        for (int bits : {8, 16})
+            for (int mode : {0, 1})
+                for (int dx : {4, 90})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3").arg(bits).arg(mode).arg(dx)))
+                        << bits << mode << dx;
     }
     void softSelectionsMatchRasterReference()
     {
+        QFETCH(int, bits);
         QFETCH(int, mode);
         QFETCH(int, dx);
         QTemporaryDir dir;
         const auto    path = dir.filePath("move.png");
-        QVERIFY(fixture().save(path));
+        QVERIFY(fixture(bits).save(path));
         Document doc;
         QVERIFY(doc.openFile(QUrl::fromLocalFile(path)));
         select(doc);
@@ -105,13 +119,15 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!doc.contentMoveBusy(), 5000);
         QTRY_VERIFY_WITH_TIMEOUT(!doc.patchDragging(), 5000);
         QCOMPARE(doc.layerImage(0), expected);
+        QCOMPARE(doc.channelBits(), bits);
         QCOMPARE(doc.historyIndex(), history + 1);
         QCOMPARE(doc.selectionRegion(), destination);
         const QRegion affected = original | destination;
         for (int y = 0; y < before.height(); ++y)
             for (int x = 0; x < before.width(); ++x)
                 if (!affected.contains(QPoint(x, y)))
-                    QCOMPARE(doc.layerImage(0).pixel(x, y), before.pixel(x, y));
+                    QCOMPARE(doc.layerImage(0).pixelColor(x, y).rgba64(),
+                             before.pixelColor(x, y).rgba64());
         doc.undo();
         QCOMPARE(doc.layerImage(0), before);
         QCOMPARE(doc.selectionMask(), coverage);

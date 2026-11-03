@@ -1,5 +1,35 @@
 # Validation
 
+## Groupe de correction en 16 bits — 3 novembre 2026
+
+La suite `native_healing` vérifie les six outils sur des PNG natifs dont les valeurs
+ne sont pas des multiples de 257 : travail sur calque actif/composite, modification
+réelle, détails natifs dans les pixels modifiés, régions extérieures intactes,
+une étape d’historique, Annuler/Rétablir et sauvegarde/réouverture `.pcr`.
+Les huit modes des deux correcteurs sont exercés avec débit/opacité partiels et
+sélection progressive, y compris leurs gestes annulés. Les prélèvements composites
+sur un calque vide conservent la couche originale. Les correcteurs et Œil rouge
+sont contrôlés sur 24 Mpx/16 bits avec allocations limitées aux tuiles touchées.
+Trois réparations mises en file sont rejetées après remplacement du document.
+
+Le mélange SourceOver semi-transparent est comparé à QPainter natif ; copie de
+texture sans correction et reconstruction de secours conservent exactement les
+bits des échantillons. Les sélections douces Pièce et Déplacement basé sur le
+contenu sont comparées à leurs références peintes sur l’image complète en 8/16
+bits, avec chevauchement et déplacement séparé pour ce dernier. Le smoke test
+contrôle aussi les six entrées de menu activées en 16 bits, sans suffixe « 8 bits ».
+Les références 8 bits existantes des correcteurs et Œil rouge restent inchangées.
+L’en-tête RVB affiche désormais la profondeur réelle ; son ancien « / 8 » était
+codé en dur. La profondeur notifie aussi ses changements via les calques, y compris
+Annuler/Rétablir ; le libellé est contrôlé pendant ces transitions. Les 51 suites passent,
+avec 40 contrôles dédiés à la retouche native, les références ciblées Qt 6.8 et CPU
+portable et le rendu Metal du canevas. Le groupe a également été ouvert dans
+l’application normale sur Mac : les six entrées sont actives, sans suffixe 8 bits.
+Le smoke complet automatisé reste vérifié en plateforme offscreen ; son pilotage
+des menus/redimensionnements Cocoa n’est pas une validation native complète.
+
+
+
 ## Visibilité commune CPU/GPU — 3 novembre 2026
 
 Les 56 piles de la couverture opaque vérifient maintenant aussi l’éligibilité GPU :

@@ -1,4 +1,5 @@
 #include "RegionHealing.h"
+#include "HealingPixels.h"
 
 #include <QPainter>
 #include <QtMath>
@@ -69,13 +70,13 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
                     const QPoint donor = p + _offset;
                     if (_region.contains(p) || !_source.rect().contains(donor))
                         continue;
-                    const QRgb a = qUnpremultiply(_reference.pixel(p));
-                    const QRgb b = qUnpremultiply(_source.pixel(donor));
-                    if (qAlpha(a) == 0 || qAlpha(b) == 0)
+                    const auto a = HealingPixels::color(_reference, p);
+                    const auto b = HealingPixels::color(_source, donor);
+                    if (a[3] == 0 || b[3] == 0)
                         continue;
-                    tone[0] += qRed(a) - qRed(b);
-                    tone[1] += qGreen(a) - qGreen(b);
-                    tone[2] += qBlue(a) - qBlue(b);
+                    tone[0] += a[0] - b[0];
+                    tone[1] += a[1] - b[1];
+                    tone[2] += a[2] - b[2];
                     ++samples;
                 }
             if (samples) {
@@ -129,55 +130,57 @@ QImage RegionHealing::blend(const QImage &_source, const QImage &_reference, con
                         : PatchTone{};
     if (_cancel && _cancel->load())
         return {};
-    QImage output = _composite ? _reference.copy(bounds)
-                               : QImage(bounds.size(), QImage::Format_ARGB32_Premultiplied);
-    if (output.isNull())
-        return {};
-    if (!_composite)
-        output.fill(Qt::transparent);
-    for (const QRect &span : _region)
-        for (int y = span.top(); y <= span.bottom(); ++y) {
-            if (_cancel && _cancel->load())
-                return {};
-            auto     *line = reinterpret_cast<QRgb *>(output.scanLine(y - bounds.y()));
-            const int sy   = y + _offset.y();
-            if (sy < 0 || sy >= _source.height())
-                continue;
-            const auto *source = reinterpret_cast<const QRgb *>(_source.constScanLine(sy));
-            for (int x = span.left(); x <= span.right(); ++x) {
-                const int sx = x + _offset.x();
-                if (sx < 0 || sx >= _source.width())
+    const auto render = [&]<typename Pixel>() -> QImage {
+        using P       = HealingPixels::Access<Pixel>;
+        QImage output = _composite
+                            ? _reference.copy(bounds)
+                            : QImage(bounds.size(), ImageUtils::PixelAccess<Pixel>::premultiplied);
+        if (output.isNull())
+            return {};
+        if (!_composite)
+            output.fill(Qt::transparent);
+        for (const QRect &span : _region)
+            for (int y = span.top(); y <= span.bottom(); ++y) {
+                if (_cancel && _cancel->load())
+                    return {};
+                auto     *line = reinterpret_cast<Pixel *>(output.scanLine(y - bounds.y()));
+                const int sy   = y + _offset.y();
+                if (sy < 0 || sy >= _source.height())
                     continue;
-                const QRgb donor = qUnpremultiply(source[sx]);
-                if (qAlpha(donor) == 0)
-                    continue;
-                const Tone correction = _colorBlend > 0 ? tone.at(x, y) : Tone{};
-                qreal      coverage   = 1.;
-                for (int distance = 1; distance <= _feather; ++distance)
-                    if (!_region.contains(QPoint(x - distance, y)) ||
-                        !_region.contains(QPoint(x + distance, y)) ||
-                        !_region.contains(QPoint(x, y - distance)) ||
-                        !_region.contains(QPoint(x, y + distance))) {
-                        coverage = qreal(distance) / (_feather + 1);
-                        break;
+                const auto *source = reinterpret_cast<const Pixel *>(_source.constScanLine(sy));
+                for (int x = span.left(); x <= span.right(); ++x) {
+                    const int sx = x + _offset.x();
+                    if (sx < 0 || sx >= _source.width())
+                        continue;
+                    const Pixel donor = P::straight(source[sx]);
+                    if (P::alpha(donor) == 0)
+                        continue;
+                    const Tone correction = _colorBlend > 0 ? tone.at(x, y) : Tone{};
+                    qreal      coverage   = 1.;
+                    for (int distance = 1; distance <= _feather; ++distance)
+                        if (!_region.contains(QPoint(x - distance, y)) ||
+                            !_region.contains(QPoint(x + distance, y)) ||
+                            !_region.contains(QPoint(x, y - distance)) ||
+                            !_region.contains(QPoint(x, y + distance))) {
+                            coverage = qreal(distance) / (_feather + 1);
+                            break;
+                        }
+                    const Pixel corrected = P::premultiplied(P::rgba(
+                        P::red(donor) + correction[0] * _colorBlend,
+                        P::green(donor) + correction[1] * _colorBlend,
+                        P::blue(donor) + correction[2] * _colorBlend, P::alpha(donor) * coverage));
+                    const int   index     = x - bounds.x();
+                    if (!_composite) {
+                        line[index] = corrected;
+                        continue;
                     }
-                const QRgb corrected = qPremultiply(
-                    qRgba(qBound(0, qRound(qRed(donor) + correction[0] * _colorBlend), 255),
-                          qBound(0, qRound(qGreen(donor) + correction[1] * _colorBlend), 255),
-                          qBound(0, qRound(qBlue(donor) + correction[2] * _colorBlend), 255),
-                          qRound(qAlpha(donor) * coverage)));
-                const int index = x - bounds.x();
-                if (!_composite) {
-                    line[index] = corrected;
-                    continue;
+                    line[index] = P::over(corrected, line[index]);
                 }
-                const QRgb before  = line[index];
-                const int  inverse = 255 - qAlpha(corrected);
-                line[index] = qRgba(qRed(corrected) + (qRed(before) * inverse + 127) / 255,
-                                    qGreen(corrected) + (qGreen(before) * inverse + 127) / 255,
-                                    qBlue(corrected) + (qBlue(before) * inverse + 127) / 255,
-                                    qAlpha(corrected) + (qAlpha(before) * inverse + 127) / 255);
             }
-        }
-    return output;
+        if constexpr (P::wide)
+            output.setColorSpace(_reference.colorSpace());
+        return output;
+    };
+    return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()
+                                        : render.template operator()<QRgb>();
 }

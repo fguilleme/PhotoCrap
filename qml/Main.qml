@@ -2171,7 +2171,7 @@ ApplicationWindow {
                         Label { text: editor.name; color: "#dce2e8"; font.pixelSize: 12 }
                         Label { text: qsTr("@ ") + Math.round(zoom*100) + " %"; color: "#73808e" }
                         Item { Layout.fillWidth: true }
-                        Label { text: qsTr("RVB / 8"); color: "#73808e"; font.pixelSize: 10 }
+                        Label { objectName: "documentDepthLabel"; text: qsTr("RVB") + " / " + editor.channelBits; color: "#73808e"; font.pixelSize: 10 }
                         IconButton { glyph: "+"; hint: qsTr("Nouveau document"); implicitWidth: 27; onClicked: guard("new") }
                     }
                 }

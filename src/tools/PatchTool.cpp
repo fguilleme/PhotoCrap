@@ -5,6 +5,7 @@
 #include <QtConcurrent>
 #include <QtMath>
 #include <cmath>
+#include <cstring>
 
 bool Document::selectionContains(qreal _x, qreal _y) const
 {
@@ -114,12 +115,13 @@ PatchResult repairPatch(const QImage &_source, const QRegion &_region, const QPo
         for (int y = span.top(); y <= span.bottom(); ++y) {
             if (_cancel->load())
                 return {};
-            const auto *line =
-                reinterpret_cast<const QRgb *>(repaired.constScanLine(y - bounds.y()));
-            const auto *before = reinterpret_cast<const QRgb *>(_source.constScanLine(y));
+            const auto *line       = repaired.constScanLine(y - bounds.y());
+            const auto *before     = _source.constScanLine(y);
+            const int   pixelBytes = repaired.depth() / 8;
             int         left = span.right() + 1, right = span.left() - 1;
             for (int x = span.left(); x <= span.right(); ++x)
-                if (line[x - bounds.x()] != before[x]) {
+                if (std::memcmp(line + (x - bounds.x()) * pixelBytes, before + x * pixelBytes,
+                                pixelBytes) != 0) {
                     left  = qMin(left, x);
                     right = x;
                 }

@@ -1227,6 +1227,43 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "correction group lists its six tools, including the remaining NYI tools"))
         return false;
     QMetaObject::invokeMethod(toolMenu, "close");
+    const int correctionDepth = _document.channelBits();
+    if (!require(_document.setChannelBits(16), "switch correction menu to native 16-bit pixels"))
+        return false;
+    const auto depthLabel = _window->findChild<QObject *>("documentDepthLabel");
+    if (!require(depthLabel && depthLabel->property("text").toString().endsWith("16"),
+                 "document header reports the actual 16-bit depth"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openToolGroupMenu", Q_ARG(QVariant, "healing"),
+                              Q_ARG(QVariant, QVariant()));
+    QTest::qWait(40);
+    for (int index = 0; index < 6; ++index) {
+        QQuickItem *item = nullptr;
+        if (!require(QMetaObject::invokeMethod(toolMenu, "itemAt", Q_RETURN_ARG(QQuickItem *, item),
+                                               Q_ARG(int, index)) &&
+                         item && item->isEnabled() &&
+                         !item->property("text").toString().contains("8 bits"),
+                     "all six correction tools are enabled without an 8-bit suffix"))
+            return false;
+    }
+    QMetaObject::invokeMethod(toolMenu, "close");
+    if (!require(_document.setChannelBits(correctionDepth), "restore smoke fixture depth"))
+        return false;
+    if (!require(depthLabel->property("text").toString().endsWith(QString::number(correctionDepth)),
+                 "document header follows a second depth change"))
+        return false;
+    _document.undo();
+    if (!require(_document.channelBits() == 16 &&
+                     depthLabel->property("text").toString().endsWith("16"),
+                 "undo updates the displayed native depth"))
+        return false;
+    _document.redo();
+    if (!require(
+            _document.channelBits() == correctionDepth &&
+                depthLabel->property("text").toString().endsWith(QString::number(correctionDepth)),
+            "redo updates the displayed native depth"))
+        return false;
+
     _document.deselect();
     const qreal  savedSize = _document.brushSize(), savedHardness = _document.brushHardness(),
                  savedSmoothing = _document.brushSmoothing();

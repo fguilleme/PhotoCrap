@@ -483,16 +483,6 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
         const int  history     = document.historyIndex();
         document.beginStroke(100, 100);
         document.endStroke();
-        if (bits == 16) {
-            if (!require(
-                    !document.removeHasPending() && document.channelBits() == 16 &&
-                        document.historyIndex() == history &&
-                        near(pixel(frame(), 100.5, 100.5), base),
-                    "unsupported 16-bit removal remains rejected without an overlay or conversion"))
-                return false;
-            document.setRemoveAfterEachStroke(true);
-            continue;
-        }
         QImage expected(1, 1, QImage::Format_ARGB32_Premultiplied);
         expected.fill(base);
         QPainter blend(&expected);

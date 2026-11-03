@@ -172,7 +172,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/ImageUtils.h
     src/ImageHistogram.h
     src/ImageAlpha.h
-    src/tools/RegionHealing.h
+    src/tools/RegionHealing.h src/tools/HealingPixels.h
     src/tools/ContentFill.h
     src/tools/PenPath.h
     src/tools/SliceDescriptionCache.h
@@ -690,6 +690,11 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_crop_shade_tests PRIVATE Qt6::Gui Qt6::Test)
     add_test(NAME crop_shade COMMAND photocrap_crop_shade_tests)
     set_tests_properties(crop_shade PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_native_healing_tests tests/NativeHealingTest.cpp)
+    target_link_libraries(photocrap_native_healing_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME native_healing COMMAND photocrap_native_healing_tests)
+    set_tests_properties(native_healing PROPERTIES TIMEOUT 30
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     qt_add_executable(photocrap_content_move_tests tests/ContentMoveFinalizationTest.cpp)
     target_link_libraries(photocrap_content_move_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME content_move COMMAND photocrap_content_move_tests)

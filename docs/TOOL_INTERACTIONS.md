@@ -34,6 +34,13 @@ Les commandes **Sélection → Modifier** offrent Contour progressif (Maj+F6), F
 
 ## Peinture et retouche
 
+Correcteur localisé, Suppression, Correcteur, Pièce, Déplacement basé sur le contenu
+et Œil rouge sont disponibles sur les calques de pixels 8 ou 16 bits. Leurs
+raccourcis, sources, modes et gestes restent identiques ; leurs pixels de travail
+conservent la profondeur native, même avec « Tous les calques ». Le menu du groupe
+J les active donc aussi en 16 bits, sans le suffixe de limitation « 8 bits ».
+
+
 - Maj-clic relie le dernier point de peinture au nouveau point. Maj pendant un glisser contraint le trait horizontalement ou verticalement.
 - Les chiffres règlent l’opacité (0 = 100 %, 4 puis 5 = 45 %) ; Maj + chiffres règle le débit. Avec Flou/Netteté/Doigt/Densité/Éponge, les chiffres règlent l’intensité.
 - `[` / `]` parcourent les tailles usuelles de brosse ; Maj + `[` / `]` change la dureté par pas de 25 %. D rétablit noir/blanc ; X échange premier et arrière-plan.

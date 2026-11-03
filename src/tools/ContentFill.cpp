@@ -1,4 +1,5 @@
 #include "ContentFill.h"
+#include "HealingPixels.h"
 #include "RegionHealing.h"
 #include <QtMath>
 #include <array>
@@ -7,13 +8,6 @@
 namespace
 {
 using Color = std::array<qreal, 4>;
-Color components(QRgb _pixel)
-{
-    _pixel = qUnpremultiply(_pixel);
-    return {qreal(qRed(_pixel)), qreal(qGreen(_pixel)), qreal(qBlue(_pixel)),
-            qreal(qAlpha(_pixel))};
-}
-
 // Match a bounded set of nearby donor patches against the healthy selection rim.
 // The selected object and its destination can never be sampled as replacement
 // texture. Pattern residuals, gradients and variance discourage copying a second
@@ -36,7 +30,7 @@ bool findDonor(const QImage &_image, const QRegion &_region, const QRegion &_exc
         return false;
     Color rimMean{}, rimVariance{};
     for (const QPoint &p : probes) {
-        const Color color = components(_image.pixel(p));
+        const Color color = HealingPixels::color(_image, p);
         for (int c = 0; c < 4; ++c) {
             rimMean[c] += color[c];
             rimVariance[c] += color[c] * color[c];
@@ -61,7 +55,8 @@ bool findDonor(const QImage &_image, const QRegion &_region, const QRegion &_exc
             const QPoint donor = p + _candidate;
             if (!_image.rect().contains(donor) || _excluded.contains(donor))
                 continue;
-            const Color a = components(_image.pixel(p)), b = components(_image.pixel(donor));
+            const Color a = HealingPixels::color(_image, p),
+                        b = HealingPixels::color(_image, donor);
             for (int c = 0; c < 4; ++c) {
                 const qreal delta = a[c] - b[c];
                 difference[c] += delta;
@@ -70,8 +65,8 @@ bool findDonor(const QImage &_image, const QRegion &_region, const QRegion &_exc
             const QPoint next = p + QPoint(1, 0), donorNext = donor + QPoint(1, 0);
             if (_image.rect().contains(next) && _image.rect().contains(donorNext) &&
                 !_region.contains(next) && !_excluded.contains(donorNext)) {
-                const Color an = components(_image.pixel(next)),
-                            bn = components(_image.pixel(donorNext));
+                const Color an = HealingPixels::color(_image, next),
+                            bn = HealingPixels::color(_image, donorNext);
                 for (int c = 0; c < 3; ++c)
                     gradient += qPow((an[c] - a[c]) - (bn[c] - b[c]), 2);
             }
@@ -92,7 +87,7 @@ bool findDonor(const QImage &_image, const QRegion &_region, const QRegion &_exc
                                bounds.y() + y * (bounds.height() - 1) / 6);
                 if (!_region.contains(p))
                     continue;
-                const Color b = components(_image.pixel(p + _candidate));
+                const Color b = HealingPixels::color(_image, p + _candidate);
                 for (int c = 0; c < 4; ++c) {
                     donorMean[c] += b[c];
                     donorSquare[c] += b[c] * b[c];
@@ -172,21 +167,28 @@ QImage boundaryFill(const QImage &_image, const QRegion &_region,
             queue.append(next);
         }
     }
-    QImage output(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+    QImage output(bounds.size(), ImageUtils::workingFormat(_image));
     output.fill(Qt::transparent);
     for (const QRect &span : _region)
         for (int y = span.top(); y <= span.bottom(); ++y) {
             if (_cancel->load())
                 return {};
-            auto *line = reinterpret_cast<QRgb *>(output.scanLine(y - bounds.y()));
+            auto *line = output.scanLine(y - bounds.y());
             for (int x = span.left(); x <= span.right(); ++x) {
                 const int gx =
                     qBound(0, (x - work.x()) * grid.width() / work.width(), grid.width() - 1);
                 const int gy =
                     qBound(0, (y - work.y()) * grid.height() / work.height(), grid.height() - 1);
-                line[x - bounds.x()] = _image.pixel(seeds[gy * grid.width() + gx]);
+                const QPoint seed = seeds[gy * grid.width() + gx];
+                if (ImageUtils::is16Bit(_image))
+                    reinterpret_cast<QRgba64 *>(line)[x - bounds.x()] =
+                        reinterpret_cast<const QRgba64 *>(_image.constScanLine(seed.y()))[seed.x()];
+                else
+                    reinterpret_cast<QRgb *>(line)[x - bounds.x()] = _image.pixel(seed);
             }
         }
+    if (ImageUtils::is16Bit(_image))
+        output.setColorSpace(_image.colorSpace());
     return output;
 }
 } // namespace

@@ -1310,7 +1310,8 @@ private slots:
         QCOMPARE(document.layerImage(0).pixelColor(0, 0).rgba64(), image.pixelColor(0, 0).rgba64());
         document.setActiveLayer(1);
         QVERIFY(document.toolSupportsDepth("brush"));
-        QVERIFY(!document.toolSupportsDepth("healing"));
+        QVERIFY(document.toolSupportsDepth("healing"));
+        QVERIFY(!document.toolSupportsDepth("smudge"));
     }
     void recentFilesAreOrderedDeduplicatedLimitedAndPruned()
     {
@@ -4067,13 +4068,16 @@ private slots:
 
     void patchAsyncSoftSelectionMatchesRepairReference_data()
     {
+        QTest::addColumn<int>("bits");
         QTest::addColumn<int>("mode");
-        QTest::newRow("source") << 0;
-        QTest::newRow("destination") << 1;
+        for (int bits : {8, 16})
+            for (int mode : {0, 1})
+                QTest::newRow(qPrintable(QString("%1-%2").arg(bits).arg(mode))) << bits << mode;
     }
 
     void patchAsyncSoftSelectionMatchesRepairReference()
     {
+        QFETCH(int, bits);
         QFETCH(int, mode);
         QTemporaryDir dir;
         QImage        image(240, 180, QImage::Format_ARGB32_Premultiplied);
@@ -4081,6 +4085,16 @@ private slots:
             for (int x = 0; x < image.width(); ++x)
                 image.setPixelColor(x, y,
                                     QColor(70 + x / 3, 80 + y / 2, 120 + y % 8, 160 + x % 80));
+        if (bits == 16) {
+            image = image.convertToFormat(QImage::Format_RGBA64_Premultiplied);
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x) {
+                    auto &pixel = reinterpret_cast<QRgba64 *>(image.scanLine(y))[x];
+                    pixel = QRgba64::fromRgba64(pixel.red() + ushort(x % 17),
+                                                pixel.green() + ushort(y % 19),
+                                                pixel.blue() + ushort((x + y) % 23), pixel.alpha());
+                }
+        }
         const auto path = dir.filePath("patch-soft.png");
         QVERIFY(image.save(path));
         Document d;
@@ -4115,6 +4129,7 @@ private slots:
         QVERIFY(expected != original);
         QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
         QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 5000);
+        QCOMPARE(d.channelBits(), bits);
         QCOMPARE(d.layerImage(0), expected);
         QCOMPARE(d.historyIndex(), history + 1);
         QCOMPARE(d.selectionRegion(), mode == 0 ? selection : selection.translated(50, 0));

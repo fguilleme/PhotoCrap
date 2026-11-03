@@ -1,5 +1,18 @@
 # Calques, mémoire et cache de travail disque
 
+## Retouches natives 8/16 bits
+
+Les deux correcteurs, Suppression, Pièce, Déplacement basé sur le contenu et
+Œil rouge lisent et écrivent désormais les canaux prémultipliés natifs 8/16 bits.
+Les recherches et champs de diffusion gardent leurs coordonnées couleur usuelles
+0–255, avec les fractions des canaux 16 bits ; la quantification ne se fait qu’à
+l’écriture native. La texture du donneur, son alpha et le mélange de couverture
+ne passent pas par une image QRgb en 16 bits. Les pointes et sélections restent des
+couvertures 8 bits. Les empreintes, recherches, reconstructions et écritures gardent
+leurs régions de travail antérieures. Les outils à réparation asynchrone conservent
+leurs snapshots, annulation et publication atomique ; certaines captures et copies
+pour l’historique peuvent toujours matérialiser un plan entier.
+
 ## Migration du 3 novembre 2026
 
 `PixelPlane` stocke désormais les plans de calques, masques et sources de fréquences

@@ -399,6 +399,6 @@ RAW files are developed asynchronously through LibRaw 0.22.2 using camera white 
 
 Choose 8- or 16-bit channels on creation or under **Image → Color depth**. Photo adjustments, masks, blends, spatial filters, Brush, Eraser, Stamp, shapes and Crop retain 16-bit storage; projects and PNG export preserve it. JPEG, BMP and WebP output 8-bit pixels. Converting 8 to 16 bits does not recover lost precision.
 
-Smudge, Mixer Brush, Healing, Spot Healing, Remove, Patch, Content-Aware Move, Red Eye, Color Replacement and both History Brushes currently require 8-bit pixels and are explicitly blocked on 16-bit pixel layers. Documents remain limited to 32 megapixels and 2 GiB of uncompressed layer data, with 8 bytes per 16-bit color pixel and 1 byte per mask pixel (rows aligned to 4 bytes).
+Healing, Spot Healing, Remove, Patch, Content-Aware Move and Red Eye support native 8/16-bit pixels, including their sampling modes and undo. Smudge, Mixer Brush, Color Replacement and both History Brushes currently require 8-bit pixels and are explicitly blocked on 16-bit pixel layers. Documents remain limited to 32 megapixels and 2 GiB of uncompressed layer data, with 8 bytes per 16-bit color pixel and 1 byte per mask pixel (rows aligned to 4 bytes).
 
 CMake fetches pinned, SHA-256-verified LibRaw and zlib sources and links them statically. Standalone packages ship their unmodified sources and notices under `third-party`; LibRaw is distributed under CDDL 1.0.

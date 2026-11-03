@@ -1008,9 +1008,7 @@ bool Document::toolSupportsDepth(const QString &_tool) const
         return true;
     // These legacy algorithms still work in QRgb patches. Do not silently
     // truncate a high-precision image or interpret RGBA64 storage as QRgb.
-    static const QStringList eightBitTools{"smudge",           "mixerBrush",     "healing",
-                                           "spotHealing",      "remove",         "patch",
-                                           "contentAwareMove", "redEye",         "colorReplacement",
-                                           "historyBrush",     "artHistoryBrush"};
+    static const QStringList eightBitTools{"smudge", "mixerBrush", "colorReplacement",
+                                           "historyBrush", "artHistoryBrush"};
     return !eightBitTools.contains(_tool);
 }

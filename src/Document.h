@@ -305,7 +305,7 @@ public:
     Q_INVOKABLE void    penPathToSelection(int _mode = 0);
     Q_INVOKABLE void    fillPenPath();
     Q_INVOKABLE void    strokePenPath();
-    Q_PROPERTY(int channelBits READ channelBits NOTIFY documentChanged)
+    Q_PROPERTY(int channelBits READ channelBits NOTIFY layersChanged)
     int channelBits() const
     {
         return m_channelBits;

@@ -6,6 +6,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Réutilisation des petits payloads de plans répétés pendant une sauvegarde,
+  cache LRU de 8 Mio ; gros payloads en flux, sans expansion/réencodage sur hit.
+
 - [x] Images et masques PNG identiques décodés une fois par format natif,
   copies indépendantes à l’édition et réservations logiques conservées.
 

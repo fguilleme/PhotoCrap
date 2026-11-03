@@ -1,8 +1,9 @@
 #pragma once
 #include <QIODevice>
 
-// Sequential adapters used by the atomic project writer. Image payloads never
-// accumulate as a complete PNG, Base64 string or JSON document in memory.
+// Sequential adapters used by the atomic project writer. Single-use and large
+// payloads stream directly; repeated small payloads may be captured within a
+// byte budget without accumulating the whole encoded project.
 class LimitedWriteDevice final : public QIODevice
 {
 public:
@@ -55,4 +56,37 @@ private:
     QIODevice &m_target;
     QByteArray m_tail;
     bool       m_failed = false, m_finished = false;
+};
+
+// Best-effort bounded capture while forwarding the entire stream. Exceeding
+// the capture limit discards the recording, never truncates the destination.
+class RecordingWriteDevice final : public QIODevice
+{
+public:
+    RecordingWriteDevice(QIODevice &_target, qint64 _limit);
+    bool isSequential() const override
+    {
+        return true;
+    }
+    bool recordingComplete() const
+    {
+        return m_recording && !m_failed;
+    }
+    QByteArray recording() const
+    {
+        return recordingComplete() ? m_bytes : QByteArray{};
+    }
+
+protected:
+    qint64 readData(char *, qint64) override
+    {
+        return -1;
+    }
+    qint64 writeData(const char *_data, qint64 _size) override;
+
+private:
+    QIODevice &m_target;
+    qint64     m_limit;
+    QByteArray m_bytes;
+    bool       m_recording = true, m_failed = false;
 };

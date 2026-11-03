@@ -306,12 +306,23 @@ La sauvegarde `.pcr` v9 écrit les métadonnées JSON et les PNG en Base64 direc
 le fichier atomique temporaire, un plan après l’autre. Elle ne conserve plus les chaînes
 Base64 de tous les calques ni une seconde copie JSON complète. Elle ne construit plus
 non plus de tampon PNG compressé ou de grande chaîne UTF-16 intermédiaire pour chaque
-plan. Le convertisseur produit au plus 16 Kio de Base64 à la fois et garde au plus deux
+plan. Pour les versions de plans répétées, un cache LRU local à la sauvegarde
+retient leurs payloads Base64 jusqu’à 8 Mio au total. Une répétition en cache écrit
+ces octets par blocs de 16 Kio, sans reconstruire de QImage ni réencoder le PNG.
+Seules les versions présentes plusieurs fois sont candidates. La capture courante
+est elle aussi limitée à 8 Mio ; cache et capture peuvent donc retenir ensemble
+jusqu’à 16 Mio de payloads, hors capacité de l’allocateur. Un dépassement abandonne
+la capture sans tronquer le flux et marque la version pour éviter les captures
+suivantes inutiles. Les plans uniques et les gros payloads gardent le flux direct.
+Le convertisseur produit au plus 16 Kio de Base64 à la fois et garde au plus deux
 octets en attente. La limite de 256 Mio porte sur le flux réel, y compris métadonnées et
 padding ; un échec d’écriture/encodage laisse le fichier précédent intact. Sur une sonde
 isolée de douze plans synthétiques de 1 Mpx, le pic RSS de l’encodeur passe de 324 à 74
 Mio en 8 bits et de 692 à 122 Mio en 16 bits, avec sorties identiques. Ces mesures
-locales n’incluent pas le composite ni l’historique de l’application. L’encodage PNG
+locales n’incluent pas le composite ni l’historique de l’application, et portaient
+sur des plans uniques, sans le nouveau cache de répétitions. Sur dix copies d’un
+dégradé 4 Mpx/16 bits, la sauvegarde passe localement de 2,78 à 0,285 s, avec un
+payload répété de 489 136 octets et des champs PNG/Base64 identiques. L’encodage PNG
 peut encore matérialiser un plan natif complet et ses buffers de conversion. La
 lecture parse encore tout le JSON ; les grandes sauvegardes utilisent le worker
 décrit ci-dessous.

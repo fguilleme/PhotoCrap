@@ -1,5 +1,30 @@
 # Validation
 
+## Payloads répétés de sauvegarde — 3 novembre 2026
+
+Quatre parcours croisent 8/16 bits et sauvegarde synchrone/asynchrone : images,
+masques, sources de fréquences, fonds compacts répétés et champs nuls sont écrits
+ensemble. Chaque payload est comparé à un encodage PNG/QBuffer indépendant,
+Base64 compris, puis le projet, ses propriétés et son composite sont rechargés.
+Un fichier avec trois copies d’un plan 16 bits bruité dépasse la capture de 8 Mio
+pour chaque payload ; ses données restent complètes et identiques après relecture.
+
+L’adaptateur de capture vérifie 18 combinaisons de limites et tailles d’écriture,
+les écritures courtes, échecs -1/0 et l’abandon de tout enregistrement incomplet.
+Les PNG natifs 8/16 bits et masques sont aussi comparés à l’ancien encodeur buffer.
+L’annulation réelle pendant une sauvegarde 16 Mpx/16 bits avec plans répétés
+conserve le fichier précédent, sans signal d’enregistrement ni changement d’historique.
+
+La sonde `PHOTOCRAP_REPEATED_SAVE_PROBE=1 build/photocrap_tests repeatedPlaneSaveProbe`
+sauvegarde dix copies d’un dégradé 4 Mpx/16 bits : 2,78 s avec `DocumentIO.cpp`
+recompilé depuis `5e64e9f`, 0,285 s avec réutilisation. Les dix champs sont
+identiques et le payload répété occupe 489 136 octets. Pas de seuil temporel de test.
+Le budget du LRU est 8 Mio ; la capture courante peut en retenir 8 Mio supplémentaires,
+sans constituer une limite du RSS ni des buffers natifs du codec.
+Les 50 suites passent, ainsi que les cas ciblés Qt 6.8/CPU portable, les tests
+d’adaptateurs et les opérations natives Cocoa/Metal.
+
+
 ## PNG d’images et masques partagés à l’ouverture — 3 novembre 2026
 
 Huit parcours croisent 8/16 bits, masque uniforme/peint et RAM/disque : cinq calques

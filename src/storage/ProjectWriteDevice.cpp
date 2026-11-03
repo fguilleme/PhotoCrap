@@ -100,3 +100,28 @@ bool Base64WriteDevice::finish()
     m_tail.clear();
     return !m_failed;
 }
+
+RecordingWriteDevice::RecordingWriteDevice(QIODevice &_target, qint64 _limit)
+    : m_target(_target), m_limit(qMax(qint64(0), _limit)), m_recording(_limit > 0)
+{
+    open(QIODevice::WriteOnly | QIODevice::Unbuffered);
+}
+qint64 RecordingWriteDevice::writeData(const char *_data, qint64 _size)
+{
+    if (m_failed)
+        return -1;
+    if (!writeAll(m_target, _data, _size)) {
+        setErrorString(m_target.errorString());
+        m_failed = true;
+        m_bytes.clear();
+        return -1;
+    }
+    if (m_recording) {
+        if (_size > m_limit - m_bytes.size()) {
+            m_recording = false;
+            m_bytes.clear();
+        } else
+            m_bytes.append(_data, _size);
+    }
+    return _size;
+}

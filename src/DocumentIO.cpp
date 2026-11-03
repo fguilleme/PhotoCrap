@@ -5,6 +5,7 @@
 #include "text/TextLayer.h"
 
 #include <QBuffer>
+#include <QCache>
 #include <QColorSpace>
 #include <QCryptographicHash>
 #include <QFile>
@@ -16,6 +17,7 @@
 #include <QJsonObject>
 #include <QPainter>
 #include <QSaveFile>
+#include <QSet>
 #include <QSignalBlocker>
 #include <QtConcurrentRun>
 #include <limits>
@@ -417,11 +419,22 @@ bool Document::saveProject(const QUrl &_url)
         return fail(tr("Chemin de sauvegarde invalide."));
     if (!path.endsWith(".pcr", Qt::CaseInsensitive))
         path += ".pcr";
-    int planes = 0;
+    int                planes = 0;
+    QHash<qint64, int> references;
     for (const auto &layer : m_layers)
-        planes += !layer.image.isNull() + !layer.mask.isNull() + !layer.source.isNull();
-    const int total     = qMax(2, planes * 2 + 1);
-    int       completed = 0;
+        for (const PixelPlane *plane : {&layer.image, &layer.mask, &layer.source})
+            if (!plane->isNull()) {
+                ++planes;
+                ++references[plane->cacheKey()];
+            }
+    // Only repeated immutable versions are worth retaining. Large payloads
+    // keep streaming without caching; neither cache nor recording can grow
+    // beyond this byte budget, independently of the document's native size.
+    constexpr int              payloadBudget = 8 * 1024 * 1024;
+    QCache<qint64, QByteArray> payloads(payloadBudget);
+    QSet<qint64>               uncachedPayloads;
+    const int                  total     = qMax(2, planes * 2 + 1);
+    int                        completed = 0;
     if (!operationStep(0, total))
         return false;
     QSaveFile file(path);
@@ -449,9 +462,35 @@ bool Document::saveProject(const QUrl &_url)
             return true;
         if (!operationStep(completed++, total))
             return false;
+        const auto key = _plane.cacheKey();
+        if (const auto payload = payloads.object(key)) {
+            if (!operationStep(completed++, total))
+                return false;
+            for (qsizetype offset = 0; offset < payload->size();) {
+                if (!operationStep(completed, total))
+                    return false;
+                const auto count = qMin(qsizetype(16 * 1024), payload->size() - offset);
+                if (output.write(payload->constData() + offset, count) != count)
+                    return false;
+                offset += count;
+            }
+            return operationStep(completed, total);
+        }
         const QImage pixels = _plane;
         if (pixels.isNull() || !operationStep(completed++, total))
             return false;
+        if (references.value(key) > 1 && !uncachedPayloads.contains(key)) {
+            RecordingWriteDevice recording(output, payloadBudget);
+            Base64WriteDevice    encoder(recording);
+            if (!pixels.save(&encoder, "PNG") || !encoder.finish())
+                return false;
+            if (recording.recordingComplete()) {
+                const auto bytes = recording.recording();
+                payloads.insert(key, new QByteArray(bytes), int(bytes.size()));
+            } else
+                uncachedPayloads.insert(key);
+            return operationStep(completed, total);
+        }
         Base64WriteDevice encoder(output);
         return pixels.save(&encoder, "PNG") && encoder.finish() && operationStep(completed, total);
     };

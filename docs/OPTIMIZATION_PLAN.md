@@ -9,6 +9,9 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Réutilisation des petits payloads de plans répétés pendant une sauvegarde,
+  cache LRU de 8 Mio ; gros payloads en flux, sans expansion/réencodage sur hit.
+
 - [x] Images et masques PNG identiques décodés une fois par format natif,
   copies indépendantes à l’édition et réservations logiques conservées.
 
@@ -152,7 +155,9 @@ aussi par le worker ; leur document est modifié sans URL de projet, comme aupar
 comme calque utilise le mode édition du worker, y compris le centrage et la conversion des
 plans lors d’une promotion 8→16 bits ; une fin valide crée une seule étape d’historique. La
 sauvegarde v9 écrit désormais ses PNG/Base64 et son JSON en flux atomique pour éviter
-l’accumulation des données encodées ; le codec peut encore demander un plan natif complet.
+l’accumulation du projet encodé ; un LRU de 8 Mio réutilise les petits payloads
+répétés, avec une capture bornée et un repli en flux. Le codec peut encore demander
+un plan natif complet sur un cache miss.
 
 ## 5. Niveaux de détail GPU et budget graphique global
 

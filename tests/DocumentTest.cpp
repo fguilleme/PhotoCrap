@@ -7268,6 +7268,155 @@ private slots:
         QCOMPARE(d.width(), 32);
         QCOMPARE(d.selection(), QRect(8, 8, 8, 8));
     }
+    void repeatedProjectPayloadsMatchIndependentPngEncoding_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("asynchronous");
+        for (int bits : {8, 16})
+            for (bool async : {false, true})
+                QTest::newRow(qPrintable(QString::number(bits) + (async ? "-async" : "-sync")))
+                    << bits << async;
+    }
+    void repeatedProjectPayloadsMatchIndependentPngEncoding()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, asynchronous);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(96, 64, true, bits));
+        d.setColor(QColor::fromRgba64(23456, 34567, 45678, 50000));
+        d.setBrushSize(20);
+        d.beginStroke(30, 30);
+        d.endStroke();
+        d.addLayerMask();
+        d.setColor(Qt::black);
+        d.beginStroke(32, 32);
+        d.endStroke();
+        d.setEditingMask(false);
+        d.setMaskEnabled(false);
+        const auto source = d.layerImage(0);
+        for (int i = 0; i < 4; ++i)
+            d.duplicateLayer();
+        d.setActiveLayer(0);
+        d.addFrequencySeparation(7); // Sources reuse the pixel-layer payload.
+        d.addLayer();
+        d.duplicateLayer();             // Compact payloads are also repeatable.
+        d.addAdjustmentLayer("invert"); // Null image field after cached data.
+        const auto composite = d.composite();
+        const auto path      = QUrl::fromLocalFile(directory.filePath("repeated.pcr"));
+        d.setBackgroundEditThreshold(asynchronous ? 0 : -1);
+        if (asynchronous) {
+            QSignalSpy saved(&d, &Document::projectSaved);
+            d.requestSaveProject(path);
+            QTRY_COMPARE_WITH_TIMEOUT(saved.size(), 1, 10000);
+        } else
+            QVERIFY(d.saveProject(path));
+        QFile file(path.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto root = QJsonDocument::fromJson(file.readAll()).object();
+        QCOMPARE(root["version"].toInt(), 9);
+        const auto layers = root["layers"].toArray();
+        QCOMPARE(layers.size(), d.layers().size());
+        const auto encode = [](const QImage &_image) {
+            QByteArray bytes;
+            QBuffer    buffer(&bytes);
+            return buffer.open(QIODevice::WriteOnly) && _image.save(&buffer, "PNG")
+                       ? QString::fromLatin1(bytes.toBase64())
+                       : QString{};
+        };
+        for (int i = 0; i < layers.size(); ++i) {
+            const auto layer = layers[i].toObject();
+            if (!layer["png"].toString().isEmpty())
+                QCOMPARE(layer["png"].toString(),
+                         encode(d.layerImage(i, layer["compactPixels"].toBool() ? QSize(1, 1)
+                                                                                : QSize{})));
+            if (!layer["mask"].toString().isEmpty())
+                QCOMPARE(
+                    layer["mask"].toString(),
+                    encode(d.maskImage(i, layer["compactMask"].toBool() ? QSize(1, 1) : QSize{})));
+            if (!layer["source"].toString().isEmpty())
+                QCOMPARE(layer["source"].toString(), encode(source));
+        }
+        Document loaded;
+        QVERIFY(loaded.openFile(path));
+        QCOMPARE(loaded.layers(), d.layers());
+        QCOMPARE(loaded.composite(), composite);
+        QVERIFY(!d.modified());
+    }
+    void repeatedLargePayloadsStreamAfterTheCaptureLimit()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage     noise(1536, 1536, QImage::Format_RGBA64_Premultiplied);
+        quint32    random = 0x6a09e667;
+        const auto next   = [&] {
+            random ^= random << 13;
+            random ^= random >> 17;
+            random ^= random << 5;
+            return random;
+        };
+        for (int y = 0; y < noise.height(); ++y)
+            for (int x = 0; x < noise.width(); ++x)
+                reinterpret_cast<QRgba64 *>(noise.scanLine(y))[x] =
+                    QRgba64::fromRgba64(ushort(next()), ushort(next()), ushort(next()), 65535);
+        const auto image = QUrl::fromLocalFile(directory.filePath("noise.png"));
+        QVERIFY(noise.save(image.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(image));
+        const auto original = d.layerImage(0);
+        d.duplicateLayer();
+        d.duplicateLayer();
+        const auto project = QUrl::fromLocalFile(directory.filePath("overflow.pcr"));
+        QVERIFY(d.saveProject(project));
+        QFile file(project.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto layers  = QJsonDocument::fromJson(file.readAll()).object()["layers"].toArray();
+        const auto payload = layers[0].toObject()["png"].toString();
+        QVERIFY(payload.size() > 8 * 1024 * 1024);
+        QCOMPARE(layers[1].toObject()["png"].toString(), payload);
+        QCOMPARE(layers[2].toObject()["png"].toString(), payload);
+        Document loaded;
+        QVERIFY(loaded.openFile(project));
+        for (int i = 0; i < 3; ++i)
+            QCOMPARE(loaded.layerImage(i), original);
+    }
+    void repeatedPlaneSaveProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_REPEATED_SAVE_PROBE"))
+            QSKIP("Set PHOTOCRAP_REPEATED_SAVE_PROBE=1 to measure repeated native payload saves.");
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        d.setBackgroundEditThreshold(-1);
+        QVERIFY(d.newDocument(2048, 2048, false, 16));
+        d.setTool("gradient");
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.beginStroke(0, 0);
+        d.continueStroke(2048, 2048);
+        d.endStroke();
+        for (int i = 0; i < 9; ++i)
+            d.duplicateLayer();
+        const auto    before = d.memoryUsage()["tileHeapBytes"];
+        const auto    url    = QUrl::fromLocalFile(directory.filePath("copies.pcr"));
+        QElapsedTimer timer;
+        timer.start();
+        QVERIFY(d.saveProject(url));
+        const auto elapsed = timer.nsecsElapsed();
+        QCOMPARE(d.memoryUsage()["tileHeapBytes"], before);
+        QFile file(url.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto layers = QJsonDocument::fromJson(file.readAll()).object()["layers"].toArray();
+        QCOMPARE(layers.size(), 10);
+        const auto payload = layers[0].toObject()["png"].toString();
+        QVERIFY(payload.size() < 8 * 1024 * 1024);
+        for (int i = 1; i < 10; ++i)
+            QCOMPARE(layers[i].toObject()["png"].toString(), payload);
+        qInfo() << "Repeated 4 MP / 16-bit save, ten layers, ns and cached payload size:" << elapsed
+                << payload.size();
+    }
+
     void streamedProjectPreservesNativePlanesAndEscapedMetadata()
     {
         QTemporaryDir directory;

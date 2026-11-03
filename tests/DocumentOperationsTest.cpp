@@ -1263,6 +1263,8 @@ private slots:
         d.setBrushSize(20);
         d.beginStroke(100, 100);
         d.endStroke();
+        d.duplicateLayer();
+        d.duplicateLayer(); // Exercise a recording candidate during cancellation.
         QVERIFY(d.modified());
         const auto history = d.history();
         const auto url     = d.projectUrl();

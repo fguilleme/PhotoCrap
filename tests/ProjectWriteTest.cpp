@@ -60,6 +60,48 @@ class ProjectWriteTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void recordingForwardsEveryByteAcrossItsCaptureLimit_data()
+    {
+        QTest::addColumn<int>("limit");
+        QTest::addColumn<int>("chunk");
+        for (int limit : {0, 1, 31, 4095, 4096, 4097})
+            for (int chunk : {1, 7, 4096})
+                QTest::newRow(qPrintable(QString("%1-%2").arg(limit).arg(chunk))) << limit << chunk;
+    }
+    void recordingForwardsEveryByteAcrossItsCaptureLimit()
+    {
+        QFETCH(int, limit);
+        QFETCH(int, chunk);
+        const auto           data = input(4096);
+        ShortSink            sink;
+        RecordingWriteDevice recording(sink, limit);
+        for (int offset = 0; offset < data.size(); offset += chunk) {
+            const auto size = qMin(qsizetype(chunk), data.size() - offset);
+            QCOMPARE(recording.write(data.constData() + offset, size), qint64(size));
+        }
+        QCOMPARE(sink.bytes, data);
+        QCOMPARE(recording.recordingComplete(), limit >= data.size());
+        QCOMPARE(recording.recording(), limit >= data.size() ? data : QByteArray{});
+    }
+    void recordingDiscardsIncompletePayloadAfterTargetFailure()
+    {
+        for (bool zero : {false, true}) {
+            ShortSink sink;
+            sink.failAfter     = 5;
+            sink.zeroOnFailure = zero;
+            RecordingWriteDevice recording(sink, 100);
+            QCOMPARE(recording.write("abc", 3), qint64(3));
+            QCOMPARE(recording.recording(), QByteArray("abc"));
+            QCOMPARE(recording.write("defghijkl", 9), qint64(-1));
+            QVERIFY(!recording.recordingComplete());
+            QVERIFY(recording.recording().isEmpty());
+            QCOMPARE(sink.bytes, QByteArray("abcde"));
+            QCOMPARE(recording.errorString(), sink.errorString());
+            QCOMPARE(recording.write("z", 1), qint64(-1));
+            QCOMPARE(sink.bytes, QByteArray("abcde"));
+        }
+    }
+
     void projectEncodingMemoryProbe()
     {
         const auto mode = qEnvironmentVariable("PHOTOCRAP_PROJECT_ENCODING_PROBE");
@@ -256,12 +298,15 @@ private slots:
             QBuffer    buffer(&previous);
             QVERIFY(buffer.open(QIODevice::WriteOnly));
             QVERIFY(image.save(&buffer, "PNG"));
-            ShortSink          sink;
-            LimitedWriteDevice limited(sink, 4 * 1024 * 1024);
-            Base64WriteDevice  encoder(limited);
+            ShortSink            sink;
+            LimitedWriteDevice   limited(sink, 4 * 1024 * 1024);
+            RecordingWriteDevice recording(limited, 4 * 1024 * 1024);
+            Base64WriteDevice    encoder(recording);
             QVERIFY(image.save(&encoder, "PNG"));
             QVERIFY(encoder.finish());
             QCOMPARE(sink.bytes, previous.toBase64());
+            QVERIFY(recording.recordingComplete());
+            QCOMPARE(recording.recording(), previous.toBase64());
             QVERIFY(sink.largestRequest <= 16 * 1024);
         }
     }

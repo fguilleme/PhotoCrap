@@ -9,6 +9,10 @@ références séparées et les lectures régionales sont comparées au rendu int
 
 ## 1. Plans éditables et historique par tuiles
 
+- [x] Composite CPU ignorant les fonds natifs uniformes transparents et masques
+  noirs uniformes opaques ; masques blancs ou de densité nulle reconnus avant
+  expansion, flou et marges, en conservant les chaînes d’écrêtage.
+
 - [x] Application des masques natifs 16 bits par multiplication entière exacte
   à densité maximale ; facteurs précalculés sans quantification aux autres densités.
 

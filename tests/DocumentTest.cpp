@@ -8290,6 +8290,211 @@ private slots:
             }
         }
     }
+    void uniformCompositeMetadataDigest()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        const QSize        size(67, 71);
+        const auto         encoded = [](const QImage &_image) {
+            QByteArray bytes;
+            QBuffer    buffer(&bytes);
+            if (!buffer.open(QIODevice::WriteOnly) || !_image.save(&buffer, "PNG"))
+                return QString{};
+            return QString::fromLatin1(bytes.toBase64());
+        };
+        int cases = 0;
+        for (int bits : {8, 16}) {
+            const auto format = bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                           : QImage::Format_ARGB32_Premultiplied;
+            QImage pixels(size, format), empty(size, format), base(1, 1, format), top(1, 1, format);
+            empty.fill(Qt::transparent);
+            base.fill(QColor(31, 61, 91, 197));
+            top.fill(QColor(223, 53, 113, 173));
+            for (int y = 0; y < size.height(); ++y)
+                for (int x = 0; x < size.width(); ++x)
+                    pixels.setPixelColor(
+                        x, y,
+                        QColor::fromRgba64(ushort(x * 887), ushort(y * 811), ushort((x + y) * 431),
+                                           ushort(20000 + (x * 97 + y * 163) % 40000)));
+            const QString source = encoded(pixels), transparent = encoded(empty);
+            QVERIFY(!source.isEmpty());
+            QVERIFY(!transparent.isEmpty());
+            for (const QString kind : {QString("pixel"), QString("adjustment"),
+                                       QString("frequencyLow"), QString("empty")})
+                for (int mode = 0; mode < 6; ++mode)
+                    for (bool clipped : {false, true}) {
+                        const int value = mode == 2 ? 255 : mode == 4 ? 127 : 0;
+                        QImage    mask(size, QImage::Format_Grayscale8);
+                        mask.fill(value);
+                        QJsonObject target{
+                            {"kind", kind == "empty" ? QString("pixel") : kind},
+                            {"png", kind == "empty" ? transparent : source},
+                            {"compactPixels", false},
+                            {"source", source},
+                            {"mask", encoded(mask)},
+                            {"compactMask", false},
+                            {"maskEnabled", mode != 5},
+                            {"clippingMask", clipped},
+                            {"opacity", .65},
+                            {"blend", mode % 3 == 0   ? 0
+                                      : mode % 3 == 1 ? 1
+                                                      : 5},
+                            {"adjustmentType", "invert"},
+                            {"parameters",
+                             QJsonObject{
+                                 {"radius", 3},
+                                 {"pairId", "solo"},
+                                 {"_maskDensity", mode == 3                ? 0
+                                                  : mode == 2 || mode == 4 ? 63
+                                                                           : 100},
+                                 {"_maskFeather", mode == 1 || mode == 2 || mode == 3 ? 4 : 0}}}};
+                        QJsonObject background{{"kind", "pixel"},
+                                               {"png", encoded(base)},
+                                               {"compactPixels", true},
+                                               {"opacity", .75},
+                                               {"blend", 0}};
+                        QJsonObject overlay{
+                            {"kind", "pixel"}, {"png", encoded(top)}, {"compactPixels", true},
+                            {"opacity", .8},   {"blend", 0},          {"clippingMask", true}};
+                        QJsonObject root{{"format", "PhotoCrap"},
+                                         {"version", 9},
+                                         {"width", size.width()},
+                                         {"height", size.height()},
+                                         {"channelBits", bits},
+                                         {"layers", QJsonArray{background, target, overlay}},
+                                         {"penPaths", QJsonArray{}}};
+                        const auto  url = QUrl::fromLocalFile(directory.filePath("uniform.pcr"));
+                        QFile       file(url.toLocalFile());
+                        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+                        QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+                        file.close();
+                        Document d;
+                        QVERIFY(d.openFile(url));
+                        const auto   before = d.historyIndex();
+                        const QRect  sample(13, 17, 23, 29);
+                        const QImage region = d.compositeRegion(sample), full = d.composite();
+                        QCOMPARE(region, full.copy(sample));
+                        QCOMPARE(d.historyIndex(), before);
+                        for (int y = 0; y < full.height(); ++y)
+                            hash.addData(QByteArrayView(
+                                reinterpret_cast<const char *>(full.constScanLine(y)),
+                                full.width() * full.depth() / 8));
+                        ++cases;
+                    }
+        }
+        QCOMPARE(cases, 96);
+        QCOMPARE(
+            hash.result().toHex(),
+            filterReference("d1248fbf79d7a21b50c08712b1b363c54c55d0166063e5d201e7f7afae60ea3b",
+                            "78e3c549fe042c02dcb1e8d293e31fa3a087138099863635c7edade059817f91"));
+    }
+    void uniformCompositionKeepsLowNativeAlphaAndPaintedCoverage()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QSize size(67, 71);
+        for (int bits : {8, 16}) {
+            const auto format = bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                           : QImage::Format_ARGB32_Premultiplied;
+            for (int alpha : {1, 127, 128, 257, 65535}) {
+                QImage image(size, format);
+                image.fill(QColor::fromRgba64(65535, 32768, 0, alpha));
+                const auto url = QUrl::fromLocalFile(directory.filePath("alpha.png"));
+                QVERIFY(image.save(url.toLocalFile()));
+                Document d;
+                QVERIFY(d.openFile(url));
+                const auto native = d.layerImage(0);
+                QCOMPARE(native.format(), format);
+                if (bits == 16)
+                    QCOMPARE(reinterpret_cast<const QRgba64 *>(native.constScanLine(0))[0].alpha(),
+                             ushort(alpha));
+                // Compare the decoded native plane: PNG conversion and the
+                // sRGB import tag are separate from compositor coverage.
+                // A full-size alpha of 1/65535 must not be treated as zero.
+                QCOMPARE(d.composite(), native);
+            }
+            Document d;
+            QVERIFY(d.newDocument(size.width(), size.height(), false, bits));
+            d.addLayerMask(false);
+            d.setTool("pencil");
+            d.setBrushSize(5);
+            d.setColor(Qt::white);
+            d.beginStroke(31.5, 35.5);
+            d.endStroke();
+            d.setEditingMask(false);
+            const auto coverage = d.maskImage(0);
+            QVERIFY(coverage.pixelColor(31, 35).red() > 0);
+            QVERIFY(coverage.pixelColor(0, 0).red() == 0);
+            QImage expected(size, format);
+            expected.setColorSpace(QColorSpace::SRgb);
+            for (int y = 0; y < size.height(); ++y)
+                for (int x = 0; x < size.width(); ++x) {
+                    const int alpha = coverage.constScanLine(y)[x];
+                    expected.setPixelColor(x, y, QColor(255, 255, 255, alpha));
+                }
+            QCOMPARE(d.compositeRegion(QRect(27, 31, 10, 10)),
+                     expected.copy(QRect(27, 31, 10, 10)));
+            QCOMPARE(d.composite(), expected);
+        }
+    }
+
+    void logicalUniformCompositionProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_UNIFORM_COMPOSITE_PROBE"))
+            QSKIP("Set PHOTOCRAP_UNIFORM_COMPOSITE_PROBE=1 for 24 MP uniform composition.");
+        for (const QString kind :
+             {QString("empty"), QString("black"), QString("white"), QString("zeroDensity")}) {
+            Document d;
+            d.setBackgroundEditThreshold(-1);
+            QVERIFY(d.newDocument(6000, 4000, kind == "empty", 16));
+            if (kind != "empty") {
+                d.addLayerMask(kind == "white");
+                // Keep a full-size native uniform mask rather than the compact
+                // one-pixel form: this reproduces reopened/dynamic native plans.
+                QImage expanded(d.width(), d.height(), QImage::Format_Grayscale8);
+                expanded.fill(kind == "white" ? 255 : 0);
+                QTemporaryDir directory;
+                QVERIFY(directory.isValid());
+                const auto url = QUrl::fromLocalFile(directory.filePath("uniform.pcr"));
+                QVERIFY(d.saveProject(url));
+                QFile file(url.toLocalFile());
+                QVERIFY(file.open(QIODevice::ReadOnly));
+                auto root = QJsonDocument::fromJson(file.readAll()).object();
+                file.close();
+                QByteArray png;
+                QBuffer    buffer(&png);
+                QVERIFY(buffer.open(QIODevice::WriteOnly));
+                QVERIFY(expanded.save(&buffer, "PNG"));
+                auto layers          = root["layers"].toArray();
+                auto layer           = layers[0].toObject();
+                layer["mask"]        = QString::fromLatin1(png.toBase64());
+                layer["compactMask"] = false;
+                layer["parameters"] = QJsonObject{{"_maskDensity", kind == "zeroDensity" ? 0 : 100},
+                                                  {"_maskFeather", 7}};
+                layers[0]           = layer;
+                root["layers"]      = layers;
+                QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+                QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+                file.close();
+                QVERIFY(d.openFile(url));
+            }
+            for (int i = 1; i < 8; ++i)
+                d.duplicateLayer();
+            QCOMPARE(d.layers().size(), 8);
+            const auto    history = d.historyIndex();
+            QElapsedTimer timer;
+            timer.start();
+            const auto result  = d.composite();
+            const auto elapsed = timer.nsecsElapsed();
+            QCOMPARE(d.historyIndex(), history);
+            QCOMPARE(result.pixelColor(200, 200),
+                     QColor(kind == "empty" || kind == "black" ? Qt::transparent : Qt::white));
+            qInfo() << "24 MP / 16-bit, eight native uniform layers, kind and render ns:" << kind
+                    << elapsed;
+        }
+    }
+
     void maskedCompositionMatchesScalarReference()
     {
         QTemporaryDir directory;

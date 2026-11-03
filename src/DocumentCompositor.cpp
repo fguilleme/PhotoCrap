@@ -10,13 +10,36 @@
 
 namespace
 {
+bool uniformMaskValue(const PixelPlane &_mask, int _value)
+{
+    return _mask.isUniform() && _mask.format() == QImage::Format_Grayscale8 &&
+           _mask.tileImage(0, 0).constScanLine(0)[0] == _value;
+}
+
+bool needsMask(const Layer &_layer)
+{
+    return _layer.maskEnabled && !_layer.mask.isNull() &&
+           _layer.parameters.value("_maskDensity", 100.).toDouble() > 0 &&
+           !uniformMaskValue(_layer.mask, 255);
+}
+
 bool contributes(const Layer &_layer)
 {
     if (!_layer.visible || _layer.opacity <= 0)
         return false;
-    return !(_layer.maskEnabled && ImageUtils::compact(_layer.mask) &&
-             _layer.mask.constScanLine(0)[0] == 0 &&
-             _layer.parameters.value("_maskDensity", 100.).toDouble() >= 100.);
+    if (_layer.maskEnabled && uniformMaskValue(_layer.mask, 0) &&
+        _layer.parameters.value("_maskDensity", 100.).toDouble() >= 100.)
+        return false;
+    // A tiled uniform background can have document dimensions without a single
+    // explicit tile. Do not expand or filter its transparent pixels. Keep the
+    // previous compact-plane rule, including its eight-bit alpha rounding.
+    if (_layer.kind == QStringLiteral("pixel")) {
+        if (ImageUtils::compact(_layer.image))
+            return _layer.image.pixelColor(0, 0).alpha() != 0;
+        if (_layer.image.isUniform())
+            return _layer.image.tileImage(0, 0).pixelColor(0, 0).alphaF() != 0;
+    }
+    return true;
 }
 
 bool requiresFullComposite(const Layer &_layer)
@@ -34,7 +57,7 @@ int effectMargin(const Layer &_layer)
     if (!contributes(_layer))
         return 0;
     const int maskMargin =
-        _layer.maskEnabled && !_layer.mask.isNull()
+        needsMask(_layer)
             ? qBound(0, qRound(_layer.parameters.value("_maskFeather").toDouble()), 100)
             : 0;
     if (_layer.kind != QStringLiteral("adjustment"))
@@ -122,7 +145,7 @@ QImage Document::compositeRegion(const QRect &_region) const
             };
             return requiresFullComposite(_layer) || _layer.kind.startsWith("frequency") ||
                    scaled(_layer.image) || scaled(_layer.source) ||
-                   (_layer.maskEnabled && scaled(_layer.mask));
+                   (needsMask(_layer) && scaled(_layer.mask));
         });
     if (full)
         return composite().copy(region);
@@ -179,13 +202,6 @@ QImage Document::renderCompositeRect(const QRect &_region) const
         // base. Reject it before filters, masks or frequency bands are built.
         if (layer.clippingMask && clippingBase.isNull())
             continue;
-        // Empty pixel layers contribute no coverage.
-        if (layer.kind == QStringLiteral("pixel") && ImageUtils::compact(layer.image) &&
-            layer.image.pixelColor(0, 0).alpha() == 0) {
-            if (!layer.clippingMask)
-                resetClipping();
-            continue;
-        }
         // An untouched low/high pair reconstructs its source independently of
         // the radius. Collapsing it avoids two full-image filters per slider tick.
         if (layer.kind == QStringLiteral("frequencyLow") && layerIndex + 1 < m_layers.size()) {
@@ -238,7 +254,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             rendered = ImageUtils::compact(layer.image)
                            ? ImageUtils::expandedPlane(layer.image, _region.size())
                            : layer.image.region(_region);
-        if (layer.maskEnabled && !layer.mask.isNull()) {
+        if (needsMask(layer)) {
             const qreal density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal feather = layer.parameters.value("_maskFeather", 0.).toDouble();
             QImage      maskRegion;

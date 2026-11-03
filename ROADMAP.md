@@ -6,6 +6,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Optimisations du 3 novembre 2026 — non publiées
 
+- [x] Composite CPU ignorant les fonds natifs uniformes transparents et masques
+  noirs uniformes opaques ; masques blancs ou de densité nulle reconnus avant
+  expansion, flou et marges, en conservant les chaînes d’écrêtage.
+
 - [x] Application des masques natifs 16 bits par multiplication entière exacte
   à densité maximale ; facteurs précalculés sans quantification aux autres densités.
 

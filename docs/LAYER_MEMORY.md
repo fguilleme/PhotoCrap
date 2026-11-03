@@ -39,6 +39,15 @@ existants, dynamiques ou préparés, après réouverture. Le zoom ne change pas 
 les dimensions restent identiques. La précision et les calculs des bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
 sans changer les limites de réservation logique ni le format du projet.
 
+Le composite CPU consulte aussi les métadonnées des plans uniformes avant de
+matérialiser leurs pixels. Un fond natif transparent ne fournit aucune couverture ;
+un masque noir uniforme à pleine densité masque entièrement le calque. Ces cas
+réinitialisent correctement la base d’écrêtage quand nécessaire. Un masque blanc
+uniforme ou de densité nulle est ignoré avant lecture, contour progressif et calcul
+des marges. Les masques peints restent traités normalement et un alpha natif de
+1/65 535 n’est pas assimilé à zéro. Le composite de sortie reste une image native
+complète lors d’un rendu intégral ; cette étape évite les entrées temporaires inutiles.
+
 L’application d’un masque à densité maximale multiplie désormais directement
 les quatre canaux prémultipliés 16 bits par la couverture 8 bits, avec arrondi
 entier exact. Les densités partielles utilisent une table de facteurs flottants,

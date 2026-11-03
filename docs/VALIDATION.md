@@ -1,5 +1,27 @@
 # Validation
 
+## Plans uniformes du composite CPU — 3 novembre 2026
+
+96 compositions croisent 8/16 bits, pixels ordinaires ou transparents,
+réglage Inverser, bande basse de fréquences, écrêtage et six cas de masque : noir,
+noir avec contour, blanc à densité partielle avec contour, densité nulle, gris
+partiel et masque désactivé. Les SHA-256 du composite complet sont relevés avant
+le changement sur `79b8ee6`, séparément avec Accelerate et CPU portable.
+Les régions sont aussi comparées au rendu complet, sans nouvelle étape d’historique.
+Dix plans uniformes à faible alpha natif et deux masques noirs peints de blanc
+vérifient que la couverture visible n’est pas éliminée par erreur.
+
+La sonde facultative `PHOTOCRAP_UNIFORM_COMPOSITE_PROBE=1 build/photocrap_tests
+logicalUniformCompositionProbe` compare huit calques natifs uniformes sur
+24 Mpx/16 bits, avec vérification des pixels et de l’historique. Le composite de
+sortie reste alloué ; le gain porte sur les expansions, masques et filtres évités.
+Sur ce Mac, avant/après : fonds transparents 116 → 18 ms, masques noirs avec
+contour 1 082 → 8 ms, masques blancs avec contour 986 → 128 ms et densité nulle
+150 → 64 ms. Ces mesures locales incluent la composition complète, sans seuil de
+test ni mesure du RSS. Les deux contrôles ciblés passent sous Qt 6.8 et CPU
+portable ; les 50 suites et le rendu natif Cocoa/Metal passent également.
+
+
 ## Application native des masques 16 bits — 3 novembre 2026
 
 `integerNativeAlphaMultiplicationMatchesScalarReference` vérifie les 65 536

@@ -135,13 +135,19 @@ void Document::addFrequencySeparation(qreal _radius)
     if (!std::isfinite(_radius) || !validSize(width(), height(), int(m_layers.size()) + 2) ||
         !validLayerStorage(width(), height(), 2))
         return;
-    QImage source = m_layers[m_active].kind == "pixel" ? layerImage(m_active) : composite();
-    if (m_layers[m_active].kind == "pixel" && m_layers[m_active].maskEnabled &&
-        !m_layers[m_active].mask.isNull())
-        source =
-            applyMask(source, m_layers[m_active].mask,
-                      m_layers[m_active].parameters.value("_maskDensity", 100.).toDouble() / 100.,
-                      m_layers[m_active].parameters.value("_maskFeather", 0.).toDouble());
+    PixelPlane  source;
+    const auto &active = m_layers[m_active];
+    if (active.kind == "pixel" && (!active.maskEnabled || active.mask.isNull()) &&
+        active.image.size() == m_size)
+        source = active.image; // Immutable tile versions are already a frozen source.
+    else {
+        QImage pixels = active.kind == "pixel" ? layerImage(m_active) : composite();
+        if (active.kind == "pixel" && active.maskEnabled && !active.mask.isNull())
+            pixels = applyMask(pixels, active.mask,
+                               active.parameters.value("_maskDensity", 100.).toDouble() / 100.,
+                               active.parameters.value("_maskFeather", 0.).toDouble());
+        source = pixels;
+    }
     const QString pairId = QString::number(m_nextId);
     edit(tr("Séparation de fréquences"), [&] {
         const QVariantMap parameters{{"radius", qBound(1., _radius, 100.)}, {"pairId", pairId}};

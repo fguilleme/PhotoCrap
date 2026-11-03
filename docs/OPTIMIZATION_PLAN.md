@@ -46,6 +46,8 @@ restent à compter séparément. Le pic de RAM est mesuré sur des gestes locali
 plans remplis de 24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie
 le refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
 
+- [x] Séparation de fréquences utilisant directement les tuiles natives non
+  masquées, partagées par les deux bandes et immuables après retouche de l’original.
 - [x] Sources figées des deux correcteurs : lecture des rectangles ou voisinages
   de recherche, modes actif/inférieurs/tous et exclusion des réglages préservés.
 - [x] Copie de sélection limitée à son rectangle, forme et couverture progressive

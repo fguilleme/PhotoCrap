@@ -11,6 +11,14 @@ régions nécessaires sans retenir de copie complète du calque. Les autres outi
 transformations, filtres et sauvegardes peuvent encore matérialiser une image
 complète temporaire. Les profondeurs prises en charge par chaque outil ne changent pas.
 
+La création d’une séparation de fréquences sur un calque de pixels à la taille du
+document, sans masque actif, partage directement ses versions de tuiles entre la
+source et les deux bandes. Modifier ensuite le calque d’origine ne change pas
+cette source figée. Les masques activés, plans compacts et sources composées
+conservent leur préparation complète actuelle ; la précision et les calculs des
+bandes restent identiques. Le partage réduit les blocs physiques supplémentaires,
+sans changer les limites de réservation logique ni le format du projet.
+
 Lors de l’import initial d’un plan natif, le fond compact est choisi parmi les
 couleurs des tuiles entièrement uniformes, pondérées par leur allocation native
 (y compris les bords incomplets). Les autres tuiles gardent leurs bits exacts.

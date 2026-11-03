@@ -26,8 +26,8 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 ## Optimizations in development after v0.16
 
-- **Shared 256 × 256 tiled planes and history**: compact backgrounds, allocation of touched tiles only, reuse of unchanged versions and native 8/16-bit conversions without rebuilding the canvas.
-- **Regional processing** for tool/adjustment eyedroppers on active layers, masks and supported composites, dab-based tools (including composited Clone Stamp, Smudge, Mixer Brush and healing-tool sources), path fills, shapes, text, selected gradients, Quick Selection searches, selected-area clipboard copies and imported-image placement. Feathered masks are blurred with their required regional halo. Move handles source and destination separately; sparse transparent layers move tile by tile. Global selections, stacks with nonlocal effects, dense layers and full-image gradients may still need full-sized buffers.
+- **Shared 256 × 256 tiled planes and history**: compact backgrounds, allocation of touched tiles only, reuse of unchanged versions and native 8/16-bit conversions without rebuilding the canvas. Frequency separation shares tiles from its unmasked native source.
+- **Regional processing** for eyedroppers, dab-based tools and their supported composited sources, path fills, shapes, text, selected gradients, selected-area clipboard copies and imported-image placement. Quick Selection and feathered masks use their search regions and required halos. Move handles source and destination separately; sparse transparent layers move tile by tile. Global selections, nonlocal effects, dense layers and full-image gradients may still need full-sized buffers.
 - **Background loading and expensive operations**: images, projects, RAW, imports, geometry, bit depth, merges, fills and direct filters. Only current results are applied; edits create one undoable step. The previous document stays visible while opening a file and is not needlessly retained after replacement. General operations use a worker from four million processed pixels; small edits retain their direct path.
 - **Asynchronous saving and export**: atomic `.pcr` v9 PNG/Base64/JSON streaming without accumulating the encoded project. Closing waits for save confirmation. Cancellation preserves the previous file until the final publication point, which is then non-cancellable.
 - **Scratch cache and RAM budgeting during preparation** of conversions, imports and loads, then for history after a pause. The worker collects shared layer groups outside the interface thread. Stale jobs stop between tiles; an unavailable or full cache keeps pixels in RAM. The tile target defaults to 256 MiB; decoders, the composite, selections and mapped pages remain distinct from total RSS.
@@ -40,6 +40,8 @@ Selected local measurements, with conditions documented in [validation](docs/VAL
 |---|---|
 | Reopening a lightly retouched layer and mask, 24 MP/16-bit | 576 KiB of planes |
 | Importing 33 × 27 px into a 24 MP/16-bit document | One 512 KiB tile |
+| Dense frequency source, 24 MP/16-bit without a mask | 95 → 0.10 ms; 183 MiB of additional tiles avoided |
+| Cold 101² read, radius-12 feathered mask, 24 MP/16-bit | 297 → 0.45 ms, identical pixels |
 | Isolated encoder for twelve 1 MP planes | Peak RSS 324 → 74 MiB at 8-bit; 692 → 122 MiB at 16-bit |
 
 These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; `.pcr` v9 also reads versions 1–8 and retains its 256 MiB file limit. Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.

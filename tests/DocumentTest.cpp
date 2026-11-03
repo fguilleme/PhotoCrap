@@ -8671,6 +8671,110 @@ private slots:
         QCOMPARE(d.layers()[0].toMap()["kind"].toString(), QString("frequencyLow"));
     }
 
+    void frequencySourceNativeDigest()
+    {
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (bool mask : {false, true})
+                for (bool enabled : {false, true}) {
+                    Document d;
+                    QVERIFY(d.newDocument(517, 523, true, bits));
+                    d.setColor(QColor::fromRgba64(23456, 45678, 12345, 34567));
+                    d.setBrushSize(81);
+                    d.beginStroke(255, 256);
+                    d.endStroke();
+                    if (mask) {
+                        d.addLayerMask();
+                        d.setColor(Qt::black);
+                        d.setBrushSize(31);
+                        d.beginStroke(256, 255);
+                        d.endStroke();
+                        d.setMaskEnabled(enabled);
+                        d.setEditingMask(false);
+                    }
+                    const QImage before = d.layerImage(0);
+                    d.addFrequencySeparation(7);
+                    QList<QImage> bands;
+                    for (int index : {1, 2}) {
+                        const QImage band = d.layerImage(index);
+                        bands.append(band);
+                        for (int y = 0; y < band.height(); ++y)
+                            hash.addData(QByteArrayView(
+                                reinterpret_cast<const char *>(band.constScanLine(y)),
+                                band.width() * band.depth() / 8));
+                    }
+                    const QImage composed = d.composite();
+                    for (int y = 0; y < composed.height(); ++y)
+                        hash.addData(QByteArrayView(
+                            reinterpret_cast<const char *>(composed.constScanLine(y)),
+                            composed.width() * composed.depth() / 8));
+                    d.setActiveLayer(0);
+                    d.setTool("pencil");
+                    d.setBrushSize(5);
+                    d.setColor(Qt::blue);
+                    d.beginStroke(255, 256);
+                    d.endStroke();
+                    QCOMPARE(d.layerImage(1), bands[0]);
+                    QCOMPARE(d.layerImage(2), bands[1]);
+                    d.undo();
+                    QCOMPARE(d.layerImage(0), before);
+                }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("05f6ee8bb2a0fc1c457699d9babbf0ed07a0c7aee79b96d42f96b1266e17250d"));
+    }
+    void frequencySourcesShareUnmaskedNativeTiles()
+    {
+        for (int bits : {8, 16})
+            for (bool disabledMask : {false, true}) {
+                Document d;
+                QVERIFY(d.newDocument(517, 523, true, bits));
+                d.setBrushSize(31);
+                d.setColor(QColor(210, 70, 130, 197));
+                d.beginStroke(255, 255);
+                d.endStroke();
+                if (disabledMask) {
+                    d.addLayerMask();
+                    d.setMaskEnabled(false);
+                    d.setEditingMask(false);
+                }
+                const auto before = d.memoryUsage()["tileHeapBytes"];
+                d.addFrequencySeparation(8);
+                QCOMPARE(d.memoryUsage()["tileHeapBytes"], before);
+                QCOMPARE(d.layers().size(), 3);
+                d.undo();
+                QCOMPARE(d.layers().size(), 1);
+                d.redo();
+                QCOMPARE(d.layers().size(), 3);
+                QCOMPARE(d.memoryUsage()["tileHeapBytes"], before);
+            }
+    }
+
+    void largeFrequencySourceProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_FREQUENCY_SOURCE_PROBE"))
+            QSKIP("Set PHOTOCRAP_FREQUENCY_SOURCE_PROBE=1 to measure dense 24 MP frequency "
+                  "creation.");
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        d.setColor(Qt::red);
+        d.setSecondaryColor(Qt::blue);
+        d.setTool("gradient");
+        d.beginStroke(0, 0);
+        d.continueStroke(6000, 4000);
+        d.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        const auto    before = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        QElapsedTimer timer;
+        timer.start();
+        d.addFrequencySeparation(8);
+        const auto elapsed = timer.nsecsElapsed();
+        QCOMPARE(d.layers().size(), 3);
+        const auto after = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        QCOMPARE(after, before);
+        qInfo() << "Dense 24 MP / 16-bit frequency creation, ns and added heap bytes:" << elapsed
+                << after - before;
+    }
+
     void frequencySeparationHasRealtimePreview()
     {
         Document d;

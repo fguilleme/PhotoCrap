@@ -1,5 +1,27 @@
 # Validation
 
+## Source native partagée des fréquences — 3 novembre 2026
+
+La référence avant modification couvre 8 scénarios en 8/16 bits, masque absent,
+activé ou désactivé. Bandes et composite conservent le digest :
+`05f6ee8bb2a0fc1c457699d9babbf0ed07a0c7aee79b96d42f96b1266e17250d`.
+Retoucher ensuite le calque d’origine laisse les deux bandes inchangées. Le test
+mémoire vérifie qu’une source native non masquée ne rajoute aucun bloc de tuile,
+y compris après Annuler/Rétablir.
+
+Sonde Qt 6.12 locale, dégradé dense 24 Mpx/16 bits : création 94,5 ms → 0,097 ms ;
+192 000 000 octets (183 Mio) de tuiles supplémentaires → zéro. Ce sont les blocs
+natifs suivis par le document, pas une mesure de RSS total. Les sources masquées,
+composées et compactes gardent leur préparation complète actuelle ; le rayon et
+les algorithmes de séparation restent inchangés.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_FREQUENCY_SOURCE_PROBE=1 build/photocrap_tests \
+  frequencySourceNativeDigest frequencySourcesShareUnmaskedNativeTiles largeFrequencySourceProbe
+```
+
+
 ## Sources régionales des correcteurs — 3 novembre 2026
 
 Références avant modification : 36 gestes du Correcteur et 12 du Correcteur

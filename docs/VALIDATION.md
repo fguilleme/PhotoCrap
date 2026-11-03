@@ -1,5 +1,17 @@
 # Validation
 
+## Rasterisation régionale du texte — 3 novembre 2026
+
+Les 24 références QPainter pleine image donnent les mêmes pixels : profondeurs
+8/16 bits, texte ponctuel/paragraphe, italiques et tailles mélangées, plusieurs
+écritures, rotation, inclinaison, échelle, origine négative et sortie du canevas.
+Un petit texte sur 24 Mpx reste dans quelques tuiles pendant sa création, son
+déplacement et sa copie Alt ; l’annulation restaure les versions initiales.
+Revenir à l’ancre restaure exactement les pixels et ne crée pas d’historique.
+Les 15 cas de la suite Texte passent sous Qt 6.8/6.12, y compris formats mixtes,
+redimensionnement/rotation, projets et pixellisation. Le contrôle de pile compare
+les glyphes affichés au composite CPU et vérifie la disparition des anciennes positions.
+
 ## Invalidation limitée aux pixels des bordures — 3 novembre 2026
 
 Le test reproduit une clé modifiée par des pixels hors de l’intersection demandée.

@@ -1,5 +1,14 @@
 # Texte éditable : fonctions et références Adobe
 
+## Rendu régional — 3 novembre 2026
+
+La rasterisation se limite désormais à l’emprise du texte dans le canevas et écrit
+un plan tuilé natif 8/16 bits. Elle conserve les débordements de caractères et le
+clipping des paragraphes. Saisie, formats mixtes, déplacement et redimensionnement
+utilisent ce chemin ; les paramètres éditables et le format de projet ne changent
+pas. Revenir à l’ancre pendant un déplacement restaure le snapshot sans étape
+supplémentaire. Le texte hors canevas reste éditable et compact.
+
 ## Utilisation
 
 Choisir **Texte (T)** puis cliquer dans l’image ouvre un texte ponctuel vide.

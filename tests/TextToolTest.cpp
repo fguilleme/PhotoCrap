@@ -15,6 +15,111 @@ private slots:
         QVERIFY2(!QFontDatabase::families().isEmpty(),
                  "Text rendering tests need real fonts; set QT_QPA_FONTDIR for Windows offscreen.");
     }
+    void regionalTextMatchesFullCanvasRendering()
+    {
+        const QSize canvas(523, 531);
+        for (const auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied})
+            for (bool paragraph : {false, true})
+                for (int geometry = 0; geometry < 6; ++geometry) {
+                    auto p = PhotoCrap::Text::create(246.25, 244.5, 24, QColor(170, 40, 90, 200));
+                    p["paragraph"] = paragraph;
+                    p["width"]     = 120.25;
+                    p["height"]    = 75.75;
+                    p["html"]      = QString::fromUtf8(
+                        "<p><span style='font-size:42px;font-style:italic;color:#66aa44'>Été "
+                        "gfj</span> "
+                        "<span style='font-size:18px'>中文 👋</span></p>"
+                        "<p dir='rtl'>العربية</p><p>More wrapped text</p>");
+                    QTransform geometryTransform;
+                    if (geometry == 1)
+                        geometryTransform.rotate(19);
+                    else if (geometry == 2)
+                        geometryTransform.shear(.23, -.13);
+                    else if (geometry == 3)
+                        geometryTransform.scale(1.25, .8);
+                    else if (geometry == 4)
+                        geometryTransform.translate(700, 800);
+                    else if (geometry == 5)
+                        geometryTransform.translate(-266, -258);
+                    PhotoCrap::Text::transform(p, geometryTransform);
+                    QVERIFY(PhotoCrap::Text::normalize(p));
+                    const auto reference = ImageUtils::expandedPlane(
+                        PhotoCrap::Text::render(p, canvas, format), canvas);
+                    const auto regional = PhotoCrap::Text::renderPlane(p, canvas, format);
+                    QVERIFY(!regional.isNull());
+                    QCOMPARE(regional.format(), format);
+                    const auto actual = regional.region(QRect(QPoint{}, canvas));
+                    QCOMPARE(actual, reference);
+                }
+    }
+    void smallTextStaysCompactOnTwentyFourMegapixelDocuments()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, true, bits));
+            d.setTextSize(24);
+            d.setTool("text");
+            d.beginStroke(100, 100);
+            d.endStroke();
+            d.setText("Small");
+            d.finishTextEdit();
+            const qint64 tileBytes = 256LL * 256 * bits / 2;
+            const auto   before    = d.memoryUsage()["layerBytes"].toLongLong();
+            QVERIFY(before <= 2 * tileBytes);
+            const int history = d.historyIndex();
+            d.setTool("move");
+            d.beginStroke(110, 110);
+            d.continueStroke(5110, 3110);
+            QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 4 * tileBytes);
+            QCOMPARE(PhotoCrap::Text::transform(d.textEditState()).dx(), 5100.);
+            d.continueStroke(110, 110);
+            d.endStroke();
+            QCOMPARE(d.historyIndex(), history);
+            QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), before);
+            d.beginStroke(110, 110, true);
+            d.continueStroke(5110, 3110);
+            QCOMPARE(d.layers().size(), 3);
+            QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= 6 * tileBytes);
+            d.cancelStroke();
+            QCOMPARE(d.layers().size(), 2);
+            QCOMPARE(d.historyIndex(), history);
+            QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), before);
+            d.beginStroke(110, 110);
+            d.continueStroke(5110, 3110);
+            d.endStroke();
+            QCOMPARE(d.historyIndex(), history + 1);
+            d.undo();
+            QCOMPARE(PhotoCrap::Text::transform(d.textEditState()).dx(), 100.);
+            d.redo();
+            QCOMPARE(PhotoCrap::Text::transform(d.textEditState()).dx(), 5100.);
+        }
+    }
+    void movingTextBackToAnchorRestoresTheOriginalWithoutHistory()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(523, 531, true, bits));
+            d.setTextSize(24);
+            d.setTool("text");
+            d.beginStroke(70, 60);
+            d.endStroke();
+            d.setText("Before move");
+            d.finishTextEdit();
+            const auto before  = d.composite();
+            const int  history = d.historyIndex();
+            d.setTool("move");
+            d.beginStroke(85, 75);
+            d.continueStroke(400, 420);
+            QVERIFY(d.composite() != before);
+            QCOMPARE(d.composite(), d.layerImage(1));
+            d.continueStroke(85, 75);
+            QCOMPARE(d.composite(), before);
+            d.endStroke();
+            QCOMPARE(d.historyIndex(), history);
+            QCOMPARE(d.layerImage(1), before);
+        }
+    }
     void editableTextPersistsAndUndoes_data()
     {
         QTest::addColumn<int>("bits");

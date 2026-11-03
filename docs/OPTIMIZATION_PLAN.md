@@ -21,8 +21,9 @@ Les calques, masques et sources de fréquences utilisent `PixelPlane`. Les outil
 lisent et écrivent des régions directement ; leurs sources composées et les
 autres outils peuvent encore matérialiser un plan temporaire. Les formes géométriques
 et les dégradés sélectionnés prévisualisent aussi leur seule emprise. Le déplacement d’une sélection traite séparément sa source et sa destination ;
-les calques parcimonieux transparents se déplacent par tuiles. Les calques denses,
-le texte et les dégradés pleine image restent complets. Les tuiles identiques
+les calques parcimonieux transparents se déplacent par tuiles et le texte est
+rasterisé dans son emprise utile. Les calques denses et les dégradés pleine image
+restent complets. Les tuiles identiques
 gardent leurs versions et leurs mappings lors des écritures régionales. Le budget de
 256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
 global. Le composite complet CPU, les sélections et les buffers temporaires

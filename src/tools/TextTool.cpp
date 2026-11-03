@@ -17,7 +17,7 @@ QVariantMap Document::textEditState() const
 bool Document::renderTextEdit()
 {
     auto &layer = m_layers[m_active];
-    auto  image = PhotoCrap::Text::render(layer.parameters, m_size, workingFormat());
+    auto  image = PhotoCrap::Text::renderPlane(layer.parameters, m_size, workingFormat());
     if (image.isNull())
         return fail(tr("Mémoire insuffisante pour rendre le texte."));
     layer.image = std::move(image);

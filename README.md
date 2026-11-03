@@ -30,6 +30,8 @@ Les formes géométriques prévisualisent uniquement leur emprise, avec les marg
 
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
+Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.
+
 Les aperçus CPU rapides lisent directement les pixels utiles dans les tuiles, sans reconstruire d’abord le plan complet. Les agrandissements et les réductions lisses gardent leur chemin Qt.
 
 Les piles GPU éligibles conservent quatre niveaux réduits sur GPU (1/2 à 1/16). Les zooms réutilisent les textures et les raccords suivent la grille du document, même sur des dimensions impaires. Les piles trop lourdes ou incompatibles gardent leur repli CPU.

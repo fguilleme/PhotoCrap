@@ -39,16 +39,25 @@ Déplacement avec une sélection prépare séparément les régions source et de
 Le masque progressif et le mode copie Alt gardent le même mélange natif. Un saut
 lointain n’alloue pas le rectangle intermédiaire et chaque aperçu repart du snapshot
 original. L’invalidation du composite couvre encore une emprise rectangulaire commune ;
-les calques denses et le rendu des calques de texte restent complets.
+les calques de pixels denses gardent le rendu complet.
 
 Sans sélection, les calques peu remplis sur fond transparent se déplacent aussi par
 tuiles : les zones absentes ne sont pas allouées et les pixels natifs des tuiles
 présentes sont copiés aux coordonnées décalées. Le chemin s’applique avec au plus
 un quart des tuiles présentes (ou huit sur les petits documents), sans ratio de
-pixels autre que 1. Les images denses, fonds opaques et calques de texte gardent
-leur chemin actuel. Une petite marque sur 24 Mpx reste de l’ordre d’une tuile
+pixels autre que 1. Les images denses et fonds opaques gardent le chemin complet.
+Le texte suit son rasteriseur régional dédié. Une petite marque sur 24 Mpx reste de l’ordre d’une tuile
 couleur, y compris après un saut de plusieurs milliers de pixels. La copie Alt
 notifie l’ajout de calque, et les anciens aperçus sont invalidés.
+
+Les calques de texte sont rasterisés dans leur emprise utile puis écrits dans un
+plan tuilé transparent. La mise en forme, le déplacement et le redimensionnement
+ne créent plus systématiquement un QImage natif de la taille du document.
+Le déplacement garde le snapshot tuilé initial, restaure celui-ci à l’ancre et
+invalide les anciennes/nouvelles emprises. La marge conserve les débordements de
+police et de ligne de base ; un paragraphe garde son rectangle de découpe. Un texte
+hors canevas reste compact et éditable. Un texte couvrant tout le document peut
+encore demander un tampon aussi grand que celui-ci.
 
 Le pot de peinture parcourt la composante contiguë avec des vues de tuiles natives
 partagées et une couverture de visite parcimonieuse de 256 × 256 en niveaux de

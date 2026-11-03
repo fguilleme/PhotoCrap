@@ -30,6 +30,8 @@ Geometric shapes preview only their bounds and stroke margins; gradients restric
 
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
+Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.
+
 Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
 
 Eligible GPU stacks retain four reduced GPU levels (1/2 through 1/16). Zoom changes reuse textures and tile boundaries follow the document’s global sampling grid, including odd dimensions. Oversized or unsupported stacks retain the CPU fallback.

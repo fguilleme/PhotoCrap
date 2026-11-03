@@ -305,7 +305,8 @@ void Document::resizeImage(int _w, int _h)
                 PhotoCrap::Text::transform(
                     layer.parameters,
                     QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height()));
-                layer.image = PhotoCrap::Text::render(layer.parameters, {_w, _h}, workingFormat());
+                layer.image =
+                    PhotoCrap::Text::renderPlane(layer.parameters, {_w, _h}, workingFormat());
             } else if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     layer.image.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);

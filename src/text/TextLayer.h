@@ -1,4 +1,5 @@
 #pragma once
+#include "storage/PixelPlane.h"
 #include <QImage>
 #include <QTextDocument>
 #include <QTransform>
@@ -26,6 +27,7 @@ void        configure(QTextDocument &_document, const QVariantMap &_parameters);
 QSizeF      size(const QVariantMap &_parameters);
 QTransform  transform(const QVariantMap &_parameters);
 void        transform(QVariantMap &_parameters, const QTransform &_transform);
+PixelPlane  renderPlane(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format);
 QImage      render(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format);
 QVariantMap formatting(const QTextDocument &_document);
 void        applyFormatting(QTextDocument &_document, const QVariantMap &_parameters);

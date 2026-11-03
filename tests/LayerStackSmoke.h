@@ -170,6 +170,44 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         }
         document.endStroke();
     }
+    canvas.setSize({800, 128});
+    for (int bits : {8, 16}) {
+        if (!document.newDocument(800, 128, false, bits))
+            return false;
+        document.setTool("text");
+        document.setTextSize(28);
+        document.setColor(Qt::black);
+        document.beginStroke(20, 20);
+        document.endStroke();
+        document.setText("Text");
+        document.finishTextEdit();
+        frame();
+        document.setTool("move");
+        document.beginStroke(30, 30);
+        for (int offset : {600, 0}) {
+            document.continueStroke(30 + offset, 30);
+            frame();
+            const auto   rendered  = frame();
+            const auto   reference = document.composite();
+            const double ratio     = double(rendered.width()) / window->width();
+            for (int origin : {0, 600})
+                for (int y = 10; y < 80; y += 3)
+                    for (int x = origin + 10; x < origin + 150; x += 3) {
+                        const auto   point    = canvas.mapToScene({x + .5, y + .5});
+                        const QColor actual   = rendered.pixelColor(qFloor(point.x() * ratio),
+                                                                    qFloor(point.y() * ratio));
+                        const QColor expected = reference.pixelColor(x, y);
+                        if (!require(
+                                qAbs(actual.red() - expected.red()) <= 2 &&
+                                    qAbs(actual.green() - expected.green()) <= 2 &&
+                                    qAbs(actual.blue() - expected.blue()) <= 2 &&
+                                    canvas.gpuStackActive() == hardware,
+                                "regional text displays native glyphs and clears prior positions"))
+                            return false;
+                    }
+        }
+        document.endStroke();
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

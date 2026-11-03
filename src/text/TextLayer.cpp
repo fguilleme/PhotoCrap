@@ -244,13 +244,13 @@ QString plainText(const QVariantMap &_p)
     configure(doc, _p);
     return doc.toPlainText();
 }
-QRect bounds(const QVariantMap &_p, const QSize &_canvas)
+namespace
 {
-    Document doc;
-    configure(doc, _p);
+QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_canvas)
+{
     qreal margin = _p.value("fontSize", 64).toDouble() * 2;
     if (!_p.value("paragraph").toBool())
-        for (auto block = doc.begin(); block.isValid(); block = block.next())
+        for (auto block = _doc.begin(); block.isValid(); block = block.next())
             for (auto it = block.begin(); !it.atEnd(); ++it) {
                 const auto  f  = it.fragment().charFormat();
                 const qreal px = f.hasProperty(QTextFormat::FontPixelSize)
@@ -261,7 +261,7 @@ QRect bounds(const QVariantMap &_p, const QSize &_canvas)
     const auto local =
         _p.value("paragraph").toBool()
             ? QRectF(QPointF{}, size(_p))
-            : QRectF(QPointF{}, doc.size()).adjusted(-margin, -margin, margin, margin);
+            : QRectF(QPointF{}, _doc.size()).adjusted(-margin, -margin, margin, margin);
     const auto mapped = transform(_p).mapRect(local);
     if (!std::isfinite(mapped.x()) || !std::isfinite(mapped.y()) ||
         !std::isfinite(mapped.width()) || !std::isfinite(mapped.height()))
@@ -270,6 +270,53 @@ QRect bounds(const QVariantMap &_p, const QSize &_canvas)
         .toAlignedRect()
         .intersected(QRect(QPoint{}, _canvas));
 }
+void drawDocument(QPainter &_painter, QTextDocument &_doc, const QVariantMap &_p,
+                  const QPoint &_origin)
+{
+    _painter.setRenderHint(QPainter::TextAntialiasing);
+    _painter.setWorldTransform(transform(_p) *
+                               QTransform::fromTranslate(-_origin.x(), -_origin.y()));
+    if (_p.value("paragraph").toBool())
+        _painter.setClipRect(QRectF(QPointF{}, size(_p)));
+    QAbstractTextDocumentLayout::PaintContext context;
+    context.palette.setColor(QPalette::Text, QColor(_p.value("color").toString()));
+    _doc.documentLayout()->draw(&_painter, context);
+}
+} // namespace
+QRect bounds(const QVariantMap &_p, const QSize &_canvas)
+{
+    Document doc;
+    configure(doc, _p);
+    return documentBounds(doc, _p, _canvas);
+}
+PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format _format)
+{
+    if (_size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
+        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
+        (_format != QImage::Format_ARGB32_Premultiplied &&
+         _format != QImage::Format_RGBA64_Premultiplied))
+        return {};
+    Document doc;
+    configure(doc, _p);
+    PixelPlane result(ImageUtils::blank(QSize(1, 1), _format));
+    if (result.isNull())
+        return {};
+    if (doc.toPlainText().trimmed().isEmpty())
+        return result;
+    const QRect region = documentBounds(doc, _p, _size);
+    if (region.isEmpty())
+        return result;
+    QImage pixels = ImageUtils::blank(region.size(), _format);
+    if (pixels.isNull())
+        return {};
+    QPainter painter(&pixels);
+    drawDocument(painter, doc, _p, region.topLeft());
+    painter.end();
+    if (!result.writeRegion(region.topLeft(), pixels, _size))
+        return {};
+    return result;
+}
+
 QImage render(const QVariantMap &_p, const QSize &_size, QImage::Format _format)
 {
     Document doc;
@@ -280,13 +327,7 @@ QImage render(const QVariantMap &_p, const QSize &_size, QImage::Format _format)
     if (result.isNull())
         return {};
     QPainter painter(&result);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-    painter.setWorldTransform(transform(_p));
-    if (_p.value("paragraph").toBool())
-        painter.setClipRect(QRectF(QPointF{}, size(_p)));
-    QAbstractTextDocumentLayout::PaintContext context;
-    context.palette.setColor(QPalette::Text, QColor(_p.value("color").toString()));
-    doc.documentLayout()->draw(&painter, context);
+    drawDocument(painter, doc, _p, {});
     return result;
 }
 } // namespace PhotoCrap::Text

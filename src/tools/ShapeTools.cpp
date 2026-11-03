@@ -35,9 +35,7 @@ void Document::renderShape(const QPointF &_to)
         return;
     }
     if (m_tool == "move" && m_layers[m_active].kind == "text") {
-        if (_to == m_anchor)
-            return;
-        if (m_moveCopy && !m_moveDuplicatedLayer) {
+        if (m_moveCopy && !m_moveDuplicatedLayer && _to != m_anchor) {
             auto layer      = m_layers[m_active];
             layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
             layer.name += tr(" — copie");
@@ -49,16 +47,22 @@ void Document::renderShape(const QPointF &_to)
         auto       parameters = m_textMoveParameters;
         const auto delta      = _to - m_anchor;
         PhotoCrap::Text::transform(parameters, QTransform::fromTranslate(delta.x(), delta.y()));
-        auto image = PhotoCrap::Text::render(parameters, m_size, workingFormat());
+        if (parameters == m_layers[m_active].parameters)
+            return;
+        auto image = parameters == m_textMoveParameters
+                         ? m_strokePlaneBase
+                         : PhotoCrap::Text::renderPlane(parameters, m_size, workingFormat());
         if (image.isNull()) {
             cancelStroke();
             fail(tr("Mémoire insuffisante pour rendre le texte."));
             return;
         }
+        m_dirtyRegion =
+            m_dirtyRegion.united(PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size))
+                .united(PhotoCrap::Text::bounds(parameters, m_size));
         m_layers[m_active].parameters = parameters;
         m_layers[m_active].image      = image;
-        m_strokeChanged               = true;
-        m_fullCompositeDirty          = true;
+        m_strokeChanged               = parameters != m_textMoveParameters || m_moveDuplicatedLayer;
         changed(false);
         return;
     }

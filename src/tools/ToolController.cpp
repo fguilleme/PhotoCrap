@@ -220,8 +220,8 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_beforeStroke = snapshot(toolLabel(m_tool));
     if ((isShapeStrokeTool(m_tool) && m_tool != "move" &&
          (m_tool != "gradient" || hasSelection())) ||
-        (m_tool == "move" && m_layers[m_active].kind != "text" &&
-         (hasSelection() ||
+        (m_tool == "move" &&
+         (m_layers[m_active].kind == "text" || hasSelection() ||
           PhotoCrap::Tools::canMoveSparseLayer(m_layers[m_active].image, m_size)))) {
         m_strokePlaneBase = m_layers[m_active].image;
         m_strokeBounds    = {};

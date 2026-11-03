@@ -173,6 +173,77 @@ private slots:
         QCOMPARE(d.channelBits(), 8);
         QCOMPARE(d.history().size(), 1);
     }
+    void liveGesturesSupersedeQueuedEdits_data()
+    {
+        QTest::addColumn<QString>("gesture");
+        for (const char *name : {"parameter", "blend", "pen", "slice"})
+            QTest::newRow(name) << QString::fromLatin1(name);
+    }
+    void liveGesturesSupersedeQueuedEdits()
+    {
+        QFETCH(QString, gesture);
+        BlockPool block;
+        Document  d;
+        populate(d, 16);
+        if (gesture == "parameter")
+            d.addAdjustmentLayer("brightnessContrast");
+        if (gesture == "pen")
+            d.setTool("pen");
+        if (gesture == "slice")
+            d.setTool("slice");
+        d.setBackgroundEditThreshold(0);
+        d.resizeImage(41, 29);
+        QVERIFY(d.operationBusy());
+        if (gesture == "parameter")
+            d.previewLayerParameter("brightness", 35);
+        else if (gesture == "blend")
+            d.previewLayerBlend(d.activeLayer(), 3);
+        else if (gesture == "pen")
+            d.beginPenGesture(12, 15);
+        else {
+            d.beginSliceGesture(9, 9);
+            d.updateSliceGesture(40, 30);
+        }
+        // The old worker must be invalidated before release/commit changes the ID.
+        QVERIFY(!d.operationBusy());
+        if (gesture == "pen")
+            d.endPenGesture();
+        else if (gesture == "slice")
+            d.endSliceGesture();
+        else
+            d.finishLayerPreview();
+        const auto layers = d.layers();
+        const auto paths = d.penPaths(), slices = d.slices();
+        const auto history = d.history();
+        block.release.release();
+        block.pool->waitForDone();
+        QTest::qWait(100);
+        QCOMPARE(QSize(d.width(), d.height()), QSize(80, 60));
+        QCOMPARE(d.layers(), layers);
+        QCOMPARE(d.penPaths(), paths);
+        QCOMPARE(d.slices(), slices);
+        QCOMPARE(d.history(), history);
+    }
+    void backgroundGeometryFinalizesAnExistingTextEdit()
+    {
+        Document d;
+        d.newDocument(80, 60, true, 16);
+        d.setTool("text");
+        d.beginStroke(5, 5);
+        d.endStroke();
+        d.setText("Keep");
+        QVERIFY(d.textEditing());
+        d.setBackgroundEditThreshold(0);
+        d.resizeImage(40, 30);
+        QVERIFY(d.operationBusy());
+        QVERIFY(!d.textEditing());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(QSize(d.width(), d.height()), QSize(40, 30));
+        d.undo();
+        QCOMPARE(QSize(d.width(), d.height()), QSize(80, 60));
+        QCOMPARE(d.text(), QString("Keep"));
+    }
+
     void invalidOperationKeepsDocument()
     {
         Document d;

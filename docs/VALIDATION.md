@@ -1,5 +1,19 @@
 # Validation
 
+## Gestes récents et résultats périmés — 3 novembre 2026
+
+Pool bloqué : commencer un réglage, un survol de fusion, un tracé ou une tranche
+annule l’opération complète avant la validation du geste. Après reprise du worker,
+dimensions, paramètres, tracés, tranches et historique restent ceux du geste récent.
+Une édition de texte en cours est finalisée avant délégation d’une transformation ;
+Annuler restaure ensuite la géométrie précédente en conservant le texte. Les 33 cas
+de la suite des opérations asynchrones passent.
+
+Le contrôle Cocoa/Metal utilise les événements Qt de QTest pour Annuler et Échap.
+Si macOS refuse de donner le premier plan au processus lancé depuis le terminal,
+le test établit son contexte de focus Qt ; il n’injecte aucune touche système.
+
+
 ## Réduction rapide régionale CPU — 3 novembre 2026
 
 Comparaison exacte à Qt FastTransformation sur plans couleur 8/16 bits et masques

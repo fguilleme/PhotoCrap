@@ -10,6 +10,9 @@
 #include <QSemaphore>
 #include <QThreadPool>
 #include <QtTest>
+#ifdef PHOTOCRAP_RHI_STACK
+#include <qpa/qwindowsysteminterface.h>
+#endif
 
 inline bool runOperationSmoke(QQuickWindow *window, Document &document)
 {
@@ -18,6 +21,10 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
             qWarning("Operation check failed: %s", message);
         return ok;
     };
+    auto *welcome = window->findChild<QObject *>("welcomeDialog");
+    if (welcome)
+        QMetaObject::invokeMethod(welcome, "close");
+    QTest::qWait(100);
     window->requestActivate();
     if (QGuiApplication::platformName() != QStringLiteral("offscreen")) {
 #ifdef Q_OS_MACOS
@@ -25,12 +32,19 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
 #endif
         window->raise();
         window->requestActivate();
+#ifdef PHOTOCRAP_RHI_STACK
+        if (!QTest::qWaitForWindowActive(window, 1000)) {
+            // CLI launches may be denied foreground activation by the desktop.
+            // QTest sends Qt key events, so establish their Qt focus context
+            // without injecting system-wide keys or requiring user interaction.
+            qInfo("Desktop kept foreground focus; testing Qt key routing on the native window.");
+            QWindowSystemInterface::handleApplicationStateChanged(Qt::ApplicationActive);
+            QWindowSystemInterface::handleFocusWindowChanged(window);
+        }
+#endif
         if (!require(QTest::qWaitForWindowActive(window), "test window is active"))
             return false;
     }
-    auto *welcome = window->findChild<QObject *>("welcomeDialog");
-    if (welcome)
-        QMetaObject::invokeMethod(welcome, "close");
     auto *pool = QThreadPool::globalInstance();
     pool->waitForDone();
     const int maximum = pool->maxThreadCount();

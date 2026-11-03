@@ -1952,7 +1952,10 @@ compactes (remplir un masque uniforme, effacer un calque entier) restent immédi
 Le worker ne capture jamais le document vivant ; le résultat est appliqué seulement
 si session et version correspondent encore. La validation est atomique et ajoute
 une seule étape d’historique. Échap, Annuler et Annuler/Rétablir abandonnent le calcul.
-Fermer, remplacer ou modifier le document invalide également son résultat.
+Fermer, remplacer ou modifier le document invalide également son résultat. Le
+début d’un aperçu de propriétés ou de fusion, ainsi que les changements de tracé,
+tranche ou texte, invalident la demande avant même le commit du geste. Une édition
+de texte en cours est finalisée avant capture du snapshot du worker.
 
 La progression est indéterminée pour les appels Qt monolithiques, et avance entre
 les calques ou lignes pour les boucles instrumentées. Annuler rend la main tout de

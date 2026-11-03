@@ -94,6 +94,7 @@ bool Document::deferEdit(const QString &label, qint64 cost, std::function<void(D
         fail(tr("Terminez ou annulez l’opération en cours."));
         return true;
     }
+    finishTextEdit();
     endStroke();
     finishLayerPreview();
     if (!m_backgroundOperation) {

@@ -48,6 +48,7 @@ void Document::beginLayerPreview()
 {
     if (m_previewingLayer || m_active < 0 || m_active >= m_layers.size())
         return;
+    cancelOperation();
     endStroke();
     // Starting a drag must never force a full-resolution composition on the
     // UI thread. Keep the cached image only when it already represents the

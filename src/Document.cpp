@@ -214,6 +214,10 @@ Document::Document(QObject *_parent) : QObject(_parent)
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, &Document::historyBrushSourceChanged);
+    connect(this, &Document::penPathsChanged, this, &Document::cancelOperation);
+    connect(this, &Document::slicesChanged, this, &Document::cancelOperation);
+    connect(this, &Document::textEditingChanged, this, &Document::cancelOperation);
+    connect(this, &Document::textGeometryChanged, this, &Document::cancelOperation);
     connect(this, &Document::imageChanged, this, [this] {
         if (m_selectionCancel &&
             (m_drawing || m_previewingLayer || m_selectionTaskStateId != m_stateId))

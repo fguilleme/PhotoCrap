@@ -26,6 +26,16 @@ mesures du pic de RAM global restent ouverts.
 
 ## 2. Composition de la pile sur GPU
 
+Premier chemin disponible : tuiles visibles de 512 px, calques de pixels, texte,
+Couleur unie, masques sans contour progressif, visibilité des groupes et écrêtage.
+Les 21 modes pris en charge utilisent RGBA8 pour les documents 8 bits et RGBA32F
+pour les intermédiaires 16 bits ; les couvertures sont en R8. Les versions
+régionales conservent les textures et composites de tuiles inchangées. Le budget
+du jeu de travail visible est vérifié avant allocation. Les réglages, les modes
+Dissoudre/Mélange maximal/TSL et les contours progressifs utilisent encore le
+composite CPU, ainsi que les backends sans formats requis. Ce rendu concerne
+l'affichage ; les exports et projets gardent leur référence native CPU.
+
 - [ ] Composition des calques visibles par tuiles, masques et modes de fusion,
   invalidation régionale et conservation des intermédiaires utiles.
 - [ ] Choix explicite des formats/précisions intermédiaires, références CPU et

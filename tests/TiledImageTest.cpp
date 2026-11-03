@@ -11,6 +11,24 @@ class TiledImageTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void regionalVersionsSurviveOffloadAndIgnoreRemoteEdits()
+    {
+        QTemporaryDir     directory;
+        ScratchImageCache cache({directory.path(), 32 * 1024 * 1024, 0});
+        TiledImage        plane({1200, 400}, QImage::Format_RGBA64_Premultiplied, Qt::transparent);
+        QVERIFY(plane.paint({0, 0, 10, 10},
+                            [](QPainter &p) { p.fillRect(QRect(0, 0, 10, 10), Qt::red); }));
+        const auto key = plane.regionKey({0, 0, 256, 256});
+        QVERIFY(plane.offload(cache));
+        QCOMPARE(plane.regionKey({0, 0, 256, 256}), key);
+        QVERIFY(plane.paint({800, 0, 10, 10},
+                            [](QPainter &p) { p.fillRect(QRect(800, 0, 10, 10), Qt::green); }));
+        QCOMPARE(plane.regionKey({0, 0, 256, 256}), key);
+        QVERIFY(plane.paint({0, 0, 10, 10},
+                            [](QPainter &p) { p.fillRect(QRect(0, 0, 10, 10), Qt::blue); }));
+        QVERIFY(plane.regionKey({0, 0, 256, 256}) != key);
+    }
+
     void pixelPlaneVersionsAndRegionalWrites()
     {
         QImage image(512, 512, QImage::Format_RGBA64_Premultiplied);

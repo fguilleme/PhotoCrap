@@ -26,6 +26,12 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Layer planes, masks, frequency sources and history versions now use shared 256 × 256 tiles, offloaded to disk after an editing pause. The tile RAM target is configurable (256 MiB by default). Brush, Pencil and Eraser write regional pixels directly; other operations may still request temporary full-sized buffers. The CPU composite and selections remain outside this budget. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The `.pcr` format remains at version 8, with support for reading versions 1–7. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
 
+In development after v0.16: pixel, text and Solid Color stacks can be composited
+in GPU tiles, with masks, clipping and 21 blend modes. Other stacks and final native
+renders retain the CPU path. Regional versions reuse textures and completed tiles;
+the visible working set is checked before allocation. See the
+[rendering formats and limits](docs/GPU_RENDERING.md).
+
 ![PhotoCrap demo composition](docs/screenshot.png)
 
 ## Features

@@ -114,6 +114,32 @@ QHash<qint64, qint64> TiledImage::heapBlocks() const
     return result;
 }
 
+QByteArray TiledImage::regionKey(const QRect &_region) const
+{
+    if (!m_data)
+        return {};
+    const QRect region = _region.intersected(QRect(QPoint{}, size()));
+    QByteArray  key;
+    const auto  append = [&](qint64 value) {
+        key.append(reinterpret_cast<const char *>(&value), sizeof(value));
+    };
+    for (int value : {region.x(), region.y(), region.width(), region.height(), int(format())})
+        append(value);
+    key.append(reinterpret_cast<const char *>(m_data->background.constBits()),
+               m_data->background.depth() / 8);
+    if (!region.isEmpty())
+        for (int y = region.top() / TileSize; y <= region.bottom() / TileSize; ++y)
+            for (int x = region.left() / TileSize; x <= region.right() / TileSize; ++x) {
+                const auto tile = m_data->tiles.value(m_data->key(x, y));
+                if (tile) {
+                    QMutexLocker locker(&tile->mutex);
+                    append(qint64(tile->id));
+                } else
+                    append(0);
+            }
+    return key;
+}
+
 qint64 TiledImage::allocatedBytes() const
 {
     qint64 bytes = 0;

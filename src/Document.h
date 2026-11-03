@@ -2,6 +2,7 @@
 #include "ImageHistogram.h"
 #include "RawImageReader.h"
 #include "filters/ToneMappingTable.h"
+#include "render/LayerStack.h"
 #include "selection/SelectionCoverage.h"
 #include "storage/PixelPlane.h"
 #include "storage/TiledImage.h"
@@ -957,8 +958,9 @@ public:
     {
         return index >= 0 && index < m_layers.size() ? m_layers[index].image.cacheKey() : 0;
     }
-    const QImage &composite() const;
-    QImage        displayComposite() const;
+    const QImage                 &composite() const;
+    QImage                        displayComposite() const;
+    PhotoCrap::Render::LayerStack gpuLayerStack() const;
     // Empty means the caller must refresh the whole image. Keys identify the
     // exact before/after composite, even if another consumer rendered first.
     QRect compositeUpdateRegion(qint64 _before, qint64 _after) const;

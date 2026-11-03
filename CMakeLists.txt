@@ -25,6 +25,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/render/PenBandGeometry.cpp
     src/render/CropShadeNode.cpp
     src/render/ToneMappingNode.cpp
+    src/render/LayerStackNode.cpp
     src/render/SelectionOutlineNode.cpp
     src/render/RegionOverlayNode.cpp
     src/render/PatchPreviewNode.cpp
@@ -137,6 +138,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/CanvasFonts.h
     src/render/CropShadeNode.h
     src/render/ToneMappingNode.h
+    src/render/LayerStackNode.h
+    src/render/LayerStack.h
     src/render/SelectionOutlineNode.h
     src/render/RegionOverlayNode.h
     src/render/PatchPreviewNode.h
@@ -215,6 +218,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/RegionMeshTest.cpp
     tests/PatchMeshTest.cpp
     tests/ToneRenderSmoke.h
+    tests/LayerStackSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp
     tests/GpuDissolvePreviewTest.cpp
@@ -292,6 +296,9 @@ else()
 endif()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent LinguistTools ShaderTools)
+if(Qt6_VERSION VERSION_GREATER_EQUAL 6.6)
+    find_package(Qt6 QUIET COMPONENTS GuiPrivate)
+endif()
 qt_standard_project_setup(REQUIRES 6.5)
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
@@ -427,6 +434,7 @@ qt_add_executable(PhotoCrap
     src/render/CanvasFonts.h
     src/render/CropShadeNode.cpp src/render/CropShadeNode.h
     src/render/ToneMappingNode.cpp src/render/ToneMappingNode.h
+    src/render/LayerStackNode.cpp src/render/LayerStackNode.h src/render/LayerStack.h
     src/render/SelectionOutlineNode.cpp src/render/SelectionOutlineNode.h
     src/render/RegionOverlayNode.cpp src/render/RegionOverlayNode.h
     src/render/PatchPreviewNode.cpp src/render/PatchPreviewNode.h
@@ -448,6 +456,15 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
         src/render/shaders/brushtippreview.vert src/render/shaders/brushtippreview.frag
         src/render/shaders/brushcursor.vert src/render/shaders/brushcursor.frag
 )
+qt_add_shaders(PhotoCrap stack_shaders
+    PREFIX "/PhotoCrap"
+    GLSL "150,300es"
+    FILES src/render/shaders/stack.vert src/render/shaders/stack.frag
+)
+if(TARGET Qt6::GuiPrivate AND Qt6_VERSION VERSION_GREATER_EQUAL 6.6)
+    target_link_libraries(PhotoCrap PRIVATE Qt6::GuiPrivate)
+    target_compile_definitions(PhotoCrap PRIVATE PHOTOCRAP_RHI_STACK)
+endif()
 if(APPLE)
     target_sources(PhotoCrap PRIVATE
         src/MacToolCursor.h src/MacToolCursor.mm
@@ -716,6 +733,9 @@ if(BUILD_TESTING)
     set_tests_properties(preset_preview PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME canvas_render COMMAND PhotoCrap --smoke-test --canvas-render-test)
+    add_test(NAME stack_render COMMAND PhotoCrap --smoke-test --stack-render-test)
+    set_tests_properties(stack_render PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     set_tests_properties(canvas_render PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME measurement_overlay COMMAND PhotoCrap --smoke-test --measurement-overlay-test)

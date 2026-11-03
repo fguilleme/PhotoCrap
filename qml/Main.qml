@@ -2258,6 +2258,9 @@ ApplicationWindow {
                                 gpuTonePreviewEnabled: GraphicsInfo.api === GraphicsInfo.Metal
                                     || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
                                     || GraphicsInfo.api === GraphicsInfo.Direct3D11 || GraphicsInfo.api === GraphicsInfo.Direct3D12
+                                gpuStackEnabled: GraphicsInfo.api === GraphicsInfo.Metal
+                                    || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
+                                    || GraphicsInfo.api === GraphicsInfo.Direct3D11 || GraphicsInfo.api === GraphicsInfo.Direct3D12
                                 // Depend explicitly on scrolling/rotation: coordinate mapping alone
                                 // does not notify a binding when the Flickable moves its content.
                                 viewportRect: {

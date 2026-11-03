@@ -39,6 +39,7 @@
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/HistogramRenderSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
+#include "../tests/LayerStackSmoke.h"
 #include "../tests/LevelsGraphSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
 #include "../tests/PenOverlaySmoke.h"
@@ -281,6 +282,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--canvas-render-test")) {
                 passed = window && runCanvasRenderSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--stack-render-test")) {
+                passed = window && runLayerStackSmoke(window);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

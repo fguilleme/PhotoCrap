@@ -1,5 +1,23 @@
 # Validation
 
+## Première composition GPU de la pile — 3 novembre 2026
+
+- Comparaisons Metal en 8/16 bits pour les 21 modes autorisés, opacité partielle,
+  masque gris, limites de tuiles, écrêtage sur une base masquée et masquage de la
+  base. Tolérance de deux unités d'affichage 8 bits ; le composite natif CPU
+  reste inchangé et fait référence pour les fichiers et les exports.
+- Une image inchangée n'exécute aucune nouvelle passe et ne retransfère aucune
+  entrée. Une touche traversant une limite de tuile transfère uniquement les
+  deux régions touchées. L'ajout d'un filtre non pris en charge repasse au CPU
+  et libère les cibles de composition sans crash.
+- Les tests de stockage vérifient que les identifiants de région restent stables
+  après déchargement disque et modification distante, et changent pour une
+  retouche locale. Le budget des tuiles visibles est estimé avant allocation.
+- `stack_render`, le moteur, les tuiles, le canevas logiciel et le smoke QML
+  passent sur Qt 6.12 ; le moteur, les tuiles et `stack_render` passent aussi sur
+  Qt 6.8, y compris sur Metal. Les autres backends matériels restent à vérifier ; aucun
+  gain de latence global n'est déduit du seul nombre de transferts évités.
+
 ## Plans éditables tuilés — 3 novembre 2026
 
 - Les calques, masques et sources partagent des versions immuables de tuiles.

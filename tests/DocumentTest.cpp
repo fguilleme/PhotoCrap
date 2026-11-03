@@ -43,6 +43,36 @@ class DocumentTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
+    {
+        Document d;
+        QVERIFY(d.newDocument(1200, 128, false, 16));
+        const auto initial = d.gpuLayerStack();
+        QVERIFY(initial.valid);
+        QCOMPARE(initial.bits, 16);
+        const auto oldKey = initial.layers.first().image.regionKey({0, 0, 256, 128});
+        d.setTool("pencil");
+        d.setBrushSize(4);
+        d.setColor(Qt::red);
+        d.beginStroke(12, 12);
+        d.endStroke();
+        const auto changed = d.gpuLayerStack();
+        QCOMPARE(initial.layers.first().image.regionKey({0, 0, 256, 128}), oldKey);
+        QVERIFY(changed.layers.first().image.regionKey({0, 0, 256, 128}) != oldKey);
+        QCOMPARE(changed.layers.first().image.regionKey({512, 0, 256, 128}),
+                 initial.layers.first().image.regionKey({512, 0, 256, 128}));
+        QVERIFY(PhotoCrap::Render::stackWorkingBytes(changed, {0, 0, 512, 128}) > 0);
+        QCOMPARE(PhotoCrap::Render::stackWorkingBytes(changed, {}), qint64(0));
+        d.addAdjustmentLayer("solidColor");
+        QVERIFY(d.gpuLayerStack().valid);
+        d.addAdjustmentLayer("boxBlur");
+        QVERIFY(!d.gpuLayerStack().valid);
+        d.setLayerVisible(d.activeLayer(), false);
+        QVERIFY(d.gpuLayerStack().valid);
+        d.setDisplayChannel(1);
+        QVERIFY(!d.gpuLayerStack().valid);
+    }
+
     void initTestCase()
     {
         // Match the smallest GitHub runners and catch nested global-pool waits.

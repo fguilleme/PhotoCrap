@@ -36,6 +36,7 @@ public:
     QColorSpace           colorSpace() const;
     QHash<qint64, qint64> storageBlocks() const;
     QHash<qint64, qint64> heapBlocks() const;
+    QByteArray            regionKey(const QRect &_region) const;
     QImage                region(const QRect &_region) const;
     bool paint(const QRect &_region, const std::function<void(QPainter &)> &_paint);
     // Reuse unique tiles for disposable gesture buffers. On failure the caller

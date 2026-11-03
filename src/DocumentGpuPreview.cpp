@@ -2,6 +2,53 @@
 #include "ImageUtils.h"
 #include "filters/ToneMappingTable.h"
 
+PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
+{
+    using namespace PhotoCrap::Render;
+    LayerStack stack;
+    if (m_displayChannel || m_maskOnlyView || m_size.isEmpty())
+        return stack;
+    stack.size = m_size;
+    stack.bits = m_channelBits;
+    QHash<QString, bool> groups;
+    for (const auto &layer : m_layers)
+        if (layer.kind == "group")
+            groups.insert(layer.groupId, layer.visible);
+    for (const auto &layer : m_layers) {
+        if (layer.kind == "group" || !layer.visible || layer.opacity <= 0 ||
+            (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
+            if (!layer.clippingMask)
+                stack.layers.append(StackLayer{.reset = true});
+            continue;
+        }
+        // Unsupported operations use the authoritative CPU compositor. No
+        // partially composed result may be presented as the complete stack.
+        const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
+        if ((layer.kind != "pixel" && !solid && layer.kind != "text") ||
+            (!solid && layer.image.isNull()) || layer.blend == 1 || layer.blend == 18 ||
+            layer.blend >= 23 ||
+            (layer.maskEnabled && !layer.mask.isNull() &&
+             layer.parameters.value("_maskFeather", 0.).toDouble() >= .5))
+            return {};
+        StackLayer entry;
+        entry.image = layer.image;
+        if (solid) {
+            QImage color(1, 1, workingFormat());
+            color.fill(QColor(layer.parameters.value("color", "#000000").toString()));
+            entry.image = color;
+        }
+        entry.mask    = layer.maskEnabled ? layer.mask : PixelPlane{};
+        entry.opacity = float(qBound(0., layer.opacity, 1.));
+        entry.density =
+            float(qBound(0., layer.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.));
+        entry.blend   = layer.blend;
+        entry.clipped = layer.clippingMask;
+        stack.layers.append(std::move(entry));
+    }
+    stack.valid = true;
+    return stack;
+}
+
 void Document::setGpuTonePreviewEnabled(bool _enabled)
 {
     if (m_gpuToneEnabled == _enabled)

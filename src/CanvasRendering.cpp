@@ -1,6 +1,7 @@
 #include "CanvasItem.h"
 #include "render/ClippedOverlayNode.h"
 #include "render/DisplayLevel.h"
+#include "render/LayerStackNode.h"
 #include "render/PatchPreviewNode.h"
 #include "render/RegionOverlayNode.h"
 #include "render/SelectionOutlineNode.h"
@@ -126,6 +127,7 @@ public:
 // All nodes and textures live and die on the scene graph thread. No Document
 // methods are called here: updatePolish prepares immutable GUI-thread snapshots.
 struct CanvasNode : QSGTransformNode {
+    LayerStackNode                 *stack = nullptr;
     QSGTransformNode                background, photo, effects;
     QHash<quint64, PhotoTileNode *> tiles;
     QQuickWindow                   *owner    = nullptr;
@@ -253,11 +255,31 @@ void CanvasItem::updatePolish()
 #endif
     if (m_document)
         m_document->setGpuToneNearestSampling(width() >= m_document->width());
+    const bool previousStack = m_stack.valid;
+    m_stack =
+        m_gpuStackEnabled && !m_gpuStackRejected && m_document &&
+                !m_document->gpuTonePreviewActive() && window() &&
+                QSGRendererInterface::isApiRhiBased(window()->rendererInterface()->graphicsApi())
+            ? m_document->gpuLayerStack()
+            : PhotoCrap::Render::LayerStack{};
+    if (m_stack.valid && width() > 0 && height() > 0) {
+        const auto  visible = visibleBounds(m_viewportRect, boundingRect());
+        const QRect native  = QRectF(visible.x() * m_stack.size.width() / width(),
+                                     visible.y() * m_stack.size.height() / height(),
+                                     visible.width() * m_stack.size.width() / width(),
+                                     visible.height() * m_stack.size.height() / height())
+                                  .toAlignedRect();
+        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) >
+            qint64(qMax(16, m_textureCacheMiB)) * 1024 * 1024)
+            m_stack = {};
+    }
+    if (previousStack != m_stack.valid)
+        m_imageDirty = true;
     QImage      source;
     QRect       updateRegion;
     const QSize previousSize = m_sourceSize;
     bool        changed = false, maskChanged = false;
-    if (m_imageDirty) {
+    if (m_imageDirty && !m_stack.valid) {
         source          = displaySource(m_document);
         m_toneTable     = m_document && m_document->gpuTonePreviewActive()
                               ? m_document->gpuTonePreviewTable()
@@ -279,7 +301,16 @@ void CanvasItem::updatePolish()
     // Retaining the full composite would force Document's next regional edit
     // to detach/copy the whole image. Keep only independent visible tile copies
     // and, at reduced zoom, one detached display-resolution pyramid level.
-    if (m_sourceSize.isEmpty() || width() <= 0 || height() <= 0) {
+    if (m_stack.valid) {
+        m_sourceSize = m_documentSize = m_textureSize = m_stack.size;
+        m_textureImage = m_textureMaskImage = m_toneTable = m_toneMask = {};
+        m_tileImages.clear();
+        m_maskTileImages.clear();
+        m_maskTileSourceKeys.clear();
+        m_tileLastUse.clear();
+        m_imageDirty   = false;
+        m_textureLevel = -1;
+    } else if (m_sourceSize.isEmpty() || width() <= 0 || height() <= 0) {
         m_textureImage = {};
         m_tileImages.clear();
         m_tileLastUse.clear();
@@ -710,122 +741,178 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
         node->checker->setSourceRect(QRectF(QPointF{}, checkerSize));
     }
 
-    if (node->toneTableKey != m_toneTable.cacheKey() || node->toneSettings != m_toneSettings) {
-        const bool  newTable = node->toneTableKey != m_toneTable.cacheKey();
-        QSGTexture *table = !newTable              ? node->toneTable
-                            : m_toneTable.isNull() ? nullptr
-                                                   : window()->createTextureFromImage(m_toneTable);
-        if (!m_toneTable.isNull() && !table) {
-            QMetaObject::invokeMethod(
-                this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);
-            return node;
-        }
-        for (auto *tile : std::as_const(node->tiles))
-            tile->setMapping(table, m_toneSettings);
-        if (newTable)
-            delete node->toneTable;
-        node->toneTable    = table;
-        node->toneTableKey = m_toneTable.cacheKey();
-        node->toneSettings = m_toneSettings;
-#ifdef PHOTOCRAP_TESTING
-        if (table && newTable)
-            ++m_toneTableUploads;
-#endif
-    }
-    if (node->imageKey != m_textureRevision) {
-        node->photo.removeAllChildNodes();
-        qDeleteAll(node->tiles);
-        node->tiles.clear();
-        node->imageKey = m_textureRevision;
-    }
-    // Drop evicted snapshots before uploading replacements. Cached nodes are
-    // detached while offscreen so their old geometry cannot cover the image.
-    for (auto it = node->tiles.begin(); it != node->tiles.end();) {
-        if (!m_tileImages.contains(it.key())) {
-            if (it.value()->parent())
-                node->photo.removeChildNode(it.value());
-            delete it.value();
-            it = node->tiles.erase(it);
-        } else {
-            if (m_toneMask.isNull())
-                it.value()->setMask({});
-            ++it;
-        }
-    }
-    const qreal sx = width() / m_textureSize.width(), sy = height() / m_textureSize.height();
-    const QRect sourceVisible =
-        QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
-            .toAlignedRect()
-            .intersected(QRect(QPoint{}, m_textureSize));
-    QSet<quint64> used;
-    for (int y = sourceVisible.top() / tileSize; y <= sourceVisible.bottom() / tileSize; ++y) {
-        for (int x = sourceVisible.left() / tileSize; x <= sourceVisible.right() / tileSize; ++x) {
-            const quint64 key    = (quint64(quint32(y)) << 32) | quint32(x);
-            const QRect   source = QRect(x * tileSize, y * tileSize, tileSize, tileSize)
-                                       .intersected(QRect(QPoint{}, m_textureSize));
-            // One neighbour pixel prevents filtering seams between adjacent tiles.
-            const QRect padded =
-                source.adjusted(-1, -1, 1, 1).intersected(QRect(QPoint{}, m_textureSize));
-            auto *tile = node->tiles.value(key, nullptr);
-            if (tile && tile->imageKey != m_tileImages.value(key).cacheKey()) {
+    if (m_stack.valid && LayerStackNode::supported(window(), m_stack.bits)) {
+        if (!node->stack) {
+            for (auto *tile : std::as_const(node->tiles))
                 if (tile->parent())
                     node->photo.removeChildNode(tile);
-                node->tiles.remove(key);
-                delete tile;
-                tile = nullptr;
+            qDeleteAll(node->tiles);
+            node->tiles.clear();
+            const auto failure = [this] {
+                QMetaObject::invokeMethod(
+                    this,
+                    [this] {
+                        m_gpuStackRejected = true;
+                        queueFrame(true, false);
+                    },
+                    Qt::QueuedConnection);
+            };
+            node->stack = new LayerStackNode(window(), failure, m_stackStatistics);
+            node->photo.appendChildNode(node->stack);
+        }
+        if (!node->stack->update(m_stack, boundingRect(), visible,
+                                 qint64(m_textureCacheMiB) * 1024 * 1024)) {
+            QMetaObject::invokeMethod(
+                this,
+                [this] {
+                    m_gpuStackRejected = true;
+                    queueFrame(true, false);
+                },
+                Qt::QueuedConnection);
+        }
+#ifdef PHOTOCRAP_TESTING
+        m_gpuStackActive       = true;
+        m_residentTextureBytes = node->stack->bytes();
+#endif
+    } else {
+        if (m_stack.valid) {
+            QMetaObject::invokeMethod(
+                this,
+                [this] {
+                    m_gpuStackRejected = true;
+                    queueFrame(true, false);
+                },
+                Qt::QueuedConnection);
+            return node;
+        }
+        if (node->stack) {
+            node->photo.removeChildNode(node->stack);
+            delete node->stack;
+            node->stack = nullptr;
+        }
+#ifdef PHOTOCRAP_TESTING
+        m_gpuStackActive = false;
+#endif
+        if (node->toneTableKey != m_toneTable.cacheKey() || node->toneSettings != m_toneSettings) {
+            const bool  newTable = node->toneTableKey != m_toneTable.cacheKey();
+            QSGTexture *table    = !newTable ? node->toneTable
+                                   : m_toneTable.isNull()
+                                       ? nullptr
+                                       : window()->createTextureFromImage(m_toneTable);
+            if (!m_toneTable.isNull() && !table) {
+                QMetaObject::invokeMethod(
+                    this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);
+                return node;
             }
-            if (!tile) {
-                tile = new PhotoTileNode(window(), m_tileImages.value(key), node->toneTable,
-                                         node->toneSettings);
-                if (!tile->texture) {
+            for (auto *tile : std::as_const(node->tiles))
+                tile->setMapping(table, m_toneSettings);
+            if (newTable)
+                delete node->toneTable;
+            node->toneTable    = table;
+            node->toneTableKey = m_toneTable.cacheKey();
+            node->toneSettings = m_toneSettings;
+#ifdef PHOTOCRAP_TESTING
+            if (table && newTable)
+                ++m_toneTableUploads;
+#endif
+        }
+        if (node->imageKey != m_textureRevision) {
+            node->photo.removeAllChildNodes();
+            qDeleteAll(node->tiles);
+            node->tiles.clear();
+            node->imageKey = m_textureRevision;
+        }
+        // Drop evicted snapshots before uploading replacements. Cached nodes are
+        // detached while offscreen so their old geometry cannot cover the image.
+        for (auto it = node->tiles.begin(); it != node->tiles.end();) {
+            if (!m_tileImages.contains(it.key())) {
+                if (it.value()->parent())
+                    node->photo.removeChildNode(it.value());
+                delete it.value();
+                it = node->tiles.erase(it);
+            } else {
+                if (m_toneMask.isNull())
+                    it.value()->setMask({});
+                ++it;
+            }
+        }
+        const qreal sx = width() / m_textureSize.width(), sy = height() / m_textureSize.height();
+        const QRect sourceVisible =
+            QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
+                .toAlignedRect()
+                .intersected(QRect(QPoint{}, m_textureSize));
+        QSet<quint64> used;
+        for (int y = sourceVisible.top() / tileSize; y <= sourceVisible.bottom() / tileSize; ++y) {
+            for (int x = sourceVisible.left() / tileSize; x <= sourceVisible.right() / tileSize;
+                 ++x) {
+                const quint64 key    = (quint64(quint32(y)) << 32) | quint32(x);
+                const QRect   source = QRect(x * tileSize, y * tileSize, tileSize, tileSize)
+                                           .intersected(QRect(QPoint{}, m_textureSize));
+                // One neighbour pixel prevents filtering seams between adjacent tiles.
+                const QRect padded =
+                    source.adjusted(-1, -1, 1, 1).intersected(QRect(QPoint{}, m_textureSize));
+                auto *tile = node->tiles.value(key, nullptr);
+                if (tile && tile->imageKey != m_tileImages.value(key).cacheKey()) {
+                    if (tile->parent())
+                        node->photo.removeChildNode(tile);
+                    node->tiles.remove(key);
                     delete tile;
-                    continue;
+                    tile = nullptr;
                 }
-                tile->sourceRect   = QRectF(source.translated(-padded.topLeft()));
-                tile->sourceOrigin = padded.topLeft();
-                node->photo.appendChildNode(tile);
-                node->tiles.insert(key, tile);
+                if (!tile) {
+                    tile = new PhotoTileNode(window(), m_tileImages.value(key), node->toneTable,
+                                             node->toneSettings);
+                    if (!tile->texture) {
+                        delete tile;
+                        continue;
+                    }
+                    tile->sourceRect   = QRectF(source.translated(-padded.topLeft()));
+                    tile->sourceOrigin = padded.topLeft();
+                    node->photo.appendChildNode(tile);
+                    node->tiles.insert(key, tile);
 #ifdef PHOTOCRAP_TESTING
-                ++m_imageTextureUploads;
+                    ++m_imageTextureUploads;
 #endif
-            }
-            if (!tile->parent())
-                node->photo.appendChildNode(tile);
-            const auto mask = m_maskTileImages.value(key);
-            if (tile->maskKey != mask.cacheKey()) {
-                tile->setMask(mask);
-                if (!mask.isNull() && !tile->mask) {
-                    QMetaObject::invokeMethod(
-                        this, [this] { setGpuTonePreviewEnabled(false); }, Qt::QueuedConnection);
-                    return node;
                 }
+                if (!tile->parent())
+                    node->photo.appendChildNode(tile);
+                const auto mask = m_maskTileImages.value(key);
+                if (tile->maskKey != mask.cacheKey()) {
+                    tile->setMask(mask);
+                    if (!mask.isNull() && !tile->mask) {
+                        QMetaObject::invokeMethod(
+                            this, [this] { setGpuTonePreviewEnabled(false); },
+                            Qt::QueuedConnection);
+                        return node;
+                    }
 #ifdef PHOTOCRAP_TESTING
-                if (tile->mask)
-                    ++m_maskTextureUploads;
+                    if (tile->mask)
+                        ++m_maskTextureUploads;
 #endif
+                }
+                used.insert(key);
+                tile->setRect(QRectF(source.x() * sx, source.y() * sy, source.width() * sx,
+                                     source.height() * sy));
+                tile->setFiltering(width() < m_documentSize.width() ? QSGTexture::Linear
+                                                                    : QSGTexture::Nearest);
             }
-            used.insert(key);
-            tile->setRect(QRectF(source.x() * sx, source.y() * sy, source.width() * sx,
-                                 source.height() * sy));
-            tile->setFiltering(width() < m_documentSize.width() ? QSGTexture::Linear
-                                                                : QSGTexture::Nearest);
         }
-    }
-    for (auto it = node->tiles.cbegin(); it != node->tiles.cend(); ++it)
-        if (it.value()->parent() && !used.contains(it.key()))
-            node->photo.removeChildNode(it.value());
+        for (auto it = node->tiles.cbegin(); it != node->tiles.cend(); ++it)
+            if (it.value()->parent() && !used.contains(it.key()))
+                node->photo.removeChildNode(it.value());
 #ifdef PHOTOCRAP_TESTING
-    quint64 resident = 0;
-    for (auto *tile : std::as_const(node->tiles)) {
-        const auto size = tile->texture->textureSize();
-        resident += quint64(size.width()) * size.height() * 4;
-        if (tile->mask) {
-            const auto maskSize = tile->mask->textureSize();
-            resident += quint64(maskSize.width()) * maskSize.height() * 4;
+        quint64 resident = 0;
+        for (auto *tile : std::as_const(node->tiles)) {
+            const auto size = tile->texture->textureSize();
+            resident += quint64(size.width()) * size.height() * 4;
+            if (tile->mask) {
+                const auto maskSize = tile->mask->textureSize();
+                resident += quint64(maskSize.width()) * maskSize.height() * 4;
+            }
         }
-    }
-    m_residentTextureBytes = resident;
+        m_residentTextureBytes = resident;
 #endif
+    }
     const qint64 overlayKey = m_overlayImage.cacheKey();
     if (node->overlayKey != overlayKey) {
         removeImage(node->effects, node->overlay);

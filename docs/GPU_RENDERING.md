@@ -1,5 +1,37 @@
 # Canevas et accélération graphique
 
+## Composition tuilée de la pile — 3 novembre 2026
+
+`LayerStackNode` utilise QRhi et des passes hors écran par tuile de 512 px. Les
+calques de pixels, le texte et Couleur unie sont composés avec leurs masques,
+opacités et écrêtages, en respectant les groupes masqués. Les 21 modes pris en
+charge sont comparés au CPU en 8 et 16 bits. Les modes 1, 18 et 23–26, les
+réglages autres que Couleur unie et les masques adoucis déclenchent un repli de
+toute la pile vers le chemin existant. Le rendu final natif CPU reste la référence.
+
+Les entrées et les cibles sont RGBA8 en 8 bits. En 16 bits, les entrées et les
+intermédiaires sont RGBA32F, avec quantification à 65 535 entre les opérations ;
+un demi-flottant ne suffit pas à représenter toutes les valeurs natives. La
+couverture d'écrêtage suit le masque 8 bits existant. Le rendu d'affichage est
+comparé avec une tolérance de deux unités 8 bits, sans modifier les pixels sauvegardés.
+
+Une version régionale dépend des identifiants immuables des tuiles de stockage,
+pas du QImage reconstruit. Une modification distante ou un déchargement disque
+ne provoque donc aucun transfert de la région inchangée. Le résultat de la
+composition reste sur GPU entre les images. Les snapshots de plans sont libérés
+après leur préparation ; les tuiles hors écran sont évincées selon leur ancienneté.
+Le jeu de travail visible est estimé avant allocation ; s'il dépasse le budget,
+l'affichage utilise le chemin CPU. Le budget graphique global et les niveaux de
+détail GPU restent les étapes suivantes du plan de migration.
+
+Ce chemin est compilé lorsque Qt 6.6+ fournit `GuiPrivate`, et activé uniquement
+sur un backend QRhi ayant les formats requis. Les ressources vivent sur le thread
+du scene graph, sans accès à un Document mutable. Les cibles ping-pong gardent la
+propriété de leurs textures ; les matériaux d'affichage ne font que les emprunter.
+Voir les références Qt sur [QRhi](https://doc.qt.io/qt-6/qrhi.html),
+[QSGRenderNode](https://doc.qt.io/qt-6/qtquick-scenegraph-customrendernode-example.html)
+et la [propriété des textures](https://doc.qt.io/qt-6/qquickwindow.html#createTextureFromRhiTexture).
+
 Accélérations livrées dans **v0.16**, puis étapes en développement : présentation du composite dans le
 canevas, puis aperçus Courbes, Niveaux, Lumière, Couleur, Balance des couleurs,
 Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches, Isohélie,

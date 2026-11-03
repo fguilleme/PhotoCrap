@@ -160,6 +160,20 @@ public:
         }
         return copy(r);
     }
+    QByteArray regionKey(const QRect &r) const
+    {
+        if (isNull())
+            return "null";
+        if (size() == QSize(1, 1))
+            return QByteArray("uniform:") + QByteArray::number(int(format())) + ':' +
+                   QByteArray(reinterpret_cast<const char *>(m_image.constBits()),
+                              m_image.depth() / 8);
+        if (!m_dirty && !m_tiles.isNull())
+            return m_tiles.regionKey(r);
+        return QByteArray::number(cacheKey()) + ':' + QByteArray::number(r.x()) + ':' +
+               QByteArray::number(r.y()) + ':' + QByteArray::number(r.width()) + ':' +
+               QByteArray::number(r.height());
+    }
     const TiledImage &tiles() const
     {
         freeze();

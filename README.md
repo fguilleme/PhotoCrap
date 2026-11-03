@@ -26,6 +26,12 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 
 Le [guide calques et mémoire](docs/LAYER_MEMORY.md) décrit le fonctionnement et les mesures. Les plans de calques, masques, sources de fréquences et leurs versions d’historique sont stockés par tuiles partagées de 256 × 256, déchargeables sur disque après une pause. Le budget RAM des tuiles est configurable (256 Mio par défaut). Pinceau, Crayon et Gomme écrivent directement les régions touchées ; les autres opérations peuvent encore demander un tampon complet temporaire. Le composite CPU et les sélections restent séparés de ce budget. Les limites de 32 Mpx, 512 calques et 2 Gio de plans de calques restent en place. L’application écrit le format `.pcr` v9 avec texte éditable et lit aussi les projets v1 à v8. Les [fonctions de sélection de v0.14](CHANGELOG.md#v014--28-octobre-2026) restent disponibles.
 
+En développement après v0.16 : la pile de pixels, texte et Couleur unie peut être
+composée par tuiles sur GPU, avec masques, écrêtage et 21 modes de fusion. Le chemin
+CPU est conservé pour les autres piles et pour le rendu final. Les ressources sont
+réutilisées par version régionale et le jeu de travail est borné avant allocation.
+Voir les [formats et limites du rendu](docs/GPU_RENDERING.md).
+
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
 
 ## Fonctionnalités

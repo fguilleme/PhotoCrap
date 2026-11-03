@@ -72,7 +72,7 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 - [x] Réutiliser une bande haute encore dans le LRU sans recalculer sa bande basse évincée ; conserver le plafond de 128 Mio.
 - [x] Ajouter une pile de 64 calques remplis en 8/16 bits, comparée à une référence de rendu, avec retouche locale et Annuler/Rétablir ; tester l’éviction des fréquences et les calques/groupes masqués.
 - [x] Première étape du cache disque : blocs natifs 8/16 bits vérifiés par SHA-256, mappings en lecture seule, budgets, éviction, nettoyage et protection des sessions actives. Branché sur les bandes de fréquences d’au moins 16 Mio, dans les workers ; configuration et vidage depuis Réglages → Cache de travail.
-- [x] Moteur de plans parcimonieux par tuiles de 256 × 256, versions partagées et stockage disque avec références indépendantes de l’index du cache. Premier usage : couverture du pinceau, du crayon et de la gomme, avec tests 8/16 bits, masques, débit et annulation. Les plans de calques restent des QImage complètes.
+- [x] Moteur de plans parcimonieux par tuiles de 256 × 256, versions partagées et stockage disque avec références indépendantes de l’index du cache. Premier usage : couverture du pinceau, du crayon et de la gomme, avec tests 8/16 bits, masques, débit et annulation. Les plans de calques, masques et sources sont désormais raccordés aux tuiles ; certains outils utilisent encore un tampon temporaire complet.
 
 ## 1. Fiabilité et validation à terminer
 
@@ -87,12 +87,14 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 
 Le programme des cinq migrations de performance demandées le 2 novembre est
 détaillé dans [docs/OPTIMIZATION_PLAN.md](docs/OPTIMIZATION_PLAN.md). Le raccordement
-des plans de calques par tuiles et les quatre chantiers suivants restent en cours.
+des plans de calques par tuiles est effectué ; la migration des autres outils,
+la composition GPU et les trois chantiers suivants restent en cours.
 
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 
 - [x] Jusqu’à 512 calques, stockage compact des calques vides et masques uniformes dans les projets v7 et suivants, allocation différée lors de la peinture, historique comptant les pixels supplémentaires et cache LRU de fréquences limité à 128 Mio. Test de stockage/rechargement de 301 calques sur une image 24 Mpx en 16 bits : les calques ajoutés sont vides et les réglages masqués ; ce n’est pas un test de 301 photos remplies. Liste de calques virtualisée.
 - [ ] Composition et stockage par tuiles, invalidation fine des caches et traitements régionaux plus systématiques.
+- [x] Premier composite GPU de la pile : pixels, texte, Couleur unie, masques non adoucis, groupes masqués et écrêtage, avec 21 modes de fusion. Tuiles de 512 px, versions régionales, textures et intermédiaires réutilisés ; RGBA8 en 8 bits, RGBA32F en 16 bits. Repli complet CPU pour les cas non pris en charge ou un jeu de travail dépassant le budget. L'export reste natif CPU ; extension aux réglages et tests matériels hors Metal encore ouverts.
 - [ ] Généraliser le calcul asynchrone avec annulation des résultats périmés aux opérations complètes de calques, masques, transformations et filtres directs.
 - [ ] Mesures de latence, mémoire et précision des aperçus par outil/filtre, notamment lorsque le rayon d’un flou est ramené à la résolution du proxy.
 - [ ] Stockage de travail par tuiles avec cache disque configurable pour les pixels, masques et versions d’historique ; éviction réelle de RAM, calculs asynchrones et contrôle d’espace libre. Le stockage des calques/masques/sources et de l’historique, le déchargement asynchrone et les écritures régionales Pinceau/Crayon/Gomme sont maintenant raccordés ; la migration des autres outils et les mesures de RAM résidente restent à compléter. [Audit, implémentation et suite](docs/LAYER_MEMORY.md).

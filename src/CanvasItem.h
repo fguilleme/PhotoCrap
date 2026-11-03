@@ -19,6 +19,7 @@ class CanvasItem : public QQuickItem
     Q_PROPERTY(
         QRectF viewportRect READ viewportRect WRITE setViewportRect NOTIFY viewportRectChanged)
     Q_PROPERTY(bool gpuTonePreviewEnabled READ gpuTonePreviewEnabled WRITE setGpuTonePreviewEnabled)
+    Q_PROPERTY(bool gpuStackEnabled READ gpuStackEnabled WRITE setGpuStackEnabled)
     Q_PROPERTY(int textureCacheMiB READ textureCacheMiB WRITE setTextureCacheMiB NOTIFY
                    textureCacheChanged)
 public:
@@ -47,12 +48,29 @@ public:
         return m_gpuTonePreviewEnabled;
     }
     void setGpuTonePreviewEnabled(bool _enabled);
+    bool gpuStackEnabled() const
+    {
+        return m_gpuStackEnabled;
+    }
+    void setGpuStackEnabled(bool enabled);
     int  textureCacheMiB() const
     {
         return m_textureCacheMiB;
     }
     void setTextureCacheMiB(int _value);
 #ifdef PHOTOCRAP_TESTING
+    quint64 stackTextureUploads() const
+    {
+        return m_stackStatistics->uploads.load();
+    }
+    quint64 stackPasses() const
+    {
+        return m_stackStatistics->passes.load();
+    }
+    bool gpuStackActive() const
+    {
+        return m_gpuStackActive.load();
+    }
     quint64 framePreparations() const
     {
         return m_framePreparations;
@@ -83,7 +101,8 @@ public:
     }
     quint64 residentTextureBytes() const
     {
-        return m_residentTextureBytes.load();
+        return m_gpuStackActive.load() ? m_stackStatistics->bytes.load()
+                                       : m_residentTextureBytes.load();
     }
     quint64 selectionGeometryUploads() const
     {
@@ -164,6 +183,13 @@ private:
            m_patchGpuRejected = false;
     QImage m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
     bool   m_gpuTonePreviewEnabled = false;
+    bool   m_gpuStackEnabled = false, m_gpuStackRejected = false;
+    PhotoCrap::Render::LayerStack                       m_stack;
+    std::shared_ptr<PhotoCrap::Render::StackStatistics> m_stackStatistics =
+        std::make_shared<PhotoCrap::Render::StackStatistics>();
+#ifdef PHOTOCRAP_TESTING
+    std::atomic<bool> m_gpuStackActive{false};
+#endif
     PhotoCrap::Filters::ToneMappingSettings m_toneSettings;
     QHash<quint64, QImage>                  m_tileImages, m_maskTileImages;
     QHash<quint64, quint64>                 m_tileLastUse;

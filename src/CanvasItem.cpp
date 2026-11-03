@@ -286,6 +286,7 @@ void CanvasItem::setDocument(Document *_document)
     }
     m_document         = _document;
     m_patchGpuRejected = false;
+    m_gpuStackRejected = false;
     if (_document) {
         _document->setGpuTonePreviewEnabled(m_gpuTonePreviewEnabled);
         connect(_document, &Document::imageChanged, this, [this] { queueFrame(true, false); });
@@ -311,6 +312,14 @@ void CanvasItem::setGpuTonePreviewEnabled(bool _enabled)
     m_gpuTonePreviewEnabled = _enabled;
     if (m_document)
         m_document->setGpuTonePreviewEnabled(_enabled);
+    queueFrame(true, false);
+}
+void CanvasItem::setGpuStackEnabled(bool enabled)
+{
+    if (m_gpuStackEnabled == enabled)
+        return;
+    m_gpuStackEnabled  = enabled;
+    m_gpuStackRejected = false;
     queueFrame(true, false);
 }
 void CanvasItem::setSelectionPhase(qreal _phase)

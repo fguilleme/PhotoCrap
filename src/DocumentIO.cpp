@@ -297,10 +297,11 @@ bool Document::loadProject(const QString &_path)
         return false;
     QVector<Layer> layers;
     for (const auto &value : array) {
-        auto object = value.toObject();
-        auto decode = [&](const QString &_encoded, QImage::Format _format,
-                          bool _compact = false) -> QImage {
-            if (_encoded.isEmpty())
+        auto    object = value.toObject();
+        QString decodeError;
+        auto    decode = [&](const QString &_encoded, QImage::Format _format,
+                             bool _compact = false) -> PixelPlane {
+            if (_encoded.isEmpty() || !decodeError.isEmpty())
                 return {};
             QByteArray bytes = QByteArray::fromBase64(_encoded.toLatin1(),
                                                       QByteArray::AbortOnBase64DecodingErrors);
@@ -309,7 +310,18 @@ bool Document::loadProject(const QString &_path)
             QImageReader reader(&buffer, "PNG");
             if (reader.size() != (_compact ? QSize(1, 1) : QSize(w, h)))
                 return {};
-            return reader.read().convertToFormat(_format);
+            QImage decoded = reader.read().convertToFormat(_format);
+            if (_format != QImage::Format_Grayscale8)
+                decoded.setColorSpace(QColorSpace::SRgb);
+            PixelPlane plane(decoded);
+            decoded = {};
+            // Seal each plane before decoding the next. Do not retain an
+            // entire stack of PNG buffers beside the imported tile versions.
+            if (!plane.freeze()) {
+                decodeError = tr("Allocation des pixels impossible.");
+                return {};
+            }
+            return plane;
         };
         const QString kind =
             version == 1 ? QStringLiteral("pixel") : object["kind"].toString("pixel");
@@ -321,6 +333,8 @@ bool Document::loadProject(const QString &_path)
         auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8,
                              version >= 7 && object["compactMask"].toBool());
         auto source = decode(object["source"].toString(), format);
+        if (!decodeError.isEmpty())
+            return fail(decodeError);
         if (((kind == "pixel" || kind == "text") && image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||
             (!object["mask"].toString().isEmpty() && mask.isNull()))
@@ -339,8 +353,9 @@ bool Document::loadProject(const QString &_path)
             blend = legacyV2[blend];
         if (opacity < 0 || opacity > 1 || blend < 0 || blend > 26)
             return fail(tr("Propriétés de calque invalides."));
-        Layer layer{object["name"].toString().left(256), image,   object["visible"].toBool(true),
-                    object["locked"].toBool(),           opacity, blend};
+        Layer layer{object["name"].toString().left(256), QImage{}, object["visible"].toBool(true),
+                    object["locked"].toBool(),           opacity,  blend};
+        layer.image          = image;
         layer.kind           = kind;
         layer.adjustmentType = object["adjustmentType"].toString();
         layer.parameters     = object["parameters"].toObject().toVariantMap();

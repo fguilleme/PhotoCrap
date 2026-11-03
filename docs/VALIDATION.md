@@ -1,5 +1,21 @@
 # Validation
 
+## Lecture de projets par plans scellés — 3 novembre 2026
+
+Les PNG décodés sont convertis en tuiles immédiatement, avant le plan suivant.
+La validation complète du projet précède toujours son application au document.
+La suite moteur couvre les formats historiques, les projets corrompus et la
+fidélité 8/16 bits ; le scénario dense conserve aussi Annuler/Rétablir et les pixels
+après rechargement.
+
+Après les trois optimisations d’allocation (conversions sans effet, import direct,
+lecture de projets), le scénario dense rejoué sans compilation concurrente passe
+de 3 359 752 192 à 2 647 834 624 octets de RSS maximal, environ −21 %, et de
+2 562 313 216 à 1 831 045 592 octets d’empreinte maximale. Les durées sont environ
+14 et 13 s, sans prétention à un benchmark de vitesse. Ces mesures incluent les
+deux documents coexistants et varient avec la résidence des mappings et le système.
+
+
 ## Import à la taille du document — 3 novembre 2026
 
 L’import à ratio 1 et dimensions identiques évite le buffer vide et sa peinture.

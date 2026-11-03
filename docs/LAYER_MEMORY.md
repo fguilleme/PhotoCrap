@@ -38,6 +38,11 @@ travail. Il n’alloue plus une image vide complète pour la repeindre à l’id
 Les imports centrés ou à ratio différent gardent leur chemin de composition.
 Les pixels transparents natifs sont comparés en 8/16 bits et l’annulation est vérifiée.
 
+La lecture de projet scelle désormais chaque plan PNG en tuiles avant de décoder
+le suivant. Elle ne retient plus une pile de buffers PNG complets en parallèle
+avec les plans importés. La validation de tous les calques et tracés précède
+toujours le remplacement du document courant ; le format du fichier ne change pas.
+
 ## Tests denses et disque plein — 3 novembre 2026
 
 Le scénario optionnel `denseTwentyFourMegapixelPlanesSurviveOffloadAndReload`
@@ -52,6 +57,14 @@ rechargé coexistants : pic RSS 3 359 752 192 octets (3,13 Gio), empreinte maxim
 2 562 313 216 octets (2,39 Gio), environ 14 s. Le scénario inclut le décodage PNG,
 les copies temporaires d’import, l’encodage du projet et son rechargement. Il
 illustre pourquoi le budget des tuiles ne constitue pas un plafond du processus.
+
+Après suppression des conversions sans effet, réutilisation des imports à taille
+identique et scellement des plans pendant la lecture, une nouvelle exécution sans
+compilation concurrente donne 2 647 834 624 octets de RSS maximal (2,47 Gio),
+1 831 045 592 octets d’empreinte maximale (1,71 Gio), environ 13 s. Sur cette
+séquence, le pic RSS baisse d’environ 21 % ; la résidence des mappings et la charge
+système font varier les mesures. Ce n’est toujours pas un plafond RAM global.
+
 
 ```sh
 PHOTOCRAP_DENSE_MEMORY_TEST=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \

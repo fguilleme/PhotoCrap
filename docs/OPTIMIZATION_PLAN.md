@@ -90,8 +90,9 @@ l’état enregistré après publication. L’ouverture des projets décode et v
 les plans sur le worker ; seul un résultat encore courant remplace le document,
 sans historique ancien ni nouvelle modification. Le décodage, l’orientation et la
 conversion sRGB des images ordinaires passent aussi par le worker ; leur document
-est modifié sans URL de projet, comme auparavant. Leur import comme calques reste
-sur le chemin synchrone. La sauvegarde v9 écrit
+est modifié sans URL de projet, comme auparavant. L’import comme calque utilise
+le mode édition du worker, y compris le centrage et la conversion des plans lors
+d’une promotion 8→16 bits ; une fin valide crée une seule étape d’historique. La sauvegarde v9 écrit
 désormais ses PNG/Base64 et son JSON en flux atomique pour éviter l’accumulation
 des données encodées ; le codec peut encore demander un plan natif complet.
 

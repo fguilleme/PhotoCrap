@@ -3738,7 +3738,7 @@ ApplicationWindow {
             qsTr("Fichiers RAW (%1)").arg(editor.rawFilePatterns()), qsTr("Tous les fichiers (*)")]
         onAccepted: {
             if(editor.isRawFile(selectedFile)) editor.openRawFile(selectedFile, window.importing)
-            else if(window.importing) editor.importLayer(selectedFile)
+            else if(window.importing) editor.requestImportLayer(selectedFile)
             else editor.requestOpenFile(selectedFile)
         }
     }

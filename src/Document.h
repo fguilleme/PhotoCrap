@@ -1043,6 +1043,7 @@ public:
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE void requestOpenFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
+    Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool isRawFile(const QUrl &_url) const;
     Q_INVOKABLE QString rawFilePatterns() const;
     Q_INVOKABLE bool    openRawFile(const QUrl &_url, bool _asLayer = false);

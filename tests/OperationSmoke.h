@@ -171,5 +171,21 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      document.history() == history,
                  "Escape cancels the queued image open"))
         return false;
+    window->setProperty("importing", true);
+    if (!require(QMetaObject::invokeMethod(openDialog, "accepted"),
+                 "the import picker dispatches decoding asynchronously"))
+        return false;
+    QTest::qWait(50);
+    if (!require(document.operationBusy() && progress->isVisible() &&
+                     document.composite() == before && document.history() == history,
+                 "layer import leaves pixels and history untouched while queued"))
+        return false;
+    QTest::keyClick(window, Qt::Key_Escape);
+    QTest::qWait(50);
+    window->setProperty("importing", false);
+    if (!require(!document.operationBusy() && document.composite() == before &&
+                     document.history() == history,
+                 "Escape cancels the queued layer import"))
+        return false;
     return true;
 }

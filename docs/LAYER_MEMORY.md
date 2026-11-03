@@ -126,7 +126,16 @@ L’ouverture des images ordinaires utilise aussi un snapshot de remplacement su
 le worker. Le codec applique l’orientation, puis les conversions sRGB et de format
 natif sont réalisées avant de créer les tuiles. Seul le résultat courant devient
 un nouveau document modifié, sans URL de projet ni ancien historique. Les RAW
-conservent leur développeur dédié. Les imports comme calques restent à migrer.
+conservent leur développeur dédié.
+
+L’import comme calque passe aussi par le worker commun : décodage, centrage à la
+taille du document et promotion éventuelle des calques/sources vers 16 bits. Les
+masques existants sont conservés. Une fin valide applique une seule étape ;
+Annuler remet la pile, la profondeur et l’état enregistré précédents. Une
+annulation, un nouveau document/geste ou une destruction rejette le résultat.
+Les vérifications de limites de calques/mémoire restent en place, avant lancement
+et après identification de la profondeur native. Le codec ou la conversion du
+plan courant peut finir après annulation, sans publication partielle.
 
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états

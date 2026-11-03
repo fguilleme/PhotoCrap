@@ -81,6 +81,83 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void asynchronousLayerImportMatchesCenteredNativePixels_data()
+    {
+        QTest::addColumn<int>("documentBits");
+        QTest::addColumn<int>("imageBits");
+        QTest::addColumn<QSize>("size");
+        for (int documentBits : {8, 16})
+            for (int imageBits : {8, 16})
+                for (QSize size : {QSize(33, 27), QSize(80, 60), QSize(139, 97)})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3x%4")
+                                                 .arg(documentBits)
+                                                 .arg(imageBits)
+                                                 .arg(size.width())
+                                                 .arg(size.height())))
+                        << documentBits << imageBits << size;
+    }
+    void asynchronousLayerImportMatchesCenteredNativePixels()
+    {
+        QFETCH(int, documentBits);
+        QFETCH(int, imageBits);
+        QFETCH(QSize, size);
+        QTemporaryDir directory;
+        const auto    target  = QUrl::fromLocalFile(directory.filePath("import.png"));
+        const auto    project = QUrl::fromLocalFile(directory.filePath("original.pcr"));
+        QImage        image(size, imageBits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                  : QImage::Format_ARGB32_Premultiplied);
+        image.setColorSpace(QColorSpace::DisplayP3);
+        for (int y = 0; y < size.height(); ++y)
+            for (int x = 0; x < size.width(); ++x)
+                image.setPixelColor(x, y,
+                                    QColor::fromRgba64(ushort(x * 439), ushort(y * 587),
+                                                       ushort(x * 217 + y * 113), 51000));
+        QVERIFY(image.save(target.toLocalFile()));
+        Document d, reference;
+        for (Document *doc : {&d, &reference}) {
+            populate(*doc, documentBits);
+            doc->addLayerMask();
+            doc->setColor(Qt::black);
+            doc->beginStroke(20, 20);
+            doc->endStroke();
+            doc->setEditingMask(false);
+            QVERIFY(doc->saveProject(project));
+        }
+        const auto before  = d.composite();
+        const auto layers  = d.layers();
+        const auto mask    = d.maskImage(d.activeLayer());
+        const int  history = d.historyIndex();
+        QVERIFY(reference.importLayer(target));
+        const auto expected = reference.composite();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        QVERIFY(!d.modified());
+        d.setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            d.requestImportLayer(target);
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.composite(), before);
+            QCOMPARE(d.layers(), layers);
+            QCOMPARE(d.historyIndex(), history);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(d.composite(), expected);
+        QCOMPARE(d.layers(), reference.layers());
+        QCOMPARE(d.channelBits(), qMax(documentBits, imageBits));
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.projectUrl(), project);
+        QVERIFY(d.modified());
+        QCOMPARE(d.maskImage(d.activeLayer() - 1), mask);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.layers(), layers);
+        QCOMPARE(d.channelBits(), documentBits);
+        QVERIFY(!d.modified());
+        d.redo();
+        QCOMPARE(d.composite(), expected);
+        QCOMPARE(d.channelBits(), qMax(documentBits, imageBits));
+    }
     void asynchronousImageOpenMatchesNativeDecoding_data()
     {
         QTest::addColumn<QByteArray>("format");
@@ -152,12 +229,16 @@ private slots:
     void invalidImageOpenKeepsTheCurrentDocument_data()
     {
         QTest::addColumn<QString>("kind");
-        for (const auto *name : {"missing", "unreadable", "remote"})
-            QTest::newRow(name) << QString(name);
+        QTest::addColumn<bool>("import");
+        for (bool import : {false, true})
+            for (const auto *name : {"missing", "unreadable", "remote"})
+                QTest::newRow(qPrintable(QString(import ? "import-" : "open-") + name))
+                    << QString(name) << import;
     }
     void invalidImageOpenKeepsTheCurrentDocument()
     {
         QFETCH(QString, kind);
+        QFETCH(bool, import);
         QTemporaryDir directory;
         Document      d;
         populate(d, 16);
@@ -173,7 +254,10 @@ private slots:
         QSignalSpy opened(&d, &Document::fileOpened);
         QSignalSpy errors(&d, &Document::errorOccurred);
         d.setBackgroundEditThreshold(0);
-        d.requestOpenFile(target);
+        if (import)
+            d.requestImportLayer(target);
+        else
+            d.requestOpenFile(target);
         QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
         QCOMPARE(errors.size(), 1);
         QCOMPARE(opened.size(), 0);
@@ -269,16 +353,21 @@ private slots:
     {
         QTest::addColumn<QString>("action");
         QTest::addColumn<bool>("image");
-        for (bool image : {false, true})
+        QTest::addColumn<bool>("import");
+        for (int mode : {0, 1, 2})
             for (const auto *name :
                  {"queued", "finished", "new-document", "new-gesture", "destroyed"})
-                QTest::newRow(qPrintable(QString(image ? "image-" : "project-") + name))
-                    << QString(name) << image;
+                QTest::newRow(qPrintable(QString(mode == 2   ? "import-"
+                                                 : mode == 1 ? "image-"
+                                                             : "project-") +
+                                         name))
+                    << QString(name) << (mode != 0) << (mode == 2);
     }
     void cancelledOrStaleProjectOpenKeepsTheCurrentDocument()
     {
         QFETCH(QString, action);
         QFETCH(bool, image);
+        QFETCH(bool, import);
         QTemporaryDir directory;
         const auto    target =
             QUrl::fromLocalFile(directory.filePath(image ? "open.png" : "open.pcr"));
@@ -294,7 +383,10 @@ private slots:
         d->setBackgroundEditThreshold(0);
         {
             BlockPool blocked;
-            d->requestOpenFile(target);
+            if (import)
+                d->requestImportLayer(target);
+            else
+                d->requestOpenFile(target);
             QVERIFY(d->operationBusy());
             if (action == "queued")
                 d->cancelOperation();
@@ -414,12 +506,15 @@ private slots:
     void runningProjectDecodeCanBeCancelledWithoutReplacingTheDocument_data()
     {
         QTest::addColumn<bool>("image");
-        QTest::newRow("project") << false;
-        QTest::newRow("image") << true;
+        QTest::addColumn<bool>("import");
+        QTest::newRow("project") << false << false;
+        QTest::newRow("image") << true << false;
+        QTest::newRow("import") << true << true;
     }
     void runningProjectDecodeCanBeCancelledWithoutReplacingTheDocument()
     {
         QFETCH(bool, image);
+        QFETCH(bool, import);
         if (!qEnvironmentVariableIsSet("PHOTOCRAP_OPEN_CANCEL_STRESS"))
             QSKIP("Set PHOTOCRAP_OPEN_CANCEL_STRESS=1 to interrupt real native PNG decoding.");
         QTemporaryDir directory;
@@ -442,7 +537,10 @@ private slots:
         QSignalSpy opened(&d, &Document::fileOpened);
         QSignalSpy errors(&d, &Document::errorOccurred);
         d.setBackgroundEditThreshold(0);
-        d.requestOpenFile(target);
+        if (import)
+            d.requestImportLayer(target);
+        else
+            d.requestOpenFile(target);
         QElapsedTimer timer;
         timer.start();
         bool decoding = false;

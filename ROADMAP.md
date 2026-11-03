@@ -16,6 +16,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   profondeur native et tuilage avant publication ; annulation et mêmes pixels
   que le chemin synchrone pour PNG/JPEG/BMP/WebP/TIFF disponibles.
 
+- [x] Import d’images comme calques sur worker annulable : centrage, promotion
+  native 8→16 bits, masques préservés et une seule étape d’historique.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

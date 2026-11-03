@@ -182,7 +182,7 @@ void Document::finishRawLoad()
 }
 bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _asLayer)
 {
-    if (_image.isNull() || !validSize(_image.width(), _image.height()))
+    if (!operationStep(0, 1) || _image.isNull() || !validSize(_image.width(), _image.height()))
         return false;
     if (_asLayer) {
         if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
@@ -194,11 +194,15 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
         edit(tr("Importer un calque"), [&] {
             m_channelBits = bits;
             for (auto &layer : m_layers) {
+                if (!operationStep(0, 1))
+                    return;
                 if (!layer.image.isNull())
                     layer.image.convertTo(workingFormat());
                 if (!layer.source.isNull())
                     layer.source.convertTo(workingFormat());
             }
+            if (!operationStep(0, 1))
+                return;
             QImage target;
             if (_image.size() == m_size && _image.devicePixelRatio() == 1.)
                 target = _image.convertToFormat(workingFormat());
@@ -209,6 +213,8 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
                                   _image);
                 painter.end();
             }
+            if (!operationStep(0, 1))
+                return;
             m_layers.insert(++m_active, {QFileInfo(_url.toLocalFile()).completeBaseName(), target});
             selectOnly(m_active);
         });
@@ -223,6 +229,24 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
     m_projectUrl       = QUrl{};
     resetHistory(false);
     return true;
+}
+void Document::requestImportLayer(const QUrl &_url)
+{
+    const QUrl target = _url;
+    if (isRawFile(target)) {
+        openRawFile(target, true);
+        return;
+    }
+    if (localPath(target).isEmpty()) {
+        fail(tr("Choisissez un fichier local."));
+        return;
+    }
+    if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 1))
+        return;
+    if (!deferEdit(tr("Importer un calque"), std::numeric_limits<qint64>::max() - 1,
+                   [target](Document &_renderer) { _renderer.importLayer(target); }))
+        importLayer(target);
 }
 bool Document::importLayer(const QUrl &_url)
 {

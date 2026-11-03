@@ -1,5 +1,20 @@
 # Validation
 
+## Import asynchrone comme calque — 3 novembre 2026
+
+Douze cas combinent document/import 8 ou 16 bits et image plus petite, identique
+ou plus grande que le canevas. Les pixels centrés et les calques correspondent
+au chemin synchrone ; masques et URL de projet sont conservés. Une réussite
+ajoute une seule étape. Annuler restaure aussi la profondeur précédente et l’état
+enregistré ; Rétablir restitue l’image et la profondeur importées.
+
+Annulation dans la file ou après décodage, nouveau document/geste, destruction et
+fichiers absents/illisibles/non locaux ne publient aucune pile partielle. Le
+smoke test passe par la branche Importer du dialogue Ouvrir et vérifie Échap.
+La suite Opérations compte 101 réussites et cinq sondes optionnelles. La sonde
+`PHOTOCRAP_OPEN_CANCEL_STRESS=1` ajoute l’import PNG de 16 Mpx/16 bits aux
+scénarios de projet et d’image simple ; elle est exécutée sous Qt 6.8 et 6.12.
+
 ## Décodage d’images en arrière-plan — 3 novembre 2026
 
 PNG 8/16 bits, JPEG, BMP, WebP et TIFF 16 bits, selon les plugins du kit, sont

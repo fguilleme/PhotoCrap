@@ -8,6 +8,10 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   tuiles uniformes, pixels 8/16 bits exacts, masques, métadonnées et versions
   inchangées conservés ; test de projet 24 Mpx/16 bits à 576 Kio de plans.
 
+- [x] Ouverture des projets en arrière-plan depuis le dialogue, les récents et
+  l’argument de lancement ; validation complète avant remplacement, annulation,
+  résultats caducs rejetés et conservation des réglages d’outil.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

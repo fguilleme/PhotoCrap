@@ -2,6 +2,9 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImageWriter>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QThreadPool>
@@ -77,6 +80,281 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void asynchronousProjectOpenAppliesOnlyACompleteValidatedDocument_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void asynchronousProjectOpenAppliesOnlyACompleteValidatedDocument()
+    {
+        QFETCH(int, bits);
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("loaded.pcr"));
+        Document      source;
+        populate(source, bits);
+        source.addLayerMask();
+        source.setColor(Qt::black);
+        source.beginStroke(35, 25);
+        source.endStroke();
+        source.addAdjustmentLayer("brightnessContrast");
+        source.setBackgroundEditThreshold(-1);
+        source.beginLayerPreview();
+        source.previewLayerParameter("brightness", 12);
+        source.finishLayerPreview();
+        source.setTool("text");
+        source.beginStroke(5, 5);
+        source.endStroke();
+        source.setText("Editable after load");
+        source.finishTextEdit();
+        source.setTool("pen");
+        source.beginPenGesture(10, 12);
+        source.endPenGesture();
+        source.beginPenGesture(65, 45);
+        source.endPenGesture();
+        source.finishPenPath();
+        source.setTool("slice");
+        source.beginSliceGesture(4, 5);
+        source.updateSliceGesture(50, 40);
+        source.endSliceGesture();
+        QVERIFY(source.saveProject(target));
+        const auto expected = source.composite();
+        Document   reference;
+        QVERIFY(reference.openFile(target));
+        Document d;
+        populate(d, 8);
+        d.setTool("eraser");
+        d.setBrushSize(39);
+        const auto before  = d.composite();
+        const auto history = d.history();
+        const auto url     = d.projectUrl();
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            d.requestOpenFile(target);
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.composite(), before);
+            QCOMPARE(d.history(), history);
+            QCOMPARE(d.projectUrl(), url);
+            QCOMPARE(opened.size(), 0);
+            QVERIFY(d.modified());
+        }
+        // Finished decoding does not replace the document before the GUI callback.
+        QCOMPARE(d.composite(), before);
+        QVERIFY(d.operationBusy());
+        QVERIFY(d.operationCancellable());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(opened.size(), 1);
+        QCOMPARE(opened[0][0].toUrl(), target);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(d.composite(), expected);
+        QCOMPARE(d.layers(), reference.layers());
+        QCOMPARE(d.projectUrl(), target);
+        QCOMPARE(d.channelBits(), bits);
+        QCOMPARE(d.penPaths(), reference.penPaths());
+        QCOMPARE(d.activePenPath(), reference.activePenPath());
+        QCOMPARE(d.slices(), reference.slices());
+        QCOMPARE(d.activeSlice(), reference.activeSlice());
+        QCOMPARE(d.historyIndex(), 0);
+        QVERIFY(!d.modified());
+        QCOMPARE(d.tool(), QString("eraser"));
+        QCOMPARE(d.brushSize(), 39.);
+        d.undo();
+        QCOMPARE(d.composite(), expected);
+    }
+    void cancelledOrStaleProjectOpenKeepsTheCurrentDocument_data()
+    {
+        QTest::addColumn<QString>("action");
+        for (const auto *name : {"queued", "finished", "new-document", "new-gesture", "destroyed"})
+            QTest::newRow(name) << QString(name);
+    }
+    void cancelledOrStaleProjectOpenKeepsTheCurrentDocument()
+    {
+        QFETCH(QString, action);
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("open.pcr"));
+        Document      source;
+        populate(source, 16);
+        QVERIFY(source.saveProject(target));
+        auto d = std::make_unique<Document>();
+        populate(*d, 8);
+        const auto before  = d->composite();
+        const auto history = d->history();
+        QSignalSpy opened(d.get(), &Document::fileOpened);
+        QSignalSpy errors(d.get(), &Document::errorOccurred);
+        d->setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            d->requestOpenFile(target);
+            QVERIFY(d->operationBusy());
+            if (action == "queued")
+                d->cancelOperation();
+            else if (action == "new-document")
+                QVERIFY(d->newDocument(33, 27, true));
+            else if (action == "new-gesture") {
+                d->setTool("brush");
+                d->beginStroke(40, 20);
+                d->endStroke();
+            } else if (action == "destroyed")
+                d.reset();
+        }
+        if (action == "finished") {
+            QVERIFY(d->operationBusy());
+            d->cancelOperation();
+        }
+        if (d) {
+            const auto current        = d->composite();
+            const auto currentHistory = d->history();
+            QCoreApplication::processEvents();
+            QTRY_VERIFY_WITH_TIMEOUT(!d->operationBusy(), 10000);
+            QCOMPARE(d->composite(), current);
+            QCOMPARE(d->history(), currentHistory);
+            if (action == "queued" || action == "finished") {
+                QCOMPARE(d->composite(), before);
+                QCOMPARE(d->history(), history);
+            }
+            QCOMPARE(opened.size(), 0);
+            QCOMPARE(errors.size(), 0);
+        }
+    }
+    void projectOpenErrorsAndSynchronousFallbackPreserveTheContract()
+    {
+        QTemporaryDir directory;
+        Document      d;
+        populate(d, 16);
+        const auto before  = d.composite();
+        const auto history = d.history();
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBackgroundEditThreshold(0);
+        const auto bad = QUrl::fromLocalFile(directory.filePath("bad.pcr"));
+        QFile      file(bad.toLocalFile());
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("not a project");
+        file.close();
+        d.requestOpenFile(bad);
+        QVERIFY(d.operationBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 1);
+        QCOMPARE(opened.size(), 0);
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.history(), history);
+        QVERIFY(d.modified());
+        const auto target = QUrl::fromLocalFile(directory.filePath("good.pcr"));
+        QVERIFY(d.saveProject(target));
+        d.setBackgroundEditThreshold(-1);
+        d.requestOpenFile(target);
+        QVERIFY(!d.operationBusy());
+        QCOMPARE(opened.size(), 1);
+        QVERIFY(!d.modified());
+        const auto image = QUrl::fromLocalFile(directory.filePath("image.png"));
+        QVERIFY(before.save(image.toLocalFile()));
+        d.requestOpenFile(image);
+        QVERIFY(!d.operationBusy());
+        QCOMPARE(opened.size(), 2);
+        QCOMPARE(d.composite(), before);
+        QVERIFY(d.modified());
+    }
+    void lateProjectValidationFailureKeepsPreviousLayers_data()
+    {
+        QTest::addColumn<bool>("badPlane");
+        QTest::newRow("last-layer-png") << true;
+        QTest::newRow("active-path-after-all-planes") << false;
+    }
+    void lateProjectValidationFailureKeepsPreviousLayers()
+    {
+        QFETCH(bool, badPlane);
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("late-invalid.pcr"));
+        Document      source;
+        populate(source, 16);
+        QVERIFY(source.saveProject(target));
+        QFile file(target.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        auto json = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        if (badPlane) {
+            auto layers               = json["layers"].toArray();
+            auto last                 = layers.last().toObject();
+            last["png"]               = "invalid-base64-png";
+            layers[layers.size() - 1] = last;
+            json["layers"]            = layers;
+        } else
+            json["activePenPath"] = 1000;
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write(QJsonDocument(json).toJson(QJsonDocument::Compact));
+        file.close();
+        Document d;
+        populate(d, 8);
+        const auto before  = d.composite();
+        const auto layers  = d.layers();
+        const auto history = d.history();
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBackgroundEditThreshold(0);
+        d.requestOpenFile(target);
+        QVERIFY(d.operationBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 1);
+        QCOMPARE(opened.size(), 0);
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.layers(), layers);
+        QCOMPARE(d.history(), history);
+        QVERIFY(d.modified());
+    }
+    void runningProjectDecodeCanBeCancelledWithoutReplacingTheDocument()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_OPEN_CANCEL_STRESS"))
+            QSKIP("Set PHOTOCRAP_OPEN_CANCEL_STRESS=1 to interrupt real native PNG decoding.");
+        QTemporaryDir directory;
+        const auto    target = QUrl::fromLocalFile(directory.filePath("large.pcr"));
+        {
+            Document source;
+            source.setBackgroundEditThreshold(-1);
+            QVERIFY(source.newDocument(4096, 4096, false, 16));
+            source.setColor(Qt::red);
+            source.setBrushSize(12);
+            source.beginStroke(100, 100);
+            source.endStroke();
+            QVERIFY(source.saveProject(target));
+        }
+        Document d;
+        populate(d, 8);
+        const auto before  = d.composite();
+        const auto history = d.history();
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBackgroundEditThreshold(0);
+        d.requestOpenFile(target);
+        QElapsedTimer timer;
+        timer.start();
+        bool decoding = false;
+        while (timer.elapsed() < 10000) {
+            if (d.operationProgress() > 0 && d.operationProgress() < .5) {
+                decoding = true;
+                break;
+            }
+            if (d.operationProgress() >= 1)
+                break;
+            QThread::msleep(1);
+        }
+        if (!decoding) {
+            d.cancelOperation();
+            QThreadPool::globalInstance()->waitForDone();
+            QSKIP("The decoder finished before its cancellation window could be observed.");
+        }
+        d.cancelOperation();
+        QThreadPool::globalInstance()->waitForDone();
+        QCoreApplication::processEvents();
+        QVERIFY(!d.operationBusy());
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.history(), history);
+        QVERIFY(d.modified());
+        QCOMPARE(opened.size(), 0);
+        QCOMPARE(errors.size(), 0);
+    }
     void asynchronousSavePreservesHistoryUntilTheFileIsPublished_data()
     {
         QTest::addColumn<int>("bits");

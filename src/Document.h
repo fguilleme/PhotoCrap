@@ -1041,6 +1041,7 @@ public:
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false, int _bits = 8);
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
     Q_INVOKABLE bool openFile(const QUrl &_url);
+    Q_INVOKABLE void requestOpenFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
     Q_INVOKABLE bool isRawFile(const QUrl &_url) const;
     Q_INVOKABLE QString rawFilePatterns() const;
@@ -1228,6 +1229,7 @@ signals:
     void frequencyRetouchBusyChanged();
     void rawFileOpened(const QUrl &_url);
     void projectSaved(const QUrl &_url);
+    void fileOpened(const QUrl &_url);
     void slicesChanged();
     void cropChanged();
     void canvasSizeChanged();
@@ -1656,6 +1658,7 @@ private:
     QImage    *paintTarget();
     QImage     readImage(const QString &_path);
     bool       loadProject(const QString &_path);
+    void       adoptProjectSnapshot(const Snapshot &_loaded, const QString &_path);
     void       acceptProjectSave(const QString &_path);
     static QImage applyMask(const QImage &_source, const QImage &_mask, qreal _density = 1,
                             qreal _feather = 0);

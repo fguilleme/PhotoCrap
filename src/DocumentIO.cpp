@@ -16,6 +16,7 @@
 #include <QPainter>
 #include <QSaveFile>
 #include <QtConcurrentRun>
+#include <limits>
 
 namespace
 {
@@ -81,6 +82,32 @@ bool Document::openFile(const QUrl &_url)
     if (image.isNull())
         return false;
     return adoptDecodedImage(image, _url, false);
+}
+void Document::requestOpenFile(const QUrl &_url)
+{
+    const QUrl    target = _url;
+    const QString path   = localPath(target);
+    if (!path.isEmpty() && QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0) {
+        auto loaded = std::make_shared<Snapshot>();
+        // Even a small compressed project can expand to many large native planes.
+        // Keep the explicit synchronous-test override, otherwise always use a worker.
+        if (deferOperation(
+                tr("Ouvrir le projet"), std::numeric_limits<qint64>::max() - 1,
+                [path, loaded](Document &_renderer) {
+                    if (_renderer.loadProject(path))
+                        *loaded = _renderer.snapshot({});
+                },
+                false,
+                [this, path, loaded, target] {
+                    if (loaded->layers.isEmpty())
+                        return;
+                    adoptProjectSnapshot(*loaded, path);
+                    emit fileOpened(target);
+                }))
+            return;
+    }
+    if (openFile(target))
+        emit fileOpened(target);
 }
 bool Document::isRawFile(const QUrl &_url) const
 {
@@ -338,15 +365,19 @@ bool Document::saveProject(const QUrl &_url)
 }
 bool Document::loadProject(const QString &_path)
 {
+    if (!operationStep(0, 2))
+        return false;
     QFile file(_path);
     if (!file.open(QIODevice::ReadOnly))
         return fail(file.errorString());
     if (file.size() > MaxProjectBytes)
         return fail(tr("Projet trop volumineux (256 Mio maximum)."));
     QJsonParseError error;
-    const auto      json    = QJsonDocument::fromJson(file.readAll(), &error);
-    const auto      root    = json.object();
-    const int       version = root["version"].toInt();
+    const auto      json = QJsonDocument::fromJson(file.readAll(), &error);
+    if (!operationStep(1, 2))
+        return false;
+    const auto root    = json.object();
+    const int  version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
         (version < 1 || version > 9))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
@@ -371,12 +402,16 @@ bool Document::loadProject(const QString &_path)
     if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
     QVector<Layer> layers;
+    int            completed = 1;
+    const int      total     = 3 * int(array.size()) + 2;
     for (const auto &value : array) {
+        if (!operationStep(completed, total))
+            return false;
         auto    object = value.toObject();
         QString decodeError;
         auto    decode = [&](const QString &_encoded, QImage::Format _format,
                              bool _compact = false) -> PixelPlane {
-            if (_encoded.isEmpty() || !decodeError.isEmpty())
+            if (!operationStep(++completed, total) || _encoded.isEmpty() || !decodeError.isEmpty())
                 return {};
             QByteArray bytes = QByteArray::fromBase64(_encoded.toLatin1(),
                                                       QByteArray::AbortOnBase64DecodingErrors);
@@ -388,6 +423,8 @@ bool Document::loadProject(const QString &_path)
             QImage decoded = reader.read().convertToFormat(_format);
             if (_format != QImage::Format_Grayscale8)
                 decoded.setColorSpace(QColorSpace::SRgb);
+            if (!operationStep(completed, total))
+                return {};
             PixelPlane plane(decoded);
             decoded = {};
             // Seal each plane before decoding the next. Do not retain an
@@ -469,21 +506,35 @@ bool Document::loadProject(const QString &_path)
     const int activePenPath = version >= 8 ? root["activePenPath"].toInt(-1) : -1;
     if (activePenPath < -1 || activePenPath >= penPaths.size())
         return fail(tr("Tracé actif invalide."));
+    if (!operationStep(total, total))
+        return false;
+    Snapshot loaded{};
+    loaded.channelBits   = bits;
+    loaded.layers        = std::move(layers);
+    loaded.size          = {w, h};
+    loaded.active        = qBound(0, root["activeLayer"].toInt(), int(loaded.layers.size()) - 1);
+    loaded.penPaths      = std::move(penPaths);
+    loaded.activePenPath = activePenPath;
+    loaded.slices        = std::move(slices);
+    adoptProjectSnapshot(loaded, _path);
+    return true;
+}
+void Document::adoptProjectSnapshot(const Snapshot &_loaded, const QString &_path)
+{
     // Only replace the current document after validating every layer and path.
-    m_channelBits = bits;
-    m_layers      = layers;
-    m_size        = {w, h};
-    m_active      = qBound(0, root["activeLayer"].toInt(), int(layers.size()) - 1);
+    m_channelBits = _loaded.channelBits;
+    m_layers      = _loaded.layers;
+    m_size        = _loaded.size;
+    m_active      = _loaded.active;
     m_projectUrl  = QUrl::fromLocalFile(_path);
     m_name        = QFileInfo(_path).completeBaseName();
     resetHistory(true);
-    m_penPaths      = penPaths;
-    m_activePenPath = activePenPath;
+    m_penPaths      = _loaded.penPaths;
+    m_activePenPath = _loaded.activePenPath;
     emit penPathsChanged();
-    m_slices      = slices;
-    m_activeSlice = slices.isEmpty() ? -1 : 0;
+    m_slices      = _loaded.slices;
+    m_activeSlice = m_slices.isEmpty() ? -1 : 0;
     emit slicesChanged();
-    return true;
 }
 void Document::requestExportImage(const QUrl &_url)
 {

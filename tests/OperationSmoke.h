@@ -134,5 +134,26 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      !QFile::exists(project.toLocalFile()),
                  "cancelling Save and Close keeps the window and forgets the pending close"))
         return false;
+    Document source;
+    source.newDocument(40, 30, false, 16);
+    if (!require(source.saveProject(project), "create project for the open picker"))
+        return false;
+    auto *openDialog = window->findChild<QObject *>("openDialog");
+    window->setProperty("importing", false);
+    if (!require(openDialog && openDialog->setProperty("selectedFile", project) &&
+                     QMetaObject::invokeMethod(openDialog, "accepted"),
+                 "the open picker dispatches a project asynchronously"))
+        return false;
+    QTest::qWait(50);
+    if (!require(document.operationBusy() && progress->isVisible() &&
+                     document.composite() == before && document.history() == history,
+                 "project opening leaves the current document visible"))
+        return false;
+    QTest::keyClick(window, Qt::Key_Escape);
+    QTest::qWait(50);
+    if (!require(!document.operationBusy() && document.composite() == before &&
+                     document.history() == history,
+                 "Escape cancels the queued project open"))
+        return false;
     return true;
 }

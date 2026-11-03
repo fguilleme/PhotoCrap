@@ -926,8 +926,7 @@ ApplicationWindow {
     }
     function openRecentFile(url) {
         if(editor.isRawFile(url)) editor.openRawFile(url)
-        else if(editor.openFile(url)) recentFiles.add(url)
-        else recentFiles.remove(url)
+        else editor.requestOpenFile(url)
     }
     function compactRecentPath(path) {
         const limit=36
@@ -3740,7 +3739,7 @@ ApplicationWindow {
         onAccepted: {
             if(editor.isRawFile(selectedFile)) editor.openRawFile(selectedFile, window.importing)
             else if(window.importing) editor.importLayer(selectedFile)
-            else if(editor.openFile(selectedFile)) recentFiles.add(selectedFile)
+            else editor.requestOpenFile(selectedFile)
         }
     }
     Popup {

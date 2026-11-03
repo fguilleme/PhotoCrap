@@ -111,6 +111,18 @@ les phases/avant publication conserve le fichier précédent ; le codec courant
 peut encore terminer. La fermeture attend la confirmation et ne se poursuit pas
 en cas d’erreur ou d’annulation. L’historique et les réglages d’outil sont conservés.
 
+Les ouvertures `.pcr` depuis Ouvrir, les récents et la ligne de commande passent
+par un worker annulable, y compris les petits fichiers très compressibles. JSON,
+PNG et tuilage sont validés avant de remplacer le document sur la GUI. Le nouveau
+projet devient propre, avec URL, profondeur, calques, texte, tracés et tranches ;
+les réglages d’outil restent ceux de l’utilisateur. Le helper booléen synchrone
+reste disponible pour les tests et les miniatures déjà calculées hors GUI.
+Les appels Qt en cours (lecture/parse/codec) peuvent finir après l’annulation ;
+leurs résultats sont rejetés. Le JSON complet, le plan natif décodé et les deux
+documents peuvent temporairement coexister : ce changement évite le blocage de
+l’interface mais ne promet pas une baisse du pic RSS. Les images ordinaires et
+leur import comme calques restent à migrer.
+
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états
 historiques sont parcourus avant les plans actifs. Les versions en cours d’utilisation

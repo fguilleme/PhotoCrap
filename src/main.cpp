@@ -257,6 +257,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("workspaceSettings", &workspaceSettings);
     QObject::connect(&document, &Document::rawFileOpened, &recentFilesManager,
                      &RecentFilesManager::add);
+    QObject::connect(&document, &Document::fileOpened, &recentFilesManager,
+                     &RecentFilesManager::add);
     QObject::connect(&languageManager, &LanguageManager::languageChanged, &engine, [&] {
         engine.retranslate();
         emit shortcutManager.shortcutsChanged();
@@ -274,8 +276,8 @@ int main(int argc, char *argv[])
         const QUrl url = QUrl::fromLocalFile(args[1]);
         if (document.isRawFile(url))
             document.openRawFile(url);
-        else if (document.openFile(url))
-            recentFilesManager.add(url);
+        else
+            document.requestOpenFile(url);
     }
     if (smoke) {
         QTimer::singleShot(1200, &app, [&] {

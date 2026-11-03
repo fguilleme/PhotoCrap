@@ -86,8 +86,10 @@ L’ouverture RAW, le recadrage interactif, les sélections et la retouche de fr
 conservent leurs workers spécialisés. L’export des grandes images utilise maintenant le même répartiteur en lecture
 seule, sans restaurer un snapshot dans le document ni créer d’historique. Les
 sauvegardes des grands projets utilisent aussi ce mode, avec confirmation de
-l’état enregistré après publication. L’ouverture des projets reste synchrone et
-constitue une suite distincte. La sauvegarde v9 écrit
+l’état enregistré après publication. L’ouverture des projets décode et valide tous
+les plans sur le worker ; seul un résultat encore courant remplace le document,
+sans historique ancien ni nouvelle modification. Les images ordinaires restent
+sur le chemin synchrone. La sauvegarde v9 écrit
 désormais ses PNG/Base64 et son JSON en flux atomique pour éviter l’accumulation
 des données encodées ; le codec peut encore demander un plan natif complet.
 

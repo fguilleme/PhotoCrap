@@ -1,5 +1,28 @@
 # Validation
 
+## Ouverture asynchrone des projets — 3 novembre 2026
+
+En 8/16 bits, les projets contenant pixels, masques, réglages, texte éditable,
+tracés et tranches donnent les mêmes pixels et métadonnées que le chargement
+synchrone. L’ancien document, son URL, ses pixels et son historique restent
+intacts jusqu’à l’accusé GUI ; ensuite le projet chargé est propre, sans historique
+précédent, et les réglages d’outil sont conservés.
+
+Annulation dans la file ou après décodage mais avant l’accusé, nouveau document,
+nouveau geste et destruction ne publient pas le résultat. Les fichiers invalides
+laissent le document courant intact, même si l’erreur survient dans le dernier PNG
+ou lors de la validation finale des tracés. Le repli synchrone et l’ouverture d’images
+ordinaires conservent leur contrat. Le smoke test passe par le dialogue Ouvrir et
+vérifie la progression et Échap. La suite Opérations compte 67 réussites, plus
+3 sondes lourdes optionnelles. Une sonde d’ouverture réelle interrompt le décodage
+PNG d’un projet 16 Mpx/16 bits et conserve pixels/historique/état modifié ; elle
+passe sous Qt 6.8 et 6.12 :
+
+```sh
+PHOTOCRAP_OPEN_CANCEL_STRESS=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  build/photocrap_operation_tests runningProjectDecodeCanBeCancelledWithoutReplacingTheDocument
+```
+
 ## Fonds compacts des plans importés — 3 novembre 2026
 
 Les tests couvrent trois formats natifs (ARGB32 prémultiplié, RGBA64 prémultiplié

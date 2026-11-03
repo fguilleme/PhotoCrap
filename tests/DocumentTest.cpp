@@ -1791,6 +1791,106 @@ private slots:
         QCOMPARE(d.history(), emptyHistory);
         QCOMPARE(d.memoryUsage()["compactPlanes"].toInt(), 1);
     }
+    void quickSelectionRegionalDigest()
+    {
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (bool all : {false, true})
+                for (bool enhance : {false, true})
+                    for (int mode : {0, 1, 2, 3})
+                        for (const QString &effect :
+                             {QString{}, QStringLiteral("boxBlur"), QStringLiteral("noise")}) {
+                            Document d;
+                            QVERIFY(d.newDocument(517, 523, false, bits));
+                            d.setBrushSize(41);
+                            d.setBrushHardness(.7);
+                            d.setColor(QColor(201, 43, 79, 189));
+                            d.beginStroke(255, 255);
+                            d.endStroke();
+                            d.addLayer();
+                            d.setColor(QColor(33, 187, 61, 137));
+                            d.beginStroke(262, 252);
+                            d.endStroke();
+                            if (!effect.isEmpty())
+                                d.addAdjustmentLayer(effect);
+                            d.setActiveLayer(0);
+                            d.setTool("ellipticalSelect");
+                            d.beginStroke(244, 244);
+                            d.continueStroke(281, 282);
+                            d.endStroke();
+                            d.setSelectionMode(mode);
+                            d.setSelectionSampleAllLayers(all);
+                            d.setSelectionEnhanceEdge(enhance);
+                            d.setSelectionTolerance(25);
+                            d.setBrushSize(9);
+                            d.setTool("quickSelection");
+                            d.beginStroke(0, 0);
+                            d.continueStroke(255, 255);
+                            d.continueStroke(516, 522);
+                            d.endStroke();
+                            const QImage mask = d.selectionMask();
+                            for (int y = 0; y < mask.height(); ++y)
+                                hash.addData(QByteArrayView(
+                                    reinterpret_cast<const char *>(mask.constScanLine(y)),
+                                    mask.width() * mask.depth() / 8));
+                            const QRegion region = d.selectionRegion();
+                            d.beginStroke(100, 100);
+                            d.cancelStroke();
+                            QCOMPARE(d.selectionRegion(), region);
+                            QCOMPARE(d.selectionMask(), mask);
+                        }
+        QCOMPARE(hash.result().toHex(),
+                 QByteArray("7376129ff7bec138618e931011e97cf886c57a1a49798aec0407213a28df11ae"));
+    }
+    void quickSelectionHandlesCompactPlanesWithoutRebuildingDisplay()
+    {
+        for (int bits : {8, 16})
+            for (bool transparent : {false, true})
+                for (bool all : {false, true})
+                    for (const QSize size : {QSize(517, 523), QSize(1, 1)}) {
+                        Document d;
+                        QVERIFY(d.newDocument(size.width(), size.height(), transparent, bits));
+                        d.setTool("quickSelection");
+                        d.setBrushSize(4);
+                        d.setSelectionSampleAllLayers(all);
+                        const QImage &cache = d.composite();
+                        const auto    key   = cache.cacheKey();
+                        d.setLayerVisible(0, false);
+                        d.setLayerVisible(0, true);
+                        d.beginStroke(0, 0);
+                        d.endStroke();
+                        QCOMPARE(d.selectionRegion(),
+                                 QRegion(QRect(0, 0, 9, 9).intersected(QRect(QPoint{}, size))));
+                        QCOMPARE(cache.cacheKey(), key);
+                    }
+    }
+
+    void largeQuickSelectionProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_QUICK_SELECTION_PROBE"))
+            QSKIP("Set PHOTOCRAP_QUICK_SELECTION_PROBE=1 to measure 24 MP selection gestures.");
+        for (bool all : {false, true}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, false, 16));
+            d.setBrushSize(12);
+            d.setColor(Qt::red);
+            d.beginStroke(80, 80);
+            d.endStroke();
+            d.setTool("quickSelection");
+            d.setBrushSize(6);
+            d.setSelectionSampleAllLayers(all);
+            QElapsedTimer timer;
+            timer.start();
+            d.beginStroke(80, 80);
+            d.continueStroke(85, 85);
+            d.endStroke();
+            const auto elapsed = timer.nsecsElapsed();
+            QVERIFY(d.hasSelection());
+            qInfo() << "24 MP / 16-bit quick selection, all layers, ns and bounds:" << all
+                    << elapsed << d.selectionRegion().boundingRect();
+        }
+    }
+
     void smartSelectionsFollowColorAndCombineLikePhotoshop()
     {
         Document d;

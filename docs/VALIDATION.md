@@ -1,5 +1,29 @@
 # Validation
 
+## Recherche régionale de Sélection rapide — 3 novembre 2026
+
+Référence relevée avant modification sur 96 gestes : documents 8/16 bits,
+calque actif/tous les calques, amélioration des bords activée/désactivée,
+remplacement/ajout/soustraction/intersection, pile simple/flou/bruit. Les gestes
+passent par le bord du document et une frontière de tuiles ; leur annulation
+restaure région et masque. Le digest des masques reste identique :
+`7376129ff7bec138618e931011e97cf886c57a1a49798aec0407213a28df11ae`.
+Les fonds compacts blancs/transparents et les documents d’un pixel sont testés
+séparément, avec cache d’affichage inchangé.
+
+Sonde locale Qt 6.12 sur 24 Mpx/16 bits : calque actif, 40,2 ms → 0,078 ms ;
+tous les calques, 59,8 ms → 0,098 ms. La région résultante reste 25 × 25 pixels.
+Aucun seuil de durée n’est imposé aux tests. Une brosse plus grande étend toujours
+la fenêtre de recherche ; les piles non locales peuvent demander un repli complet.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+  PHOTOCRAP_QUICK_SELECTION_PROBE=1 build/photocrap_tests \
+  quickSelectionRegionalDigest quickSelectionHandlesCompactPlanesWithoutRebuildingDisplay \
+  largeQuickSelectionProbe
+```
+
+
 ## Pipettes de réglages régionales — 3 novembre 2026
 
 Les lectures de couleur des réglages et les pipettes noir/gris/blanc de Courbes

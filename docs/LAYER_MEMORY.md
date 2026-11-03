@@ -129,6 +129,15 @@ de brosse en mode texturé, sans reconstruire puis convertir tout le composite
 en plan tuilé. Les couleurs moyennées et le comportement des masques restent
 identiques. Les replis complets des piles non locales sont conservés.
 
+Sélection rapide lit uniquement sa fenêtre de recherche, aussi bien sur le calque
+actif que sur une pile compatible. La conversion de comparaison en 8 bits et la
+table des pixels visités ont la taille de cette fenêtre. Les coordonnées sont
+replacées dans le document avant combinaison et amélioration des bords ; les
+modes remplacer/ajouter/soustraire/intersection et l’annulation sont inchangés.
+Un calque uniforme n’est étendu qu’à la taille de la fenêtre. Une très grande
+brosse peut toujours demander une recherche couvrant une large partie du document.
+La Baguette magique conserve son parcours global actuel.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

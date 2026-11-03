@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImageUtils.h"
 
 #include <QBitArray>
 #include <QLineF>
@@ -162,21 +163,29 @@ void Document::continueQuickSelection(const QPointF &_point)
 {
     if (!m_drawing || m_size.isEmpty())
         return;
-    QImage source;
-    if (m_selectionSampleAllLayers || m_active < 0 || m_active >= m_layers.size() ||
-        m_layers[m_active].kind != QStringLiteral("pixel"))
-        source = composite();
-    else
-        source = layerImage(m_active);
     const QPoint seed(qBound(0, qRound(_point.x()), m_size.width() - 1),
                       qBound(0, qRound(_point.y()), m_size.height() - 1));
     const int    radius = qMax(2, qRound(m_brushSize / 2));
     const int    reach  = qMax(8, radius * 4);
-    const QRect  limit(seed.x() - reach, seed.y() - reach, reach * 2 + 1, reach * 2 + 1);
-    QRegion      candidate =
-        colorRegion(source, seed, qBound(12, m_selectionTolerance, 64), true, limit);
+    const QRect  documentRect(QPoint{}, m_size);
+    const QRect  limit = QRect(seed.x() - reach, seed.y() - reach, reach * 2 + 1, reach * 2 + 1)
+                             .intersected(documentRect);
+    QImage       source;
+    if (m_selectionSampleAllLayers || m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind != QStringLiteral("pixel"))
+        source = compositeRegion(limit);
+    else {
+        const auto &plane = m_layers[m_active].image;
+        source = ImageUtils::compact(plane) ? ImageUtils::expandedPlane(plane, limit.size())
+                                            : plane.region(limit);
+    }
+    // The flood search, native-to-8-bit conversion and visited map cover only
+    // the search window. Restore document coordinates before combining edges.
+    QRegion candidate = colorRegion(source, seed - limit.topLeft(),
+                                    qBound(12, m_selectionTolerance, 64), true, source.rect())
+                            .translated(limit.topLeft());
     if (m_selectionEnhanceEdge)
-        candidate = smoothRegion(candidate) & QRegion(source.rect());
+        candidate = smoothRegion(candidate) & QRegion(documentRect);
     applySelectionCandidate(candidate, m_quickSelectionFirstDab);
     m_quickSelectionFirstDab = false;
 }

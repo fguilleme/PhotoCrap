@@ -62,6 +62,31 @@ void Document::renderShape(const QPointF &_to)
         changed(false);
         return;
     }
+    if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
+        _to != m_anchor) {
+        auto layer = m_layers[m_active];
+        layer.name += tr(" — copie");
+        layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        m_layers.insert(++m_active, layer);
+        selectOnly(m_active);
+        m_moveCopy            = false;
+        m_moveDuplicatedLayer = true;
+    }
+    if (m_tool == "move" && !hasSelection() && !m_strokePlaneBase.isNull()) {
+        const auto result = PhotoCrap::Tools::moveSparseLayer(m_strokePlaneBase, m_size,
+                                                              (_to - m_anchor).toPoint());
+        if (!result.valid) {
+            cancelStroke();
+            fail(tr("Mémoire insuffisante pour déplacer le calque."));
+            return;
+        }
+        m_layers[m_active].image = result.image;
+        m_dirtyRegion  = m_dirtyRegion.united(m_strokeBounds.toAlignedRect().united(result.region));
+        m_strokeBounds = result.region;
+        m_strokeChanged = true;
+        changed(false);
+        return;
+    }
     if (m_tool == "move" && hasSelection()) {
         const auto result = PhotoCrap::Tools::moveSelection(m_strokePlaneBase, m_size, m_selection,
                                                             m_selectionRegion, m_selectionMask,
@@ -180,16 +205,6 @@ void Document::renderShape(const QPointF &_to)
         return;
     }
     const QImage sourceImage = ImageUtils::expandedPlane(m_strokeBase, m_size);
-    if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
-        _to != m_anchor) {
-        auto layer = m_layers[m_active];
-        layer.name += tr(" — copie");
-        layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        m_layers.insert(++m_active, layer);
-        selectOnly(m_active);
-        m_moveCopy            = false;
-        m_moveDuplicatedLayer = true;
-    }
     m_layers[m_active].image = sourceImage;
     if (m_tool == "move") {
         QImage   result = m_moveCopy ? sourceImage : ImageUtils::blank(m_size, workingFormat());

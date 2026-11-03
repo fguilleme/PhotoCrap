@@ -27,6 +27,7 @@
 #include "storage/ScratchImageCache.h"
 #include "tools/FloodFill.h"
 #include "tools/RegionHealing.h"
+#include "tools/SelectionMove.h"
 #include <QBuffer>
 #include <QCryptographicHash>
 #include <QElapsedTimer>
@@ -8003,6 +8004,134 @@ private slots:
         QCOMPARE(loaded.layers(), d.layers());
         QCOMPARE(loaded.composite(), expected);
         QVERIFY(!loaded.maskImage(0).isNull());
+    }
+    void sparseWholeLayerMoveMatchesNativePainter()
+    {
+        for (int bits : {8, 16})
+            for (bool copy : {false, true})
+                for (const QPoint offset : {QPoint(17, 19), QPoint(273, 309), QPoint(-270, -290),
+                                            QPoint(256, 256), QPoint(2000, 2000)}) {
+                    Document d;
+                    QVERIFY(d.newDocument(1031, 1037, true, bits));
+                    d.setShapeNewLayer(false);
+                    d.setTool("star");
+                    d.setShapeStrokeColor(QColor(20, 170, 70, 130));
+                    d.setShapeFillColor(QColor::fromRgba64(25000, 13000, 40000, 37000));
+                    d.setShapeStrokeWidth(4);
+                    d.beginStroke(240, 240);
+                    d.continueStroke(290, 295);
+                    d.endStroke();
+                    d.setTool("brush");
+                    d.setBrushSize(10);
+                    d.setColor(QColor::fromRgba64(50000, 10000, 20000, 17));
+                    d.beginStroke(500, 600);
+                    d.endStroke();
+                    const QImage before = d.layerImage(0);
+                    PixelPlane   reference(before);
+                    QVERIFY(PhotoCrap::Tools::canMoveSparseLayer(reference, before.size()));
+                    QImage   expected = ImageUtils::blank(before.size(), before.format());
+                    QPainter painter(&expected);
+                    painter.drawImage(offset, before);
+                    painter.end();
+                    const int history = d.historyIndex();
+                    d.setTool("move");
+                    d.beginStroke(100, 100, copy);
+                    d.continueStroke(410, 410);
+                    d.continueStroke(100 + offset.x(), 100 + offset.y());
+                    QSignalSpy layers(&d, &Document::layersChanged);
+                    QSignalSpy thumbnails(&d, &Document::thumbnailsChanged);
+                    d.endStroke();
+                    QCOMPARE(d.layers().size(), copy ? 2 : 1);
+                    QCOMPARE(d.layerImage(d.activeLayer()), expected);
+                    QCOMPARE(d.historyIndex(), history + 1);
+                    QCOMPARE(thumbnails.size(), 1);
+                    QCOMPARE(layers.size(), copy ? 1 : 0);
+                    if (copy)
+                        QCOMPARE(d.layerImage(0), before);
+                    d.undo();
+                    QCOMPARE(d.layers().size(), 1);
+                    QCOMPARE(d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(d.layerImage(d.activeLayer()), expected);
+                }
+        for (const auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
+            QImage opaque(1, 1, format);
+            opaque.fill(Qt::white);
+            QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(opaque), {6000, 4000}));
+            opaque.fill(QColor::fromRgba64(10000, 20000, 30000, 1));
+            if (format == QImage::Format_RGBA64_Premultiplied)
+                QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(opaque), {6000, 4000}));
+        }
+    }
+    void sparseLayerMovePreservesMappedNativeEdgePixels()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+        QImage            edge(513, 513, QImage::Format_RGBA64_Premultiplied);
+        edge.fill(Qt::transparent);
+        edge.setColorSpace(QColorSpace::DisplayP3);
+        edge.setPixelColor(512, 512, QColor::fromRgba64(50000, 20000, 40000, 17));
+        PixelPlane source(edge);
+        QVERIFY(source.offload(cache));
+        cache.clear();
+        QVERIFY(PhotoCrap::Tools::canMoveSparseLayer(source, edge.size()));
+        for (const auto offset : {QPoint(-1, -1), QPoint(-256, -256), QPoint(2, 2),
+                                  QPoint(std::numeric_limits<int>::max(), 0)}) {
+            const auto result = PhotoCrap::Tools::moveSparseLayer(source, edge.size(), offset);
+            QVERIFY(result.valid);
+            QImage expected = ImageUtils::blank(edge.size(), edge.format());
+            expected.setColorSpace(edge.colorSpace());
+            if (offset.x() < edge.width()) {
+                QPainter painter(&expected);
+                painter.drawImage(offset, edge);
+            }
+            QCOMPARE(result.image.region(edge.rect()), expected);
+            QCOMPARE(result.image.colorSpace(), edge.colorSpace());
+            QCOMPARE(QImage(source), edge);
+        }
+        edge.setDevicePixelRatio(2);
+        QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(edge), edge.size()));
+        QImage dense(1031, 1037, QImage::Format_ARGB32_Premultiplied);
+        dense.fill(Qt::red);
+        dense.setPixelColor(0, 0, Qt::transparent);
+        QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(dense), dense.size()));
+    }
+    void sparseWholeLayerMoveStaysCompactAtTwentyFourMegapixels()
+    {
+        for (int bits : {8, 16})
+            for (bool copy : {false, true}) {
+                Document d;
+                QVERIFY(d.newDocument(6000, 4000, true, bits));
+                d.setColor(Qt::red);
+                d.setBrushHardness(1);
+                d.setBrushSize(10);
+                d.beginStroke(110, 110);
+                d.endStroke();
+                const auto   before    = d.memoryUsage()["layerBytes"].toLongLong();
+                const auto   history   = d.historyIndex();
+                const qint64 tileBytes = 256LL * 256 * bits / 2;
+                d.setTool("move");
+                d.beginStroke(110, 110, copy);
+                d.continueStroke(5110, 3110);
+                d.continueStroke(3110, 1110);
+                QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= before + tileBytes);
+                QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() <= 6 * tileBytes);
+                d.cancelStroke();
+                QCOMPARE(d.layers().size(), 1);
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), before);
+                QCOMPARE(d.historyIndex(), history);
+                d.beginStroke(110, 110, copy);
+                d.continueStroke(5110, 3110);
+                d.endStroke();
+                const auto moved = d.memoryUsage()["layerBytes"].toLongLong();
+                QVERIFY(moved <= before + tileBytes);
+                d.undo();
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), before);
+                d.redo();
+                QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), moved);
+            }
     }
     void movingSelectionMatchesFullImagePainter()
     {

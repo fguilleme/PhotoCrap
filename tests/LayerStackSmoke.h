@@ -125,6 +125,52 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                      "unsupported adjustment switches the complete stack to CPU"))
             return false;
     }
+    for (int bits : {8, 16}) {
+        if (!document.newDocument(1200, 128, false, bits))
+            return false;
+        document.addLayer();
+        document.setShapeNewLayer(false);
+        document.setShapeStrokeEnabled(false);
+        document.setShapeFillColor(Qt::red);
+        document.setTool("rectangle");
+        document.beginStroke(50, 20);
+        document.continueStroke(90, 90);
+        document.endStroke();
+        frame();
+        frame();
+        document.setTool("move");
+        document.beginStroke(60, 64);
+        for (int offset : {520, 1020}) {
+            const auto uploads = canvas.stackTextureUploads();
+            document.continueStroke(60 + offset, 64);
+            frame();
+            const auto   rendered  = frame();
+            const auto   reference = document.composite();
+            const double ratio     = double(rendered.width()) / window->width();
+            for (int x : {60, 580, 1080}) {
+                const QPointF point = canvas.mapToScene({(x + .5) * .5, 64.5});
+                const QColor  actual =
+                    rendered.pixelColor(qFloor(point.x() * ratio), qFloor(point.y() * ratio));
+                const QColor expected = reference.pixelColor(x, 64);
+                if (!require(
+                        qAbs(actual.red() - expected.red()) <= 2 &&
+                            qAbs(actual.green() - expected.green()) <= 2 &&
+                            qAbs(actual.blue() - expected.blue()) <= 2,
+                        "sparse layer movement clears old footprints and displays the new tile"))
+                    return false;
+            }
+            // GPU regions include 33 px borders. The second move also changes
+            // a storage tile intersecting the neighbouring region's border.
+            const int affected = offset == 520 ? 2 : 3;
+            if (!require(
+                    canvas.gpuStackActive() == hardware &&
+                        (!hardware || (canvas.stackTextureUploads() > uploads &&
+                                       canvas.stackTextureUploads() - uploads <= affected)),
+                    "sparse movement bounds uploads to affected GPU regions and their borders"))
+                return false;
+        }
+        document.endStroke();
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

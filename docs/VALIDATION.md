@@ -1,5 +1,20 @@
 # Validation
 
+## Déplacement des calques parcimonieux — 3 novembre 2026
+
+Vingt combinaisons comparent le résultat natif à QPainter pleine image : 8/16 bits,
+copie Alt, translation alignée ou fraction de tuile, vers le haut/gauche et hors
+canevas. Pixels presque transparents, tuile de bord 1 × 1 et source déchargée dont
+le cache a été vidé sont inclus. Les métadonnées P3 et les bits natifs sont conservés ;
+les fonds opaques, calques denses et ratios de pixels différents de 1 conservent
+le chemin complet. Un petit calque sur 24 Mpx ne matérialise plus le document,
+même en copie ou après plusieurs déplacements. Annulation, historique, notifications
+de calque/miniature et effacement des anciennes positions sont vérifiés.
+Le smoke test de pile contrôle aussi les pixels affichés après deux déplacements
+et les transferts limités aux régions touchées, bordures comprises, sur le chemin
+matériel. Les signatures partielles restent conservatrices au niveau des tuiles
+de stockage : un bord peut être retransféré même si ses pixels sont identiques.
+
 ## Réédition des plans d’un pixel — 3 novembre 2026
 
 Le test reproduit le refus de la seconde écriture après stockage tuilé d’un

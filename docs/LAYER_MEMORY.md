@@ -32,14 +32,23 @@ Les six formes géométriques relisent uniquement leur emprise dans un snapshot 
 avec une marge couvrant le contour et ses jointures. Chaque aperçu repart de la
 source et invalide l’union des anciennes/nouvelles emprises, sans recopier le calque.
 Le retour au point de départ retire l’aperçu et un éventuel calque vide. Le dégradé
-sélectionné suit le même chemin ; le déplacement du calque entier et le dégradé
-pleine image restent complets. Une petite forme sur 24 Mpx/16 bits ajoute au plus une tuile de 512 Kio.
+sélectionné suit le même chemin ; les calques denses et le dégradé pleine image
+restent complets. Une petite forme sur 24 Mpx/16 bits ajoute au plus une tuile de 512 Kio.
 
 Déplacement avec une sélection prépare séparément les régions source et destination.
 Le masque progressif et le mode copie Alt gardent le même mélange natif. Un saut
 lointain n’alloue pas le rectangle intermédiaire et chaque aperçu repart du snapshot
 original. L’invalidation du composite couvre encore une emprise rectangulaire commune ;
-le déplacement sans sélection et le rendu des calques de texte restent complets.
+les calques denses et le rendu des calques de texte restent complets.
+
+Sans sélection, les calques peu remplis sur fond transparent se déplacent aussi par
+tuiles : les zones absentes ne sont pas allouées et les pixels natifs des tuiles
+présentes sont copiés aux coordonnées décalées. Le chemin s’applique avec au plus
+un quart des tuiles présentes (ou huit sur les petits documents), sans ratio de
+pixels autre que 1. Les images denses, fonds opaques et calques de texte gardent
+leur chemin actuel. Une petite marque sur 24 Mpx reste de l’ordre d’une tuile
+couleur, y compris après un saut de plusieurs milliers de pixels. La copie Alt
+notifie l’ajout de calque, et les anciens aperçus sont invalidés.
 
 Le pot de peinture parcourt la composante contiguë avec des vues de tuiles natives
 partagées et une couverture de visite parcimonieuse de 256 × 256 en niveaux de

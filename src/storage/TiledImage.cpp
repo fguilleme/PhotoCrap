@@ -94,6 +94,10 @@ int TiledImage::tileCount() const
 {
     return m_data ? m_data->tiles.size() : 0;
 }
+QImage TiledImage::backgroundPixel() const
+{
+    return m_data ? m_data->background : QImage{};
+}
 QImage::Format TiledImage::format() const
 {
     return m_data ? m_data->background.format() : QImage::Format_Invalid;

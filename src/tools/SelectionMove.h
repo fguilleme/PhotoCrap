@@ -14,4 +14,7 @@ struct SelectionMoveResult {
 SelectionMoveResult moveSelection(const PixelPlane &_source, const QSize &_size,
                                   const QRect &_bounds, const QRegion &_selection,
                                   const QImage &_coverage, const QPoint &_offset, bool _copy);
+bool                canMoveSparseLayer(const PixelPlane &_source, const QSize &_size);
+SelectionMoveResult moveSparseLayer(const PixelPlane &_source, const QSize &_size,
+                                    const QPoint &_offset);
 } // namespace PhotoCrap::Tools

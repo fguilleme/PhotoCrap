@@ -280,7 +280,12 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
         return;
     }
     _amount = qBound(-100., _amount, 100.);
+    if (deferEdit(tr("Filtre : %1").arg(_filter), editCost(false),
+                  [_filter, _amount](Document &d) { d.applyFilter(_filter, _amount); }))
+        return;
     edit(tr("Filtre : %1").arg(_filter), [&] {
+        if (!operationStep(0, 1000))
+            return;
         const auto render = [&]<typename Pixel>() {
             using P               = ImageUtils::PixelAccess<Pixel>;
             const QImage original = m_layers[m_active].image;
@@ -320,6 +325,8 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
                     }
             } else
                 for (int y = area.top(); y <= area.bottom(); ++y) {
+                    if ((y % 16) == 0 && !operationStep(y - area.top(), area.height()))
+                        return;
                     auto row = reinterpret_cast<Pixel *>(result.scanLine(y));
                     for (int x = area.left(); x <= area.right(); ++x) {
                         if (hasSelection() && !m_selectionRegion.contains(QPoint(x, y)))

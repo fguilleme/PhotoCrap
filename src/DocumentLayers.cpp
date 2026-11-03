@@ -96,7 +96,12 @@ void Document::mergeDown()
         fail(tr("La fusion nécessite deux calques visibles en mode Normal, non verrouillés."));
         return;
     }
+    if (deferEdit(tr("Fusionner vers le bas"), editCost(false) * 2,
+                  [](Document &d) { d.mergeDown(); }))
+        return;
     edit(tr("Fusionner vers le bas"), [&] {
+        if (!operationStep(0, 1))
+            return;
         auto       &bottom = m_layers[m_active - 1];
         const auto &top    = m_layers[m_active];
         QImage      image  = ImageUtils::blank(m_size, workingFormat());
@@ -384,6 +389,10 @@ void Document::invertLayerMask()
     if (finishTextForLayer(m_active) < 0)
         return;
     if (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].mask.isNull())
+        return;
+    if (deferEdit(tr("Inverser le masque de fusion"),
+                  qint64(m_layers[m_active].mask.width()) * m_layers[m_active].mask.height(),
+                  [](Document &d) { d.invertLayerMask(); }))
         return;
     edit(tr("Inverser le masque de fusion"), [&] { m_layers[m_active].mask.invertPixels(); });
 }

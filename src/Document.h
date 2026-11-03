@@ -266,6 +266,9 @@ class Document : public QObject
                    setMagicEraserSampleAllLayers NOTIFY settingsChanged)
     Q_PROPERTY(bool magicEraserBusy READ magicEraserBusy NOTIFY settingsChanged)
     Q_PROPERTY(bool pixelEditBusy READ pixelEditBusy NOTIFY settingsChanged)
+    Q_PROPERTY(bool operationBusy READ operationBusy NOTIFY operationChanged)
+    Q_PROPERTY(QString operationLabel READ operationLabel NOTIFY operationChanged)
+    Q_PROPERTY(qreal operationProgress READ operationProgress NOTIFY operationChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QStringList history READ history NOTIFY historyChanged)
@@ -333,6 +336,7 @@ public:
         return m_channelBits;
     }
     Q_INVOKABLE bool setChannelBits(int _bits);
+    Q_INVOKABLE void requestChannelBits(int _bits);
     Q_INVOKABLE bool toolSupportsDepth(const QString &_tool) const;
     QImage::Format   workingFormat() const
     {
@@ -622,8 +626,16 @@ public:
     }
     bool pixelEditBusy() const
     {
-        return m_patchBusy || m_contentMoveBusy || m_removeBusy || m_magicEraserBusy;
+        return operationBusy() || m_patchBusy || m_contentMoveBusy || m_removeBusy ||
+               m_magicEraserBusy;
     }
+    bool             operationBusy() const;
+    QString          operationLabel() const;
+    qreal            operationProgress() const;
+    Q_INVOKABLE void cancelOperation();
+    // C++ hosts/tests may tune dispatch: zero forces background work, -1 keeps
+    // edits synchronous. The editor defaults to four million processed pixels.
+    void setBackgroundEditThreshold(qint64 pixels);
     bool magicEraserBusy() const
     {
         return m_magicEraserBusy;
@@ -1203,6 +1215,7 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void operationChanged();
     void gpuStackChanged();
     void penPathsChanged();
     void penHoverChanged();
@@ -1238,6 +1251,16 @@ signals:
     void statusMessage(const QString &_message);
 
 private:
+    struct BackgroundOperation;
+    std::shared_ptr<BackgroundOperation> m_backgroundOperation;
+    qint64                               m_backgroundEditThreshold = 4LL * 1024 * 1024;
+    bool                                 m_backgroundWorker        = false;
+    std::shared_ptr<std::atomic_bool>    m_backgroundCancel;
+    std::shared_ptr<std::atomic_int>     m_backgroundProgress;
+    bool   deferEdit(const QString &label, qint64 cost, std::function<void(Document &)> work,
+                     bool mayRemoveMask = false);
+    qint64 editCost(bool allLayers, const QSize &target = {}) const;
+    bool   operationStep(int completed, int total);
     struct Snapshot {
         QVector<Layer>   layers;
         QSize            size;

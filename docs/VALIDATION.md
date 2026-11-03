@@ -1,5 +1,22 @@
 # Validation
 
+## Opérations complètes asynchrones — 3 novembre 2026
+
+- 24 comparaisons exactes synchrone/worker en 8/16 bits : redimensionnement,
+  recadrage, profondeur, remplissage avec transparence, effacement sélectionné,
+  fusion, inversion du masque, flou et les quatre rotations/miroirs. Une seule
+  notification d’historique, puis Annuler/Rétablir, pixels/masques et dimensions.
+- Pool bloqué : Annuler et Annuler/Rétablir rendent la main sans attendre ;
+  sélection de calque, nouveau document et destruction rejettent les anciennes
+  demandes. Une demande de taille invalide préserve le document.
+- Les 47 tests hors interaction native macOS passent, après adaptation de trois
+  tests historiques pour attendre leurs gros remplissages. Les tests dédiés
+  passent aussi sur Qt 6.8. Le contrôle natif Metal vérifie le panneau de
+  progression, le bouton Annuler et Échap avec activation AppKit de la fenêtre.
+- La progression des routines Qt monolithiques est indéterminée ; l’annulation
+  rejette leur résultat sans promettre de les interrompre au milieu d’un appel.
+
+
 ## Filtres spatiaux GPU — 3 novembre 2026
 
 - 64 configurations comparées au composite natif : boîte, gaussien, directionnel,

@@ -54,11 +54,23 @@ l'affichage ; les exports et projets gardent leur référence native CPU.
 
 ## 4. Généralisation de l’asynchrone
 
-- [ ] Inventaire des opérations synchrones restantes et snapshots immuables.
-- [ ] Transformations, opérations complètes de calques et filtres directs : progrès,
+- [x] Inventaire des opérations synchrones restantes et snapshots immuables.
+- [x] Transformations, opérations complètes de calques et filtres directs : progrès,
   annulation, validation atomique et unique étape d’historique.
-- [ ] Tests de fermeture/changement de document pendant une opération, erreurs
+- [x] Tests de fermeture/changement de document pendant une opération, erreurs
   de ressources et priorité aux interactions/aperçus récents.
+
+Le répartiteur commun couvre redimensionnement, rotations/miroirs, recadrage de
+sélection, profondeur depuis le menu, fusion vers le bas, remplissages/effacement,
+inversion des masques et filtres directs. À partir de quatre millions de pixels
+traités, un worker de faible priorité calcule sur un snapshot ; seule la fin valide
+applique une étape d’historique. Échap, Annuler ou Annuler/Rétablir rejettent la
+demande. Le document peut être fermé ou remplacé sans attendre le worker. Un appel
+Qt non interruptible peut terminer son plan courant après l’annulation ; son
+résultat n’est jamais appliqué. Les modifications compactes restent synchrones.
+L’ouverture RAW, le recadrage interactif, les sélections et la retouche de fréquences
+conservent leurs workers spécialisés. Les entrées/sorties de projets et l’export
+restent synchrones et constituent une suite distincte.
 
 ## 5. Niveaux de détail GPU et budget graphique global
 

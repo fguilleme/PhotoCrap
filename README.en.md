@@ -24,6 +24,8 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 - **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
 - **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
+Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Project I/O and export remain synchronous.
+
 The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Layer planes, masks, frequency sources and history versions now use shared 256 × 256 tiles, offloaded to disk after an editing pause. The tile RAM target is configurable (256 MiB by default). Brush, Pencil and Eraser write regional pixels directly; other operations may still request temporary full-sized buffers. The CPU composite and selections remain outside this budget. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The `.pcr` format remains at version 8, with support for reading versions 1–7. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
 
 In development after v0.16: pixel, text and Solid Color stacks can be composited
@@ -230,9 +232,9 @@ Layers are stored from bottom to top in `QImage::Format_ARGB32_Premultiplied` (8
 
 The `.pcr` file is a versioned JSON document. Version 8 stores Bézier paths, channel depth, pixels, masks, frequency-separation pairs, adjustments, and layer properties, including groups and clipping, while remaining backward-compatible with versions 1–7. Empty pixel layers and uniform masks use compact storage in this version, expanding only when locally edited. History, selection, and color sampler markers are not saved in the project; panel organization is stored separately in application settings. Loading validates every layer before replacing the open document. Maximum file size is 256 MiB; a document is limited to 32 megapixels, 512 layers, and 2 GiB of uncompressed layer data. The budget separately counts color pixels, frequency-separation sources, and 8-bit masks; adjustments reserve only their masks, and groups reserve no image. Nonuniform shared images are reserved independently for each layer so they can be edited and reloaded. Empty layers and uniform masks do not reserve full-sized planes; painting checks the budget before expanding them. The frequency cache uses LRU eviction with a 128 MiB budget, and frequency thumbnails render at display size. These limits do not represent total memory consumption: composition, filters, history, and serialization also use memory.
 
-Since v0.15, an initial disk scratch cache retains large frequency renders across workers. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing. Editable pixels and history still remain in RAM; their planned tiled migration is described in the [layer/memory audit](docs/LAYER_MEMORY.md) (French).
+Since v0.15, an initial disk scratch cache retains large frequency renders across workers. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing. Editable planes and history versions now share disk-capable tiles; the [layer/memory audit](docs/LAYER_MEMORY.md) describes the limits (French).
 
-This version introduces 256 × 256 tiles for brush, pencil, and eraser stroke coverage: a small stroke no longer allocates a document-sized coverage buffer. Layer planes and history still need to migrate to this storage.
+This version introduces 256 × 256 tiles for brush, pencil, and eraser stroke coverage: a small stroke no longer allocates a document-sized coverage buffer. Layer, mask, source and history planes also use these tiles; other tools can still use temporary full-sized buffers.
 
 ### Magic Eraser
 

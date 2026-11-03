@@ -113,6 +113,30 @@
   </context>
   <context>
     <name>Document</name>
+    <message>
+        <source>Opération annulée.</source>
+        <translation>Operation cancelled.</translation>
+    </message>
+    <message>
+        <source>Terminez ou annulez l’opération en cours.</source>
+        <translation>Finish or cancel the current operation.</translation>
+    </message>
+    <message>
+        <source>Mémoire insuffisante pour terminer l’opération.</source>
+        <translation>Not enough memory to finish the operation.</translation>
+    </message>
+    <message>
+        <source>Impossible de terminer « %1 » : %2</source>
+        <translation>Could not complete “%1”: %2</translation>
+    </message>
+    <message>
+        <source>Allocation des pixels impossible.</source>
+        <translation>Unable to allocate pixels.</translation>
+    </message>
+    <message>
+        <source>Le calcul de l’opération a échoué.</source>
+        <translation>The operation failed.</translation>
+    </message>
     <message><source>Attendez la fin du traitement ou annulez-le avant de sauvegarder ou exporter.</source><translation>Wait for processing to finish or cancel it before saving or exporting.</translation></message>
     <message><source>Impossible de calculer la réparation de cette zone.</source><translation>Could not compute a repair for this area.</translation></message>
     <message><source>Contour du tracé</source><translation>Stroke Path</translation></message>

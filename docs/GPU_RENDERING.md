@@ -1909,3 +1909,22 @@ les vrais gestes de souris, la désactivation du guide et Échap.
 Références Qt : [QPainterPathStroker](https://doc.qt.io/qt-6.8/qpainterpathstroker.html),
 [préparation des traits dans QPaintEngineEx](https://github.com/qt/qtbase/blob/v6.12.0/src/gui/painting/qpaintengineex.cpp),
 [CurveRenderer](https://doc.qt.io/qt-6.8/qml-qtquick-shapes-shape.html).
+
+## Opérations complètes en arrière-plan
+
+`DocumentOperations.cpp` centralise les opérations entières coûteuses, indépendamment
+du backend d’affichage. Quatre millions de pixels traités déclenchent un calcul
+sur snapshot avec priorité basse : redimensionnement, rotations/miroirs, recadrage
+sur sélection, conversion de profondeur depuis le menu, fusion vers le bas,
+remplissages/effacement, inversion de masques et filtres directs. Les opérations
+compactes (remplir un masque uniforme, effacer un calque entier) restent immédiates.
+Le worker ne capture jamais le document vivant ; le résultat est appliqué seulement
+si session et version correspondent encore. La validation est atomique et ajoute
+une seule étape d’historique. Échap, Annuler et Annuler/Rétablir abandonnent le calcul.
+Fermer, remplacer ou modifier le document invalide également son résultat.
+
+La progression est indéterminée pour les appels Qt monolithiques, et avance entre
+les calques ou lignes pour les boucles instrumentées. Annuler rend la main tout de
+suite ; une routine Qt non interruptible peut encore terminer son plan en arrière-plan.
+RAW, sélections, recadrage interactif et préparation des fréquences gardent leurs
+workers spécialisés. Sauvegarde/chargement de projets et export restent synchrones.

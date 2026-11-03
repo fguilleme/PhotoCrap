@@ -244,7 +244,7 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: editor.operationBusy || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -1133,8 +1133,8 @@ ApplicationWindow {
     Action { id: saveAsAction; text: qsTr("Enregistrer sous…"); shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { resumeAfterSave=false; save(true) } }
     Action { id: exportAction; text: qsTr("Exporter l’image…"); shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: exportDialog.open() }
     Action { id: importAction; text: qsTr("Importer comme calque…"); shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
-    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && !window.modalOpen; onTriggered: editor.undo() }
-    Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.pixelEditBusy) && !window.modalOpen; onTriggered: editor.redo() }
+    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy); onTriggered: editor.undo() }
+    Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy); onTriggered: editor.redo() }
     Action { id: copyAction; text: qsTr("Copier l’image visible"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.copy() }
     Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
     Action { id: selectAction; text: qsTr("Tout sélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
@@ -1153,9 +1153,10 @@ ApplicationWindow {
         }
     }
     Shortcut {
-        enabled: !window.modalOpen
+        enabled: !window.modalOpen || editor.operationBusy
         sequence: "Escape"
         onActivated: {
+            if(editor.operationBusy){editor.cancelOperation();return}
             if(editor.selectionBusy){editor.cancelSelectionOperation();return}
             if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else editor.finishPenPath();return}
             if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
@@ -1291,8 +1292,8 @@ ApplicationWindow {
             DarkMenuItem { text: qsTr("Dimensions de l’image…"); onTriggered: { resizeWidth.value=editor.width; resizeHeight.value=editor.height; resizeDialog.open() } }
             DarkMenu {
                 title: qsTr("Profondeur des couleurs")
-                DarkMenuItem { text: qsTr("8 bits par canal"); checkable: true; checked: editor.channelBits === 8; onTriggered: editor.setChannelBits(8) }
-                DarkMenuItem { text: qsTr("16 bits par canal"); checkable: true; checked: editor.channelBits === 16; onTriggered: editor.setChannelBits(16) }
+                DarkMenuItem { text: qsTr("8 bits par canal"); checkable: true; checked: editor.channelBits === 8; onTriggered: editor.requestChannelBits(8) }
+                DarkMenuItem { text: qsTr("16 bits par canal"); checkable: true; checked: editor.channelBits === 16; onTriggered: editor.requestChannelBits(16) }
             }
             DarkMenuItem { text: qsTr("Recadrer selon la sélection"); enabled: editor.hasSelection; onTriggered: editor.cropToSelection() }
             MenuSeparator {}
@@ -1519,6 +1520,22 @@ ApplicationWindow {
     }
 
     SelectionModifyDialog { id: selectionModifyDialog; objectName: "selectionModifyDialog"; document: editor }
+    Rectangle {
+        objectName: "operationProgress"
+        parent: Overlay.overlay
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 48
+        width: 420; height: 76; radius: 6; color: "#29323c"; border.color: "#657383"
+        visible: editor.operationBusy
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 10
+            RowLayout {
+                Label { text: editor.operationLabel; color: "#dbe1e8"; Layout.fillWidth: true; elide: Text.ElideRight }
+                Button { objectName: "operationCancel"; text: qsTr("Annuler"); onClicked: editor.cancelOperation() }
+            }
+            ProgressBar { Layout.fillWidth: true; from: 0; to: 1; value: Math.max(0,editor.operationProgress); indeterminate: editor.operationProgress < 0 }
+        }
+    }
     Rectangle {
         objectName: "selectionProgress"
         parent: Overlay.overlay
@@ -2373,7 +2390,7 @@ ApplicationWindow {
                                 }
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                enabled: !editor.magicEraserBusy && !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
+                                enabled: !editor.operationBusy && !editor.magicEraserBusy && !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape

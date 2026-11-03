@@ -201,3 +201,11 @@ bool runMacToolCursorTest(QQuickWindow *_window)
     QCursor::setPos(previousPosition);
     return passed;
 }
+
+void activateMacTestWindow(QQuickWindow *window)
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSView *view = reinterpret_cast<NSView *>(window->winId());
+    [[view window] makeKeyAndOrderFront:nil];
+    window->requestActivate();
+}

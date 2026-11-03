@@ -189,6 +189,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
             m_previewRenderActive.store(m_gpuToneActive);
     });
     connect(this, &Document::selectionChanged, this, [this] {
+        cancelOperation();
         cancelSelectionOperation();
         if (!m_selectionMask.isNull() && m_selectionMaskRegion != m_selectionRegion) {
             m_selectionMask       = {};
@@ -205,6 +206,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, [this] {
+        cancelOperation();
         cancelSelectionOperation();
         invalidatePatch();
         invalidateContentMove();
@@ -221,6 +223,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
 }
 Document::~Document()
 {
+    cancelOperation();
     cancelSelectionOperation();
     cancelRawLoad();
     cancelFrequencyRetouch();
@@ -534,7 +537,7 @@ void Document::configureScratchCache(const QString &_directory, qint64 _maxBytes
 }
 void Document::schedulePlaneOffload()
 {
-    if (m_scratchCache)
+    if (m_scratchCache && !m_backgroundWorker)
         m_planeOffloadTimer.start();
 }
 QVariantMap Document::scratchCacheUsage() const
@@ -585,6 +588,8 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
     endStroke();
     auto before = snapshot(_label);
     _operation();
+    if (m_backgroundWorker && m_backgroundCancel && m_backgroundCancel->load())
+        return;
     commit(before, _label);
     if (before.size != m_size) {
         cancelCrop();
@@ -596,6 +601,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    cancelOperation();
     m_gpuStackAuxTimer.stop();
     if (!m_preserveGpuTonePreview)
         invalidateGpuTonePreview();
@@ -930,6 +936,17 @@ void Document::selectLayer(int _index, bool _toggle, bool _range)
     emit layersChanged();
 }
 
+void Document::requestChannelBits(int _bits)
+{
+    if ((_bits != 8 && _bits != 16) || _bits == m_channelBits) {
+        setChannelBits(_bits);
+        return;
+    }
+    if (!deferEdit(tr("Profondeur des couleurs"), editCost(true),
+                   [_bits](Document &d) { d.setChannelBits(_bits); }))
+        setChannelBits(_bits);
+}
+
 bool Document::setChannelBits(int _bits)
 {
     if (_bits != 8 && _bits != 16)
@@ -941,7 +958,10 @@ bool Document::setChannelBits(int _bits)
     endStroke();
     edit(tr("Profondeur des couleurs"), [&] {
         m_channelBits = _bits;
+        int completed = 0;
         for (auto &layer : m_layers) {
+            if (!operationStep(completed++, int(m_layers.size())))
+                return;
             if (!layer.image.isNull())
                 layer.image.convertTo(workingFormat());
             if (!layer.source.isNull())

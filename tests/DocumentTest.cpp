@@ -640,6 +640,7 @@ private slots:
         QVERIFY(d.newDocument(6000, 4000, true, 16));
         d.setColor(Qt::red);
         d.fillWithColor(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
         for (int i = 0; i < 12; ++i)
             d.renameLayer(0, QString("Rename %1").arg(i));
         QCOMPARE(d.historyIndex(), 13);
@@ -1764,9 +1765,11 @@ private slots:
         d.newDocument(3840, 2160);
         d.setColor(Qt::red);
         d.fillWithColor(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
         d.setHistoryBrushSource(d.historyIndex());
         d.setColor(Qt::blue);
         d.fillWithColor(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
         d.setTool("artHistoryBrush");
         d.setArtHistoryStyle(5);
         d.setBrushSize(16);
@@ -2055,6 +2058,7 @@ private slots:
         const QColor original = d.layerImage(0).pixelColor(10, 10);
         d.setColor(Qt::red);
         d.fillWithColor(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
         const int history = d.historyIndex();
         d.setTool("historyBrush");
         d.setBrushSize(48);

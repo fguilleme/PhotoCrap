@@ -43,6 +43,7 @@
 #include "../tests/LayerStackSmoke.h"
 #include "../tests/LevelsGraphSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
+#include "../tests/OperationSmoke.h"
 #include "../tests/PenOverlaySmoke.h"
 #include "../tests/PresetPreviewSmoke.h"
 #include "../tests/ShutdownSmoke.h"
@@ -297,6 +298,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--stack-render-test")) {
                 passed = window && runLayerStackSmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--operation-test")) {
+                passed = window && runOperationSmoke(window, document);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

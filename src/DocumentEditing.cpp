@@ -9,6 +9,10 @@
 
 void Document::undo()
 {
+    if (operationBusy()) {
+        cancelOperation();
+        return;
+    }
     if (pixelEditBusy()) {
         invalidatePatch(true);
         invalidateContentMove(true);
@@ -32,6 +36,10 @@ void Document::undo()
 }
 void Document::redo()
 {
+    if (operationBusy()) {
+        cancelOperation();
+        return;
+    }
     if (pixelEditBusy()) {
         invalidatePatch(true);
         invalidateContentMove(true);
@@ -56,6 +64,9 @@ void Document::redo()
 void Document::clearSelected()
 {
     if (!editable(hasSelection()))
+        return;
+    if (hasSelection() &&
+        deferEdit(tr("Effacer"), editCost(false), [](Document &d) { d.clearSelected(); }))
         return;
     edit(tr("Effacer"), [&] {
         if (!hasSelection()) {
@@ -87,6 +98,13 @@ void Document::fillWithColor(bool _foreground, bool _preserveTransparency)
     if (!editable(hasSelection() || !m_editingMask))
         return;
     const QColor color = _foreground ? m_color : m_secondary;
+    if ((!m_editingMask || hasSelection()) &&
+        deferEdit(_foreground ? tr("Remplir avec la couleur de premier plan")
+                              : tr("Remplir avec la couleur d’arrière-plan"),
+                  editCost(false), [_foreground, _preserveTransparency](Document &d) {
+                      d.fillWithColor(_foreground, _preserveTransparency);
+                  }))
+        return;
     edit(_foreground ? tr("Remplir avec la couleur de premier plan")
                      : tr("Remplir avec la couleur d’arrière-plan"),
          [&] {
@@ -119,6 +137,10 @@ void Document::invertSelectedPixels()
     }
     if (!editable())
         return;
+    if (deferEdit(tr("Inverser les pixels du masque"),
+                  qint64(m_layers[m_active].mask.width()) * m_layers[m_active].mask.height(),
+                  [](Document &d) { d.invertSelectedPixels(); }))
+        return;
     edit(tr("Inverser les pixels du masque"), [&] {
         QImage *target = paintTarget();
         if (!target)
@@ -136,6 +158,9 @@ void Document::invertSelectedPixels()
 void Document::fillSelectedWithColor(const QColor &_color)
 {
     if (!_color.isValid() || !editable())
+        return;
+    if (deferEdit(tr("Remplir avec une couleur"), editCost(false),
+                  [_color](Document &d) { d.fillSelectedWithColor(_color); }))
         return;
     edit(tr("Remplir avec une couleur"), [&] {
         QImage *target = paintTarget();
@@ -155,6 +180,9 @@ void Document::fillSelectedWithColor(const QColor &_color)
 void Document::fillMaskWithColor(const QColor &_color)
 {
     if (!m_editingMask || !_color.isValid() || !editable(hasSelection()))
+        return;
+    if (hasSelection() && deferEdit(tr("Remplir le masque avec une couleur"), editCost(false),
+                                    [_color](Document &d) { d.fillMaskWithColor(_color); }))
         return;
     edit(tr("Remplir le masque avec une couleur"), [&] {
         if (!hasSelection()) {
@@ -212,6 +240,8 @@ void Document::cropToSelection()
 {
     if (!hasSelection())
         return;
+    if (deferEdit(tr("Recadrer"), editCost(true), [](Document &d) { d.cropToSelection(); }))
+        return;
     endStroke();
     auto paths = m_penPaths;
     if (!PenGeometry::transform(paths,
@@ -220,7 +250,10 @@ void Document::cropToSelection()
         return;
     }
     edit(tr("Recadrer"), [&] {
+        int completed = 0;
         for (auto &layer : m_layers) {
+            if (!operationStep(completed++, int(m_layers.size())))
+                return;
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(
                     layer.parameters,
@@ -253,6 +286,9 @@ void Document::resizeImage(int _w, int _h)
     if (!validSize(_w, _h, int(m_layers.size())) || !validLayerStorage(_w, _h) ||
         m_size == QSize(_w, _h))
         return;
+    if (deferEdit(tr("Redimensionner l’image"), qMax(editCost(true), editCost(true, {_w, _h})),
+                  [_w, _h](Document &d) { d.resizeImage(_w, _h); }))
+        return;
     endStroke();
     auto paths = m_penPaths;
     if (!PenGeometry::transform(paths,
@@ -261,7 +297,10 @@ void Document::resizeImage(int _w, int _h)
         return;
     }
     edit(tr("Redimensionner l’image"), [&] {
+        int completed = 0;
         for (auto &layer : m_layers) {
+            if (!operationStep(completed++, int(m_layers.size())))
+                return;
             if (layer.kind == "text") {
                 PhotoCrap::Text::transform(
                     layer.parameters,
@@ -298,6 +337,9 @@ void Document::transformImage(const QString &_operation)
     if (_operation != "rotateLeft" && _operation != "rotateRight" && _operation != "flipH" &&
         _operation != "flipV")
         return;
+    if (deferEdit(tr("Transformer l’image"), editCost(true),
+                  [_operation](Document &d) { d.transformImage(_operation); }))
+        return;
     QTransform pathTransform;
     if (_operation == "flipH")
         pathTransform = QTransform(-1, 0, 0, 1, width(), 0);
@@ -316,7 +358,10 @@ void Document::transformImage(const QString &_operation)
     edit(tr("Transformer l’image"), [&] {
         m_penPaths = paths;
         emit penPathsChanged();
+        int  completed = 0;
         for (auto &layer : m_layers) {
+            if (!operationStep(completed++, int(m_layers.size())))
+                return;
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, pathTransform);
             auto transform = [&](QImage &_image) {

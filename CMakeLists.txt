@@ -43,6 +43,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
+    src/DocumentOperations.cpp
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
@@ -327,6 +328,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
+    src/DocumentOperations.cpp
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
@@ -714,6 +716,14 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_scratch_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME scratch_cache COMMAND photocrap_scratch_tests)
     set_tests_properties(scratch_cache PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_operation_tests tests/DocumentOperationsTest.cpp)
+    target_link_libraries(photocrap_operation_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME operation_progress COMMAND PhotoCrap --smoke-test --operation-test)
+    set_tests_properties(operation_progress PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME document_operations COMMAND photocrap_operation_tests)
+    set_tests_properties(document_operations PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
     qt_add_executable(photocrap_tiled_tests tests/TiledImageTest.cpp)
     target_link_libraries(photocrap_tiled_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME tiled_image COMMAND photocrap_tiled_tests)

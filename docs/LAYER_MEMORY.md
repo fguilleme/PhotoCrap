@@ -4,10 +4,16 @@
 
 `PixelPlane` stocke désormais les plans de calques, masques et sources de fréquences
 et leurs versions d’historique dans `TiledImage`. Les tuiles inchangées sont partagées ;
-les écritures régionales du Pinceau, Crayon et de la Gomme créent uniquement les
-versions touchées. Le composite CPU lit les régions nécessaires sans retenir de
+les écritures régionales du Pinceau, Crayon, Gomme, Flou, Netteté, Densité −/+
+et Éponge créent uniquement les versions touchées. Le composite CPU lit les régions nécessaires sans retenir de
 copie complète du calque. Les autres outils, transformations, filtres et sauvegardes
 peuvent encore matérialiser une image complète temporaire.
+
+Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
+de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
+sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle
+tuile de 512 Kio, sans reconstruire le calque. La lecture de l’alpha de couverture
+respecte désormais les 16 bits au lieu d’interpréter ses lignes en pixels 8 bits.
 
 Après une pause de 500 ms, un worker décharge les tuiles si leur budget RAM est dépassé
 (256 Mio par défaut, réglable de 0 à 4 096 Mio dans Cache de travail). Les états

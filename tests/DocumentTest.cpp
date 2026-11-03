@@ -26,6 +26,7 @@
 #include "filters/VibranceFilter.h"
 #include "tools/RegionHealing.h"
 #include <QBuffer>
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -4748,6 +4749,88 @@ private slots:
         QCOMPARE(d.composite().pixelColor(4, 4), untouched);
         d.undo();
         QCOMPARE(d.composite().pixelColor(27, 24), QColor(Qt::black));
+    }
+    void retouchCoverageAndWritesStayRegional()
+    {
+        Document d;
+        QVERIFY(d.newDocument(6000, 4000, false, 16));
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBrushSize(12);
+        d.setBrushSmoothing(0);
+        const auto original   = d.gpuLayerStack().layers.first().image;
+        const auto heapBefore = d.memoryUsage()["tileHeapBytes"].toLongLong();
+        for (const auto &tool : {"blur", "sharpen", "dodge", "burn", "sponge"}) {
+            d.setTool(tool);
+            d.beginStroke(100, 100);
+            d.continueStroke(110, 110);
+            const auto usage = d.memoryUsage();
+            QVERIFY(usage["strokeCoverageTiles"].toInt() > 0);
+            QVERIFY(usage["strokeCoverageBytes"].toLongLong() <= 256LL * 256 * 8);
+            QVERIFY(usage["tileHeapBytes"].toLongLong() - heapBefore <= 256LL * 256 * 8);
+            d.cancelStroke();
+            QCOMPARE(d.gpuLayerStack().layers.first().image.regionKey({0, 0, 256, 256}),
+                     original.regionKey({0, 0, 256, 256}));
+            QCOMPARE(d.memoryUsage()["strokeCoverageBytes"].toLongLong(), qint64(0));
+        }
+        QCOMPARE(errors.size(), 0);
+    }
+    void retouchTileBoundariesKeepNativePixels()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            QImage image(523, 531,
+                         bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                    : QImage::Format_ARGB32_Premultiplied);
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    image.setPixelColor(x, y,
+                                        QColor::fromRgba64((x * 197 + y * 31) % 65536,
+                                                           (y * 173 + x * 17) % 65536,
+                                                           (x * 113 + y * 227) % 65536,
+                                                           20001 + (x * 67 + y * 13) % 45535));
+            const auto url = QUrl::fromLocalFile(directory.filePath("retouch.png"));
+            QVERIFY(image.save(url.toLocalFile()));
+            for (const auto &tool : {"blur", "sharpen", "dodge", "burn", "sponge"}) {
+                Document d;
+                QVERIFY(d.openFile(url));
+                const auto before = d.layerImage(0);
+                d.setTool("select");
+                d.beginStroke(246, 242);
+                d.continueStroke(280, 277);
+                d.endStroke();
+                d.modifySelection("feather", 3);
+                d.setTool(tool);
+                d.setBrushSize(27);
+                d.setBrushOpacity(.63);
+                d.setBrushFlow(.47);
+                d.setBrushSmoothing(0);
+                d.setToolStrength(.81);
+                d.beginStroke(253, 251);
+                d.continueStroke(266, 263);
+                d.endStroke();
+                const auto after = d.layerImage(0);
+                QCOMPARE(after.format(), before.format());
+                QVERIFY(after != before);
+                // The gesture crosses both tile axes with a feathered selection.
+                // Pixels beyond its local brush envelope remain byte-identical.
+                for (const QRect &outside : QRegion(before.rect()) - QRegion(235, 233, 50, 50))
+                    QCOMPARE(after.copy(outside), before.copy(outside));
+                qInfo() << "Retouch pixels" << bits << tool
+                        << QCryptographicHash::hash(
+                               QByteArrayView(reinterpret_cast<const char *>(after.constBits()),
+                                              after.sizeInBytes()),
+                               QCryptographicHash::Sha256)
+                               .toHex();
+                d.undo();
+                QCOMPARE(d.layerImage(0), before);
+                d.redo();
+                QCOMPARE(d.layerImage(0), after);
+                d.beginStroke(511, 520, true);
+                d.cancelStroke();
+                QCOMPARE(d.layerImage(0), after);
+            }
+        }
     }
     void brushHardnessFlowOpacityAndSpacingFollowDabs()
     {

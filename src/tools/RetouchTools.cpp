@@ -1,13 +1,11 @@
 #include "Document.h"
 #include "ImagePixels.h"
 
-#include <QPainter>
 #include <QtMath>
 
 void Document::renderRetouchStroke()
 {
-    QImage *target = paintTarget();
-    if (!target || m_strokeBase.isNull() || m_strokeCoverage.isNull())
+    if (m_strokePlaneBase.isNull() || m_tiledStrokeCoverage.isNull())
         return;
     const QString effectTool = m_toolAlternate && m_tool == "dodge"     ? "burn"
                                : m_toolAlternate && m_tool == "burn"    ? "dodge"
@@ -24,7 +22,12 @@ void Document::renderRetouchStroke()
 
     QRect sampleRegion = region;
     if (effectTool == "blur" || effectTool == "sharpen")
-        sampleRegion = region.adjusted(-4, -4, 4, 4).intersected(m_strokeBase.rect());
+        sampleRegion = region.adjusted(-4, -4, 4, 4).intersected(QRect(QPoint{}, m_size));
+    const QImage coveragePatch = m_tiledStrokeCoverage.region(region);
+    if (coveragePatch.isNull()) {
+        m_strokeCoverageFailed = true;
+        return;
+    }
     // Keep every expensive conversion and convolution inside the pixels touched by
     // this stroke segment. Blur and sharpen only need a small source halo so their
     // result at the brush edge still samples the real neighbouring pixels.
@@ -33,17 +36,22 @@ void Document::renderRetouchStroke()
         const auto mixedChannel = [](double _base, double _effect, qreal _amount) {
             return qBound(0., P::round(_base + (_effect - _base) * _amount), 255.);
         };
-        const QImage sourcePatch  = m_strokeBase.copy(sampleRegion).convertToFormat(P::format);
+        const QImage sourcePatch =
+            m_strokePlaneBase.region(sampleRegion).convertToFormat(P::format);
         const QImage smooth       = (effectTool == "blur" || effectTool == "sharpen")
                                         ? blurImage(sourcePatch, 2)
                                         : QImage{};
         const QPoint outputOffset = region.topLeft() - sampleRegion.topLeft();
         QImage       output       = sourcePatch.copy(QRect(outputOffset, region.size()));
+        if (sourcePatch.isNull() || output.isNull() ||
+            ((effectTool == "blur" || effectTool == "sharpen") && smooth.isNull())) {
+            m_strokeCoverageFailed = true;
+            return;
+        }
 
         for (int y = 0; y < region.height(); ++y) {
-            auto       *dst = reinterpret_cast<Pixel *>(output.scanLine(y));
-            const auto *coverage =
-                reinterpret_cast<const QRgb *>(m_strokeCoverage.constScanLine(region.y() + y));
+            auto       *dst      = reinterpret_cast<Pixel *>(output.scanLine(y));
+            const auto *coverage = reinterpret_cast<const Pixel *>(coveragePatch.constScanLine(y));
             const auto *src =
                 reinterpret_cast<const Pixel *>(sourcePatch.constScanLine(outputOffset.y() + y));
             for (int x = 0; x < region.width(); ++x) {
@@ -51,7 +59,7 @@ void Document::renderRetouchStroke()
                 const int globalY = region.y() + y;
                 if (hasSelection() && !m_selectionRegion.contains(QPoint(globalX, globalY)))
                     continue;
-                qreal amount = qAlpha(coverage[globalX]) / 255. * m_brushOpacity * m_toolStrength *
+                qreal amount = P::alpha(coverage[x]) / 255. * m_brushOpacity * m_toolStrength *
                                selectionCoverage(globalX, globalY) / 255.;
                 if (amount <= 0)
                     continue;
@@ -105,11 +113,11 @@ void Document::renderRetouchStroke()
                                  mixedChannel(blue, effectBlue, amount), P::alpha(pixel));
             }
         }
-        QPainter painter(target);
-        painter.setCompositionMode(QPainter::CompositionMode_Source);
-        painter.drawImage(region.topLeft(), output);
+        if (!m_layers[m_active].image.writeRegion(region.topLeft(),
+                                                  output.convertToFormat(P::premultiplied), m_size))
+            m_strokeCoverageFailed = true;
     };
-    if (ImageUtils::is16Bit(*target))
+    if (m_channelBits == 16)
         render.template operator()<QRgba64>();
     else
         render.template operator()<QRgb>();

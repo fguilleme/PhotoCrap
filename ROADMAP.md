@@ -87,8 +87,9 @@ Ces ajouts sont inclus dans le tag v0.13.1. La publication des paquets est autom
 
 Le programme des cinq migrations de performance demandées le 2 novembre est
 détaillé dans [docs/OPTIMIZATION_PLAN.md](docs/OPTIMIZATION_PLAN.md). Le raccordement
-des plans de calques par tuiles est effectué ; la migration des autres outils,
-la composition GPU et les trois chantiers suivants restent en cours.
+des plans de calques par tuiles, la composition GPU, les filtres spatiaux,
+l’asynchrone commun et les niveaux de détail GPU ont maintenant une base validée.
+La migration des autres outils et les validations matérielles restantes se poursuivent.
 
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 
@@ -98,6 +99,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Cinq filtres spatiaux en passes GPU tuilées : boîte, gaussien, directionnel, netteté et passe-haut. Halos cumulés, alpha/masques, arrondis natifs et cibles réutilisées. Aperçu indépendant du worker CPU, mises à jour auxiliaires limitées à 100 ms et Annuler immédiat. Le rendu final reste CPU ; formats et budget insuffisants conservent leur repli.
 - [x] Calcul asynchrone commun pour les transformations, profondeur depuis le menu, fusion vers le bas, remplissages/effacement, inversion des masques et filtres directs dès quatre millions de pixels traités. Progression, annulation immédiate et validation atomique en une étape ; fermeture/changement de document testés. Entrées/sorties de projets et export restent synchrones.
 - [x] Aperçus CPU rapides par lecture régionale des tuiles, sans reconstruire le plan natif avant réduction. Référence exacte Qt en 8/16 bits et masques, y compris ses arrondis par axe ; agrandissements et interpolation lisse gardent leur chemin complet.
+- [x] Retouches Flou, Netteté, Densité −/+ et Éponge : snapshot, couverture et écriture par régions tuilées, halos de voisinage conservés et correction de la lecture de couverture 16 bits. Tests de frontières, sélection progressive, annulation et allocation locale sur 24 Mpx.
 - [x] Quatre niveaux de détail GPU conservés (1/2 à 1/16) pour les piles éligibles, grille globale et halos sans raccord, réutilisation des zooms et reconstruction après recréation du graphe. Repli CPU pour les piles, formats ou budgets incompatibles.
 - [x] Budget graphique partagé entre canevas : photos, masques, effets, pile/intermédiaires et damier, ressources visibles épinglées et réserve hors écran LRU. Compteurs par catégorie et pic ; cible d’éviction, hors allocations internes Qt/pilote.
 - [ ] Mesures de latence, mémoire et précision des aperçus par outil/filtre, notamment lorsque le rayon d’un flou est ramené à la résolution du proxy.

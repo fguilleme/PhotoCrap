@@ -1,5 +1,16 @@
 # Validation
 
+## Retouches locales par tuiles — 3 novembre 2026
+
+Flou, Netteté, Densité −/+, Éponge : comparaison avant/après migration des empreintes
+de tous les pixels 8 bits, identiques sur le même kit Qt. En 16 bits, le nouveau
+test reproduit d’abord un geste sans effet : l’ancienne lecture de couverture
+utilisait un pointeur 8 bits. Le correctif est vérifié par une modification réelle,
+profondeur native préservée, sélection progressive franchissant les deux axes de
+tuiles, pixels extérieurs identiques, Annuler/Rétablir et annulation du geste.
+Un document 24 Mpx/16 bits vérifie pendant le geste le plafond d’une tuile de
+512 Kio pour la couverture et d’une tuile supplémentaire pour le plan modifié.
+
 ## Libération du résultat RAW — 3 novembre 2026
 
 Le test DNG asynchrone vérifie que `retainedDecoderBytes` vaut zéro après ouverture,

@@ -36,6 +36,8 @@ Les changements natifs de profondeur convertissent aussi les tuiles présentes e
 
 La préparation asynchrone des conversions et imports capture aussi le budget RAM configuré. Quand les plans préparés le dépassent, le plan courant est déchargé sur le cache disque avant application. Un cache indisponible conserve les pixels en RAM ; cela ne bloque pas l’opération ni l’annulation.
 
+Le chargement applique également ce budget entre les plans décodés. Le cache qui porte leurs pixels est conservé après ouverture ; une erreur disque garde les pixels en RAM, et une modification des réglages pendant le chargement reste respectée.
+
 Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
 
 Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.

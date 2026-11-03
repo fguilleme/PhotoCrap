@@ -29,6 +29,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Budget RAM des plans préparés appliqué pendant les conversions/imports
   asynchrones ; mappings publiés valides et repli RAM si le cache est indisponible.
 
+- [x] Budget RAM appliqué entre plans décodés des projets/images ; cache et
+  mappings conservés après ouverture, nouvelles préférences de cache respectées.
+
 ## Repères actuels vérifiés
 
 | Élément | État du code | Source |

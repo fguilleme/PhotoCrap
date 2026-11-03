@@ -36,6 +36,8 @@ Native bit-depth changes also convert existing tiles and their compact backgroun
 
 Asynchronous conversion and import preparation also captures the configured RAM budget. When prepared planes exceed it, the current plane is offloaded to the scratch cache before publication. An unavailable cache keeps pixels in RAM without failing the edit or undo.
 
+Loading also applies this budget between decoded planes. The store backing their pixels survives opening; disk errors keep pixels in RAM, and cache settings changed during loading remain respected.
+
 Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
 
 Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.

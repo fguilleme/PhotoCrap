@@ -81,6 +81,115 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void decodedPlanesUseTheRamBudgetAndKeepTheirCacheAfterOpen_data()
+    {
+        QTest::addColumn<bool>("project");
+        QTest::addColumn<bool>("cacheAvailable");
+        for (bool project : {false, true})
+            for (bool cache : {false, true})
+                QTest::newRow(qPrintable(QString(project ? "project-" : "image-") +
+                                         (cache ? "disk" : "unavailable")))
+                    << project << cache;
+    }
+    void decodedPlanesUseTheRamBudgetAndKeepTheirCacheAfterOpen()
+    {
+        QFETCH(bool, project);
+        QFETCH(bool, cacheAvailable);
+        QTemporaryDir directory;
+        const auto    image = QUrl::fromLocalFile(directory.filePath("source.png"));
+        const auto    file  = QUrl::fromLocalFile(directory.filePath("source.pcr"));
+        QImage        pixels(512, 512, QImage::Format_RGBA64_Premultiplied);
+        pixels.setColorSpace(QColorSpace::SRgb);
+        for (int y = 0; y < pixels.height(); ++y)
+            for (int x = 0; x < pixels.width(); ++x)
+                pixels.setPixelColor(x, y,
+                                     QColor::fromRgba64(ushort(x * 97), ushort(y * 131),
+                                                        ushort((x + y) * 53), 65535));
+        QVERIFY(pixels.save(image.toLocalFile()));
+        Document source;
+        QVERIFY(source.openFile(image));
+        source.duplicateLayer();
+        source.addLayerMask();
+        source.setColor(Qt::black);
+        source.setBrushSize(12);
+        source.beginStroke(100, 100);
+        source.endStroke();
+        QVERIFY(source.saveProject(file));
+        const auto target = project ? file : image;
+        Document   reference;
+        QVERIFY(reference.openFile(target));
+        const auto expected      = reference.composite();
+        const auto expectedLayer = reference.layerImage(0);
+        Document   d;
+        populate(d, 8);
+        const auto before = d.composite();
+        QString    cache  = directory.filePath("cache");
+        if (!cacheAvailable) {
+            QFile blocker(cache);
+            QVERIFY(blocker.open(QIODevice::WriteOnly));
+        }
+        d.configureScratchCache(cache, 64LL * 1024 * 1024);
+        d.configurePlaneRamMiB(1);
+        d.setBackgroundEditThreshold(0);
+        QSignalSpy opened(&d, &Document::fileOpened);
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        {
+            BlockPool blocked;
+            d.requestOpenFile(target);
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.composite(), before);
+        }
+        QCOMPARE(d.composite(), before);
+        if (cacheAvailable)
+            QVERIFY(d.scratchCacheUsage()["diskBytes"].toLongLong() >= 2LL * 1024 * 1024);
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(opened.size(), 1);
+        QCOMPARE(d.composite(), expected);
+        QCOMPARE(d.layers(), reference.layers());
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.modified(), !project);
+        QCOMPARE(d.scratchCacheUsage()["directory"].toString(), cache);
+        if (cacheAvailable) {
+            QVERIFY(d.scratchCacheUsage()["diskBytes"].toLongLong() >= 2LL * 1024 * 1024);
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() <= 1024 * 1024);
+        } else {
+            QVERIFY(!d.scratchCacheUsage()["error"].toString().isEmpty());
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() >= 2LL * 1024 * 1024);
+        }
+        if (project)
+            QCOMPARE(d.maskImage(d.activeLayer()), reference.maskImage(reference.activeLayer()));
+        d.clearScratchCache();
+        QCOMPARE(d.layerImage(0), expectedLayer);
+        QCOMPARE(d.composite(), expected);
+    }
+    void changingCacheSettingsDuringDecodeKeepsTheNewConfiguration()
+    {
+        QTemporaryDir directory;
+        const auto    image = QUrl::fromLocalFile(directory.filePath("source.png"));
+        QImage        pixels(512, 512, QImage::Format_RGBA64_Premultiplied);
+        for (int y = 0; y < pixels.height(); ++y)
+            for (int x = 0; x < pixels.width(); ++x)
+                pixels.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+        QVERIFY(pixels.save(image.toLocalFile()));
+        Document d, reference;
+        populate(d, 8);
+        QVERIFY(reference.openFile(image));
+        d.configureScratchCache(directory.filePath("old-cache"), 64LL * 1024 * 1024);
+        d.configurePlaneRamMiB(1);
+        d.setBackgroundEditThreshold(0);
+        const auto newCache = directory.filePath("new-cache");
+        {
+            BlockPool blocked;
+            d.requestOpenFile(image);
+            d.configureScratchCache(newCache, 32LL * 1024 * 1024);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(d.scratchCacheUsage()["directory"].toString(), newCache);
+        QCOMPARE(d.composite(), reference.composite());
+        d.clearScratchCache();
+        QCOMPARE(d.layerImage(0), reference.layerImage(0));
+    }
     void preparedPlanesUseTheCapturedRamBudgetBeforePublication_data()
     {
         QTest::addColumn<bool>("import");

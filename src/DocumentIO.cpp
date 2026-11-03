@@ -102,21 +102,31 @@ void Document::requestOpenFile(const QUrl &_url)
     const QString path = localPath(target);
     if (!path.isEmpty()) {
         const bool project = QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0;
-        auto       loaded  = std::make_shared<Snapshot>();
+        struct LoadedFile {
+            Snapshot                           state{};
+            std::shared_ptr<ScratchImageCache> cache;
+        };
+        auto loaded = std::make_shared<LoadedFile>();
         // Even a small compressed file can expand to a large native plane.
         // Keep the explicit synchronous-test override, otherwise use a worker.
         if (deferOperation(
                 project ? tr("Ouvrir le projet") : tr("Ouvrir l’image"),
                 std::numeric_limits<qint64>::max() - 1,
                 [target, loaded](Document &_renderer) {
+                    loaded->cache = _renderer.m_scratchCache;
                     if (_renderer.openFile(target))
-                        *loaded = _renderer.snapshot({});
+                        loaded->state = _renderer.snapshot({});
                 },
                 false,
                 [this, path, loaded, target, project] {
-                    if (loaded->layers.isEmpty())
+                    if (loaded->state.layers.isEmpty())
                         return;
-                    adoptFileSnapshot(*loaded, path, project);
+                    const bool reuseCache = m_scratchCache == loaded->cache;
+                    adoptFileSnapshot(loaded->state, path, project);
+                    // Keep the store behind prepared mappings, unless the user
+                    // changed cache settings while decoding was in flight.
+                    if (reuseCache)
+                        m_scratchCache = loaded->cache;
                     emit fileOpened(target);
                 }))
             return;
@@ -236,13 +246,20 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
         });
         return true;
     }
-    const QString path = _url.toLocalFile();
-    m_channelBits      = ImageUtils::is16Bit(_image) ? 16 : 8;
-    m_size             = _image.size();
-    m_layers           = {{QFileInfo(path).completeBaseName(), _image}};
-    m_active           = 0;
-    m_name             = QFileInfo(path).completeBaseName();
-    m_projectUrl       = QUrl{};
+    const QString       path = _url.toLocalFile();
+    PixelPlane          pixels(_image);
+    PreparedPlaneBudget budget;
+    if (!prepareNativePlane(pixels, ImageUtils::workingFormat(_image), budget))
+        return false;
+    Layer layer;
+    layer.name    = QFileInfo(path).completeBaseName();
+    layer.image   = std::move(pixels);
+    m_channelBits = ImageUtils::is16Bit(_image) ? 16 : 8;
+    m_size        = _image.size();
+    m_layers      = {std::move(layer)};
+    m_active      = 0;
+    m_name        = QFileInfo(path).completeBaseName();
+    m_projectUrl  = QUrl{};
     resetHistory(false);
     return true;
 }
@@ -429,7 +446,7 @@ bool Document::loadProject(const QString &_path)
         return fail(tr("Projet trop volumineux (256 Mio maximum)."));
     QJsonParseError error;
     const auto      json = QJsonDocument::fromJson(file.readAll(), &error);
-    if (!operationStep(1, 2))
+    if (!operationStep(0, 2))
         return false;
     const auto root    = json.object();
     const int  version = root["version"].toInt();
@@ -456,9 +473,10 @@ bool Document::loadProject(const QString &_path)
     }
     if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
-    QVector<Layer> layers;
-    int            completed = 1;
-    const int      total     = 3 * int(array.size()) + 2;
+    QVector<Layer>      layers;
+    PreparedPlaneBudget budget;
+    int                 completed = 1;
+    const int           total     = 3 * int(array.size()) + 2;
     for (const auto &value : array) {
         if (!operationStep(completed, total))
             return false;
@@ -484,7 +502,7 @@ bool Document::loadProject(const QString &_path)
             decoded = {};
             // Seal each plane before decoding the next. Do not retain an
             // entire stack of PNG buffers beside the imported tile versions.
-            if (!plane.freeze()) {
+            if (!plane.freeze() || !prepareNativePlane(plane, _format, budget)) {
                 decodeError = tr("Allocation des pixels impossible.");
                 return {};
             }

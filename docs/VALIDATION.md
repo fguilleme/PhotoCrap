@@ -1,5 +1,20 @@
 # Validation
 
+## Budget RAM pendant le chargement — 3 novembre 2026
+
+Les projets et images ordinaires sont ouverts avec un budget de 1 Mio, sur disque
+disponible ou indisponible. Les plans natifs de 2 Mio sont déjà déchargés avant
+l’accusé GUI ; l’ancien document reste affiché jusque-là. Après ouverture, le même
+cache expose encore les blocs qui portent les pixels, et les tuiles sur le tas
+restent sous le budget dans ces cas. Masques, pixels, calques, profondeur, URL et
+état enregistré correspondent au chargement de référence.
+
+Sur disque indisponible, les plans restent en RAM et l’ouverture aboutit. Un
+changement du dossier de cache pendant l’attente est conservé ; les anciens leases
+restent lisibles. Nettoyer le cache puis reconstruire les images des calques
+produit les mêmes pixels. La suite Opérations compte 112 réussites et cinq sondes
+optionnelles. Le plan du codec et le JSON sont encore matérialisés temporairement.
+
 ## Budget RAM pendant la préparation — 3 novembre 2026
 
 Six cas croisent conversion de profondeur/import avec disque disponible,

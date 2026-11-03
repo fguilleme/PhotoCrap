@@ -50,6 +50,15 @@ budget global de la pile et de l’historique reste géré par le worker de déc
 après une pause ; ces nombres ne sont pas une limite du RSS ou des pages mappées.
 Les helpers synchrones ne font pas ces écritures disque sur le thread GUI.
 
+L’ouverture asynchrone applique aussi le contrôle entre plans décodés : chaque
+PNG de projet est scellé et peut être déchargé avant le décodage du suivant ; une
+image ordinaire peut également être déchargée avant son application. Les plans
+et le cache qui porte leurs mappings sont transmis ensemble au document affiché.
+Si la configuration du cache a changé entre-temps, la nouvelle reste active et
+les leases des anciens mappings préservent les pixels. Un cache indisponible garde
+les plans en RAM sans empêcher l’ouverture. JSON complet et plan courant du codec
+restent hors de ce sous-budget ; ce mécanisme ne limite pas à lui seul le RSS.
+
 Les cinq retouches locales lisent le snapshot natif par région, avec quatre pixels
 de marge pour Flou/Netteté. Leur couverture est aussi tuilée ; un geste de 12 px
 sur un document 24 Mpx/16 bits alloue au plus 512 Kio de couverture et une nouvelle

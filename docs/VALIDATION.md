@@ -1,5 +1,15 @@
 # Validation
 
+## Invalidation limitée aux pixels des bordures — 3 novembre 2026
+
+Le test reproduit une clé modifiée par des pixels hors de l’intersection demandée.
+Il vérifie ensuite la stabilité après stockage d’une tuile, retour au fond uniforme,
+snapshots, vidage du cache disque, mutation transitoire et lectures concurrentes
+avec éviction des empreintes. Les pixels ARGB32/RGBA64/Grayscale8 et un changement
+d’alpha d’une seule unité native 16 bits sont couverts. Les tuiles entières gardent
+leurs versions rapides. Le contrôle de pile limite maintenant à deux transferts
+chacun des deux déplacements, contre trois auparavant pour le second.
+
 ## Déplacement des calques parcimonieux — 3 novembre 2026
 
 Vingt combinaisons comparent le résultat natif à QPainter pleine image : 8/16 bits,
@@ -12,8 +22,8 @@ même en copie ou après plusieurs déplacements. Annulation, historique, notifi
 de calque/miniature et effacement des anciennes positions sont vérifiés.
 Le smoke test de pile contrôle aussi les pixels affichés après deux déplacements
 et les transferts limités aux régions touchées, bordures comprises, sur le chemin
-matériel. Les signatures partielles restent conservatrices au niveau des tuiles
-de stockage : un bord peut être retransféré même si ses pixels sont identiques.
+matériel. L’optimisation suivante des signatures partielles évite également les
+transferts d’un bord dont les pixels restent identiques.
 
 ## Réédition des plans d’un pixel — 3 novembre 2026
 

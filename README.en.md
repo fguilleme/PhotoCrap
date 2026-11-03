@@ -28,6 +28,8 @@ Expensive whole-plane operations (geometry, depth from the menu, merge down, fil
 
 Geometric shapes preview only their bounds and stroke margins; gradients restricted to a selection do the same. Shrinking a shape clears its previous preview, and returning to the anchor leaves no empty layer or history entry. Selected Move handles source and destination separately; sparse transparent layers move tile by tile, while dense layers and full-image gradients still use full-sized buffers.
 
+Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
+
 Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
 
 Eligible GPU stacks retain four reduced GPU levels (1/2 through 1/16). Zoom changes reuse textures and tile boundaries follow the document’s global sampling grid, including odd dimensions. Oversized or unsupported stacks retain the CPU fallback.

@@ -159,14 +159,13 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                         "sparse layer movement clears old footprints and displays the new tile"))
                     return false;
             }
-            // GPU regions include 33 px borders. The second move also changes
-            // a storage tile intersecting the neighbouring region's border.
-            const int affected = offset == 520 ? 2 : 3;
-            if (!require(
-                    canvas.gpuStackActive() == hardware &&
-                        (!hardware || (canvas.stackTextureUploads() > uploads &&
-                                       canvas.stackTextureUploads() - uploads <= affected)),
-                    "sparse movement bounds uploads to affected GPU regions and their borders"))
+            // The first GPU region only sees unchanged border pixels on the
+            // second move, even though their storage tile changes version.
+            const int affected = 2;
+            if (!require(canvas.gpuStackActive() == hardware &&
+                             (!hardware || (canvas.stackTextureUploads() > uploads &&
+                                            canvas.stackTextureUploads() - uploads <= affected)),
+                         "partial border keys retain untouched GPU stack textures"))
                 return false;
         }
         document.endStroke();

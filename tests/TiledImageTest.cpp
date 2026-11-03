@@ -95,6 +95,64 @@ private slots:
             QCOMPARE(old.region({0, 0, 1, 1}), first);
         }
     }
+    void partialRegionKeysIgnorePixelsOutsideTheirIntersection()
+    {
+        for (const auto format : {QImage::Format_ARGB32_Premultiplied,
+                                  QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            TiledImage  plane({768, 512}, format, Qt::transparent);
+            const QRect border(240, 30, 32, 40);
+            const auto  emptyKey   = plane.regionKey(border);
+            const auto  fullKey    = plane.regionKey({0, 0, 256, 256});
+            const auto  background = plane.region(border);
+            QVERIFY(plane.paint({10, 10, 20, 20},
+                                [](QPainter &p) { p.fillRect(10, 10, 20, 20, Qt::red); }));
+            QCOMPARE(plane.region(border), background);
+            QVERIFY(plane.regionKey({0, 0, 256, 256}) != fullKey);
+            QCOMPARE(plane.regionKey(border), emptyKey);
+            const auto original = plane;
+            QVERIFY(plane.paint({250, 40, 2, 2},
+                                [](QPainter &p) { p.fillRect(250, 40, 2, 2, Qt::white); }));
+            const auto changedKey = plane.regionKey(border);
+            QVERIFY(changedKey != emptyKey);
+            QCOMPARE(original.regionKey(border), emptyKey);
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            ScratchImageCache cache({directory.path(), 8 * 1024 * 1024, 0});
+            QVERIFY(plane.offload(cache));
+            cache.clear();
+            QCOMPARE(plane.regionKey(border), changedKey);
+            QImage restore(2, 2, format);
+            restore.fill(Qt::transparent);
+            QVERIFY(plane.writeRegion({250, 40}, restore));
+            QCOMPARE(plane.regionKey(border), emptyKey);
+            if (format == QImage::Format_RGBA64_Premultiplied) {
+                QImage tiny(1, 1, format);
+                tiny.fill(QColor::fromRgba64(0, 0, 0, 1));
+                QVERIFY(plane.writeRegion({250, 40}, tiny));
+                QVERIFY(plane.regionKey(border) != emptyKey);
+            }
+            TiledImage           empty({768, 512}, format, Qt::transparent);
+            QList<QFuture<bool>> reads;
+            for (int worker = 0; worker < 8; ++worker)
+                reads.append(QtConcurrent::run([original, empty] {
+                    for (int i = 0; i < 64; ++i) {
+                        const QRect region(200 + i % 16, 35 + i / 16, 32, 40);
+                        if (original.regionKey(region) != empty.regionKey(region))
+                            return false;
+                    }
+                    return true;
+                }));
+            for (auto &read : reads)
+                QVERIFY(read.result());
+            TiledImage transient({768, 512}, format, Qt::transparent);
+            QVERIFY(transient.paintTransient(
+                {250, 40, 2, 2}, [](QPainter &p) { p.fillRect(250, 40, 2, 2, Qt::white); }));
+            const auto firstKey = transient.regionKey(border);
+            QVERIFY(transient.paintTransient(
+                {250, 40, 2, 2}, [](QPainter &p) { p.fillRect(250, 40, 2, 2, Qt::black); }));
+            QVERIFY(transient.regionKey(border) != firstKey);
+        }
+    }
     void identicalWritesKeepMappedTilesAndOnlyChangedTilesDetach()
     {
         for (auto format : {QImage::Format_ARGB32_Premultiplied,

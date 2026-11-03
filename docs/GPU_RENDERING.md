@@ -1,5 +1,21 @@
 # Canevas et accélération graphique
 
+## Signatures des bordures partielles — 3 novembre 2026
+
+Une région GPU lit souvent seulement le bord d’une tuile de stockage de 256 px.
+Sa clé utilise désormais une empreinte SHA-256 des seuls octets natifs de cette
+intersection. Un changement ailleurs dans la tuile ne remplace plus cette texture.
+Les tuiles entièrement incluses conservent leur identifiant de version, sans hash.
+Un fond uniforme absent et une région stockée contenant les mêmes pixels produisent
+la même empreinte partielle. Le rendu et la précision 8/16 bits ne changent pas.
+
+Les empreintes sont réutilisées : au plus huit par version de tuile et 256 pour
+les fonds uniformes par thread. Ces petites métadonnées RAM s’ajoutent aux budgets
+de pixels/textures ; elles ne sont pas des tampons de document. Les accès aux caches
+partagés sont verrouillés et la peinture transitoire invalide leurs empreintes.
+Déchargement disque et snapshots immuables conservent les clés tant que leurs
+pixels ne changent pas.
+
 ## Niveaux de détail conservés sur GPU — 3 novembre 2026
 
 Les piles GPU éligibles possèdent quatre niveaux d’affichage (1/2 à 1/16), calculés

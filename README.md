@@ -28,6 +28,8 @@ Les opérations complètes coûteuses (géométrie, profondeur depuis le menu, f
 
 Les formes géométriques prévisualisent uniquement leur emprise, avec les marges du contour ; les dégradés limités à une sélection font de même. Rétrécir la forme efface son ancien aperçu, et revenir au point de départ annule le dessin sans créer de calque vide. Les sélections déplacées sont aussi traitées par régions source/destination ; le déplacement d’un calque peu rempli sur fond transparent parcourt ses tuiles, tandis que les calques denses et les dégradés pleine image gardent leurs tampons complets.
 
+Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
+
 Les aperçus CPU rapides lisent directement les pixels utiles dans les tuiles, sans reconstruire d’abord le plan complet. Les agrandissements et les réductions lisses gardent leur chemin Qt.
 
 Les piles GPU éligibles conservent quatre niveaux réduits sur GPU (1/2 à 1/16). Les zooms réutilisent les textures et les raccords suivent la grille du document, même sur des dimensions impaires. Les piles trop lourdes ou incompatibles gardent leur repli CPU.

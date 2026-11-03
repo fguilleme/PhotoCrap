@@ -1,7 +1,9 @@
 #include "TiledImage.h"
 #include "ScratchImageCache.h"
 
+#include <QCache>
 #include <QColorSpace>
+#include <QCryptographicHash>
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
@@ -14,11 +16,35 @@ namespace
 {
 std::atomic<quint64> nextTileId{1};
 
+QByteArray uniformRegionKey(const QImage &_pixel, const QSize &_size)
+{
+    // Backgrounds recur across planes and render regions. Bound the per-thread
+    // metadata independently of the number of compact layers or snapshots.
+    thread_local QCache<QByteArray, QByteArray> cache(256);
+    QByteArray                                  key;
+    for (int value : {int(_pixel.format()), _size.width(), _size.height()})
+        key.append(reinterpret_cast<const char *>(&value), sizeof(value));
+    const int bytes = _pixel.depth() / 8;
+    key.append(reinterpret_cast<const char *>(_pixel.constBits()), bytes);
+    if (const auto cached = cache.object(key))
+        return *cached;
+    QByteArray row(_size.width() * bytes, Qt::Uninitialized);
+    for (int x = 0; x < _size.width(); ++x)
+        std::memcpy(row.data() + x * bytes, _pixel.constBits(), size_t(bytes));
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    for (int y = 0; y < _size.height(); ++y)
+        hash.addData(row);
+    const auto result = hash.result();
+    cache.insert(key, new QByteArray(result));
+    return result;
+}
+
 struct Tile {
-    mutable QMutex mutex;
-    QImage         pixels;
-    quint64        id         = nextTileId.fetch_add(1);
-    bool           diskBacked = false;
+    mutable QMutex                     mutex;
+    QImage                             pixels;
+    quint64                            id         = nextTileId.fetch_add(1);
+    bool                               diskBacked = false;
+    mutable QHash<quint32, QByteArray> partialKeys;
     explicit Tile(QImage _pixels) : pixels(std::move(_pixels))
     {
     }
@@ -26,6 +52,25 @@ struct Tile {
     {
         QMutexLocker locker(&mutex);
         return pixels;
+    }
+    QByteArray partialKey(const QRect &_region) const
+    {
+        QMutexLocker  locker(&mutex);
+        const quint32 key = (quint32(_region.x()) << 24) | (quint32(_region.y()) << 16) |
+                            (quint32(_region.width() - 1) << 8) | quint32(_region.height() - 1);
+        if (auto found = partialKeys.constFind(key); found != partialKeys.cend())
+            return found.value();
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        const int          bytes = pixels.depth() / 8;
+        for (int y = _region.top(); y <= _region.bottom(); ++y)
+            hash.addData(QByteArrayView(
+                reinterpret_cast<const char *>(pixels.constScanLine(y) + _region.x() * bytes),
+                _region.width() * bytes));
+        const auto result = hash.result();
+        if (partialKeys.size() >= 8)
+            partialKeys.clear();
+        partialKeys.insert(key, result);
+        return result;
     }
 };
 } // namespace
@@ -144,8 +189,16 @@ QByteArray TiledImage::regionKey(const QRect &_region) const
     if (!region.isEmpty())
         for (int y = region.top() / TileSize; y <= region.bottom() / TileSize; ++y)
             for (int x = region.left() / TileSize; x <= region.right() / TileSize; ++x) {
-                const auto tile = m_data->tiles.value(m_data->key(x, y));
-                if (tile) {
+                const auto tile    = m_data->tiles.value(m_data->key(x, y));
+                const auto bounds  = m_data->rect(x, y);
+                const auto overlap = region.intersected(bounds);
+                if (overlap != bounds) {
+                    // A neighbouring GPU region often needs just a border of
+                    // this storage tile. Its other pixels must not invalidate it.
+                    append(-1);
+                    key += tile ? tile->partialKey(overlap.translated(-bounds.topLeft()))
+                                : uniformRegionKey(m_data->background, overlap.size());
+                } else if (tile) {
                     QMutexLocker locker(&tile->mutex);
                     append(qint64(tile->id));
                 } else
@@ -433,6 +486,7 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
                 painter.end();
                 tile->id         = nextTileId.fetch_add(1);
                 tile->diskBacked = false;
+                tile->partialKeys.clear();
             }
             next->tiles.insert(key, std::move(tile));
         }

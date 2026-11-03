@@ -77,6 +77,11 @@ Les plans d’un pixel restent rééditables après leur première écriture tui
 la réexpansion et les clés de rendu utilisent le pixel courant, avec ses bits
 natifs et ses métadonnées, plutôt que l’ancien tampon libéré.
 
+Les clés de régions partielles réutilisent au plus huit empreintes SHA-256 par
+version de tuile et 256 empreintes de fond par thread. Ces petites métadonnées
+avec leurs conteneurs s’ajoutent au comptage des blocs de pixels ci-dessous ; les
+régions entièrement couvertes utilisent toujours leur identifiant de version.
+
 `memoryUsage()` compte les versions de tuiles partagées une fois et expose
 `tileHeapBytes` pour leurs allocations natives. Ce chiffre ne représente pas toute
 la RAM du processus : mappings, composite, sélections, images exportées et buffers

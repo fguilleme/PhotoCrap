@@ -34,6 +34,9 @@ refus d’écriture sans perte des versions ; les disques lents restent à mesur
 
 Premier chemin disponible : tuiles visibles de 512 px, calques de pixels, texte,
 Couleur unie, masques sans contour progressif, visibilité des groupes et écrêtage.
+Les clés des bordures partielles dépendent uniquement de leurs pixels natifs,
+avec des empreintes réutilisées et bornées ; une retouche voisine n’invalide plus
+une bordure inchangée. Les tuiles entières gardent leurs identifiants rapides.
 Les 21 modes pris en charge utilisent RGBA8 pour les documents 8 bits et RGBA32F
 pour les intermédiaires 16 bits ; les couvertures sont en R8. Les versions
 régionales conservent les textures et composites de tuiles inchangées. Le budget

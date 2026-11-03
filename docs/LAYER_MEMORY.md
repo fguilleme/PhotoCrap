@@ -43,6 +43,20 @@ plans et des écritures régionales. Une copie garde sa version jusqu’à une v
 modification ; une écriture identique n’alloue pas de tuile. Les buffers des filtres
 et la sérialisation peuvent toujours matérialiser ce plan logique complet.
 
+La lecture d’un projet mémorise les sources de fréquences déjà décodées avec
+une clé SHA-256 des octets PNG, après validation Base64 et dimensions. Deux PNG
+strictement identiques partagent le même `PixelPlane` et ses leases ; la table ne
+retient pas une copie supplémentaire des chaînes Base64. Elle disparaît après
+chargement. L’image du calque original reste un décodage distinct. La réservation
+logique compte toujours chaque source de calque avant décodage, même partagée.
+
+Ce partage restaure aussi la reconnaissance des paires intactes : avant, les deux
+sources rechargées recevaient des identités distinctes et le composite ne pouvait
+plus les remplacer par leur source commune. Sur une source transparente, le
+repli par deux bandes changeait alors l’alpha. La paire rechargée garde désormais
+le composite d’avant sauvegarde. Les PNG différents ou corrompus ne sont pas
+assimilés sur la base du seul identifiant de paire.
+
 Lors de l’import initial d’un plan natif, le fond compact est choisi parmi les
 couleurs des tuiles entièrement uniformes, pondérées par leur allocation native
 (y compris les bords incomplets). Les autres tuiles gardent leurs bits exacts.

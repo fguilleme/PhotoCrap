@@ -1,5 +1,25 @@
 # Validation
 
+## Sources de fréquences partagées au rechargement — 3 novembre 2026
+
+Quatre parcours croisent 8/16 bits et stockage en RAM/sur disque, avec une image
+native 517 × 523 à alpha partiel. Le projet réouvert doit garder le composite
+initial, ses deux bandes et leur indépendance lors d’une retouche de l’original.
+Après nettoyage du cache disque, les leases restent valides. Un contrôle distinct
+modifie le PNG d’une seule source malgré un identifiant de paire commun, puis
+vérifie le rejet d’un PNG corrompu sans remplacement du document ouvert.
+
+Les quatre contrôles de stockage et celui du composite semi-transparent échouent
+avec `DocumentIO.cpp` recompilé depuis `df9d1c5`, puis passent avec le partage par
+SHA-256. Sur cette fixture, les plans uniques passent de 3 à 2, original inclus :
+3 244 692 → 2 163 128 octets en 8 bits ; 6 489 384 → 4 326 256 octets en 16 bits.
+C’est une mesure du stockage natif, pas du RSS total. Sonde optionnelle :
+`PHOTOCRAP_FREQUENCY_PROJECT_PROBE=1 build/photocrap_tests
+projectFrequencySourcesShareTheirDecodedPlane`.
+Les 50 suites, les contrôles ciblés Qt 6.8/CPU portable et les opérations
+natives Cocoa/Metal passent.
+
+
 ## Nouveaux documents à fond natif logique — 3 novembre 2026
 
 Douze parcours croisent 8/16 bits, blanc/transparent et dimensions 1 × 1,
@@ -21,11 +41,12 @@ le contrôle natif Cocoa/Metal des opérations.
 ## Plans logiques des sources compactes de fréquences — 3 novembre 2026
 
 Six cas (8/16 bits, blanc, transparent et couleur avec alpha) comparent une empreinte
-relevée avant changement sur `0d55829` : bandes, composite et composite après
-rechargement. Les bandes rechargées sont comparées directement ; peinture de
+du calcul initial : bandes et composite. La référence limitée à ces pixels a
+été relevée sur `df9d1c5`, avant le correctif de partage au rechargement ci-dessus.
+Les bandes et le composite rechargés sont comparés directement ; peinture de
 l’original, Annuler/Rétablir et source figée sont aussi vérifiés. L’empreinte est
 identique sur Accelerate et sur le CPU portable :
-`dd036f867da23c181872b768564b7adc47266f9f3225df9b63020fac0faa84ce`.
+`673425be2a06febe99d94f4f4ffc959eb0faa328f16733a9cc617caa05674937`.
 
 Le plan uniforme logique est testé séparément en RVBA prémultiplié 8/16 bits et
 masque 8 bits : bits natifs exacts, métadonnées P3/DPR/résolution, région au dernier

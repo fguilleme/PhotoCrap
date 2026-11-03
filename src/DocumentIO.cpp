@@ -6,6 +6,7 @@
 
 #include <QBuffer>
 #include <QColorSpace>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
@@ -555,15 +556,19 @@ bool Document::loadProject(const QString &_path)
         return false;
     QVector<Layer>      layers;
     PreparedPlaneBudget budget;
-    int                 completed = 1;
-    const int           total     = 3 * int(array.size()) + 2;
+    // Both frequency bands serialize the same immutable source. Reuse an
+    // already validated PNG by content, preserving their shared native version
+    // as well as avoiding a second decode and tile allocation.
+    QHash<QByteArray, PixelPlane> sources;
+    int                           completed = 1;
+    const int                     total     = 3 * int(array.size()) + 2;
     for (const auto &value : array) {
         if (!operationStep(completed, total))
             return false;
         auto    object = value.toObject();
         QString decodeError;
-        auto    decode = [&](const QString &_encoded, QImage::Format _format,
-                             bool _compact = false) -> PixelPlane {
+        auto    decode = [&](const QString &_encoded, QImage::Format _format, bool _compact = false,
+                             bool _shareSource = false) -> PixelPlane {
             if (!operationStep(++completed, total) || _encoded.isEmpty() || !decodeError.isEmpty())
                 return {};
             QByteArray bytes = QByteArray::fromBase64(_encoded.toLatin1(),
@@ -573,6 +578,12 @@ bool Document::loadProject(const QString &_path)
             QImageReader reader(&buffer, "PNG");
             if (reader.size() != (_compact ? QSize(1, 1) : QSize(w, h)))
                 return {};
+            QByteArray sourceKey;
+            if (_shareSource) {
+                sourceKey = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
+                if (auto found = sources.constFind(sourceKey); found != sources.cend())
+                    return operationStep(completed, total) ? found.value() : PixelPlane{};
+            }
             QImage decoded = reader.read().convertToFormat(_format);
             if (_format != QImage::Format_Grayscale8)
                 decoded.setColorSpace(QColorSpace::SRgb);
@@ -586,6 +597,8 @@ bool Document::loadProject(const QString &_path)
                 decodeError = tr("Allocation des pixels impossible.");
                 return {};
             }
+            if (_shareSource)
+                sources.insert(sourceKey, plane);
             return plane;
         };
         const QString kind =
@@ -597,7 +610,7 @@ bool Document::loadProject(const QString &_path)
                              version >= 7 && object["compactPixels"].toBool());
         auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8,
                              version >= 7 && object["compactMask"].toBool());
-        auto source = decode(object["source"].toString(), format);
+        auto source = decode(object["source"].toString(), format, false, true);
         if (!decodeError.isEmpty())
             return fail(decodeError);
         if (((kind == "pixel" || kind == "text") && image.isNull()) ||

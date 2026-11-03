@@ -9191,6 +9191,120 @@ private slots:
             }
     }
 
+    void projectFrequencySourcesShareTheirDecodedPlane_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("disk");
+        for (int bits : {8, 16})
+            for (bool disk : {false, true})
+                QTest::newRow(qPrintable(QString::number(bits) + (disk ? "-disk" : "-ram")))
+                    << bits << disk;
+    }
+    void projectFrequencySourcesShareTheirDecodedPlane()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, disk);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QImage input(517, 523,
+                     bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                : QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < input.height(); ++y)
+            for (int x = 0; x < input.width(); ++x)
+                input.setPixelColor(
+                    x, y,
+                    QColor((x * 13 + y) % 256, (x + y * 5) % 256, (x * 3 + y * 7) % 256, 173));
+        const auto image = QUrl::fromLocalFile(directory.filePath("source.png"));
+        QVERIFY(input.save(image.toLocalFile()));
+        Document d;
+        QVERIFY(d.openFile(image));
+        const qint64 planeBytes = d.memoryUsage()["layerBytes"].toLongLong();
+        QVERIFY(planeBytes > 0);
+        d.addFrequencySeparation(7);
+        const auto composite = d.composite();
+        const auto project   = QUrl::fromLocalFile(directory.filePath("pair.pcr"));
+        QVERIFY(d.saveProject(project));
+        Document loaded;
+        loaded.configureScratchCache(directory.filePath("cache"), 16 * 1024 * 1024);
+        loaded.configurePlaneRamMiB(disk ? 0 : 4096);
+        loaded.setBackgroundEditThreshold(0);
+        loaded.requestOpenFile(project);
+        QTRY_VERIFY_WITH_TIMEOUT(!loaded.operationBusy(), 10000);
+        QCOMPARE(loaded.layers().size(), 3);
+        if (qEnvironmentVariableIsSet("PHOTOCRAP_FREQUENCY_PROJECT_PROBE"))
+            qInfo() << "Reloaded frequency project bits, disk, plane bytes, total native bytes:"
+                    << bits << disk << planeBytes << loaded.memoryUsage()["layerBytes"];
+        // The original image has its own decoded plane; the two frequency
+        // sources share one additional plane, not two.
+        QCOMPARE(loaded.memoryUsage()["layerBytes"].toLongLong(), 2 * planeBytes);
+        if (disk) {
+            QCOMPARE(loaded.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0));
+            QVERIFY(loaded.scratchCacheUsage()["diskBytes"].toLongLong() > 0);
+            loaded.clearScratchCache();
+        }
+        QCOMPARE(loaded.composite(), composite);
+        QCOMPARE(loaded.layerImage(1), d.layerImage(1));
+        QCOMPARE(loaded.layerImage(2), d.layerImage(2));
+        loaded.setActiveLayer(0);
+        loaded.setTool("pencil");
+        loaded.setBrushSize(5);
+        loaded.setColor(Qt::blue);
+        loaded.beginStroke(100, 100);
+        loaded.endStroke();
+        QCOMPARE(loaded.layerImage(1), d.layerImage(1));
+        QCOMPARE(loaded.layerImage(2), d.layerImage(2));
+        loaded.undo();
+        QCOMPARE(loaded.composite(), composite);
+    }
+    void projectFrequencySourceSharingDoesNotTrustThePairId()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Document d;
+        QVERIFY(d.newDocument(37, 31, false, 16));
+        d.setColor(QColor(200, 40, 80, 173));
+        d.setBrushSize(17);
+        d.beginStroke(17, 19);
+        d.endStroke();
+        d.addFrequencySeparation(7);
+        const auto before  = d.composite();
+        const auto high    = d.layerImage(2);
+        const auto project = QUrl::fromLocalFile(directory.filePath("pair.pcr"));
+        QVERIFY(d.saveProject(project));
+        QFile file(project.toLocalFile());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+        auto   layers = root["layers"].toArray();
+        auto   layer  = layers[2].toObject();
+        QImage source = d.layerImage(0);
+        source.setPixelColor(17, 19, Qt::blue);
+        QByteArray encoded;
+        QBuffer    buffer(&encoded);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        QVERIFY(source.save(&buffer, "PNG"));
+        layer["source"] = QString::fromLatin1(encoded.toBase64());
+        layers[2]       = layer;
+        root["layers"]  = layers;
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+        file.close();
+        Document loaded;
+        QVERIFY(loaded.openFile(project));
+        QCOMPARE(loaded.layerImage(1), d.layerImage(1));
+        QVERIFY(loaded.layerImage(2) != high);
+        QVERIFY(loaded.composite() != before);
+        const auto valid = loaded.composite();
+        layer["source"]  = "invalid PNG";
+        layers[2]        = layer;
+        root["layers"]   = layers;
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
+        file.close();
+        QVERIFY(!loaded.openFile(project));
+        QCOMPARE(loaded.composite(), valid);
+    }
+
     void frequencyCompactSourceDigest()
     {
         QCryptographicHash hash(QCryptographicHash::Sha256);
@@ -9237,11 +9351,8 @@ private slots:
                 QVERIFY(loaded.openFile(saved));
                 QCOMPARE(loaded.layerImage(1), images[0]);
                 QCOMPARE(loaded.layerImage(2), images[1]);
-                const auto reloaded = loaded.composite();
-                for (int y = 0; y < reloaded.height(); ++y)
-                    hash.addData(
-                        QByteArrayView(reinterpret_cast<const char *>(reloaded.constScanLine(y)),
-                                       reloaded.width() * reloaded.depth() / 8));
+                QCOMPARE(loaded.composite(), images[2]);
+
                 d.undo();
                 QCOMPARE(d.layers().size(), 1);
                 QCOMPARE(d.layerImage(0), original);
@@ -9260,7 +9371,7 @@ private slots:
                 QCOMPARE(d.layerImage(0), original);
             }
         QCOMPARE(hash.result().toHex(),
-                 QByteArray("dd036f867da23c181872b768564b7adc47266f9f3225df9b63020fac0faa84ce"));
+                 QByteArray("673425be2a06febe99d94f4f4ffc959eb0faa328f16733a9cc617caa05674937"));
     }
     void largeCompactFrequencySourceProbe()
     {

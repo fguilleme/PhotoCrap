@@ -35,6 +35,12 @@ Le retour au point de départ retire l’aperçu et un éventuel calque vide. Le
 sélectionné suit le même chemin ; Déplacement et dégradé pleine image restent
 complets. Une petite forme sur 24 Mpx/16 bits ajoute au plus une tuile de 512 Kio.
 
+Déplacement avec une sélection prépare séparément les régions source et destination.
+Le masque progressif et le mode copie Alt gardent le même mélange natif. Un saut
+lointain n’alloue pas le rectangle intermédiaire et chaque aperçu repart du snapshot
+original. L’invalidation du composite couvre encore une emprise rectangulaire commune ;
+le déplacement sans sélection et le rendu des calques de texte restent complets.
+
 Le pot de peinture parcourt la composante contiguë avec des vues de tuiles natives
 partagées et une couverture de visite parcimonieuse de 256 × 256 en niveaux de
 gris. Une tuile absente se lit comme son pixel de fond uniforme ; les vues gardent

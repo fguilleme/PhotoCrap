@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "SelectionMove.h"
 #include "text/TextLayer.h"
 
 #include <QPainter>
@@ -61,24 +62,42 @@ void Document::renderShape(const QPointF &_to)
         changed(false);
         return;
     }
+    if (m_tool == "move" && hasSelection()) {
+        const auto result = PhotoCrap::Tools::moveSelection(m_strokePlaneBase, m_size, m_selection,
+                                                            m_selectionRegion, m_selectionMask,
+                                                            (_to - m_anchor).toPoint(), m_moveCopy);
+        if (!result.valid) {
+            cancelStroke();
+            fail(tr("Mémoire insuffisante pour déplacer la sélection."));
+            return;
+        }
+        m_layers[m_active].image = result.image;
+        m_dirtyRegion  = m_dirtyRegion.united(m_strokeBounds.toAlignedRect().united(result.region));
+        m_strokeBounds = result.region;
+        // The selection itself moves even when its pixels are transparent or
+        // copied entirely outside the canvas. Preserve its undo step.
+        m_strokeChanged = true;
+        changed(false);
+        return;
+    }
     const bool geometric = m_tool != "move" && m_tool != "gradient";
     const bool regional  = geometric || (m_tool == "gradient" && hasSelection());
-    const auto draw      = [&](QPainter &painter) {
-        painter.setRenderHint(QPainter::Antialiasing);
+    const auto draw      = [&](QPainter &_painter) {
+        _painter.setRenderHint(QPainter::Antialiasing);
         if (hasSelection())
-            painter.setClipRegion(m_selectionRegion);
-        painter.setOpacity(m_brushOpacity);
+            _painter.setClipRegion(m_selectionRegion);
+        _painter.setOpacity(m_brushOpacity);
         if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
             m_tool == "polygon" || m_tool == "star" || m_tool == "line") {
             const auto penStyle = m_shapeStrokeStyle == 1   ? Qt::DashLine
                                   : m_shapeStrokeStyle == 2 ? Qt::DotLine
                                                             : Qt::SolidLine;
-            painter.setPen(m_shapeStrokeEnabled ? QPen(shapeStrokeColor(), m_shapeStrokeWidth,
-                                                       penStyle, Qt::SquareCap, Qt::MiterJoin)
-                                                : QPen(Qt::NoPen));
-            painter.setBrush(m_filledShapes ? QBrush(shapeFillColor()) : Qt::NoBrush);
+            _painter.setPen(m_shapeStrokeEnabled ? QPen(shapeStrokeColor(), m_shapeStrokeWidth,
+                                                        penStyle, Qt::SquareCap, Qt::MiterJoin)
+                                                 : QPen(Qt::NoPen));
+            _painter.setBrush(m_filledShapes ? QBrush(shapeFillColor()) : Qt::NoBrush);
         } else
-            painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            _painter.setPen(QPen(m_color, m_brushSize, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         QRectF rect = toolRectangle(m_anchor, _to, m_toolAlternate);
         if (m_shapeAlignPixels &&
             (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||
@@ -87,15 +106,15 @@ void Document::renderShape(const QPointF &_to)
                           qRound(rect.height()));
         if (m_tool == "rectangle") {
             const qreal radius = qMin(m_shapeCornerRadius, qMin(rect.width(), rect.height()) / 2.);
-            painter.drawRoundedRect(rect, radius, radius);
+            _painter.drawRoundedRect(rect, radius, radius);
         } else if (m_tool == "ellipse")
-            painter.drawEllipse(rect);
+            _painter.drawEllipse(rect);
         else if (m_tool == "triangle")
-            painter.drawPolygon(regularPolygon(rect, 3));
+            _painter.drawPolygon(regularPolygon(rect, 3));
         else if (m_tool == "polygon")
-            painter.drawPolygon(regularPolygon(rect, m_shapeSides));
+            _painter.drawPolygon(regularPolygon(rect, m_shapeSides));
         else if (m_tool == "star")
-            painter.drawPolygon(regularPolygon(rect, m_shapeSides, m_shapeStarRatio));
+            _painter.drawPolygon(regularPolygon(rect, m_shapeSides, m_shapeStarRatio));
         else if (m_tool == "line") {
             QPointF from = m_anchor;
             QPointF to   = _to;
@@ -103,12 +122,12 @@ void Document::renderShape(const QPointF &_to)
                 from = QPointF(qRound(from.x()), qRound(from.y()));
                 to   = QPointF(qRound(to.x()), qRound(to.y()));
             }
-            painter.drawLine(from, to);
+            _painter.drawLine(from, to);
         } else if (m_tool == "gradient") {
             QLinearGradient gradient(m_anchor, _to);
             gradient.setColorAt(0, m_color);
             gradient.setColorAt(1, m_secondary);
-            painter.fillRect(QRect(QPoint{}, m_size), gradient);
+            _painter.fillRect(QRect(QPoint{}, m_size), gradient);
         }
     };
     if (regional) {
@@ -173,36 +192,9 @@ void Document::renderShape(const QPointF &_to)
     }
     m_layers[m_active].image = sourceImage;
     if (m_tool == "move") {
-        const QImage source = sourceImage;
-        QImage       result =
-            hasSelection() || m_moveCopy ? source : ImageUtils::blank(m_size, workingFormat());
-        QPainter     painter(&result);
-        const QPoint offset = (_to - m_anchor).toPoint();
-        if (hasSelection()) {
-            QImage   selected = ImageUtils::blank(m_selection.size(), workingFormat());
-            QPainter selectedPainter(&selected);
-            selectedPainter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
-            selectedPainter.drawImage(-m_selection.topLeft(), source);
-            selectedPainter.end();
-            SelectionCoverage::attenuate(selected, m_selectionMask, m_selection.topLeft());
-            if (!m_moveCopy) {
-                painter.setClipRegion(m_selectionRegion);
-                if (m_selectionMask.isNull()) {
-                    painter.setCompositionMode(QPainter::CompositionMode_Clear);
-                    painter.fillRect(QRect(QPoint{}, m_size), Qt::transparent);
-                } else {
-                    QImage removal(m_selection.size(), workingFormat());
-                    removal.fill(Qt::white);
-                    SelectionCoverage::attenuate(removal, m_selectionMask, m_selection.topLeft());
-                    painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
-                    painter.drawImage(m_selection.topLeft(), removal);
-                }
-                painter.setClipping(false);
-            }
-            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            painter.drawImage(m_selection.topLeft() + offset, selected);
-        } else
-            painter.drawImage(offset, source);
+        QImage   result = m_moveCopy ? sourceImage : ImageUtils::blank(m_size, workingFormat());
+        QPainter painter(&result);
+        painter.drawImage((_to - m_anchor).toPoint(), sourceImage);
         painter.end();
         m_layers[m_active].image = result;
     } else {

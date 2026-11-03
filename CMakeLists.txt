@@ -60,6 +60,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/FillTool.cpp
     src/tools/FloodFill.cpp
     src/tools/FloodFill.h
+    src/tools/SelectionMove.cpp
+    src/tools/SelectionMove.h
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
     src/tools/ToolLayerCreation.cpp
@@ -346,6 +348,8 @@ qt_add_library(photocrap_core STATIC
     src/tools/FillTool.cpp
     src/tools/FloodFill.cpp
     src/tools/FloodFill.h
+    src/tools/SelectionMove.cpp
+    src/tools/SelectionMove.h
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
     src/tools/ToolLayerCreation.cpp

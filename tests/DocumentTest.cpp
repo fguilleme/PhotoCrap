@@ -7979,6 +7979,162 @@ private slots:
         QCOMPARE(loaded.composite(), expected);
         QVERIFY(!loaded.maskImage(0).isNull());
     }
+    void movingSelectionMatchesFullImagePainter()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        QCryptographicHash pixels(QCryptographicHash::Sha256);
+        for (int bits : {8, 16})
+            for (int selection : {0, 1, 2})
+                for (bool copy : {false, true}) {
+                    QImage source(527, 539,
+                                  bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+                    for (int y = 0; y < source.height(); ++y)
+                        for (int x = 0; x < source.width(); ++x)
+                            source.setPixelColor(
+                                x, y,
+                                QColor::fromRgba64(ushort(x * 113), ushort(y * 107),
+                                                   ushort((x + y) * 83),
+                                                   ushort(30000 + (x * y) % 35000)));
+                    const auto path = directory.filePath("move.png");
+                    QVERIFY(source.save(path));
+                    Document d;
+                    QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+                    d.setTool(selection == 0 ? "select" : "ellipticalSelect");
+                    d.beginStroke(235, 233);
+                    d.continueStroke(293, 295);
+                    d.endStroke();
+                    if (selection == 2)
+                        d.modifySelection("feather", 4);
+                    const QImage before = d.layerImage(0);
+                    const QRect  bounds = d.selection();
+                    const QPoint offset(36, -18);
+                    QImage       expected = before.copy();
+                    QImage       selected = ImageUtils::blank(bounds.size(), before.format());
+                    QPainter     selectedPainter(&selected);
+                    selectedPainter.setClipRegion(
+                        d.selectionRegion().translated(-bounds.topLeft()));
+                    selectedPainter.drawImage(-bounds.topLeft(), before);
+                    selectedPainter.end();
+                    SelectionCoverage::attenuate(selected, d.selectionMask(), bounds.topLeft());
+                    QPainter painter(&expected);
+                    if (!copy) {
+                        painter.setClipRegion(d.selectionRegion());
+                        if (selection != 2) {
+                            painter.setCompositionMode(QPainter::CompositionMode_Clear);
+                            painter.fillRect(expected.rect(), Qt::transparent);
+                        } else {
+                            QImage removal(bounds.size(), before.format());
+                            removal.fill(Qt::white);
+                            SelectionCoverage::attenuate(removal, d.selectionMask(),
+                                                         bounds.topLeft());
+                            painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+                            painter.drawImage(bounds.topLeft(), removal);
+                        }
+                        painter.setClipping(false);
+                    }
+                    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+                    painter.drawImage(bounds.topLeft() + offset, selected);
+                    painter.end();
+                    d.setTool("move");
+                    const int history = d.historyIndex();
+                    d.beginStroke(250, 250, copy);
+                    d.continueStroke(262, 266);
+                    d.continueStroke(286, 232);
+                    d.endStroke();
+                    QCOMPARE(d.layerImage(0), expected);
+                    QCOMPARE(d.historyIndex(), history + 1);
+                    QCOMPARE(d.layers().size(), 1);
+                    pixels.addData(
+                        QByteArrayView(reinterpret_cast<const char *>(expected.constBits()),
+                                       expected.sizeInBytes()));
+                    d.undo();
+                    QCOMPARE(d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(d.layerImage(0), expected);
+                }
+        qInfo() << "Move selected pixels, twelve combinations" << pixels.result().toHex();
+    }
+    void smallSelectedMoveDoesNotAllocateTheDistanceBetweenItsRegions()
+    {
+        for (bool copy : {false, true}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, true, 16));
+            d.setColor(Qt::blue);
+            d.setBrushSize(10);
+            d.setBrushHardness(1);
+            d.beginStroke(110, 110);
+            d.endStroke();
+            d.setTool("select");
+            d.beginStroke(100, 100);
+            d.continueStroke(132, 128);
+            d.endStroke();
+            const int  history = d.historyIndex();
+            const auto bytes   = d.memoryUsage()["layerBytes"].toLongLong();
+            d.setTool("move");
+            d.beginStroke(110, 110, copy);
+            d.continueStroke(5110, 3110);
+            QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= bytes + 256LL * 256 * 8);
+            d.continueStroke(3110, 1110);
+            QVERIFY(d.memoryUsage()["layerBytes"].toLongLong() <= bytes + 256LL * 256 * 8);
+            d.cancelStroke();
+            QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), bytes);
+            QCOMPARE(d.historyIndex(), history);
+            QCOMPARE(d.selection(), QRect(100, 100, 33, 29));
+            d.beginStroke(110, 110, copy);
+            d.continueStroke(5110, 3110);
+            QSignalSpy thumbnails(&d, &Document::thumbnailsChanged);
+            d.endStroke();
+            QCOMPARE(thumbnails.size(), 1);
+            QCOMPARE(d.selection(), QRect(5100, 3100, 33, 29));
+            QCOMPARE(d.historyIndex(), history + 1);
+            const auto movedBytes = d.memoryUsage()["layerBytes"].toLongLong();
+            d.undo();
+            QCOMPARE(d.selection(), QRect(100, 100, 33, 29));
+            QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), bytes);
+            d.redo();
+            QCOMPARE(d.selection(), QRect(5100, 3100, 33, 29));
+            QCOMPARE(d.memoryUsage()["layerBytes"].toLongLong(), movedBytes);
+        }
+    }
+    void selectedMoveClearsEarlierPreviewsAndPreservesClippedSelectionHistory()
+    {
+        for (bool copy : {false, true}) {
+            Document d;
+            QVERIFY(d.newDocument(523, 531, true, 16));
+            d.setShapeNewLayer(false);
+            d.setTool("rectangle");
+            d.setShapeStrokeEnabled(false);
+            d.setShapeFillColor(Qt::red);
+            d.beginStroke(100, 100);
+            d.continueStroke(132, 128);
+            d.endStroke();
+            d.setTool("select");
+            d.beginStroke(100, 100);
+            d.continueStroke(132, 128);
+            d.endStroke();
+            d.setTool("move");
+            d.beginStroke(110, 110, copy);
+            d.continueStroke(410, 410);
+            QVERIFY(d.composite().pixelColor(410, 410).alpha() > 0);
+            d.continueStroke(310, 310);
+            QCOMPARE(d.composite(), d.layerImage(0));
+            QCOMPARE(d.composite().pixelColor(410, 410).alpha(), 0);
+            QVERIFY(d.composite().pixelColor(310, 310).alpha() > 0);
+            d.cancelStroke();
+            const QImage before  = d.composite();
+            const int    history = d.historyIndex();
+            d.beginStroke(110, 110, copy);
+            d.continueStroke(2000, 2000);
+            d.endStroke();
+            QVERIFY(!d.hasSelection());
+            QCOMPARE(d.historyIndex(), history + 1);
+            QCOMPARE(d.composite().pixelColor(110, 110).alpha(), copy ? 255 : 0);
+            d.undo();
+            QCOMPARE(d.composite(), before);
+            QCOMPARE(d.selection(), QRect(100, 100, 33, 29));
+        }
+    }
     void moveSelectionAndCancel()
     {
         Document d;

@@ -1,5 +1,16 @@
 # Validation
 
+## Déplacement régional de sélection — 3 novembre 2026
+
+Les douze combinaisons 8/16 bits, déplacement/copie Alt, sélection rectangulaire,
+elliptique ou progressive et pixels semi-transparents correspondent exactement
+à une référence QPainter sur le calque entier. Un déplacement de 5 000 × 3 000 px
+d’une petite sélection sur 24 Mpx/16 bits n’ajoute au plus qu’une tuile native de
+512 Kio à la source déjà tuilée, sans tampon pour l’intervalle. Les anciens aperçus
+sont effacés du composite, Annuler/Rétablir conserve pixels et sélection, et une
+seule miniature est notifiée. Une copie entièrement hors canevas garde son étape
+d’historique pour le déplacement de la sélection, même sans pixel changé.
+
 ## Aperçus régionaux de formes — 3 novembre 2026
 
 Les 36 combinaisons de six formes, trois contours et deux profondeurs conservent

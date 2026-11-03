@@ -24,49 +24,27 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 - **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
 - **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
-Expensive whole-plane operations (geometry, depth from the menu, merge down, fills, masks and direct filters) use an immutable snapshot on a low-priority worker from four million processed pixels. A progress bar offers Cancel; Escape and Undo/Redo also discard the operation. Only a still-current result creates one history entry. Large image exports and project saves use the worker too, without changing history. Closing waits for a successful save. Projects also open in the background: the previous document remains visible until full validation, and cancellation or a stale result leaves it intact. Ordinary image decoding, orientation and sRGB conversion also run on this worker; they become a new modified document with no project URL. RAW retains its dedicated asynchronous developer. Layer imports also decode, center and convert in the background; success adds one history entry, including undoing an 8→16-bit promotion.
+## Optimizations in development after v0.16
 
-Geometric shapes preview only their bounds and stroke margins; gradients restricted to a selection do the same. Shrinking a shape clears its previous preview, and returning to the anchor leaves no empty layer or history entry. Selected Move handles source and destination separately; sparse transparent layers move tile by tile, while dense layers and full-image gradients still use full-sized buffers.
+- **Shared 256 × 256 tiled planes and history**: compact backgrounds, allocation of touched tiles only, reuse of unchanged versions and native 8/16-bit conversions without rebuilding the canvas.
+- **Regional processing** for dab-based tools, path fills, shapes, text, selected gradients and imported-image placement. Move handles source and destination separately; sparse transparent layers move tile by tile. Composited sources, dense layers and full-image gradients may still need full-sized buffers.
+- **Background loading and expensive operations**: images, projects, RAW, imports, geometry, bit depth, merges, fills and direct filters. Only current results are applied; edits create one undoable step. The previous document stays visible while opening a file and is not needlessly retained after replacement. General operations use a worker from four million processed pixels; small edits retain their direct path.
+- **Asynchronous saving and export**: atomic `.pcr` v9 PNG/Base64/JSON streaming without accumulating the encoded project. Closing waits for save confirmation. Cancellation preserves the previous file until the final publication point, which is then non-cancellable.
+- **Scratch cache and RAM budgeting during preparation** of conversions, imports and loads, then for history after a pause. The worker collects shared layer groups outside the interface thread. Stale jobs stop between tiles; an unavailable or full cache keeps pixels in RAM. The tile target defaults to 256 MiB; decoders, the composite, selections and mapped pages remain distinct from total RSS.
+- **GPU display stacks** for pixels, text and Solid Color, with masks, clipping and 21 blend modes. Box, Gaussian and directional blur, sharpening and high pass have halo-aware passes. Unchanged regions and four GPU reduction levels (1/2 through 1/16) reuse textures. Incompatible stacks and final rendering retain the native CPU reference.
+- **Shared graphics budget** across canvases, photos, masks, effects and intermediates, with visible working sets checked before allocation. Partial borders keep bounded fingerprints. This accounting is neither a measurement nor a hard limit of physical driver VRAM.
 
-On reopening, nearly uniform layers and masks choose a compact background from their uniform tiles: only differing tiles are stored. A lightly retouched 24 MP/16-bit image and mask retain a 576 KiB layer-pixel footprint without a project format change. Decoders and the composite still have temporary allocations.
+Selected local measurements, with conditions documented in [validation](docs/VALIDATION.md):
 
-Placing a small imported image also uses a native region and compact transparent background instead of a canvas-sized buffer. A 33 × 27 px import into a 24 MP/16-bit document occupies one 512 KiB tile; the decoder still uses its own source buffer.
+| Case | Measurement |
+|---|---|
+| Reopening a lightly retouched layer and mask, 24 MP/16-bit | 576 KiB of planes |
+| Importing 33 × 27 px into a 24 MP/16-bit document | One 512 KiB tile |
+| Isolated encoder for twelve 1 MP planes | Peak RSS 324 → 74 MiB at 8-bit; 692 → 122 MiB at 16-bit |
 
-Native bit-depth changes also convert existing tiles and their compact background without rebuilding the full canvas. Masks remain 8-bit; conversions and import promotions are prepared before publication and remain undoable.
+These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; `.pcr` v9 also reads versions 1–8 and retains its 256 MiB file limit. Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.
 
-Asynchronous conversion and import preparation also captures the configured RAM budget. When prepared planes exceed it, the current plane is offloaded to the scratch cache before publication. An unavailable cache keeps pixels in RAM without failing the edit or undo.
-
-Loading also applies this budget between decoded planes. The store backing their pixels survives opening; disk errors keep pixels in RAM, and cache settings changed during loading remain respected.
-
-Scratch writes can stop between tiles. Changing documents, cache folders or RAM budgets discards stale jobs; already mapped tiles stay valid. Conversion, import and decoding cancellation uses the same check.
-
-The cache timer no longer walks every plane in every history state on the interface thread: it captures shared layer groups, then the worker collects useful planes and skips null or compact ones.
-
-The RAW worker now also prepares tiles, centering and import bit-depth promotion using the captured cache budget. The interface receives a ready snapshot to display or commit in one history entry; the decoder buffer is not retained in the result.
-
-Opening a replacement file no longer captures the previous document’s planes in the task. After cancellation and a document change, the task does not needlessly retain their pixels; saving, exporting and edits keep their required snapshots.
-
-Unchanged GPU borders also retain their textures when another part of their storage tile is edited; partial fingerprints are cached with bounded metadata.
-
-Editable text is also rasterized within its useful bounds during typing, movement and resizing, preserving native precision.
-
-Saving `.pcr` v9 now streams layer JSON and PNG/Base64 payloads into the atomic file without accumulating the encoded project in memory. The 256 MiB limit remains, and large projects save in the background.
-
-Fast CPU previews read sampled pixels directly from tiles without first reconstructing the entire native plane. Upscaling and smooth reductions retain their Qt path.
-
-Eligible GPU stacks retain four reduced GPU levels (1/2 through 1/16). Zoom changes reuse textures and tile boundaries follow the document’s global sampling grid, including odd dimensions. Oversized or unsupported stacks retain the CPU fallback.
-
-The graphics cache shares a target across canvases and accounts for photos, masks, effects and intermediate targets. It evicts offscreen reserves while pinning visible resources; it is not a driver VRAM cap.
-
-The [layer and memory guide](docs/LAYER_MEMORY.md) (French) explains the implementation and measurements. Layer planes, masks, frequency sources and history versions now use shared 256 × 256 tiles, offloaded to disk after an editing pause. The tile RAM target is configurable (256 MiB by default). Dab-based tools (brushes, erasers, stamps, local retouch, history brushes and healing tools) read and write regional pixels from the active layer. Identical writes preserve tile versions and mappings. Composited sources and other operations may still request temporary full-sized buffers. The CPU composite and selections remain outside this budget. The 32 MP, 512-layer, and 2 GiB layer-plane limits remain in place. The application writes `.pcr` version 9 with editable text and reads versions 1–8. The [v0.14 selection features](CHANGELOG.md#v014--28-octobre-2026) remain available.
-
-In development after v0.16: pixel, text and Solid Color stacks can be composited
-in GPU tiles, with masks, clipping and 21 blend modes. Other stacks and final native
-renders retain the CPU path. Box, Gaussian and motion blur, unsharp mask and
-high-pass previews also use GPU passes with halos, masks and immediate cancellation.
-Regional versions reuse textures and completed tiles;
-the visible working set is checked before allocation. See the
-[rendering formats and limits](docs/GPU_RENDERING.md).
+See the [layer and memory guide](docs/LAYER_MEMORY.md), [GPU formats and fallbacks](docs/GPU_RENDERING.md), and [five-part optimization plan](docs/OPTIMIZATION_PLAN.md) (French).
 
 ![PhotoCrap demo composition](docs/screenshot.png)
 

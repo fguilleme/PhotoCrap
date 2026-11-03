@@ -24,49 +24,27 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 - **Cache LRU de fréquences corrigé** : une bande haute déjà présente est réutilisée sans recalculer sa bande basse évincée.
 - **Tests de mémoire et de rendu renforcés** : 64 calques remplis en 8/16 bits, versions de tuiles partagées, éviction, nettoyage, stockage indisponible, concurrence et Annuler/Rétablir.
 
-Les opérations complètes coûteuses (géométrie, profondeur depuis le menu, fusion vers le bas, remplissages, masques et filtres directs) calculent sur un snapshot dans un worker de faible priorité à partir de quatre millions de pixels traités. Une barre affiche la progression et propose Annuler ; Échap et Annuler/Rétablir rejettent également le calcul. Seule une fin encore valide crée une étape d’historique. L’export des grandes images et la sauvegarde des grands projets utilisent aussi ce worker, sans modifier l’historique. La fermeture attend la réussite de la sauvegarde. L’ouverture des projets se fait aussi en arrière-plan : l’ancien document reste affiché jusqu’à validation complète, et une annulation ou un résultat devenu caduc ne le remplace pas. Le décodage des images ordinaires, leur orientation et leur conversion sRGB passent aussi par ce worker ; elles deviennent un nouveau document modifié, sans URL de projet. RAW garde son développeur asynchrone dédié. L’import comme calque décode, centre et convertit aussi en arrière-plan ; une réussite ajoute une seule étape d’historique, annulable jusque dans la promotion 8→16 bits.
+## Optimisations en développement après v0.16
 
-Les formes géométriques prévisualisent uniquement leur emprise, avec les marges du contour ; les dégradés limités à une sélection font de même. Rétrécir la forme efface son ancien aperçu, et revenir au point de départ annule le dessin sans créer de calque vide. Les sélections déplacées sont aussi traitées par régions source/destination ; le déplacement d’un calque peu rempli sur fond transparent parcourt ses tuiles, tandis que les calques denses et les dégradés pleine image gardent leurs tampons complets.
+- **Plans et historique par tuiles partagées de 256 × 256** : fonds compacts, allocation des seules tuiles modifiées, versions inchangées réutilisées et conversions natives 8/16 bits sans reconstruire le canevas.
+- **Calculs locaux** pour les outils à empreintes, les remplissages de tracés, les formes, le texte, les dégradés sélectionnés et le placement des imports. Le déplacement traite séparément la source et la destination ; les calques transparents peu remplis se déplacent par tuiles. Les sources composées, calques denses et dégradés pleine image peuvent encore demander des tampons complets.
+- **Chargements et opérations coûteuses en arrière-plan** : images, projets, RAW, imports, géométrie, profondeur, fusion, remplissages et filtres directs. Seul un résultat encore courant est appliqué ; les éditions ajoutent une étape annulable. L’ancien document reste affiché pendant une ouverture et n’est pas retenu inutilement après son remplacement. Les opérations générales passent sur worker à partir de quatre millions de pixels traités ; les petites éditions gardent leur chemin direct.
+- **Sauvegarde et export asynchrones** : écriture `.pcr` v9 par flux PNG/Base64/JSON atomique, sans accumuler le projet encodé. La fermeture attend la confirmation d’enregistrement. L’annulation conserve le fichier précédent jusqu’au point de publication final, ensuite non annulable.
+- **Cache disque et budget RAM appliqués pendant la préparation** des conversions, imports et chargements, puis à l’historique après une pause. Le worker collecte les groupes partagés hors interface. Les tâches caduques s’arrêtent entre tuiles ; cache indisponible ou saturé laisse les pixels en RAM. Le budget des tuiles vaut 256 Mio par défaut ; décodeurs, composite, sélections et pages mappées restent distincts du RSS total.
+- **Pile d’affichage GPU** pour pixels, texte et Couleur unie, avec masques, écrêtage et 21 modes de fusion. Flous de boîte, gaussien et directionnel, netteté et passe-haut disposent de passes avec halos. Les régions inchangées et quatre réductions GPU (1/2 à 1/16) réutilisent leurs textures. Les piles incompatibles et le rendu final gardent leur référence CPU native.
+- **Budget graphique partagé** entre canevas, photos, masques, effets et intermédiaires, avec réserve visible vérifiée avant allocation. Les bordures partielles gardent des empreintes bornées. Ce suivi n’est pas une mesure ni un plafond de la VRAM physique du pilote.
 
-À la réouverture, les calques et masques presque uniformes choisissent leur fond compact à partir des tuiles uniformes : seules les tuiles différentes sont stockées. Une image 24 Mpx/16 bits et son masque légèrement retouchés retrouvent ainsi une emprise de 576 Kio de pixels de calques, sans changement de format de projet. Les décodeurs et le composite conservent leurs allocations temporaires.
+Quelques mesures locales, dont les conditions sont décrites dans la [validation](docs/VALIDATION.md) :
 
-Le placement d’une petite image importée utilise aussi une région native et un fond transparent compact, au lieu d’un tampon à la taille du canevas. Un import de 33 × 27 px dans un document de 24 Mpx/16 bits occupe une tuile de 512 Kio ; le décodeur conserve son propre tampon source.
+| Cas | Mesure |
+|---|---|
+| Réouverture d’un calque et masque peu retouchés, 24 Mpx/16 bits | 576 Kio de plans |
+| Import de 33 × 27 px dans un document 24 Mpx/16 bits | Une tuile de 512 Kio |
+| Encodeur isolé de douze plans de 1 Mpx | Pic RSS 324 → 74 Mio en 8 bits ; 692 → 122 Mio en 16 bits |
 
-Les changements natifs de profondeur convertissent aussi les tuiles présentes et leur fond compact, sans reconstruire tout le canevas. Les masques restent en 8 bits ; conversion et promotion à l’import sont préparées avant publication et restent annulables.
+Ces empreintes de plans et mesures isolées ne représentent pas la mémoire totale de l’application. Les limites restent **32 Mpx, 512 calques et 2 Gio de réservation logique de plans** ; le `.pcr` v9 lit aussi les versions 1–8 et conserve sa limite de fichier de 256 Mio. Les essais Metal et les contrôles locaux Qt 6.8/6.12 sont documentés ; les validations physiques Vulkan/Direct3D et les mesures de VRAM du pilote restent ouvertes.
 
-La préparation asynchrone des conversions et imports capture aussi le budget RAM configuré. Quand les plans préparés le dépassent, le plan courant est déchargé sur le cache disque avant application. Un cache indisponible conserve les pixels en RAM ; cela ne bloque pas l’opération ni l’annulation.
-
-Le chargement applique également ce budget entre les plans décodés. Le cache qui porte leurs pixels est conservé après ouverture ; une erreur disque garde les pixels en RAM, et une modification des réglages pendant le chargement reste respectée.
-
-Les écritures du cache peuvent être arrêtées entre deux tuiles. Changer de document, de dossier de cache ou de budget abandonne les tâches devenues caduques ; les tuiles déjà mappées restent valides. Les annulations de conversion/import/décodage utilisent aussi ce contrôle.
-
-Le timer du cache ne parcourt plus chaque plan de chaque état d’historique sur l’interface : il capture les groupes de calques partagés, puis le worker collecte les plans utiles et ignore les plans nuls ou compacts.
-
-Le worker RAW prépare maintenant aussi les tuiles, le centrage et la promotion de profondeur à l’import, avec le budget de cache capturé. L’interface reçoit un état prêt à afficher ou à appliquer en une seule étape d’historique ; le tampon du décodeur n’est pas conservé dans le résultat.
-
-L’ouverture d’un fichier de remplacement ne capture plus les anciens plans du document dans la tâche. Après annulation et changement de document, celle-ci ne retient donc pas inutilement leurs pixels ; sauvegarde, export et éditions gardent les snapshots dont ils ont besoin.
-
-Les bordures GPU inchangées conservent aussi leurs textures lorsqu’une autre partie de leur tuile de stockage est retouchée ; leurs empreintes partielles sont réutilisées et bornées.
-
-Le texte éditable est aussi rasterisé dans son emprise utile, pendant la saisie, le déplacement et le redimensionnement, avec la même précision native.
-
-La sauvegarde `.pcr` v9 écrit désormais les calques, PNG et Base64 en flux atomique, sans accumuler le projet encodé en mémoire. Elle conserve la limite de 256 Mio ; les grands projets sont enregistrés en arrière-plan.
-
-Les aperçus CPU rapides lisent directement les pixels utiles dans les tuiles, sans reconstruire d’abord le plan complet. Les agrandissements et les réductions lisses gardent leur chemin Qt.
-
-Les piles GPU éligibles conservent quatre niveaux réduits sur GPU (1/2 à 1/16). Les zooms réutilisent les textures et les raccords suivent la grille du document, même sur des dimensions impaires. Les piles trop lourdes ou incompatibles gardent leur repli CPU.
-
-Le cache graphique partage une cible entre les canevas et compte photos, masques, effets et intermédiaires. Il évince la réserve hors écran et conserve les ressources visibles ; ce n’est pas un plafond VRAM du pilote.
-
-Le [guide calques et mémoire](docs/LAYER_MEMORY.md) décrit le fonctionnement et les mesures. Les plans de calques, masques, sources de fréquences et leurs versions d’historique sont stockés par tuiles partagées de 256 × 256, déchargeables sur disque après une pause. Le budget RAM des tuiles est configurable (256 Mio par défaut). Les outils à empreintes (pinceaux, gommes, tampons, retouches, formes d’historique et correcteurs) lisent et écrivent directement les régions touchées du calque actif. Les écritures identiques conservent les versions et les mappings des tuiles. Les sources composées et les autres opérations peuvent encore demander un tampon complet temporaire. Le composite CPU et les sélections restent séparés de ce budget. Les limites de 32 Mpx, 512 calques et 2 Gio de plans de calques restent en place. L’application écrit le format `.pcr` v9 avec texte éditable et lit aussi les projets v1 à v8. Les [fonctions de sélection de v0.14](CHANGELOG.md#v014--28-octobre-2026) restent disponibles.
-
-En développement après v0.16 : la pile de pixels, texte et Couleur unie peut être
-composée par tuiles sur GPU, avec masques, écrêtage et 21 modes de fusion. Le chemin
-CPU est conservé pour les autres piles et pour le rendu final. Les flous de boîte,
-gaussien et directionnel, la netteté et le passe-haut disposent aussi de passes
-GPU avec halos, masques et annulation immédiate. Les ressources sont
-réutilisées par version régionale et le jeu de travail est borné avant allocation.
-Voir les [formats et limites du rendu](docs/GPU_RENDERING.md).
+Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et replis GPU](docs/GPU_RENDERING.md) et le [plan des cinq chantiers](docs/OPTIMIZATION_PLAN.md).
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
 

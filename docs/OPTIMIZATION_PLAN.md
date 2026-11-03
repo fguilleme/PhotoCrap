@@ -1,14 +1,14 @@
 # Migration des gros documents et du rendu
 
-Travail demandé le 2 novembre 2026 : réaliser les cinq chantiers ci-dessous dans
-l’ordre, avec commits distincts et validation avant chaque livraison. Les cinq
-bases sont désormais implémentées ; les cases cochées décrivent leur périmètre
-validé. Les essais matériels encore indisponibles sont laissés explicitement ouverts.
+Travail demandé le 2 novembre 2026 : réaliser les cinq chantiers ci-dessous dans l’ordre, avec
+commits distincts et validation avant chaque livraison. Les cinq bases sont désormais
+implémentées ; les cases cochées décrivent leur périmètre validé. Les essais matériels encore
+indisponibles sont laissés explicitement ouverts.
 
 ## 1. Plans éditables et historique par tuiles
 
 - [x] Ouvertures de remplacement sans capture des anciens plans, session/état
-  toujours contrôlés ; snapshots requis conservés pour éditions, save/export.
+  toujours contrôlés ; snapshots requis conservés pour éditions, sauvegarde et export.
 - [x] Collecte des plans de l’historique déplacée dans le worker ; la GUI
   capture seulement les groupes partagés, plans nuls/compacts ignorés.
 - [x] Déchargements disque annulables entre tuiles ; tâches caduques arrêtées
@@ -29,36 +29,34 @@ validé. Les essais matériels encore indisponibles sont laissés explicitement 
 - [x] Validation édition/Annuler/Rétablir/sauvegarde après éviction, disque plein,
   documents chargés en 8/16 bits et mesures du pic réel de RAM.
 
-Les calques, masques et sources de fréquences utilisent `PixelPlane`. Les outils
-à empreintes (pinceaux, retouches, tampons, formes d’historique et correcteurs)
-lisent et écrivent des régions directement ; leurs sources composées et les
-autres outils peuvent encore matérialiser un plan temporaire. Les formes géométriques
-et les dégradés sélectionnés prévisualisent aussi leur seule emprise. Le placement
-des images importées est également régional, sur fond transparent compact. Le déplacement d’une sélection traite séparément sa source et sa destination ;
-les calques parcimonieux transparents se déplacent par tuiles et le texte est
-rasterisé dans son emprise utile. Les calques denses et les dégradés pleine image
-restent complets. Les tuiles identiques
-gardent leurs versions et leurs mappings lors des écritures régionales. Le budget de
-256 Mio par défaut est un objectif de stockage des tuiles, pas un plafond RAM
-global. Le composite complet CPU, les sélections et les buffers temporaires
-restent à compter séparément. Le pic de RAM est mesuré sur des gestes localisés et sur quatre plans remplis de
-24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie le
-refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
+Les calques, masques et sources de fréquences utilisent `PixelPlane`. Les outils à empreintes
+(pinceaux, retouches, tampons, formes d’historique et correcteurs) lisent et écrivent des
+régions directement ; leurs sources composées et les autres outils peuvent encore matérialiser
+un plan temporaire. Les formes géométriques et les dégradés sélectionnés prévisualisent aussi
+leur seule emprise. Le placement des images importées est également régional, sur fond
+transparent compact. Le déplacement d’une sélection traite séparément sa source et sa
+destination ; les calques parcimonieux transparents se déplacent par tuiles et le texte est
+rasterisé dans son emprise utile. Les calques denses et les dégradés pleine image restent
+complets. Les tuiles identiques gardent leurs versions et leurs mappings lors des écritures
+régionales. Le budget de 256 Mio par défaut est un objectif de stockage des tuiles, pas un
+plafond RAM global. Le composite complet CPU, les sélections et les buffers temporaires
+restent à compter séparément. Le pic de RAM est mesuré sur des gestes localisés et sur quatre
+plans remplis de 24 Mpx en 16 bits. Un volume temporaire de 32 Mio réellement saturé vérifie
+le refus d’écriture sans perte des versions ; les disques lents restent à mesurer.
 
 ## 2. Composition de la pile sur GPU
 
-Premier chemin disponible : tuiles visibles de 512 px, calques de pixels, texte,
-Couleur unie, masques sans contour progressif, visibilité des groupes et écrêtage.
-Les clés des bordures partielles dépendent uniquement de leurs pixels natifs,
-avec des empreintes réutilisées et bornées ; une retouche voisine n’invalide plus
-une bordure inchangée. Les tuiles entières gardent leurs identifiants rapides.
-Les 21 modes pris en charge utilisent RGBA8 pour les documents 8 bits et RGBA32F
-pour les intermédiaires 16 bits ; les couvertures sont en R8. Les versions
-régionales conservent les textures et composites de tuiles inchangées. Le budget
-du jeu de travail visible est vérifié avant allocation. Les réglages tonals, les modes
-Dissoudre/Mélange maximal/TSL et les contours progressifs utilisent encore le
-composite CPU, ainsi que les backends sans formats requis. Ce rendu concerne
-l'affichage ; les exports et projets gardent leur référence native CPU.
+Premier chemin disponible : tuiles visibles de 512 px, calques de pixels, texte, Couleur unie,
+masques sans contour progressif, visibilité des groupes et écrêtage. Les clés des bordures
+partielles dépendent uniquement de leurs pixels natifs, avec des empreintes réutilisées et
+bornées ; une retouche voisine n’invalide plus une bordure inchangée. Les tuiles entières
+gardent leurs identifiants rapides. Les 21 modes pris en charge utilisent RGBA8 pour les
+documents 8 bits et RGBA32F pour les intermédiaires 16 bits ; les couvertures sont en R8. Les
+versions régionales conservent les textures et composites de tuiles inchangées. Le budget du
+jeu de travail visible est vérifié avant allocation. Les réglages tonals, les modes
+Dissoudre/Mélange maximal/TSL et les contours progressifs utilisent encore le composite CPU,
+ainsi que les backends sans formats requis. Ce rendu concerne l'affichage ; les exports et
+projets gardent leur référence native CPU.
 
 - [x] Composition des calques pris en charge par tuiles, masques et modes de fusion,
   invalidation régionale et conservation des intermédiaires utiles.
@@ -86,29 +84,27 @@ l'affichage ; les exports et projets gardent leur référence native CPU.
 - [x] Tests de fermeture/changement de document pendant une opération, erreurs
   de ressources et priorité aux interactions/aperçus récents.
 
-Le répartiteur commun couvre redimensionnement, rotations/miroirs, recadrage de
-sélection, profondeur depuis le menu, fusion vers le bas, remplissages/effacement,
-inversion des masques, pot de peinture contigu et filtres directs. À partir de quatre millions de pixels
-traités, un worker de faible priorité calcule sur un snapshot ; seule la fin valide
-applique une étape d’historique. Échap, Annuler ou Annuler/Rétablir rejettent la
-demande. Le document peut être fermé ou remplacé sans attendre le worker. Un appel
-Qt non interruptible peut terminer son plan courant après l’annulation ; son
-résultat n’est jamais appliqué. Les modifications compactes restent synchrones.
-L’ouverture RAW garde son worker spécialisé, qui prépare maintenant aussi
-les tuiles et l’import avec centrage, promotion et cache avant validation GUI.
-Le recadrage interactif, les sélections et la retouche de fréquences conservent
-leurs workers spécialisés. L’export des grandes images utilise maintenant le même répartiteur en lecture
-seule, sans restaurer un snapshot dans le document ni créer d’historique. Les
-sauvegardes des grands projets utilisent aussi ce mode, avec confirmation de
-l’état enregistré après publication. L’ouverture des projets décode et valide tous
-les plans sur le worker ; seul un résultat encore courant remplace le document,
-sans historique ancien ni nouvelle modification. Le décodage, l’orientation et la
-conversion sRGB des images ordinaires passent aussi par le worker ; leur document
-est modifié sans URL de projet, comme auparavant. L’import comme calque utilise
-le mode édition du worker, y compris le centrage et la conversion des plans lors
-d’une promotion 8→16 bits ; une fin valide crée une seule étape d’historique. La sauvegarde v9 écrit
-désormais ses PNG/Base64 et son JSON en flux atomique pour éviter l’accumulation
-des données encodées ; le codec peut encore demander un plan natif complet.
+Le répartiteur commun couvre redimensionnement, rotations/miroirs, recadrage de sélection,
+profondeur depuis le menu, fusion vers le bas, remplissages/effacement, inversion des masques,
+pot de peinture contigu et filtres directs. À partir de quatre millions de pixels traités, un
+worker de faible priorité calcule sur un snapshot ; seule la fin valide applique une étape
+d’historique. Échap, Annuler ou Annuler/Rétablir rejettent la demande. Le document peut être
+fermé ou remplacé sans attendre le worker. Un appel Qt non interruptible peut terminer son
+plan courant après l’annulation ; son résultat n’est jamais appliqué. Les modifications
+compactes restent synchrones. L’ouverture RAW garde son worker spécialisé, qui prépare
+maintenant aussi les tuiles et l’import avec centrage, promotion et cache avant validation
+GUI. Le recadrage interactif, les sélections et la retouche de fréquences conservent leurs
+workers spécialisés. L’export des grandes images utilise maintenant le même répartiteur en
+lecture seule, sans restaurer un snapshot dans le document ni créer d’historique. Les
+sauvegardes des grands projets utilisent aussi ce mode, avec confirmation de l’état enregistré
+après publication. L’ouverture des projets décode et valide tous les plans sur le worker ;
+seul un résultat encore courant remplace le document, sans historique ancien ni nouvelle
+modification. Le décodage, l’orientation et la conversion sRGB des images ordinaires passent
+aussi par le worker ; leur document est modifié sans URL de projet, comme auparavant. L’import
+comme calque utilise le mode édition du worker, y compris le centrage et la conversion des
+plans lors d’une promotion 8→16 bits ; une fin valide crée une seule étape d’historique. La
+sauvegarde v9 écrit désormais ses PNG/Base64 et son JSON en flux atomique pour éviter
+l’accumulation des données encodées ; le codec peut encore demander un plan natif complet.
 
 ## 5. Niveaux de détail GPU et budget graphique global
 
@@ -120,11 +116,10 @@ des données encodées ; le codec peut encore demander un plan natif complet.
   Metal/OpenGL ; repli sous petit budget et reconstruction après libération du graphe.
 - [ ] Mesures de VRAM physique du pilote et validation Vulkan/Direct3D.
 
-Les tuiles des piles GPU éligibles conservent les réductions 1/2, 1/4, 1/8 et
-1/16 sur GPU. Leurs deux passes d’aire partent du composite natif de la tuile,
-avec une grille globale au document, y compris pour les dimensions impaires.
-Elles ne remplacent pas le calcul natif des filtres ou les exports. Le jeu de
-travail inclut toujours la tuile native et ses entrées : si cette réserve ne tient
-pas, si le zoom demande un niveau plus petit, ou si la pile est incompatible,
-l’affichage réduit conserve son chemin CPU. Il n’y a pas de promesse de réduction
-GPU de toutes les piles ni de plafond sur la VRAM totale du pilote.
+Les tuiles des piles GPU éligibles conservent les réductions 1/2, 1/4, 1/8 et 1/16 sur GPU.
+Leurs deux passes d’aire partent du composite natif de la tuile, avec une grille globale au
+document, y compris pour les dimensions impaires. Elles ne remplacent pas le calcul natif des
+filtres ou les exports. Le jeu de travail inclut toujours la tuile native et ses entrées : si
+cette réserve ne tient pas, si le zoom demande un niveau plus petit, ou si la pile est
+incompatible, l’affichage réduit conserve son chemin CPU. Il n’y a pas de promesse de
+réduction GPU de toutes les piles ni de plafond sur la VRAM totale du pilote.

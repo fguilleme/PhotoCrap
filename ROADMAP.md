@@ -1,48 +1,30 @@
 # Roadmap PhotoCrap
 
-État du projet au **2 novembre 2026**. Dernière release publiée : **v0.16** (version interne **0.16.0**). Les étapes ajoutées après cette release sont indiquées ci-dessous. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **3 novembre 2026**. Dernière release publiée : **v0.16** (version interne **0.16.0**). Les étapes ajoutées après cette release sont indiquées ci-dessous. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-- [x] Réouverture compacte des plans presque uniformes : fond pondéré par les
-  tuiles uniformes, pixels 8/16 bits exacts, masques, métadonnées et versions
-  inchangées conservés ; test de projet 24 Mpx/16 bits à 576 Kio de plans.
+## Optimisations du 3 novembre 2026 — non publiées
 
-- [x] Ouverture des projets en arrière-plan depuis le dialogue, les récents et
-  l’argument de lancement ; validation complète avant remplacement, annulation,
-  résultats caducs rejetés et conservation des réglages d’outil.
+- [x] Plans, masques et historique par tuiles partagées ; fonds compacts à la
+  réouverture et conversions natives de profondeur sans canevas complet.
+- [x] Emprises régionales des outils, formes, texte, déplacements et imports ;
+  anciennes versions et masques conservés par Annuler/Rétablir.
+- [x] Ouverture d’images/projets/RAW et préparation des imports sur worker,
+  avec contrôle de session/état, annulation et absence de capture inutile de
+  l’ancien document lors d’une ouverture de remplacement.
+- [x] Sauvegarde/export asynchrones, flux atomique PNG/Base64/JSON et fermeture
+  différée après confirmation ; résultat périmé ou annulé rejeté.
+- [x] Budget RAM des plans préparés, mappings transmis après chargement,
+  repli RAM sur cache indisponible/saturé, déchargement annulable entre tuiles
+  et collecte de l’historique hors interface.
+- [x] Pile GPU et cinq filtres spatiaux avec halos, invalidation régionale,
+  quatre niveaux de réduction et budget graphique partagé.
 
-- [x] Ouverture des images ordinaires en arrière-plan : orientation, profil sRGB,
-  profondeur native et tuilage avant publication ; annulation et mêmes pixels
-  que le chemin synchrone pour PNG/JPEG/BMP/WebP/TIFF disponibles.
-
-- [x] Import d’images comme calques sur worker annulable : centrage, promotion
-  native 8→16 bits, masques préservés et une seule étape d’historique.
-
-- [x] Placement des calques importés limité à leur emprise native ; petit import
-  dans un document 24 Mpx/16 bits : une tuile de 512 Kio, rendu QPainter inchangé.
-
-- [x] Profondeur native convertie par tuiles présentes et pixel de fond, sans
-  tampon de canevas complet ; masques et snapshots conservés, annulation entre
-  tuiles et publication de la pile en une seule étape d’historique.
-
-- [x] Budget RAM des plans préparés appliqué pendant les conversions/imports
-  asynchrones ; mappings publiés valides et repli RAM si le cache est indisponible.
-
-- [x] Budget RAM appliqué entre plans décodés des projets/images ; cache et
-  mappings conservés après ouverture, nouvelles préférences de cache respectées.
-
-- [x] Déchargement du cache annulable entre tuiles ; abandon des tâches
-  devenues caduques et conservation des mappings déjà créés.
-
-- [x] Collecte du cache hors du thread de l’interface, sur groupes immuables
-  de calques/historique, sans parcourir tous leurs plans lors du timer GUI.
-
-- [x] RAW : développement, tuilage, centrage, promotion des calques et cache
-  préparés sur worker ; snapshot prêt à afficher/appliquer, tampon décodeur libéré.
-
-- [x] Chargements de remplacement sans rétention des anciennes tuiles dans
-  la tâche, avec contrôle de session/état et snapshots d’édition inchangés.
+Les périmètres et mesures figurent dans le [plan des cinq chantiers](docs/OPTIMIZATION_PLAN.md),
+le [guide mémoire](docs/LAYER_MEMORY.md) et la [validation](docs/VALIDATION.md).
+Les essais physiques Vulkan/Direct3D, la perte réelle de périphérique et les
+mesures de VRAM du pilote restent à réaliser sur les machines adaptées.
 
 ## Repères actuels vérifiés
 

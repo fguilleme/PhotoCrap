@@ -2,6 +2,7 @@
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "shapes/ShapeLayer.h"
+#include "storage/ProjectReadIndex.h"
 #include "storage/ProjectWriteDevice.h"
 #include "text/TextLayer.h"
 
@@ -583,18 +584,18 @@ bool Document::loadProject(const QString &_path)
         return fail(file.errorString());
     if (file.size() > MaxProjectBytes)
         return fail(tr("Projet trop volumineux (256 Mio maximum)."));
-    QJsonParseError error;
-    const auto      json = QJsonDocument::fromJson(file.readAll(), &error);
+    ProjectReadIndex index;
+    if (!index.read(file, [this] { return operationStep(0, 1); }))
+        return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     if (!operationStep(0, 2))
         return false;
-    const auto root    = json.object();
+    const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 11))
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 11)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
-    const int  w = root["width"].toInt(), h = root["height"].toInt();
-    const auto array = root["layers"].toArray();
-    const int  bits  = version >= 6 ? root["channelBits"].toInt() : 8;
+    const int   w = root["width"].toInt(), h = root["height"].toInt();
+    const auto &array = index.layers;
+    const int   bits  = version >= 6 ? root["channelBits"].toInt() : 8;
     if (bits != 8 && bits != 16)
         return fail(tr("Profondeur de projet invalide."));
     const auto format =
@@ -602,8 +603,13 @@ bool Document::loadProject(const QString &_path)
     if (!validSize(w, h, int(array.size())))
         return false;
     int colors = 0, masks = 0;
-    for (const auto &value : array) {
-        const auto object = value.toObject();
+    // Reserve the complete logical storage before decoding any pixel. The
+    // preflight parses one envelope at a time and immediately releases it.
+    for (int layerIndex = 0; layerIndex < array.size(); ++layerIndex) {
+        bool       valid  = false;
+        const auto object = index.layer(file, layerIndex, valid);
+        if (!valid)
+            return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
         colors += (!object["png"].toString().isEmpty() &&
                    !(version >= 7 && object["compactPixels"].toBool())) +
                   !object["source"].toString().isEmpty();
@@ -620,10 +626,13 @@ bool Document::loadProject(const QString &_path)
     QHash<QByteArray, PixelPlane> planes;
     int                           completed = 1;
     const int                     total     = 3 * int(array.size()) + 2;
-    for (const auto &value : array) {
+    for (int layerIndex = 0; layerIndex < array.size(); ++layerIndex) {
         if (!operationStep(completed, total))
             return false;
-        auto    object = value.toObject();
+        bool valid  = false;
+        auto object = index.layer(file, layerIndex, valid);
+        if (!valid)
+            return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
         QString decodeError;
         auto    decode = [&](const QString &_encoded, QImage::Format _format,
                              bool _compact = false) -> PixelPlane {

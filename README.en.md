@@ -408,3 +408,5 @@ Healing, Spot Healing, Remove, Patch, Content-Aware Move and Red Eye support nat
 CMake fetches pinned, SHA-256-verified LibRaw and zlib sources and links them statically. Standalone packages ship their unmodified sources and notices under `third-party`; LibRaw is distributed under CDDL 1.0.
 
 Channel adjustments (Curves, Levels, Brightness/Contrast, Exposure, Color Balance, Posterize and Invert) now stay in the GPU stack using native 8/16-bit tables. See the [optimization plan](docs/OPTIMIZATION_PLAN.md) (French).
+
+Project opening now indexes layer ranges with a 16 KiB buffer, then validates and decodes one envelope at a time, without retaining the complete JSON payload of encoded pixels.

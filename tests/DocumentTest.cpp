@@ -24,6 +24,7 @@
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
+#include "storage/ProjectReadIndex.h"
 #include "storage/ScratchImageCache.h"
 #include "tools/ColorFlood.h"
 #include "tools/FloodFill.h"
@@ -7473,6 +7474,57 @@ private slots:
             QCOMPARE(layers[i].toObject()["png"].toString(), payload);
         qInfo() << "Repeated 4 MP / 16-bit save, ten layers, ns and cached payload size:" << elapsed
                 << payload.size();
+    }
+
+    void indexedProjectReadsKeepOneLayerAndValidateJson()
+    {
+        QJsonArray layers;
+        for (int i = 0; i < 128; ++i)
+            layers.append(QJsonObject{{"name", QString::fromUtf8("Texte é [ ] { } \\\" ")},
+                                      {"png", QString(8192, 'A')},
+                                      {"index", i}});
+        const QJsonObject root{{"layers", layers},      {"width", 16},
+                               {"height", 16},          {"version", 11},
+                               {"format", "PhotoCrap"}, {"penPaths", QJsonArray{}}};
+        QBuffer           device;
+        device.setData(QJsonDocument(root).toJson());
+        QVERIFY(device.open(QIODevice::ReadOnly));
+        ProjectReadIndex index;
+        QVERIFY(index.read(device));
+        QCOMPARE(index.layers.size(), 128);
+        QVERIFY(!index.metadata.contains("layers"));
+        QCOMPARE(index.metadata.value("format").toString(), QString("PhotoCrap"));
+        QVERIFY(index.largestRead <= 16 * 1024);
+        for (int i : {0, 63, 127}) {
+            bool valid = false;
+            QCOMPARE(index.layer(device, i, valid), layers[i].toObject());
+            QVERIFY(valid);
+        }
+        QVERIFY(index.largestRead <= 16 * 1024);
+        QVERIFY(!index.read(device, [] { return false; }));
+        for (const QByteArray &bad :
+             {QByteArray("{\"layers\":[{}],}"), QByteArray("{\"layers\":[{},]}"),
+              QByteArray("{\"layers\":[{]}"), QByteArray("{\"layers\":[\"bad}"),
+              QByteArray("{\"width\":falsex,\"layers\":[]}"), QByteArray("{} garbage")}) {
+            device.close();
+            device.setData(bad);
+            QVERIFY(device.open(QIODevice::ReadOnly));
+            QVERIFY(!index.read(device));
+        }
+        device.close();
+        device.setData("{\"layers\":[{\"png\":}],\"width\":16}");
+        QVERIFY(device.open(QIODevice::ReadOnly));
+        QVERIFY(index.read(device));
+        bool valid = true;
+        index.layer(device, 0, valid);
+        QVERIFY(!valid);
+        device.close();
+        device.setData("{\"layers\":[0],\"layers\":[{\"png\":\"last\"}],\"width\":16}");
+        QVERIFY(device.open(QIODevice::ReadOnly));
+        QVERIFY(index.read(device));
+        QCOMPARE(index.layers.size(), 1);
+        QCOMPARE(index.layer(device, 0, valid).value("png").toString(), QString("last"));
+        QVERIFY(valid);
     }
 
     void streamedProjectPreservesNativePlanesAndEscapedMetadata()

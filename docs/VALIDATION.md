@@ -1,5 +1,14 @@
 # Validation
 
+## Lecture indexée `.pcr` — 5 novembre 2026
+
+Le test de 128 enveloppes totalisant plus d’un Mio vérifie le buffer de 16 Kio,
+la lecture ciblée, les chaînes Unicode/échappées, l’ordre des métadonnées,
+les doublons de clés, le JSON invalide et l’annulation. Les allers-retours natifs,
+les sources dupliquées et la réservation préalable du stockage restent couverts
+par la suite du document ; le test de refus conserve le document ouvert intact.
+
+
 ## Composition GPU native et masques — 4 novembre 2026
 
 - Réglages par canal avec LUT natives 256/65 536 entrées, cache GUI LRU de 4 Mio.

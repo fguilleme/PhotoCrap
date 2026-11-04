@@ -19,7 +19,9 @@ Progression par optimisations vérifiées et commits distincts :
   luminance et palettes, sans texture de table volumineuse pour les calculs directs.
 - [x] Masques progressifs dans la pile GPU : halo, arrondis, densité et
   réutilisation des passes ; sources uniformes sans passe supplémentaire.
-- [ ] Réduire les buffers temporaires des entrées/sorties des gros documents.
+- [x] Ouverture `.pcr` indexée, sans agrégat JSON des PNG/Base64, préflight complet
+  puis un calque à la fois ; métadonnées réordonnées et JSON corrompu contrôlés.
+- [ ] Réduire les buffers temporaires des exports des gros documents.
 - [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
 - [ ] Compacter les différences de tuiles de l’historique.

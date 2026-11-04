@@ -16,6 +16,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Contours progressifs des masques dans les piles GPU natives, passes et halos
   bornés et comparaisons aux bords et raccords avec le moteur CPU.
 
+- [x] Lecture `.pcr` indexée avec buffer de 16 Kio, réservation logique avant
+  décodage et validation d’une enveloppe de calque à la fois ; publication atomique.
+
 ## Pinceau mélangeur — non publié
 
 - [x] Barre inspirée des commandes Adobe : charge multicolore, recharge/nettoyage
@@ -203,7 +206,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [ ] Étendre la composition GPU aux piles encore non prises en charge et poursuivre les traitements régionaux des outils hors empreintes.
 - [x] Premier composite GPU de la pile : pixels, texte, Couleur unie, masques non adoucis, groupes masqués et écrêtage, avec 21 modes de fusion. Tuiles de 512 px, versions régionales, textures et intermédiaires réutilisés ; RGBA8 en 8 bits, RGBA32F en 16 bits. Repli complet CPU pour les cas non pris en charge ou un jeu de travail dépassant le budget. L'export reste natif CPU ; extension aux réglages et tests matériels hors Metal encore ouverts.
 - [x] Cinq filtres spatiaux en passes GPU tuilées : boîte, gaussien, directionnel, netteté et passe-haut. Halos cumulés, alpha/masques, arrondis natifs et cibles réutilisées. Aperçu indépendant du worker CPU, mises à jour auxiliaires limitées à 100 ms et Annuler immédiat. Le rendu final reste CPU ; formats et budget insuffisants conservent leur repli.
-- [x] Calcul asynchrone commun pour les transformations, profondeur depuis le menu, fusion vers le bas, remplissages/effacement, inversion des masques et filtres directs dès quatre millions de pixels traités. Progression, annulation immédiate et validation atomique en une étape ; fermeture/changement de document testés. L’ouverture des projets reste synchrone ; export et sauvegarde utilisent aussi le répartiteur en lecture seule.
+- [x] Calcul asynchrone commun pour les transformations, profondeur depuis le menu, fusion vers le bas, remplissages/effacement, inversion des masques et filtres directs dès quatre millions de pixels traités. Progression, annulation immédiate et validation atomique en une étape ; fermeture/changement de document testés. Ouverture des projets et images, export et sauvegarde utilisent aussi le répartiteur en lecture seule.
 - [x] Aperçus CPU rapides par lecture régionale des tuiles, sans reconstruire le plan natif avant réduction. Référence exacte Qt en 8/16 bits et masques, y compris ses arrondis par axe ; agrandissements et interpolation lisse gardent leur chemin complet.
 - [x] Retouches Flou, Netteté, Densité −/+ et Éponge : snapshot, couverture et écriture par régions tuilées, halos de voisinage conservés et correction de la lecture de couverture 16 bits. Tests de frontières, sélection progressive, annulation et allocation locale sur 24 Mpx.
 - [x] Œil rouge : lecture de la seule zone de recherche et écriture du rectangle corrigé par tuiles, sans matérialiser le calque. Résultats identiques pour dix-huit combinaisons clic/cadre/réglages, reflets et sélection conservés ; test mémoire 24 Mpx/8 bits.

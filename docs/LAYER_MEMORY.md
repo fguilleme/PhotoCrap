@@ -1,5 +1,19 @@
 # Calques, mémoire et cache de travail disque
 
+## Lecture indexée des projets — 5 novembre 2026
+
+Le lecteur n’appelle plus `readAll()` pour construire le JSON complet du projet.
+Un scanner de 16 Kio repère les enveloppes de calques, y compris lorsque les
+métadonnées sont après le tableau. Il conserve uniquement les métadonnées et les
+positions de fichier ; les chaînes PNG/Base64 des autres calques ne restent pas
+vivantes pendant le décodage. Les enveloppes sont validées par le parseur JSON Qt.
+Une première lecture par enveloppe réserve l’ensemble des plans logiques avant
+tout décodage, puis la lecture native reprend un calque à la fois. Ce second
+passage préserve le refus préalable des projets trop gourmands. PNG courant,
+conversion native et métadonnées restent des allocations distinctes ; le plus
+gros calque peut encore être volumineux. La publication finale demeure atomique.
+
+
 ## Retouches natives 8/16 bits
 
 Les deux correcteurs, Suppression, Pièce, Déplacement basé sur le contenu et
@@ -165,7 +179,7 @@ image ordinaire peut également être déchargée avant son application. Les pla
 et le cache qui porte leurs mappings sont transmis ensemble au document affiché.
 Si la configuration du cache a changé entre-temps, la nouvelle reste active et
 les leases des anciens mappings préservent les pixels. Un cache indisponible garde
-les plans en RAM sans empêcher l’ouverture. JSON complet et plan courant du codec
+les plans en RAM sans empêcher l’ouverture. Enveloppe JSON et plan courant du codec
 restent hors de ce sous-budget ; ce mécanisme ne limite pas à lui seul le RSS.
 
 Les déchargements vérifient désormais un jeton entre chaque tuile, et les tâches
@@ -407,7 +421,7 @@ projet devient propre, avec URL, profondeur, calques, texte, tracés et tranches
 les réglages d’outil restent ceux de l’utilisateur. Le helper booléen synchrone
 reste disponible pour les tests et les miniatures déjà calculées hors GUI.
 Les appels Qt en cours (lecture/parse/codec) peuvent finir après l’annulation ;
-leurs résultats sont rejetés. Le JSON complet, le plan natif décodé et les deux
+leurs résultats sont rejetés. L’enveloppe JSON courante, le plan natif décodé et les deux
 documents peuvent temporairement coexister : ce changement évite le blocage de
 l’interface mais ne promet pas une baisse du pic RSS.
 

@@ -26,7 +26,9 @@ Progression par optimisations vérifiées et commits distincts :
 - [x] Composite temporaire transféré au worker d’encodage ; fond blanc JPEG/BMP
   8 bits en place, source 16 bits libérée après conversion, pixels/fichiers inchangés.
   Les codecs JPEG/WebP Qt nécessitent toujours une image complète.
-- [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
+- [x] Déplacement tuilé des calques denses : pixels natifs exacts, copies Alt,
+  annulation et fonds uniformes conservés avec seules les bordures matérialisées.
+- [ ] Dégradé pleine image par bandes natives.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
 - [ ] Compacter les différences de tuiles de l’historique.
 - [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
@@ -110,9 +112,8 @@ régions directement ; leurs sources composées et les autres outils peuvent enc
 un plan temporaire. Les formes géométriques et les dégradés sélectionnés prévisualisent aussi
 leur seule emprise. Le placement des images importées est également régional, sur fond
 transparent compact. Le déplacement d’une sélection traite séparément sa source et sa
-destination ; les calques parcimonieux transparents se déplacent par tuiles et le texte est
-rasterisé dans son emprise utile. Les calques denses et les dégradés pleine image restent
-complets. Les tuiles identiques gardent leurs versions et leurs mappings lors des écritures
+destination ; les calques natifs, denses ou parcimonieux, se déplacent par tuiles et le texte est
+rasterisé dans son emprise utile. Les dégradés pleine image restent complets. Les tuiles identiques gardent leurs versions et leurs mappings lors des écritures
 régionales. Le budget de 256 Mio par défaut est un objectif de stockage des tuiles, pas un
 plafond RAM global. Le composite complet CPU, les sélections et les buffers temporaires
 restent à compter séparément. Le pic de RAM est mesuré sur des gestes localisés et sur quatre

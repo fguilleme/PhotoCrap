@@ -10948,7 +10948,7 @@ private slots:
                     d.endStroke();
                     const QImage before = d.layerImage(0);
                     PixelPlane   reference(before);
-                    QVERIFY(PhotoCrap::Tools::canMoveSparseLayer(reference, before.size()));
+                    QVERIFY(PhotoCrap::Tools::canMoveLayerTiled(reference, before.size()));
                     QImage   expected = ImageUtils::blank(before.size(), before.format());
                     QPainter painter(&expected);
                     painter.drawImage(offset, before);
@@ -10978,10 +10978,10 @@ private slots:
              {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
             QImage opaque(1, 1, format);
             opaque.fill(Qt::white);
-            QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(opaque), {6000, 4000}));
+            QVERIFY(PhotoCrap::Tools::canMoveLayerTiled(PixelPlane(opaque), {6000, 4000}));
             opaque.fill(QColor::fromRgba64(10000, 20000, 30000, 1));
             if (format == QImage::Format_RGBA64_Premultiplied)
-                QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(opaque), {6000, 4000}));
+                QVERIFY(PhotoCrap::Tools::canMoveLayerTiled(PixelPlane(opaque), {6000, 4000}));
         }
     }
     void sparseLayerMovePreservesMappedNativeEdgePixels()
@@ -10996,10 +10996,10 @@ private slots:
         PixelPlane source(edge);
         QVERIFY(source.offload(cache));
         cache.clear();
-        QVERIFY(PhotoCrap::Tools::canMoveSparseLayer(source, edge.size()));
+        QVERIFY(PhotoCrap::Tools::canMoveLayerTiled(source, edge.size()));
         for (const auto offset : {QPoint(-1, -1), QPoint(-256, -256), QPoint(2, 2),
                                   QPoint(std::numeric_limits<int>::max(), 0)}) {
-            const auto result = PhotoCrap::Tools::moveSparseLayer(source, edge.size(), offset);
+            const auto result = PhotoCrap::Tools::moveLayerTiled(source, edge.size(), offset);
             QVERIFY(result.valid);
             QImage expected = ImageUtils::blank(edge.size(), edge.format());
             expected.setColorSpace(edge.colorSpace());
@@ -11012,12 +11012,89 @@ private slots:
             QCOMPARE(QImage(source), edge);
         }
         edge.setDevicePixelRatio(2);
-        QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(edge), edge.size()));
+        QVERIFY(!PhotoCrap::Tools::canMoveLayerTiled(PixelPlane(edge), edge.size()));
         QImage dense(1031, 1037, QImage::Format_ARGB32_Premultiplied);
         dense.fill(Qt::red);
         dense.setPixelColor(0, 0, Qt::transparent);
-        QVERIFY(!PhotoCrap::Tools::canMoveSparseLayer(PixelPlane(dense), dense.size()));
+        QVERIFY(PhotoCrap::Tools::canMoveLayerTiled(PixelPlane(dense), dense.size()));
     }
+    void denseWholeLayerMovesMatchNativePainter()
+    {
+        QTemporaryDir directory;
+        for (int bits : {8, 16})
+            for (bool opaque : {false, true}) {
+                QImage source(517, 523,
+                              bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                         : QImage::Format_ARGB32_Premultiplied);
+                for (int y = 0; y < source.height(); ++y)
+                    for (int x = 0; x < source.width(); ++x)
+                        source.setPixelColor(
+                            x, y,
+                            QColor::fromRgba64(ushort(x * 197 + y * 11), ushort(y * 257 + x * 17),
+                                               ushort(x * 73 + y * 97),
+                                               opaque ? 65535
+                                                      : ushort(10000 + (x * 17 + y * 23) % 55536)));
+                const auto path = directory.filePath("dense.png");
+                QVERIFY(source.save(path));
+                for (bool copy : {false, true})
+                    for (const QPoint offset :
+                         {QPoint(13, 17), QPoint(-273, -271), QPoint(256, 256), QPoint(900, 900)}) {
+                        Document d;
+                        QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
+                        const auto before   = d.layerImage(0);
+                        auto       expected = ImageUtils::blank(before.size(), before.format());
+                        QPainter   painter(&expected);
+                        painter.drawImage(offset, before);
+                        painter.end();
+                        const auto history = d.historyIndex();
+                        d.setTool("move");
+                        d.beginStroke(20, 20, copy);
+                        d.continueStroke(20 + offset.x(), 20 + offset.y());
+                        d.endStroke();
+                        QCOMPARE(d.layerImage(d.activeLayer()), expected);
+                        QCOMPARE(d.layers().size(), copy ? 2 : 1);
+                        QCOMPARE(d.historyIndex(), history + 1);
+                        d.undo();
+                        QCOMPARE(d.layerImage(0), before);
+                        d.redo();
+                        QCOMPARE(d.layerImage(d.activeLayer()), expected);
+                    }
+            }
+        QImage edge(513, 513, QImage::Format_RGBA64_Premultiplied);
+        edge.setColorSpace(QColorSpace::SRgb);
+        edge.fill(Qt::white);
+        edge.setPixelColor(512, 512, QColor::fromRgba64(50000, 20000, 40000, 17));
+        const auto moved =
+            PhotoCrap::Tools::moveLayerTiled(PixelPlane(edge), edge.size(), {-1, -1});
+        QVERIFY(moved.valid);
+        QImage   expected = ImageUtils::blank(edge.size(), edge.format());
+        QPainter painter(&expected);
+        painter.drawImage(-1, -1, edge);
+        painter.end();
+        QCOMPARE(moved.image.region(edge.rect()), expected);
+    }
+
+    void uniformWholeLayerMoveKeepsOnlyBorderTiles()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(6000, 4000, false, bits));
+            const auto history = d.historyIndex();
+            d.setTool("move");
+            d.beginStroke(100, 100);
+            d.continueStroke(103, 105);
+            const auto plane = d.gpuLayerStack().layers.first().image;
+            QCOMPARE(plane.region({0, 0, 1, 1}).pixelColor(0, 0).alpha(), 0);
+            QCOMPARE(plane.region({200, 200, 1, 1}).pixelColor(0, 0), QColor(Qt::white));
+            QVERIFY(d.memoryUsage()["tileHeapBytes"].toLongLong() <=
+                    48LL * 256 * 256 * (bits == 16 ? 8 : 4));
+            d.continueStroke(100, 100);
+            d.endStroke();
+            QCOMPARE(d.historyIndex(), history);
+            QCOMPARE(d.memoryUsage()["tileHeapBytes"].toLongLong(), qint64(0));
+        }
+    }
+
     void sparseWholeLayerMoveStaysCompactAtTwentyFourMegapixels()
     {
         for (int bits : {8, 16})

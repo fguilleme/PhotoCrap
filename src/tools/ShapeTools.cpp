@@ -93,8 +93,8 @@ void Document::renderShape(const QPointF &_to)
         m_moveDuplicatedLayer = true;
     }
     if (m_tool == "move" && !hasSelection() && !m_strokePlaneBase.isNull()) {
-        const auto result = PhotoCrap::Tools::moveSparseLayer(m_strokePlaneBase, m_size,
-                                                              (_to - m_anchor).toPoint());
+        const auto result =
+            PhotoCrap::Tools::moveLayerTiled(m_strokePlaneBase, m_size, (_to - m_anchor).toPoint());
         if (!result.valid) {
             cancelStroke();
             fail(tr("Mémoire insuffisante pour déplacer le calque."));
@@ -103,7 +103,8 @@ void Document::renderShape(const QPointF &_to)
         m_layers[m_active].image = result.image;
         m_dirtyRegion  = m_dirtyRegion.united(m_strokeBounds.toAlignedRect().united(result.region));
         m_strokeBounds = result.region;
-        m_strokeChanged = true;
+        m_strokeChanged =
+            result.image.cacheKey() != m_strokePlaneBase.cacheKey() || m_moveDuplicatedLayer;
         changed(false);
         return;
     }

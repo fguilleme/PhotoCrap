@@ -226,7 +226,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         (m_tool == "move" &&
          (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape" ||
           hasSelection() ||
-          PhotoCrap::Tools::canMoveSparseLayer(m_layers[m_active].image, m_size)))) {
+          PhotoCrap::Tools::canMoveLayerTiled(m_layers[m_active].image, m_size)))) {
         m_strokePlaneBase = m_layers[m_active].image;
         m_strokeBounds    = {};
     } else if (isShapeStrokeTool(m_tool) || m_tool == "text")

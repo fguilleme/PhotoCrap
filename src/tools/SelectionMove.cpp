@@ -2,10 +2,11 @@
 #include "ImageUtils.h"
 #include "selection/SelectionCoverage.h"
 #include <QPainter>
+#include <cstring>
 
 namespace PhotoCrap::Tools
 {
-bool canMoveSparseLayer(const PixelPlane &_source, const QSize &_size)
+bool canMoveLayerTiled(const PixelPlane &_source, const QSize &_size)
 {
     if (_source.isNull() || _size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
         qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
@@ -15,22 +16,14 @@ bool canMoveSparseLayer(const PixelPlane &_source, const QSize &_size)
     const QImage first = _source.tileImage(0, 0);
     if (first.isNull() || first.devicePixelRatio() != 1.)
         return false;
-    if (_source.size() == QSize(1, 1))
-        return first.pixelColor(0, 0).rgba64().alpha() == 0;
-    if (_source.size() != _size || !_source.freeze())
-        return false;
-    const auto &tiles   = _source.tiles();
-    const int   columns = (_size.width() + TiledImage::TileSize - 1) / TiledImage::TileSize;
-    const int   rows    = (_size.height() + TiledImage::TileSize - 1) / TiledImage::TileSize;
-    return tiles.backgroundPixel().pixelColor(0, 0).rgba64().alpha() == 0 &&
-           tiles.tileCount() <= qMax(8, columns * rows / 4);
+    return _source.size() == QSize(1, 1) || (_source.size() == _size && _source.freeze());
 }
 
-SelectionMoveResult moveSparseLayer(const PixelPlane &_source, const QSize &_size,
-                                    const QPoint &_offset)
+SelectionMoveResult moveLayerTiled(const PixelPlane &_source, const QSize &_size,
+                                   const QPoint &_offset)
 {
     SelectionMoveResult result;
-    if (!canMoveSparseLayer(_source, _size))
+    if (!canMoveLayerTiled(_source, _size))
         return result;
     if (_offset.isNull()) {
         result.image = _source;
@@ -41,26 +34,53 @@ SelectionMoveResult moveSparseLayer(const PixelPlane &_source, const QSize &_siz
     if (transparent.isNull())
         return result;
     transparent.fill(Qt::transparent);
-    PixelPlane    next(transparent);
     const QRect   canvas(QPoint{}, _size);
     constexpr int side = TiledImage::TileSize;
     const bool    outside =
         qAbs(qint64(_offset.x())) >= _size.width() || qAbs(qint64(_offset.y())) >= _size.height();
-    if (_source.size() != QSize(1, 1))
-        for (int y = 0; y < _size.height(); y += side)
-            for (int x = 0; x < _size.width(); x += side) {
-                const QImage pixels = _source.tileImage(x / side, y / side);
-                if (pixels.isNull())
-                    return result;
-                // A missing tile is the shared transparent background pixel.
-                if (pixels.size() == QSize(1, 1) && pixels.pixelColor(0, 0).rgba64().alpha() == 0)
-                    continue;
-                const QRect from = QRect(x, y, pixels.width(), pixels.height());
-                const QRect to   = outside ? QRect{} : from.translated(_offset).intersected(canvas);
-                result.region    = result.region.united(from).united(to);
-                if (!to.isEmpty() && !next.writeRegion(from.topLeft() + _offset, pixels, _size))
-                    return result;
-            }
+    const QRect  covered = outside ? QRect{} : canvas.translated(_offset).intersected(canvas);
+    const QImage background =
+        _source.size() == QSize(1, 1) ? _source.tileImage(0, 0) : _source.tiles().backgroundPixel();
+    const bool retainBackground =
+        background.pixelColor(0, 0).rgba64().alpha() > 0 &&
+        qint64(covered.width()) * covered.height() * 2 >= qint64(_size.width()) * _size.height();
+    PixelPlane next =
+        retainBackground ? PixelPlane::uniform(_size, background) : PixelPlane(transparent);
+    if (next.isNull())
+        return result;
+    if (retainBackground) {
+        const QRegion uncovered = QRegion(canvas) - QRegion(covered);
+        for (const QRect &rect : uncovered)
+            for (int y = rect.y(); y <= rect.bottom(); y += side)
+                for (int x = rect.x(); x <= rect.right(); x += side) {
+                    const QRect part(x, y, qMin(side, rect.right() - x + 1),
+                                     qMin(side, rect.bottom() - y + 1));
+                    QImage      pixels(part.size(), _source.format());
+                    if (pixels.isNull())
+                        return result;
+                    pixels.fill(Qt::transparent);
+                    if (!next.writeRegion(part.topLeft(), pixels, _size))
+                        return result;
+                }
+    }
+    for (int y = 0; y < _size.height(); y += side)
+        for (int x = 0; x < _size.width(); x += side) {
+            const auto tile = _source.tileImage(x / side, y / side);
+            if (tile.isNull())
+                return result;
+            if (tile.size() == QSize(1, 1) && tile.pixelColor(0, 0).rgba64().alpha() == 0)
+                continue;
+            const QRect from = QRect(x, y, side, side).intersected(canvas);
+            const QRect to   = outside ? QRect{} : from.translated(_offset).intersected(canvas);
+            result.region    = result.region.united(from).united(to);
+            if (to.isEmpty() || (retainBackground && tile.size() == QSize(1, 1) &&
+                                 std::memcmp(tile.constBits(), background.constBits(),
+                                             size_t(tile.depth() / 8)) == 0))
+                continue;
+            const auto pixels = _source.region(to.translated(-_offset));
+            if (pixels.isNull() || !next.writeRegion(to.topLeft(), pixels, _size))
+                return result;
+        }
     result.image = std::move(next);
     result.valid = true;
     return result;

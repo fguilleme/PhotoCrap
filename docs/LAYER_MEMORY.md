@@ -855,3 +855,14 @@ indépendante à la résolution d’affichage.
 
 La limite actuelle de 2 Gio doit rester en place jusqu’à validation de cette migration :
 la relever avant de sortir réellement les plans de la RAM déplacerait seulement le risque.
+
+## Déplacement des calques denses (5 novembre 2026)
+
+Le déplacement natif 8/16 bits lit et écrit des tuiles, sans expansion complète
+de la source ni tampon de destination. Les fonds uniformes restent logiques
+lorsque la surface conservée est majoritaire : seules les bordures transparentes
+et les exceptions sont matérialisées. Les sources à DPR non unitaire gardent
+le chemin Qt précédent. Les tests comparent chaque pixel à QPainter, y compris
+les bords de 1 pixel, les grandes translations, les copies Alt et Annuler/Rétablir.
+Un fond de 24 Mpx déplacé de (3,5) matérialise moins de 48 tuiles ; revenir
+au point de départ retrouve son plan compact et ne crée aucune étape vide.

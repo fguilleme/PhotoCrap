@@ -2,6 +2,7 @@
 #include "CanvasItem.h"
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QTemporaryDir>
 #include <QtTest>
 
 inline bool runLayerStackSmoke(QQuickWindow *window)
@@ -244,16 +245,88 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                         const QColor actual   = rendered.pixelColor(qFloor(point.x() * ratio),
                                                                     qFloor(point.y() * ratio));
                         const QColor expected = reference.pixelColor(x, y);
-                        if (!require(
-                                qAbs(actual.red() - expected.red()) <= 2 &&
-                                    qAbs(actual.green() - expected.green()) <= 2 &&
-                                    qAbs(actual.blue() - expected.blue()) <= 2 &&
-                                    canvas.gpuStackActive() == hardware,
-                                "regional text displays native glyphs and clears prior positions"))
+                        if (!require(qAbs(actual.red() - expected.red()) <= 2 &&
+                                         qAbs(actual.green() - expected.green()) <= 2 &&
+                                         qAbs(actual.blue() - expected.blue()) <= 2 &&
+                                         canvas.gpuStackActive() == hardware,
+                                     "regional text displays native glyphs and clears prior "
+                                     "positions")) {
+                            qWarning() << bits << x << y << actual << expected
+                                       << canvas.gpuStackActive() << hardware;
                             return false;
+                        }
                     }
         }
         document.endStroke();
+    }
+    // Native channel tables compose multiple adjustments without an 8-bit
+    // proxy, including partially transparent input and nonuniform masks.
+    QTemporaryDir directory;
+    for (int bits : {8, 16}) {
+        QImage source(1057, 64, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x)
+                source.setPixelColor(x, y,
+                                     QColor::fromRgba64((x * 73 + y * 101) % 65536,
+                                                        (x * 193 + y * 47) % 65536,
+                                                        (x * 317 + y * 79) % 65536,
+                                                        17000 + (x * 33 + y * 89) % 48536));
+        const auto path = directory.filePath(QString::number(bits) + ".png");
+        if (!source.save(path))
+            return false;
+        canvas.setSize({600, 64});
+        for (const auto &type : {"curves", "levels", "brightnessContrast", "exposure",
+                                 "colorBalance", "posterize", "invert"}) {
+            if (!document.openFile(QUrl::fromLocalFile(path)))
+                return false;
+            document.addAdjustmentLayer(type);
+            document.beginLayerPreview();
+            document.previewLayerParameter("exposure", .8);
+            document.previewLayerParameter("contrast", 25);
+            document.previewLayerParameter("cyanRed", 17);
+            document.previewLayerParameter("levels", 5);
+            document.finishLayerPreview("Channel table");
+            document.setLayerOpacity(document.activeLayer(), .61);
+            document.setEditingMask(true);
+            document.setTool("pencil");
+            document.setBrushSize(29);
+            document.setColor(Qt::gray);
+            document.beginStroke(510, 32);
+            document.continueStroke(1030, 32);
+            document.endStroke();
+            document.setEditingMask(false);
+            document.addAdjustmentLayer("invert");
+            const auto stack = document.gpuLayerStack();
+            if (!require(stack.valid && !stack.layers.last().toneTable.isNull(),
+                         "native channel adjustments stay in the GPU stack"))
+                return false;
+            const auto key = stack.layers.last().toneTable.cacheKey();
+            if (!require(document.gpuLayerStack().layers.last().toneTable.cacheKey() == key,
+                         "unchanged tables are reused"))
+                return false;
+            frame();
+            const auto actual = frame();
+            if (!require(canvas.gpuStackActive() == hardware,
+                         "channel stack uses hardware when available"))
+                return false;
+            canvas.setGpuStackEnabled(false);
+            frame();
+            const auto   expected = frame();
+            const double ratio    = double(actual.width()) / window->width();
+            for (int y : {4, 20, 32, 48, 60})
+                for (int x : {3, 89, 254, 255, 256, 510, 511, 512, 769, 1023, 1024, 1050}) {
+                    const auto p = canvas.mapToScene({(x + .5) * 600. / 1057., y + .5}) * ratio;
+                    const auto a = actual.pixelColor(qFloor(p.x()), qFloor(p.y()));
+                    const auto b = expected.pixelColor(qFloor(p.x()), qFloor(p.y()));
+                    if (qAbs(a.red() - b.red()) > 2 || qAbs(a.green() - b.green()) > 2 ||
+                        qAbs(a.blue() - b.blue()) > 2) {
+                        qWarning() << "Native channel stack difference" << bits << type << x << y
+                                   << a << b;
+                        return false;
+                    }
+                }
+            canvas.setGpuStackEnabled(true);
+        }
     }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;

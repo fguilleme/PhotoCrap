@@ -406,3 +406,5 @@ Choose 8- or 16-bit channels on creation or under **Image → Color depth**. Pho
 Healing, Spot Healing, Remove, Patch, Content-Aware Move and Red Eye support native 8/16-bit pixels, including their sampling modes and undo. Smudge, Mixer Brush, Color Replacement and both History Brushes currently require 8-bit pixels and are explicitly blocked on 16-bit pixel layers. Documents remain limited to 32 megapixels and 2 GiB of uncompressed layer data, with 8 bytes per 16-bit color pixel and 1 byte per mask pixel (rows aligned to 4 bytes).
 
 CMake fetches pinned, SHA-256-verified LibRaw and zlib sources and links them statically. Standalone packages ship their unmodified sources and notices under `third-party`; LibRaw is distributed under CDDL 1.0.
+
+Channel adjustments (Curves, Levels, Brightness/Contrast, Exposure, Color Balance, Posterize and Invert) now stay in the GPU stack using native 8/16-bit tables. See the [optimization plan](docs/OPTIMIZATION_PLAN.md) (French).

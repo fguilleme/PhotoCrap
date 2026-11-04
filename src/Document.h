@@ -1636,11 +1636,12 @@ private:
     bool    m_pendingPreviewGpuAux = false, m_runningPreviewGpuAux = false;
     quint64 m_gpuToneEpoch = 0, m_runningGpuToneEpoch = 0;
     QImage  m_gpuToneBase, m_gpuToneTable, m_gpuToneMask;
-    qint64  m_gpuToneMaskSourceKey = 0;
-    int     m_gpuToneMaskFeather   = 0;
-    QTimer  m_gpuToneAuxTimer;
-    QTimer  m_gpuStackAuxTimer;
-    bool    m_gpuStackDisplayActive = false;
+    mutable QCache<QByteArray, QImage>  m_gpuChannelTables{4 * 1024 * 1024};
+    qint64                              m_gpuToneMaskSourceKey = 0;
+    int                                 m_gpuToneMaskFeather   = 0;
+    QTimer                              m_gpuToneAuxTimer;
+    QTimer                              m_gpuStackAuxTimer;
+    bool                                m_gpuStackDisplayActive = false;
     QFutureWatcher<PreviewRenderResult> m_previewRenderWatcher;
     QVector<Layer>                      m_pendingPreviewLayers;
     QSize                               m_pendingPreviewSize;

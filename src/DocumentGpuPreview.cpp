@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 #include "filters/ToneMappingTable.h"
 #include "render/LayerVisibility.h"
+#include <QDataStream>
 
 PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
 {
@@ -26,8 +27,13 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         }
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
-        const bool solid  = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
-        const bool masked = LayerVisibility::needsMask(layer);
+        const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
+        static const QStringList channelTypes{"curves",   "levels",       "brightnessContrast",
+                                              "exposure", "colorBalance", "posterize",
+                                              "invert"};
+        const bool               tonal =
+            layer.kind == "adjustment" && channelTypes.contains(layer.adjustmentType);
+        const bool                                 masked = LayerVisibility::needsMask(layer);
         static const QHash<QString, SpatialFilter> spatialTypes{
             {"boxBlur", SpatialFilter::Box},
             {"gaussianBlur", SpatialFilter::Gaussian},
@@ -37,13 +43,46 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         const auto spatial = layer.kind == "adjustment"
                                  ? spatialTypes.value(layer.adjustmentType, SpatialFilter::None)
                                  : SpatialFilter::None;
-        if ((layer.kind != "pixel" && !solid && layer.kind != "text" && layer.kind != "shape" &&
-             spatial == SpatialFilter::None) ||
-            (!solid && spatial == SpatialFilter::None && layer.image.isNull()) ||
+        if ((layer.kind != "pixel" && !solid && !tonal && layer.kind != "text" &&
+             layer.kind != "shape" && spatial == SpatialFilter::None) ||
+            (!solid && !tonal && spatial == SpatialFilter::None && layer.image.isNull()) ||
             layer.blend == 1 || layer.blend == 18 || layer.blend >= 23 ||
             (masked && layer.parameters.value("_maskFeather", 0.).toDouble() >= .5))
             return {};
         StackLayer entry;
+        if (tonal) {
+            auto parameters = layer.parameters;
+            for (auto it = parameters.begin(); it != parameters.end();)
+                if (it.key().startsWith('_'))
+                    it = parameters.erase(it);
+                else
+                    ++it;
+            QByteArray  key;
+            QDataStream stream(&key, QIODevice::WriteOnly);
+            stream << m_channelBits << layer.adjustmentType << parameters;
+            const auto cached = m_gpuChannelTables.object(key);
+            auto       table  = cached ? *cached : QImage{};
+            if (table.isNull()) {
+                QImage ramp(256, m_channelBits == 16 ? 256 : 1, workingFormat());
+                if (ramp.isNull())
+                    return {};
+                for (int y = 0; y < ramp.height(); ++y)
+                    for (int x = 0; x < 256; ++x) {
+                        const int value = x + y * 256;
+                        if (m_channelBits == 16)
+                            reinterpret_cast<QRgba64 *>(ramp.scanLine(y))[x] =
+                                QRgba64::fromRgba64(value, value, value, 65535);
+                        else
+                            reinterpret_cast<QRgb *>(ramp.scanLine(y))[x] =
+                                qRgb(value, value, value);
+                    }
+                table = adjustedImage(ramp, layer.adjustmentType, parameters);
+                if (table.isNull())
+                    return {};
+                m_gpuChannelTables.insert(key, new QImage(table), int(table.sizeInBytes()));
+            }
+            entry.toneTable = table;
+        }
         entry.spatial.type = spatial;
         if (spatial != SpatialFilter::None) {
             const double radius  = layer.parameters

@@ -11,6 +11,12 @@ layout(binding = 1) uniform sampler2D backdropTexture;
 layout(binding = 2) uniform sampler2D sourceTexture;
 layout(binding = 3) uniform sampler2D maskTexture;
 layout(binding = 4) uniform sampler2D coverageTexture;
+layout(binding = 5) uniform sampler2D tableTexture;
+float channel(float value, int component)
+{
+    int index = int(floor(clamp(value,0.0,1.0)*ubuf.values.z+0.5));
+    return texelFetch(tableTexture,ivec2(index % 256,index / 256),0)[component];
+}
 vec4 native(vec4 value)
 {
     return floor(clamp(value, 0.0, 1.0) * ubuf.values.z + 0.5) / ubuf.values.z;
@@ -50,6 +56,10 @@ void main()
         return;
     }
     vec4 source = texture(sourceTexture, (ubuf.modes.z & 2) != 0 ? framebufferUV : uv);
+    if ((ubuf.modes.z & 4) != 0) {
+        vec3 straight = base.a > 0.0 ? base.rgb/base.a : vec3(0.0);
+        source = native(vec4(vec3(channel(straight.r,0),channel(straight.g,1),channel(straight.b,2))*base.a,base.a));
+    }
     float mask = floor(255.0 - (255.0 - texture(maskTexture, uv).r * 255.0) * ubuf.values.y + 0.5) / 255.0;
     source = native(source * mask);
     if (ubuf.modes.y != 0)

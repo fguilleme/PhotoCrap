@@ -2015,3 +2015,17 @@ le nom et le marqueur d’enregistrement, sans restaurer de calques ni ajouter u
 sur le signal de réussite ; erreur ou annulation les abandonnent. Une fermeture
 demandée pendant une sauvegarde attend celle-ci. Les petites sauvegardes restent
 immédiates. Le helper C++ synchrone conserve son contrat pour les appels directs.
+
+
+## Réglages par canal dans la pile — 4 novembre 2026
+
+Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance des couleurs, Isohélie
+et Négatif sont calculés dans la pile GPU par tables natives. Les documents
+16 bits utilisent les 65 536 entrées sur une texture 256 × 256 en RGBA32F ;
+aucune LUT 8 bits ne remplace les valeurs natives. Un LRU GUI de 4 Mio conserve
+les tables, indépendamment des réglages de masque et d’opacité. Les sources et
+les tables graphiques inchangées sont réutilisées. Le rendu final CPU ne change
+pas. Les autres réglages et masques progressifs restent à étendre.
+
+Tests : précision non multiple de 257, réutilisation du cache, Annuler et comparaison
+logiciel/Metal de quatorze piles transparentes avec masque et deux réglages.

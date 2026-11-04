@@ -7,6 +7,21 @@ indisponibles sont laissés explicitement ouverts. Les filtres CPU sont contrôl
 avec Accelerate et avec leur chemin portable ; leurs arrondis préexistants ont des
 références séparées et les lectures régionales sont comparées au rendu intégral.
 
+## Suite autorisée le 4 novembre 2026
+
+Progression par optimisations vérifiées et commits distincts :
+
+- [x] Tables natives des réglages par canal dans la pile GPU : Courbes, Niveaux,
+  Luminosité/Contraste, Exposition, Balance, Isohélie et Négatif. Table de 256 ou
+  65 536 entrées selon la profondeur, cache GUI LRU de 4 Mio, masques et composition
+  conservés. Vérifications moteur, logiciel et Metal sur piles transparentes.
+- [ ] Compléter les réglages tonals analytiques et les masques progressifs GPU.
+- [ ] Réduire les buffers temporaires des entrées/sorties des gros documents.
+- [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
+- [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
+- [ ] Compacter les différences de tuiles de l’historique.
+- [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
+
 ## 1. Plans éditables et historique par tuiles
 
 - [x] Règles de couverture partagées CPU/GPU, pile GPU limitée aux couches

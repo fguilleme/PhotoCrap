@@ -4,6 +4,12 @@
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
+## Optimisations du 4 novembre 2026 — non publiées
+
+- [x] Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance, Isohélie et
+  Négatif composés dans la pile GPU par tables natives 8/16 bits, cache LRU borné
+  et références transparentes logiciel/Metal. Suite dans [le plan](docs/OPTIMIZATION_PLAN.md).
+
 ## Pinceau mélangeur — non publié
 
 - [x] Barre inspirée des commandes Adobe : charge multicolore, recharge/nettoyage

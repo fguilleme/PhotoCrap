@@ -210,10 +210,11 @@ public:
         }
     }
     std::shared_ptr<Input> input(const PixelPlane &plane, bool mask,
-                                 QRhiResourceUpdateBatch *updates, QSet<QByteArray> &used)
+                                 QRhiResourceUpdateBatch *updates, QSet<QByteArray> &used,
+                                 bool whole = false)
     {
-        QByteArray key = mask ? "m" : "c";
-        key += plane.regionKey(region);
+        QByteArray key = whole ? "t" : mask ? "m" : "c";
+        key += plane.regionKey(whole ? plane.rect() : region);
         used.insert(key);
         if (auto cached = inputs.value(key))
             return cached;
@@ -225,7 +226,7 @@ public:
             pixels = QImage(1, 1, format);
             pixels.fill(mask ? Qt::white : Qt::transparent);
         } else {
-            pixels = plane.size() == QSize(1, 1) ? QImage(plane) : plane.region(region);
+            pixels = whole || plane.size() == QSize(1, 1) ? QImage(plane) : plane.region(region);
             pixels = pixels.convertToFormat(format);
         }
         if (pixels.isNull())
@@ -255,7 +256,8 @@ public:
         const auto layers = std::move(stack.layers);
         QByteArray key;
         for (const auto &layer : layers) {
-            for (const auto &part : {layer.image.regionKey(region), layer.mask.regionKey(region)}) {
+            for (const auto &part : {layer.image.regionKey(region), layer.mask.regionKey(region),
+                                     layer.toneTable.regionKey(layer.toneTable.rect())}) {
                 const qint64 size = part.size();
                 key.append(reinterpret_cast<const char *>(&size), sizeof(size));
                 key += part;
@@ -289,7 +291,10 @@ public:
             const auto &layer = layers[index];
             auto        color = input(layer.image, false, updates, used);
             auto        mask  = input(layer.mask, true, updates, used);
-            if (!color || !mask) {
+            auto        table = layer.toneTable.isNull()
+                                    ? color
+                                    : input(layer.toneTable, false, updates, used, true);
+            if (!color || !mask || !table) {
                 ok = false;
                 break;
             }
@@ -318,7 +323,9 @@ public:
             const auto matrix = rhi->clipSpaceCorrMatrix();
             std::memcpy(uniform.data(), matrix.constData(), 64);
             const qint32 modes[]  = {layer.blend, layer.clipped,
-                                     int(layer.reset) + (run >= 0 ? 2 : 0), index == 0};
+                                     int(layer.reset) + (run >= 0 ? 2 : 0) +
+                                         (!layer.toneTable.isNull() ? 4 : 0),
+                                     index == 0};
             const float  values[] = {layer.opacity, layer.density,
                                      stack.bits == 16 ? 65535.f : 255.f,
                                      rhi->isYUpInFramebuffer() ? 1.f : 0.f};
@@ -336,6 +343,8 @@ public:
                  QRhiShaderResourceBinding::sampledTexture(3, stage, mask->texture.get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(4, stage, clips[index % 2].get(),
+                                                           sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(5, stage, table->texture.get(),
                                                            sampler.get())});
             if (!pass->bindings->create()) {
                 ok = false;
@@ -370,7 +379,8 @@ public:
         pipeline->setShaderResourceBindings(passes.front()->bindings.get());
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
-        if (!filterRuns.empty() && filterRuns.front() >= 0) {
+        if (!filterRuns.empty() &&
+            (filterRuns.front() >= 0 || !layers.front().toneTable.isNull())) {
             cb->beginPass(targets[0].get(), Qt::transparent, {1.f, 0});
             cb->endPass();
         }

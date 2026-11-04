@@ -228,6 +228,26 @@ private slots:
         QVERIFY(!d.gpuLayerStack().valid);
     }
 
+    void gpuChannelTablesPreserveNativePrecisionAndCache()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(16, 16, false, bits));
+            d.addAdjustmentLayer("invert");
+            const auto table = d.gpuLayerStack().layers.last().toneTable;
+            QCOMPARE(table.size(), QSize(256, bits == 16 ? 256 : 1));
+            const auto native = table.pixelColor(200, 0).rgba64();
+            QCOMPARE(native.red(), ushort(bits == 16 ? 65535 - 200 : (255 - 200) * 257));
+            const auto key = table.cacheKey();
+            d.setLayerOpacity(d.activeLayer(), .42);
+            QCOMPARE(d.gpuLayerStack().layers.last().toneTable.cacheKey(), key);
+            d.addAdjustmentLayer("exposure");
+            QVERIFY(!d.gpuLayerStack().layers.last().toneTable.isNull());
+            d.undo();
+            QCOMPARE(d.gpuLayerStack().layers.last().toneTable.cacheKey(), key);
+        }
+    }
+
     void emptyLayersDoNotCreateGpuPasses()
     {
         Document d;

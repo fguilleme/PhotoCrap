@@ -390,3 +390,5 @@ Limites connues : un seul document à la fois ; composition raster sur CPU avec 
 - [Déploiement des applications QML](https://doc.qt.io/qt-6/qt-generate-deploy-qml-app-script.html)
 - [Composition avec QPainter](https://doc.qt.io/qt-6/qpainter.html)
 - [Installation de Qt dans GitHub Actions](https://github.com/jurplel/install-qt-action)
+
+Les réglages par canal (Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance, Isohélie et Négatif) restent désormais dans la pile GPU avec tables natives 8/16 bits. Voir la [suite des optimisations](docs/OPTIMIZATION_PLAN.md).

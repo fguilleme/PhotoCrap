@@ -247,15 +247,17 @@ public:
     bool writeRegion(const QPoint &origin, const QImage &pixels, const QSize &documentSize)
     {
         TiledImage next;
+        bool       preserve = false;
         if (size() == QSize(1, 1)) {
             next = TiledImage(documentSize, tileImage(0, 0));
         } else {
             if (!freeze())
                 return false;
-            next = m_tiles;
+            preserve = m_tiles.sharedStorage();
+            next     = m_tiles;
         }
         bool changed = false;
-        if (next.isNull() || !next.writeRegion(origin, pixels, &changed))
+        if (next.isNull() || !next.writeRegion(origin, pixels, &changed, preserve))
             return false;
         if (!changed)
             return true;

@@ -89,6 +89,66 @@ private slots:
         QVERIFY(PixelPlane::uniform({32, 32}, QImage(1, 1, QImage::Format_RGB888)).isNull());
     }
 
+    void smallNativeTileEditsStoreBoundedDeltas()
+    {
+        for (const auto format : {QImage::Format_ARGB32_Premultiplied,
+                                  QImage::Format_RGBA64_Premultiplied, QImage::Format_Grayscale8}) {
+            QImage expected(256, 256, format);
+            for (int y = 0; y < 256; ++y)
+                for (int x = 0; x < 256; ++x)
+                    expected.setPixelColor(
+                        x, y, QColor((x * 13 + y) % 256, (y * 17 + x) % 256, (x + y * 11) % 256));
+            TiledImage plane({256, 256}, format, Qt::white);
+            QVERIFY(plane.replace(expected));
+            QVector<TiledImage> versions{plane};
+            QVector<QImage>     references{expected};
+            const auto          untouched = plane.regionKey({0, 0, 5, 5});
+            for (int i = 0; i < 40; ++i) {
+                const QRect bounds(12 + (i % 10) * 20, 12 + (i / 10) * 20, 8, 8);
+                QImage      patch(bounds.size(), format);
+                patch.fill(QColor((i * 43) % 256, (i * 19) % 256, (i * 73) % 256));
+                for (int y = 0; y < bounds.height(); ++y)
+                    std::memcpy(
+                        expected.scanLine(bounds.y() + y) + bounds.x() * expected.depth() / 8,
+                        patch.constScanLine(y), size_t(bounds.width()) * expected.depth() / 8);
+                if (i % 3 == 0)
+                    QVERIFY(plane.writeRegion(bounds.topLeft(), patch));
+                else if (i % 3 == 1)
+                    QVERIFY(plane.paint(bounds, [&](QPainter &p) {
+                        p.setCompositionMode(QPainter::CompositionMode_Source);
+                        p.drawImage(bounds.topLeft(), patch);
+                    }));
+                else
+                    QVERIFY(plane.replace(expected));
+                QCOMPARE(plane.region(expected.rect()), expected);
+                QCOMPARE(plane.regionKey({0, 0, 5, 5}), untouched);
+                QVERIFY(plane.heapBytes() <= expected.sizeInBytes() + 8 * patch.sizeInBytes());
+                versions.append(plane);
+                references.append(expected);
+            }
+            QHash<qint64, qint64> blocks;
+            for (const auto &version : versions) {
+                const auto own = version.heapBlocks();
+                for (auto it = own.cbegin(); it != own.cend(); ++it)
+                    blocks.insert(it.key(), it.value());
+            }
+            qint64 total = 0;
+            for (auto bytes : blocks)
+                total += bytes;
+            QVERIFY(total < 7 * expected.sizeInBytes()); // Forty full versions need 41 tiles.
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            ScratchImageCache cache({directory.path(), 64 * 1024 * 1024, 0});
+            for (int i = 0; i < versions.size(); ++i) {
+                QVERIFY(versions[i].offload(cache));
+                QCOMPARE(versions[i].heapBytes(), qint64(0));
+                QCOMPARE(versions[i].region(expected.rect()), references[i]);
+            }
+            cache.clear();
+            for (int i = 0; i < versions.size(); ++i)
+                QCOMPARE(versions[i].region(expected.rect()), references[i]);
+        }
+    }
     void borrowedTileImagesKeepSnapshotsAndDiskLeases()
     {
         for (auto format : {QImage::Format_ARGB32_Premultiplied,
@@ -258,7 +318,8 @@ private slots:
             QVERIFY(plane.writeRegion({254, 254}, patch, &changed));
             QVERIFY(changed);
             QCOMPARE(plane.region({254, 254, 6, 6}), patch);
-            QCOMPARE(plane.heapBytes(), qint64(256) * 256 * patch.depth() / 8);
+            QCOMPARE(plane.heapBytes(),
+                     qint64((patch.depth() / 8 + 3) & ~3)); // One pixel, native row alignment.
             QVERIFY(plane.regionKey({0, 0, 256, 256}) != old.regionKey({0, 0, 256, 256}));
             for (const auto untouched :
                  {QRect(256, 0, 256, 256), QRect(0, 256, 256, 256), QRect(256, 256, 256, 256)})

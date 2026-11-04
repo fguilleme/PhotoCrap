@@ -38,7 +38,9 @@ Progression par optimisations vérifiées et commits distincts :
 - [x] Intermédiaires GPU mutualisés par dimensions : accumulateurs, entrées,
   filtres et passes horizontales des réductions ; sortie indépendante par tuile.
   Comparaisons Metal des zooms, masques, flous et chaînes 8/16 bits.
-- [ ] Compacter les différences de tuiles de l’historique.
+- [x] Différences natives intra-tuile : rectangle réellement modifié, chaîne
+  limitée à huit deltas, versions transitoires fusionnées, déchargement sans perte
+  et parents/patches comptés sans doublon ; tests couleur 8/16 bits et masques.
 - [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
 
 ## 1. Plans éditables et historique par tuiles

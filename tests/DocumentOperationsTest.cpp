@@ -787,7 +787,10 @@ private slots:
         }
         // The worker walks its captured groups, not the now-painted live layers.
         QCOMPARE(original.layers.first().image.tiles().heapBytes(), qint64(0));
-        QCOMPARE(painted.layers.first().image.tiles().heapBytes(), 256LL * 256 * 4);
+        const auto changedBytes = painted.layers.first().image.tiles().heapBytes();
+        QVERIFY(changedBytes > 0 &&
+                changedBytes <= 16LL * 16 * 4); // The native dab, not a full tile.
+
         const auto after = painted.layers.first().image.region({0, 0, 512, 512});
         QVERIFY(after != before);
         d.undo();

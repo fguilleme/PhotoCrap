@@ -37,7 +37,9 @@ public:
     // snapshot intact. The callback is checked between tile conversions.
     TiledImage convertedTo(QImage::Format               _format,
                            const std::function<bool()> &_continue = {}) const;
-    bool       writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed = nullptr);
+    bool       writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed = nullptr,
+                           bool _preserveSnapshots = true);
+    bool       sharedStorage() const;
     QImage::Format        format() const;
     QColorSpace           colorSpace() const;
     QHash<qint64, qint64> storageBlocks() const;

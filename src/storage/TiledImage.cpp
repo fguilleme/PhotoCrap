@@ -80,6 +80,9 @@ QImage importedBackground(const QImage &_image)
 struct Tile {
     mutable QMutex                     mutex;
     QImage                             pixels;
+    std::shared_ptr<Tile>              parent;
+    QRect                              patchRect;
+    int                                depth      = 0;
     quint64                            id         = nextTileId.fetch_add(1);
     bool                               diskBacked = false;
     mutable QHash<quint32, QByteArray> partialKeys;
@@ -88,29 +91,123 @@ struct Tile {
     }
     QImage image() const
     {
-        QMutexLocker locker(&mutex);
-        return pixels;
+        std::shared_ptr<Tile> base;
+        QImage                patch;
+        QRect                 rect;
+        {
+            QMutexLocker locker(&mutex);
+            if (!parent)
+                return pixels;
+            base  = parent;
+            patch = pixels;
+            rect  = patchRect;
+        }
+        QImage result = base->image().copy();
+        if (result.isNull())
+            return {};
+        const int bytes = result.depth() / 8;
+        for (int y = 0; y < rect.height(); ++y)
+            std::memcpy(result.scanLine(rect.y() + y) + rect.x() * bytes, patch.constScanLine(y),
+                        size_t(rect.width()) * bytes);
+        return result;
+    }
+    void blocks(QHash<qint64, qint64> &result, bool heap) const
+    {
+        std::shared_ptr<Tile> base;
+        {
+            QMutexLocker locker(&mutex);
+            const qint64 key = -qint64(id);
+            if (result.contains(key))
+                return;
+            if (!heap || !diskBacked)
+                result.insert(key, pixels.sizeInBytes());
+            base = parent;
+        }
+        if (base)
+            base->blocks(result, heap);
     }
     QByteArray partialKey(const QRect &_region) const
     {
-        QMutexLocker  locker(&mutex);
         const quint32 key = (quint32(_region.x()) << 24) | (quint32(_region.y()) << 16) |
                             (quint32(_region.width() - 1) << 8) | quint32(_region.height() - 1);
-        if (auto found = partialKeys.constFind(key); found != partialKeys.cend())
-            return found.value();
+        {
+            QMutexLocker locker(&mutex);
+            if (auto found = partialKeys.constFind(key); found != partialKeys.cend())
+                return found.value();
+        }
+        const auto         image = this->image();
         QCryptographicHash hash(QCryptographicHash::Sha256);
-        const int          bytes = pixels.depth() / 8;
+        const int          bytes = image.depth() / 8;
         for (int y = _region.top(); y <= _region.bottom(); ++y)
             hash.addData(QByteArrayView(
-                reinterpret_cast<const char *>(pixels.constScanLine(y) + _region.x() * bytes),
+                reinterpret_cast<const char *>(image.constScanLine(y) + _region.x() * bytes),
                 _region.width() * bytes));
-        const auto result = hash.result();
+        const auto   result = hash.result();
+        QMutexLocker locker(&mutex);
         if (partialKeys.size() >= 8)
             partialKeys.clear();
         partialKeys.insert(key, result);
         return result;
     }
 };
+// Small native changes retain a bounded predecessor chain and only their true
+// changed rectangle. No reconstructed full image is kept as a hidden cache.
+std::shared_ptr<Tile> changedTile(const QImage &image, const std::shared_ptr<Tile> &previous,
+                                  const QImage &old, const QRect &dirty, bool preserve = true)
+{
+    auto full = [&] { return std::make_shared<Tile>(image); };
+    if (previous && !preserve) {
+        std::shared_ptr<Tile> parent;
+        bool                  disk;
+        {
+            QMutexLocker lock(&previous->mutex);
+            parent = previous->parent;
+            disk   = previous->diskBacked;
+        }
+        // Fold disposable gesture versions into the last retained predecessor.
+        if (parent)
+            return changedTile(image, parent, parent->image(), image.rect());
+        if (!disk)
+            return full();
+    }
+    if (!previous || old.size() != image.size() || old.format() != image.format())
+        return full();
+    int depth;
+    {
+        QMutexLocker lock(&previous->mutex);
+        depth = previous->depth;
+    }
+    if (depth >= 8)
+        return full();
+    const int   bytes = image.depth() / 8;
+    const QRect area  = dirty.intersected(image.rect());
+    int         left = image.width(), right = -1, top = image.height(), bottom = -1;
+    for (int y = area.top(); y <= area.bottom(); ++y) {
+        const auto *a = image.constScanLine(y), *b = old.constScanLine(y);
+        if (!std::memcmp(a + area.x() * bytes, b + area.x() * bytes, size_t(area.width()) * bytes))
+            continue;
+        top    = qMin(top, y);
+        bottom = y;
+        for (int x = area.left(); x <= area.right(); ++x)
+            if (std::memcmp(a + x * bytes, b + x * bytes, size_t(bytes))) {
+                left  = qMin(left, x);
+                right = qMax(right, x);
+            }
+    }
+    if (right < left)
+        return previous;
+    const QRect patch(left, top, right - left + 1, bottom - top + 1);
+    if (qint64(patch.width()) * patch.height() * 4 > qint64(image.width()) * image.height())
+        return full();
+    QImage pixels = image.copy(patch);
+    if (pixels.isNull())
+        return full();
+    auto result       = std::make_shared<Tile>(std::move(pixels));
+    result->parent    = previous;
+    result->patchRect = patch;
+    result->depth     = depth + 1;
+    return result;
+}
 } // namespace
 
 struct TiledImage::Data {
@@ -203,21 +300,16 @@ QHash<qint64, qint64> TiledImage::storageBlocks() const
 {
     QHash<qint64, qint64> result;
     if (m_data)
-        for (const auto &tile : std::as_const(m_data->tiles)) {
-            QMutexLocker locker(&tile->mutex);
-            result.insert(-qint64(tile->id), tile->pixels.sizeInBytes());
-        }
+        for (const auto &tile : std::as_const(m_data->tiles))
+            tile->blocks(result, false);
     return result;
 }
 QHash<qint64, qint64> TiledImage::heapBlocks() const
 {
     QHash<qint64, qint64> result;
     if (m_data)
-        for (const auto &tile : std::as_const(m_data->tiles)) {
-            QMutexLocker locker(&tile->mutex);
-            if (!tile->diskBacked)
-                result.insert(-qint64(tile->id), tile->pixels.sizeInBytes());
-        }
+        for (const auto &tile : std::as_const(m_data->tiles))
+            tile->blocks(result, true);
     return result;
 }
 
@@ -258,23 +350,15 @@ QByteArray TiledImage::regionKey(const QRect &_region) const
 qint64 TiledImage::allocatedBytes() const
 {
     qint64 bytes = 0;
-    if (m_data)
-        for (const auto &tile : std::as_const(m_data->tiles)) {
-            QMutexLocker locker(&tile->mutex);
-            bytes += tile->pixels.sizeInBytes();
-        }
+    for (auto value : storageBlocks())
+        bytes += value;
     return bytes;
 }
-
 qint64 TiledImage::heapBytes() const
 {
     qint64 bytes = 0;
-    if (m_data)
-        for (const auto &tile : std::as_const(m_data->tiles)) {
-            QMutexLocker locker(&tile->mutex);
-            if (!tile->diskBacked)
-                bytes += tile->pixels.sizeInBytes();
-        }
+    for (auto value : heapBlocks())
+        bytes += value;
     return bytes;
 }
 
@@ -320,7 +404,8 @@ bool TiledImage::replace(const QImage &_image)
                 if (replacement == next->blank(bounds.size()))
                     next->tiles.remove(key);
                 else
-                    next->tiles.insert(key, std::make_shared<Tile>(replacement));
+                    next->tiles.insert(
+                        key, changedTile(replacement, previous, pixels, replacement.rect()));
             }
         }
     m_data = std::move(next);
@@ -475,7 +560,13 @@ bool TiledImage::paint(const QRect &_region, const std::function<void(QPainter &
     return paintRegion(_region, _paint, true);
 }
 
-bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed)
+bool TiledImage::sharedStorage() const
+{
+    return m_data && (m_data.use_count() > 1 || !m_data->tiles.isDetached());
+}
+
+bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed,
+                             bool _preserveSnapshots)
 {
     if (_changed)
         *_changed = false;
@@ -484,12 +575,14 @@ bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool 
     const QRect region = QRect(_origin, _pixels.size()).intersected(QRect(QPoint{}, size()));
     if (region.isEmpty())
         return true;
+    const bool            shared = _preserveSnapshots && sharedStorage();
     std::shared_ptr<Data> next;
     const int             bytes = _pixels.depth() / 8;
     for (int y = region.top() / TileSize; y <= region.bottom() / TileSize; ++y)
         for (int x = region.left() / TileSize; x <= region.right() / TileSize; ++x) {
             const QRect  bounds = m_data->rect(x, y), overlap = region.intersected(bounds);
             const auto   previous = m_data->tiles.value(m_data->key(x, y));
+            const bool   preserve = shared || (previous && previous.use_count() > 2);
             const QImage old      = previous ? previous->image() : QImage{};
             if (previous && old.isNull())
                 return false;
@@ -518,7 +611,12 @@ bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool 
                             _pixels.constScanLine(row - _origin.y()) +
                                 (overlap.x() - _origin.x()) * bytes,
                             size_t(overlap.width()) * bytes);
-            next->tiles.insert(next->key(x, y), std::make_shared<Tile>(image));
+            if (image == next->blank(bounds.size()))
+                next->tiles.remove(next->key(x, y));
+            else
+                next->tiles.insert(next->key(x, y),
+                                   changedTile(image, previous, old,
+                                               overlap.translated(-bounds.topLeft()), preserve));
         }
     if (next) {
         m_data = std::move(next);
@@ -543,16 +641,25 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
         return true;
     // Persistent versions stay unchanged until success. Disposable buffers can
     // reuse unique tiles; either path protects tiles shared with snapshots.
+    const bool shared  = m_data.use_count() > 1 || !m_data->tiles.isDetached();
     const bool inPlace = !_preserve && m_data.use_count() == 1;
     auto       next    = inPlace ? m_data : std::make_shared<Data>(*m_data);
     for (int row = region.top() / TileSize; row <= region.bottom() / TileSize; ++row)
         for (int column = region.left() / TileSize; column <= region.right() / TileSize; ++column) {
-            const int   key    = next->key(column, row);
-            const QRect bounds = next->rect(column, row);
-            auto        tile   = next->tiles.take(key);
+            const int             key    = next->key(column, row);
+            const QRect           bounds = next->rect(column, row);
+            auto                  tile   = next->tiles.take(key);
+            std::shared_ptr<Tile> previous;
+            QImage                old;
+            bool                  preserve = shared;
             if (!tile)
                 tile = std::make_shared<Tile>(next->blank(bounds.size()));
-            else if (!inPlace || tile.use_count() != 1)
+            else if (!inPlace || tile.use_count() != 1) {
+                preserve = shared || tile.use_count() > 2;
+                previous = tile;
+                old      = tile->image();
+                tile     = std::make_shared<Tile>(old);
+            } else if (tile->parent)
                 tile = std::make_shared<Tile>(tile->image());
             {
                 QMutexLocker locker(&tile->mutex);
@@ -571,6 +678,10 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
                 tile->diskBacked = false;
                 tile->partialKeys.clear();
             }
+            if (previous)
+                tile =
+                    changedTile(tile->image(), previous, old,
+                                region.intersected(bounds).translated(-bounds.topLeft()), preserve);
             next->tiles.insert(key, std::move(tile));
         }
     m_data = std::move(next);
@@ -591,8 +702,12 @@ bool TiledImage::offload(ScratchImageCache &_cache, const std::function<bool()> 
             QMutexLocker locker(&tile->mutex);
             if (tile->diskBacked)
                 continue;
-            image = tile->pixels;
-            key   = QStringLiteral("tile/%1").arg(tile->id);
+            key = QStringLiteral("tile/%1").arg(tile->id);
+        }
+        image = tile->image();
+        if (image.isNull()) {
+            complete = false;
+            continue;
         }
         if (!_cache.insert(key, image)) {
             complete = false;
@@ -607,6 +722,9 @@ bool TiledImage::offload(ScratchImageCache &_cache, const std::function<bool()> 
         if (!tile->diskBacked) {
             tile->pixels     = std::move(mapped);
             tile->diskBacked = true;
+            tile->parent.reset();
+            tile->patchRect = {};
+            tile->depth     = 0;
         }
     }
     return complete;

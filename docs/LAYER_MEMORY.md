@@ -876,3 +876,21 @@ globales de Qt sont conservées, avec comparaisons exactes 8/16 bits sur fonds
 opaques et transparents, opacité, alpha, extrémités fractionnaires ou inversées,
 Annuler/Rétablir et abandon. Les sélections gardent leur chemin régional et
 les DPR non unitaires leur repli précédent.
+
+## Différences intra-tuile de l’historique (5 novembre 2026)
+
+Une petite modification conserve son rectangle natif et un prédécesseur immuable
+si ce rectangle occupe au plus un quart de la tuile. La reconstruction est
+limitée à huit deltas ; une grande modification ou la limite crée une version
+complète. Les versions intermédiaires sans snapshot sont fusionnées pendant le
+geste. Aucune image reconstruite n’est retenue dans un cache caché. Les parents
+et patches sont comptés par identifiants uniques, y compris les parents mappés.
+
+Le déchargement reconstruit une tuile complète, publie son mapping, puis libère
+les références aux patches. Les anciennes versions gardent leurs propres leases.
+L’écriture d’une tuile redevenue identique au fond logique retire son allocation.
+Le test de 40 retouches sur une tuile dense utilise moins de sept tuiles de
+stockage partagé, au lieu de 41 versions complètes, dans les trois formats
+natifs. Il compare toutes les versions avant et après déchargement et vidage du
+cache. Les tests des outils vérifient aussi que la compaction ne conserve pas
+les petites versions jetables produites entre les empreintes d’un même geste.

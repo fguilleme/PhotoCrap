@@ -539,6 +539,7 @@ QVariantMap Document::memoryUsage() const
     // Completed RAW futures contain sealed planes, never a retained decoder image.
     const qint64 retainedDecoderBytes = 0;
     return {{"tileHeapBytes", tileHeapBytes},
+            {"compositeBytes", m_composite.sizeInBytes()},
             {"retainedDecoderBytes", retainedDecoderBytes},
             {"layerCount", m_layers.size()},
             {"compactPlanes", compactPlanes},

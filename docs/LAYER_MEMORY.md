@@ -1,5 +1,23 @@
 # Calques, mémoire et cache de travail disque
 
+## Export par bandes — 5 novembre 2026
+
+À partir de quatre millions de pixels, PNG et BMP lisent des bandes natives de
+4 Mio au plus (256 lignes maximum), composées régionalement puis écrites dans
+un fichier atomique. Le PNG conserve RGBA 8/16 bits et le marqueur sRGB ; le BMP
+compose sur blanc en 24 bits. Le flux PNG est filtré puis compressé avec la zlib
+déjà embarquée, selon la [spécification PNG du W3C](https://www.w3.org/TR/png-3/).
+Les lignes BMP suivent les [en-têtes et l’alignement Microsoft](https://learn.microsoft.com/en-us/windows/desktop/gdi/bitmap-header-types). Les blocs IDAT ne dépassent pas 64 Kio. Progression et annulation
+restent actives entre les lignes, avec publication du fichier seulement à la fin.
+Le codage binaire et certaines métadonnées des grands exports peuvent différer
+du codec Qt ; les valeurs natives décodées sont comparées, sans exiger le même PNG.
+
+Les petites images, JPEG et WebP gardent le codec Qt. Les piles non locales
+(bruit, mosaïque, Dissoudre, etc.) peuvent encore demander un composite complet
+au lecteur régional. Le compteur `compositeBytes` distingue ce cache des tuiles.
+L’export simple de 4 Mpx en 16 bits est vérifié sans créer ce cache complet ;
+un vrai export PNG de 16 Mpx est interrompu sans remplacer le fichier précédent.
+
 ## Lecture indexée des projets — 5 novembre 2026
 
 Le lecteur n’appelle plus `readAll()` pour construire le JSON complet du projet.

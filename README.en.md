@@ -410,3 +410,5 @@ CMake fetches pinned, SHA-256-verified LibRaw and zlib sources and links them st
 Channel adjustments (Curves, Levels, Brightness/Contrast, Exposure, Color Balance, Posterize and Invert) now stay in the GPU stack using native 8/16-bit tables. See the [optimization plan](docs/OPTIMIZATION_PLAN.md) (French).
 
 Project opening now indexes layer ranges with a 16 KiB buffer, then validates and decodes one envelope at a time, without retaining the complete JSON payload of encoded pixels.
+
+Large 8/16-bit PNG and BMP exports compose and encode bounded native bands, with cancellation and atomic publication; nonlocal stacks retain their complete-render fallback.

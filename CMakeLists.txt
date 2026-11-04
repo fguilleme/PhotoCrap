@@ -53,6 +53,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentIO.cpp
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
+    src/storage/ProjectReadIndex.h
+    src/storage/StreamingImageWriter.cpp
+    src/storage/StreamingImageWriter.h
     src/DocumentLayers.cpp
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -367,6 +370,9 @@ qt_add_library(photocrap_core STATIC
     src/DocumentIO.cpp
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
+    src/storage/ProjectReadIndex.h
+    src/storage/StreamingImageWriter.cpp
+    src/storage/StreamingImageWriter.h
     src/RawImageReader.cpp
     src/RawImageReader.h
     src/DocumentLayers.cpp
@@ -458,7 +464,7 @@ qt_add_library(photocrap_core STATIC
     src/filters/ThresholdFilter.h
 )
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent)
-target_link_libraries(photocrap_core PRIVATE photocrap_libraw)
+target_link_libraries(photocrap_core PRIVATE photocrap_libraw photocrap_raw_zlib)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE AND PHOTOCRAP_ENABLE_ACCELERATE)
     target_compile_definitions(photocrap_core PRIVATE PHOTOCRAP_USE_ACCELERATE)

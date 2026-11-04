@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État du projet au **3 novembre 2026**. Dernière release publiée : **v0.16** (version interne **0.16.0**). Les étapes ajoutées après cette release sont indiquées ci-dessous. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État du projet au **5 novembre 2026**. Dernière release publiée : **v0.16** (version interne **0.16.0**). Les étapes ajoutées après cette release sont indiquées ci-dessous. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
@@ -18,6 +18,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 - [x] Lecture `.pcr` indexée avec buffer de 16 Kio, réservation logique avant
   décodage et validation d’une enveloppe de calque à la fois ; publication atomique.
+
+- [x] Grands PNG natifs 8/16 bits et BMP composés/écrits par bandes, sans image
+  d’export complète pour les piles locales ; annulation et fichier atomique.
 
 ## Pinceau mélangeur — non publié
 

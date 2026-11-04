@@ -4,6 +4,7 @@
 #include "shapes/ShapeLayer.h"
 #include "storage/ProjectReadIndex.h"
 #include "storage/ProjectWriteDevice.h"
+#include "storage/StreamingImageWriter.h"
 #include "text/TextLayer.h"
 
 #include <QBuffer>
@@ -799,6 +800,31 @@ bool Document::exportImage(const QUrl &_url)
             tr("Export disponible en PNG, JPEG, BMP ou WebP (si le module Qt est installé)."));
     if (!operationStep(0, 4))
         return false;
+    if ((suffix == "png" || suffix == "bmp") && qint64(width()) * height() >= 4LL * 1024 * 1024) {
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly))
+            return fail(file.errorString());
+        QString    error;
+        const bool written = PhotoCrap::Storage::writeImageBands(
+            file, m_size, m_channelBits, suffix == "png",
+            [this](const QRect &_region) { return compositeRegion(_region); },
+            [this](int _done, int _total) {
+                return operationStep(100 + 650 * _done / _total, 1000);
+            },
+            error);
+        if (!written) {
+            if (!operationStep(0, 1))
+                return false;
+            return fail(error);
+        }
+        if (!operationStep(3, 4) || !beginOperationPublication())
+            return false;
+        operationStep(4, 4);
+        if (!file.commit())
+            return fail(file.errorString());
+        emit statusMessage(tr("Image exportée"));
+        return true;
+    }
     QImage result = composite();
     if (!operationStep(1, 4))
         return false;

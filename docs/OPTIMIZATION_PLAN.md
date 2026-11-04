@@ -21,7 +21,9 @@ Progression par optimisations vérifiées et commits distincts :
   réutilisation des passes ; sources uniformes sans passe supplémentaire.
 - [x] Ouverture `.pcr` indexée, sans agrégat JSON des PNG/Base64, préflight complet
   puis un calque à la fois ; métadonnées réordonnées et JSON corrompu contrôlés.
-- [ ] Réduire les buffers temporaires des exports des gros documents.
+- [x] Grands exports PNG natifs 8/16 bits et BMP par bandes, flux compressé borné,
+  annulation et publication atomique ; pas de composite complet pour les piles locales.
+- [ ] Réduire encore les copies des autres codecs d’export.
 - [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
 - [ ] Compacter les différences de tuiles de l’historique.

@@ -1,13 +1,17 @@
 #include "storage/ProjectWriteDevice.h"
+#include "storage/StreamingImageWriter.h"
 #include <QBuffer>
+#include <QColorSpace>
 #include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
 #include <QSaveFile>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -60,6 +64,74 @@ class ProjectWriteTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void streamingImagesKeepNativePixelsAndBoundTheirReads()
+    {
+        for (int bits : {8, 16})
+            for (bool png : {false, true}) {
+                QImage source(257, 301,
+                              bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                         : QImage::Format_ARGB32_Premultiplied);
+                for (int y = 0; y < source.height(); ++y)
+                    for (int x = 0; x < source.width(); ++x)
+                        source.setPixelColor(
+                            x, y,
+                            QColor::fromRgba64(ushort(x * 211 + y * 3), ushort(y * 173 + x * 7),
+                                               ushort(x * 71 + y * 31),
+                                               ushort(17000 + (x * 113 + y * 37) % 48000)));
+                ShortSink sink;
+                QString   error;
+                int       reads   = 0;
+                bool      bounded = true;
+                QVERIFY(PhotoCrap::Storage::writeImageBands(
+                    sink, source.size(), bits, png,
+                    [&](const QRect &_region) {
+                        ++reads;
+                        bounded &= _region.height() <= 256;
+                        return source.copy(_region);
+                    },
+                    {}, error));
+                QVERIFY(reads >= 2 && bounded);
+                const QImage decoded = QImage::fromData(sink.bytes);
+                QVERIFY(!decoded.isNull());
+                QImage expected;
+                if (png)
+                    expected = source.convertToFormat(bits == 16 ? QImage::Format_RGBA64
+                                                                 : QImage::Format_RGBA8888);
+                else {
+                    expected = QImage(source.size(), QImage::Format_RGB32);
+                    expected.fill(Qt::white);
+                    QPainter painter(&expected);
+                    painter.drawImage(0, 0, source);
+                    painter.end();
+                }
+                const auto actual = decoded.convertToFormat(expected.format());
+                for (int y = 0; y < expected.height(); ++y)
+                    for (int x = 0; x < expected.width(); ++x) {
+                        if (actual.pixelColor(x, y).rgba64() != expected.pixelColor(x, y).rgba64())
+                            qWarning() << bits << png << x << y << actual.pixelColor(x, y)
+                                       << expected.pixelColor(x, y);
+                        QCOMPARE(actual.pixelColor(x, y).rgba64(),
+                                 expected.pixelColor(x, y).rgba64());
+                    }
+                QVERIFY(sink.largestRequest <= 64 * 1024);
+                if (png) {
+                    QCOMPARE(uchar(sink.bytes.at(24)), uchar(bits));
+                    QCOMPARE(decoded.colorSpace(), QColorSpace(QColorSpace::SRgb));
+                }
+                ShortSink interrupted;
+                interrupted.failAfter = 100;
+                QVERIFY(!PhotoCrap::Storage::writeImageBands(
+                    interrupted, source.size(), bits, png,
+                    [&](const QRect &_region) { return source.copy(_region); }, {}, error));
+                int       rows = 0;
+                ShortSink cancelled;
+                QVERIFY(!PhotoCrap::Storage::writeImageBands(
+                    cancelled, source.size(), bits, png,
+                    [&](const QRect &_region) { return source.copy(_region); },
+                    [&](int, int) { return ++rows < 10; }, error));
+            }
+    }
+
     void recordingForwardsEveryByteAcrossItsCaptureLimit_data()
     {
         QTest::addColumn<int>("limit");

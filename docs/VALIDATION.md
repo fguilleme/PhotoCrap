@@ -1,5 +1,19 @@
 # Validation
 
+## Exports PNG/BMP par bandes — 5 novembre 2026
+
+`project_writer` compare tous les pixels décodés des images 8/16 bits, les
+frontières de bandes, le fond blanc BMP, les écritures courtes et erreurs,
+le marqueur sRGB, la profondeur PNG et l’arrêt par la progression. Les transferts
+compressés sont limités à 64 Kio. La comparaison porte sur les pixels, les
+métadonnées/choix de compression n’étant pas ceux du codec Qt pour ce chemin.
+`largeExportsStreamWithoutMaterializingComposite` exporte 4 Mpx en 16 bits,
+contrôle les valeurs non multiples de 257, la transparence, l’historique et
+`compositeBytes == 0`. Le stress réel de 16 Mpx est annulé pendant l’encodage
+sans toucher au fichier précédent. `document`, `document_operations` et
+`project_writer` passent ; les petits exports Qt gardent leurs références.
+
+
 ## Lecture indexée `.pcr` — 5 novembre 2026
 
 Le test de 128 enveloppes totalisant plus d’un Mio vérifie le buffer de 16 Kio,

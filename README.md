@@ -394,3 +394,5 @@ Limites connues : un seul document à la fois ; composition raster sur CPU avec 
 Les réglages par canal (Courbes, Niveaux, Luminosité/Contraste, Exposition, Balance, Isohélie et Négatif) restent désormais dans la pile GPU avec tables natives 8/16 bits. Voir la [suite des optimisations](docs/OPTIMIZATION_PLAN.md).
 
 L’ouverture des projets lit maintenant un index de calques avec un buffer de 16 Kio, puis valide et décode une enveloppe à la fois ; le JSON de tous les pixels encodés n’est plus conservé en mémoire.
+
+Les grands exports PNG 8/16 bits et BMP se composent et s’écrivent par bandes natives bornées, avec annulation et publication atomique ; les piles non locales gardent leur repli complet.

@@ -7476,6 +7476,43 @@ private slots:
                 << payload.size();
     }
 
+    void largeExportsStreamWithoutMaterializingComposite()
+    {
+        QTemporaryDir directory;
+        Document      d;
+        QVERIFY(d.newDocument(2048, 2048, true, 16));
+        d.setTool("pencil");
+        d.setBrushSize(17);
+        d.setColor(QColor::fromRgba64(17563, 27459, 48501, 33333));
+        d.beginStroke(100, 100);
+        d.endStroke();
+        const auto sample  = d.gpuLayerStack().layers.first().image.region(QRect(100, 100, 1, 1));
+        const auto history = d.history();
+        QCOMPARE(d.memoryUsage()["compositeBytes"].toLongLong(), qint64(0));
+        for (const QString &suffix : {QString("png"), QString("bmp")}) {
+            const auto file = directory.filePath("stream." + suffix);
+            QVERIFY(d.exportImage(QUrl::fromLocalFile(file)));
+            QCOMPARE(d.memoryUsage()["compositeBytes"].toLongLong(), qint64(0));
+            const QImage exported(file);
+            QCOMPARE(exported.size(), QSize(2048, 2048));
+            if (suffix == "png") {
+                QCOMPARE(exported.depth(), 64);
+                QCOMPARE(exported.pixelColor(100, 100).rgba64(), sample.pixelColor(0, 0).rgba64());
+                QCOMPARE(exported.pixelColor(2047, 2047).alpha(), 0);
+            } else {
+                QImage white(1, 1, QImage::Format_RGB32);
+                white.fill(Qt::white);
+                QPainter painter(&white);
+                painter.drawImage(0, 0, sample);
+                painter.end();
+                QCOMPARE(exported.pixelColor(100, 100), white.pixelColor(0, 0));
+                QCOMPARE(exported.pixelColor(2047, 2047), QColor(Qt::white));
+            }
+            QCOMPARE(d.history(), history);
+            QVERIFY(d.modified());
+        }
+    }
+
     void indexedProjectReadsKeepOneLayerAndValidateJson()
     {
         QJsonArray layers;

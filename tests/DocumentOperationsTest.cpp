@@ -1757,7 +1757,7 @@ private slots:
         timer.start();
         bool encoding = false;
         while (d.operationBusy() && timer.elapsed() < 10000) {
-            if (d.operationProgress() == .5) {
+            if (d.operationProgress() >= .2 && d.operationProgress() < .9) {
                 encoding = true;
                 break;
             }

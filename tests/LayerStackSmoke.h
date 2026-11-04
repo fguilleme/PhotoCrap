@@ -275,8 +275,11 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         if (!source.save(path))
             return false;
         canvas.setSize({600, 64});
-        for (const auto &type : {"curves", "levels", "brightnessContrast", "exposure",
-                                 "colorBalance", "posterize", "invert"}) {
+        for (const auto &type :
+             {"curves", "levels", "brightnessContrast", "exposure", "colorBalance", "posterize",
+              "invert", "light", "color", "blackWhite", "gradientMap", "photoFilter",
+              "channelMixer", "threshold", "colorLookup", "selectiveColor", "vibrance",
+              "hueSaturation"}) {
             if (!document.openFile(QUrl::fromLocalFile(path)))
                 return false;
             document.addAdjustmentLayer(type);
@@ -285,6 +288,15 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             document.previewLayerParameter("contrast", 25);
             document.previewLayerParameter("cyanRed", 17);
             document.previewLayerParameter("levels", 5);
+            document.previewLayerParameter("temperature", 25);
+            document.previewLayerParameter("saturation", 22);
+            document.previewLayerParameter("vibrance", 30);
+            document.previewLayerParameter("redBlue", 21);
+            document.previewLayerParameter("reds", 70);
+            document.previewLayerParameter("redsCyanRed", 20);
+            document.previewLayerParameter("tintEnabled", true);
+            document.previewLayerParameter("hue", 35);
+            document.previewLayerParameter("blacks", -17);
             document.finishLayerPreview("Channel table");
             document.setLayerOpacity(document.activeLayer(), .61);
             document.setEditingMask(true);

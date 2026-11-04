@@ -10,6 +10,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   Négatif composés dans la pile GPU par tables natives 8/16 bits, cache LRU borné
   et références transparentes logiciel/Metal. Suite dans [le plan](docs/OPTIMIZATION_PLAN.md).
 
+- [x] Réglages tonals analytiques intégrés aux piles GPU natives, paramètres seuls
+  actualisés pour les calculs directs ; 36 piles transparentes validées logiciel/Metal.
+
 ## Pinceau mélangeur — non publié
 
 - [x] Barre inspirée des commandes Adobe : charge multicolore, recharge/nettoyage

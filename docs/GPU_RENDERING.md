@@ -2029,3 +2029,13 @@ pas. Les autres réglages et masques progressifs restent à étendre.
 
 Tests : précision non multiple de 257, réutilisation du cache, Annuler et comparaison
 logiciel/Metal de quatorze piles transparentes avec masque et deux réglages.
+
+Les autres réglages tonals éligibles sont aussi composés dans la pile : Lumière,
+Couleur, Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches,
+Seuil, Style colorimétrique, Correction sélective, Vibrance et Teinte/Saturation.
+Les formules analytiques conservent la quantification native et les palettes
+utilisent 256/65 536 valeurs. Les calculs directs partagent un seul pixel factice
+au lieu d’une LUT inutilisée. Les comparaisons logiciel/Metal couvrent 36 piles
+avec deux réglages, source transparente, opacité fractionnaire et masque peint.
+Le moteur complet passe également. Dissoudre, Mélange maximal et TSL gardent leur
+repli de pile CPU, distinct de leurs aperçus GPU existants.

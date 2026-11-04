@@ -268,6 +268,18 @@ public:
             key.append(char(layer.clipped));
             key.append(char(layer.reset));
             key += layer.spatial.key();
+            const auto  &tone = layer.tone;
+            const qint32 mode = qint32(tone.mode);
+            key.append(reinterpret_cast<const char *>(&mode), sizeof(mode));
+            for (const auto &vector :
+                 {tone.color, tone.families0, tone.families1, tone.matrix[0], tone.matrix[1],
+                  tone.matrix[2], tone.selective[0], tone.selective[1], tone.selective[2],
+                  tone.selective[3], tone.selective[4], tone.selective[5], tone.selective[6],
+                  tone.selective[7], tone.selective[8]})
+                for (int channel = 0; channel < 4; ++channel) {
+                    const float value = vector[channel];
+                    key.append(reinterpret_cast<const char *>(&value), sizeof(value));
+                }
         }
         key += QByteArray::number(stack.bits);
         if (key == renderedKey) {
@@ -314,12 +326,13 @@ public:
             }
             filterRuns.push_back(run);
             auto pass = std::make_unique<Pass>();
-            pass->uniform.reset(rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 96));
+            pass->uniform.reset(
+                rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 256));
             if (!pass->uniform->create()) {
                 ok = false;
                 break;
             }
-            QByteArray uniform(96, 0);
+            QByteArray uniform(256, 0);
             const auto matrix = rhi->clipSpaceCorrMatrix();
             std::memcpy(uniform.data(), matrix.constData(), 64);
             const qint32 modes[]  = {layer.blend, layer.clipped,
@@ -331,7 +344,26 @@ public:
                                      rhi->isYUpInFramebuffer() ? 1.f : 0.f};
             std::memcpy(uniform.data() + 64, modes, sizeof(modes));
             std::memcpy(uniform.data() + 80, values, sizeof(values));
-            updates->updateDynamicBuffer(pass->uniform.get(), 0, 96, uniform.constData());
+            const qint32 toneMode = int(layer.tone.mode);
+            std::memcpy(uniform.data() + 96, &toneMode, 4);
+            auto parameters = layer.tone.selective;
+            if (layer.tone.mode != PhotoCrap::Filters::ToneMappingMode::SelectiveColorRelative &&
+                layer.tone.mode != PhotoCrap::Filters::ToneMappingMode::SelectiveColorAbsolute)
+                parameters = {layer.tone.color,
+                              layer.tone.families0,
+                              layer.tone.families1,
+                              layer.tone.matrix[0],
+                              layer.tone.matrix[1],
+                              layer.tone.matrix[2],
+                              {},
+                              {},
+                              {}};
+            for (size_t i = 0; i < parameters.size(); ++i)
+                for (int c = 0; c < 4; ++c) {
+                    const float v = parameters[i][c];
+                    std::memcpy(uniform.data() + 112 + i * 16 + c * 4, &v, 4);
+                }
+            updates->updateDynamicBuffer(pass->uniform.get(), 0, 256, uniform.constData());
             pass->bindings.reset(rhi->newShaderResourceBindings());
             const auto stage = QRhiShaderResourceBinding::FragmentStage;
             pass->bindings->setBindings(
@@ -428,7 +460,7 @@ public:
         qint64 result = qint64(region.width()) * region.height() * (bits == 16 ? 34 : 10) + 64;
         for (const auto &value : inputs)
             result += value->bytes;
-        return result + qint64(passes.size()) * 96 + (spatial ? spatial->bytes() : 0) +
+        return result + qint64(passes.size()) * 256 + (spatial ? spatial->bytes() : 0) +
                (pyramid ? pyramid->bytes() : 0);
     }
     void updateBytes()

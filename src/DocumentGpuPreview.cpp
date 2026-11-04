@@ -28,11 +28,10 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
-        static const QStringList channelTypes{"curves",   "levels",       "brightnessContrast",
-                                              "exposure", "colorBalance", "posterize",
-                                              "invert"};
-        const bool               tonal =
-            layer.kind == "adjustment" && channelTypes.contains(layer.adjustmentType);
+        const bool tonal =
+            layer.kind == "adjustment" &&
+            PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
+            (layer.adjustmentType != "selectiveColor" || layer.parameters.contains("redsCyanRed"));
         const bool                                 masked = LayerVisibility::needsMask(layer);
         static const QHash<QString, SpatialFilter> spatialTypes{
             {"boxBlur", SpatialFilter::Box},
@@ -51,37 +50,50 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             return {};
         StackLayer entry;
         if (tonal) {
-            auto parameters = layer.parameters;
-            for (auto it = parameters.begin(); it != parameters.end();)
-                if (it.key().startsWith('_'))
-                    it = parameters.erase(it);
-                else
-                    ++it;
-            QByteArray  key;
-            QDataStream stream(&key, QIODevice::WriteOnly);
-            stream << m_channelBits << layer.adjustmentType << parameters;
-            const auto cached = m_gpuChannelTables.object(key);
-            auto       table  = cached ? *cached : QImage{};
-            if (table.isNull()) {
-                QImage ramp(256, m_channelBits == 16 ? 256 : 1, workingFormat());
-                if (ramp.isNull())
-                    return {};
-                for (int y = 0; y < ramp.height(); ++y)
-                    for (int x = 0; x < 256; ++x) {
-                        const int value = x + y * 256;
-                        if (m_channelBits == 16)
-                            reinterpret_cast<QRgba64 *>(ramp.scanLine(y))[x] =
-                                QRgba64::fromRgba64(value, value, value, 65535);
-                        else
-                            reinterpret_cast<QRgb *>(ramp.scanLine(y))[x] =
-                                qRgb(value, value, value);
-                    }
-                table = adjustedImage(ramp, layer.adjustmentType, parameters);
-                if (table.isNull())
-                    return {};
-                m_gpuChannelTables.insert(key, new QImage(table), int(table.sizeInBytes()));
+            entry.tone =
+                PhotoCrap::Filters::toneMappingSettings(layer.adjustmentType, layer.parameters);
+            const int  mode   = int(entry.tone.mode);
+            const bool lookup = mode == 0 || mode == 1 || mode == 3 || mode == 4 || mode == 6;
+            if (!lookup) {
+                static const QImage unused = [] {
+                    QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+                    pixel.fill(Qt::white);
+                    return pixel;
+                }();
+                entry.toneTable = unused;
+            } else {
+                auto parameters = layer.parameters;
+                for (auto it = parameters.begin(); it != parameters.end();)
+                    if (it.key().startsWith('_'))
+                        it = parameters.erase(it);
+                    else
+                        ++it;
+                QByteArray  key;
+                QDataStream stream(&key, QIODevice::WriteOnly);
+                stream << m_channelBits << layer.adjustmentType << parameters;
+                const auto cached = m_gpuChannelTables.object(key);
+                auto       table  = cached ? *cached : QImage{};
+                if (table.isNull()) {
+                    QImage ramp(256, m_channelBits == 16 ? 256 : 1, workingFormat());
+                    if (ramp.isNull())
+                        return {};
+                    for (int y = 0; y < ramp.height(); ++y)
+                        for (int x = 0; x < 256; ++x) {
+                            const int value = x + y * 256;
+                            if (m_channelBits == 16)
+                                reinterpret_cast<QRgba64 *>(ramp.scanLine(y))[x] =
+                                    QRgba64::fromRgba64(value, value, value, 65535);
+                            else
+                                reinterpret_cast<QRgb *>(ramp.scanLine(y))[x] =
+                                    qRgb(value, value, value);
+                        }
+                    table = adjustedImage(ramp, layer.adjustmentType, parameters);
+                    if (table.isNull())
+                        return {};
+                    m_gpuChannelTables.insert(key, new QImage(table), int(table.sizeInBytes()));
+                }
+                entry.toneTable = table;
             }
-            entry.toneTable = table;
         }
         entry.spatial.type = spatial;
         if (spatial != SpatialFilter::None) {

@@ -1,4 +1,5 @@
 #pragma once
+#include "../filters/ToneMappingTable.h"
 #include "../storage/PixelPlane.h"
 #include "SpatialFilterSettings.h"
 #include <QVector>
@@ -12,11 +13,12 @@ struct StackStatistics {
     std::function<void(quint64)> changed;
 };
 struct StackLayer {
-    PixelPlane            image, mask, toneTable;
-    float                 opacity = 1, density = 1;
-    int                   blend   = 0;
-    bool                  clipped = false, reset = false;
-    SpatialFilterSettings spatial;
+    PixelPlane                              image, mask, toneTable;
+    float                                   opacity = 1, density = 1;
+    int                                     blend   = 0;
+    bool                                    clipped = false, reset = false;
+    SpatialFilterSettings                   spatial;
+    PhotoCrap::Filters::ToneMappingSettings tone;
 };
 // Immutable, shallow GUI-thread snapshot. Pixel reads and GPU resources belong
 // to the scene graph thread; no live Document is accessed there.
@@ -54,7 +56,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                              ? colorBytes
                              : pixels * colorBytes;
                 bytes += layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
-                bytes += 96;
+                bytes += 256;
                 if (!layer.toneTable.isNull())
                     bytes += layer.toneTable.width() * layer.toneTable.height() * colorBytes;
                 if (layer.spatial.type != SpatialFilter::None)

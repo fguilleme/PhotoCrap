@@ -15,7 +15,9 @@ Progression par optimisations vérifiées et commits distincts :
   Luminosité/Contraste, Exposition, Balance, Isohélie et Négatif. Table de 256 ou
   65 536 entrées selon la profondeur, cache GUI LRU de 4 Mio, masques et composition
   conservés. Vérifications moteur, logiciel et Metal sur piles transparentes.
-- [ ] Compléter les réglages tonals analytiques et les masques progressifs GPU.
+- [x] Réglages tonals analytiques dans les piles GPU 8/16 bits : couleurs, matrices,
+  luminance et palettes, sans texture de table volumineuse pour les calculs directs.
+- [ ] Masques progressifs dans la pile GPU.
 - [ ] Réduire les buffers temporaires des entrées/sorties des gros documents.
 - [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.

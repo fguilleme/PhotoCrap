@@ -241,7 +241,7 @@ void main()
         vec3 straight = base.a > 0.0 ? base.rgb/base.a : vec3(0.0);
         source = native(vec4(nativeTone(straight).rgb*base.a,base.a));
     }
-    float mask = floor(255.0 - (255.0 - texture(maskTexture, uv).r * 255.0) * ubuf.values.y + 0.5) / 255.0;
+    float mask = floor(255.0 - (255.0 - texture(maskTexture, (ubuf.modes.z & 8) != 0 ? framebufferUV : uv).r * 255.0) * ubuf.values.y + 0.5) / 255.0;
     source = native(source * mask);
     if (ubuf.modes.y != 0)
         source = native(source * clip);

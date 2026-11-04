@@ -17,7 +17,8 @@ Progression par optimisations vérifiées et commits distincts :
   conservés. Vérifications moteur, logiciel et Metal sur piles transparentes.
 - [x] Réglages tonals analytiques dans les piles GPU 8/16 bits : couleurs, matrices,
   luminance et palettes, sans texture de table volumineuse pour les calculs directs.
-- [ ] Masques progressifs dans la pile GPU.
+- [x] Masques progressifs dans la pile GPU : halo, arrondis, densité et
+  réutilisation des passes ; sources uniformes sans passe supplémentaire.
 - [ ] Réduire les buffers temporaires des entrées/sorties des gros documents.
 - [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.

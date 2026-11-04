@@ -8377,9 +8377,8 @@ private slots:
                             const auto stack  = d.gpuLayerStack();
                             const bool empty  = value == 0 && density == 100;
                             const bool masked = value != 255 && density > 0;
-                            const bool valid  = empty || !masked || feather == 0;
-                            QCOMPARE(stack.valid, valid);
-                            if (valid) {
+                            QVERIFY(stack.valid);
+                            {
                                 int entries = 0;
                                 for (const auto &entry : stack.layers)
                                     if (!entry.reset)

@@ -1,5 +1,23 @@
 # Validation
 
+## Composition GPU native et masques — 4 novembre 2026
+
+- Réglages par canal avec LUT natives 256/65 536 entrées, cache GUI LRU de 4 Mio.
+- Réglages analytiques, palettes et luminance dans les piles natives 8/16 bits.
+- Masques progressifs avec deux passes GPU, halos et arrondis CPU conservés.
+- 36 piles transparentes, masque peint, opacité fractionnaire, deux réglages,
+  raccords 512/1024 : comparaisons logiciel, Metal et OpenGL Core.
+- Précision 16 bits non multiple de 257, réutilisation des tables, annulation et
+  masques uniformes contrôlés dans le moteur. Le test uniforme accepte désormais
+  le masque adouci éligible tout en exigeant zéro passe/halo pour son fond uniforme.
+- Le parcours spatial natif Metal passe aussi : boîtes, gaussiens, directionnels,
+  netteté et passe-haut, avec masques et chaînes transparentes, écart écran maximal
+  de deux unités. Le test déplace la vue sur les petits écrans et exige que tous
+  ses échantillons de référence aient été vus, sans redimensionner la fenêtre.
+- Les blocs uniformes vertex/fragment sont identiques sur OpenGL ; les filtres
+  spatiaux utilisent leur vertex distinct. Les anciens contextes gardent le repli.
+
+
 ## Pinceau mélangeur — 4 novembre 2026
 
 La reprise lit désormais la peinture fraîche du trait et échange les couleurs

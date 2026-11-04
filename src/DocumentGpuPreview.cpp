@@ -45,8 +45,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         if ((layer.kind != "pixel" && !solid && !tonal && layer.kind != "text" &&
              layer.kind != "shape" && spatial == SpatialFilter::None) ||
             (!solid && !tonal && spatial == SpatialFilter::None && layer.image.isNull()) ||
-            layer.blend == 1 || layer.blend == 18 || layer.blend >= 23 ||
-            (masked && layer.parameters.value("_maskFeather", 0.).toDouble() >= .5))
+            layer.blend == 1 || layer.blend == 18 || layer.blend >= 23)
             return {};
         StackLayer entry;
         if (tonal) {
@@ -125,7 +124,19 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             color.fill(QColor(layer.parameters.value("color", "#000000").toString()));
             entry.image = color;
         }
-        entry.mask    = masked ? layer.mask : PixelPlane{};
+        entry.mask = masked ? layer.mask : PixelPlane{};
+        if (masked && !layer.mask.isUniform()) {
+            const int radius =
+                qBound(0, qRound(layer.parameters.value("_maskFeather", 0.).toDouble()), 100);
+            if (radius > 0) {
+                entry.maskFilter.type   = SpatialFilter::Box;
+                entry.maskFilter.radius = radius;
+#ifdef PHOTOCRAP_USE_ACCELERATE
+                entry.maskFilter.roundBox2D = true;
+#endif
+                stack.halo += radius;
+            }
+        }
         entry.opacity = float(qBound(0., layer.opacity, 1.));
         entry.density =
             float(qBound(0., layer.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.));

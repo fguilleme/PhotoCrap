@@ -17,7 +17,7 @@ struct StackLayer {
     float                                   opacity = 1, density = 1;
     int                                     blend   = 0;
     bool                                    clipped = false, reset = false;
-    SpatialFilterSettings                   spatial;
+    SpatialFilterSettings                   spatial, maskFilter;
     PhotoCrap::Filters::ToneMappingSettings tone;
 };
 // Immutable, shallow GUI-thread snapshot. Pixel reads and GPU resources belong
@@ -49,9 +49,10 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             const qint64 pixels  = qint64(size.width()) * size.height();
             const int    colorBytes = stack.bits == 16 ? 16 : 4;
             bytes += pixels * (colorBytes + 1) * 2 + 64;
-            bool spatial = false;
+            bool spatial = false, masks = false;
             for (const auto &layer : stack.layers) {
                 spatial |= layer.spatial.type != SpatialFilter::None;
+                masks |= layer.maskFilter.type != SpatialFilter::None;
                 bytes += layer.image.size() == QSize(1, 1) || layer.image.isNull()
                              ? colorBytes
                              : pixels * colorBytes;
@@ -61,9 +62,13 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                     bytes += layer.toneTable.width() * layer.toneTable.height() * colorBytes;
                 if (layer.spatial.type != SpatialFilter::None)
                     bytes += 7 * 96;
+                if (layer.maskFilter.type != SpatialFilter::None)
+                    bytes += 2 * 96;
             }
             if (spatial)
                 bytes += pixels * (colorBytes + 16) + 64;
+            if (masks)
+                bytes += pixels * 20 + 64;
             // Four retained reductions, including their horizontal FP32 targets.
             bytes += pixels * (16 + (colorBytes + 2) / 3) + 4 * 256 + 64;
         }

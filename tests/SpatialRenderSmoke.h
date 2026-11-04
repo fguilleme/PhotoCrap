@@ -20,7 +20,7 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
     };
     Document   document;
     CanvasItem canvas(window->contentItem());
-    canvas.setPosition({40, 120});
+    canvas.setPosition({qreal(qMax(0, qMin(40, window->width() - 1056))), 120});
     canvas.setSize({1056, 96});
     canvas.setZ(1000);
     canvas.setDocument(&document);
@@ -38,49 +38,64 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
     const auto check = [&](const QString &type, int bits, int radius) {
         // Compute the native reference after committing the gesture, so it is
         // independent of the CPU's intentionally reduced drag-preview path.
-        const QImage reference = document.composite();
-        frame();
-        const QImage result = frame();
-        if (!require(!result.isNull() && canvas.gpuStackActive() == hardware,
-                     "the complete spatial stack renders or falls back in software"))
-            return false;
-        const double ratio   = double(result.width()) / window->width();
+        const QImage     reference = document.composite();
+        const auto       origin    = canvas.position();
+        const auto       restore   = qScopeGuard([&] { canvas.setPosition(origin); });
+        QVector<QPointF> views{origin};
+        const QPointF    right(qMin(origin.x(), window->width() - canvas.width()), origin.y());
+        if (right != origin)
+            views.append(right);
+        QSet<QPoint> required, inspected;
         int          maximum = 0;
-        for (int y : {0, 1, 35, qMin(95, reference.height() - 1), qMin(511, reference.height() - 1),
-                      qMin(512, reference.height() - 1), reference.height() - 1})
-            for (int x : {0, 1, 15, 255, 510, 511, 512, 513, qMin(1023, reference.width() - 1),
-                          qMin(1024, reference.width() - 1), reference.width() - 1}) {
-                const QPointF scene = canvas.mapToScene({x + .5, y + .5});
-                const QPoint  point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
-                if (!require(result.rect().contains(point),
-                             "reference sample stays within the window"))
-                    return false;
-                const auto actual   = result.pixelColor(point);
-                auto       expected = reference.pixelColor(x, y);
-                if (expected.alpha() < 255) {
-                    QImage    checker(1, 1, QImage::Format_ARGB32_Premultiplied);
-                    const int level = (x % 24 < 12) == (y % 24 < 12) ? 238 : 214;
-                    checker.fill(QColor(level, level, level));
-                    QPainter painter(&checker);
-                    painter.fillRect(checker.rect(), expected);
-                    painter.end();
-                    expected = checker.pixelColor(0, 0);
+        for (const auto &view : views) {
+            canvas.setPosition(view);
+            frame();
+            const QImage result = frame();
+            if (!require(!result.isNull() && canvas.gpuStackActive() == hardware,
+                         "the complete spatial stack renders or falls back in software"))
+                return false;
+            const double ratio = double(result.width()) / window->width();
+            for (int y :
+                 {0, 1, 35, qMin(95, reference.height() - 1), qMin(511, reference.height() - 1),
+                  qMin(512, reference.height() - 1), reference.height() - 1})
+                for (int x : {0, 1, 15, 255, 510, 511, 512, 513, qMin(1023, reference.width() - 1),
+                              qMin(1024, reference.width() - 1), reference.width() - 1}) {
+                    const QPointF scene = canvas.mapToScene({x + .5, y + .5});
+                    const QPoint  point(qFloor(scene.x() * ratio), qFloor(scene.y() * ratio));
+                    required.insert(QPoint(x, y));
+                    if (!result.rect().contains(point))
+                        continue;
+                    inspected.insert(QPoint(x, y));
+                    const auto actual   = result.pixelColor(point);
+                    auto       expected = reference.pixelColor(x, y);
+                    if (expected.alpha() < 255) {
+                        QImage    checker(1, 1, QImage::Format_ARGB32_Premultiplied);
+                        const int level = (x % 24 < 12) == (y % 24 < 12) ? 238 : 214;
+                        checker.fill(QColor(level, level, level));
+                        QPainter painter(&checker);
+                        painter.fillRect(checker.rect(), expected);
+                        painter.end();
+                        expected = checker.pixelColor(0, 0);
+                    }
+                    const int delta = qMax(qAbs(actual.red() - expected.red()),
+                                           qMax(qAbs(actual.green() - expected.green()),
+                                                qAbs(actual.blue() - expected.blue())));
+                    maximum         = qMax(maximum, delta);
+                    if (delta > 2) {
+                        qWarning() << "Spatial difference" << type << bits << radius << QPoint(x, y)
+                                   << actual << expected << delta;
+                        canvas.setGpuStackEnabled(false);
+                        frame();
+                        const auto fallback = frame();
+                        qWarning() << "CPU fallback sample" << fallback.pixelColor(point)
+                                   << "native alpha sample" << reference.pixelColor(x, y);
+                        return false;
+                    }
                 }
-                const int delta = qMax(qAbs(actual.red() - expected.red()),
-                                       qMax(qAbs(actual.green() - expected.green()),
-                                            qAbs(actual.blue() - expected.blue())));
-                maximum         = qMax(maximum, delta);
-                if (delta > 2) {
-                    qWarning() << "Spatial difference" << type << bits << radius << QPoint(x, y)
-                               << actual << expected << delta;
-                    canvas.setGpuStackEnabled(false);
-                    frame();
-                    const auto fallback = frame();
-                    qWarning() << "CPU fallback sample" << fallback.pixelColor(point)
-                               << "native alpha sample" << reference.pixelColor(x, y);
-                    return false;
-                }
-            }
+        }
+        if (!require(required == inspected,
+                     "all native reference samples are covered across the viewport pans"))
+            return false;
         qInfo() << "Spatial reference" << type << bits << radius << "maximum display difference"
                 << maximum;
         return true;

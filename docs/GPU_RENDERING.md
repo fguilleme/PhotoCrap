@@ -2039,3 +2039,21 @@ au lieu d’une LUT inutilisée. Les comparaisons logiciel/Metal couvrent 36 pil
 avec deux réglages, source transparente, opacité fractionnaire et masque peint.
 Le moteur complet passe également. Dissoudre, Mélange maximal et TSL gardent leur
 repli de pile CPU, distinct de leurs aperçus GPU existants.
+
+
+## Contour progressif des masques dans la pile — 4 novembre 2026
+
+Le flou de masque utilise deux passes GPU bornées aux tuiles, avec halo cumulé,
+extension aux vrais bords, densité appliquée après flou et arrondis du backend
+CPU (2D Accelerate ou passes tronquées portables). Les textures intermédiaires
+sont réutilisées entre les calques et comptées dans le budget. Les masques
+uniformes ne créent aucune passe. Les masques gardent leurs huit bits, même
+sur les documents 16 bits. Les caches incluent rayon et pixels du voisinage.
+
+Les 36 piles de réglages transparentes sont comparées avec un masque peint et
+un rayon de sept pixels, notamment aux raccords 512/1024. Les filtres spatiaux
+et les métadonnées de masques uniformes sont contrôlés séparément.
+
+Ces piles passent sur Metal et OpenGL Core. Le vertex shader des piles tonales
+partage exactement le bloc uniforme du fragment ; les passes spatiales gardent
+leur bloc séparé pour assurer aussi le lien des programmes OpenGL.

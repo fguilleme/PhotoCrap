@@ -63,7 +63,7 @@ struct SpatialFilterPass::Data {
     }
     std::unique_ptr<Step> step(QRhiTexture *source, QRhiTexture *original, int target,
                                int operation, int radius, bool vertical, float a, float b,
-                               QRhiResourceUpdateBatch *updates, bool roundBox2D)
+                               QRhiResourceUpdateBatch *updates, bool roundBox2D, bool uploaded)
     {
         auto result    = std::make_unique<Step>();
         result->target = target;
@@ -73,7 +73,8 @@ struct SpatialFilterPass::Data {
         QByteArray data(96, 0);
         const auto matrix = rhi->clipSpaceCorrMatrix();
         std::memcpy(data.data(), matrix.constData(), 64);
-        const qint32 modes[]  = {operation, radius, vertical, rhi->isYUpInFramebuffer()};
+        const qint32 modes[]  = {operation, radius, vertical,
+                                 rhi->isYUpInFramebuffer() && !uploaded};
         const float  values[] = {bits == 16 ? 65535.f : 255.f, a, b, roundBox2D ? 1.f : 0.f};
         std::memcpy(data.data() + 64, modes, sizeof(modes));
         std::memcpy(data.data() + 80, values, sizeof(values));
@@ -114,7 +115,7 @@ void SpatialFilterPass::resetFrame()
 SpatialFilterPass::Run
 SpatialFilterPass::prepare(QRhiTexture                                    *source,
                            const PhotoCrap::Render::SpatialFilterSettings &settings,
-                           QRhiResourceUpdateBatch                        *updates)
+                           QRhiResourceUpdateBatch *updates, bool uploaded)
 {
     using PhotoCrap::Render::SpatialFilter;
     if (!source || !d->init(updates))
@@ -124,7 +125,7 @@ SpatialFilterPass::prepare(QRhiTexture                                    *sourc
     const auto   append  = [&](int operation, int radius, bool vertical, float a = 0, float b = 0) {
         const int target = current == d->textures[0].get() ? 1 : 0;
         auto step = d->step(current, source, target, operation, radius, vertical, a, b, updates,
-                            settings.roundBox2D);
+                            settings.roundBox2D, uploaded && current == source);
         if (!step)
             return false;
         job.steps.push_back(std::move(step));

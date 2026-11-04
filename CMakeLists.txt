@@ -508,7 +508,7 @@ qt_add_shaders(PhotoCrap canvas_tone_shaders
 qt_add_shaders(PhotoCrap stack_shaders
     PREFIX "/PhotoCrap"
     GLSL "330,300es"
-    FILES src/render/shaders/stack.vert src/render/shaders/stack.frag src/render/shaders/spatial.frag
+    FILES src/render/shaders/stack.vert src/render/shaders/stack_tonal.vert src/render/shaders/stack.frag src/render/shaders/spatial.frag
         src/render/shaders/pyramid.vert src/render/shaders/pyramid.frag
 )
 if(TARGET Qt6::GuiPrivate AND Qt6_VERSION VERSION_GREATER_EQUAL 6.6)

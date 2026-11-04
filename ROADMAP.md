@@ -13,6 +13,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Réglages tonals analytiques intégrés aux piles GPU natives, paramètres seuls
   actualisés pour les calculs directs ; 36 piles transparentes validées logiciel/Metal.
 
+- [x] Contours progressifs des masques dans les piles GPU natives, passes et halos
+  bornés et comparaisons aux bords et raccords avec le moteur CPU.
+
 ## Pinceau mélangeur — non publié
 
 - [x] Barre inspirée des commandes Adobe : charge multicolore, recharge/nettoyage

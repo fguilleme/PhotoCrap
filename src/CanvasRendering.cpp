@@ -773,7 +773,8 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
 
     const bool spatial =
         std::any_of(m_stack.layers.cbegin(), m_stack.layers.cend(), [](const auto &layer) {
-            return layer.spatial.type != PhotoCrap::Render::SpatialFilter::None;
+            return layer.spatial.type != PhotoCrap::Render::SpatialFilter::None ||
+                   layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None;
         });
     if (m_stack.valid &&
         LayerStackNode::supported(window(), m_stack.bits, spatial || m_stack.displayLevel > 0)) {

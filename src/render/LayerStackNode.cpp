@@ -86,6 +86,7 @@ public:
     std::unique_ptr<QRhiBuffer>                             vertices;
     std::unique_ptr<QRhiGraphicsPipeline>                   pipeline;
     std::unique_ptr<SpatialFilterPass>                      spatial;
+    std::unique_ptr<SpatialFilterPass>                      masks;
     QHash<QByteArray, std::shared_ptr<Input>>               inputs;
     std::vector<std::unique_ptr<Pass>>                      passes;
     QSGImageNode                                           *image          = nullptr;
@@ -268,6 +269,7 @@ public:
             key.append(char(layer.clipped));
             key.append(char(layer.reset));
             key += layer.spatial.key();
+            key += layer.maskFilter.key();
             const auto  &tone = layer.tone;
             const qint32 mode = qint32(tone.mode);
             key.append(reinterpret_cast<const char *>(&mode), sizeof(mode));
@@ -294,9 +296,11 @@ public:
         if (renderedKey.isEmpty())
             updates->uploadStaticBuffer(vertices.get(), quad);
         QSet<QByteArray> used;
-        std::vector<int> filterRuns;
+        std::vector<int> filterRuns, maskRuns;
         if (spatial)
             spatial->resetFrame();
+        if (masks)
+            masks->resetFrame();
         passes.clear();
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
@@ -310,6 +314,20 @@ public:
                 ok = false;
                 break;
             }
+            QRhiTexture *maskSource = mask->texture.get();
+            int          maskRun    = -1;
+            if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
+                if (!masks)
+                    masks = std::make_unique<SpatialFilterPass>(rhi, region.size(), 8);
+                const auto prepared = masks->prepare(maskSource, layer.maskFilter, updates, true);
+                if (!prepared.texture) {
+                    ok = false;
+                    break;
+                }
+                maskSource = prepared.texture;
+                maskRun    = prepared.index;
+            }
+            maskRuns.push_back(maskRun);
             QRhiTexture *source = color->texture.get();
             int          run    = -1;
             if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
@@ -337,7 +355,8 @@ public:
             std::memcpy(uniform.data(), matrix.constData(), 64);
             const qint32 modes[]  = {layer.blend, layer.clipped,
                                      int(layer.reset) + (run >= 0 ? 2 : 0) +
-                                         (!layer.toneTable.isNull() ? 4 : 0),
+                                         (!layer.toneTable.isNull() ? 4 : 0) +
+                                         (maskRun >= 0 ? 8 : 0),
                                      index == 0};
             const float  values[] = {layer.opacity, layer.density,
                                      stack.bits == 16 ? 65535.f : 255.f,
@@ -372,8 +391,7 @@ public:
                  QRhiShaderResourceBinding::sampledTexture(1, stage, colors[index % 2].get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(3, stage, mask->texture.get(),
-                                                           sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(4, stage, clips[index % 2].get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(5, stage, table->texture.get(),
@@ -386,7 +404,7 @@ public:
         }
         if (ok && !pipeline) {
             pipeline.reset(rhi->newGraphicsPipeline());
-            pipeline->setShaderStages({{QRhiShaderStage::Vertex, shader("stack.vert")},
+            pipeline->setShaderStages({{QRhiShaderStage::Vertex, shader("stack_tonal.vert")},
                                        {QRhiShaderStage::Fragment, shader("stack.frag")}});
             QRhiVertexInputLayout layout;
             layout.setBindings({QRhiVertexInputBinding(4 * sizeof(float))});
@@ -417,6 +435,8 @@ public:
             cb->endPass();
         }
         for (size_t index = 0; index < passes.size(); ++index) {
+            if (maskRuns[index] >= 0)
+                counters->passes.fetch_add(masks->render(cb, maskRuns[index]));
             if (filterRuns[index] >= 0)
                 counters->passes.fetch_add(spatial->render(cb, filterRuns[index]));
             cb->beginPass(targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0});
@@ -461,7 +481,7 @@ public:
         for (const auto &value : inputs)
             result += value->bytes;
         return result + qint64(passes.size()) * 256 + (spatial ? spatial->bytes() : 0) +
-               (pyramid ? pyramid->bytes() : 0);
+               (masks ? masks->bytes() : 0) + (pyramid ? pyramid->bytes() : 0);
     }
     void updateBytes()
     {

@@ -17,7 +17,7 @@ public:
     ~SpatialFilterPass();
     void    resetFrame();
     Run     prepare(QRhiTexture *source, const PhotoCrap::Render::SpatialFilterSettings &settings,
-                    QRhiResourceUpdateBatch *updates);
+                    QRhiResourceUpdateBatch *updates, bool uploaded = false);
     quint64 render(QRhiCommandBuffer *cb, int run);
     qint64  bytes() const;
 

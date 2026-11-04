@@ -297,6 +297,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             document.previewLayerParameter("tintEnabled", true);
             document.previewLayerParameter("hue", 35);
             document.previewLayerParameter("blacks", -17);
+            document.previewLayerParameter("_maskFeather", 7);
             document.finishLayerPreview("Channel table");
             document.setLayerOpacity(document.activeLayer(), .61);
             document.setEditingMask(true);

@@ -287,6 +287,11 @@ void CanvasItem::updatePolish()
         if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available() ||
             qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING"))
             m_stack.streamInputs = true;
+        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available() ||
+            qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH")) {
+            m_stack.streamInputs = true;
+            m_stack.shareScratch = true;
+        }
         if (m_stack.displayLevel > 4 ||
             PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available())
             m_stack = {};

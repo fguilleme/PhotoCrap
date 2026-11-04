@@ -2073,3 +2073,21 @@ vérifie que seuls les uniformes croissent dans le stockage des entrées. Ce bud
 compte les ressources conservées ; les buffers de transfert du pilote et la RAM
 de staging ne constituent pas un plafond global du processus. Le repli CPU est
 maintenu si les accumulateurs et réductions dépassent encore le budget.
+
+## Intermédiaires partagés entre tuiles (5 novembre 2026)
+
+Lorsque le mode à entrées réutilisées dépasse encore le budget, un second palier
+partage les accumulateurs couleur/couverture et les passes spatiales entre les
+tuiles de mêmes dimensions. Les passes horizontales de réduction sont également
+partagées ; chaque tuile conserve sa propre sortie réduite, ou une copie native
+si aucun niveau réduit ne convient. Un changement de zoom reconstruit cette
+sortie avant affichage, sans lire le scratch laissé par une autre tuile.
+
+La prévision compte les différents formats de bords et quatre niveaux conservés ;
+le repli CPU reste actif si elle ne tient pas dans le budget. Les ressources
+partagées sont comptées une fois dans les statistiques résidentes, tandis que
+l’éviction réserve conservativement leur coût avec les tuiles retenues. Les
+changements de document libèrent le pool de réductions. La suite Metal couvre
+les zooms, les couleurs indépendantes de tuiles voisines, les masques progressifs
+et les cinq filtres spatiaux en 8/16 bits. Le test de budget sur 24 Mpx/16 bits
+réduit la prévision d’au moins un facteur trois ; ce n’est pas une mesure de RSS.

@@ -67,74 +67,43 @@ public:
 private:
     QRhiTexture *m_texture;
 };
-class Tile final : public QSGRenderNode
-{
-public:
-    QQuickWindow                                           *window;
+struct Workspace {
     QRhi                                                   *rhi;
-    Counters                                               *counters;
-    std::function<void()>                                   failure;
-    bool                                                    failed = false;
-    QRect                                                   region;
+    QSize                                                   size;
     int                                                     bits;
-    bool                                                    streaming;
-    QSize                                                   tableSize{1, 1};
-    QRectF                                                  geometry;
-    PhotoCrap::Render::LayerStack                           stack;
-    QByteArray                                              renderedKey;
+    Counters                                               *counters;
+    qint64                                                  accounted = 0;
     std::array<std::unique_ptr<QRhiTexture>, 2>             colors, clips;
     std::array<std::unique_ptr<QRhiTextureRenderTarget>, 2> targets;
     std::unique_ptr<QRhiRenderPassDescriptor>               descriptor;
-    std::unique_ptr<QRhiSampler>                            sampler;
-    std::unique_ptr<QRhiBuffer>                             vertices;
-    std::unique_ptr<QRhiGraphicsPipeline>                   pipeline;
-    std::unique_ptr<SpatialFilterPass>                      spatial;
-    std::unique_ptr<SpatialFilterPass>                      masks;
+    std::unique_ptr<SpatialFilterPass>                      spatial, masks;
     QHash<QByteArray, std::shared_ptr<Input>>               inputs;
-    std::vector<std::unique_ptr<Pass>>                      passes;
-    QSGImageNode                                           *image          = nullptr;
-    QSGTexture                                             *wrapper        = nullptr;
-    int                                                     output         = -1;
-    qint64                                                  accountedBytes = 0;
-    std::unique_ptr<DisplayPyramidPass>                     pyramid;
-    QSize                                                   pyramidDocument;
-    int                                                     displayLevel = 0;
-    quint64                                                 generation   = 0;
-    QRhiTexture                                            *displayed    = nullptr;
-    Tile(QQuickWindow *owner, const QRect &bounds, int depth, bool stream, Counters *stats,
-         std::function<void()> rejected)
-        : window(owner), rhi(owner->rhi()), counters(stats), failure(std::move(rejected)),
-          region(bounds), bits(depth), streaming(stream)
+    Workspace(QRhi *device, QSize extent, int depth, Counters *stats)
+        : rhi(device), size(extent), bits(depth), counters(stats)
     {
     }
-    ~Tile() override
+    ~Workspace()
     {
-        counters->bytes.fetch_sub(quint64(accountedBytes));
-        if (counters->changed)
-            counters->changed(counters->bytes.load());
-        if (image && image->parent())
-            image->parent()->removeChildNode(image);
-        delete image;
-        delete wrapper;
-        passes.clear();
-        pipeline.reset();
+        spatial.reset();
+        masks.reset();
         for (auto &target : targets)
             target.reset();
         descriptor.reset();
+        counters->bytes.fetch_sub(quint64(accounted));
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
     }
     bool init()
     {
-        sampler.reset(rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
-                                      QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
-        vertices.reset(
-            rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, 16 * sizeof(float)));
-        if (!sampler->create() || !vertices->create())
-            return false;
+        if (descriptor)
+            return true;
         for (int i = 0; i < 2; ++i) {
-            colors[i].reset(rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
-                                            region.size(), 1, QRhiTexture::RenderTarget));
+            colors[i].reset(
+                rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8, size, 1,
+                                QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource));
             clips[i].reset(
-                rhi->newTexture(QRhiTexture::R8, region.size(), 1, QRhiTexture::RenderTarget));
+                rhi->newTexture(QRhiTexture::R8, size, 1,
+                                QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource));
             if (!colors[i]->create() || !clips[i]->create())
                 return false;
             QRhiTextureRenderTargetDescription description;
@@ -147,6 +116,93 @@ public:
             if (!targets[i]->create())
                 return false;
         }
+        updateBytes();
+        return true;
+    }
+    qint64 bytes() const
+    {
+        qint64 result = qint64(size.width()) * size.height() * (bits == 16 ? 34 : 10);
+        for (const auto &input : inputs)
+            result += input->bytes;
+        return result + (spatial ? spatial->bytes() : 0) + (masks ? masks->bytes() : 0);
+    }
+    void updateBytes()
+    {
+        const qint64 next = bytes();
+        if (next >= accounted)
+            counters->bytes.fetch_add(quint64(next - accounted));
+        else
+            counters->bytes.fetch_sub(quint64(accounted - next));
+        accounted = next;
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
+    }
+};
+class Tile final : public QSGRenderNode
+{
+public:
+    QQuickWindow                              *window;
+    QRhi                                      *rhi;
+    Counters                                  *counters;
+    std::function<void()>                      failure;
+    bool                                       failed = false;
+    QRect                                      region;
+    int                                        bits;
+    bool                                       streaming;
+    QSize                                      tableSize{1, 1};
+    QRectF                                     geometry;
+    PhotoCrap::Render::LayerStack              stack;
+    QByteArray                                 renderedKey;
+    std::shared_ptr<Workspace>                 work;
+    bool                                       sharedWork = false;
+    std::shared_ptr<DisplayPyramidScratchPool> reductionPool;
+    std::unique_ptr<QRhiTexture>               retained;
+    std::unique_ptr<QRhiSampler>               sampler;
+    std::unique_ptr<QRhiBuffer>                vertices;
+    std::unique_ptr<QRhiGraphicsPipeline>      pipeline;
+    std::vector<std::unique_ptr<Pass>>         passes;
+    QSGImageNode                              *image          = nullptr;
+    QSGTexture                                *wrapper        = nullptr;
+    int                                        output         = -1;
+    qint64                                     accountedBytes = 0;
+    std::unique_ptr<DisplayPyramidPass>        pyramid;
+    QSize                                      pyramidDocument;
+    int                                        displayLevel = 0;
+    quint64                                    generation   = 0;
+    QRhiTexture                               *displayed    = nullptr;
+    Tile(QQuickWindow *owner, const QRect &bounds, int depth, bool stream, Counters *stats,
+         std::shared_ptr<Workspace> shared, std::shared_ptr<DisplayPyramidScratchPool> reductions,
+         std::function<void()> rejected)
+        : window(owner), rhi(owner->rhi()), counters(stats), failure(std::move(rejected)),
+          region(bounds), bits(depth), streaming(stream)
+    {
+        reductionPool = std::move(reductions);
+        sharedWork    = bool(shared);
+        work          = shared ? std::move(shared)
+                               : std::make_shared<Workspace>(rhi, region.size(), bits, counters);
+    }
+    ~Tile() override
+    {
+        counters->bytes.fetch_sub(quint64(accountedBytes));
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
+        if (image && image->parent())
+            image->parent()->removeChildNode(image);
+        delete image;
+        delete wrapper;
+        passes.clear();
+        pipeline.reset();
+    }
+    bool init()
+    {
+        sampler.reset(rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                      QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
+        vertices.reset(
+            rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, 16 * sizeof(float)));
+        if (!sampler->create() || !vertices->create())
+            return false;
+        if (!work->init())
+            return false;
         image = window->createImageNode();
         updateBytes();
         return image;
@@ -162,12 +218,13 @@ public:
         }
         const int last       = stack.layers.isEmpty() ? 0 : int(stack.layers.size()) % 2;
         output               = last;
-        QRhiTexture *texture = colors[last].get();
+        QRhiTexture *texture = work->colors[last].get();
         QSize        size    = stack.size;
         QRect        box = content, textureRegion = region;
         if (displayLevel > 0) {
             if (!pyramid)
-                pyramid = std::make_unique<DisplayPyramidPass>(rhi, region, stack.size, bits);
+                pyramid = std::make_unique<DisplayPyramidPass>(rhi, region, stack.size, bits,
+                                                               reductionPool);
             texture = pyramid->ensure(texture, displayLevel);
             if (!texture) {
                 reject(__LINE__);
@@ -182,6 +239,17 @@ public:
                 qint64(content.x() + content.width()) * size.width() / stack.size.width() - left,
                 qint64(content.y() + content.height()) * size.height() / stack.size.height() - top);
             textureRegion = pyramid->region(displayLevel);
+        }
+        if (sharedWork && displayLevel == 0) {
+            if (!retained) {
+                retained.reset(rhi->newTexture(
+                    bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8, region.size()));
+                if (!retained->create()) {
+                    reject(__LINE__);
+                    return;
+                }
+            }
+            texture = retained.get();
         }
         if (displayed != texture) {
             auto *next = new BorrowedTexture(texture);
@@ -219,14 +287,14 @@ public:
                                  bool whole = false, bool stageOnly = false)
     {
         QByteArray key = whole ? "t" : mask ? "m" : "c";
-        // Whole inputs are immutable LUT QImages reused by the document cache.
+        // Whole work->inputs are immutable LUT QImages reused by the document cache.
         // Freezing a fresh wrapper would manufacture new tile versions each frame.
         key += whole ? QByteArray::number(plane.cacheKey()) : plane.regionKey(region);
         const QByteArray contentKey = key;
         if (streaming)
             key = whole ? "stream-table" : mask ? "stream-mask" : "stream-color";
         used.insert(key);
-        auto value = inputs.value(key);
+        auto value = work->inputs.value(key);
         if (value && (!streaming || stageOnly || value->contentKey == contentKey))
             return value;
         const QSize extent = streaming ? (whole ? tableSize : region.size())
@@ -245,7 +313,7 @@ public:
                            (mask         ? 1
                             : bits == 16 ? 16
                                          : 4);
-            inputs.insert(key, value);
+            work->inputs.insert(key, value);
         }
         if (streaming && stageOnly)
             return value;
@@ -309,6 +377,8 @@ public:
                 }
         }
         key += QByteArray::number(stack.bits);
+        if (sharedWork)
+            key += "/" + QByteArray::number(displayLevel);
         if (key == renderedKey) {
             if (pyramid && displayLevel > 0) {
                 const auto count = pyramid->render(commandBuffer(), displayLevel, generation);
@@ -322,15 +392,15 @@ public:
             updates->uploadStaticBuffer(vertices.get(), quad);
         QSet<QByteArray> used;
         std::vector<int> filterRuns, maskRuns;
-        if (spatial)
-            spatial->resetFrame();
-        if (masks)
-            masks->resetFrame();
+        if (work->spatial)
+            work->spatial->resetFrame();
+        if (work->masks)
+            work->masks->resetFrame();
         passes.clear();
         if (streaming) {
-            const auto table = inputs.value("stream-table");
+            const auto table = work->inputs.value("stream-table");
             if (table && table->texture->pixelSize() != tableSize)
-                inputs.remove("stream-table");
+                work->inputs.remove("stream-table");
         }
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
@@ -347,9 +417,10 @@ public:
             QRhiTexture *maskSource = mask->texture.get();
             int          maskRun    = -1;
             if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
-                if (!masks)
-                    masks = std::make_unique<SpatialFilterPass>(rhi, region.size(), 8);
-                const auto prepared = masks->prepare(maskSource, layer.maskFilter, updates, true);
+                if (!work->masks)
+                    work->masks = std::make_unique<SpatialFilterPass>(rhi, region.size(), 8);
+                const auto prepared =
+                    work->masks->prepare(maskSource, layer.maskFilter, updates, true);
                 if (!prepared.texture) {
                     ok = false;
                     break;
@@ -361,10 +432,10 @@ public:
             QRhiTexture *source = color->texture.get();
             int          run    = -1;
             if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
-                if (!spatial)
-                    spatial = std::make_unique<SpatialFilterPass>(rhi, region.size(), bits);
+                if (!work->spatial)
+                    work->spatial = std::make_unique<SpatialFilterPass>(rhi, region.size(), bits);
                 const auto prepared =
-                    spatial->prepare(colors[index % 2].get(), layer.spatial, updates);
+                    work->spatial->prepare(work->colors[index % 2].get(), layer.spatial, updates);
                 if (!prepared.texture) {
                     ok = false;
                     break;
@@ -426,11 +497,11 @@ public:
             pass->bindings->setBindings(
                 {QRhiShaderResourceBinding::uniformBuffer(
                      0, stage | QRhiShaderResourceBinding::VertexStage, pass->uniform.get()),
-                 QRhiShaderResourceBinding::sampledTexture(1, stage, colors[index % 2].get(),
+                 QRhiShaderResourceBinding::sampledTexture(1, stage, work->colors[index % 2].get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(4, stage, clips[index % 2].get(),
+                 QRhiShaderResourceBinding::sampledTexture(4, stage, work->clips[index % 2].get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(5, stage, table->texture.get(),
                                                            sampler.get())});
@@ -455,7 +526,7 @@ public:
             pipeline->setTargetBlends(
                 {QRhiGraphicsPipeline::TargetBlend{}, QRhiGraphicsPipeline::TargetBlend{}});
             pipeline->setShaderResourceBindings(passes.front()->bindings.get());
-            pipeline->setRenderPassDescriptor(descriptor.get());
+            pipeline->setRenderPassDescriptor(work->descriptor.get());
             ok = pipeline->create();
         }
         if (!ok) {
@@ -469,7 +540,7 @@ public:
         cb->resourceUpdate(updates);
         if (!filterRuns.empty() &&
             (filterRuns.front() >= 0 || !layers.front().toneTable.isNull())) {
-            cb->beginPass(targets[0].get(), Qt::transparent, {1.f, 0});
+            cb->beginPass(work->targets[0].get(), Qt::transparent, {1.f, 0});
             cb->endPass();
         }
         for (size_t index = 0; index < passes.size(); ++index) {
@@ -488,10 +559,10 @@ public:
                 cb->resourceUpdate(upload);
             }
             if (maskRuns[index] >= 0)
-                counters->passes.fetch_add(masks->render(cb, maskRuns[index]));
+                counters->passes.fetch_add(work->masks->render(cb, maskRuns[index]));
             if (filterRuns[index] >= 0)
-                counters->passes.fetch_add(spatial->render(cb, filterRuns[index]));
-            cb->beginPass(targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0});
+                counters->passes.fetch_add(work->spatial->render(cb, filterRuns[index]));
+            cb->beginPass(work->targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0});
             cb->setGraphicsPipeline(pipeline.get());
             cb->setViewport(QRhiViewport(0, 0, region.width(), region.height()));
             cb->setShaderResources(passes[index]->bindings.get());
@@ -501,15 +572,20 @@ public:
             cb->endPass();
             ++counters->passes;
         }
-        for (auto it = inputs.begin(); it != inputs.end();)
+        for (auto it = work->inputs.begin(); it != work->inputs.end();)
             if (!used.contains(it.key()))
-                it = inputs.erase(it);
+                it = work->inputs.erase(it);
             else
                 ++it;
         renderedKey = key;
         ++generation;
         if (pyramid && displayLevel > 0)
             counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
+        if (sharedWork && displayLevel == 0) {
+            auto *copy = rhi->nextResourceUpdateBatch();
+            copy->copyTexture(retained.get(), work->colors[output].get());
+            cb->resourceUpdate(copy);
+        }
         updateBytes();
     }
     void render(const RenderState *) override
@@ -527,17 +603,17 @@ public:
     {
         return geometry;
     }
-    qint64 bytes() const
+    qint64 bytes(bool includeWorkspace = true) const
     {
-        qint64 result = qint64(region.width()) * region.height() * (bits == 16 ? 34 : 10) + 64;
-        for (const auto &value : inputs)
-            result += value->bytes;
-        return result + qint64(passes.size()) * 256 + (spatial ? spatial->bytes() : 0) +
-               (masks ? masks->bytes() : 0) + (pyramid ? pyramid->bytes() : 0);
+        qint64 result = 64 + qint64(passes.size()) * 256 + (pyramid ? pyramid->bytes() : 0);
+        if (retained)
+            result += qint64(region.width()) * region.height() * (bits == 16 ? 16 : 4);
+        return result + (includeWorkspace ? work->bytes() : 0);
     }
     void updateBytes()
     {
-        const auto current = bytes();
+        work->updateBytes();
+        const auto current = bytes(false);
         if (current > accountedBytes)
             counters->bytes.fetch_add(quint64(current - accountedBytes));
         else
@@ -550,11 +626,15 @@ public:
 } // namespace
 
 struct LayerStackNode::Data {
-    QQuickWindow             *window;
-    std::function<void()>     failure;
-    QHash<quint64, Tile *>    tiles;
-    QHash<quint64, quint64>   lastUse;
-    quint64                   clock = 0;
+    QQuickWindow                               *window;
+    std::function<void()>                       failure;
+    QHash<quint64, Tile *>                      tiles;
+    QHash<quint64, quint64>                     lastUse;
+    quint64                                     clock = 0;
+    QSize                                       document;
+    QHash<QByteArray, std::weak_ptr<Workspace>> workspaces;
+    std::shared_ptr<DisplayPyramidScratchPool>  reductions;
+
     std::shared_ptr<Counters> counters;
 };
 LayerStackNode::LayerStackNode(QQuickWindow *window, std::function<void()> failure,
@@ -607,7 +687,37 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
         QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
             .toAlignedRect()
             .intersected(bounds);
+    if (d->document != stack.size) {
+        for (auto *tile : std::as_const(d->tiles)) {
+            if (tile->parent())
+                removeChildNode(tile);
+            delete tile;
+        }
+        d->tiles.clear();
+        d->lastUse.clear();
+        d->workspaces.clear();
+        d->reductions.reset();
+        d->document = stack.size;
+    }
+    if (stack.shareScratch && !d->reductions) {
+        const auto counters = d->counters;
+        d->reductions =
+            std::make_shared<DisplayPyramidScratchPool>(d->window->rhi(), [counters](qint64 delta) {
+                if (delta >= 0)
+                    counters->bytes.fetch_add(quint64(delta));
+                else
+                    counters->bytes.fetch_sub(quint64(-delta));
+                if (counters->changed)
+                    counters->changed(counters->bytes.load());
+            });
+    } else if (!stack.shareScratch)
+        d->reductions.reset();
     QSet<quint64> used;
+    for (auto it = d->workspaces.begin(); it != d->workspaces.end();)
+        if (it.value().expired())
+            it = d->workspaces.erase(it);
+        else
+            ++it;
     ++d->clock;
     for (int y = area.top() / tileSize; !area.isEmpty() && y <= area.bottom() / tileSize; ++y)
         for (int x = area.left() / tileSize; x <= area.right() / tileSize; ++x) {
@@ -618,9 +728,28 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                 content
                     .adjusted(-stack.halo - 33, -stack.halo - 33, stack.halo + 33, stack.halo + 33)
                     .intersected(bounds);
+            std::shared_ptr<Workspace> workspace;
+            if (stack.shareScratch) {
+                QSize tableSize(1, 1);
+                for (const auto &layer : stack.layers)
+                    tableSize = tableSize.expandedTo(layer.toneTable.size());
+                const QByteArray workKey = QByteArray::number(padded.width()) + "/" +
+                                           QByteArray::number(padded.height()) + "/" +
+                                           QByteArray::number(stack.bits) + "/" +
+                                           QByteArray::number(tableSize.width()) + "/" +
+                                           QByteArray::number(tableSize.height());
+                workspace                = d->workspaces.value(workKey).lock();
+                if (!workspace) {
+                    workspace = std::make_shared<Workspace>(d->window->rhi(), padded.size(),
+                                                            stack.bits, d->counters.get());
+                    d->workspaces.insert(workKey, workspace);
+                }
+            }
             auto *tile = d->tiles.value(key);
-            if (tile && (tile->region != padded || tile->bits != stack.bits ||
-                         tile->streaming != stack.streamInputs)) {
+            if (tile &&
+                (tile->region != padded || tile->bits != stack.bits ||
+                 tile->streaming != stack.streamInputs || tile->sharedWork != stack.shareScratch ||
+                 (workspace && tile->work != workspace))) {
                 if (tile->parent())
                     removeChildNode(tile);
                 delete tile;
@@ -628,8 +757,9 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                 tile = nullptr;
             }
             if (!tile) {
-                tile = new Tile(d->window, padded, stack.bits, stack.streamInputs,
-                                d->counters.get(), d->failure);
+                tile =
+                    new Tile(d->window, padded, stack.bits, stack.streamInputs, d->counters.get(),
+                             workspace, stack.shareScratch ? d->reductions : nullptr, d->failure);
                 if (!tile->init()) {
                     delete tile;
                     return false;

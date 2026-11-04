@@ -15,10 +15,34 @@ QShader load(const char *name)
                ".qsb");
     return file.open(QIODevice::ReadOnly) ? QShader::fromSerialized(file.readAll()) : QShader{};
 }
+struct PyramidTarget {
+    std::unique_ptr<QRhiTexture>              texture;
+    std::unique_ptr<QRhiTextureRenderTarget>  target;
+    std::unique_ptr<QRhiRenderPassDescriptor> descriptor;
+    ~PyramidTarget()
+    {
+        target.reset();
+        descriptor.reset();
+    }
+};
+std::shared_ptr<PyramidTarget> pyramidTarget(QRhi *rhi, const QSize &size,
+                                             QRhiTexture::Format format)
+{
+    auto value = std::make_shared<PyramidTarget>();
+    value->texture.reset(rhi->newTexture(format, size, 1, QRhiTexture::RenderTarget));
+    if (!value->texture->create())
+        return {};
+    value->target.reset(rhi->newTextureRenderTarget(
+        QRhiTextureRenderTargetDescription(QRhiColorAttachment(value->texture.get()))));
+    value->descriptor.reset(value->target->newCompatibleRenderPassDescriptor());
+    value->target->setRenderPassDescriptor(value->descriptor.get());
+    if (!value->target->create())
+        return {};
+    return value;
+}
 struct Level {
-    std::array<std::unique_ptr<QRhiTexture>, 2>                textures;
-    std::array<std::unique_ptr<QRhiTextureRenderTarget>, 2>    targets;
-    std::array<std::unique_ptr<QRhiRenderPassDescriptor>, 2>   descriptors;
+    std::array<std::shared_ptr<PyramidTarget>, 2>              surfaces;
+    bool                                                       borrowedScratch = false;
     std::array<std::unique_ptr<QRhiGraphicsPipeline>, 2>       pipelines;
     std::array<std::unique_ptr<QRhiBuffer>, 2>                 uniforms;
     std::array<std::unique_ptr<QRhiShaderResourceBindings>, 2> bindings;
@@ -32,10 +56,6 @@ struct Level {
             p.reset();
         for (auto &b : bindings)
             b.reset();
-        for (auto &t : targets)
-            t.reset();
-        for (auto &d : descriptors)
-            d.reset();
     }
 };
 // An output pixel is valid only when its whole area is inside this native tile.
@@ -46,16 +66,38 @@ QPair<int, int> extent(int first, int length, int original, int reduced)
             int(std::floor(double(first + length) * reduced / original))};
 }
 } // namespace
+struct DisplayPyramidScratchPool::Data {
+    QRhi                                          *rhi;
+    QHash<quint64, std::shared_ptr<PyramidTarget>> targets;
+    qint64                                         bytes = 0;
+    std::function<void(qint64)>                    delta;
+};
+DisplayPyramidScratchPool::DisplayPyramidScratchPool(QRhi *rhi, std::function<void(qint64)> delta)
+    : d(std::make_unique<Data>())
+{
+    d->rhi   = rhi;
+    d->delta = std::move(delta);
+}
+DisplayPyramidScratchPool::~DisplayPyramidScratchPool()
+{
+    d->targets.clear();
+    d->delta(-d->bytes);
+}
+qint64 DisplayPyramidScratchPool::bytes() const
+{
+    return d->bytes;
+}
 struct DisplayPyramidPass::Data {
-    QRhi                             *rhi;
-    QRect                             native;
-    QSize                             document;
-    int                               bits;
-    std::unique_ptr<QRhiSampler>      sampler;
-    std::unique_ptr<QRhiBuffer>       vertices;
-    QMap<int, std::shared_ptr<Level>> levels;
-    bool                              uploaded = false;
-    bool                              init()
+    QRhi                                      *rhi;
+    QRect                                      native;
+    QSize                                      document;
+    int                                        bits;
+    std::shared_ptr<DisplayPyramidScratchPool> pool;
+    std::unique_ptr<QRhiSampler>               sampler;
+    std::unique_ptr<QRhiBuffer>                vertices;
+    QMap<int, std::shared_ptr<Level>>          levels;
+    bool                                       uploaded = false;
+    bool                                       init()
     {
         if (vertices)
             return true;
@@ -77,13 +119,14 @@ struct DisplayPyramidPass::Data {
     }
 };
 DisplayPyramidPass::DisplayPyramidPass(QRhi *rhi, const QRect &native, const QSize &document,
-                                       int bits)
+                                       int bits, std::shared_ptr<DisplayPyramidScratchPool> pool)
     : d(std::make_unique<Data>())
 {
     d->rhi      = rhi;
     d->native   = native;
     d->document = document;
     d->bits     = bits;
+    d->pool     = std::move(pool);
 }
 DisplayPyramidPass::~DisplayPyramidPass() = default;
 QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
@@ -97,7 +140,7 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
             level->source     = source;
             level->generation = 0;
         }
-        return level->textures[1].get();
+        return level->surfaces[1]->texture.get();
     }
     const QSize reduced(qMax(1, d->document.width() >> index),
                         qMax(1, d->document.height() >> index));
@@ -111,19 +154,29 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
         const QRect target = level->regions[axis];
         if (target.isEmpty())
             return nullptr;
-        level->textures[axis].reset(d->rhi->newTexture(
-            axis == 0 || d->bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8, target.size(),
-            1, QRhiTexture::RenderTarget));
-        if (!level->textures[axis]->create())
+        if (axis == 0 && d->pool) {
+            const quint64 key = (quint64(quint32(target.width())) << 32) | quint32(target.height());
+            auto         &cached = d->pool->d->targets[key];
+            if (!cached) {
+                cached = pyramidTarget(d->rhi, target.size(), QRhiTexture::RGBA32F);
+                if (!cached)
+                    return nullptr;
+                const qint64 bytes = qint64(target.width()) * target.height() * 16;
+                d->pool->d->bytes += bytes;
+                d->pool->d->delta(bytes);
+            }
+            level->surfaces[axis]  = cached;
+            level->borrowedScratch = true;
+        } else
+            level->surfaces[axis] = pyramidTarget(d->rhi, target.size(),
+                                                  axis == 0 || d->bits == 16 ? QRhiTexture::RGBA32F
+                                                                             : QRhiTexture::RGBA8);
+        if (!level->surfaces[axis])
             return nullptr;
-        level->targets[axis].reset(d->rhi->newTextureRenderTarget(
-            QRhiTextureRenderTargetDescription(QRhiColorAttachment(level->textures[axis].get()))));
-        level->descriptors[axis].reset(level->targets[axis]->newCompatibleRenderPassDescriptor());
-        level->targets[axis]->setRenderPassDescriptor(level->descriptors[axis].get());
         level->uniforms[axis].reset(
             d->rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 128));
-        if (!level->targets[axis]->create() || !level->uniforms[axis]->create() ||
-            !d->binding(*level, axis, axis == 0 ? source : level->textures[0].get()))
+        if (!level->uniforms[axis]->create() ||
+            !d->binding(*level, axis, axis == 0 ? source : level->surfaces[0]->texture.get()))
             return nullptr;
         auto &data        = level->data[axis];
         data              = QByteArray(128, 0);
@@ -154,13 +207,13 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
         pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
         pipeline->setTargetBlends({QRhiGraphicsPipeline::TargetBlend{}});
         pipeline->setShaderResourceBindings(level->bindings[axis].get());
-        pipeline->setRenderPassDescriptor(level->descriptors[axis].get());
+        pipeline->setRenderPassDescriptor(level->surfaces[axis]->descriptor.get());
         if (!pipeline->create())
             return nullptr;
     }
     level->source = source;
     d->levels.insert(index, level);
-    return level->textures[1].get();
+    return level->surfaces[1]->texture.get();
 }
 QRect DisplayPyramidPass::region(int level) const
 {
@@ -183,7 +236,7 @@ quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 gen
                                      level->data[axis].constData());
     cb->resourceUpdate(updates);
     for (int axis = 0; axis < 2; ++axis) {
-        cb->beginPass(level->targets[axis].get(), Qt::transparent, {1.f, 0});
+        cb->beginPass(level->surfaces[axis]->target.get(), Qt::transparent, {1.f, 0});
         cb->setGraphicsPipeline(level->pipelines[axis].get());
         const auto size = level->regions[axis].size();
         cb->setViewport(QRhiViewport(0, 0, size.width(), size.height()));
@@ -202,14 +255,27 @@ qint64 DisplayPyramidPass::bytes() const
     for (const auto &level : d->levels)
         for (int axis = 0; axis < 2; ++axis) {
             const auto size = level->regions[axis].size();
-            result +=
-                qint64(size.width()) * size.height() * (axis == 0 || d->bits == 16 ? 16 : 4) + 128;
+            result += 128;
+            if (axis != 0 || !level->borrowedScratch)
+                result +=
+                    qint64(size.width()) * size.height() * (axis == 0 || d->bits == 16 ? 16 : 4);
         }
     return result;
 }
 #else
+struct DisplayPyramidScratchPool::Data {};
+DisplayPyramidScratchPool::DisplayPyramidScratchPool(QRhi *, std::function<void(qint64)>)
+    : d(std::make_unique<Data>())
+{
+}
+DisplayPyramidScratchPool::~DisplayPyramidScratchPool() = default;
+qint64 DisplayPyramidScratchPool::bytes() const
+{
+    return 0;
+}
 struct DisplayPyramidPass::Data {};
-DisplayPyramidPass::DisplayPyramidPass(QRhi *, const QRect &, const QSize &, int)
+DisplayPyramidPass::DisplayPyramidPass(QRhi *, const QRect &, const QSize &, int,
+                                       std::shared_ptr<DisplayPyramidScratchPool>)
     : d(std::make_unique<Data>())
 {
 }

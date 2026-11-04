@@ -1,13 +1,28 @@
 #pragma once
 #include <QRect>
+#include <functional>
 #include <memory>
 class QRhi;
 class QRhiTexture;
 class QRhiCommandBuffer;
+// Shared horizontal reduction targets. Outputs always remain private to a tile.
+class DisplayPyramidScratchPool
+{
+public:
+    DisplayPyramidScratchPool(QRhi *rhi, std::function<void(qint64)> delta);
+    ~DisplayPyramidScratchPool();
+    qint64 bytes() const;
+
+private:
+    friend class DisplayPyramidPass;
+    struct Data;
+    std::unique_ptr<Data> d;
+};
 class DisplayPyramidPass
 {
 public:
-    DisplayPyramidPass(QRhi *rhi, const QRect &nativeRegion, const QSize &documentSize, int bits);
+    DisplayPyramidPass(QRhi *rhi, const QRect &nativeRegion, const QSize &documentSize, int bits,
+                       std::shared_ptr<DisplayPyramidScratchPool> pool = {});
     ~DisplayPyramidPass();
     // Creates a retained level; input remains owned by the native tile.
     QRhiTexture *ensure(QRhiTexture *source, int level);

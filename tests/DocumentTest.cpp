@@ -218,6 +218,24 @@ private slots:
         QCOMPARE(PhotoCrap::Render::stackWorkingBytes(stack, visible) - streamed,
                  qint64(3 * 64 * 256)); // Only the layer uniforms grow.
     }
+    void gpuSharedScratchBoundsLowZoomWorkingSet()
+    {
+        PhotoCrap::Render::LayerStack stack;
+        stack.size         = {6000, 4000};
+        stack.bits         = 16;
+        stack.displayLevel = 3;
+        stack.streamInputs = true;
+        PhotoCrap::Render::StackLayer layer;
+        layer.image =
+            PixelPlane::uniform(stack.size, QImage(1, 1, QImage::Format_RGBA64_Premultiplied));
+        stack.layers.append(layer);
+        const QRect visible(QPoint{}, stack.size);
+        const auto  separate = PhotoCrap::Render::stackWorkingBytes(stack, visible);
+        stack.shareScratch   = true;
+        const auto shared    = PhotoCrap::Render::stackWorkingBytes(stack, visible);
+        QVERIFY(shared * 3 < separate);
+        QVERIFY(shared < 320LL * 1024 * 1024);
+    }
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {
         Document d;

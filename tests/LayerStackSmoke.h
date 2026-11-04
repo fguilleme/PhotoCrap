@@ -22,7 +22,8 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
     const bool hardware =
         !qEnvironmentVariableIsSet("PHOTOCRAP_TEST_GL_LEGACY") &&
         QSGRendererInterface::isApiRhiBased(window->rendererInterface()->graphicsApi());
-    const bool streaming = qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING");
+    const bool streaming = qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING") ||
+                           qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH");
     if (streaming)
         canvas.setTextureCacheMiB(256); // The main QML canvas shares this budget too.
 
@@ -362,6 +363,46 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             canvas.setGpuStackEnabled(true);
         }
     }
+    // Different tile results must survive reuse of the same native scratch and
+    // horizontal reduction targets, including after zoom changes and cache hits.
+    for (int bits : {8, 16}) {
+        if (!document.newDocument(2049, 257, false, bits))
+            return false;
+        document.setTool("gradient");
+        document.setColor(QColor(12, 56, 198));
+        document.setSecondaryColor(QColor(224, 140, 21));
+        document.beginStroke(0, 0);
+        document.continueStroke(2048, 256);
+        document.endStroke();
+        document.addAdjustmentLayer("colorBalance");
+        document.beginLayerPreview();
+        document.previewLayerParameter("red", 17);
+        document.finishLayerPreview("Balance");
+        for (int width : {600, 300, 150, 600, 300}) {
+            canvas.setSize({qreal(width), 128});
+            canvas.setGpuStackEnabled(true);
+            frame();
+            const auto actual = frame();
+            if (!require(canvas.gpuStackActive() == hardware,
+                         "zoomed stacks remain on available hardware"))
+                return false;
+            canvas.setGpuStackEnabled(false);
+            frame();
+            const auto   expected = frame();
+            const double ratio    = double(actual.width()) / window->width();
+            for (int y : {9, 31, 61, 97, 120})
+                for (int x = 4; x < width - 4; x += 13) {
+                    const auto point = canvas.mapToScene({x + .5, y + .5}) * ratio;
+                    const auto a     = actual.pixelColor(qFloor(point.x()), qFloor(point.y()));
+                    const auto b     = expected.pixelColor(qFloor(point.x()), qFloor(point.y()));
+                    if (!require(qAbs(a.red() - b.red()) <= 2 && qAbs(a.green() - b.green()) <= 2 &&
+                                     qAbs(a.blue() - b.blue()) <= 2,
+                                 "shared scratch preserves independent tile colors at each zoom"))
+                        return false;
+                }
+        }
+    }
+    canvas.setGpuStackEnabled(true);
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

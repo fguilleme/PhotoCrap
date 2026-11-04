@@ -35,7 +35,9 @@ Progression par optimisations vérifiées et commits distincts :
   8/16 bits, opacité, alpha, sens inversé et annulation.
 - [x] Entrées GPU réutilisées pour les piles dépassant le budget de textures :
   sources, masques et tables téléversés entre passes, pixels natifs conservés.
-- [ ] Mutualiser les intermédiaires GPU entre tuiles aux faibles zooms.
+- [x] Intermédiaires GPU mutualisés par dimensions : accumulateurs, entrées,
+  filtres et passes horizontales des réductions ; sortie indépendante par tuile.
+  Comparaisons Metal des zooms, masques, flous et chaînes 8/16 bits.
 - [ ] Compacter les différences de tuiles de l’historique.
 - [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
 

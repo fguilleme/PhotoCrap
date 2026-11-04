@@ -10,6 +10,8 @@ void Document::setTool(const QString &_value)
                                    "addAnchor",
                                    "deleteAnchor",
                                    "convertPoint",
+                                   "pathSelection",
+                                   "directSelection",
                                    "brush",
                                    "pencil",
                                    "colorReplacement",
@@ -62,8 +64,9 @@ void Document::setTool(const QString &_value)
                                    "ruler"};
     if (!tools.contains(_value))
         return;
-    if (m_tool != _value && (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
-                             m_tool == "convertPoint"))
+    if (m_tool != _value &&
+        (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
+         m_tool == "convertPoint" || m_tool == "pathSelection" || m_tool == "directSelection"))
         finishPenPath();
     if (m_polygonLassoActive)
         cancelPolygonLasso();

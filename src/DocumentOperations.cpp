@@ -285,7 +285,8 @@ bool Document::deferOperation(const QString &_label, qint64 _cost,
                                 originals.insert(layer.historyId, &layer);
                             for (const auto &layer : result.after.layers) {
                                 const auto *original = originals.value(layer.historyId);
-                                if (((layer.kind == "pixel" || layer.kind == "text") &&
+                                if (((layer.kind == "pixel" || layer.kind == "text" ||
+                                      layer.kind == "shape") &&
                                      layer.image.isNull()) ||
                                     (layer.kind.startsWith("frequency") && layer.source.isNull()) ||
                                     (!_mayRemoveMask && original && !original->mask.isNull() &&

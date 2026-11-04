@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "shapes/ShapeLayer.h"
 #include "storage/ScratchImageCache.h"
 
 #include <QFont>
@@ -226,6 +227,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
     });
     connect(this, &Document::layersChanged, this, &Document::historyBrushSourceChanged);
     connect(this, &Document::penPathsChanged, this, &Document::cancelOperation);
+    connect(this, &Document::layersChanged, this, [this] { syncPenShapePath(); });
     connect(this, &Document::slicesChanged, this, &Document::cancelOperation);
     connect(this, &Document::textEditingChanged, this, &Document::cancelOperation);
     connect(this, &Document::textGeometryChanged, this, &Document::cancelOperation);
@@ -302,7 +304,7 @@ bool Document::editable(bool _materialize, bool _allowText)
         return fail(tr("Choisissez « Préparer la retouche » dans les propriétés de la séparation "
                        "de fréquences pour modifier ses pixels."));
     if (m_layers[m_active].kind != QStringLiteral("pixel") && !m_editingMask &&
-        !(_allowText && m_layers[m_active].kind == "text"))
+        !(_allowText && (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape")))
         return fail(tr("Sélectionnez le masque de ce calque pour peindre dessus."));
     const auto &target = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
     if (_materialize && ImageUtils::compact(target) &&
@@ -363,6 +365,9 @@ void Document::restore(const Snapshot &_state)
         m_activePenPath      = _state.activePenPath;
         m_selectedPenPoints  = _state.selectedPenPoints;
         m_penDrawing         = _state.penDrawing && m_tool == "pen";
+        if (m_activePenPath >= 0 && m_activePenPath < m_penPaths.size())
+            m_penMode = m_penPaths[m_activePenPath].shapeLayerId.isEmpty() ? "path" : "shape";
+        emit penOptionsChanged();
         emit penPathsChanged();
         emit selectionChanged();
         emit historyChanged();
@@ -373,6 +378,9 @@ void Document::restore(const Snapshot &_state)
     m_penGesture        = 0;
     m_penDrawing        = _state.penDrawing && m_tool == "pen";
     m_selectedPenPoints = _state.selectedPenPoints;
+    if (m_activePenPath >= 0 && m_activePenPath < m_penPaths.size())
+        m_penMode = m_penPaths[m_activePenPath].shapeLayerId.isEmpty() ? "path" : "shape";
+    emit penOptionsChanged();
     emit penPathsChanged();
     if (_state.penOnly) {
         m_stateId = _state.id;
@@ -685,9 +693,10 @@ void Document::resetHistory(bool _clean)
     m_lastSelectionOutline = {};
     m_selectionMaskRegion  = {};
     m_penPaths.clear();
-    m_activePenPath = -1;
-    m_penDrawing    = false;
-    m_penGesture    = 0;
+    m_activePenPath   = -1;
+    m_penDrawing      = false;
+    m_penGesture      = 0;
+    m_penShapeGesture = false;
     m_selectedPenPoints.clear();
     m_beforePenGesture = {};
     emit penPathsChanged();
@@ -878,6 +887,7 @@ void Document::setActiveLayer(int _index)
     m_active      = _index;
     m_editingMask = false;
     selectOnly(_index);
+    syncPenShapePath(true);
     emit layersChanged();
 }
 void Document::setDisplayChannel(int _channel)
@@ -988,6 +998,11 @@ bool Document::setChannelBits(int _bits)
     PreparedPlaneBudget budget;
     int                 completed = 0;
     for (auto &layer : layers) {
+        if (layer.kind == "shape") {
+            layer.image = PhotoCrap::Shape::renderPlane(layer.parameters, m_size, format);
+            if (layer.image.isNull())
+                return fail(tr("Mémoire insuffisante pour rendre la forme."));
+        }
         if (!operationStep(completed++, int(layers.size())) ||
             !prepareNativePlane(layer.image, format, budget) ||
             !prepareNativePlane(layer.source, format, budget))

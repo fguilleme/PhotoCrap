@@ -182,6 +182,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     _window->requestActivate();
     QTest::qWait(20);
+    QMetaObject::invokeMethod(_window, "selectDockPanel", Q_ARG(QVariant, "channels"));
     auto channelList = _window->findChild<QObject *>("channelList");
     if (!require(channelList && channelsPanel->property("visible").toBool(),
                  "color channels use an independent visible dock panel"))
@@ -196,7 +197,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     const QVariantMap savedWorkspace = _workspaceSettings.layout();
     if (!require(!savedWorkspace.isEmpty() &&
                      !savedWorkspace.value("visibility").toMap().value("channels").toBool() &&
-                     savedWorkspace.value("order").toList().size() == 7,
+                     savedWorkspace.value("order").toList().size() == 8,
                  "panel visibility and organization are saved in application settings"))
         return false;
     QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "channels"),

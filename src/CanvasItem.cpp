@@ -29,7 +29,7 @@ QCursor penCursor(const QString &_tool)
     QPainter p(&pixmap);
     p.setRenderHint(QPainter::Antialiasing);
     QPainterPath nib;
-    if (_tool == "penMove") {
+    if (_tool == "penMove" || _tool == "penPathMove") {
         // Align the visible arrow tip with its hotspot, rather than retaining
         // the nib's hotspot twenty pixels below the arrow tip.
         nib.moveTo(3, 3);
@@ -49,12 +49,12 @@ QCursor penCursor(const QString &_tool)
         nib.closeSubpath();
     }
     p.setPen(QPen(Qt::black, 3));
-    p.setBrush(Qt::white);
+    p.setBrush(_tool == "penPathMove" ? Qt::black : Qt::white);
     p.drawPath(nib);
     p.setPen(QPen(Qt::white, 1));
     p.drawPath(nib);
     p.setPen(QPen(Qt::black, 1.2));
-    if (_tool != "penMove") {
+    if (_tool != "penMove" && _tool != "penPathMove") {
         p.drawLine(QPointF(3, 29), QPointF(16, 16));
         p.drawEllipse(QPointF(17, 15), 2, 2);
     }
@@ -76,7 +76,7 @@ QCursor penCursor(const QString &_tool)
             p.drawLine(29, 31, 33, 25);
         }
     }
-    const QCursor cursor(pixmap, 3, _tool == "penMove" ? 3 : 29);
+    const QCursor cursor(pixmap, 3, (_tool == "penMove" || _tool == "penPathMove") ? 3 : 29);
     cache.insert(key, cursor);
     return cursor;
 }

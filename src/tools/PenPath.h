@@ -16,8 +16,10 @@ struct PenPath {
     QString           name;
     QVector<PenPoint> points;
     bool              closed = false;
-    QPainterPath      painterPath() const;
-    bool              operator==(const PenPath &) const = default;
+    // Runtime proxy for the vector mask of the active shape layer.
+    QString      shapeLayerId = {};
+    QPainterPath painterPath() const;
+    bool         operator==(const PenPath &) const = default;
 };
 
 namespace PenGeometry
@@ -30,6 +32,6 @@ struct SegmentHit {
 SegmentHit nearestSegment(const PenPath &_path, const QPointF &_point, qreal _tolerance);
 int        splitSegment(PenPath &_path, int _index, qreal _t);
 QJsonArray encode(const QVector<PenPath> &_paths);
-bool       decode(const QJsonArray &_array, QVector<PenPath> &_paths);
+bool       decode(const QJsonArray &_array, QVector<PenPath> &_paths, bool _allowEmpty = true);
 bool       transform(QVector<PenPath> &_paths, const QTransform &_transform);
 } // namespace PenGeometry

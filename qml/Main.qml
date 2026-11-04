@@ -172,7 +172,7 @@ ApplicationWindow {
                                                  || editor.tool === "magicWand"
     readonly property bool sliceToolActive: editor.tool === "slice" || editor.tool === "sliceSelect"
     readonly property bool cropToolActive: editor.tool === "crop" || editor.tool === "perspectiveCrop"
-    readonly property bool penToolActive: ["pen","addAnchor","deleteAnchor","convertPoint"].indexOf(editor.tool)>=0
+    readonly property bool penToolActive: ["pen","addAnchor","deleteAnchor","convertPoint","pathSelection","directSelection"].indexOf(editor.tool)>=0
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
     readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "healing" || editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
@@ -218,12 +218,12 @@ ApplicationWindow {
     property int inspectorTab: 0
     property bool inspectorCollapsed: false
     property real dockWidth: 300
-    readonly property var dockPanelIds: ["histogram", "navigator", "color", "layers", "channels", "history", "information"]
-    property var dockPanelOrder: ["histogram", "navigator", "color", "layers", "channels", "history", "information"]
-    property var dockPanelColumns: ({histogram: 0, navigator: 0, color: 0, layers: 0, channels: 0, history: 0, information: 0})
-    property var dockPanelGroups: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history", information: "information"})
-    property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "channels", history: "history", information: "information"})
-    property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, history: true, information: false})
+    readonly property var dockPanelIds: ["histogram", "navigator", "color", "layers", "channels", "paths", "history", "information"]
+    property var dockPanelOrder: ["histogram", "navigator", "color", "layers", "channels", "paths", "history", "information"]
+    property var dockPanelColumns: ({histogram: 0, navigator: 0, color: 0, layers: 0, channels: 0, paths: 0, history: 0, information: 0})
+    property var dockPanelGroups: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "layers", paths: "layers", history: "history", information: "information"})
+    property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "layers", paths: "layers", history: "history", information: "information"})
+    property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, paths: true, history: true, information: false})
     property bool workspaceRestored: false
     property string informationTool: editor.tool
     property bool informationFloating: true
@@ -245,7 +245,8 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
-    property bool modalOpen: editor.operationBusy || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool pathDialogOpen: false
+    property bool modalOpen: pathDialogOpen || editor.operationBusy || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -330,8 +331,8 @@ ApplicationWindow {
         {name:"verticalText", icon:"↕T", label:qsTr("Texte vertical"), implemented:false},
         {name:"verticalTypeMask", icon:"↕T", label:qsTr("Masque de texte vertical"), implemented:false},
         {name:"horizontalTypeMask", icon:"T", label:qsTr("Masque de texte horizontal"), implemented:false},
-        {name:"pathSelection", icon:"➤", label:qsTr("Sélection de tracé"), implemented:false},
-        {name:"directSelection", icon:"➢", label:qsTr("Sélection directe"), implemented:false},
+        {name:"pathSelection", icon:"➤", label:qsTr("Sélection de tracé"), implemented:true},
+        {name:"directSelection", icon:"➢", label:qsTr("Sélection directe"), implemented:true},
         {name:"rectangle", icon:"□", label:qsTr("Rectangle"), implemented:true},
         {name:"ellipse", icon:"○", label:qsTr("Ellipse"), implemented:true},
         {name:"triangle", icon:"△", label:qsTr("Triangle"), implemented:true},
@@ -389,6 +390,10 @@ ApplicationWindow {
         if(activeInfo.kind==="text" && !activeInfo.editingMask) {
             if(!editor.textEditing)editor.editTextLayer(editor.activeLayer)
             if(editor.textEditing)textTypography.open()
+        } else if(activeInfo.kind === "shape" && !activeInfo.editingMask) {
+            editor.editPenShape()
+            window.setDockPanelVisible("paths",true)
+            drawingArea.forceActiveFocus()
         } else layerPropertiesDialog.open()
     }
     function canOpenLayerProperties(info) {
@@ -590,6 +595,7 @@ ApplicationWindow {
         if (panelId === "color") return qsTr("Couleur")
         if (panelId === "layers") return qsTr("Calques")
         if (panelId === "channels") return qsTr("Couches")
+        if (panelId === "paths") return qsTr("Tracés")
         if (panelId === "information") return qsTr("Informations")
         return qsTr("Historique")
     }
@@ -602,6 +608,7 @@ ApplicationWindow {
         if (panelId === "color") return colorDock
         if (panelId === "layers") return layersDock
         if (panelId === "channels") return channelsDock
+        if (panelId === "paths") return pathsDock
         if (panelId === "information") return informationDock
         return historyDock
     }
@@ -668,7 +675,7 @@ ApplicationWindow {
         dockGroupActive = active
     }
     function dockPanelAt(globalX, globalY, sourceId) {
-        const panels = [histogramDock, navigatorDock, colorDock, layersDock, channelsDock, historyDock, informationDock]
+        const panels = [histogramDock, navigatorDock, colorDock, layersDock, channelsDock, pathsDock, historyDock, informationDock]
         for (let i = 0; i < panels.length; ++i) {
             const panel = panels[i]
             if (panel.panelId === sourceId || panel.floating || !panel.visible) continue
@@ -803,6 +810,11 @@ ApplicationWindow {
                 active[groups[id]] = dockPanelIds.indexOf(savedActive) >= 0 ? savedActive : id
                 visibility[id] = id === "information" ? Boolean(saved.visibility && saved.visibility[id])
                                                        : !saved.visibility || saved.visibility[id] !== false
+            }
+            if (!saved.groups || saved.groups.paths === undefined) {
+                groups.paths = groups.layers
+                columns.paths = columns.layers
+                active[groups.layers] = String(saved.active && saved.active[groups.layers] || "layers")
             }
             dockPanelColumns = columns
             dockPanelGroups = groups
@@ -1210,7 +1222,7 @@ ApplicationWindow {
         onActivated: {
             if(editor.operationBusy){editor.cancelOperation();return}
             if(editor.selectionBusy){editor.cancelSelectionOperation();return}
-            if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else editor.finishPenPath();return}
+            if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else if(editor.penDrawing)editor.finishPenPath();else editor.setActivePenPath(-1);return}
             if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
             if (window.cropToolActive) { editor.cancelCrop(); return }
             if (window.sliceToolActive) { editor.endSliceGesture(true); return }
@@ -1444,6 +1456,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Couleur"); checkable: true; checked: window.dockPanelVisible("color"); onTriggered: window.toggleDockPanel("color") }
                 DarkMenuItem { text: qsTr("Calques"); checkable: true; checked: window.dockPanelVisible("layers"); onTriggered: window.toggleDockPanel("layers") }
                 DarkMenuItem { text: qsTr("Couches"); checkable: true; checked: window.dockPanelVisible("channels"); onTriggered: window.toggleDockPanel("channels") }
+                DarkMenuItem { objectName: "pathsPanelMenuItem"; text: qsTr("Tracés"); checkable: true; checked: window.dockPanelVisible("paths"); onTriggered: window.toggleDockPanel("paths") }
                 DarkMenuItem { objectName: "informationPanelMenuItem"; text: qsTr("Informations"); checkable: true; checked: window.dockPanelVisible("information"); onTriggered: window.toggleDockPanel("information") }
                 DarkMenuItem { text: qsTr("Historique"); checkable: true; checked: window.dockPanelVisible("history"); onTriggered: window.toggleDockPanel("history") }
             }
@@ -2030,6 +2043,7 @@ ApplicationWindow {
             visible:window.penToolActive
             document:editor
             onEditCommitted:workspace.forceActiveFocus()
+            onPathsRequested: {window.setDockPanelVisible("paths",true);pathsDock.collapsed=false}
         }
         SliceOptions {
             objectName: "sliceOptions"
@@ -2407,8 +2421,17 @@ ApplicationWindow {
                                 id:penOverlay;objectName:"penOverlay"
                                 viewportItem:viewport
                                 document:editor;zoom:window.zoom
-                                visible:window.penToolActive && editor.activePenPath>=0
+                                visible:editor.activePenPath>=0
                                 z:3
+                            }
+                            Rectangle {
+                                visible: window.penToolActive && editor.penSelectionRect.width > 0 && editor.penSelectionRect.height > 0
+                                x: editor.penSelectionRect.x * window.zoom
+                                y: editor.penSelectionRect.y * window.zoom
+                                width: editor.penSelectionRect.width * window.zoom
+                                height: editor.penSelectionRect.height * window.zoom
+                                color: "#2073c5ff"; border.color: "#b5dfff"; border.width: 1
+                                z: 4
                             }
                             TextLayerEditor {
                                 id: canvasTextEditor
@@ -3280,7 +3303,7 @@ ApplicationWindow {
                                     Label {anchors.centerIn:parent;visible:modelData.kind==="text";text:"T";font.family:"serif";font.bold:true;font.pixelSize:27;color:"#dbe6ef"}
                                     MouseArea {
                                         objectName: "layerThumbnailMouse"
-                                        onDoubleClicked: function(mouse){if(mouse.button===Qt.LeftButton && modelData.kind==="text")editor.editTextLayer(modelData.layerIndex)}
+                                        onDoubleClicked: function(mouse){if(mouse.button===Qt.LeftButton && modelData.kind==="text")editor.editTextLayer(modelData.layerIndex);else if(mouse.button===Qt.LeftButton && modelData.kind==="shape"){editor.setActiveLayer(modelData.layerIndex);editor.editPenShape()}}
                                         anchors.fill: parent
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         onClicked: function(mouse) {
@@ -3360,7 +3383,7 @@ ApplicationWindow {
                                     Label { text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11 }
                                     Label {
                                         text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
-                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
+                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind==="shape"?qsTr("Forme vectorielle"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
                                         color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
                                         font.pixelSize: 9
                                     }
@@ -3379,6 +3402,43 @@ ApplicationWindow {
                         Item { Layout.fillWidth: true }
                         IconButton { glyph: "×"; hint: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onClicked: editor.removeLayer() }
                     }
+                        } }
+                    }
+
+                    DockablePanel {
+                        id: pathsDock
+                        objectName: "pathsDockPanel"
+                        panelId: "paths"
+                        applicationClosing: window.allowClose || !window.visible
+                        title: qsTr("Tracés")
+                        panelShown: window.dockPanelVisible(panelId)
+                        temporarilyHidden: window.panelsTemporarilyHidden
+                        dockedHeight: 260
+                        minimumContentHeight: 120
+                        property int dockColumn: window.dockPanelColumn(panelId)
+                        groupTabs: window.dockGroupTabs(panelId)
+                        activeGroupPanel: window.activeDockPanel(panelId)
+                        dropIndicator: window.dockDropPanelId === panelId ? window.dockDropZone : ""
+                        Layout.column: dockColumn
+                        Layout.row: window.dockPanelRow(panelId)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        onGroupTabSelected: function(id) { window.selectDockPanel(id) }
+                        onUngroupRequested: function(id) { window.ungroupDockPanel(id) }
+                        onDropRequested: function(gx, gy, dx, dy) { window.handleDockDrop(panelId, gx, gy, dx, dy) }
+                        onDragUpdated: function(gx, gy) { window.updateDockDropIndicator(panelId, gx, gy) }
+                        onDragFinished: window.clearDockDropIndicator()
+                        onFloatingChangedByUser: function(isFloating) { if (isFloating) window.ungroupDockPanel(panelId) }
+                        onLayoutChanged: window.scheduleWorkspaceSave()
+                        contentComponent: Component { PathsPanel {
+                            document: editor
+                            onEditingRequested: {
+                                window.activateGroupTool("pathSelection","directSelection")
+                                window.requestActivate()
+                            }
+                            keyboardModifiers: (window.shiftPressed ? Qt.ShiftModifier : 0) | (window.stampSourcePicking ? Qt.AltModifier : 0)
+                            onEditCommitted: drawingArea.forceActiveFocus()
+                            onModalStateChanged: function(open) { window.pathDialogOpen = open }
                         } }
                     }
 
@@ -3623,8 +3683,8 @@ ApplicationWindow {
         ContextMenuItem {text:qsTr("Fermer le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.closePenPath()}
         MenuSeparator {}
         ContextMenuItem {text:qsTr("Définir une sélection");enabled:editor.activePenPath>=0;onTriggered:editor.penPathToSelection()}
-        ContextMenuItem {text:qsTr("Remplir le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.fillPenPath()}
-        ContextMenuItem {text:qsTr("Contour du tracé avec le pinceau");enabled:editor.activePenPath>=0;onTriggered:editor.strokePenPath()}
+        ContextMenuItem {text:qsTr("Remplir le tracé");enabled:editor.activePenPath>=0 && (activeInfo.kind === "pixel" || activeInfo.editingMask);onTriggered:editor.fillPenPath()}
+        ContextMenuItem {text:qsTr("Contour du tracé avec le pinceau");enabled:editor.activePenPath>=0 && (activeInfo.kind === "pixel" || activeInfo.editingMask);onTriggered:editor.strokePenPath()}
         MenuSeparator {}
         ContextMenuItem {text:qsTr("Supprimer les points sélectionnés");enabled:editor.activePenPath>=0;onTriggered:editor.deletePenPoints()}
         ContextMenuItem {text:qsTr("Supprimer le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.deletePenPath()}

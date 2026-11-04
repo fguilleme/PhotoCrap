@@ -5,6 +5,14 @@ Item {
     required property var document
     required property var viewportItem
     property real zoom: 1
+    readonly property bool shapePath: activePath !== null && Boolean(activePath.vectorMask)
+    // Keep the editable vector visible. A single fine guide on shapes leaves
+    // the painted stroke legible; ordinary paths retain the contrasting guide.
+    readonly property bool curveVisible: points.length > 0
+    readonly property color paintedStrokeColor: shapePath ? document.penShapeStyle.strokeColor : "transparent"
+    readonly property real guideWidth: !shapePath ? 1.5
+        : document.penShapeStyle.strokeEnabled && paintedStrokeColor.a > 0
+          ? Math.min(.75, Math.max(.2, document.penShapeStyle.strokeWidth*zoom*.3)) : .75
     signal painted()
     readonly property bool gpuBackend: GraphicsInfo.api === GraphicsInfo.Metal
         || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
@@ -76,7 +84,7 @@ Item {
     // A cached SVG path depends on the fixed points, zoom and clipped origin,
     // never on the rubber-band hover position.
     readonly property string curvePath: {
-        if (!gpuBackend || !points.length) return ""
+        if (!gpuBackend || !curveVisible || !points.length) return ""
         function xy(x, y) { return (x*root.zoom-root.x)+" "+(y*root.zoom-root.y) }
         function mid(a, b) { return {x:(a.x+b.x)/2,y:(a.y+b.y)/2} }
         function point(x, y) { return {x:x*root.zoom-root.x,y:y*root.zoom-root.y} }
@@ -110,15 +118,17 @@ Item {
         id: nativeCurve
         anchors.fill: parent
         clip: true
-        active: root.visible && root.gpuBackend && width>0 && height>0
+        active: root.visible && root.curveVisible && root.gpuBackend && width>0 && height>0
         sourceComponent: PenCurve {
             svg: root.curvePath
+            shapeGuide: root.shapePath
+            guideWidth: root.guideWidth
         }
     }
     Loader {
         id: softwareCurve
         anchors.fill: parent
-        active: root.visible && (!root.gpuBackend
+        active: root.visible && root.curveVisible && (!root.gpuBackend
             || (nativeCurve.item && !nativeCurve.item.curveRendererAvailable))
         sourceComponent: Canvas {
             objectName: "penRasterCurve"
@@ -138,12 +148,13 @@ Item {
                 c.beginPath(); c.moveTo(root.points[0].x*root.zoom,root.points[0].y*root.zoom)
                 for (let i=1; i<root.points.length; ++i) segment(root.points[i-1],root.points[i])
                 if (root.activePath.closed) segment(root.points[root.points.length-1],root.points[0])
-                c.strokeStyle="#1a2b3b"; c.lineWidth=3; c.stroke()
-                c.strokeStyle="#73c5ff"; c.lineWidth=1.5; c.stroke()
+                if (!root.shapePath) { c.strokeStyle="#1a2b3b"; c.lineWidth=3; c.stroke() }
+                c.strokeStyle="#73c5ff"; c.lineWidth=root.guideWidth; c.stroke()
             }
         }
     }
     onXChanged: if (visible) requestPaint()
+    onGuideWidthChanged: if (visible) requestPaint()
     onYChanged: if (visible) requestPaint()
     onWidthChanged: if (visible) requestPaint()
     onHeightChanged: if (visible) requestPaint()

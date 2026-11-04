@@ -1,6 +1,8 @@
 #include "MacToolCursorTest.h"
 #include "CanvasItem.h"
 #include "Document.h"
+#include "PenPanelSmoke.h"
+#include "PenStrokeSmoke.h"
 
 #include <QCursor>
 #include <QGuiApplication>
@@ -105,7 +107,87 @@ bool runMacPenInputTest(QQuickWindow *_window, Document &_document)
                    << nativeTip.y << "anchor moved" << movedAnchor << "points" << points
                    << "modifiers"
                    << _window->findChild<QObject *>("toolInput")->property("modifiers");
-    return changedCursor && alignedTip && movedAnchor;
+    if (!changedCursor || !alignedTip || !movedAnchor)
+        return false;
+    _document.setTool("pathSelection");
+    pointer(NSEventTypeMouseMoved, QPointF(160, 60), 0);
+    pointer(NSEventTypeLeftMouseDown, QPointF(160, 60), 0);
+    pointer(NSEventTypeLeftMouseDragged, QPointF(170, 65), 0);
+    pointer(NSEventTypeLeftMouseUp, QPointF(170, 65), 0);
+    const auto translated = _document.penPaths()[0].toMap()["points"].toList();
+    if (translated[0].toMap()["x"].toReal() != 40 || translated[1].toMap()["x"].toReal() != 170 ||
+        translated[2].toMap()["x"].toReal() != 140) {
+        qWarning("Native black-arrow dragging must move the entire path");
+        return false;
+    }
+    _document.setActivePenPath(0);
+    _document.setTool("directSelection");
+    pointer(NSEventTypeMouseMoved, QPointF(170, 65), 0);
+    command(true);
+    pointer(NSEventTypeLeftMouseDown, QPointF(170, 65), NSEventModifierFlagCommand);
+    pointer(NSEventTypeLeftMouseDragged, QPointF(180, 75), NSEventModifierFlagCommand);
+    pointer(NSEventTypeLeftMouseUp, QPointF(180, 75), NSEventModifierFlagCommand);
+    command(false);
+    const auto edited = _document.penPaths()[0].toMap()["points"].toList();
+    if (edited[1].toMap()["x"].toReal() != 180 || edited[0].toMap()["x"].toReal() != 40 ||
+        edited[2].toMap()["x"].toReal() != 140) {
+        qWarning("Native white-arrow dragging must edit the chosen anchor");
+        return false;
+    }
+    QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "paths"),
+                              Q_ARG(QVariant, true));
+    QTest::qWait(50);
+    const auto pathsPanel = _window->findChild<QQuickItem *>("pathsDockPanel");
+    const auto pathList   = _window->findChild<QQuickItem *>("pathList");
+    if (!pathsPanel || !pathsPanel->isVisible() || !pathList ||
+        pathList->property("count").toInt() != 1) {
+        qWarning("Native Paths tab must display the edited path");
+        return false;
+    }
+    _document.newDocument(300, 200, true, 16);
+    _document.setTool("pen");
+    _document.setPenMode("shape");
+    _document.setPenShapeStyle("fillColor", "#ffca4050");
+    QTest::qWait(30);
+    for (const auto &point : {QPointF(30, 40), QPointF(130, 40), QPointF(130, 140),
+                              QPointF(30, 140), QPointF(30, 40)}) {
+        pointer(NSEventTypeLeftMouseDown, point, 0);
+        pointer(NSEventTypeLeftMouseUp, point, 0);
+    }
+    if (_document.layers().size() != 2 ||
+        _document.layers()[0].toMap()["kind"].toString() != "shape") {
+        qWarning("Native Shape-mode drawing must create an editable shape layer");
+        return false;
+    }
+    const auto shapeBefore = _document.layerImage(1);
+    command(true);
+    pointer(NSEventTypeLeftMouseDown, QPointF(130, 40), NSEventModifierFlagCommand);
+    pointer(NSEventTypeLeftMouseDragged, QPointF(160, 60), NSEventModifierFlagCommand);
+    pointer(NSEventTypeLeftMouseUp, QPointF(160, 60), NSEventModifierFlagCommand);
+    command(false);
+    if (_document.layerImage(1) == shapeBefore) {
+        qWarning("Native Command dragging must update the retained shape pixels");
+        return false;
+    }
+    _document.undo();
+    if (_document.layerImage(1) != shapeBefore) {
+        qWarning("Native shape editing must restore its geometry and pixels on Undo");
+        return false;
+    }
+    _document.redo();
+    _document.setPenShapeStyle("fillColor", "#ff3060dc");
+    if (_document.layerImage(1).pixelColor(80, 80) != QColor("#3060dc")) {
+        qWarning("Native shape fill controls must update its displayed content");
+        return false;
+    }
+    if (!runPenPanelEditingSmoke(_window, _document) ||
+        !runPenStrokeVisibilitySmoke(_window, _document))
+        return false;
+    _document.editPenShape();
+    _window->setProperty("zoom", .13);
+    // Let delegate incubation and Canvas thumbnails complete before the frame capture.
+    QTest::qWait(80);
+    return true;
 }
 
 bool runMacToolCursorTest(QQuickWindow *_window)

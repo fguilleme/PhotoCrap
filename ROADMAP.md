@@ -93,7 +93,7 @@ mesures de VRAM du pilote restent à réaliser sur les machines adaptées.
 
 | Élément | État du code | Source |
 |---|---|---|
-| Barre d’outils | 71 outils recensés : **54 disponibles, 17 NYI** | Catalogue de `qml/Main.qml` |
+| Barre d’outils | 71 outils recensés : **56 disponibles, 15 NYI** | Catalogue de `qml/Main.qml` |
 | Raccourcis et gestes | **298 entrées** : 123 commandes personnalisables, 56 gestes contextuels, 119 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
 | Projets | Format `.pcr` **v9** avec texte éditable, lecture des versions 1 à 8 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
 | Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
@@ -309,7 +309,7 @@ Les paramètres et écarts avec Adobe sont détaillés dans [docs/SELECTIONS.md]
 
 ## 4. Outils encore NYI
 
-Les **17 outils NYI** du catalogue sont tous recensés ci-dessous et désactivés dans l’interface. Ils restent des fonctions futures, sans calendrier de livraison.
+Les **15 outils NYI** du catalogue sont tous recensés ci-dessous et désactivés dans l’interface. Ils restent des fonctions futures, sans calendrier de livraison.
 
 | Famille | Outils restant à implémenter |
 |---|---|
@@ -317,15 +317,16 @@ Les **17 outils NYI** du catalogue sont tous recensés ci-dessous et désactivé
 | Recadrage et mise en page | Cadre |
 | Mesure et annotation | Annotation, comptage |
 | Gomme et réglage local | Gomme d’arrière-plan, pinceau de réglage |
-| Tracés | Plume libre, plume de courbure, sélection de tracé et sélection directe |
+| Tracés | Plume libre, plume de courbure |
 | Texte et formes | Texte vertical, masque de texte horizontal, masque de texte vertical, forme personnalisée |
 
 Améliorations des outils déjà disponibles :
 
 - [x] Texte éditable ponctuel/paragraphe, double-clic sur la vignette T, saisie/curseur/sélection sur l’image, formats mixtes, familles/styles, couleur, interligne, approche, crénage métrique, échelle horizontale, ligne de base, capitales et indices/exposants ; alignements, retraits et espacements de paragraphes. Annulation par session, projets v9, transformations conservées et pixellisation explicite. [Inventaire Adobe et limites](docs/TEXT_TOOL.md).
 - [ ] Texte sur tracé, déformations, texte vertical/masques, options OpenType et polices variables, styles réutilisables, crénage optique, lissages Adobe, typographie CJK détaillée, césure, correction/recherche et Adobe Fonts.
-- [ ] Revoir la conformité de la Plume avec Photoshop : interactions de création et d’édition des tracés, souris et clavier. Des écarts sont signalés ; leur correction est différée après les optimisations graphiques.
-- [ ] Modes Forme et masque vectoriel de la Plume, opérations booléennes et panneau Tracés complet. Le mode Tracé, les outils d’ajout/suppression/conversion de point et leur conversion en sélection sont déjà disponibles.
+- [x] Première révision de la Plume depuis la documentation Adobe : reprise par glisser, poignée sortante indépendante au dernier point, flèches noire/blanche (A), sélection par cadre et déplacement de points/segments/tracés, curseurs distincts, désélection sans effacement. Panneau Tracés ancrable/flottant avec vignettes, renommage, duplication, ordre et actions de sélection/remplissage/contour ; projets avec tracés vides en v10. [Comportements et limites](docs/PEN_TOOL.md).
+- [x] Mode Forme de la Plume : calque créé au premier point, géométrie et styles conservés, fond/contour unis ou absents, épaisseur et tirets, réédition par les points ou les propriétés, déplacement, masques raster, duplication, Annuler et pixellisation explicite. Conversion explicite Tracé → Forme avec source conservée, choix Aucun/couleur, épaisseur décimale et dimensions liées. Caches natifs 8/16 bits par tuiles, affichage GPU et projets v11.
+- [ ] Compléter les tracés : composants multiples et jonctions, opérations booléennes, tracé de travail temporaire, multi-sélection de tracés, duplication par Alt-glisser et réordonnancement par glisser ; sélection → tracé et masques vectoriels sur les autres types de calques. Les dégradés/motifs et alignements avancés des contours de forme restent à faire. La découpe indépendante d’un segment et les options de conversion restent à faire.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
 - [ ] Tolérance et options supplémentaires du remplissage contigu ; modes plus avancés de réparation et de pièce.

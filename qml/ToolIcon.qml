@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["pen", "addAnchor", "deleteAnchor", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["pathSelection", "directSelection", "pen", "addAnchor", "deleteAnchor", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,11 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (["pen","addAnchor","deleteAnchor","convertPoint"].indexOf(root.toolName)>=0) {
+            if (root.toolName === "pathSelection" || root.toolName === "directSelection") {
+                ctx.beginPath();ctx.moveTo(5,2);ctx.lineTo(5,20);ctx.lineTo(10,15);ctx.lineTo(14,23);ctx.lineTo(18,21);ctx.lineTo(14,13);ctx.lineTo(21,13);ctx.closePath()
+                ctx.fillStyle=root.toolName === "pathSelection" ? "#18202a" : root.iconColor
+                ctx.fill();ctx.stroke()
+            } else if (["pen","addAnchor","deleteAnchor","convertPoint"].indexOf(root.toolName)>=0) {
                 ctx.beginPath();ctx.moveTo(3,21);ctx.lineTo(6,10);ctx.lineTo(16,3);ctx.lineTo(22,9);ctx.lineTo(14,18);ctx.closePath();ctx.stroke()
                 ctx.beginPath();ctx.moveTo(3,21);ctx.lineTo(12,12);ctx.stroke()
                 ctx.beginPath();ctx.arc(13,11,1.5,0,Math.PI*2);ctx.stroke()

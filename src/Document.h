@@ -56,8 +56,12 @@ class Document : public QObject
     Q_PROPERTY(int maskOnlyLayer READ maskOnlyLayer NOTIFY displayChannelChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
     Q_PROPERTY(QVariantList penPaths READ penPaths NOTIFY penPathsChanged)
+    Q_PROPERTY(QString penMode READ penMode WRITE setPenMode NOTIFY penOptionsChanged)
+    Q_PROPERTY(QVariantMap penShapeStyle READ penShapeStyle NOTIFY penOptionsChanged)
+    Q_PROPERTY(QRectF penShapeBounds READ penShapeBounds NOTIFY penPathsChanged)
     Q_PROPERTY(int activePenPath READ activePenPath WRITE setActivePenPath NOTIFY penPathsChanged)
     Q_PROPERTY(bool penDrawing READ penDrawing NOTIFY penPathsChanged)
+    Q_PROPERTY(QRectF penSelectionRect READ penSelectionRect NOTIFY penPathsChanged)
     Q_PROPERTY(QPointF penHover READ penHover NOTIFY penHoverChanged)
     Q_PROPERTY(
         bool penRubberBand READ penRubberBand WRITE setPenRubberBand NOTIFY penOptionsChanged)
@@ -263,8 +267,20 @@ class Document : public QObject
 public:
     explicit Document(QObject *_parent = nullptr);
     ~Document() override;
-    QVariantList penPaths() const;
-    int          activePenPath() const
+    QString penMode() const
+    {
+        return m_penMode;
+    }
+    void             setPenMode(const QString &_mode);
+    QVariantMap      penShapeStyle() const;
+    Q_INVOKABLE void setPenShapeStyle(const QString &_key, const QVariant &_value);
+    Q_INVOKABLE bool penPathToShape();
+    QRectF           penShapeBounds() const;
+    Q_INVOKABLE void resizePenShape(qreal _width, qreal _height);
+    Q_INVOKABLE void editPenShape();
+    Q_INVOKABLE void rasterizeShapeLayer();
+    QVariantList     penPaths() const;
+    int              activePenPath() const
     {
         return m_activePenPath;
     }
@@ -288,6 +304,10 @@ public:
     void             setPenAutoAddDelete(bool _value);
     Q_INVOKABLE void setActivePenPath(int _index);
     Q_INVOKABLE void newPenPath();
+    Q_INVOKABLE void createPenPath(const QString &_name = {});
+    Q_INVOKABLE void duplicatePenPath();
+    Q_INVOKABLE void movePenPath(int _index);
+    QRectF           penSelectionRect() const;
     Q_INVOKABLE void renamePenPath(const QString &_name);
     Q_INVOKABLE void deletePenPath();
     Q_INVOKABLE void deletePenPoints();
@@ -1297,10 +1317,20 @@ private:
     quint64                           m_selectionTaskStateId = 0;
     void             commitSelectionEdit(const Snapshot &_before, const QString &_label);
     void             finishSelectionGesture();
+    QString          m_penMode = QStringLiteral("path");
+    QVariantMap      m_penShapeDefaults;
+    bool             m_syncingPenShape = false;
+    bool             m_penShapeGesture = false;
+    int              penShapeLayerIndex() const;
+    bool             penShapeEditable(int _layer);
+    bool             startPenShapeLayer();
+    bool             updatePenShapeLayer();
+    void             syncPenShapePath(bool _activate = false);
     QVector<PenPath> m_penPaths;
     int              m_activePenPath = -1, m_penGesture = 0, m_penPoint = -1;
     bool             m_penDrawing = false, m_penWasDrawing = false, m_penBroken = false;
     bool             m_penRubberBand = false, m_penAutoAddDelete = true;
+    bool             m_penBoxAdditive = false;
     QPointF          m_penHover, m_penOrigin, m_penLastPointer;
     QSet<int>        m_selectedPenPoints, m_penSelectionBefore;
     Snapshot         m_beforePenGesture;

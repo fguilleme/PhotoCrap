@@ -37,6 +37,171 @@ class PenToolTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void panelPathLifecycleAndEmptyPersistence()
+    {
+        Document d;
+        QVERIFY(d.newDocument(200, 150, true, 16));
+        const auto pixels  = d.composite().cacheKey();
+        const auto history = d.historyIndex();
+        d.createPenPath("Contour");
+        QCOMPARE(d.penPaths().size(), 1);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QVERIFY(!d.penDrawing());
+        d.setTool("pen");
+        click(d, 20, 20);
+        click(d, 80, 20);
+        click(d, 80, 90);
+        d.closePenPath();
+        QCOMPARE(d.penPaths().size(), 1);
+        QCOMPARE(d.penPaths()[0].toMap()["points"].toList().size(), 3);
+        d.duplicatePenPath();
+        QCOMPARE(d.activePenPath(), 1);
+        QCOMPARE(d.penPaths()[1].toMap()["points"], d.penPaths()[0].toMap()["points"]);
+        d.renamePenPath("Copie");
+        d.movePenPath(0);
+        QCOMPARE(d.activePenPath(), 0);
+        QCOMPARE(d.penPaths()[0].toMap()["name"].toString(), QString("Copie"));
+        d.undo();
+        QCOMPARE(d.activePenPath(), 1);
+        d.redo();
+        QCOMPARE(d.activePenPath(), 0);
+        d.createPenPath("Vide");
+        const auto    retained = d.penPaths();
+        QTemporaryDir directory;
+        const auto    url = QUrl::fromLocalFile(directory.filePath("paths.pcr"));
+        QVERIFY(d.saveProject(url));
+        QFile saved(url.toLocalFile());
+        QVERIFY(saved.open(QIODevice::ReadOnly));
+        const auto json = QJsonDocument::fromJson(saved.readAll()).object();
+        QCOMPARE(json["version"].toInt(), 10);
+        Document loaded;
+        QVERIFY(loaded.openFile(url));
+        QCOMPARE(loaded.penPaths(), retained);
+        QCOMPARE(loaded.activePenPath(), d.activePenPath());
+        d.setActivePenPath(-1);
+        QCOMPARE(d.penPaths().size(), 3);
+        QCOMPARE(d.composite().cacheKey(), pixels);
+        d.setActivePenPath(2);
+        d.deletePenPath();
+        d.undo();
+        QCOMPARE(d.penPaths().size(), 3);
+        QVector<PenPath> paths;
+        QVERIFY(PenGeometry::decode(PenGeometry::encode({PenPath{"Empty", {}, false}}), paths));
+        QVERIFY(
+            !PenGeometry::decode(PenGeometry::encode({PenPath{"Empty", {}, false}}), paths, false));
+        QVERIFY(PenGeometry::transform(paths, QTransform::fromScale(2, 2)));
+    }
+    void selectionArrowsAndSegmentDragging()
+    {
+        Document d;
+        d.newDocument(200, 150, true);
+        d.setTool("pen");
+        click(d, 20, 20);
+        click(d, 80, 20);
+        click(d, 80, 90);
+        d.closePenPath();
+        d.setTool("pathSelection");
+        QCOMPARE(d.tool(), QString("pathSelection"));
+        const auto original = d.penPaths();
+        d.beginPenGesture(50, 20, 2);
+        d.updatePenGesture(60, 30);
+        d.endPenGesture();
+        QCOMPARE(position(d, 0), QPointF(30, 30));
+        QCOMPARE(position(d, 1), QPointF(90, 30));
+        QCOMPARE(position(d, 2), QPointF(90, 100));
+        d.undo();
+        QCOMPARE(d.penPaths(), original);
+        d.setTool("directSelection");
+        d.beginPenGesture(50, 20, 2);
+        d.updatePenGesture(60, 30);
+        d.endPenGesture();
+        QCOMPARE(position(d, 0), QPointF(30, 30));
+        QCOMPARE(position(d, 1), QPointF(90, 30));
+        QCOMPARE(position(d, 2), QPointF(80, 90));
+        d.undo();
+        const auto history = d.historyIndex();
+        d.beginPenGesture(10, 10, 2);
+        d.updatePenGesture(30, 30);
+        QCOMPARE(d.penSelectionRect(), QRectF(10, 10, 20, 20));
+        QVERIFY(node(d, 0)["selected"].toBool());
+        QVERIFY(!node(d, 1)["selected"].toBool());
+        d.endPenGesture();
+        QVERIFY(d.penSelectionRect().isEmpty());
+        QCOMPARE(d.historyIndex(), history);
+        d.nudgePenPoints(1, 0);
+        QCOMPARE(position(d, 0), QPointF(21, 20));
+        QCOMPARE(position(d, 1), QPointF(80, 20));
+        d.setActivePenPath(-1);
+        d.setTool("pathSelection");
+        d.beginPenGesture(80, 60, 2);
+        d.endPenGesture();
+        QCOMPARE(d.activePenPath(), 0);
+        QCOMPARE(d.penPaths().size(), 1);
+        d.beginPenGesture(190, 140, 2);
+        d.endPenGesture();
+        QCOMPARE(d.activePenPath(), -1);
+        d.setActivePenPath(0);
+        d.beginPenGesture(65, 45, 2);
+        d.endPenGesture();
+        QCOMPARE(d.activePenPath(), 0);
+        d.setTool("directSelection");
+        d.beginPenGesture(65, 45, 2, false, true);
+        d.endPenGesture();
+        QVERIFY(node(d, 0)["selected"].toBool());
+        QVERIFY(node(d, 1)["selected"].toBool());
+        QVERIFY(node(d, 2)["selected"].toBool());
+        d.setTool("pen");
+        d.beginPenGesture(190, 140, 2, true);
+        d.endPenGesture();
+        QCOMPARE(d.activePenPath(), -1);
+    }
+    void altEndpointPreservesIncomingCurve()
+    {
+        Document d;
+        d.newDocument(200, 150, true);
+        d.setTool("pen");
+        click(d, 20, 20);
+        d.beginPenGesture(80, 40, 2);
+        d.updatePenGesture(100, 50);
+        d.endPenGesture();
+        const auto incoming = QPointF(node(d, 1)["inX"].toReal(), node(d, 1)["inY"].toReal());
+        d.beginPenGesture(80, 40, 2, false, true);
+        d.endPenGesture();
+        QCOMPARE(QPointF(node(d, 1)["inX"].toReal(), node(d, 1)["inY"].toReal()), incoming);
+        QCOMPARE(node(d, 1)["outX"].toReal(), 80.);
+        d.beginPenGesture(80, 40, 2, false, true);
+        d.updatePenGesture(110, 15, false, true);
+        d.endPenGesture();
+        QCOMPARE(QPointF(node(d, 1)["inX"].toReal(), node(d, 1)["inY"].toReal()), incoming);
+        QCOMPARE(node(d, 1)["outX"].toReal(), 110.);
+        QVERIFY(!node(d, 1)["smooth"].toBool());
+        QVERIFY(d.penDrawing());
+    }
+    void resumeEndpointDragAndCancel()
+    {
+        Document d;
+        d.newDocument(200, 150, true);
+        d.setTool("pen");
+        click(d, 20, 20);
+        click(d, 80, 20);
+        d.finishPenPath();
+        const auto original = d.penPaths();
+        d.beginPenGesture(80, 20, 2);
+        d.updatePenGesture(100, 50);
+        d.endPenGesture();
+        QCOMPARE(node(d, 1)["outX"].toReal(), 100.);
+        QCOMPARE(node(d, 1)["outY"].toReal(), 50.);
+        QCOMPARE(node(d, 1)["inX"].toReal(), 80.);
+        QVERIFY(d.penDrawing());
+        d.undo();
+        QCOMPARE(d.penPaths(), original);
+        d.finishPenPath();
+        d.beginPenGesture(20, 20, 2);
+        d.updatePenGesture(5, 40);
+        d.endPenGesture(true);
+        QCOMPARE(d.penPaths(), original);
+        QVERIFY(!d.penDrawing());
+    }
     void smallPathFillOnlyAllocatesTouchedTiles()
     {
         Document d;
@@ -187,6 +352,7 @@ private slots:
         QCOMPARE(images.size(), 0);
         QCOMPARE(thumbs.size(), 0);
         QCOMPARE(d.composite().cacheKey(), cacheKey);
+        d.finishPenPath();
         d.beginPenGesture(65, 50, 2, false, true);
         d.endPenGesture();
         QCOMPARE(node(d, 1)["inX"].toReal(), 65.);

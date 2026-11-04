@@ -773,6 +773,58 @@
     <message><source>Dimensions du bloc de texte invalides.</source><translation>Invalid text box dimensions.</translation></message>
     <message><source>Mise en forme du texte invalide.</source><translation>Invalid text formatting.</translation></message>
     <message><source>Ce groupe est verrouillé ou masqué.</source><translation>This group is locked or hidden.</translation></message>
+    <message>
+        <source>Nouveau tracé</source>
+        <translation>New path</translation>
+    </message>
+    <message>
+        <source>Limite de tracés ou de points atteinte.</source>
+        <translation>Path or anchor limit reached.</translation>
+    </message>
+    <message>
+        <source>%1 copie</source>
+        <translation>%1 copy</translation>
+    </message>
+    <message>
+        <source>Dupliquer le tracé</source>
+        <translation>Duplicate path</translation>
+    </message>
+    <message>
+        <source>Réordonner les tracés</source>
+        <translation>Reorder paths</translation>
+    </message>
+    <message>
+        <source>Forme %1</source>
+        <translation>Shape %1</translation>
+    </message>
+    <message>
+        <source>Modifier le style de la forme</source>
+        <translation>Edit shape style</translation>
+    </message>
+    <message>
+        <source>Mémoire insuffisante pour rendre la forme.</source>
+        <translation>Not enough memory to render the shape.</translation>
+    </message>
+    <message>
+        <source>Calque de forme invalide.</source>
+        <translation>Invalid shape layer.</translation>
+    </message>
+    <message>
+        <source>Pixelliser la forme</source>
+        <translation>Rasterize shape</translation>
+    </message>
+    <message>
+        <source>Modifier les propriétés du calque</source>
+        <translation>Change layer properties</translation>
+    </message>
+    <message>
+        <source>Créer une forme depuis le tracé</source>
+        <translation>Make Shape from Path</translation>
+    </message>
+    <message>
+        <source>Redimensionner la forme</source>
+        <translation>Resize shape</translation>
+    </message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2611,6 +2663,14 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Cliquez pour écrire ; glissez pour créer un bloc de paragraphe</source><translation>Click to type; drag to create a paragraph box</translation></message>
     <message><source>Caractère / Paragraphe…</source><translation>Character / Paragraph…</translation></message>
     <message><source>Valider</source><translation>Commit</translation></message>
+    <message>
+        <source>Tracés</source>
+        <translation>Paths</translation>
+    </message>
+    <message>
+        <source>Forme vectorielle</source>
+        <translation>Vector shape</translation>
+    </message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -4599,6 +4659,10 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Afficher le calque</source><translation>Show Layer</translation></message>
       <message><source>Modifier le texte…</source><translation>Edit type…</translation></message>
     <message><source>Pixelliser le texte</source><translation>Rasterize type</translation></message>
+    <message>
+        <source>Pixelliser la forme</source>
+        <translation>Rasterize shape</translation>
+    </message>
 </context>
   <context>
     <name>MaskContextMenu</name>
@@ -4637,7 +4701,155 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Terminer</source><translation>Finish</translation></message>
     <message><source>Tracer avec les réglages actuels du pinceau</source><translation>Stroke with the current brush settings</translation></message>
     <message><source>Tracé</source><translation>Path</translation></message>
-  </context>
+      <message>
+        <source>Tracés…</source>
+        <translation>Paths…</translation>
+    </message>
+    <message>
+        <source>Tracés composés et opérations booléennes (NYI)</source>
+        <translation>Compound paths and Boolean operations (NYI)</translation>
+    </message>
+    <message>
+        <source>Forme</source>
+        <translation>Shape</translation>
+    </message>
+    <message>
+        <source>Fond</source>
+        <translation>Fill</translation>
+    </message>
+    <message>
+        <source>Couleur du fond</source>
+        <translation>Fill color</translation>
+    </message>
+    <message>
+        <source>Couleur du contour</source>
+        <translation>Stroke color</translation>
+    </message>
+    <message>
+        <source>Continu</source>
+        <translation>Solid</translation>
+    </message>
+    <message>
+        <source>Tirets</source>
+        <translation>Dashed</translation>
+    </message>
+    <message>
+        <source>Pointillés</source>
+        <translation>Dotted</translation>
+    </message>
+    <message>
+        <source>Fond : couleur ou aucun</source>
+        <translation>Fill: colour or none</translation>
+    </message>
+    <message>
+        <source>Contour : couleur ou aucun</source>
+        <translation>Stroke: colour or none</translation>
+    </message>
+    <message>
+        <source>Mode de dessin des prochains points</source>
+        <translation>Drawing mode for the next points</translation>
+    </message>
+    <message>
+        <source>Créer :</source>
+        <translation>Make:</translation>
+    </message>
+    <message>
+        <source>Sélection…</source>
+        <translation>Selection…</translation>
+    </message>
+    <message>
+        <source>Masque (NYI)</source>
+        <translation>Mask (NYI)</translation>
+    </message>
+    <message>
+        <source>Créer un masque vectoriel depuis le tracé — non implémenté</source>
+        <translation>Create a vector mask from the path — not implemented</translation>
+    </message>
+    <message>
+        <source>Créer une forme modifiable depuis le tracé sélectionné</source>
+        <translation>Create an editable shape from the selected path</translation>
+    </message>
+    <message>
+        <source>Fond :</source>
+        <translation>Fill:</translation>
+    </message>
+    <message>
+        <source>Contour :</source>
+        <translation>Stroke:</translation>
+    </message>
+    <message>
+        <source>Épaisseur du contour en pixels du document</source>
+        <translation>Stroke width in document pixels</translation>
+    </message>
+    <message>
+        <source>Régler l’épaisseur du contour</source>
+        <translation>Adjust stroke width</translation>
+    </message>
+    <message>
+        <source>Style du contour</source>
+        <translation>Stroke style</translation>
+    </message>
+    <message>
+        <source>L :</source>
+        <translation>W:</translation>
+    </message>
+    <message>
+        <source>Largeur de la forme en pixels</source>
+        <translation>Shape width in pixels</translation>
+    </message>
+    <message>
+        <source>Conserver les proportions</source>
+        <translation>Constrain proportions</translation>
+    </message>
+    <message>
+        <source>H :</source>
+        <translation>H:</translation>
+    </message>
+    <message>
+        <source>Hauteur de la forme en pixels</source>
+        <translation>Shape height in pixels</translation>
+    </message>
+    <message>
+        <source>Options de la Plume et du tracé</source>
+        <translation>Pen and path options</translation>
+    </message>
+    <message>
+        <source>Aucun</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>Couleur unie…</source>
+        <translation>Solid colour…</translation>
+    </message>
+    <message>
+        <source>Couleur de premier plan</source>
+        <translation>Foreground colour</translation>
+    </message>
+    <message>
+        <source>Aperçu élastique</source>
+        <translation>Rubber Band</translation>
+    </message>
+    <message>
+        <source>Terminer le tracé</source>
+        <translation>Finish path</translation>
+    </message>
+    <message>
+        <source>Masquer le tracé d’édition</source>
+        <translation>Hide editing path</translation>
+    </message>
+    <message>
+        <source>Opérations de tracé (NYI)</source>
+        <translation>Path Operations (NYI)</translation>
+    </message>
+    <message>
+        <source>Alignement et disposition des tracés (NYI)</source>
+        <translation>Path Alignment and Arrangement (NYI)</translation>
+    </message>
+    <message>
+        <source>Aligner les bords (NYI)</source>
+        <translation>Align Edges (NYI)</translation>
+    </message>
+</context>
   <context>
     <name>SelectionMenu</name>
     <message><source>Calques similaires</source><translation>Similar Layers</translation></message>
@@ -4859,5 +5071,84 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Crénage optique (NYI)</source><translation>Optical kerning (NYI)</translation></message>
     <message><source>Direction de droite à gauche</source><translation>Right-to-left direction</translation></message>
     <message><source>Police absente : un remplacement système est utilisé.</source><translation>Font missing: a system substitute is being used.</translation></message>
+</context>
+<context>
+    <name>PathsPanel</name>
+    <message>
+        <source>Dessinez avec la Plume (P)</source>
+        <translation>Draw with the Pen tool (P)</translation>
+    </message>
+    <message>
+        <source>Remplir le tracé avec le premier plan</source>
+        <translation>Fill path with foreground color</translation>
+    </message>
+    <message>
+        <source>Contour du tracé avec le pinceau</source>
+        <translation>Stroke path with the brush</translation>
+    </message>
+    <message>
+        <source>Convertir en sélection (Maj : ajouter, Alt : soustraire)</source>
+        <translation>Make selection (Shift: add, Alt: subtract)</translation>
+    </message>
+    <message>
+        <source>Nouveau tracé</source>
+        <translation>New path</translation>
+    </message>
+    <message>
+        <source>Supprimer le tracé</source>
+        <translation>Delete path</translation>
+    </message>
+    <message>
+        <source>Options des tracés</source>
+        <translation>Path options</translation>
+    </message>
+    <message>
+        <source>Nouveau tracé…</source>
+        <translation>New path…</translation>
+    </message>
+    <message>
+        <source>Renommer le tracé…</source>
+        <translation>Rename path…</translation>
+    </message>
+    <message>
+        <source>Dupliquer le tracé</source>
+        <translation>Duplicate path</translation>
+    </message>
+    <message>
+        <source>Monter le tracé</source>
+        <translation>Move path up</translation>
+    </message>
+    <message>
+        <source>Descendre le tracé</source>
+        <translation>Move path down</translation>
+    </message>
+    <message>
+        <source>Définir une sélection</source>
+        <translation>Make selection</translation>
+    </message>
+    <message>
+        <source>Remplir le tracé</source>
+        <translation>Fill path</translation>
+    </message>
+    <message>
+        <source>Renommer le tracé</source>
+        <translation>Rename path</translation>
+    </message>
+    <message>
+        <source>Annuler</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Forme</source>
+        <translation>Shape</translation>
+    </message>
+    <message>
+        <source>Créer une forme depuis le tracé</source>
+        <translation>Make Shape from Path</translation>
+    </message>
 </context>
 </TS>

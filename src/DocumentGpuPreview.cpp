@@ -37,7 +37,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         const auto spatial = layer.kind == "adjustment"
                                  ? spatialTypes.value(layer.adjustmentType, SpatialFilter::None)
                                  : SpatialFilter::None;
-        if ((layer.kind != "pixel" && !solid && layer.kind != "text" &&
+        if ((layer.kind != "pixel" && !solid && layer.kind != "text" && layer.kind != "shape" &&
              spatial == SpatialFilter::None) ||
             (!solid && spatial == SpatialFilter::None && layer.image.isNull()) ||
             layer.blend == 1 || layer.blend == 18 || layer.blend >= 23 ||

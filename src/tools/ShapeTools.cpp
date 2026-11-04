@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "SelectionMove.h"
+#include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
 #include <QPainter>
@@ -34,7 +35,8 @@ void Document::renderShape(const QPointF &_to)
         m_strokeChanged = false;
         return;
     }
-    if (m_tool == "move" && m_layers[m_active].kind == "text") {
+    if (m_tool == "move" &&
+        (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape")) {
         if (m_moveCopy && !m_moveDuplicatedLayer && _to != m_anchor) {
             auto layer      = m_layers[m_active];
             layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -44,26 +46,40 @@ void Document::renderShape(const QPointF &_to)
             m_moveCopy            = false;
             m_moveDuplicatedLayer = true;
         }
-        auto       parameters = m_textMoveParameters;
-        const auto delta      = _to - m_anchor;
-        PhotoCrap::Text::transform(parameters, QTransform::fromTranslate(delta.x(), delta.y()));
+        auto       parameters  = m_textMoveParameters;
+        const auto delta       = _to - m_anchor;
+        const bool shape       = m_layers[m_active].kind == "shape";
+        const auto translation = QTransform::fromTranslate(delta.x(), delta.y());
+        if (shape) {
+            if (!PhotoCrap::Shape::transform(parameters, translation)) {
+                cancelStroke();
+                fail(tr("Transformation des tracés impossible."));
+                return;
+            }
+        } else
+            PhotoCrap::Text::transform(parameters, translation);
         if (parameters == m_layers[m_active].parameters)
             return;
-        auto image = parameters == m_textMoveParameters
-                         ? m_strokePlaneBase
-                         : PhotoCrap::Text::renderPlane(parameters, m_size, workingFormat());
+        auto image = parameters == m_textMoveParameters ? m_strokePlaneBase
+                     : shape ? PhotoCrap::Shape::renderPlane(parameters, m_size, workingFormat())
+                             : PhotoCrap::Text::renderPlane(parameters, m_size, workingFormat());
         if (image.isNull()) {
             cancelStroke();
             fail(tr("Mémoire insuffisante pour rendre le texte."));
             return;
         }
-        m_dirtyRegion =
-            m_dirtyRegion.united(PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size))
-                .united(PhotoCrap::Text::bounds(parameters, m_size));
+        const auto oldBounds = shape
+                                   ? PhotoCrap::Shape::bounds(m_layers[m_active].parameters, m_size)
+                                   : PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size);
+        const auto newBounds = shape ? PhotoCrap::Shape::bounds(parameters, m_size)
+                                     : PhotoCrap::Text::bounds(parameters, m_size);
+        m_dirtyRegion        = m_dirtyRegion.united(oldBounds).united(newBounds);
         m_layers[m_active].parameters = parameters;
         m_layers[m_active].image      = image;
         m_strokeChanged               = parameters != m_textMoveParameters || m_moveDuplicatedLayer;
         changed(false);
+        if (shape)
+            syncPenShapePath();
         return;
     }
     if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&

@@ -57,6 +57,8 @@ Quelques mesures locales, dont les conditions sont décrites dans la [validation
 
 Ces empreintes de plans et mesures isolées ne représentent pas la mémoire totale de l’application. Les limites restent **32 Mpx, 512 calques et 2 Gio de réservation logique de plans** ; le `.pcr` v9 lit aussi les versions 1–8 et conserve sa limite de fichier de 256 Mio. Les essais Metal et les contrôles locaux Qt 6.8/6.12 sont documentés ; les validations physiques Vulkan/Direct3D et les mesures de VRAM du pilote restent ouvertes.
 
+Les projets avec formes vectorielles utilisent `.pcr` v11 ; ceux contenant un tracé nommé vide utilisent v10, et les autres restent en v9. Le lecteur accepte les versions 1 à 11.
+
 Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et replis GPU](docs/GPU_RENDERING.md) et le [plan des cinq chantiers](docs/OPTIMIZATION_PLAN.md).
 
 ![Composition de démonstration PhotoCrap](docs/screenshot.png)
@@ -67,6 +69,8 @@ Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et repli
 - Import d’images, ouverture de projets, import centré comme calque et collage du presse-papiers.
 - Pinceau rond et gomme à empreintes : taille, dureté, opacité, débit cumulatif, espacement, angle, arrondi et lissage. Le contour de pointe suit le pointeur et un aperçu de trait est affiché dans **Affichage → Pinceau…**. Les raccourcis suivent Photoshop pour la taille (`[`/`]`), la dureté (`Maj+[`/`Maj+]`) et les couleurs avant/arrière-plan (`D`/`X`).
 - Barre d’outils organisée par groupes : clic droit pour choisir un outil, icône du dernier outil choisi et infobulles. Ordre des groupes, ordre des outils et visibilité personnalisables dans **Réglages → Barre d’outils** ; les outils non implémentés restent visibles, désactivés et marqués **NYI**.
+- **Mode Forme de la Plume** : calque vectoriel créé au premier point, fond et contour éditables, réédition des ancres, propriétés, duplication et pixellisation explicite. Conversion **Tracé → Créer : Forme**, source conservée, couleur ou Aucun, épaisseur décimale et dimensions liées. Cache de tuiles natif 8/16 bits et sauvegarde v11.
+- **Plume et Tracés** : panneau à vignettes regroupable avec Calques/Couches, tracés nommés, duplication, ordre, remplissage, contour et conversion en sélection. P pour dessiner ; A et sa variante pour déplacer les contours ou leurs points. [Guide et différences avec Photoshop](docs/PEN_TOOL.md).
 - Gomme magique dans le groupe **E** : clic droit pour la choisir, puis clic sur une couleur pour l’effacer du calque actif. Tolérance, lissage, pixels contigus, échantillonnage de tous les calques et opacité dans la barre supérieure. Calcul en arrière-plan, **Échap** pour annuler, sélection respectée et précision 8/16 bits conservée. Elle agit sur les pixels, pas sur les masques.
 - Peinture et retouche : pinceau, crayon, remplacement de couleur, pinceau mélangeur, gomme, tampon de duplication, tampon de motif, flou, netteté, doigt, densité −/+, éponge, correction des yeux rouges, correcteur, correcteur localisé, pièce, déplacement basé sur le contenu, suppression et formes d’historique.
 - Pipette avec prélèvement ponctuel ou moyen, quatre échantillons de couleur, règle, remplissage contigu et dégradé à deux couleurs. Formes raster : rectangle, ellipse, triangle, polygone, étoile et ligne, avec paramètres de remplissage et de contour. Texte horizontal éditable en calque dédié, avec formats mixtes de caractères et de paragraphes.
@@ -98,6 +102,8 @@ La profondeur se choisit à la création ou dans **Image → Profondeur des coul
 Correcteur, Correcteur localisé, Suppression, Pièce, Déplacement basé sur le contenu et Œil rouge fonctionnent en 8 et 16 bits natifs, y compris leurs modes d’échantillonnage et l’annulation. Doigt, Pinceau mélangeur, Remplacement de couleur et les deux formes d’historique restent réservés aux pixels 8 bits ; leur utilisation sur les pixels 16 bits est bloquée explicitement, sans conversion silencieuse. Les limites sont de 32 mégapixels et 2 Gio de données de calques, avec 8 octets par pixel couleur 16 bits et 1 octet par pixel de masque (lignes alignées sur 4 octets).
 
 CMake télécharge les sources LibRaw et zlib épinglées et vérifie leurs SHA-256. Ces bibliothèques sont liées statiquement. Les paquets incluent les sources et licences inchangées dans `third-party` (LibRaw distribué sous CDDL 1.0).
+
+- **Plume et Tracés** : panneau à vignettes regroupable avec Calques/Couches, tracés nommés, duplication, ordre, remplissage, contour et conversion en sélection. P pour dessiner ; A et sa variante pour déplacer les contours ou leurs points. La reprise par glisser et Alt sur la dernière ancre conservent les tangentes attendues. [Guide et différences avec Photoshop](docs/PEN_TOOL.md).
 
 ## Compilation
 
@@ -200,6 +206,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 | G | Dégradé, remplissage contigu |
 | O | Densité −, densité +, éponge |
 | P | Plume, Ajout/Suppression de point, Conversion de point |
+| A | Sélection de tracé et sélection directe |
 | T | Texte horizontal éditable |
 | U | Rectangle, ellipse, triangle, polygone, étoile, ligne |
 | H / R / Z | Main / rotation de l’affichage / zoom |
@@ -223,7 +230,7 @@ Le **Déplacement basé sur le contenu** partage le groupe `J`. Entourez un obje
 
 Dans **Réglages → Outils**, l’option **Créer un calque avec Pinceau/Crayon sur une cible non peignable**, activée par défaut, permet de peindre au-dessus d’un réglage ou d’un autre contenu non raster. Sur un masque sélectionné, ces outils continuent de peindre le masque ; sur un calque de pixels verrouillé, le verrouillage reste respecté. Les coups suivants utilisent le nouveau calque de pixels.
 
-Les formes restent rasterisées. Les calques de texte sont éditables : familles/styles de police, taille, couleur, formats mixtes, approche, interligne et paragraphes sont disponibles dans **Caractère / Paragraphe…**. [Couverture et fonctions Adobe encore NYI](docs/TEXT_TOOL.md). Le Dégradé actuel reste un outil raster classique sur le calque actif. Voir [les règles de création et les références Adobe](docs/TOOL_LAYERS.md).
+Les outils géométriques Rectangle/Ellipse/etc. restent rasterisés ; la **Plume en mode Forme** crée désormais un calque vectoriel éditable. Les calques de texte sont éditables : familles/styles de police, taille, couleur, formats mixtes, approche, interligne et paragraphes sont disponibles dans **Caractère / Paragraphe…**. [Couverture et fonctions Adobe encore NYI](docs/TEXT_TOOL.md). Le Dégradé actuel reste un outil raster classique sur le calque actif. Voir [les règles de création et les références Adobe](docs/TOOL_LAYERS.md).
 
 ### Recadrage et tranches
 
@@ -322,7 +329,7 @@ Les surimpressions de mesure sont bornées : l’anneau de pipette conserve une 
 
 Le contour du pinceau est calculé directement par shader sur les backends graphiques, sans texture ni repeint, y compris lorsqu’il est coupé par un bord de la vue. Son emprise reste limitée à la vue, même avec une grosse brosse au zoom fort ; angle, aplatissement et signes +/− de Sélection rapide sont conservés. Le backend logiciel garde un dessin raster borné.
 
-La Plume conserve son tracé principal sur GPU avec un repli raster pour les backends logiciel et les anciens kits Qt. Le tracé principal est préparé avec une erreur géométrique limitée à 0,01 pixel logique. Les ancres et les tangentes utilisent aussi des chemins GPU mis en cache pendant le survol, avec une couche de composition bornée pour leur opacité. Le segment provisoire utilise un contour GPU pour les courbes entièrement visibles ; les courbes coupées ou très longues conservent le Canvas. Les modifications des points réactualisent les repères ; zoom et défilement restent limités à la vue. Les interactions restent celles de la version actuelle.
+La Plume conserve son tracé principal sur GPU avec un repli raster pour les backends logiciel et les anciens kits Qt. Le tracé principal est préparé avec une erreur géométrique limitée à 0,01 pixel logique. Les ancres et les tangentes utilisent aussi des chemins GPU mis en cache pendant le survol, avec une couche de composition bornée pour leur opacité. Le segment provisoire utilise un contour GPU pour les courbes entièrement visibles ; les courbes coupées ou très longues conservent le Canvas. Les modifications des points réactualisent les repères ; zoom et défilement restent limités à la vue. Les interactions et le panneau Tracés sont détaillés dans [le guide Plume](docs/PEN_TOOL.md).
 
 Les guides du lasso conservent leurs points et leur enveloppe fixe en cache pendant le survol, avec un dessin limité à la vue. Le guide uni et les repères du polygonal passent par des chemins GPU ; une couche de composition bornée conserve leur opacité. Le Canvas reste disponible en logiciel, sur les anciens kits Qt, pour les guides unis sur écran fractionnaire et pour les angles presque superposés. Les candidats combinés du lasso libre réutilisent une géométrie GPU pour animer leurs pointillés, sans repeint raster ni retransfert de sommets à chaque phase. Si le contour entoure la vue avec tous ses bords hors champ, sa couche GPU est désactivée et les phases ne demandent plus de rendu ; revenir sur un bord restaure la dernière phase. Les angles aigus, les guides polygonaux combinés et les tracés dépassant le budget gardent le Canvas ; l’animation s’arrête lorsqu’aucune sélection n’en a besoin.
 
@@ -374,7 +381,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut des workflows vérifiés est détaillé dans [Télécharger](#télécharger) ; les essais et fonctions restant à compléter sont suivis dans la [roadmap](ROADMAP.md).
 
-Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; anciens textes rasterisés non récupérables comme texte ; texte sur tracé, déformations et typographie Adobe avancée encore NYI ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels, objets dynamiques, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; anciens textes rasterisés non récupérables comme texte ; texte sur tracé, déformations et typographie Adobe avancée encore NYI ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels généraux sur les calques de pixels, objets dynamiques, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références techniques
 

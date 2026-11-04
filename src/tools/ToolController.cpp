@@ -78,7 +78,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         return;
     endStroke();
     if (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
-        m_tool == "convertPoint") {
+        m_tool == "convertPoint" || m_tool == "pathSelection" || m_tool == "directSelection") {
         beginPenGesture(_x, _y, 6, false, _alternate, _straight);
         return;
     }
@@ -221,13 +221,15 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if ((isShapeStrokeTool(m_tool) && m_tool != "move" &&
          (m_tool != "gradient" || hasSelection())) ||
         (m_tool == "move" &&
-         (m_layers[m_active].kind == "text" || hasSelection() ||
+         (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape" ||
+          hasSelection() ||
           PhotoCrap::Tools::canMoveSparseLayer(m_layers[m_active].image, m_size)))) {
         m_strokePlaneBase = m_layers[m_active].image;
         m_strokeBounds    = {};
     } else if (isShapeStrokeTool(m_tool) || m_tool == "text")
         m_strokeBase = m_layers[m_active].image;
-    if (m_tool == "move" && m_layers[m_active].kind == "text")
+    if (m_tool == "move" &&
+        (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape"))
         m_textMoveParameters = m_layers[m_active].parameters;
     m_drawing       = true;
     m_strokeChanged = false;
@@ -476,7 +478,8 @@ void Document::endStroke()
         return;
     }
     if (m_strokeChanged) {
-        if (m_tool == "move" && hasSelection() && m_layers[m_active].kind != "text") {
+        if (m_tool == "move" && hasSelection() && m_layers[m_active].kind != "text" &&
+            m_layers[m_active].kind != "shape") {
             const QPoint offset = (m_last - m_anchor).toPoint();
             m_selection = m_selection.translated(offset).intersected(QRect(QPoint{}, m_size));
             m_selectionRegion =

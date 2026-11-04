@@ -96,7 +96,7 @@ QJsonArray PenGeometry::encode(const QVector<PenPath> &_paths)
     }
     return paths;
 }
-bool PenGeometry::decode(const QJsonArray &_array, QVector<PenPath> &_paths)
+bool PenGeometry::decode(const QJsonArray &_array, QVector<PenPath> &_paths, bool _allowEmpty)
 {
     if (_array.size() > MaxPaths)
         return false;
@@ -113,7 +113,7 @@ bool PenGeometry::decode(const QJsonArray &_array, QVector<PenPath> &_paths)
         path.closed       = object["closed"].toBool();
         const auto points = object["points"].toArray();
         total += int(points.size());
-        if (path.name.isEmpty() || path.name.size() > 256 || points.isEmpty() ||
+        if (path.name.isEmpty() || path.name.size() > 256 || (!_allowEmpty && points.isEmpty()) ||
             points.size() > MaxPoints || total > MaxTotalPoints)
             return false;
         for (const auto &entry : points) {
@@ -187,8 +187,7 @@ bool PenGeometry::transform(QVector<PenPath> &_paths, const QTransform &_transfo
                 p.outgoing = _transform.map(p.outgoing);
             }
         }
-        if (path.points.isEmpty() || path.points.size() > MaxPoints ||
-            (path.closed && path.points.size() < 2))
+        if (path.points.size() > MaxPoints || (path.closed && path.points.size() < 2))
             return false;
         total += int(path.points.size());
         if (total > MaxTotalPoints)

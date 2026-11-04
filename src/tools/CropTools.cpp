@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
 #include <QFutureWatcher>
@@ -324,6 +325,11 @@ void Document::applyCrop()
         for (auto &layer : layers) {
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, transform);
+            if (layer.kind == "shape" &&
+                !PhotoCrap::Shape::transform(layer.parameters, transform)) {
+                result.valid = false;
+                return result;
+            }
             warp(layer.image.edit());
             warp(layer.mask.edit());
             warp(layer.source.edit());

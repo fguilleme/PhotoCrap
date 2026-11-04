@@ -7,6 +7,8 @@ GpuGuideShape {
     id: root
     objectName: "penGpuCurve"
     required property string svg
+    property bool shapeGuide: false
+    property real guideWidth: 1.5
     enabled: false
     component Stroke: ShapePath {
         fillColor: "transparent"
@@ -15,6 +17,6 @@ GpuGuideShape {
         miterLimit: 10
         PathSvg { path: root.svg }
     }
-    Stroke { strokeColor: "#1a2b3b"; strokeWidth: 3 }
-    Stroke { strokeColor: "#73c5ff"; strokeWidth: 1.5 }
+    Stroke { strokeColor: root.shapeGuide ? "transparent" : "#1a2b3b"; strokeWidth: 3 }
+    Stroke { strokeColor: "#73c5ff"; strokeWidth: root.guideWidth }
 }

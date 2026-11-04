@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "shapes/ShapeLayer.h"
 #include "storage/ProjectWriteDevice.h"
 #include "text/TextLayer.h"
 
@@ -20,6 +21,7 @@
 #include <QSet>
 #include <QSignalBlocker>
 #include <QtConcurrentRun>
+#include <algorithm>
 #include <limits>
 #include <new>
 
@@ -494,14 +496,31 @@ bool Document::saveProject(const QUrl &_url)
         Base64WriteDevice encoder(output);
         return pixels.save(&encoder, "PNG") && encoder.finish() && operationStep(completed, total);
     };
+    // Empty named paths need the new reader; keep ordinary documents readable
+    // by v9 applications, whose path decoder requires at least one anchor.
+    const bool  emptyPaths = std::any_of(m_penPaths.cbegin(), m_penPaths.cend(),
+                                         [](const PenPath &path) { return path.points.isEmpty(); });
+    const bool  shapes     = std::any_of(m_layers.cbegin(), m_layers.cend(),
+                                         [](const Layer &layer) { return layer.kind == "shape"; });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", 9},
+                     {"version", shapes       ? 11
+                                 : emptyPaths ? 10
+                                              : 9},
                      {"width", width()},
                      {"height", height()},
                      {"activeLayer", m_active}};
-    root["channelBits"]   = m_channelBits;
-    root["penPaths"]      = PenGeometry::encode(m_penPaths);
-    root["activePenPath"] = m_activePenPath;
+    root["channelBits"] = m_channelBits;
+    QVector<PenPath> savedPaths;
+    int              savedActivePath = -1;
+    for (int i = 0; i < m_penPaths.size(); ++i) {
+        if (!m_penPaths[i].shapeLayerId.isEmpty())
+            continue;
+        if (i == m_activePenPath)
+            savedActivePath = int(savedPaths.size());
+        savedPaths.append(m_penPaths[i]);
+    }
+    root["penPaths"]      = PenGeometry::encode(savedPaths);
+    root["activePenPath"] = savedActivePath;
     QJsonArray slices;
     for (const auto &rect : m_slices)
         slices.append(QJsonObject{
@@ -571,7 +590,7 @@ bool Document::loadProject(const QString &_path)
     const auto root    = json.object();
     const int  version = root["version"].toInt();
     if (error.error != QJsonParseError::NoError || root["format"] != "PhotoCrap" ||
-        (version < 1 || version > 9))
+        (version < 1 || version > 11))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int  w = root["width"].toInt(), h = root["height"].toInt();
     const auto array = root["layers"].toArray();
@@ -640,7 +659,8 @@ bool Document::loadProject(const QString &_path)
         const QString kind =
             version == 1 ? QStringLiteral("pixel") : object["kind"].toString("pixel");
         if (kind != "pixel" && kind != "adjustment" && kind != "group" && kind != "frequency" &&
-            kind != "frequencyLow" && kind != "frequencyHigh" && !(version >= 9 && kind == "text"))
+            kind != "frequencyLow" && kind != "frequencyHigh" &&
+            !(version >= 9 && kind == "text") && !(version >= 11 && kind == "shape"))
             return fail(tr("Type de calque inconnu."));
         auto image  = decode(object["png"].toString(), format,
                              version >= 7 && object["compactPixels"].toBool());
@@ -649,7 +669,7 @@ bool Document::loadProject(const QString &_path)
         auto source = decode(object["source"].toString(), format);
         if (!decodeError.isEmpty())
             return fail(decodeError);
-        if (((kind == "pixel" || kind == "text") && image.isNull()) ||
+        if (((kind == "pixel" || kind == "text" || kind == "shape") && image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||
             (!object["mask"].toString().isEmpty() && mask.isNull()))
             return fail(tr("Calque corrompu ou dimensions incohérentes."));
@@ -675,6 +695,8 @@ bool Document::loadProject(const QString &_path)
         layer.parameters     = object["parameters"].toObject().toVariantMap();
         if (kind == "text" && !PhotoCrap::Text::normalize(layer.parameters))
             return fail(tr("Calque de texte invalide."));
+        if (kind == "shape" && !PhotoCrap::Shape::normalize(layer.parameters))
+            return fail(tr("Calque de forme invalide."));
         layer.mask           = mask;
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
         layer.clippingMask   = object["clippingMask"].toBool(false);
@@ -702,8 +724,8 @@ bool Document::loadProject(const QString &_path)
         slices.append(QRect(x, y, sw, sh));
     }
     QVector<PenPath> penPaths;
-    if (version >= 8 &&
-        (!root["penPaths"].isArray() || !PenGeometry::decode(root["penPaths"].toArray(), penPaths)))
+    if (version >= 8 && (!root["penPaths"].isArray() ||
+                         !PenGeometry::decode(root["penPaths"].toArray(), penPaths, version >= 10)))
         return fail(tr("Tracés du projet invalides."));
     const int activePenPath = version >= 8 ? root["activePenPath"].toInt(-1) : -1;
     if (activePenPath < -1 || activePenPath >= penPaths.size())
@@ -733,6 +755,7 @@ void Document::adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, 
     resetHistory(_project);
     m_penPaths      = _loaded.penPaths;
     m_activePenPath = _loaded.activePenPath;
+    syncPenShapePath(_loaded.activePenPath < 0);
     emit penPathsChanged();
     m_slices      = _loaded.slices;
     m_activeSlice = m_slices.isEmpty() ? -1 : 0;

@@ -55,7 +55,7 @@ Selected local measurements, with conditions documented in [validation](docs/VAL
 | Cold 101² read, radius-12 feathered mask, 24 MP/16-bit | 297 → 0.45 ms, identical pixels |
 | Isolated encoder for twelve 1 MP planes | Peak RSS 324 → 74 MiB at 8-bit; 692 → 122 MiB at 16-bit |
 
-These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; `.pcr` v9 also reads versions 1–8 and retains its 256 MiB file limit. Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.
+These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; `.pcr` v9 also reads versions 1–8 and retains its 256 MiB file limit. Projects containing editable vector shapes use `.pcr` v11; empty named paths use v10 and other projects stay in v9. The reader supports versions 1–11. Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.
 
 See the [layer and memory guide](docs/LAYER_MEMORY.md), [GPU formats and fallbacks](docs/GPU_RENDERING.md), and [five-part optimization plan](docs/OPTIMIZATION_PLAN.md) (French).
 
@@ -67,9 +67,11 @@ See the [layer and memory guide](docs/LAYER_MEMORY.md), [GPU formats and fallbac
 - Image import, project opening, centered import as a layer, and clipboard paste.
 - Round stamp brush and eraser with size, hardness, opacity, cumulative flow, spacing, angle, roundness, and smoothing. A tip outline follows the pointer, and a stroke preview is available under **View → Brush…**. Photoshop-style shortcuts control size (`[`/`]`), hardness (`Shift+[`/`Shift+]`), and foreground/background colors (`D`/`X`).
 - Grouped toolbar: right-click to choose a tool, the last chosen tool supplies the icon, and tooltips identify tools. Group order, tool order, and visibility are configurable under **Settings → Toolbar**. Unimplemented tools remain visible, disabled, and marked **NYI**.
+- **Pen Shape mode**: automatically creates a retained vector shape layer, with editable solid fill/stroke, anchors, properties, duplication and explicit rasterization. **Path → Make: Shape** preserves the source and editable geometry; None/solid paint, decimal stroke width and linked dimensions. Native 8/16-bit tiled display caches and v11 persistence.
+- **Pen and Paths**: dockable thumbnails, naming, duplication, ordering and fill/stroke/selection actions; grouped with Layers/Channels by default. P draws; A and its alternate edit paths or individual anchors. See [behavior and remaining Photoshop differences](docs/PEN_TOOL.md).
 - Magic Eraser in the **E** group: right-click to choose it, then click a color to erase matching pixels on the active layer. The options bar provides tolerance, anti-aliasing, contiguous pixels, sampling all visible layers, and opacity. Background processing, **Escape** to cancel, selection clipping, and native 8/16-bit precision. This tool erases pixels, not layer masks.
 - Painting and retouching: brush, pencil, color replacement, mixer brush, eraser, clone stamp, pattern stamp, blur, sharpen, smudge, dodge/burn, sponge, red eye correction, healing brush, spot healing, patch, content-aware move, remove, and history brushes.
-- Eyedropper with point/average sampling, four color samplers, ruler, contiguous fill, and two-color gradient. Raster shapes include rectangle, ellipse, triangle, polygon, star, and line with fill/stroke controls. Horizontal text is rasterized.
+- Eyedropper with point/average sampling, four color samplers, ruler, contiguous fill, and two-color gradient. Raster shapes include rectangle, ellipse, triangle, polygon, star, and line with fill/stroke controls. Horizontal text is editable; the Pen also creates retained vector shape layers in Shape mode.
 - Photoshop-style navigation: `Ctrl/⌘ + wheel` zooms around the pointer, the wheel scrolls vertically, `Shift + wheel` scrolls horizontally, and `Space + drag` freely pans the canvas.
 - Rectangular, elliptical, single-row/column, lasso, polygonal lasso, quick selection, and magic wand tools. Animated selection contours, replace/add/subtract/intersect modes, selected-pixel movement, deletion, merged copy, and cropping.
 - Pixel layers, Solid Color fills, adjustments, groups, and clipping: add, duplicate, rename, reorder, show/hide, lock, opacity, and merge down. White/black raster masks can be painted, inverted, enabled/disabled, and copied to another layer by dragging. Alt/Option-click an eye to isolate a layer or a mask thumbnail to display the mask alone.
@@ -190,6 +192,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | G | Gradient, contiguous fill |
 | O | Dodge, burn, sponge |
 | P | Pen, Add/Delete Anchor Point, Convert Point |
+| A | Path Selection and Direct Selection |
 | T | Rasterized horizontal text |
 | U | Rectangle, ellipse, triangle, polygon, star, line |
 | H / R / Z | Hand / rotate view / zoom |
@@ -294,7 +297,7 @@ during hover, with a bounded composition layer preserving opacity. The provision
 segment also uses GPU geometry when its control hull is fully visible. Clipped
 or very long provisional curves retain their Canvas, as do software and older
 Qt kits. The main path, handles and provisional segment keep separate caches.
-The current editing interactions are preserved.
+The dockable Paths panel adds thumbnails, naming, duplication, ordering, fill, stroke and selection actions. P draws; A and its alternate select complete paths or individual anchors/segments. Endpoint-resume dragging and Option/Alt on the last anchor preserve incoming tangents. See the [Pen guide and remaining Photoshop differences](docs/PEN_TOOL.md).
 
 GPU selection animation also skips tile and cache preparation when only the dash
 phase changes. Image, zoom, viewport and memory-budget changes still receive full
@@ -384,7 +387,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) for verified workflow status and the [roadmap](ROADMAP.md) for remaining validation and features.
 
-Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, vector masks, smart objects, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
+Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, general vector masks on pixel layers, smart objects, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
 
 ## Technical references
 

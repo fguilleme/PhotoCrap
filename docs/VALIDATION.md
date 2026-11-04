@@ -1,5 +1,95 @@
 # Validation
 
+## Parcours Tracé → Forme et contour peint — 4 novembre 2026
+
+La barre distingue le mode des prochains points de l'action **Créer : Forme** sur
+le tracé existant. Fond/Contour proposent couleur ou Aucun ; choisir une couleur
+active effectivement sa peinture. Le champ d'épaisseur est un champ numérique
+éditable qui valide la saisie décimale, avec un curseur adjacent. L/H modifient la
+géométrie conservée. Le guide bleu fin reste visible pour éditer une forme ; sa
+désélection n'efface pas le contour peint.
+
+`PenShapeTest` couvre la conversion d'un tracé courbe préalablement édité en 8/16
+bits, le maintien du tracé source indépendant, les poignées après conversion,
+l'annulation/rétablissement, les dimensions et la sauvegarde/réouverture v11.
+Il vérifie aussi que choisir à nouveau la même couleur réactive un contour absent
+et que les tracés vides ou réduits à un point ne créent pas de calque.
+
+`PenStrokeSmoke.h` clique **Créer : Forme**, ouvre réellement l'échantillon
+Contour, choisit le premier plan et saisit **45,62** avec le clavier. Il cherche
+les pixels magenta dans une capture du canevas à 13 %, puis vérifie que le contour
+survit à la désélection sans changer l'historique. Un contour pointillé de 5,1 px
+est également vérifié avec le guide fin visible, puis une fois les contrôles masqués. Le parcours est intégré
+au smoke test QML et au test natif macOS de la Plume.
+
+Validation : compilation Qt 6.12, 52/52 suites hors tests macOS interactifs ; après
+le réglage final du guide, `pen_tool`, `pen_shape`, `pen_overlay` et `qml_smoke`
+passent. Qt 6.8 : compilation, 13 scénarios moteur Forme et smoke test complet
+réussis. Le parcours natif Cocoa/Metal valide aussi la conversion, la peinture
+et la saisie du contour.
+
+## Réédition depuis le panneau Tracés — 3 novembre 2026
+
+Le clic normal dans une ligne active la Sélection directe et remet le focus dans
+le document. Le traitement reste dans le contexte du panneau : `setActivePenPath`
+reconstruit la liste immédiatement, et un gestionnaire poursuivi dans le contexte
+de la ligne détruite pouvait échouer avec `ReferenceError: root is not defined`.
+Les clics contextuels et Commande/Ctrl-clic restent distincts.
+
+`PenPanelSmoke.h` clique réellement une ligne dans le panneau flottant, en venant
+de la brosse, de la Plume et de la flèche noire, pour un tracé simple puis une forme
+16 bits. Il choisit l'ancre sans la supprimer, déplace sa poignée sans déplacer
+l'ancre, vérifie les pixels de forme, une seule étape d'historique, Annuler et le
+rétablissement exact des points avec Rétablir. Commande/Ctrl-clic charge encore
+une sélection sans changer la brosse. Ce parcours est intégré au smoke test QML
+et au contrôle natif macOS de la Plume. Les contrôles natifs Metal et les smoke tests Qt 6.8/6.12 passent, ainsi que `pen_tool` et `pen_shape`.
+
+
+## Mode Forme de la Plume — 3 novembre 2026
+
+`pen_shape` vérifie dix cas : formes en 8/16 bits, styles de fond et contour,
+pointillés, déplacement réel des ancres, annulation du premier geste/calque,
+réouverture `.pcr` v11, duplication indépendante, pixellisation annulable,
+déplacement et redimensionnement vectoriels, changement de profondeur,
+protection des calques verrouillés, courbes et masques raster, retour au mode
+Tracé avec Annuler/Rétablir et rejet des transformations hors limites sur des
+formes inactives. Une petite forme sur 24 Mpx/16 bits n'alloue que les tuiles
+qu'elle touche. Les définitions invalides de projet sont refusées sans remplacer
+le document courant.
+
+Le test QML choisit Forme dans le menu, dessine au pointeur un vrai calque rempli,
+contrôle les options de style et la réédition par Propriétés, puis revient à Tracé
+sans créer de calque supplémentaire. Le test natif macOS/Metal crée une forme,
+modifie une ancre avec Commande, annule/rétablit et change son fond ; sa capture
+a été inspectée. Les **52 suites hors tests natifs macOS** passent ; les suites document,
+Plume, forme et interface repassent après la validation des transformations.
+Le build Qt 6.8, les dix cas moteur de forme et son smoke test d'interface passent
+aussi. Les chemins physiques Windows/Vulkan/Direct3D ne sont pas testés ici.
+
+
+## Plume et panneau Tracés — 3 novembre 2026
+
+La suite `pen_tool` couvre les flèches noire/blanche, le glisser de segments,
+le cadre de sélection, Option/Alt sur le dernier point sans déformer la courbe
+entrante, la reprise par glisser, le geste annulé et la désélection. La création
+nommée vide, duplication, ordre, Annuler/Rétablir et réouverture des projets sont
+contrôlés sans modification de la composition. Les tracés vides utilisent le
+format v10 ; les versions 8/9 conservent leur validation stricte.
+
+Les contrôles QML vérifient la nouvelle entrée Affichage, le bouton de la barre,
+la liste, création/sélection, disparition du tracé après conversion en sélection,
+le raccourci A, Échap et le transfert réel du contenu en fenêtre flottante puis
+son retour. L'espace de travail sauvegarde maintenant huit panneaux. Le test
+natif macOS vérifie Commande sur une ancre, le déplacement complet avec la flèche
+noire, l'édition isolée avec la flèche blanche et l'affichage du nouvel onglet.
+La capture du test Metal a été inspectée.
+
+Build Qt 6.12, **51 suites hors macos_*** réussies, dont `pen_tool`, `pen_overlay`
+et `qml_smoke` ; test natif `--native-pen-test` réussi sur Metal. Le build Qt 6.8
+et les 18 cas de `photocrap_pen_tests`, ainsi que le smoke test d’interface, passent également. Les vérifications Windows
+et Linux physiques ne sont pas réalisées ici. Les limites restantes sont listées
+dans [PEN_TOOL.md](PEN_TOOL.md).
+
 ## Groupe de correction en 16 bits — 3 novembre 2026
 
 La suite `native_healing` vérifie les six outils sur des PNG natifs dont les valeurs

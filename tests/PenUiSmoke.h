@@ -1,5 +1,7 @@
 #pragma once
 #include "Document.h"
+#include "PenPanelSmoke.h"
+#include "PenStrokeSmoke.h"
 #include <QGuiApplication>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -171,6 +173,97 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
                  "Escape finishes an open path without deleting it"))
         return false;
     if (!require(!band->isVisible(), "Escape hides the provisional curve"))
+        return false;
+    auto pathsDock = _window->findChild<QObject *>("pathsDockPanel");
+    auto pathList  = _window->findChild<QQuickItem *>("pathList");
+    auto showPaths = _window->findChild<QObject *>("showPathsPanelButton");
+    if (!require(pathsDock && pathList && showPaths &&
+                     _window->findChild<QObject *>("pathsPanelMenuItem"),
+                 "Paths is an independent dock with a View menu entry and a toolbar shortcut"))
+        return false;
+    QMetaObject::invokeMethod(showPaths, "clicked");
+    QTest::qWait(30);
+    if (!require(pathsDock->property("visible").toBool() &&
+                     pathList->property("count").toInt() == 2,
+                 "the toolbar opens the Paths tab and lists the retained paths"))
+        return false;
+    _document.setActivePenPath(0);
+    _document.setTool("brush");
+    if (!require(overlay->isVisible(),
+                 "a path selected from the panel stays visible with another tool"))
+        return false;
+    auto selectionFromPanel = _window->findChild<QObject *>("pathSelectionPanelButton");
+    QMetaObject::invokeMethod(selectionFromPanel, "clicked");
+    if (!require(_document.hasSelection() && _document.activePenPath() == -1 &&
+                     !overlay->isVisible(),
+                 "the panel selection action keeps only marching ants on the canvas"))
+        return false;
+    auto newPath = _window->findChild<QObject *>("newPathPanelButton");
+    QMetaObject::invokeMethod(newPath, "clicked");
+    if (!require(_document.penPaths().size() == 3 && _document.activePenPath() == 2,
+                 "the Paths plus button creates and selects an empty retained path"))
+        return false;
+    QMetaObject::invokeMethod(pathsDock, "setPanelFloating", Q_ARG(QVariant, true));
+    QTest::qWait(30);
+    if (!require(pathList->window() != _window && pathList->window()->isVisible(),
+                 "Paths content follows its floating window"))
+        return false;
+    QMetaObject::invokeMethod(pathsDock, "setPanelFloating", Q_ARG(QVariant, false));
+    QTest::qWait(30);
+    if (!require(pathList->window() == _window, "Paths docks back without losing its list"))
+        return false;
+    _window->requestActivate();
+    area->forceActiveFocus();
+    QTest::keyClick(_window, Qt::Key_A);
+    if (!require(_document.tool() == "pathSelection",
+                 "A activates the available Path Selection tool"))
+        return false;
+    _document.setActivePenPath(0);
+    QTest::keyClick(_window, Qt::Key_Escape);
+    if (!require(_document.activePenPath() == -1,
+                 "Escape deselects a finished path without deleting it"))
+        return false;
+    _document.newDocument(200, 160, true, 16);
+    _document.setTool("pen");
+    auto modeCombo = _window->findChild<QObject *>("penModeCombo");
+    if (!require(modeCombo, "Pen has a Shape/Path drawing-mode selector"))
+        return false;
+    modeCombo->setProperty("currentIndex", 0);
+    QMetaObject::invokeMethod(modeCombo, "activated", Q_ARG(int, 0));
+    if (!require(_document.penMode() == "shape", "Shape mode is selectable from the options bar"))
+        return false;
+    area->forceActiveFocus();
+    for (const auto &point : {QPoint(20, 20), QPoint(130, 20), QPoint(130, 130), QPoint(20, 20)})
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, scene(point.x(), point.y()));
+    if (!require(_document.layers().size() == 2 &&
+                     _document.layers()[0].toMap()["kind"].toString() == "shape" &&
+                     _document.layerImage(1).pixelColor(100, 50).alpha() > 0,
+                 "native pointer drawing creates a filled, retained shape layer in 16 bits"))
+        return false;
+    const auto fillControl   = _window->findChild<QQuickItem *>("penShapeFillColor");
+    const auto strokeControl = _window->findChild<QQuickItem *>("penShapeStrokeWidth");
+    if (!require(fillControl && strokeControl && fillControl->isVisible() &&
+                     strokeControl->isVisible(),
+                 "Shape mode exposes fill, stroke and editable stroke width"))
+        return false;
+    _document.setPenShapeStyle("fillColor", "#ff2040e0");
+    if (!require(_document.layerImage(1).pixelColor(100, 50) == QColor("#2040e0"),
+                 "the displayed shape updates when its retained fill changes"))
+        return false;
+    _document.setActiveLayer(1);
+    QMetaObject::invokeMethod(_window, "openActiveLayerProperties");
+    if (!require(_document.penMode() == "shape" && _document.activePenPath() >= 0 &&
+                     !_window->property("modalOpen").toBool(),
+                 "shape properties reopen vector editing rather than the adjustment dialog"))
+        return false;
+    modeCombo->setProperty("currentIndex", 1);
+    QMetaObject::invokeMethod(modeCombo, "activated", Q_ARG(int, 1));
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, scene(10, 150));
+    if (!require(_document.penMode() == "path" && _document.layers().size() == 2,
+                 "returning to Path mode creates an outline without another shape layer"))
+        return false;
+    if (!runPenPanelEditingSmoke(_window, _document) ||
+        !runPenStrokeVisibilitySmoke(_window, _document))
         return false;
     _document.setPenRubberBand(false);
     _document.newDocument(100, 80, true);

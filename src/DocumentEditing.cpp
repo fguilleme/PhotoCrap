@@ -1,11 +1,26 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QPainter>
 #include <QTransform>
+
+namespace
+{
+bool validShapeTransform(const QVector<Layer> &_layers, const QTransform &_transform)
+{
+    for (const auto &layer : _layers)
+        if (layer.kind == "shape") {
+            auto parameters = layer.parameters;
+            if (!PhotoCrap::Shape::transform(parameters, _transform))
+                return false;
+        }
+    return true;
+}
+} // namespace
 
 void Document::undo()
 {
@@ -243,9 +258,10 @@ void Document::cropToSelection()
     if (deferEdit(tr("Recadrer"), editCost(true), [](Document &d) { d.cropToSelection(); }))
         return;
     endStroke();
-    auto paths = m_penPaths;
-    if (!PenGeometry::transform(paths,
-                                QTransform::fromTranslate(-m_selection.x(), -m_selection.y()))) {
+    auto       paths         = m_penPaths;
+    const auto pathTransform = QTransform::fromTranslate(-m_selection.x(), -m_selection.y());
+    if (!PenGeometry::transform(paths, pathTransform) ||
+        !validShapeTransform(m_layers, pathTransform)) {
         fail(tr("Transformation des tracés impossible."));
         return;
     }
@@ -256,6 +272,10 @@ void Document::cropToSelection()
                 return;
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(
+                    layer.parameters,
+                    QTransform::fromTranslate(-m_selection.x(), -m_selection.y()));
+            if (layer.kind == "shape")
+                PhotoCrap::Shape::transform(
                     layer.parameters,
                     QTransform::fromTranslate(-m_selection.x(), -m_selection.y()));
             if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
@@ -290,9 +310,10 @@ void Document::resizeImage(int _w, int _h)
                   [_w, _h](Document &d) { d.resizeImage(_w, _h); }))
         return;
     endStroke();
-    auto paths = m_penPaths;
-    if (!PenGeometry::transform(paths,
-                                QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height()))) {
+    auto       paths         = m_penPaths;
+    const auto pathTransform = QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height());
+    if (!PenGeometry::transform(paths, pathTransform) ||
+        !validShapeTransform(m_layers, pathTransform)) {
         fail(tr("Transformation des tracés impossible."));
         return;
     }
@@ -307,6 +328,12 @@ void Document::resizeImage(int _w, int _h)
                     QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height()));
                 layer.image =
                     PhotoCrap::Text::renderPlane(layer.parameters, {_w, _h}, workingFormat());
+            } else if (layer.kind == "shape") {
+                PhotoCrap::Shape::transform(
+                    layer.parameters,
+                    QTransform::fromScale(qreal(_w) / width(), qreal(_h) / height()));
+                layer.image =
+                    PhotoCrap::Shape::renderPlane(layer.parameters, {_w, _h}, workingFormat());
             } else if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     layer.image.scaled(_w, _h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -352,7 +379,8 @@ void Document::transformImage(const QString &_operation)
         pathTransform = QTransform(0, -1, 1, 0, 0, width());
     endStroke();
     auto paths = m_penPaths;
-    if (!PenGeometry::transform(paths, pathTransform)) {
+    if (!PenGeometry::transform(paths, pathTransform) ||
+        !validShapeTransform(m_layers, pathTransform)) {
         fail(tr("Transformation des tracés impossible."));
         return;
     }
@@ -365,6 +393,8 @@ void Document::transformImage(const QString &_operation)
                 return;
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, pathTransform);
+            if (layer.kind == "shape")
+                PhotoCrap::Shape::transform(layer.parameters, pathTransform);
             auto transform = [&](QImage &_image) {
                 if (_image.isNull())
                     return;

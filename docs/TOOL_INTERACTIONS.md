@@ -34,6 +34,14 @@ Les commandes **Sélection → Modifier** offrent Contour progressif (Maj+F6), F
 
 ## Peinture et retouche
 
+Les champs numériques de la barre valident la valeur par **Retour** ou quand on
+quitte la saisie ; px et % restent affichés à côté du nombre, hors du texte
+éditable. Pour le pinceau, la dureté modifie la douceur du bord, l’opacité
+plafonne un passage et le débit règle le dépôt par empreinte. Le crayon garde
+un bord net sans anticrénelage : la dureté n’y est pas réglable ; opacité et
+débit modifient toujours sa peinture. Référence : [peindre avec le pinceau ou
+le crayon, Adobe](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/brushes-presets/paint-with-brush-or-pencil-tool.html).
+
 Correcteur localisé, Suppression, Correcteur, Pièce, Déplacement basé sur le contenu
 et Œil rouge sont disponibles sur les calques de pixels 8 ou 16 bits. Leurs
 raccourcis, sources, modes et gestes restent identiques ; leurs pixels de travail

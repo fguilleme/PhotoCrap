@@ -5151,4 +5151,8 @@ Independent software, not affiliated with Adobe.</translation>
         <translation>Make Shape from Path</translation>
     </message>
 </context>
+  <context>
+    <name>Main</name>
+    <message><source>Le crayon conserve un bord net ; la dureté se règle avec le pinceau.</source><translation>The Pencil keeps a hard edge; adjust hardness with the Brush tool.</translation></message>
+  </context>
 </TS>

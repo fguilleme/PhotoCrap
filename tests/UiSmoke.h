@@ -1,4 +1,5 @@
 #pragma once
+#include "BrushSettingsSmoke.h"
 #include "Document.h"
 #include "LayerContextMenuSmoke.h"
 #include "PenUiSmoke.h"
@@ -2764,6 +2765,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
             return false;
     }
     if (!runLayerContextMenuSmoke(_window, _document))
+        return false;
+    if (!runBrushSettingsSmoke(_window, _document))
         return false;
     if (!runPenUiSmoke(_window, _document))
         return false;

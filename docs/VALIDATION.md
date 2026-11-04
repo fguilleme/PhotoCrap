@@ -1,5 +1,29 @@
 # Validation
 
+## Saisie des réglages de peinture — 4 novembre 2026
+
+Le champ commun `DarkSpinBox` encapsulait son éditeur dans un `Item`. Qt ne
+lisait donc pas le texte saisi pour valider `value`/`valueModified` sur Retour
+ou perte du focus. L’éditeur est désormais directement le `TextInput` du
+SpinBox ; l’unité reste un enfant distinct, hors de la saisie. Les boutons −/+
+et les conversions existantes continuent à appartenir au SpinBox.
+
+`BrushSettingsSmoke.h` reproduit la panne avant correction : saisir 40 dans
+Opacité puis Retour ne changeait pas la valeur du document. Il passe par les
+vrais champs et le canevas pour le pinceau et le crayon, en 8/16 bits : opacité
+40 %, débit 20 %, bords doux/durs du pinceau, validation par Retour et perte du
+focus, puis rafraîchissement après un changement externe. Les pixels peints
+sont vérifiés ; le test ne déclenche pas artificiellement `valueModified`.
+
+Le crayon conserve un bord dur sans anticrénelage. La dureté n’est plus
+proposée dans son dialogue ; l’aperçu utilise une pointe dure et une explication
+le précise. Ses contrôles d’opacité et de débit restent actifs.
+
+Résultats : `brush_settings`, `brush_tip_preview`, `file_dialog_fallback` et
+`qml_smoke` passent sur Qt 6.12 ; `brush_settings` et le smoke complet passent
+sur Qt 6.8. Le test ciblé exécuté sous Cocoa/Metal passe également. Les tests
+moteur de dureté/débit/opacité et du crayon net/effacement automatique passent.
+
 ## Parcours Tracé → Forme et contour peint — 4 novembre 2026
 
 La barre distingue le mode des prochains points de l'action **Créer : Forme** sur

@@ -19,27 +19,23 @@ SpinBox {
         return Number.fromLocaleString(locale, text.trim())
     }
 
-    contentItem: Item {
+    // SpinBox commits the text of its contentItem. Wrapping TextInput in an
+    // Item disconnects Return/focus-loss validation from valueModified.
+    contentItem: TextInput {
+        id: valueInput
         z: 2
-        implicitWidth: valueInput.implicitWidth + suffixLabel.implicitWidth + 6
-        implicitHeight: Math.max(valueInput.implicitHeight, suffixLabel.implicitHeight)
-
-        TextInput {
-            id: valueInput
-            anchors.fill: parent
-            rightPadding: suffixLabel.visible ? suffixLabel.width + 6 : 0
-            text: control.displayText
-            color: "#edf2f6"
-            selectionColor: "#2866c8"
-            selectedTextColor: "#ffffff"
-            font: control.font
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            readOnly: !control.editable
-            validator: control.validator
-            inputMethodHints: Qt.ImhFormattedNumbersOnly
-            selectByMouse: true
-        }
+        rightPadding: suffixLabel.visible ? suffixLabel.width + 4 : 0
+        text: control.displayText
+        color: "#edf2f6"
+        selectionColor: "#2866c8"
+        selectedTextColor: "#ffffff"
+        font: control.font
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        readOnly: !control.editable
+        validator: control.validator
+        inputMethodHints: Qt.ImhFormattedNumbersOnly
+        selectByMouse: true
 
         Text {
             id: suffixLabel

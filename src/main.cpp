@@ -404,17 +404,21 @@ int main(int argc, char *argv[])
                                    args.contains("--shutdown-clean"));
                 return;
             }
+            if (args.contains("--brush-settings-test")) {
+                passed = window && runBrushSettingsSmoke(window, document);
+            } else {
 #ifdef Q_OS_MACOS
-            if (window && args.contains("--native-menu-test"))
-                passed = runMacApplicationMenuTest(window);
-            else if (window && args.contains("--native-cursor-test"))
-                passed = runMacToolCursorTest(window);
-            else if (window && args.contains("--native-pen-test"))
-                passed = runMacPenInputTest(window, document);
-            else
+                if (window && args.contains("--native-menu-test"))
+                    passed = runMacApplicationMenuTest(window);
+                else if (window && args.contains("--native-cursor-test"))
+                    passed = runMacToolCursorTest(window);
+                else if (window && args.contains("--native-pen-test"))
+                    passed = runMacPenInputTest(window, document);
+                else
 #endif
-                passed = window && runUiSmoke(window, document, recentFilesManager,
-                                              workspaceSettings, shortcutManager);
+                    passed = window && runUiSmoke(window, document, recentFilesManager,
+                                                  workspaceSettings, shortcutManager);
+            }
             if (!passed) {
                 app.exit(3);
                 return;

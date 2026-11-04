@@ -217,6 +217,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/MeasurementOverlaySmoke.h
     tests/OverlayReference.h
     tests/BrushCursorSmoke.h
+    tests/BrushSettingsSmoke.h
     tests/PenOverlaySmoke.h
     tests/PenUiSmoke.h
     tests/PenPanelSmoke.h
@@ -855,6 +856,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME brush_tip_preview COMMAND PhotoCrap --smoke-test --brush-tip-preview-test)
     set_tests_properties(brush_tip_preview PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME brush_settings COMMAND PhotoCrap --smoke-test --brush-settings-test)
+    set_tests_properties(brush_settings PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

@@ -1720,9 +1720,9 @@ ApplicationWindow {
                     color: "#c8d0d9"
                 }
                 Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
-                DarkSpinBox { visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
+                DarkSpinBox { objectName: "brushOpacityTop"; visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
                 Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 95; onValueModified: editor.brushFlow=value/100 }
+                DarkSpinBox { objectName: "brushFlowTop"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushFlow=value/100 }
                 Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "mixerBrush"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox {
                     objectName: "stampAligned"
@@ -4042,7 +4042,7 @@ ApplicationWindow {
                 objectName: "brushTipPreview"
                 Layout.fillWidth: true; Layout.preferredHeight: 105
                 brushSize: editor.brushSize
-                hardness: editor.brushHardness
+                hardness: editor.tool === "pencil" ? 1 : editor.brushHardness
                 brushOpacity: editor.brushOpacity
                 flow: editor.brushFlow
                 spacing: editor.brushSpacing
@@ -4052,6 +4052,11 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#91a0ad"
                 text: qsTr("L’opacité plafonne un passage. Le débit détermine la quantité déposée par chaque empreinte et s’accumule lorsque les empreintes se chevauchent.")
+            }
+            Label {
+                visible: editor.tool === "pencil"
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#91a0ad"
+                text: qsTr("Le crayon conserve un bord net ; la dureté se règle avec le pinceau.")
             }
             RowLayout {
                 visible: editor.tool !== "mixerBrush" && editor.tool !== "healing" && editor.tool !== "spotHealing"
@@ -4078,7 +4083,9 @@ ApplicationWindow {
                         ]
                         delegate: ColumnLayout {
                             required property var modelData
-                            visible: editor.tool !== "mixerBrush" || (modelData.key !== "brushOpacity" && modelData.key !== "brushFlow")
+                            objectName: "brushSetting_" + modelData.key
+                            visible: (editor.tool !== "mixerBrush" || (modelData.key !== "brushOpacity" && modelData.key !== "brushFlow"))
+                                     && (editor.tool !== "pencil" || modelData.key !== "brushHardness")
                             Layout.fillWidth: true; spacing: 2
                             RowLayout {
                                 Layout.fillWidth: true

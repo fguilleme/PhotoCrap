@@ -18,6 +18,16 @@ au lecteur régional. Le compteur `compositeBytes` distingue ce cache des tuiles
 L’export simple de 4 Mpx en 16 bits est vérifié sans créer ce cache complet ;
 un vrai export PNG de 16 Mpx est interrompu sans remplacer le fichier précédent.
 
+### Autres codecs
+
+Le worker d’export prend possession de son composite temporaire, au lieu d’en
+retenir une copie via son cache jusqu’à la fin du codec. Pour JPEG et les petits
+BMP en 8 bits, il compose le blanc en place puis réinterprète le tampon opaque
+en RGB32. En 16 bits, la source native est libérée dès la conversion RGB terminée.
+Les codecs Qt gardent leur entrée complète, notamment pour WebP ; ce n’est pas
+un encodeur JPEG/WebP par bandes. Les références binaires synchrones/asynchrones
+8/16 bits restent identiques. Un chemin cible invalide est refusé avant composition.
+
 ## Lecture indexée des projets — 5 novembre 2026
 
 Le lecteur n’appelle plus `readAll()` pour construire le JSON complet du projet.

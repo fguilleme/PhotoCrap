@@ -23,7 +23,9 @@ Progression par optimisations vérifiées et commits distincts :
   puis un calque à la fois ; métadonnées réordonnées et JSON corrompu contrôlés.
 - [x] Grands exports PNG natifs 8/16 bits et BMP par bandes, flux compressé borné,
   annulation et publication atomique ; pas de composite complet pour les piles locales.
-- [ ] Réduire encore les copies des autres codecs d’export.
+- [x] Composite temporaire transféré au worker d’encodage ; fond blanc JPEG/BMP
+  8 bits en place, source 16 bits libérée après conversion, pixels/fichiers inchangés.
+  Les codecs JPEG/WebP Qt nécessitent toujours une image complète.
 - [ ] Étendre le déplacement tuilé aux calques denses et le dégradé pleine image.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
 - [ ] Compacter les différences de tuiles de l’historique.

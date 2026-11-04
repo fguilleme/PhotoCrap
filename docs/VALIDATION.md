@@ -1805,3 +1805,9 @@ Le bundle macOS embarque le plugin Cocoa. Le test hors écran documenté dans le
 ```
 
 Le bundle compilé ici est destiné à macOS arm64. Il n’est pas signé avec une identité Developer ID et n’est pas notarisé. Les binaires d’autres plateformes doivent être produits avec leurs kits Qt respectifs.
+
+## Tampon des codecs Qt — 5 novembre 2026
+
+Les huit cas PNG/JPEG/BMP/WebP en 8/16 bits de `asynchronousExportMatchesSynchronous`
+passent avec et sans projet enregistré, fichiers identiques, aucun signal de modification
+d’image et historique conservé. Les erreurs de chemin préservent aussi le document.

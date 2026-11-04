@@ -825,21 +825,38 @@ bool Document::exportImage(const QUrl &_url)
         emit statusMessage(tr("Image exportée"));
         return true;
     }
-    QImage result = composite();
-    if (!operationStep(1, 4))
-        return false;
-    if (suffix == "jpg" || suffix == "jpeg" || suffix == "bmp") {
-        QImage white(result.size(), QImage::Format_RGB32);
-        white.fill(Qt::white);
-        QPainter p(&white);
-        p.drawImage(0, 0, result);
-        p.end();
-        result = white;
-    }
-    result.setColorSpace(QColorSpace::SRgb);
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return fail(file.errorString());
+    QImage result;
+    if (m_backgroundWorker) {
+        composite();
+        result       = std::move(m_composite);
+        m_cacheDirty = m_fullCompositeDirty = true;
+    } else
+        result = composite();
+    if (!operationStep(1, 4))
+        return false;
+    if (suffix == "jpg" || suffix == "jpeg" || suffix == "bmp") {
+        if (result.format() == QImage::Format_ARGB32_Premultiplied && result.isDetached()) {
+            // The worker owns its accumulator. Compose white behind its pixels
+            // in place instead of allocating a second full RGB image.
+            QPainter painter(&result);
+            painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
+            painter.fillRect(result.rect(), Qt::white);
+            painter.end();
+            if (!result.reinterpretAsFormat(QImage::Format_RGB32))
+                result = result.convertToFormat(QImage::Format_RGB32);
+        } else {
+            QImage white(result.size(), QImage::Format_RGB32);
+            white.fill(Qt::white);
+            QPainter painter(&white);
+            painter.drawImage(0, 0, result);
+            painter.end();
+            result = std::move(white);
+        }
+    }
+    result.setColorSpace(QColorSpace::SRgb);
     if (!operationStep(2, 4))
         return false;
     QImageWriter writer(&file, suffix.toLatin1());

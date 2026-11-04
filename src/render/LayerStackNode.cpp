@@ -29,6 +29,7 @@ using Counters = PhotoCrap::Render::StackStatistics;
 struct Input {
     std::unique_ptr<QRhiTexture> texture;
     qint64                       bytes = 0;
+    QByteArray                   contentKey;
 };
 struct Pass {
     std::unique_ptr<QRhiBuffer>                 uniform;
@@ -76,6 +77,8 @@ public:
     bool                                                    failed = false;
     QRect                                                   region;
     int                                                     bits;
+    bool                                                    streaming;
+    QSize                                                   tableSize{1, 1};
     QRectF                                                  geometry;
     PhotoCrap::Render::LayerStack                           stack;
     QByteArray                                              renderedKey;
@@ -98,10 +101,10 @@ public:
     int                                                     displayLevel = 0;
     quint64                                                 generation   = 0;
     QRhiTexture                                            *displayed    = nullptr;
-    Tile(QQuickWindow *owner, const QRect &bounds, int depth, Counters *stats,
+    Tile(QQuickWindow *owner, const QRect &bounds, int depth, bool stream, Counters *stats,
          std::function<void()> rejected)
         : window(owner), rhi(owner->rhi()), counters(stats), failure(std::move(rejected)),
-          region(bounds), bits(depth)
+          region(bounds), bits(depth), streaming(stream)
     {
     }
     ~Tile() override
@@ -167,7 +170,7 @@ public:
                 pyramid = std::make_unique<DisplayPyramidPass>(rhi, region, stack.size, bits);
             texture = pyramid->ensure(texture, displayLevel);
             if (!texture) {
-                reject();
+                reject(__LINE__);
                 return;
             }
             size           = QSize(qMax(1, size.width() >> displayLevel),
@@ -203,24 +206,49 @@ public:
         updateBytes();
         markDirty(DirtyGeometry);
     }
-    void reject()
+    void reject(int line = 0)
     {
         if (!failed) {
             failed = true;
+            qWarning() << "GPU stack failed" << line << region << streaming;
             failure();
         }
     }
     std::shared_ptr<Input> input(const PixelPlane &plane, bool mask,
                                  QRhiResourceUpdateBatch *updates, QSet<QByteArray> &used,
-                                 bool whole = false)
+                                 bool whole = false, bool stageOnly = false)
     {
         QByteArray key = whole ? "t" : mask ? "m" : "c";
         // Whole inputs are immutable LUT QImages reused by the document cache.
         // Freezing a fresh wrapper would manufacture new tile versions each frame.
         key += whole ? QByteArray::number(plane.cacheKey()) : plane.regionKey(region);
+        const QByteArray contentKey = key;
+        if (streaming)
+            key = whole ? "stream-table" : mask ? "stream-mask" : "stream-color";
         used.insert(key);
-        if (auto cached = inputs.value(key))
-            return cached;
+        auto value = inputs.value(key);
+        if (value && (!streaming || stageOnly || value->contentKey == contentKey))
+            return value;
+        const QSize extent = streaming ? (whole ? tableSize : region.size())
+                             : plane.isNull() || plane.size() == QSize(1, 1) ? QSize(1, 1)
+                             : whole                                         ? plane.size()
+                                                                             : region.size();
+        if (!value) {
+            value = std::make_shared<Input>();
+            value->texture.reset(rhi->newTexture(mask         ? QRhiTexture::R8
+                                                 : bits == 16 ? QRhiTexture::RGBA32F
+                                                              : QRhiTexture::RGBA8,
+                                                 extent));
+            if (!value->texture->create())
+                return {};
+            value->bytes = qint64(extent.width()) * extent.height() *
+                           (mask         ? 1
+                            : bits == 16 ? 16
+                                         : 4);
+            inputs.insert(key, value);
+        }
+        if (streaming && stageOnly)
+            return value;
         QImage     pixels;
         const auto format = mask         ? QImage::Format_Grayscale8
                             : bits == 16 ? QImage::Format_RGBA32FPx4_Premultiplied
@@ -234,21 +262,13 @@ public:
         }
         if (pixels.isNull())
             return {};
-        auto value = std::make_shared<Input>();
-        value->texture.reset(rhi->newTexture(mask         ? QRhiTexture::R8
-                                             : bits == 16 ? QRhiTexture::RGBA32F
-                                                          : QRhiTexture::RGBA8,
-                                             pixels.size()));
-        if (!value->texture->create())
-            return {};
         QRhiTextureSubresourceUploadDescription data(pixels.constBits(),
                                                      quint32(pixels.sizeInBytes()));
         data.setDataStride(quint32(pixels.bytesPerLine()));
         data.setSourceSize(pixels.size());
         updates->uploadTexture(value->texture.get(),
                                QRhiTextureUploadDescription({QRhiTextureUploadEntry(0, 0, data)}));
-        value->bytes = qint64(pixels.width()) * pixels.height() * (mask ? 1 : bits == 16 ? 16 : 4);
-        inputs.insert(key, value);
+        value->contentKey = contentKey;
         ++counters->uploads;
         return value;
     }
@@ -257,6 +277,9 @@ public:
         if (failed || stack.layers.isEmpty())
             return;
         const auto layers = std::move(stack.layers);
+        tableSize         = {1, 1};
+        for (const auto &layer : layers)
+            tableSize = tableSize.expandedTo(layer.toneTable.size());
         QByteArray key;
         for (const auto &layer : layers) {
             for (const auto &part : {layer.image.regionKey(region), layer.mask.regionKey(region),
@@ -304,14 +327,19 @@ public:
         if (masks)
             masks->resetFrame();
         passes.clear();
+        if (streaming) {
+            const auto table = inputs.value("stream-table");
+            if (table && table->texture->pixelSize() != tableSize)
+                inputs.remove("stream-table");
+        }
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
             const auto &layer = layers[index];
-            auto        color = input(layer.image, false, updates, used);
-            auto        mask  = input(layer.mask, true, updates, used);
+            auto        color = input(layer.image, false, updates, used, false, streaming);
+            auto        mask  = input(layer.mask, true, updates, used, false, streaming);
             auto        table = layer.toneTable.isNull()
                                     ? color
-                                    : input(layer.toneTable, false, updates, used, true);
+                                    : input(layer.toneTable, false, updates, used, true, streaming);
             if (!color || !mask || !table) {
                 ok = false;
                 break;
@@ -355,14 +383,22 @@ public:
             QByteArray uniform(256, 0);
             const auto matrix = rhi->clipSpaceCorrMatrix();
             std::memcpy(uniform.data(), matrix.constData(), 64);
-            const qint32 modes[]  = {layer.blend, layer.clipped,
-                                     int(layer.reset) + (run >= 0 ? 2 : 0) +
-                                         (!layer.toneTable.isNull() ? 4 : 0) +
-                                         (maskRun >= 0 ? 8 : 0),
-                                     index == 0};
-            const float  values[] = {layer.opacity, layer.density,
-                                     stack.bits == 16 ? 65535.f : 255.f,
-                                     rhi->isYUpInFramebuffer() ? 1.f : 0.f};
+            const qint32 modes[] = {
+                layer.blend, layer.clipped,
+                int(layer.reset) + (run >= 0 ? 2 : 0) + (!layer.toneTable.isNull() ? 4 : 0) +
+                    (maskRun >= 0 ? 8 : 0) +
+                    (streaming && (layer.image.isNull() || layer.image.size() == QSize(1, 1)) &&
+                             run < 0
+                         ? 16
+                         : 0) +
+                    (streaming && (layer.mask.isNull() || layer.mask.size() == QSize(1, 1)) &&
+                             maskRun < 0
+                         ? 32
+                         : 0),
+                index == 0};
+            const float values[] = {layer.opacity, layer.density,
+                                    stack.bits == 16 ? 65535.f : 255.f,
+                                    rhi->isYUpInFramebuffer() ? 1.f : 0.f};
             std::memcpy(uniform.data() + 64, modes, sizeof(modes));
             std::memcpy(uniform.data() + 80, values, sizeof(values));
             const qint32 toneMode = int(layer.tone.mode);
@@ -425,7 +461,7 @@ public:
         if (!ok) {
             updateBytes();
             updates->release();
-            reject();
+            reject(__LINE__);
             return;
         }
         pipeline->setShaderResourceBindings(passes.front()->bindings.get());
@@ -437,6 +473,20 @@ public:
             cb->endPass();
         }
         for (size_t index = 0; index < passes.size(); ++index) {
+            if (streaming) {
+                auto       *upload = rhi->nextResourceUpdateBatch();
+                const auto &layer  = layers[qsizetype(index)];
+                const bool  valid =
+                    input(layer.image, false, upload, used) &&
+                    input(layer.mask, true, upload, used) &&
+                    (layer.toneTable.isNull() || input(layer.toneTable, false, upload, used, true));
+                if (!valid) {
+                    upload->release();
+                    reject(__LINE__);
+                    return;
+                }
+                cb->resourceUpdate(upload);
+            }
             if (maskRuns[index] >= 0)
                 counters->passes.fetch_add(masks->render(cb, maskRuns[index]));
             if (filterRuns[index] >= 0)
@@ -569,7 +619,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                     .adjusted(-stack.halo - 33, -stack.halo - 33, stack.halo + 33, stack.halo + 33)
                     .intersected(bounds);
             auto *tile = d->tiles.value(key);
-            if (tile && (tile->region != padded || tile->bits != stack.bits)) {
+            if (tile && (tile->region != padded || tile->bits != stack.bits ||
+                         tile->streaming != stack.streamInputs)) {
                 if (tile->parent())
                     removeChildNode(tile);
                 delete tile;
@@ -577,7 +628,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                 tile = nullptr;
             }
             if (!tile) {
-                tile = new Tile(d->window, padded, stack.bits, d->counters.get(), d->failure);
+                tile = new Tile(d->window, padded, stack.bits, stack.streamInputs,
+                                d->counters.get(), d->failure);
                 if (!tile->init()) {
                     delete tile;
                     return false;

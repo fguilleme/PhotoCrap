@@ -28,7 +28,8 @@ struct LayerStack {
     int                 halo         = 0;
     int                 displayLevel = 0;
     QVector<StackLayer> layers;
-    bool                valid = false;
+    bool                valid        = false;
+    bool                streamInputs = false;
 };
 // Conservative peak for simultaneously visible tiles. Refuse a GPU stack
 // before allocation when even its pinned working set would exceed the budget.
@@ -49,22 +50,32 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             const qint64 pixels  = qint64(size.width()) * size.height();
             const int    colorBytes = stack.bits == 16 ? 16 : 4;
             bytes += pixels * (colorBytes + 1) * 2 + 64;
-            bool spatial = false, masks = false;
+            bool   spatial = false, masks = false;
+            qint64 tableBytes = 0;
+            if (stack.streamInputs)
+                bytes += pixels * (colorBytes + 1);
             for (const auto &layer : stack.layers) {
                 spatial |= layer.spatial.type != SpatialFilter::None;
                 masks |= layer.maskFilter.type != SpatialFilter::None;
-                bytes += layer.image.size() == QSize(1, 1) || layer.image.isNull()
-                             ? colorBytes
-                             : pixels * colorBytes;
-                bytes += layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
+                if (!stack.streamInputs) {
+                    bytes += layer.image.size() == QSize(1, 1) || layer.image.isNull()
+                                 ? colorBytes
+                                 : pixels * colorBytes;
+                    bytes += layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
+                }
                 bytes += 256;
-                if (!layer.toneTable.isNull())
-                    bytes += layer.toneTable.width() * layer.toneTable.height() * colorBytes;
+                const qint64 table =
+                    qint64(layer.toneTable.width()) * layer.toneTable.height() * colorBytes;
+                if (stack.streamInputs)
+                    tableBytes = qMax(tableBytes, table);
+                else
+                    bytes += table;
                 if (layer.spatial.type != SpatialFilter::None)
                     bytes += 7 * 96;
                 if (layer.maskFilter.type != SpatialFilter::None)
                     bytes += 2 * 96;
             }
+            bytes += tableBytes;
             if (spatial)
                 bytes += pixels * (colorBytes + 16) + 64;
             if (masks)

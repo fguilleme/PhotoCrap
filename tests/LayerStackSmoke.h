@@ -22,6 +22,10 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
     const bool hardware =
         !qEnvironmentVariableIsSet("PHOTOCRAP_TEST_GL_LEGACY") &&
         QSGRendererInterface::isApiRhiBased(window->rendererInterface()->graphicsApi());
+    const bool streaming = qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING");
+    if (streaming)
+        canvas.setTextureCacheMiB(256); // The main QML canvas shares this budget too.
+
     const auto frame = [&] {
         window->update();
         QTest::qWait(60);
@@ -48,6 +52,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             frame();
             const auto result   = frame();
             const auto expected = document.composite();
+            if (result.isNull() || canvas.gpuStackActive() != hardware)
+                qWarning() << "Stack activation" << bits << mode << document.gpuLayerStack().valid
+                           << streaming;
             if (!require(!result.isNull() && canvas.gpuStackActive() == hardware,
                          "hardware stack or software fallback is active"))
                 return false;
@@ -92,11 +99,14 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                 return false;
             frame();
             frame();
-            if (canvas.stackTextureUploads() <= before || canvas.stackTextureUploads() - before > 2)
+            const quint64 uploadBound =
+                streaming ? 2 * document.gpuLayerStack().layers.size() * 3 : 2;
+            if (canvas.stackTextureUploads() <= before ||
+                canvas.stackTextureUploads() - before > uploadBound)
                 qWarning() << "Regional stack uploads" << bits << before
                            << canvas.stackTextureUploads() << canvas.gpuStackActive();
             if (!require(canvas.stackTextureUploads() > before &&
-                             canvas.stackTextureUploads() - before <= 2,
+                             canvas.stackTextureUploads() - before <= uploadBound,
                          "a local edit uploads only the two touched tile regions"))
                 return false;
         }
@@ -209,7 +219,8 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             }
             // The first GPU region only sees unchanged border pixels on the
             // second move, even though their storage tile changes version.
-            const int affected = 2;
+            const int affected =
+                streaming ? 2 * int(document.gpuLayerStack().layers.size()) * 3 : 2;
             if (!require(canvas.gpuStackActive() == hardware &&
                              (!hardware || (canvas.stackTextureUploads() > uploads &&
                                             canvas.stackTextureUploads() - uploads <= affected)),

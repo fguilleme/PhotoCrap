@@ -33,7 +33,9 @@ Progression par optimisations vérifiées et commits distincts :
 - [x] Dégradé pleine image par bandes natives de 4 Mio maximum (256 lignes au
   plus), sans tampon source/destination complet ; références QPainter exactes
   8/16 bits, opacité, alpha, sens inversé et annulation.
-- [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
+- [x] Entrées GPU réutilisées pour les piles dépassant le budget de textures :
+  sources, masques et tables téléversés entre passes, pixels natifs conservés.
+- [ ] Mutualiser les intermédiaires GPU entre tuiles aux faibles zooms.
 - [ ] Compacter les différences de tuiles de l’historique.
 - [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
 

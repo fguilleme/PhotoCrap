@@ -196,6 +196,28 @@ private slots:
         }
     }
 
+    void gpuStreamedInputsBoundDeepStackWorkingSet()
+    {
+        PhotoCrap::Render::LayerStack stack;
+        stack.size = {1200, 128};
+        stack.bits = 16;
+        QImage image(stack.size, QImage::Format_RGBA64_Premultiplied);
+        image.fill(Qt::white);
+        PhotoCrap::Render::StackLayer layer;
+        layer.image   = image;
+        layer.opacity = .5;
+        for (int i = 0; i < 64; ++i)
+            stack.layers.append(layer);
+        const QRect visible(QPoint{}, stack.size);
+        const auto  retained = PhotoCrap::Render::stackWorkingBytes(stack, visible);
+        stack.streamInputs   = true;
+        const auto streamed  = PhotoCrap::Render::stackWorkingBytes(stack, visible);
+        QVERIFY(streamed * 4 < retained);
+        for (int i = 0; i < 64; ++i)
+            stack.layers.append(layer);
+        QCOMPARE(PhotoCrap::Render::stackWorkingBytes(stack, visible) - streamed,
+                 qint64(3 * 64 * 256)); // Only the layer uniforms grow.
+    }
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {
         Document d;

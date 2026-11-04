@@ -59,6 +59,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/storage/ScratchImageCache.cpp
     src/storage/TiledImage.cpp
     src/tools/BrushTool.cpp
+    src/tools/MarqueeTool.cpp
+    src/selection/MarqueeCoverage.cpp
     src/shapes/ShapeLayer.cpp
     src/tools/PenShapeTool.cpp
     src/tools/PenTool.cpp
@@ -222,6 +224,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/PenUiSmoke.h
     tests/PenPanelSmoke.h
     tests/PenStrokeSmoke.h
+    tests/MarqueeTest.cpp
+    tests/MarqueeUiSmoke.h
     tests/LassoGuideSmoke.h
     tests/SliceOverlaySmoke.h
     tests/HistogramRenderSmoke.h
@@ -342,6 +346,8 @@ qt_add_library(photocrap_core STATIC
     src/storage/PixelPlane.h
     src/shapes/ShapeLayer.cpp
     src/tools/PenShapeTool.cpp
+    src/tools/MarqueeTool.cpp
+    src/selection/MarqueeCoverage.cpp src/selection/MarqueeCoverage.h
     src/tools/PenTool.cpp
     src/tools/PenPath.cpp src/tools/PenPath.h
     src/ImageHistogram.cpp
@@ -551,6 +557,7 @@ qt_add_qml_module(PhotoCrap
         qml/PathsPanel.qml
         qml/PathThumbnail.qml
         qml/PenOptions.qml
+        qml/SelectionOptions.qml
         qml/ColorSelectionPreview.qml
         qml/ColorSelectionDialog.qml
         qml/SelectionMenu.qml
@@ -792,6 +799,10 @@ if(BUILD_TESTING)
     add_test(NAME pen_tool COMMAND photocrap_pen_tests)
     set_tests_properties(pen_tool PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    qt_add_executable(photocrap_marquee_tests tests/MarqueeTest.cpp)
+    target_link_libraries(photocrap_marquee_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME marquee COMMAND photocrap_marquee_tests)
+    set_tests_properties(marquee PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
     qt_add_executable(photocrap_selection_tests tests/SelectionTest.cpp)
     target_link_libraries(photocrap_selection_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME selection COMMAND photocrap_selection_tests)
@@ -856,6 +867,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME brush_tip_preview COMMAND PhotoCrap --smoke-test --brush-tip-preview-test)
     set_tests_properties(brush_tip_preview PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME marquee_ui COMMAND PhotoCrap --smoke-test --marquee-test)
+    set_tests_properties(marquee_ui PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME brush_settings COMMAND PhotoCrap --smoke-test --brush-settings-test)
     set_tests_properties(brush_settings PROPERTIES

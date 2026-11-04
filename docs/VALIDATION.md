@@ -1,5 +1,26 @@
 # Validation
 
+## Options des sélections géométriques — 4 novembre 2026
+
+`MarqueeTest` couvre les dimensions fixes, la pose par clic, le ratio, les
+modificateurs, la validation des paramètres, l’anticrénelage activé/désactivé,
+la peinture réelle 8/16 bits, les trois combinaisons de couvertures, le contour
+progressif, Annuler/Rétablir/Resélectionner et les résultats annulés ou obsolètes
+avec le pool de calcul volontairement bloqué. Les références historiques de
+clipboard, sélection rapide et déplacement continuent à utiliser explicitement
+des graines binaires ; les nouveaux scénarios vérifient les bords fractionnaires.
+
+`MarqueeUiSmoke.h` choisit le style, saisit L/H et le rayon au clavier, permute les
+dimensions, clique le canevas pour une taille fixe, dessine une ellipse adoucie
+et vérifie ses pixels de couverture et son historique. Il contrôle aussi les
+options désactivées pour le rectangle, les outils d’un pixel et les lassos.
+
+Validation locale : `document`, `selection`, `marquee`, `marquee_ui` et
+`qml_smoke` passent avec Qt 6.12 ; les dernières saisies décimales sont couvertes
+par le contrôle d’interface. Qt 6.8 valide aussi `marquee`, `marquee_ui` et le
+smoke complet. Le parcours natif Cocoa/Metal et sa capture passent, y compris
+la saisie localisée d’un rapport 2,5 × 1.
+
 ## Saisie des réglages de peinture — 4 novembre 2026
 
 Le champ commun `DarkSpinBox` encapsulait son éditeur dans un `Item`. Qt ne

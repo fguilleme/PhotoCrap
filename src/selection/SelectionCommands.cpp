@@ -125,6 +125,21 @@ void Document::cancelSelectionOperation()
         return;
     m_selectionCancel->store(true);
     m_selectionCancel.reset();
+    if (m_marqueePending) {
+        m_marqueePending = false;
+        if (m_selectionTaskStateId == m_stateId && m_marqueeSession == m_documentSession) {
+            const auto &before    = m_beforeMarqueeSelection;
+            m_selection           = before.selection;
+            m_selectionRegion     = before.selectionRegion;
+            m_selectionMask       = before.selectionMask;
+            m_selectionOutline    = before.selectionOutline;
+            m_selectionMaskRegion = before.selectionRegion;
+            m_selectionShape      = before.selectionShape;
+            m_selectionPath       = before.selectionPath;
+            emit selectionChanged();
+        }
+        m_beforeMarqueeSelection = {};
+    }
     emit selectionOperationChanged();
 }
 

@@ -404,7 +404,9 @@ int main(int argc, char *argv[])
                                    args.contains("--shutdown-clean"));
                 return;
             }
-            if (args.contains("--brush-settings-test")) {
+            if (args.contains("--marquee-test")) {
+                passed = window && runMarqueeUiSmoke(window, document);
+            } else if (args.contains("--brush-settings-test")) {
                 passed = window && runBrushSettingsSmoke(window, document);
             } else {
 #ifdef Q_OS_MACOS

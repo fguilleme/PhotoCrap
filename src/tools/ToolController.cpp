@@ -188,6 +188,9 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
             m_selection       = QRect(x, 0, 1, height());
             m_selectionRegion = QRegion(m_selection);
         }
+        m_marqueeRect = m_selection;
+        if (m_marqueeStyle == 2 && (m_tool == "select" || m_tool == "ellipticalSelect"))
+            updateMarquee(m_anchor);
         emit selectionChanged();
         return;
     }
@@ -363,26 +366,15 @@ void Document::continueStroke(qreal _x, qreal _y)
             m_last = point;
             return;
         }
-        const QRectF rect =
-            toolRectangle(m_anchor, point, m_toolAlternate && !m_selectionInitialAlternate);
-        // Round size independently of position so fractional Space-drag offsets
-        // preserve the marquee dimensions at non-integer zoom levels.
-        m_selection       = QRect(qRound(rect.left()), qRound(rect.top()), qRound(rect.width()) + 1,
-                                  qRound(rect.height()) + 1)
-                                .intersected(QRect(QPoint{}, m_size));
-        m_selectionRegion = m_tool == "ellipticalSelect" ? QRegion(m_selection, QRegion::Ellipse)
-                                                         : QRegion(m_selection);
-        m_selectionCombined = false;
-        combineGestureSelection();
-        emit selectionChanged();
+        updateMarquee(point);
     } else if (m_tool == "singleRowSelect" || m_tool == "singleColumnSelect") {
         if (m_selectionMoving) {
             const QPoint delta = (point - m_anchor).toPoint();
+            const QPoint offset =
+                m_tool == "singleRowSelect" ? QPoint(0, delta.y()) : QPoint(delta.x(), 0);
             m_selectionRegion =
-                m_selectionRegionBeforeStroke.translated(
-                    m_tool == "singleRowSelect" ? QPoint(0, delta.y()) : QPoint(delta.x(), 0)) &
-                QRegion(QRect(QPoint{}, m_size));
-            translateSelectionCoverage(m_beforeSelectionGesture, (point - m_anchor).toPoint());
+                m_selectionRegionBeforeStroke.translated(offset) & QRegion(QRect(QPoint{}, m_size));
+            translateSelectionCoverage(m_beforeSelectionGesture, offset);
             m_selection = m_selectionRegion.boundingRect();
         } else {
             m_selection = m_tool == "singleRowSelect"
@@ -391,6 +383,7 @@ void Document::continueStroke(qreal _x, qreal _y)
             m_selectionRegion = QRegion(m_selection);
         }
         if (!m_selectionMoving) {
+            m_marqueeRect       = m_selection;
             m_selectionCombined = false;
             combineGestureSelection();
         }
@@ -472,9 +465,20 @@ void Document::endStroke()
     }
     if (m_tool == "select" || m_tool == "ellipticalSelect" || m_tool == "singleRowSelect" ||
         m_tool == "singleColumnSelect") {
-        if (!m_selectionMoving)
-            combineGestureSelection();
-        finishSelectionGesture();
+        if (m_selectionMoving)
+            finishSelectionGesture();
+        else {
+            QPainterPath path;
+            if (m_tool == "ellipticalSelect")
+                path.addEllipse(QRectF(m_marqueeRect));
+            else
+                path.addRect(QRectF(m_marqueeRect));
+            const QRegion candidate =
+                m_tool == "ellipticalSelect"
+                    ? QRegion(m_marqueeRect, QRegion::Ellipse) & QRegion(QRect(QPoint{}, m_size))
+                    : QRegion(m_marqueeRect.intersected(QRect(QPoint{}, m_size)));
+            finishGeometricSelection(candidate, path, m_tool == "ellipticalSelect");
+        }
         return;
     }
     if (m_strokeChanged) {

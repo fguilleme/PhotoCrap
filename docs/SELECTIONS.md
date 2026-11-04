@@ -44,6 +44,43 @@ Les deux aperçus partagent le zoom et le déplacement : boutons −/+, 100 % et
 
 **Contour progressif** crée un adoucissement par approximation gaussienne à trois passes séparables ; les calculs intermédiaires sont en 16 bits pour ne pas faire disparaître les petites couvertures par arrondis successifs. Le rayon pilote cet adoucissement, sans garantie de correspondance pixel à pixel avec Photoshop. Une petite sélection peut rester active sans aucune fourmi si aucun pixel ne dépasse 50 %. La douceur est utilisée par le pinceau, la gomme, les remplissages, les filtres directs, la copie, les déplacements et les masques créés depuis la sélection. Les opérations conservent les canaux 16 bits de l’image lorsqu’ils sont pris en charge par l’outil. L’historique, Resélectionner et les combinaisons avec les outils géométriques conservent la couverture. La sélection reste temporaire : les couches alpha nommées et leur sauvegarde sont encore NYI. Source : [Contour progressif Adobe](https://helpx.adobe.com/photoshop/desktop/make-selections/refine-modify-selections/define-feathered-edges.html).
 
+## Barre des outils de sélection — 4 novembre 2026
+
+Rectangle, ellipse, rangée/colonne et lassos possèdent une barre dédiée. Elle
+présente les quatre modes par les pictogrammes de surfaces superposées : nouvelle
+sélection, ajout, soustraction et intersection. Maj/Option gardent leur priorité
+pendant le geste et le mode choisi revient ensuite.
+
+**Contour progressif** prépare la prochaine sélection, de 0 à 1 000 pixels
+(document), sans modifier celle qui existe. À zéro, aucune transition n’est
+ajoutée. **Anticrénelage**, activé par défaut, donne des couvertures partielles aux
+bords des ellipses et des lassos ; il est désactivé dans l’interface pour le
+rectangle et les outils d’un pixel. La couverture est utilisée lors des éditions,
+remplissages et masques, en conservant la profondeur des pixels 8/16 bits.
+
+Pour les rectangles et ellipses, **Normal** garde le glisser libre et Maj contraint
+carré/cercle ; **Rapport fixe** maintient L/H (les valeurs peuvent être décimales) ;
+**Taille fixe** crée une sélection de dimensions en pixels arrondies à l’entier.
+Un clic la pose, un glisser la positionne ; le bouton ⇄ permute largeur et hauteur.
+Option après le début et Espace pendant le geste gardent leurs règles de centrage
+et repositionnement. Les dimensions sont bornées par les limites du document ;
+la partie située hors du canevas est coupée, sans redessiner une ellipse dans le
+rectangle tronqué. Rangée/colonne ignorent le style et restent d’un pixel avant
+un éventuel contour progressif.
+
+Le calcul du bord précède la combinaison avec la sélection précédente : maximum
+pour l’ajout, différence bornée à zéro pour la soustraction, minimum pour
+l’intersection. Un geste produit une seule étape d’historique, annulable et
+rétablissable, sans rendre les pixels enregistrés modifiés. Le contour progressif
+et les grands masques sont calculés en arrière-plan ; Annuler ou Échap restaure
+la sélection d’avant le geste et un résultat obsolète est ignoré. Les sélections
+temporaires de Pièce et Déplacement basé sur le contenu conservent leur propre
+contrat de retouche et ne reçoivent pas ces réglages.
+
+**Sélectionner et masquer… (NYI)** reste visible et désactivé : il n’ouvre pas un
+panneau qui ne réaliserait qu’une partie de l’affinage Adobe. Référence :
+[options des sélections géométriques Adobe](https://helpx.adobe.com/photoshop/desktop/make-selections/get-started-selections/make-selections-with-marquee-tools.html).
+
 ## Fonctions recensées mais NYI
 
 Ces commandes sont visibles et désactivées dans le menu et répertoriées dans les raccourcis. Leur activation attend une implémentation complète ; aucune commande inactive ne capture son raccourci.
@@ -70,7 +107,7 @@ Références détaillées : [Plage de couleurs](https://helpx.adobe.com/photosho
 - Les outils géométriques, les lassos libre/polygonal, la Baguette magique et la Sélection rapide sont disponibles. Maj ajoute, Option/Alt soustrait et Maj+Option/Alt intersecte. Les gestes sont décrits dans [TOOL_INTERACTIONS.md](TOOL_INTERACTIONS.md#sélections). La sélection d’objet, le pinceau de sélection et le lasso magnétique restent NYI.
 - La Plume produit un contour géométrique et peut le convertir en sélection. La conversion directe avec paramètres de contour progressif ou anticrénelage fractionnaire reste NYI ; la commande Contour progressif peut être appliquée ensuite.
 - Charger la transparence d’un calque, un masque ou une couche RVB comme sélection, puis combiner les couvertures avec les modificateurs de vignette, reste NYI. Référence : [charger depuis le contenu d’un calque ou un masque](https://helpx.adobe.com/photoshop/desktop/make-selections/get-started-selections/select-non-transparent-or-unmasked-areas.html).
-- Les fourmis ne représentent qu’un contour : une couverture inférieure à 50 % peut exister sans contour visible dans Photoshop. PhotoCrap conserve maintenant une couverture **0–255 par pixel** pour les sélections progressives ; l’image de travail reste 8/16 bits par canal. Les fourmis suivent le seuil de 50 %, tandis que les traitements utilisent aussi les couvertures inférieures. L’anticrénelage fractionnaire des outils géométriques reste une étape distincte.
+- Les fourmis ne représentent qu’un contour : une couverture inférieure à 50 % peut exister sans contour visible dans Photoshop. PhotoCrap conserve maintenant une couverture **0–255 par pixel** pour les sélections progressives ; l’image de travail reste 8/16 bits par canal. Les fourmis suivent le seuil de 50 %, tandis que les traitements utilisent aussi les couvertures inférieures. L’anticrénelage des ellipses et des lassos est disponible dans leur barre d’options.
 - **Extras**, généralement Commande/Ctrl+H, concerne aussi d’autres repères. Il reste NYI : la nouvelle commande Contour de la sélection ne lui est pas substituée et n’a pas de raccourci imposé.
 - Les opérations sur les pixels, les masques de calque, les tracés et les couches alpha doivent conserver des contrats distincts. Les sélections temporaires des outils Pièce et Déplacement basé sur le contenu restent intégrées à leur unique opération de retouche.
 

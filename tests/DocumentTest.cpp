@@ -1465,6 +1465,7 @@ private slots:
     void selectionsCanBeInvertedAndReselectedWithoutChangingPixels()
     {
         Document document;
+        document.setSelectionAntialias(false); // Preserve the binary-selection reference.
         QVERIFY(document.newDocument(40, 30, true, 16));
         document.setTool("ellipticalSelect");
         document.beginStroke(4, 5);
@@ -2145,6 +2146,8 @@ private slots:
                         for (const QString &effect :
                              {QString{}, QStringLiteral("boxBlur"), QStringLiteral("noise")}) {
                             Document d;
+                            d.setSelectionAntialias(
+                                false); // Preserve the binary-selection reference.
                             QVERIFY(d.newDocument(517, 523, false, bits));
                             d.setBrushSize(41);
                             d.setBrushHardness(.7);
@@ -2289,6 +2292,7 @@ private slots:
                     for (const QString &effect :
                          {QString{}, QStringLiteral("boxBlur"), QStringLiteral("noise")}) {
                         Document d;
+                        d.setSelectionAntialias(false); // Preserve the binary-selection reference.
                         QVERIFY(d.newDocument(517, 523, true, bits));
                         d.setBrushSize(81);
                         d.setColor(QColor::fromRgba64(23456, 45678, 12345, 34567));
@@ -10961,6 +10965,7 @@ private slots:
                     const auto path = directory.filePath("move.png");
                     QVERIFY(source.save(path));
                     Document d;
+                    d.setSelectionAntialias(false); // Preserve the binary-selection reference.
                     QVERIFY(d.openFile(QUrl::fromLocalFile(path)));
                     d.setTool(selection == 0 ? "select" : "ellipticalSelect");
                     d.beginStroke(235, 233);

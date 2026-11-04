@@ -173,6 +173,7 @@ ApplicationWindow {
     readonly property bool sliceToolActive: editor.tool === "slice" || editor.tool === "sliceSelect"
     readonly property bool cropToolActive: editor.tool === "crop" || editor.tool === "perspectiveCrop"
     readonly property bool penToolActive: ["pen","addAnchor","deleteAnchor","convertPoint","pathSelection","directSelection"].indexOf(editor.tool)>=0
+    readonly property bool geometricSelectionToolActive: ["select","ellipticalSelect","singleRowSelect","singleColumnSelect","lasso","polygonalLasso"].indexOf(editor.tool)>=0
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
     readonly property int canvasCursorShape: window.stampSourcePicking && (editor.tool === "healing" || editor.tool === "cloneStamp" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush")
@@ -246,7 +247,7 @@ ApplicationWindow {
     property var pendingLayerPreviewValue
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool pathDialogOpen: false
-    property bool modalOpen: pathDialogOpen || editor.operationBusy || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -1197,7 +1198,7 @@ ApplicationWindow {
     Action { id: saveAsAction; text: qsTr("Enregistrer sous…"); shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { resumeAfterSave=false; save(true) } }
     Action { id: exportAction; text: qsTr("Exporter l’image…"); shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: exportDialog.open() }
     Action { id: importAction; text: qsTr("Importer comme calque…"); shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
-    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy); onTriggered: editor.undo() }
+    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy || editor.selectionBusy); onTriggered: editor.undo() }
     Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy); onTriggered: editor.redo() }
     Action { id: copyAction; text: qsTr("Copier l’image visible"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.copy() }
     Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
@@ -1217,7 +1218,7 @@ ApplicationWindow {
         }
     }
     Shortcut {
-        enabled: !window.modalOpen || editor.operationBusy
+        enabled: !window.modalOpen || editor.operationBusy || editor.selectionBusy
         sequence: "Escape"
         onActivated: {
             if(editor.operationBusy){editor.cancelOperation();return}
@@ -2036,6 +2037,13 @@ ApplicationWindow {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        SelectionOptions {
+            objectName: "selectionOptions"
+            Layout.fillWidth: true
+            visible: window.geometricSelectionToolActive
+            document: editor
+            onEditCommitted: workspace.forceActiveFocus()
+        }
         PenOptions {
             id:penOptionsControl
             objectName: "penOptions"

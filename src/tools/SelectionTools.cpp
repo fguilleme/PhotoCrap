@@ -62,10 +62,11 @@ void Document::finishLasso()
         m_selectionShape = 0;
         m_selectionPath.clear();
     }
-    m_selectionCombined = false;
-    combineGestureSelection();
-    emit selectionChanged();
-    finishSelectionGesture();
+    QPainterPath path;
+    path.setFillRule(Qt::WindingFill);
+    path.addPolygon(m_selectionPath);
+    path.closeSubpath();
+    finishGeometricSelection(m_selectionRegion, path, true);
 }
 
 void Document::addPolygonLassoPoint(qreal _x, qreal _y)
@@ -120,10 +121,11 @@ void Document::finishPolygonLasso()
         m_selectionShape = 0;
         m_selectionPath.clear();
     }
-    m_selectionCombined = false;
-    combineGestureSelection();
-    emit selectionChanged();
-    finishSelectionGesture();
+    QPainterPath path;
+    path.setFillRule(Qt::WindingFill);
+    path.addPolygon(m_selectionPath);
+    path.closeSubpath();
+    finishGeometricSelection(m_selectionRegion, path, true);
 }
 
 void Document::removeLastPolygonLassoPoint()

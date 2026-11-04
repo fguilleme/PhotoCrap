@@ -2,6 +2,7 @@
 #include "BrushSettingsSmoke.h"
 #include "Document.h"
 #include "LayerContextMenuSmoke.h"
+#include "MarqueeUiSmoke.h"
 #include "PenUiSmoke.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
@@ -2771,6 +2772,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!runPenUiSmoke(_window, _document))
         return false;
     if (!runSelectionUiSmoke(_window, _document))
+        return false;
+    if (!runMarqueeUiSmoke(_window, _document))
         return false;
     _document.createDemo();
     _document.setTool("brush");

@@ -226,6 +226,13 @@ class Document : public QObject
     Q_PROPERTY(bool lassoPreviewActive READ lassoPreviewActive NOTIFY selectionChanged)
     Q_PROPERTY(bool polygonLassoActive READ polygonLassoActive NOTIFY selectionChanged)
     Q_PROPERTY(int selectionMode READ selectionMode WRITE setSelectionMode NOTIFY settingsChanged)
+    Q_PROPERTY(
+        int selectionFeather READ selectionFeather WRITE setSelectionFeather NOTIFY settingsChanged)
+    Q_PROPERTY(bool selectionAntialias READ selectionAntialias WRITE setSelectionAntialias NOTIFY
+                   settingsChanged)
+    Q_PROPERTY(int marqueeStyle READ marqueeStyle WRITE setMarqueeStyle NOTIFY settingsChanged)
+    Q_PROPERTY(qreal marqueeWidth READ marqueeWidth WRITE setMarqueeWidth NOTIFY settingsChanged)
+    Q_PROPERTY(qreal marqueeHeight READ marqueeHeight WRITE setMarqueeHeight NOTIFY settingsChanged)
     Q_PROPERTY(int selectionTolerance READ selectionTolerance WRITE setSelectionTolerance NOTIFY
                    settingsChanged)
     Q_PROPERTY(bool selectionContiguous READ selectionContiguous WRITE setSelectionContiguous NOTIFY
@@ -577,7 +584,33 @@ public:
     {
         return m_selectionMode;
     }
-    int selectionTolerance() const
+    int selectionFeather() const
+    {
+        return m_selectionFeather;
+    }
+    bool selectionAntialias() const
+    {
+        return m_selectionAntialias;
+    }
+    int marqueeStyle() const
+    {
+        return m_marqueeStyle;
+    }
+    qreal marqueeWidth() const
+    {
+        return m_marqueeWidth;
+    }
+    qreal marqueeHeight() const
+    {
+        return m_marqueeHeight;
+    }
+    void             setSelectionFeather(int _value);
+    void             setSelectionAntialias(bool _value);
+    void             setMarqueeStyle(int _value);
+    void             setMarqueeWidth(qreal _value);
+    void             setMarqueeHeight(qreal _value);
+    Q_INVOKABLE void swapMarqueeDimensions();
+    int              selectionTolerance() const
     {
         return m_selectionTolerance;
     }
@@ -1314,6 +1347,9 @@ private:
     Snapshot                           m_beforeSelectionGesture;
     bool m_selectionGestureRecorded = false, m_selectionEdgesVisible = true;
     std::shared_ptr<std::atomic_bool> m_selectionCancel;
+    Snapshot                          m_beforeMarqueeSelection;
+    bool                              m_marqueePending       = false;
+    quint64                           m_marqueeSession       = 0;
     quint64                           m_selectionTaskStateId = 0;
     void             commitSelectionEdit(const Snapshot &_before, const QString &_label);
     void             finishSelectionGesture();
@@ -1487,8 +1523,16 @@ private:
     QRegion   m_lastSelectionRegion;
     int       m_selectionShape = 0;
     QPolygonF m_selectionPath;
-    bool      m_polygonLassoActive       = false;
-    int       m_selectionMode            = 0;
+    bool      m_polygonLassoActive = false;
+    int       m_selectionMode      = 0;
+    int       m_selectionFeather = 0, m_marqueeStyle = 0;
+    bool      m_selectionAntialias = true;
+    qreal     m_marqueeWidth = 1, m_marqueeHeight = 1;
+    QRect     m_marqueeRect;
+    QRect     marqueeRectangle(const QPointF &_point) const;
+    void      updateMarquee(const QPointF &_point);
+    void      finishGeometricSelection(const QRegion &_region, const QPainterPath &_path,
+                                       bool _antialias);
     int       m_selectionTolerance       = 32;
     bool      m_selectionContiguous      = true;
     bool      m_selectionSampleAllLayers = false;

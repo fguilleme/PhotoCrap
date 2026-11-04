@@ -5155,4 +5155,24 @@ Independent software, not affiliated with Adobe.</translation>
     <name>Main</name>
     <message><source>Le crayon conserve un bord net ; la dureté se règle avec le pinceau.</source><translation>The Pencil keeps a hard edge; adjust hardness with the Brush tool.</translation></message>
   </context>
+  <context>
+    <name>SelectionOptions</name>
+    <message><source>Nouvelle sélection</source><translation>New Selection</translation></message>
+    <message><source>Ajouter à la sélection</source><translation>Add to Selection</translation></message>
+    <message><source>Soustraire de la sélection</source><translation>Subtract from Selection</translation></message>
+    <message><source>Intersection avec la sélection</source><translation>Intersect with Selection</translation></message>
+    <message><source>Contour progressif</source><translation>Feather</translation></message>
+    <message><source>Adoucir la prochaine sélection, en pixels du document</source><translation>Soften the next selection in document pixels</translation></message>
+    <message><source>Anticrénelage</source><translation>Anti-alias</translation></message>
+    <message><source>Lisser les bords courbes et obliques ; sans effet sur les rectangles et les rangées/colonnes</source><translation>Smooth curved and diagonal edges; not applicable to rectangles or single rows/columns</translation></message>
+    <message><source>Style</source><translation>Style</translation></message>
+    <message><source>Normal</source><translation>Normal</translation></message>
+    <message><source>Rapport fixe</source><translation>Fixed Ratio</translation></message>
+    <message><source>Taille fixe</source><translation>Fixed Size</translation></message>
+    <message><source>Largeur</source><translation>Width</translation></message>
+    <message><source>Permuter largeur et hauteur</source><translation>Swap width and height</translation></message>
+    <message><source>Hauteur</source><translation>Height</translation></message>
+    <message><source>Sélectionner et masquer… (NYI)</source><translation>Select and Mask… (NYI)</translation></message>
+  </context>
+  <context><name>Document</name><message><source>Impossible de calculer cette sélection.</source><translation>Unable to calculate this selection.</translation></message></context>
 </TS>

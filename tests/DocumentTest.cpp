@@ -8025,6 +8025,46 @@ private slots:
             QCOMPARE(d.composite(), small);
         }
     }
+    void fullGradientBandsMatchNativePainter()
+    {
+        for (int bits : {8, 16})
+            for (bool transparent : {true, false})
+                for (const QPointF end :
+                     {QPointF(800.75, 1066.25), QPointF(17.3, 45.8), QPointF(256.25, 244.5)}) {
+                    Document d;
+                    QVERIFY(d.newDocument(1057, 1103, transparent, bits));
+                    const QImage    before = d.layerImage(0);
+                    const QPointF   start(256.25, 244.5);
+                    const QColor    foreground(200, 40, 70, 180), background(20, 190, 150, 210);
+                    QImage          expected = before.copy();
+                    QLinearGradient gradient(start, end);
+                    gradient.setColorAt(0, foreground);
+                    gradient.setColorAt(1, background);
+                    QPainter painter(&expected);
+                    painter.setRenderHint(QPainter::Antialiasing);
+                    painter.setOpacity(.63);
+                    painter.fillRect(expected.rect(), gradient);
+                    painter.end();
+                    d.setTool("gradient");
+                    d.setColor(foreground);
+                    d.setSecondaryColor(background);
+                    d.setBrushOpacity(.63);
+                    d.beginStroke(start.x(), start.y());
+                    d.continueStroke(end.x(), end.y());
+                    QCOMPARE(d.layerImage(0), expected);
+                    d.endStroke();
+                    QCOMPARE(d.historyIndex(), 1);
+                    d.undo();
+                    QCOMPARE(d.layerImage(0), before);
+                    d.redo();
+                    QCOMPARE(d.layerImage(0), expected);
+                    d.beginStroke(10, 10);
+                    d.continueStroke(1000, 1000);
+                    d.cancelStroke();
+                    QCOMPARE(d.layerImage(0), expected);
+                    QCOMPARE(d.historyIndex(), 1);
+                }
+    }
     void selectedGradientMatchesFullImagePainter()
     {
         for (int bits : {8, 16}) {

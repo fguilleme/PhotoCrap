@@ -866,3 +866,13 @@ le chemin Qt précédent. Les tests comparent chaque pixel à QPainter, y compri
 les bords de 1 pixel, les grandes translations, les copies Alt et Annuler/Rétablir.
 Un fond de 24 Mpx déplacé de (3,5) matérialise moins de 48 tuiles ; revenir
 au point de départ retrouve son plan compact et ne crée aucune étape vide.
+
+## Dégradés pleine image par bandes (5 novembre 2026)
+
+Les dégradés sans sélection à DPR unitaire gardent leur snapshot tuilé et
+peignent des bandes de largeur native, limitées à 4 Mio et 256 lignes. Le
+stockage final reste natif ; seuls les temporaires sont bornés. Les coordonnées
+globales de Qt sont conservées, avec comparaisons exactes 8/16 bits sur fonds
+opaques et transparents, opacité, alpha, extrémités fractionnaires ou inversées,
+Annuler/Rétablir et abandon. Les sélections gardent leur chemin régional et
+les DPR non unitaires leur repli précédent.

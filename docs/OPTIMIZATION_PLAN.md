@@ -30,7 +30,9 @@ Progression par optimisations vérifiées et commits distincts :
   Les codecs JPEG/WebP Qt nécessitent toujours une image complète.
 - [x] Déplacement tuilé des calques denses : pixels natifs exacts, copies Alt,
   annulation et fonds uniformes conservés avec seules les bordures matérialisées.
-- [ ] Dégradé pleine image par bandes natives.
+- [x] Dégradé pleine image par bandes natives de 4 Mio maximum (256 lignes au
+  plus), sans tampon source/destination complet ; références QPainter exactes
+  8/16 bits, opacité, alpha, sens inversé et annulation.
 - [ ] Réduire le jeu de travail graphique des piles profondes et des faibles zooms.
 - [ ] Compacter les différences de tuiles de l’historique.
 - [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
@@ -115,7 +117,7 @@ un plan temporaire. Les formes géométriques et les dégradés sélectionnés p
 leur seule emprise. Le placement des images importées est également régional, sur fond
 transparent compact. Le déplacement d’une sélection traite séparément sa source et sa
 destination ; les calques natifs, denses ou parcimonieux, se déplacent par tuiles et le texte est
-rasterisé dans son emprise utile. Les dégradés pleine image restent complets. Les tuiles identiques gardent leurs versions et leurs mappings lors des écritures
+rasterisé dans son emprise utile. Les dégradés pleine image parcourent des bandes natives bornées. Les tuiles identiques gardent leurs versions et leurs mappings lors des écritures
 régionales. Le budget de 256 Mio par défaut est un objectif de stockage des tuiles, pas un
 plafond RAM global. Le composite complet CPU, les sélections et les buffers temporaires
 restent à compter séparément. Le pic de RAM est mesuré sur des gestes localisés et sur quatre

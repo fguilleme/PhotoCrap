@@ -176,6 +176,36 @@ void Document::renderShape(const QPointF &_to)
             _painter.fillRect(QRect(QPoint{}, m_size), gradient);
         }
     };
+    if (m_tool == "gradient" && !hasSelection() && !m_strokePlaneBase.isNull()) {
+        // Preserve global gradient coordinates, while bounding native scratch
+        // memory to two full-width bands rather than two document-sized images.
+        PixelPlane next  = m_strokePlaneBase;
+        const int  bytes = workingFormat() == QImage::Format_RGBA64_Premultiplied ? 8 : 4;
+        const int  rows  = qMax(1, qMin(256, (4 * 1024 * 1024) / (width() * bytes)));
+        for (int top = 0; top < height(); top += rows) {
+            const QRect bounds(0, top, width(), qMin(rows, height() - top));
+            QImage      image = m_strokePlaneBase.region(bounds);
+            if (image.isNull()) {
+                cancelStroke();
+                fail(tr("Mémoire insuffisante pour dessiner la forme."));
+                return;
+            }
+            QPainter painter(&image);
+            painter.translate(0, -top);
+            draw(painter);
+            painter.end();
+            if (!next.writeRegion(bounds.topLeft(), image, m_size)) {
+                cancelStroke();
+                fail(tr("Mémoire insuffisante pour dessiner la forme."));
+                return;
+            }
+        }
+        m_layers[m_active].image = std::move(next);
+        m_strokeChanged = m_layers[m_active].image.cacheKey() != m_strokePlaneBase.cacheKey();
+        m_dirtyRegion   = m_dirtyRegion.united(QRect(QPoint{}, m_size));
+        changed(false);
+        return;
+    }
     if (regional) {
         const QRect previous = m_strokeBounds.toAlignedRect();
         QRect       bounds;

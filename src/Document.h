@@ -137,6 +137,9 @@ class Document : public QObject
     Q_PROPERTY(QColor mixerLoadColor READ mixerLoadColor NOTIFY settingsChanged)
     Q_PROPERTY(bool mixerLoaded READ mixerLoaded NOTIFY settingsChanged)
     Q_PROPERTY(int mixerPreset READ mixerPreset NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList mixerPresets READ mixerPresets CONSTANT)
+    Q_PROPERTY(QString mixerLoadPreview READ mixerLoadPreview NOTIFY settingsChanged)
+    Q_PROPERTY(bool mixerAirbrush READ mixerAirbrush WRITE setMixerAirbrush NOTIFY settingsChanged)
     Q_PROPERTY(
         bool healingAligned READ healingAligned WRITE setHealingAligned NOTIFY settingsChanged)
     Q_PROPERTY(int healingSampleMode READ healingSampleMode WRITE setHealingSampleMode NOTIFY
@@ -819,7 +822,15 @@ public:
     {
         return !m_mixerPaint.isNull() && m_mixerRemaining > 0;
     }
-    int              mixerPreset() const;
+    int          mixerPreset() const;
+    QVariantList mixerPresets() const;
+    QString      mixerLoadPreview() const;
+    bool         mixerAirbrush() const
+    {
+        return m_mixerAirbrush;
+    }
+    void             setMixerAirbrush(bool _value);
+    Q_INVOKABLE void accumulateMixerBrush();
     Q_INVOKABLE void applyMixerPreset(int _preset);
     Q_INVOKABLE void loadMixerBrush();
     Q_INVOKABLE void cleanMixerBrush();
@@ -1453,11 +1464,14 @@ private:
     bool   m_replacementAntialias = true;
     QColor m_replacementSample;
 
-    qreal  m_mixerWet = .5, m_mixerLoad = .5, m_mixerMix = .5, m_mixerFlow = 1.;
-    bool   m_mixerSampleAllLayers = false, m_mixerAutoLoad = true, m_mixerAutoClean = true;
-    bool   m_mixerSolidOnly = false;
-    QColor m_mixerColor{Qt::black};
-    QImage m_mixerPaint, m_mixerPickup, m_mixerTip, m_mixerReservoirTip;
+    qreal           m_mixerWet = .5, m_mixerLoad = .5, m_mixerMix = .5, m_mixerFlow = 1.;
+    bool            m_mixerSampleAllLayers = false, m_mixerAutoLoad = true, m_mixerAutoClean = true;
+    bool            m_mixerSolidOnly = false;
+    QColor          m_mixerColor{Qt::black};
+    QImage          m_mixerPaint, m_mixerPickup, m_mixerTip, m_mixerReservoirTip;
+    bool            m_mixerAirbrush   = false;
+    mutable qint64  m_mixerPreviewKey = 0;
+    mutable QString m_mixerPreviewUrl;
     std::unique_ptr<Document> m_mixerCompositeSource;
     QImage                    m_mixerPickupBeforeStroke;
     qreal                     m_mixerRemaining = 1., m_mixerRemainingBeforeStroke = 1.;

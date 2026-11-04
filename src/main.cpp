@@ -44,6 +44,7 @@
 #include "../tests/LayerStackSmoke.h"
 #include "../tests/LevelsGraphSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
+#include "../tests/MixerUiSmoke.h"
 #include "../tests/OperationSmoke.h"
 #include "../tests/PenOverlaySmoke.h"
 #include "../tests/PresetPreviewSmoke.h"
@@ -406,6 +407,8 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--marquee-test")) {
                 passed = window && runMarqueeUiSmoke(window, document);
+            } else if (args.contains("--mixer-test")) {
+                passed = window && runMixerUiSmoke(window, document);
             } else if (args.contains("--brush-settings-test")) {
                 passed = window && runBrushSettingsSmoke(window, document);
             } else {

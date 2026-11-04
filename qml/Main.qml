@@ -1181,6 +1181,13 @@ ApplicationWindow {
         target: shortcuts
         function onErrorOccurred(message) { errorLabel.text = message; errorDialog.open() }
     }
+    Timer {
+        objectName:"mixerAirbrushTimer"
+        interval:50;repeat:true
+        running:editor.tool === "mixerBrush" && editor.mixerAirbrush && drawingArea.pressed
+                && !window.modalOpen && !window.stampSourcePicking
+        onTriggered:editor.accumulateMixerBrush()
+    }
     Timer { id: informationPointerTimer; interval: 16; onTriggered: window.refreshInformationColor() }
     onInformationToolChanged: {
         if (workspaceRestored && ["picker", "colorSampler", "ruler"].indexOf(informationTool) >= 0)
@@ -1656,10 +1663,10 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { visible: window.paintToolActive || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
-                DarkSpinBox { visible: window.paintToolActive || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                Label { visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
+                DarkSpinBox { visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
+                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
                 Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
                 DarkSpinBox {
                     objectName: "selectionTolerance"
@@ -1724,7 +1731,7 @@ ApplicationWindow {
                 DarkSpinBox { objectName: "brushOpacityTop"; visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
                 Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
                 DarkSpinBox { objectName: "brushFlowTop"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushFlow=value/100 }
-                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "mixerBrush"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox {
                     objectName: "stampAligned"
                     visible: window.stampToolActive
@@ -2135,6 +2142,7 @@ ApplicationWindow {
         }
         MixerBrushOptions {
             objectName: "mixerBrushOptions"
+            onBrushSettingsRequested: brushSettingsDialog.open()
             Layout.fillWidth: true
             visible: editor.tool === "mixerBrush"
             document: editor

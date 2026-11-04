@@ -5175,4 +5175,40 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Sélectionner et masquer… (NYI)</source><translation>Select and Mask… (NYI)</translation></message>
   </context>
   <context><name>Document</name><message><source>Impossible de calculer cette sélection.</source><translation>Unable to calculate this selection.</translation></message></context>
+<context><name>Document</name>
+<message><source>Personnalisé</source><translation>Custom</translation></message>
+<message><source>Sec</source><translation>Dry</translation></message>
+<message><source>Sec, faible charge</source><translation>Dry, Light Load</translation></message>
+<message><source>Sec, forte charge</source><translation>Dry, Heavy Load</translation></message>
+<message><source>Humide</source><translation>Moist</translation></message>
+<message><source>Humide, faible mélange</source><translation>Moist, Light Mix</translation></message>
+<message><source>Humide, fort mélange</source><translation>Moist, Heavy Mix</translation></message>
+<message><source>Mouillé</source><translation>Wet</translation></message>
+<message><source>Mouillé, faible mélange</source><translation>Wet, Light Mix</translation></message>
+<message><source>Mouillé, fort mélange</source><translation>Wet, Heavy Mix</translation></message>
+<message><source>Très mouillé</source><translation>Very Wet</translation></message>
+<message><source>Très mouillé, faible mélange</source><translation>Very Wet, Light Mix</translation></message>
+<message><source>Très mouillé, fort mélange</source><translation>Very Wet, Heavy Mix</translation></message>
+</context>
+<context><name>MixerBrushOptions</name>
+<message><source>Diamètre du pinceau</source><translation>Brush diameter</translation></message>
+<message><source>Paramètres de la pointe</source><translation>Brush Tip Settings</translation></message>
+<message><source>Couleur de la charge</source><translation>Current Brush Load</translation></message>
+<message><source>Choisir une couleur ; Option/Alt-clic sur l’image pour charger les couleurs de la pointe</source><translation>Choose a colour; Option/Alt-click the image to load the colours under the tip</translation></message>
+<message><source>Charger, nettoyer ou prélever une couleur unie</source><translation>Load, clean or sample a solid colour</translation></message>
+<message><source>Charger le pinceau après chaque trait</source><translation>Load the brush after each stroke</translation></message>
+<message><source>Nettoyer le pinceau après chaque trait</source><translation>Clean the brush after each stroke</translation></message>
+<message><source>Combinaisons d’humidité, de charge et de mélange ; le débit reste indépendant</source><translation>Wet, Load and Mix combinations; Flow remains independent</translation></message>
+<message><source>Prélèvement des couleurs du canevas ; plus humide, les couleurs sont entraînées plus longtemps</source><translation>Canvas colour pickup; wetter brushes carry colours farther</translation></message>
+<message><source>Quantité de peinture disponible ; une faible charge s’épuise plus vite</source><translation>Available paint; a light load runs out sooner</translation></message>
+<message><source>0 % : charge du pinceau ; 100 % : peinture du canevas. Inactif à sec</source><translation>0%: loaded paint; 100%: canvas paint. Disabled when dry</translation></message>
+<message><source>Quantité déposée par empreinte, indépendante du préréglage</source><translation>Paint deposited per dab, independent of the preset</translation></message>
+<message><source>Aérographe : accumuler la peinture sans déplacer la souris</source><translation>Airbrush: build up paint without moving the mouse</translation></message>
+<message><source>Lissage du trait</source><translation>Stroke smoothing</translation></message>
+<message><source>Options du pinceau mélangeur</source><translation>Mixer Brush Options</translation></message>
+<message><source>Angle</source><translation>Angle</translation></message>
+<message><source>Paramètres de la pointe…</source><translation>Brush Tip Settings…</translation></message>
+<message><source>Pointes à soies et simulation physique (NYI)</source><translation>Bristle tips and physical simulation (NYI)</translation></message>
+<message><source>Pression et inclinaison du stylet (NYI)</source><translation>Stylus pressure and tilt (NYI)</translation></message>
+</context>
 </TS>

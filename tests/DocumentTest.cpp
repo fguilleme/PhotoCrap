@@ -5435,7 +5435,7 @@ private slots:
         QCOMPARE(d.layerImage(0).pixelColor(48, 20).alpha(), 0);
         d.applyMixerPreset(4);
         QCOMPARE(d.mixerWet(), 1.);
-        QCOMPARE(d.mixerMix(), 1.);
+        QCOMPARE(d.mixerMix(), .5);
         QCOMPARE(d.mixerPreset(), 4);
         d.setMixerWet(.75);
         QCOMPARE(d.mixerPreset(), 0);
@@ -5807,8 +5807,8 @@ private slots:
                            "78315359d8def1e00cf94dd46b784e1a213f50482a70606d436e894bef7d4e15",
                            "252c539838bd1b2d888a71c3d725c1890c7dacc9dc7947497883c6c8d0825ad4")
                      : filterReference(
-                           "08863a90f51429679357eab832355d59906e10a8ca22e9d604d27872a0450026",
-                           "96907b36823647dd022699c833614511df6f71f5d3e8ff899dc25ca4e2297d5c"));
+                           "cce25b12be8a9cf6b88a90c5c3965bf1263e5b39f83db33ebe9d88b03cf22638",
+                           "147be86cbc11cfa885cb831d7d1ba7e69c57b97a787d307b4850dbee20b8bf6b"));
     }
     void largeCompositePickupProbe()
     {

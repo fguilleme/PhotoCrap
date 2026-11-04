@@ -1,8 +1,10 @@
 #include "Document.h"
 #include "ImageUtils.h"
 
+#include <QBuffer>
 #include <QPainter>
 #include <QtMath>
+#include <array>
 #include <cmath>
 
 namespace
@@ -51,6 +53,48 @@ QColor averageColor(const QImage &_image)
     return alpha ? QColor(int(red * 255 / alpha), int(green * 255 / alpha), int(blue * 255 / alpha))
                  : QColor(Qt::transparent);
 }
+QRgb contactColor(const QImage &_sample, const QImage &_tip, const QRect &_region,
+                  const QPoint &_offset, const Document &_document)
+{
+    qint64 red = 0, green = 0, blue = 0, alpha = 0, weight = 0;
+    for (int y = 0; y < _region.height(); ++y) {
+        const auto *sample = reinterpret_cast<const QRgb *>(_sample.constScanLine(_offset.y() + y));
+        const auto *tip    = reinterpret_cast<const QRgb *>(_tip.constScanLine(_offset.y() + y));
+        for (int x = 0; x < _region.width(); ++x) {
+            const auto   pixel  = sample[_offset.x() + x];
+            const qint64 amount = qAlpha(tip[_offset.x() + x]) *
+                                  _document.selectionCoverage(_region.x() + x, _region.y() + y);
+            red += qRed(pixel) * amount;
+            green += qGreen(pixel) * amount;
+            blue += qBlue(pixel) * amount;
+            alpha += qAlpha(pixel) * amount;
+            weight += amount;
+        }
+    }
+    return weight ? qRgba(int(red / weight), int(green / weight), int(blue / weight),
+                          int(alpha / weight))
+                  : 0;
+}
+struct MixerPreset {
+    int         id;
+    const char *name;
+    double      wet, load, mix;
+};
+// Stable IDs retain the four original base combinations. The menu follows
+// Adobe's dry/moist/wet families; these are PhotoCrap's calibrated values.
+constexpr std::array<MixerPreset, 12> Presets{
+    {{1, QT_TRANSLATE_NOOP("Document", "Sec"), 0, .5, 0},
+     {5, QT_TRANSLATE_NOOP("Document", "Sec, faible charge"), 0, .1, 0},
+     {6, QT_TRANSLATE_NOOP("Document", "Sec, forte charge"), 0, 1, 0},
+     {2, QT_TRANSLATE_NOOP("Document", "Humide"), .1, .5, .5},
+     {7, QT_TRANSLATE_NOOP("Document", "Humide, faible mélange"), .1, .5, .1},
+     {8, QT_TRANSLATE_NOOP("Document", "Humide, fort mélange"), .1, .5, .9},
+     {3, QT_TRANSLATE_NOOP("Document", "Mouillé"), .5, .5, .5},
+     {9, QT_TRANSLATE_NOOP("Document", "Mouillé, faible mélange"), .5, .5, .1},
+     {10, QT_TRANSLATE_NOOP("Document", "Mouillé, fort mélange"), .5, .5, .9},
+     {4, QT_TRANSLATE_NOOP("Document", "Très mouillé"), 1, .5, .5},
+     {11, QT_TRANSLATE_NOOP("Document", "Très mouillé, faible mélange"), 1, .5, .1},
+     {12, QT_TRANSLATE_NOOP("Document", "Très mouillé, fort mélange"), 1, .5, .9}}};
 } // namespace
 
 void Document::setMixerWet(qreal _value)
@@ -140,29 +184,73 @@ void Document::setMixerSolidOnly(bool _value)
 
 int Document::mixerPreset() const
 {
-    if (m_mixerFlow != 1.)
-        return 0;
-    if (m_mixerWet == 0 && m_mixerLoad == 1 && m_mixerMix == 0)
-        return 1;
-    if (m_mixerWet == .1 && m_mixerLoad == .5 && m_mixerMix == .5)
-        return 2;
-    if (m_mixerWet == .5 && m_mixerLoad == .5 && m_mixerMix == .5)
-        return 3;
-    if (m_mixerWet == 1 && m_mixerLoad == .5 && m_mixerMix == 1)
-        return 4;
+    for (const auto &preset : Presets)
+        if (qAbs(m_mixerWet - preset.wet) < 1e-6 && qAbs(m_mixerLoad - preset.load) < 1e-6 &&
+            qAbs(m_mixerMix - preset.mix) < 1e-6)
+            return preset.id;
     return 0;
+}
+QVariantList Document::mixerPresets() const
+{
+    QVariantList result{QVariantMap{{"id", 0}, {"source", "Personnalisé"}}};
+    for (const auto &preset : Presets)
+        result.append(QVariantMap{{"id", preset.id}, {"source", preset.name}});
+    return result;
 }
 void Document::applyMixerPreset(int _preset)
 {
-    if (_preset < 1 || _preset > 4)
+    for (const auto &preset : Presets) {
+        if (preset.id != _preset)
+            continue;
+        endStroke();
+        m_mixerWet  = preset.wet;
+        m_mixerLoad = preset.load;
+        m_mixerMix  = preset.mix;
+        // A combination is Wet/Load/Mix. Flow is an independent paint setting.
+        reloadMixerPaint();
+        emit settingsChanged();
         return;
-    endStroke();
-    m_mixerWet  = _preset == 1 ? 0. : _preset == 2 ? .1 : _preset == 3 ? .5 : 1.;
-    m_mixerLoad = _preset == 1 ? 1. : .5;
-    m_mixerMix  = _preset == 1 ? 0. : _preset == 4 ? 1. : .5;
-    m_mixerFlow = 1.;
-    reloadMixerPaint();
+    }
+}
+QString Document::mixerLoadPreview() const
+{
+    if (!mixerLoaded())
+        return {};
+    if (m_mixerPreviewKey != m_mixerPaint.cacheKey()) {
+        QBuffer buffer;
+        buffer.open(QIODevice::WriteOnly);
+        const auto image =
+            m_mixerPaint.scaled(40, 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        if (!image.save(&buffer, "PNG"))
+            return {};
+        m_mixerPreviewUrl =
+            "data:image/png;base64," + QString::fromLatin1(buffer.data().toBase64());
+        m_mixerPreviewKey = m_mixerPaint.cacheKey();
+    }
+    return m_mixerPreviewUrl;
+}
+void Document::setMixerAirbrush(bool _value)
+{
+    if (m_mixerAirbrush == _value)
+        return;
+    m_mixerAirbrush = _value;
     emit settingsChanged();
+}
+void Document::accumulateMixerBrush()
+{
+    if (!m_mixerAirbrush || m_tool != "mixerBrush" || !m_drawing || m_strokeCoverageFailed)
+        return;
+    m_strokeBounds = {};
+    mixerDab(m_last);
+    if (m_strokeCoverageFailed) {
+        cancelStroke();
+        fail(tr("Mémoire insuffisante pour la couverture du trait."));
+        return;
+    }
+    if (!m_strokeBounds.isEmpty()) {
+        m_strokeChanged = true;
+        changed(false);
+    }
 }
 void Document::reloadMixerPaint()
 {
@@ -267,7 +355,8 @@ void Document::prepareMixerStroke()
     }
     painter.drawEllipse(QPointF{}, m_brushSize / 2., m_brushSize / 2.);
     painter.end();
-    // Hold source tile versions stable without preparing a full-sized image.
+    // Hold other layers stable without preparing a full-sized image. The active
+    // plane is refreshed before each dab so pickup sees freshly deposited paint.
     m_mixerCompositeSource =
         m_mixerSampleAllLayers && !m_editingMask ? nativeCompositeSource(m_layers) : nullptr;
 }
@@ -304,13 +393,19 @@ void Document::mixerDab(const QPointF &_point)
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
-    const QImage sampled = patch(m_strokePlaneBase, dab, m_size, m_mixerCompositeSource.get());
+    // The pickup must see the paint left by earlier dabs, not the immutable
+    // pre-stroke image. Keep the other layers stable while updating this one.
+    if (m_mixerCompositeSource)
+        m_mixerCompositeSource->m_layers[m_active].image = target;
+    const QImage sampled = patch(target, dab, m_size, m_mixerCompositeSource.get());
     QImage       paint   = ImageUtils::blank(region.size());
     if (sampled.isNull() || paint.isNull()) {
         m_strokeCoverageFailed = true;
         return;
     }
     const QPoint offset = region.topLeft() - dab.topLeft();
+    const QRgb   contact =
+        m_mixerWet > 0 ? contactColor(sampled, m_mixerTip, region, offset, *this) : 0;
     for (int y = 0; y < region.height(); ++y) {
         auto       *pickup = reinterpret_cast<QRgb *>(m_mixerPickup.scanLine(offset.y() + y));
         const auto *src    = reinterpret_cast<const QRgb *>(sampled.constScanLine(offset.y() + y));
@@ -324,13 +419,19 @@ void Document::mixerDab(const QPointF &_point)
             if (coverage <= 0 ||
                 (hasSelection() && !m_selectionRegion.contains(region.topLeft() + QPoint(x, y))))
                 continue;
-            if (m_mixerWet > 0 && qAlpha(src[local])) {
+            const QRgb incoming =
+                m_mixerWet > 0 ? interpolate(src[local], contact, m_mixerWet * .25) : 0;
+            if (m_mixerWet > 0 && qAlpha(incoming)) {
                 // A wet tip retains paint along its path. A dry tip neither
                 // picks up image pixels nor contributes canvas paint.
                 const qreal pickupRate = .05 + (1. - m_mixerWet) * .25;
+                // Exchange a small amount across the wet contact patch as well
+                // as along each tip coordinate. The leading edge can then feed
+                // fresh canvas colour to the well instead of endlessly picking
+                // up only the opaque paint deposited by the previous dab.
                 pickup[local] = qAlpha(pickup[local])
-                                    ? interpolate(pickup[local], src[local], pickupRate * coverage)
-                                    : src[local];
+                                    ? interpolate(pickup[local], incoming, pickupRate * coverage)
+                                    : incoming;
             }
             QRgb ink = attenuate(loaded[local], m_mixerRemaining);
             if (m_mixerWet > 0)
@@ -366,7 +467,8 @@ void Document::mixerDab(const QPointF &_point)
     }
     // Charge determines the distance before the reservoir runs dry. Flow and
     // dab spacing determine consumption, rather than mouse event frequency.
-    const qreal step = qMax(1., m_brushSize * m_brushSpacing) / m_brushSize;
-    m_mixerRemaining =
-        qMax(0., m_mixerRemaining - m_mixerFlow * step / (1. + 100. * m_mixerLoad * m_mixerLoad));
+    const qreal step           = qMax(1., m_brushSize * m_brushSpacing) / m_brushSize;
+    const qreal reservoirShare = m_mixerWet > 0 ? 1. - m_mixerMix : 1.;
+    m_mixerRemaining = qMax(0., m_mixerRemaining - m_mixerFlow * reservoirShare * step /
+                                                       (1. + 100. * m_mixerLoad * m_mixerLoad));
 }

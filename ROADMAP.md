@@ -4,6 +4,15 @@
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
+## Pinceau mélangeur — non publié
+
+- [x] Barre inspirée des commandes Adobe : charge multicolore, recharge/nettoyage
+  automatiques visibles, douze combinaisons, pourcentages compacts, angle et aérographe.
+- [x] Reprise de la peinture fraîche pendant le trait, échantillonnage multicalque
+  régional, débit indépendant des combinaisons et accumulation sans mouvement.
+- [ ] Pixels couleur 16 bits, pointes à soies et simulation de stylet (NYI).
+- Les coefficients restent propres à PhotoCrap ; voir les [références et limites](docs/MIXER_BRUSH.md).
+
 ## Retouche native 16 bits — non publiée
 
 - [x] Correcteur localisé, Suppression, Correcteur, Pièce, Déplacement basé sur le

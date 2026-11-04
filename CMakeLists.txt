@@ -225,6 +225,8 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/PenPanelSmoke.h
     tests/PenStrokeSmoke.h
     tests/MarqueeTest.cpp
+    tests/MixerBrushTest.cpp
+    tests/MixerUiSmoke.h
     tests/MarqueeUiSmoke.h
     tests/LassoGuideSmoke.h
     tests/SliceOverlaySmoke.h
@@ -799,6 +801,10 @@ if(BUILD_TESTING)
     add_test(NAME pen_tool COMMAND photocrap_pen_tests)
     set_tests_properties(pen_tool PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    qt_add_executable(photocrap_mixer_tests tests/MixerBrushTest.cpp)
+    target_link_libraries(photocrap_mixer_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME mixer_brush COMMAND photocrap_mixer_tests)
+    set_tests_properties(mixer_brush PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
     qt_add_executable(photocrap_marquee_tests tests/MarqueeTest.cpp)
     target_link_libraries(photocrap_marquee_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME marquee COMMAND photocrap_marquee_tests)
@@ -873,6 +879,9 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME brush_settings COMMAND PhotoCrap --smoke-test --brush-settings-test)
     set_tests_properties(brush_settings PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME mixer_ui COMMAND PhotoCrap --smoke-test --mixer-test)
+    set_tests_properties(mixer_ui PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)

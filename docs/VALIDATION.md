@@ -1,5 +1,31 @@
 # Validation
 
+## Pinceau mélangeur — 4 novembre 2026
+
+La reprise lit désormais la peinture fraîche du trait et échange les couleurs
+dans la zone de contact. Les 54 gestes du scénario de référence changent donc
+volontairement de résultat : digest Accelerate
+`cce25b12be8a9cf6b88a90c5c3965bf1263e5b39f83db33ebe9d88b03cf22638`,
+portable `147be86cbc11cfa885cb831d7d1ba7e69c57b97a787d307b4850dbee20b8bf6b`.
+Les références du Doigt et du prélèvement couleur unie restent inchangées.
+
+`mixer_brush` couvre huit scénarios et variantes : peinture fraîche active/composée,
+transport des couleurs, débit indépendant des douze combinaisons, charge multicolore
+ou unie, mélange 100 % canevas sans épuisement, nettoyage, accumulation stationnaire,
+annulation et écriture régionale sur 24 Mpx avec masque. `mixer_ui` saisit les quatre
+pourcentages au clavier, choisit un preset, contrôle le débit indépendant, actionne
+les boutons recharge/nettoyage et la flèche de menu, ouvre la couleur puis peint
+avec l’aérographe. La barre peut défiler horizontalement sur un petit écran.
+
+Validation locale : `document`, `mixer_brush`, `mixer_ui` et `qml_smoke` passent
+avec Qt 6.12 ; les scénarios moteur et interface du mélangeur ainsi que le smoke
+complet passent aussi avec Qt 6.8. Les références régionales passent avec le moteur
+portable sans Accelerate. Le contrôle natif Cocoa/Metal et sa capture passent
+aussi : saisie, retour du sélecteur de couleur et accumulation pendant un clic
+maintenu via les événements macOS. Le test attend plusieurs dépôts plutôt qu’un
+délai fixe trop court pendant l’initialisation du rendu. Voir les
+[contrats Adobe et limites](MIXER_BRUSH.md).
+
 ## Options des sélections géométriques — 4 novembre 2026
 
 `MarqueeTest` couvre les dimensions fixes, la pose par clic, le ratio, les

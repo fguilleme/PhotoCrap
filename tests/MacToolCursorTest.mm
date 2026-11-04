@@ -291,3 +291,26 @@ void activateMacTestWindow(QQuickWindow *window)
     [[view window] makeKeyAndOrderFront:nil];
     window->requestActivate();
 }
+
+void sendMacTestMouseButton(QQuickWindow *_window, const QPointF &_scene, bool _down)
+{
+    NSView       *view         = reinterpret_cast<NSView *>(_window->winId());
+    NSWindow     *nativeWindow = [view window];
+    const NSPoint point =
+        [view convertPoint:NSMakePoint(_scene.x(), [view isFlipped]
+                                                       ? _scene.y()
+                                                       : [view bounds].size.height - _scene.y())
+                    toView:nil];
+    NSEvent *event =
+        [NSEvent mouseEventWithType:_down ? NSEventTypeLeftMouseDown : NSEventTypeLeftMouseUp
+                           location:point
+                      modifierFlags:0
+                          timestamp:NSProcessInfo.processInfo.systemUptime
+                       windowNumber:[nativeWindow windowNumber]
+                            context:nil
+                        eventNumber:0
+                         clickCount:1
+                           pressure:_down ? 1 : 0];
+    [NSApp sendEvent:event];
+    QTest::qWait(25);
+}

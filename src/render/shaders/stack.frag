@@ -260,7 +260,14 @@ void main()
     vec3 b = ab > 0.0 ? native(vec4(base.rgb / ab, 1.0)).rgb : vec3(0.0);
     vec3 s = source.a > 0.0 ? native(vec4(source.rgb / source.a, 1.0)).rgb : vec3(0.0);
     vec3 mixed = vec3(blend(b.r, s.r, ubuf.modes.x), blend(b.g, s.g, ubuf.modes.x), blend(b.b, s.b, ubuf.modes.x));
-    if (ubuf.modes.x == 6 || ubuf.modes.x == 11) {
+    if (ubuf.modes.x >= 23) {
+        vec3 hsl = rgbToHsl(b), shsl = rgbToHsl(s);
+        if (ubuf.modes.x == 23) hsl.x = shsl.x;
+        else if (ubuf.modes.x == 24) hsl.y = shsl.y;
+        else if (ubuf.modes.x == 25) hsl.xy = shsl.xy;
+        else hsl.z = shsl.z;
+        mixed = floor(hslToRgb(hsl) * 65535.0 + 0.5) / 65535.0;
+    } else if (ubuf.modes.x == 6 || ubuf.modes.x == 11) {
         bool useSource = ubuf.modes.x == 6 ? dot(s, vec3(1.0)) < dot(b, vec3(1.0))
                                           : dot(s, vec3(1.0)) > dot(b, vec3(1.0));
         mixed = useSource ? s : b;

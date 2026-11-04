@@ -19,6 +19,8 @@ Progression par optimisations vérifiées et commits distincts :
   sur une pile tonale inchangée, vérifié sur les 18 réglages en Metal 8/16 bits.
 - [x] Réglages tonals analytiques dans les piles GPU 8/16 bits : couleurs, matrices,
   luminance et palettes, sans texture de table volumineuse pour les calculs directs.
+- [x] Quatre modes HSL dans les piles natives GPU, avec sources/destinations
+  translucides et masque ; références CPU Metal en 8/16 bits.
 - [x] Masques progressifs dans la pile GPU : halo, arrondis, densité et
   réutilisation des passes ; sources uniformes sans passe supplémentaire.
 - [x] Ouverture `.pcr` indexée, sans agrégat JSON des PNG/Base64, préflight complet

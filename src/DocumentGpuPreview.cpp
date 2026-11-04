@@ -45,7 +45,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         if ((layer.kind != "pixel" && !solid && !tonal && layer.kind != "text" &&
              layer.kind != "shape" && spatial == SpatialFilter::None) ||
             (!solid && !tonal && spatial == SpatialFilter::None && layer.image.isNull()) ||
-            layer.blend == 1 || layer.blend == 18 || layer.blend >= 23)
+            layer.blend == 1 || layer.blend == 18)
             return {};
         StackLayer entry;
         if (tonal) {

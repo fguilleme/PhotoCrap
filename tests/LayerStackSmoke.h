@@ -24,8 +24,8 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         QSGRendererInterface::isApiRhiBased(window->rendererInterface()->graphicsApi());
     const bool streaming = qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING") ||
                            qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH");
-    if (streaming)
-        canvas.setTextureCacheMiB(256); // The main QML canvas shares this budget too.
+    canvas.setTextureCacheMiB(
+        256); // Both the reference fixture and main QML canvas share the budget.
 
     const auto frame = [&] {
         window->update();
@@ -46,7 +46,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         document.setColor(QColor(127, 127, 127));
         document.fillWithColor(true);
         document.setEditingMask(false);
-        for (int mode = 0; mode < 23; ++mode) {
+        for (int mode = 0; mode < 27; ++mode) {
             if (mode == 1 || mode == 18)
                 continue;
             document.setLayerBlend(document.activeLayer(), mode);
@@ -363,6 +363,39 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             canvas.setGpuStackEnabled(true);
         }
     }
+    for (int bits : {8, 16}) {
+        if (!document.newDocument(1200, 128, true, bits))
+            return false;
+        document.setColor(QColor(27, 93, 179, 105));
+        document.fillWithColor(true);
+        document.addLayer();
+        document.setColor(QColor(197, 42, 111, 173));
+        document.fillWithColor(true);
+        document.setLayerOpacity(document.activeLayer(), .61);
+        for (int mode : {23, 24, 25, 26}) {
+            document.setLayerBlend(document.activeLayer(), mode);
+            canvas.setGpuStackEnabled(true);
+            frame();
+            const auto actual = frame();
+            if (!require(canvas.gpuStackActive() == hardware,
+                         "transparent HSL blends stay on the hardware stack"))
+                return false;
+            canvas.setGpuStackEnabled(false);
+            frame();
+            const auto   expected = frame();
+            const double ratio    = double(actual.width()) / window->width();
+            for (int x : {10, 255, 511, 512, 1023, 1190}) {
+                const auto point = canvas.mapToScene({(x + .5) * .5, 64.5}) * ratio;
+                const auto a     = actual.pixelColor(qFloor(point.x()), qFloor(point.y()));
+                const auto b     = expected.pixelColor(qFloor(point.x()), qFloor(point.y()));
+                if (!require(qAbs(a.red() - b.red()) <= 2 && qAbs(a.green() - b.green()) <= 2 &&
+                                 qAbs(a.blue() - b.blue()) <= 2,
+                             "native HSL blending retains translucent source and backdrop"))
+                    return false;
+            }
+        }
+    }
+    canvas.setGpuStackEnabled(true);
     // Different tile results must survive reuse of the same native scratch and
     // horizontal reduction targets, including after zoom changes and cache hits.
     for (int bits : {8, 16}) {

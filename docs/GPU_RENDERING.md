@@ -2091,3 +2091,12 @@ changements de document libèrent le pool de réductions. La suite Metal couvre
 les zooms, les couleurs indépendantes de tuiles voisines, les masques progressifs
 et les cinq filtres spatiaux en 8/16 bits. Le test de budget sur 24 Mpx/16 bits
 réduit la prévision d’au moins un facteur trois ; ce n’est pas une mesure de RSS.
+
+## Fusions HSL dans la pile native (5 novembre 2026)
+
+Teinte, Saturation, Couleur et Luminosité sont composées avec les mêmes
+conversions HSL et quantifications QColor que le CPU. L’alpha source, celui
+du fond, les masques, l’opacité et la couverture d’écrêtage sont conservés.
+La suite Metal compare les quatre modes en 8/16 bits sur fonds opaques puis
+sur sources et fonds translucides. Fondu et Mélange maximal restent séparés
+car leurs décisions discontinues exigent des tables de référence exactes.

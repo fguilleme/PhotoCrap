@@ -322,6 +322,16 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             if (!require(canvas.gpuStackActive() == hardware,
                          "channel stack uses hardware when available"))
                 return false;
+            if (hardware) {
+                const auto uploads = canvas.stackTextureUploads();
+                const auto passes  = canvas.stackPasses();
+                frame();
+                frame();
+                if (!require(canvas.stackTextureUploads() == uploads &&
+                                 canvas.stackPasses() == passes,
+                             "unchanged tonal stacks neither upload nor redraw native tiles"))
+                    return false;
+            }
             canvas.setGpuStackEnabled(false);
             frame();
             const auto   expected = frame();

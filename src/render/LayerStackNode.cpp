@@ -215,7 +215,9 @@ public:
                                  bool whole = false)
     {
         QByteArray key = whole ? "t" : mask ? "m" : "c";
-        key += plane.regionKey(whole ? plane.rect() : region);
+        // Whole inputs are immutable LUT QImages reused by the document cache.
+        // Freezing a fresh wrapper would manufacture new tile versions each frame.
+        key += whole ? QByteArray::number(plane.cacheKey()) : plane.regionKey(region);
         used.insert(key);
         if (auto cached = inputs.value(key))
             return cached;
@@ -258,7 +260,7 @@ public:
         QByteArray key;
         for (const auto &layer : layers) {
             for (const auto &part : {layer.image.regionKey(region), layer.mask.regionKey(region),
-                                     layer.toneTable.regionKey(layer.toneTable.rect())}) {
+                                     QByteArray::number(layer.toneTable.cacheKey())}) {
                 const qint64 size = part.size();
                 key.append(reinterpret_cast<const char *>(&size), sizeof(size));
                 key += part;

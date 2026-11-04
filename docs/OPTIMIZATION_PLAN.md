@@ -15,6 +15,8 @@ Progression par optimisations vérifiées et commits distincts :
   Luminosité/Contraste, Exposition, Balance, Isohélie et Négatif. Table de 256 ou
   65 536 entrées selon la profondeur, cache GUI LRU de 4 Mio, masques et composition
   conservés. Vérifications moteur, logiciel et Metal sur piles transparentes.
+- [x] Clés de cache stables pour les tables immuables : aucun transfert ni passe
+  sur une pile tonale inchangée, vérifié sur les 18 réglages en Metal 8/16 bits.
 - [x] Réglages tonals analytiques dans les piles GPU 8/16 bits : couleurs, matrices,
   luminance et palettes, sans texture de table volumineuse pour les calculs directs.
 - [x] Masques progressifs dans la pile GPU : halo, arrondis, densité et

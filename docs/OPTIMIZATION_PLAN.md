@@ -43,6 +43,9 @@ Progression par optimisations vérifiées et commits distincts :
 - [x] Différences natives intra-tuile : rectangle réellement modifié, chaîne
   limitée à huit deltas, versions transitoires fusionnées, déchargement sans perte
   et parents/patches comptés sans doublon ; tests couleur 8/16 bits et masques.
+- [x] Métadonnées d’opacité natives et exclusion des photos opaques couvrantes,
+  sans lecture des mappings à la requête ; préparation des entrées native dès
+  l’import et métrique RAM des plans courants indépendante du sous-ensemble GPU.
 - [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
 
 ## 1. Plans éditables et historique par tuiles

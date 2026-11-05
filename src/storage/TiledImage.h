@@ -40,6 +40,8 @@ public:
     bool       writeRegion(const QPoint &_origin, const QImage &_pixels, bool *_changed = nullptr,
                            bool _preserveSnapshots = true);
     bool       sharedStorage() const;
+    // Conservative native metadata, without reconstructing pixels.
+    bool                  knownOpaque() const;
     QImage::Format        format() const;
     QColorSpace           colorSpace() const;
     QHash<qint64, qint64> storageBlocks() const;

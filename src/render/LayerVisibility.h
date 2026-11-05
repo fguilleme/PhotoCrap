@@ -49,14 +49,12 @@ inline int opaqueCoverIndex(const QVector<Layer> &_layers, const QSize &_size)
         if (layer.kind != QStringLiteral("pixel") || !layer.visible || layer.opacity < 1. ||
             layer.blend != 0 || layer.clippingMask || needsMask(layer) ||
             (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true)) ||
-            !layer.image.isUniform() ||
+            !layer.image.knownOpaque() ||
             (layer.image.size() != _size && !ImageUtils::compact(layer.image)))
             continue;
-        const auto pixel = layer.image.tileImage(0, 0);
-        // A device-scaled image may cover only part of its native dimensions.
-        // Fractional opacity/alpha must keep every underlying layer, too.
-        if (pixel.devicePixelRatio() == 1. && pixel.pixelColor(0, 0).alphaF() == 1.)
-            return i;
+        // Opacity and DPR are cached with the immutable native versions; no
+        // tile reconstruction or mapped-file access belongs in this query.
+        return i;
     }
     return 0;
 }

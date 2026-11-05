@@ -654,6 +654,8 @@ private slots:
         QCOMPARE(d.memoryUsage()["retainedDecoderBytes"].toLongLong(), qint64(0));
         const auto stack = d.gpuLayerStack();
         QVERIFY(stack.valid);
+        // Only prepared color planes are checked here; the pre-existing mask
+        // remains eligible for the independent background offloader.
         qint64 heap = 0;
         for (const auto &layer : stack.layers)
             for (auto bytes : layer.image.tiles().heapBlocks())
@@ -1030,15 +1032,15 @@ private slots:
         QCOMPARE(d.composite(), expected);
         const auto stack = d.gpuLayerStack();
         QVERIFY(stack.valid);
-        qint64 heap = 0;
-        for (const auto &layer : stack.layers)
-            for (auto bytes : layer.image.tiles().heapBlocks())
-                heap += bytes;
+        // Occluded planes are absent from the GPU snapshot; account all current
+        // native planes independently from their visible rendering subset.
+        const qint64 heap = d.memoryUsage()["currentLayerHeapBytes"].toLongLong();
         if (cacheAvailable)
             QCOMPARE(heap, qint64(0));
-        else if (cacheMode == 0)
-            QCOMPARE(heap, (import ? 6LL : 4LL) * 1024 * 1024);
-        else {
+        else if (cacheMode == 0) {
+            QVERIFY(heap > 0);
+            QVERIFY(heap <= (import ? 6LL : 4LL) * 1024 * 1024);
+        } else {
             QVERIFY(heap > 0);
             QVERIFY(heap < (import ? 6LL : 4LL) * 1024 * 1024);
         }

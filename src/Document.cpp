@@ -503,6 +503,9 @@ QVariantMap Document::memoryUsage() const
         }
     };
     count(m_layers, layerBytes);
+    qint64 currentLayerHeapBytes = 0;
+    for (auto bytes : heapBlocks)
+        currentLayerHeapBytes += bytes;
     const auto countSelection = [&](const Snapshot &_state) {
         selections.add(_state.selectionOutline);
         selections.add(_state.lastSelectionOutline);
@@ -539,6 +542,7 @@ QVariantMap Document::memoryUsage() const
     // Completed RAW futures contain sealed planes, never a retained decoder image.
     const qint64 retainedDecoderBytes = 0;
     return {{"tileHeapBytes", tileHeapBytes},
+            {"currentLayerHeapBytes", currentLayerHeapBytes},
             {"compositeBytes", m_composite.sizeInBytes()},
             {"retainedDecoderBytes", retainedDecoderBytes},
             {"layerCount", m_layers.size()},

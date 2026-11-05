@@ -77,6 +77,28 @@ QImage importedBackground(const QImage &_image)
     return found ? _image.copy(QRect(best, QSize(1, 1))) : QImage{};
 }
 
+bool opaquePixels(const QImage &image)
+{
+    if (image.isNull())
+        return false;
+    if (!image.hasAlphaChannel())
+        return true;
+    for (int y = 0; y < image.height(); ++y) {
+        if (image.format() == QImage::Format_ARGB32_Premultiplied) {
+            const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+            for (int x = 0; x < image.width(); ++x)
+                if (qAlpha(row[x]) != 255)
+                    return false;
+        } else if (image.format() == QImage::Format_RGBA64_Premultiplied) {
+            const auto *row = reinterpret_cast<const QRgba64 *>(image.constScanLine(y));
+            for (int x = 0; x < image.width(); ++x)
+                if (row[x].alpha() != 65535)
+                    return false;
+        } else
+            return false;
+    }
+    return true;
+}
 struct Tile {
     mutable QMutex                     mutex;
     QImage                             pixels;
@@ -85,8 +107,9 @@ struct Tile {
     int                                depth      = 0;
     quint64                            id         = nextTileId.fetch_add(1);
     bool                               diskBacked = false;
+    bool                               opaque     = false;
     mutable QHash<quint32, QByteArray> partialKeys;
-    explicit Tile(QImage _pixels) : pixels(std::move(_pixels))
+    explicit Tile(QImage _pixels) : pixels(std::move(_pixels)), opaque(opaquePixels(pixels))
     {
     }
     QImage image() const
@@ -202,7 +225,13 @@ std::shared_ptr<Tile> changedTile(const QImage &image, const std::shared_ptr<Til
     QImage pixels = image.copy(patch);
     if (pixels.isNull())
         return full();
-    auto result       = std::make_shared<Tile>(std::move(pixels));
+    auto result = std::make_shared<Tile>(std::move(pixels));
+    bool parentOpaque;
+    {
+        QMutexLocker lock(&previous->mutex);
+        parentOpaque = previous->opaque;
+    }
+    result->opaque    = result->opaque && (parentOpaque || opaquePixels(image));
     result->parent    = previous;
     result->patchRect = patch;
     result->depth     = depth + 1;
@@ -560,6 +589,21 @@ bool TiledImage::paint(const QRect &_region, const std::function<void(QPainter &
     return paintRegion(_region, _paint, true);
 }
 
+bool TiledImage::knownOpaque() const
+{
+    if (!m_data || m_data->background.devicePixelRatio() != 1.)
+        return false;
+    if (m_data->background.pixelColor(0, 0).alphaF() != 1. &&
+        m_data->tiles.size() != m_data->columns() * ((size().height() + TileSize - 1) / TileSize))
+        return false;
+    for (const auto &tile : std::as_const(m_data->tiles)) {
+        QMutexLocker lock(&tile->mutex);
+        if (!tile->opaque)
+            return false;
+    }
+    return true;
+}
+
 bool TiledImage::sharedStorage() const
 {
     return m_data && (m_data.use_count() > 1 || !m_data->tiles.isDetached());
@@ -676,6 +720,7 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
                 painter.end();
                 tile->id         = nextTileId.fetch_add(1);
                 tile->diskBacked = false;
+                tile->opaque     = opaquePixels(tile->pixels);
                 tile->partialKeys.clear();
             }
             if (previous)

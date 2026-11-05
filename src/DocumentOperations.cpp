@@ -121,11 +121,14 @@ bool Document::prepareNativePlane(PixelPlane &_plane, QImage::Format _format,
             return false;
         return fail(tr("Allocation des pixels impossible."));
     }
+    // Imported native planes acquire their immutable tiles and opacity metadata
+    // once, even for the synchronous API. The application dispatches large I/O
+    // to its worker; subsequent canvas queries never need to scan these pixels.
+    if (!_plane.freeze())
+        return fail(tr("Allocation des pixels impossible."));
     if (!m_backgroundWorker || !m_scratchCache || !_budget.cacheAvailable ||
         m_scratchCache->options().maxBytes <= 0)
         return keepGoing();
-    if (!_plane.freeze())
-        return fail(tr("Allocation des pixels impossible."));
     const auto before = _plane.tiles().heapBlocks();
     for (auto it = before.cbegin(); it != before.cend(); ++it)
         if (!_budget.blocks.contains(it.key())) {

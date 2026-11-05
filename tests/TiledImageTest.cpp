@@ -89,6 +89,41 @@ private slots:
         QVERIFY(PixelPlane::uniform({32, 32}, QImage(1, 1, QImage::Format_RGB888)).isNull());
     }
 
+    void opacityMetadataSurvivesNativeEditsAndDiskMappings()
+    {
+        for (auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
+            QImage image(517, 523, format);
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    image.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+            TiledImage plane(image.size(), format, Qt::transparent);
+            QVERIFY(!plane.knownOpaque());
+            QVERIFY(plane.replace(image));
+            QVERIFY(plane.knownOpaque());
+            const auto old = plane;
+            QImage     patch(1, 1, format);
+            patch.fill(Qt::transparent);
+            QVERIFY(plane.writeRegion({256, 256}, patch));
+            QVERIFY(!plane.knownOpaque());
+            QVERIFY(old.knownOpaque());
+            patch.fill(Qt::red);
+            QVERIFY(plane.writeRegion({256, 256}, patch));
+            QVERIFY(plane.knownOpaque());
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            ScratchImageCache cache({directory.path(), 16 * 1024 * 1024, 0});
+            QVERIFY(plane.offload(cache));
+            QVERIFY(plane.knownOpaque());
+            QCOMPARE(plane.heapBytes(), qint64(0));
+            QVERIFY(plane.paintTransient({255, 255, 1, 1}, [](QPainter &p) {
+                p.setCompositionMode(QPainter::CompositionMode_Clear);
+                p.fillRect(255, 255, 1, 1, Qt::transparent);
+            }));
+            QVERIFY(!plane.knownOpaque());
+            QVERIFY(old.knownOpaque());
+        }
+    }
     void smallNativeTileEditsStoreBoundedDeltas()
     {
         for (const auto format : {QImage::Format_ARGB32_Premultiplied,

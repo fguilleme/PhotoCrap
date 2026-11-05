@@ -894,3 +894,21 @@ stockage partagé, au lieu de 41 versions complètes, dans les trois formats
 natifs. Il compare toutes les versions avant et après déchargement et vidage du
 cache. Les tests des outils vérifient aussi que la compaction ne conserve pas
 les petites versions jetables produites entre les empreintes d’un même geste.
+
+## Opacité native et plans couvrants (5 novembre 2026)
+
+Les versions de tuiles mémorisent leur opacité complète lors de leur création ou
+écriture, sans arrondir l’alpha 16 bits en 8 bits. La requête ne reconstruit pas
+les deltas et ne lit aucun mapping disque. Les imports acquièrent leurs tuiles
+natives dès leur préparation, y compris dans l’API synchrone ; les grands I/O de
+l’application restent dispatchés sur worker. Les couleurs et métadonnées natives
+conservées par les plans sont inchangées.
+
+Une photo de pixels opaque, de taille du document et à DPR unitaire, en mode
+Normal à opacité pleine sans masque effectif ni écrêtage, peut désormais masquer
+les calques inférieurs pour le CPU et le GPU, comme les fonds uniformes. Un masque,
+un alpha natif inférieur au maximum ou une opacité réduite rétablit la pile
+nécessaire. Les groupes et la couverture des couches écrêtées sont conservés.
+La mémoire des calques cachés reste allouée/évictable : ils sont seulement exclus
+du calcul. `currentLayerHeapBytes` compte tous les plans natifs courants, même
+absents du snapshot GPU ; `tileHeapBytes` inclut aussi les versions d’historique.

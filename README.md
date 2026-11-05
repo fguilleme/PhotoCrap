@@ -363,6 +363,8 @@ Les menus de styles Noir et blanc, Filtre photo et Mélangeur de couches prévis
 
 ## Validation et limites
 
+Les photos natives entièrement opaques et couvrantes permettent aussi d’ignorer le calcul des calques inférieurs, avec contrôle des masques et de l’opacité.
+
 L’historique compacte les petites retouches par rectangles natifs dans les tuiles, avec reconstruction bornée à huit deltas et déchargement disque sans perte.
 
 Les suites `scratch_cache` et `tiled_image` vérifient le stockage sans perte, les références actives, le nettoyage, la concurrence et les versions partagées. Les tests du document couvrent aussi les couvertures de traits parcimonieuses en 8/16 bits.

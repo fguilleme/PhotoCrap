@@ -196,6 +196,40 @@ private slots:
         }
     }
 
+    void denseOpaqueCoverSkipsHiddenUnsupportedLayers()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(517, 523, false, bits));
+            d.addAdjustmentLayer("noise");
+            QVERIFY(!d.gpuLayerStack().valid);
+            d.addLayer();
+            const auto layer = d.activeLayer();
+            d.setTool("gradient");
+            d.setColor(Qt::red);
+            d.setSecondaryColor(Qt::blue);
+            d.beginStroke(0, 0);
+            d.continueStroke(516, 522);
+            d.endStroke();
+            auto stack = d.gpuLayerStack();
+            QVERIFY(stack.valid);
+            QCOMPARE(stack.layers.size(), 1);
+            QVERIFY(stack.layers.first().image.knownOpaque());
+            QCOMPARE(d.composite(), d.layerImage(layer));
+            d.setLayerOpacity(layer, .5);
+            QVERIFY(!d.gpuLayerStack().valid);
+            d.setLayerOpacity(layer, 1.);
+            QVERIFY(d.gpuLayerStack().valid);
+            d.addLayerMask();
+            d.setEditingMask(true);
+            d.setColor(Qt::gray);
+            d.fillWithColor(true);
+            d.setEditingMask(false);
+            QVERIFY(!d.gpuLayerStack().valid);
+            d.setMaskEnabled(false);
+            QVERIFY(d.gpuLayerStack().valid);
+        }
+    }
     void gpuStreamedInputsBoundDeepStackWorkingSet()
     {
         PhotoCrap::Render::LayerStack stack;
@@ -8652,7 +8686,8 @@ private slots:
                     QCOMPARE(d.memoryUsage()["frequencyCacheBytes"].toLongLong(), qint64(0));
                     const auto gpu      = d.gpuLayerStack();
                     const bool eligible = kind == "plain" || kind == "white" || kind == "zero" ||
-                                          kind == "disabled" || kind == "visibleGroup";
+                                          kind == "disabled" || kind == "visibleGroup" ||
+                                          kind == "nonuniform";
                     QCOMPARE(gpu.valid, eligible);
                     if (eligible) {
                         QCOMPARE(gpu.layers.size(),
@@ -8666,7 +8701,8 @@ private slots:
                     QCOMPARE(region, full.copy(sample));
                     QCOMPARE(d.historyIndex(), before);
                     const bool covered = kind == "plain" || kind == "white" || kind == "zero" ||
-                                         kind == "disabled" || kind == "visibleGroup";
+                                         kind == "disabled" || kind == "visibleGroup" ||
+                                         kind == "nonuniform";
                     const auto cache   = d.memoryUsage()["frequencyCacheBytes"].toLongLong();
                     if (covered)
                         QCOMPARE(cache, qint64(0));

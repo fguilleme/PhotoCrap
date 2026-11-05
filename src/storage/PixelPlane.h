@@ -35,6 +35,14 @@ public:
     {
         return size() == QSize(1, 1) || (!m_dirty && !m_tiles.isNull() && m_tiles.tileCount() == 0);
     }
+    bool knownOpaque() const
+    {
+        if (size() == QSize(1, 1)) {
+            const auto pixel = tileImage(0, 0);
+            return pixel.devicePixelRatio() == 1. && pixel.pixelColor(0, 0).alphaF() == 1.;
+        }
+        return !m_dirty && !m_tiles.isNull() && m_tiles.knownOpaque();
+    }
     QRect rect() const
     {
         return QRect(QPoint{}, size());

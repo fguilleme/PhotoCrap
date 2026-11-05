@@ -1,8 +1,20 @@
 # Roadmap PhotoCrap
 
-État du projet au **5 novembre 2026**. Dernière release publiée : **v0.16** (version interne **0.16.0**). Les étapes ajoutées après cette release sont indiquées ci-dessous. Les algorithmes sont propres à PhotoCrap ; une interface et des noms proches de Photoshop ne garantissent pas les mêmes résultats de rendu.
+État au **6 novembre 2026**. La dernière version publiée est **v0.16**
+(version interne **0.16.0**). Le tag **v0.17** (version interne **0.17.0**)
+regroupe les étapes ajoutées depuis v0.16. Sa publication dépend de la
+correction des échecs CI. [Validation du tag](docs/VALIDATION.md#validation-du-tag-v017)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
+
+## Blocages de publication de v0.17
+
+- [ ] Rétablir les comparaisons de pixels du moteur sur Ubuntu et Windows.
+  Le test `document` échoue sur les mêmes 18 assertions dans les deux environnements,
+  dont neuf cas d’équivalence entre composition régionale et intégrale en 16 bits.
+- [ ] Corriger l’échec du smoke test macOS sur le guide du lasso polygonal au survol.
+- [ ] Valider les builds, tests et paquets sur les trois plateformes.
+  [Workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013)
 
 ## Optimisations du 4 novembre 2026 — non publiées
 

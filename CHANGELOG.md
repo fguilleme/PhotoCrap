@@ -4,10 +4,24 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## En développement après v0.16
+## v0.17 — tag du 5 novembre 2026, publication bloquée
 
+Le tag `v0.17` correspond à la version interne `0.17.0`. La dernière version
+téléchargeable reste v0.16. [Validation du tag](docs/VALIDATION.md#validation-du-tag-v017)
+
+- Étendre la retouche native au 16 bits et ajouter les calques de forme
+  éditables de la Plume, la conversion d’un tracé en forme et le panneau Tracés.
+- Ajouter les styles, l’anticrénelage et le contour progressif aux sélections
+  géométriques. Revoir la charge, le mélange et le prélèvement multicalque du pinceau mélangeur.
+- Étendre l’aperçu GPU aux réglages tonals, aux masques progressifs et aux
+  combinaisons éligibles de fusion, de bruit et de mosaïque. Mutualiser les
+  ressources des tuiles, des filtres spatiaux et des niveaux de zoom.
+  [Rendu GPU](docs/GPU_RENDERING.md)
 - Conserver les cadres et poignées de tranches sur GPU, réutiliser les petits
   tampons des numéros au défilement et libérer le Canvas de repli au retour GPU.
+- Réduire les allocations lors de la lecture et de l’écriture des projets, des
+  retouches régionales et des grands exports PNG, BMP, JPEG et WebP.
+  [Plan d’optimisation](docs/OPTIMIZATION_PLAN.md)
 
 ## v0.16 — 2 novembre 2026
 

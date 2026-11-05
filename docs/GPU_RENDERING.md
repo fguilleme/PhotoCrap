@@ -1,5 +1,21 @@
 # Canevas et accélération graphique
 
+## Ressources réutilisées dans le tag v0.17
+
+La pile native, les filtres spatiaux et les réductions utilisent le même tampon
+de sommets et le même échantillonneur du canevas. Chaque famille de passes
+réutilise ses pipelines lorsque les cibles sont compatibles. En mode à entrées
+conservées, les tuiles partagent aussi les textures immuables des tables de
+réglage et de fusion.
+
+Une retouche d’opacité actualise les paramètres des passes concernées. Les
+liaisons restent en place tant que leurs textures restent les mêmes. Dans la
+pyramide, les paramètres d’un niveau décrivent une grille fixe. Ils sont
+transmis une fois et réutilisés quand les pixels changent. En mode partagé,
+la cible horizontale est libérée avec le dernier niveau qui l’utilise. Chaque
+tuile conserve sa propre sortie réduite.
+[Contrôles locaux](VALIDATION.md#réutilisation-des-ressources-gpu--5-novembre-2026)
+
 ## Signatures des bordures partielles — 3 novembre 2026
 
 Une région GPU lit souvent seulement le bord d’une tuile de stockage de 256 px.
@@ -27,12 +43,13 @@ Chaque niveau garde une passe horizontale RGBA32F et une sortie RGBA8 ou RGBA32F
 selon la profondeur du document. Les réductions 8/16 bits conservent l’alpha
 prémultiplié ; la sortie est quantifiée selon la profondeur native.
 
-Les niveaux sont créés à la demande. Un zoom vers un niveau déjà calculé réutilise
-sa texture, sans nouveau transfert, recomposition native ou réduction. Une version
-native modifiée invalide ces niveaux ; seul le niveau demandé est recalculé.
-Leur stockage et leurs intermédiaires sont comptés dans le budget partagé et dans
-la réserve conservatrice du jeu de travail visible. Les tuiles hors écran restent
-évincées par LRU. La destruction du graphe libère aussi les niveaux.
+Les niveaux sont créés à la demande. En mode à accumulateurs privés, un zoom
+vers un niveau déjà calculé réutilise la texture si le composite natif est
+encore courant. En mode partagé, changer de niveau peut redemander la composition
+native. Après une modification des pixels, seul le niveau demandé est réduit.
+Les sorties et leurs intermédiaires entrent dans le budget du jeu de travail
+visible. Le LRU évince les tuiles hors écran. La destruction du graphe libère
+aussi les niveaux.
 
 Le CPU conserve son chemin réduit pour les piles incompatibles, les formats
 manquants, le zoom au-delà du niveau 1/16 et les jeux de travail trop grands. Les
@@ -60,8 +77,10 @@ horizontale conserve la somme entière dans une cible RGBA32F ; l'arrondi 2D n'e
 appliqué qu'après la verticale, comme dans la référence vImage. Le flou directionnel
 reprend les positions et le nombre d'échantillons du CPU. Netteté et Passe-haut
 utilisent l'image originale et le gaussien sans écraser l'accumulateur de la pile.
-Les deux cibles auxiliaires sont réutilisées par les filtres successifs et comptées
-dans le budget avant allocation.
+Les filtres successifs réutilisent les cibles auxiliaires. Le flou directionnel
+utilise une seule cible. La seconde est créée à la première passe qui la demande
+et libérée lorsque les filtres actifs se contentent de la première. Le nombre de
+cibles et de passes entre dans l’estimation du budget.
 
 Les paramètres actualisent directement le snapshot GPU, indépendamment d'un
 worker CPU occupé. Les aperçus CPU auxiliaires du Navigateur/histogramme sont
@@ -90,9 +109,9 @@ un demi-flottant ne suffit pas à représenter toutes les valeurs natives. La
 couverture d'écrêtage suit le masque 8 bits existant. Le rendu d'affichage est
 comparé avec une tolérance de deux unités 8 bits, sans modifier les pixels sauvegardés.
 
-Une version régionale dépend des identifiants immuables des tuiles de stockage,
-pas du QImage reconstruit. Une modification distante ou un déchargement disque
-ne provoque donc aucun transfert de la région inchangée. Le résultat de la
+Une version régionale dépend des identifiants immuables des tuiles de stockage
+et des signatures de leurs bordures partielles. Une modification distante ou un
+déchargement disque laisse la texture de la région inchangée en place. Le résultat de la
 composition reste sur GPU entre les images. Les snapshots de plans sont libérés
 après leur préparation ; les tuiles hors écran sont évincées selon leur ancienneté.
 OpenGL utilise des shaders GLSL 330 avec emplacements de sorties explicites :
@@ -198,10 +217,10 @@ n’est introduit. Le cache ne garde pas de référence au composite natif.
 
 Un changement de dimensions, un rendu asynchrone complet,
 une vue de couche/masque ou une annulation sans rectangle fiable conserve également
-le rechargement complet. La composition GPU de la pile reste à développer.
-Fondu, Bruit et Mosaïque demandent une recomposition CPU complète, car leur résultat
-dépend des coordonnées absolues. Les masques adoucis élargissent le rectangle de
-recomposition de leur rayon ; les halos des filtres s’additionnent.
+le rechargement complet. Les chemins régionaux de Fondu, Bruit et Mosaïque
+conservent les coordonnées absolues du document et basculent sur une composition
+intégrale si la pile l’exige. Les masques adoucis élargissent le rectangle de
+recomposition de leur rayon. Les halos des filtres s’additionnent.
 
 ## Cache graphique de navigation
 
@@ -2024,8 +2043,8 @@ et Négatif sont calculés dans la pile GPU par tables natives. Les documents
 16 bits utilisent les 65 536 entrées sur une texture 256 × 256 en RGBA32F ;
 aucune LUT 8 bits ne remplace les valeurs natives. Un LRU GUI de 4 Mio conserve
 les tables, indépendamment des réglages de masque et d’opacité. Les sources et
-les tables graphiques inchangées sont réutilisées. Le rendu final CPU ne change
-pas. Les autres réglages et masques progressifs restent à étendre.
+les tables graphiques inchangées sont réutilisées. Le moteur CPU reste la
+référence du rendu final.
 
 Tests : précision non multiple de 257, réutilisation du cache, Annuler et comparaison
 logiciel/Metal de quatorze piles transparentes avec masque et deux réglages.
@@ -2034,11 +2053,11 @@ Les autres réglages tonals éligibles sont aussi composés dans la pile : Lumi�
 Couleur, Noir et blanc, Transfert de dégradé, Filtre photo, Mélangeur de couches,
 Seuil, Style colorimétrique, Correction sélective, Vibrance et Teinte/Saturation.
 Les formules analytiques conservent la quantification native et les palettes
-utilisent 256/65 536 valeurs. Les calculs directs partagent un seul pixel factice
-au lieu d’une LUT inutilisée. Les comparaisons logiciel/Metal couvrent 36 piles
-avec deux réglages, source transparente, opacité fractionnaire et masque peint.
-Le moteur complet passe également. Dissoudre, Mélange maximal et TSL gardent leur
-repli de pile CPU, distinct de leurs aperçus GPU existants.
+utilisent 256/65 536 valeurs. Les calculs directs évitent d’allouer une texture
+de table. Les comparaisons logiciel/Metal couvrent 36 piles avec deux réglages,
+source transparente, opacité fractionnaire et masque peint. Les sections sur les
+fusions natives détaillent les conditions d’éligibilité de Fondu, Mélange
+maximal et des quatre modes HSL.
 
 
 ## Contour progressif des masques dans la pile — 4 novembre 2026
@@ -2089,9 +2108,9 @@ La prévision compte les différents formats de bords et quatre niveaux conserv�
 le repli CPU reste actif si elle ne tient pas dans le budget. Les ressources
 partagées sont comptées une fois dans les statistiques résidentes, tandis que
 l’éviction réserve conservativement leur coût avec les tuiles retenues. Les
-changements de document libèrent le pool de réductions. La suite Metal couvre
-les zooms, les couleurs indépendantes de tuiles voisines, les masques progressifs
-et les cinq filtres spatiaux en 8/16 bits. Le test de budget sur 24 Mpx/16 bits
+textures horizontales partagées sont libérées avec le dernier niveau qui les
+utilise. La suite Metal couvre les zooms, les couleurs indépendantes de tuiles
+voisines, les masques progressifs et les cinq filtres spatiaux en 8/16 bits. Le test de budget sur 24 Mpx/16 bits
 réduit la prévision d’au moins un facteur trois ; ce n’est pas une mesure de RSS.
 
 ## Fusions HSL dans la pile native (5 novembre 2026)

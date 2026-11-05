@@ -1,5 +1,41 @@
 # Validation
 
+## Validation du tag v0.17
+
+Le workflow du 5 novembre 2026 a compilé le commit `3c728d3` avec Qt 6.8.3 sur
+les trois runners. Chaque job a ensuite échoué pendant les tests. GitHub a
+ignoré l’étape de publication, et v0.16 reste la dernière release téléchargeable.
+[Workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013) ·
+[Étape de publication](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013/job/127580286452)
+
+| Plateforme | Résultat des tests du tag |
+|---|---|
+| Ubuntu 22.04 | 18 assertions en échec dans `document`, dont neuf comparaisons entre composition régionale et intégrale en 16 bits. Les échecs se reproduisent dans le workflow du push précédent. [Journal Ubuntu](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013/job/127567058220) |
+| Windows 2022 | Les mêmes 18 assertions du moteur échouent dans `document`. [Journal Windows](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013/job/127567058668) |
+| macOS 15 | `qml_smoke` échoue sur l’actualisation du guide du lasso polygonal au survol. Le workflow du push précédent avait échoué sur le survol d’une poignée de recadrage. [Journal macOS](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013/job/127567058696) |
+
+Sur Apple Silicon, les 57 tests CTest lancés avec Qt 6.12 passent après les
+dernières optimisations. Les trois tests macOS interactifs de curseur, Plume
+et préférences sont exclus de ce total. Avec Qt 6.8.3, le build local passe
+et `qml_smoke` réussit trois fois de suite. Ces résultats décrivent les
+configurations locales.
+
+## Réutilisation des ressources GPU — 5 novembre 2026
+
+- `stack_render` vérifie une table transférée et un pipeline compatible partagé
+  sur trois tuiles. Modifier l’opacité du calque met à jour trois buffers de
+  paramètres, avec les textures et liaisons déjà en place.
+- `spatial_render` compare les cinq filtres spatiaux à la référence CPU 8/16 bits.
+  Le flou directionnel alloue une cible et le retrait du filtre à deux passes
+  libère la seconde cible et réduit le coût comptabilisé par le canevas.
+- `display_pyramid` compare les quatre niveaux sur une image de 1057 × 545 pixels
+  en 8/16 bits. Un coup de pinceau actualise l’image réduite avec les paramètres
+  existants. Les niveaux suivants réutilisent les pipelines du premier niveau.
+  En mode partagé, ajouter puis retirer un flou et recalculer les quatre niveaux
+  ramène le budget comptabilisé à sa valeur initiale.
+- Les comparaisons de rendu ont été exécutées sur Metal et OpenGL Core.
+  Les tests matériels Vulkan et Direct3D restent à exécuter.
+
 ## Exports PNG/BMP par bandes — 5 novembre 2026
 
 `project_writer` compare tous les pixels décodés des images 8/16 bits, les

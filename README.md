@@ -4,17 +4,15 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Version publiée : **v0.16**. Les travaux restants sont suivis dans [ROADMAP.md](ROADMAP.md).
-
-La **v0.16** (version interne **0.16.0**) apporte les aperçus GPU, les guides
-et graphiques retenus et le texte éditable. Ses trois plateformes sont validées ;
-voir les [notes de version](CHANGELOG.md).
+La dernière version téléchargeable est **v0.16** (version interne **0.16.0**).
+Le code source porte le tag **v0.17** (version interne **0.17.0**). Les tests
+GitHub Actions ont échoué sur Ubuntu, Windows et macOS. Le workflow a donc
+sauté l’étape de publication de v0.17.
+[Suivi du projet](ROADMAP.md) · [Résultats par plateforme](docs/VALIDATION.md#validation-du-tag-v017)
 
 ## Télécharger
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
-
-Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.16.0**.
 
 ## Nouveautés de v0.15
 
@@ -24,7 +22,7 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 - **Cache LRU de fréquences corrigé** : une bande haute déjà présente est réutilisée sans recalculer sa bande basse évincée.
 - **Tests de mémoire et de rendu renforcés** : 64 calques remplis en 8/16 bits, versions de tuiles partagées, éviction, nettoyage, stockage indisponible, concurrence et Annuler/Rétablir.
 
-## Optimisations en développement après v0.16
+## Optimisations présentes dans le tag v0.17
 
 - **Plans et historique par tuiles partagées de 256 × 256** : fonds compacts dès la création, allocation des seules tuiles modifiées et conversions natives 8/16 bits sans reconstruire le canevas. Les PNG identiques des images, masques et sources sont réutilisés au chargement, par format natif.
 - **Sources de fréquences partagées** quand le masque est neutre, fonds compacts étendus par leur seule taille logique. Les grandes sources masquées ou composées sont préparées sur un worker annulable, avec budget RAM/disque et réutilisation du composite terminé. Les masques 16 bits à pleine densité utilisent un calcul entier exact.
@@ -32,8 +30,10 @@ Le tag est **v0.16** ; la version interne et les noms des paquets utilisent **0.
 - **Calculs locaux** pour les pipettes, outils à empreintes et leurs sources composées compatibles, tracés, formes, texte, dégradés sélectionnés, copie de sélection et placement des imports. La Baguette magique lit ses tuiles à la demande avec un cache borné ; les sources uniformes reconnues sont sélectionnées sans parcours des pixels. Sélection rapide et contours progressifs des masques travaillent aussi dans leur région utile, avec les halos requis. Le déplacement sépare source et destination ; les calques denses ou transparents se déplacent par tuiles, en conservant les fonds uniformes. Les dégradés pleine image utilisent des bandes natives bornées. Les sélections globales et piles à effets non locaux peuvent encore demander des tampons complets.
 - **Chargements et opérations coûteuses en arrière-plan** : images, projets, RAW, imports, géométrie, profondeur, fusion, remplissages, filtres directs et Baguette magique sur les grands documents. Seul un résultat encore courant est appliqué ; les éditions ajoutent une étape annulable. L’ancien document reste affiché pendant une ouverture et n’est pas retenu inutilement après son remplacement. Les opérations générales passent sur worker à partir de quatre millions de pixels traités ; les petites éditions gardent leur chemin direct.
 - **Sauvegarde et export asynchrones** : écriture `.pcr` v9 par flux PNG/Base64/JSON atomique, sans accumuler le projet encodé ; un cache de 8 Mio réutilise les petits blocs des plans répétés. La fermeture attend la confirmation d’enregistrement. L’annulation conserve le fichier précédent jusqu’au point de publication final, ensuite non annulable.
+- **Grands projets et exports** avec des allocations bornées pour les cas compatibles. Les plans PNG de projet éligibles sont encodés par bandes et décodés directement en tuiles. Les grands exports PNG, BMP et JPEG sont écrits par bandes, et WebP remplit ses plans YUVA à partir de ces bandes. Les piles qui demandent une composition intégrale gardent ce chemin.
 - **Cache disque et budget RAM appliqués pendant la préparation** des conversions, imports et chargements, puis à l’historique après une pause. Le worker collecte les groupes partagés hors interface. Les tâches caduques s’arrêtent entre tuiles ; cache indisponible ou saturé laisse les pixels en RAM. Le budget des tuiles vaut 256 Mio par défaut ; décodeurs, composite, sélections et pages mappées restent distincts du RSS total.
-- **Pile d’affichage GPU** pour pixels, texte et Couleur unie, avec masques, écrêtage et 21 modes de fusion. Flous de boîte, gaussien et directionnel, netteté et passe-haut disposent de passes avec halos. Les régions inchangées et quatre réductions GPU (1/2 à 1/16) réutilisent leurs textures. Les piles incompatibles et le rendu final gardent leur référence CPU native.
+- **Pile d’affichage GPU** pour les pixels, le texte, les formes et Couleur unie. Les 27 modes de fusion sont éligibles sous conditions, avec masques et écrêtage selon le cas. Le GPU traite aussi les flous, la netteté, le passe-haut, le bruit et la mosaïque. Les piles incompatibles et le rendu final utilisent le moteur CPU natif.
+- **Ressources GPU réutilisées** entre tuiles et niveaux de zoom. Les tuiles partagent le tampon de sommets et les pipelines compatibles. Le mode à entrées conservées partage aussi les tables immuables. Les quatre niveaux réduits de 1/2 à 1/16 envoient leurs paramètres une seule fois. Les textures intermédiaires partagées sont libérées après leur dernier usage.
 - **Budget graphique partagé** entre canevas, photos, masques, effets et intermédiaires, avec réserve visible vérifiée avant allocation. Les bordures partielles gardent des empreintes bornées. Ce suivi n’est pas une mesure ni un plafond de la VRAM physique du pilote.
 
 Quelques mesures locales, dont les conditions sont décrites dans la [validation](docs/VALIDATION.md) :

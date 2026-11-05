@@ -4,17 +4,14 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Published version: **v0.16**. Remaining work is tracked in [ROADMAP.md](ROADMAP.md).
-
-**v0.16** (internal version **0.16.0**) adds GPU previews, retained guides and
-charts, and editable text. All three platforms are validated;
-see the [release notes](CHANGELOG.md).
+**v0.16** (internal version **0.16.0**) is the latest downloadable release.
+The source is tagged **v0.17** (internal version **0.17.0**). GitHub Actions
+tests failed on Ubuntu, Windows, and macOS, so the workflow skipped publishing
+v0.17. [Roadmap](ROADMAP.md) · [Results by platform](docs/VALIDATION.md#validation-du-tag-v017)
 
 ## Download
 
 [Release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
-
-The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 
 ## New in v0.15
 
@@ -24,16 +21,18 @@ The tag is **v0.16**; the internal version and package filenames use **0.16.0**.
 - **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
 - **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
 
-## Optimizations in development after v0.16
+## Optimizations in the v0.17 tag
 
 - **Shared 256 × 256 tiled planes and history**: compact backgrounds from creation, allocation of touched tiles only and native 8/16-bit conversions without rebuilding the canvas. Identical image, mask and source PNGs are reused per native format when loading projects.
 - **Shared frequency sources** with neutral masks, and compact backgrounds given logical dimensions only. Large masked or composed sources are prepared on a cancellable worker using the RAM/disk budget and an existing completed composite. Full-density 16-bit masks use exact integer arithmetic.
 - **Shared CPU/GPU visibility rules**: transparent planes, neutral uniform masks and layers hidden under an opaque uniform pixel layer avoid unnecessary expansion and passes. Fully hidden unsupported effects no longer force CPU fallback; partial opacity restores that fallback. Low native alpha values remain present.
-- **Regional processing** for eyedroppers, dab-based tools and their supported composited sources, path fills, shapes, text, selected gradients, selected-area clipboard copies and imported-image placement. Magic Wand reads tiles on demand with a bounded cache; recognized uniform sources are selected without scanning their pixels. Quick Selection and feathered masks use their search regions and required halos. Move handles source and destination separately; sparse transparent layers move tile by tile. Global selections, nonlocal effects, dense layers and full-image gradients may still need full-sized buffers.
+- **Regional processing** for eyedroppers, dab-based tools and their supported composited sources, path fills, shapes, text, selected gradients, selected-area clipboard copies and imported-image placement. Magic Wand reads tiles on demand with a bounded cache; recognized uniform sources are selected without scanning their pixels. Quick Selection and feathered masks use their search regions and required halos. Move handles source and destination separately. Dense and transparent layers move tile by tile, and full-image gradients render in bounded bands. Global selections and stacks with nonlocal effects may still require full-size buffers.
 - **Background loading and expensive operations**: images, projects, RAW, imports, geometry, bit depth, merges, fills, direct filters and Magic Wand on large documents. Only current results are applied; edits create one undoable step. The previous document stays visible while opening a file and is not needlessly retained after replacement. General operations use a worker from four million processed pixels; small edits retain their direct path.
 - **Asynchronous saving and export**: atomic `.pcr` v9 PNG/Base64/JSON streaming without accumulating the encoded project; an 8 MiB cache reuses small repeated plane payloads. Closing waits for save confirmation. Cancellation preserves the previous file until the final publication point, which is then non-cancellable.
+- **Large projects and exports** use bounded allocations in supported cases. Eligible project PNG planes are encoded in bands and decoded directly into native tiles. Large PNG, BMP, and JPEG exports write in bands, and WebP fills its YUVA planes from those bands. Stacks that require a full composite keep that path.
 - **Scratch cache and RAM budgeting during preparation** of conversions, imports and loads, then for history after a pause. The worker collects shared layer groups outside the interface thread. Stale jobs stop between tiles; an unavailable or full cache keeps pixels in RAM. The tile target defaults to 256 MiB; decoders, the composite, selections and mapped pages remain distinct from total RSS.
-- **GPU display stacks** for pixels, text and Solid Color, with masks, clipping and 21 blend modes. Box, Gaussian and directional blur, sharpening and high pass have halo-aware passes. Unchanged regions and four GPU reduction levels (1/2 through 1/16) reuse textures. Incompatible stacks and final rendering retain the native CPU reference.
+- **GPU display stacks** for pixels, text, shapes, and Solid Color. All 27 blend modes are eligible under documented conditions, with masks and clipping where supported. The GPU also handles blur, sharpening, high pass, noise, and mosaic. Unsupported stacks and final rendering use the native CPU engine.
+- **GPU resources are reused** across tiles and zoom levels. Tiles share the vertex buffer and compatible pipelines. Retained-input mode also shares immutable lookup tables. The four reduction levels from 1/2 to 1/16 upload their parameters once. Shared intermediate textures are released after their last use.
 - **Shared graphics budget** across canvases, photos, masks, effects and intermediates, with visible working sets checked before allocation. Partial borders keep bounded fingerprints. This accounting is neither a measurement nor a hard limit of physical driver VRAM.
 
 Selected local measurements, with conditions documented in [validation](docs/VALIDATION.md):

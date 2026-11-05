@@ -1013,6 +1013,8 @@ public:
     }
     const QImage                 &composite() const;
     QImage                        compositeRegion(const QRect &_region) const;
+    // Only for a private renderer whose captured layers stay fixed.
+    QImage                        frozenCompositeRegion(const QRect &_region) const;
     QImage                        displayComposite() const;
     PhotoCrap::Render::LayerStack gpuLayerStack() const;
     // Empty means the caller must refresh the whole image. Keys identify the
@@ -1577,6 +1579,8 @@ private:
     mutable qint64                         m_channelDisplaySourceKey  = 0;
     mutable int                            m_channelDisplayCacheIndex = 0;
     mutable QImage                         m_composite;
+    mutable QImage                         m_frozenSample;
+    mutable QRect                          m_frozenSampleRegion;
     mutable qint64                         m_compositeUpdateBefore = 0, m_compositeUpdateAfter = 0;
     mutable QRect                          m_compositeUpdateRegion;
     mutable bool                           m_cacheDirty         = true;

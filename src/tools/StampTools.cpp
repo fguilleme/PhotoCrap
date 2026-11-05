@@ -144,7 +144,7 @@ void Document::renderStampStroke()
                                        .intersected(QRect(QPoint{}, m_size));
         if (!sourceBounds.isEmpty()) {
             const QImage sample = m_stampCompositeSource
-                                      ? m_stampCompositeSource->compositeRegion(sourceBounds)
+                                      ? m_stampCompositeSource->frozenCompositeRegion(sourceBounds)
                                       : m_stampSource.region(sourceBounds);
             if (sample.isNull()) {
                 m_strokeCoverageFailed = true;

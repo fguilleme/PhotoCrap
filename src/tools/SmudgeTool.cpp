@@ -15,7 +15,7 @@ QImage samplePatch(const PixelPlane &_image, const QRect &_rect, const QSize &_s
     const QRect region = _rect.intersected(QRect(QPoint{}, _size));
     if (!region.isEmpty()) {
         const QImage pixels =
-            _composite ? _composite->compositeRegion(region) : _image.region(region);
+            _composite ? _composite->frozenCompositeRegion(region) : _image.region(region);
         if (pixels.isNull())
             return {};
         QPainter painter(&patch);

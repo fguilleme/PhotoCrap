@@ -304,6 +304,41 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     return regionComposite;
 }
 
+QImage Document::frozenCompositeRegion(const QRect &_region) const
+{
+    const QRect bounds(QPoint{}, m_size);
+    const QRect region = _region.intersected(bounds);
+    if (region.isEmpty() || !m_cacheDirty)
+        return compositeRegion(region);
+    if (m_frozenSampleRegion.contains(region))
+        return region == m_frozenSampleRegion
+                   ? m_frozenSample
+                   : m_frozenSample.copy(region.translated(-m_frozenSampleRegion.topLeft()));
+    // Keep the first sample exact. Once requests overlap, include a small
+    // neighborhood so successive dabs can reuse the same composited pixels.
+    constexpr qint64 maxBytes   = 256 * 1024;
+    const int        pixelBytes = m_channelBits == 16 ? 8 : 4;
+    const QRect      window =
+        m_frozenSampleRegion.intersects(region)
+            ? expanded(region, qBound(8, qMin(region.width(), region.height()) / 2, 32), bounds)
+            : region;
+    const auto fits = [&](const QRect &_rect) {
+        return qint64(_rect.width()) * _rect.height() * pixelBytes <= maxBytes;
+    };
+    const QRect sampleRegion = fits(window) ? window : region;
+    QImage      sample       = compositeRegion(sampleRegion);
+    if (sample.isNull() || !m_cacheDirty || !fits(sampleRegion)) {
+        m_frozenSample       = {};
+        m_frozenSampleRegion = {};
+    } else {
+        m_frozenSample       = sample;
+        m_frozenSampleRegion = sampleRegion;
+    }
+    return sampleRegion == region || sample.isNull()
+               ? sample
+               : sample.copy(region.translated(-sampleRegion.topLeft()));
+}
+
 std::unique_ptr<Document> Document::nativeCompositeSource(QVector<Layer> _layers) const
 {
     auto renderer                  = std::make_unique<Document>();

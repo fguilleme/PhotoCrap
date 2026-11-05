@@ -49,9 +49,10 @@ void Document::spotHealingDab(const QPointF &_point)
     const QRect sourceBounds =
         QRect(centre - QPoint(reach, reach), QSize(2 * reach + 1, 2 * reach + 1))
             .intersected(documentRect);
-    const QImage sourcePatch = m_spotHealingCompositeSource
-                                   ? m_spotHealingCompositeSource->compositeRegion(sourceBounds)
-                                   : m_spotHealingSample.region(sourceBounds);
+    const QImage sourcePatch =
+        m_spotHealingCompositeSource
+            ? m_spotHealingCompositeSource->frozenCompositeRegion(sourceBounds)
+            : m_spotHealingSample.region(sourceBounds);
     if (sourcePatch.isNull()) {
         m_strokeCoverageFailed = true;
         return;

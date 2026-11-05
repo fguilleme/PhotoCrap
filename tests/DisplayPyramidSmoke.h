@@ -84,10 +84,18 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
                            "hardware pyramid or software fallback selected") &&
                    require(maximum <= 2, "full reduced image matches the global CPU sampling grid");
         };
-        for (int level : {1, 2, 3, 4})
+        const auto pipelines = canvas.stackPipelineCreations();
+        if (!check(1))
+            return false;
+        const auto firstLevelPipelines = canvas.stackPipelineCreations();
+        for (int level : {2, 3, 4})
             if (!check(level))
                 return false;
         if (hardware) {
+            if (!require(firstLevelPipelines <= pipelines + 3 &&
+                             canvas.stackPipelineCreations() == firstLevelPipelines,
+                         "all tiles and zoom levels reuse compatible reduction pipelines"))
+                return false;
             const auto uploads = canvas.stackTextureUploads(), passes = canvas.stackPasses(),
                        reductions = canvas.gpuReductionPasses();
             if (!require(reductions > 0 && canvas.displayLevelSourcePixels() == cpuBefore,

@@ -51,6 +51,7 @@ struct DrawResources {
     std::unique_ptr<QRhiShaderResourceBindings> pipelineLayout;
     std::vector<Pipeline>                       pipelines;
     SpatialFilterPipelines                      spatialPipelines;
+    DisplayPyramidPipelines                     pyramidPipelines;
     Counters                    *counters = nullptr;
     bool                         uploaded = false;
     QHash<QByteArray, std::weak_ptr<Input>> tables;
@@ -342,9 +343,9 @@ public:
         QRect        box = content, textureRegion = region;
         if (displayLevel > 0) {
             if (!pyramid)
-                pyramid = std::make_unique<DisplayPyramidPass>(rhi, region, stack.size, bits,
-                                                               *draw.vertices, *draw.sampler,
-                                                               *counters, reductionPool);
+                pyramid = std::make_unique<DisplayPyramidPass>(
+                    rhi, region, stack.size, bits, *draw.vertices, *draw.sampler,
+                    draw.pyramidPipelines, *counters, reductionPool);
             texture = pyramid->ensure(texture, displayLevel);
             if (!texture) {
                 reject(__LINE__);

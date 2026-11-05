@@ -10,6 +10,8 @@ class QRhi;
 class QRhiTexture;
 class QRhiBuffer;
 class QRhiSampler;
+class QRhiGraphicsPipeline;
+class QRhiTextureRenderTarget;
 class QRhiCommandBuffer;
 // Shared horizontal reduction targets. Outputs always remain private to a tile.
 class DisplayPyramidScratchPool
@@ -24,11 +26,24 @@ private:
     struct Data;
     std::unique_ptr<Data> d;
 };
+class DisplayPyramidPipelines
+{
+public:
+    DisplayPyramidPipelines();
+    ~DisplayPyramidPipelines();
+    QRhiGraphicsPipeline *get(QRhiTextureRenderTarget            &target,
+                              PhotoCrap::Render::StackStatistics &statistics);
+
+private:
+    struct Data;
+    std::unique_ptr<Data> d;
+};
 class DisplayPyramidPass
 {
 public:
     DisplayPyramidPass(QRhi *rhi, const QRect &nativeRegion, const QSize &documentSize, int bits,
                        QRhiBuffer &vertices, QRhiSampler &sampler,
+                       DisplayPyramidPipelines                   &pipelines,
                        PhotoCrap::Render::StackStatistics        &statistics,
                        std::shared_ptr<DisplayPyramidScratchPool> pool);
     ~DisplayPyramidPass();

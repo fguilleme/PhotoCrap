@@ -77,6 +77,10 @@ public:
     {
         return m_stackStatistics->bytes.load();
     }
+    quint64 stackSnapshotPreparations() const
+    {
+        return m_stackSnapshotPreparations;
+    }
     bool gpuStackActive() const
     {
         return m_gpuStackActive.load();
@@ -194,11 +198,14 @@ private:
     QImage m_textureImage, m_overlayImage, m_toneTable, m_toneMask, m_textureMaskImage;
     bool   m_gpuTonePreviewEnabled = false;
     bool   m_gpuStackEnabled = false, m_gpuStackRejected = false;
+    bool   m_stackSnapshotPrepared = false;
+    PhotoCrap::Render::LayerStack                       m_stackSnapshot;
     PhotoCrap::Render::LayerStack                       m_stack;
     std::shared_ptr<PhotoCrap::Render::StackStatistics> m_stackStatistics =
         std::make_shared<PhotoCrap::Render::StackStatistics>();
 #ifdef PHOTOCRAP_TESTING
     std::atomic<bool> m_gpuStackActive{false};
+    quint64           m_stackSnapshotPreparations = 0;
 #endif
     PhotoCrap::Filters::ToneMappingSettings                    m_toneSettings;
     QHash<quint64, QImage>                                     m_tileImages, m_maskTileImages;

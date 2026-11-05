@@ -311,6 +311,7 @@ void CanvasItem::setDocument(Document *_document)
         connect(_document, &Document::gpuTonePreviewChanged, this,
                 [this] { queueFrame(true, false); });
         connect(_document, &Document::gpuStackChanged, this, [this] {
+            m_stackSnapshotPrepared = false;
             if (m_gpuStackEnabled && m_stack.valid && !m_gpuStackRejected)
                 queueFrame(true, false);
         });

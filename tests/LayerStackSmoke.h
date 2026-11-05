@@ -97,9 +97,20 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             if (!require(canvas.stackTextureUploads() == uploads && canvas.stackPasses() == passes,
                          "unchanged stacks reuse source textures and completed intermediates"))
                 return false;
+            const auto snapshot = canvas.stackSnapshotPreparations();
+            canvas.setSize({601, 128});
+            frame();
+            canvas.setSize({600, 128});
+            frame();
+            if (!require(canvas.stackSnapshotPreparations() == snapshot,
+                         "geometry-only frames reuse the stack snapshot"))
+                return false;
             document.setLayerBlend(document.activeLayer(), 0);
             frame();
             frame();
+            if (!require(canvas.stackSnapshotPreparations() > snapshot,
+                         "layer edits refresh the stack snapshot"))
+                return false;
             const auto before = canvas.stackTextureUploads();
             const auto beforePixel =
                 document.layerImage(document.activeLayer()).pixelColor(510, 64);

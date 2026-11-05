@@ -267,12 +267,26 @@ void CanvasItem::updatePolish()
     if (m_document)
         m_document->setGpuToneNearestSampling(width() >= m_document->width());
     const bool previousStack = m_stack.valid;
-    m_stack =
+    const bool canUseStack =
         m_gpuStackEnabled && !m_gpuStackRejected && m_document &&
-                !m_document->gpuTonePreviewActive() && window() &&
-                QSGRendererInterface::isApiRhiBased(window()->rendererInterface()->graphicsApi())
-            ? m_document->gpuLayerStack()
-            : PhotoCrap::Render::LayerStack{};
+        !m_document->gpuTonePreviewActive() && window() &&
+        QSGRendererInterface::isApiRhiBased(window()->rendererInterface()->graphicsApi());
+    if (canUseStack) {
+        // Panning, overlays and budget changes reuse the layer snapshot. The
+        // view can still choose a different storage or zoom level each time.
+        if (m_imageDirty || !m_stackSnapshotPrepared) {
+            m_stackSnapshot         = m_document->gpuLayerStack();
+            m_stackSnapshotPrepared = true;
+#ifdef PHOTOCRAP_TESTING
+            ++m_stackSnapshotPreparations;
+#endif
+        }
+        m_stack = m_stackSnapshot;
+    } else {
+        m_stackSnapshot         = {};
+        m_stackSnapshotPrepared = false;
+        m_stack                 = {};
+    }
     if (m_stack.valid && width() > 0 && height() > 0) {
         const qreal ratio = window()->effectiveDevicePixelRatio();
         const qreal scale =

@@ -320,6 +320,10 @@ struct TiledImage::Data {
     {
         return (size.width() + TileSize - 1) / TileSize;
     }
+    bool hasEveryTile() const
+    {
+        return tiles.size() == columns() * ((size.height() + TileSize - 1) / TileSize);
+    }
     int key(int _column, int _row) const
     {
         return _row * columns() + _column;
@@ -329,9 +333,20 @@ struct TiledImage::Data {
         return QRect(_column * TileSize, _row * TileSize, TileSize, TileSize)
             .intersected(QRect(QPoint{}, size));
     }
-    QImage blank(const QSize &_size) const
+    QImage createImage(const QSize &_size) const
     {
         QImage image(_size, background.format());
+        if (image.isNull())
+            return {};
+        image.setColorSpace(background.colorSpace());
+        image.setDevicePixelRatio(background.devicePixelRatio());
+        image.setDotsPerMeterX(background.dotsPerMeterX());
+        image.setDotsPerMeterY(background.dotsPerMeterY());
+        return image;
+    }
+    QImage blank(const QSize &_size) const
+    {
+        auto image = createImage(_size);
         if (image.isNull())
             return {};
         if (background.format() == QImage::Format_Grayscale8)
@@ -346,11 +361,15 @@ struct TiledImage::Data {
             for (int y = 0; y < image.height(); ++y)
                 std::fill_n(reinterpret_cast<quint64 *>(image.scanLine(y)), image.width(), pixel);
         }
-        image.setColorSpace(background.colorSpace());
-        image.setDevicePixelRatio(background.devicePixelRatio());
-        image.setDotsPerMeterX(background.dotsPerMeterX());
-        image.setDotsPerMeterY(background.dotsPerMeterY());
         return image;
+    }
+    QImage readBuffer(const QSize &_size) const
+    {
+        // Dense planes overwrite every output pixel. Only skip initialization
+        // when there is also no scanline padding left over.
+        const bool padding =
+            background.format() == QImage::Format_Grayscale8 && _size.width() % 4 != 0;
+        return hasEveryTile() && !padding ? createImage(_size) : blank(_size);
     }
 };
 
@@ -564,7 +583,7 @@ QImage TiledImage::region(const QRect &_region) const
     const QRect region = _region.intersected(QRect(QPoint{}, m_data->size));
     if (region.isEmpty())
         return {};
-    QImage result = m_data->blank(region.size());
+    QImage result = m_data->readBuffer(region.size());
     if (result.isNull())
         return {};
     for (int row = region.top() / TileSize; row <= region.bottom() / TileSize; ++row)
@@ -590,7 +609,7 @@ QImage TiledImage::scaledFast(const QSize &target) const
             .scaled(target, Qt::IgnoreAspectRatio, Qt::FastTransformation);
     if (target == size())
         return region(QRect(QPoint{}, size()));
-    QImage result = m_data->blank(target);
+    QImage result = m_data->readBuffer(target);
     if (result.isNull() || m_data->tiles.isEmpty())
         return result;
     // Qt's horizontal and vertical paths can use different rounding. Obtain
@@ -678,9 +697,7 @@ bool TiledImage::paint(const QRect &_region, const std::function<void(QPainter &
 bool TiledImage::knownOpaque() const
 {
     return m_data && m_data->background.devicePixelRatio() == 1. && m_data->nonOpaqueTiles == 0 &&
-           (m_data->background.pixelColor(0, 0).alphaF() == 1. ||
-            m_data->tiles.size() ==
-                m_data->columns() * ((size().height() + TileSize - 1) / TileSize));
+           (m_data->background.pixelColor(0, 0).alphaF() == 1. || m_data->hasEveryTile());
 }
 
 bool TiledImage::sharedStorage() const

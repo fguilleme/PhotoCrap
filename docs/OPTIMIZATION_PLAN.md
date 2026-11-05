@@ -144,6 +144,10 @@ le refus d’écriture sans perte des versions ; les disques lents restent à me
 
 - [x] Séparation de fréquences utilisant directement les tuiles natives non
   masquées, partagées par les deux bandes et immuables après retouche de l’original.
+- [x] Composition des bandes dynamiques à partir des tuiles source nécessaires
+  et du halo du filtre. Un rendu régional à froid laisse le cache de bandes
+  intégrales vide. Les hautes fréquences 8 bits avec transparence, le brouillon
+  redimensionné et les sources de géométrie différente gardent le chemin intégral.
 - [x] Sources figées des deux correcteurs : lecture des rectangles ou voisinages
   de recherche, modes actif/inférieurs/tous et exclusion des réglages préservés.
 - [x] Copie de sélection limitée à son rectangle, forme et couverture progressive
@@ -227,8 +231,17 @@ l’accumulation du projet encodé ; un LRU de 8 Mio réutilise les petits paylo
 répétés, avec une capture bornée et un repli en flux. Les grands plans natifs sont
 encodés par bandes. Leurs PNG non entrelacés compatibles sont décodés directement
 en tuiles, avec le même choix de fond compact que l’import intégral. Le lecteur
-historique reste disponible pour les autres formats PNG. Les données Base64 et
-les octets compressés sont encore traités un plan à la fois.
+historique reste disponible pour les autres formats PNG. À la lecture, les
+enveloppes indexées conservent les positions des chaînes JSON. Le Base64 est
+décodé par blocs de 16 Kio, puis le flux d’octets compressés alimente directement
+le décodeur PNG. Les anciens PNG entrelacés peuvent toujours nécessiter une image
+décodée intégrale.
+
+Mosaïque réutilise la grille du document dans chaque région. Le halo couvre
+les pixels échantillonnés même lorsque la région traverse une cellule ou que
+les dimensions du document ne sont pas des multiples de la taille des cellules.
+Quand le rectangle calculé coïncide avec le rectangle demandé, le composite est
+retourné directement, ce qui évite une seconde allocation des mêmes pixels.
 
 Les grands exports JPEG consomment des bandes et aplatissent leur transparence
 sur blanc. WebP remplit les plans YUVA exigés par son encodeur directement depuis

@@ -158,5 +158,14 @@ trois retouches distinctes déclenchent leur encodage séparé.
 | Sauvegarde | 5,87 s | 265 Mio |
 | Ouverture | 1,18 s | 801 Mio |
 
+Après le passage à la lecture Base64 par blocs, une comparaison A/B sur le
+même fichier et avec la même version de Qt (6.12) donne les médianes suivantes,
+sur trois ouvertures par variante.
+
+| Lecteur | Temps d’ouverture | Pic RSS du processus |
+|---|---:|---:|
+| Chaîne Base64 chargée par plan | 1,152 s | 803 Mio |
+| Base64 décodé par blocs de 16 Kio | 1,149 s | 776 Mio |
+
 Le scénario de déchargement et de réouverture de quatre plans denses passe aussi
 sur le SSD externe USB. La campagne sur disque lent demande un volume de ce type.

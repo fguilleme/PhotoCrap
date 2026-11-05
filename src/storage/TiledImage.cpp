@@ -243,6 +243,27 @@ struct TiledImage::Data {
     QSize                             size;
     QImage                            background;
     QHash<int, std::shared_ptr<Tile>> tiles;
+    qsizetype                         nonOpaqueTiles = 0;
+
+    // In-place painting removes a tile from this count before changing its opacity.
+    std::shared_ptr<Tile> takeTile(int _key)
+    {
+        auto tile = tiles.take(_key);
+        if (tile && !tile->opaque)
+            --nonOpaqueTiles;
+        return tile;
+    }
+    void setTile(int _key, std::shared_ptr<Tile> _tile)
+    {
+        const auto previous = tiles.constFind(_key);
+        if (previous != tiles.cend() && !previous.value()->opaque)
+            --nonOpaqueTiles;
+        if (_tile) {
+            nonOpaqueTiles += !_tile->opaque;
+            tiles.insert(_key, std::move(_tile));
+        } else
+            tiles.remove(_key);
+    }
     int                               columns() const
     {
         return (size.width() + TileSize - 1) / TileSize;
@@ -431,10 +452,10 @@ bool TiledImage::replace(const QImage &_image)
                 if (replacement.isNull())
                     return false;
                 if (replacement == next->blank(bounds.size()))
-                    next->tiles.remove(key);
+                    next->setTile(key, {});
                 else
-                    next->tiles.insert(
-                        key, changedTile(replacement, previous, pixels, replacement.rect()));
+                    next->setTile(key,
+                                  changedTile(replacement, previous, pixels, replacement.rect()));
             }
         }
     m_data = std::move(next);
@@ -464,7 +485,7 @@ TiledImage TiledImage::convertedTo(QImage::Format               _format,
         if (pixels.isNull())
             return {};
         if (pixels != converted.m_data->blank(pixels.size()))
-            converted.m_data->tiles.insert(it.key(), std::make_shared<Tile>(pixels));
+            converted.m_data->setTile(it.key(), std::make_shared<Tile>(pixels));
     }
     if (_continue && !_continue())
         return {};
@@ -591,17 +612,10 @@ bool TiledImage::paint(const QRect &_region, const std::function<void(QPainter &
 
 bool TiledImage::knownOpaque() const
 {
-    if (!m_data || m_data->background.devicePixelRatio() != 1.)
-        return false;
-    if (m_data->background.pixelColor(0, 0).alphaF() != 1. &&
-        m_data->tiles.size() != m_data->columns() * ((size().height() + TileSize - 1) / TileSize))
-        return false;
-    for (const auto &tile : std::as_const(m_data->tiles)) {
-        QMutexLocker lock(&tile->mutex);
-        if (!tile->opaque)
-            return false;
-    }
-    return true;
+    return m_data && m_data->background.devicePixelRatio() == 1. && m_data->nonOpaqueTiles == 0 &&
+           (m_data->background.pixelColor(0, 0).alphaF() == 1. ||
+            m_data->tiles.size() ==
+                m_data->columns() * ((size().height() + TileSize - 1) / TileSize));
 }
 
 bool TiledImage::sharedStorage() const
@@ -656,11 +670,11 @@ bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool 
                                 (overlap.x() - _origin.x()) * bytes,
                             size_t(overlap.width()) * bytes);
             if (image == next->blank(bounds.size()))
-                next->tiles.remove(next->key(x, y));
+                next->setTile(next->key(x, y), {});
             else
-                next->tiles.insert(next->key(x, y),
-                                   changedTile(image, previous, old,
-                                               overlap.translated(-bounds.topLeft()), preserve));
+                next->setTile(next->key(x, y),
+                              changedTile(image, previous, old,
+                                          overlap.translated(-bounds.topLeft()), preserve));
         }
     if (next) {
         m_data = std::move(next);
@@ -692,7 +706,7 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
         for (int column = region.left() / TileSize; column <= region.right() / TileSize; ++column) {
             const int             key    = next->key(column, row);
             const QRect           bounds = next->rect(column, row);
-            auto                  tile   = next->tiles.take(key);
+            auto                  tile   = next->takeTile(key);
             std::shared_ptr<Tile> previous;
             QImage                old;
             bool                  preserve = shared;
@@ -727,7 +741,7 @@ bool TiledImage::paintRegion(const QRect &_region, const std::function<void(QPai
                 tile =
                     changedTile(tile->image(), previous, old,
                                 region.intersected(bounds).translated(-bounds.topLeft()), preserve);
-            next->tiles.insert(key, std::move(tile));
+            next->setTile(key, std::move(tile));
         }
     m_data = std::move(next);
     return true;

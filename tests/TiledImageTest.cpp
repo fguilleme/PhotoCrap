@@ -122,6 +122,25 @@ private slots:
             }));
             QVERIFY(!plane.knownOpaque());
             QVERIFY(old.knownOpaque());
+
+            // A tile that returns to the opaque background stops contributing
+            // to the transparency count, even after conversion and a snapshot.
+            TiledImage uniform(QSize(257, 257), format, Qt::white);
+            patch.fill(Qt::transparent);
+            QVERIFY(uniform.writeRegion({256, 256}, patch));
+            const auto snapshot = uniform;
+            QVERIFY(!uniform.knownOpaque());
+            const auto other     = format == QImage::Format_ARGB32_Premultiplied
+                                       ? QImage::Format_RGBA64_Premultiplied
+                                       : QImage::Format_ARGB32_Premultiplied;
+            const auto converted = uniform.convertedTo(other);
+            QVERIFY(!converted.isNull());
+            QVERIFY(!converted.knownOpaque());
+            patch.fill(Qt::white);
+            QVERIFY(uniform.writeRegion({256, 256}, patch));
+            QCOMPARE(uniform.tileCount(), 0);
+            QVERIFY(uniform.knownOpaque());
+            QVERIFY(!snapshot.knownOpaque());
         }
     }
     void smallNativeTileEditsStoreBoundedDeltas()

@@ -212,27 +212,14 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             continue;
         // An untouched low/high pair reconstructs its source independently of
         // the radius. Collapsing it avoids two full-image filters per slider tick.
-        if (layer.kind == QStringLiteral("frequencyLow") && layerIndex + 1 < m_layers.size()) {
-            const auto   &high       = m_layers[layerIndex + 1];
-            const QString pairId     = layer.parameters.value("pairId").toString();
-            const bool    plainMasks = (!layer.maskEnabled || layer.mask.isNull()) &&
-                                       (!high.maskEnabled || high.mask.isNull());
-            const bool    followedByClipping =
-                layerIndex + 2 < m_layers.size() && m_layers[layerIndex + 2].clippingMask;
-            if (!layer.clippingMask && !high.clippingMask && !followedByClipping && high.visible &&
-                high.kind == QStringLiteral("frequencyHigh") && !pairId.isEmpty() &&
-                high.parameters.value("pairId").toString() == pairId &&
-                layer.source.cacheKey() == high.source.cacheKey() &&
-                qFuzzyCompare(layer.opacity, 1.) && qFuzzyCompare(high.opacity, 1.) &&
-                layer.blend == 0 && high.blend == 16 && plainMasks) {
-                compositeLayer(_region.size() != m_size && layer.source.size() == m_size &&
-                                       layer.source.devicePixelRatio() == 1.
-                                   ? layer.source.region(_region)
-                                   : regionImage(layer.source),
-                               0, 1.);
-                ++layerIndex;
-                continue;
-            }
+        if (PhotoCrap::Render::LayerVisibility::reconstructsFrequencySource(m_layers, layerIndex)) {
+            compositeLayer(_region.size() != m_size && layer.source.size() == m_size &&
+                                   layer.source.devicePixelRatio() == 1.
+                               ? layer.source.region(_region)
+                               : regionImage(layer.source),
+                           0, 1.);
+            ++layerIndex;
+            continue;
         }
         QImage rendered;
         if (layer.kind == QStringLiteral("adjustment")) {

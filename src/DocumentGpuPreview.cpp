@@ -26,6 +26,16 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
                 stack.layers.append(StackLayer{.reset = true});
             continue;
         }
+        // The CPU compositor treats an untouched frequency pair as a single
+        // normal draw of its source. Use the same native pixels on the GPU.
+        if (LayerVisibility::reconstructsFrequencySource(m_layers, index) &&
+            layer.source.size() == m_size && layer.source.devicePixelRatio() == 1.) {
+            StackLayer entry;
+            entry.image = layer.source;
+            stack.layers.append(std::move(entry));
+            ++index;
+            continue;
+        }
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";

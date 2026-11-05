@@ -597,6 +597,51 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         qInfo().noquote() << "PHOTOCRAP_PROBE"
                           << QJsonDocument(probe).toJson(QJsonDocument::Compact);
     }
+    for (const int bits : {8, 16}) {
+        canvas.setSize({600, 128});
+        if (!document.newDocument(600, 128, false, bits))
+            return false;
+        document.setColor(QColor(72, 113, 189));
+        document.fillWithColor(true);
+        document.setColor(QColor(224, 84, 42));
+        document.setBrushSize(35);
+        document.beginStroke(512, 64);
+        document.endStroke();
+        document.addFrequencySeparation(7);
+        document.setLayerVisible(0, false);
+        const auto stack = document.gpuLayerStack();
+        if (!require(stack.valid && stack.layers.size() == 1 && stack.halo == 0,
+                     "an untouched frequency pair supplies one native source"))
+            return false;
+        canvas.setGpuStackEnabled(true);
+        frame();
+        const auto actual = frame();
+        if (!require(!actual.isNull() && canvas.gpuStackActive() == hardware,
+                     "an untouched frequency pair stays on the stack renderer"))
+            return false;
+        canvas.setGpuStackEnabled(false);
+        frame();
+        const auto expected = frame();
+        if (expected.isNull())
+            return false;
+        const double ratio = double(actual.width()) / window->width();
+        for (const int x : {7, 498, 511, 512, 524, 587}) {
+            const auto   point = canvas.mapToScene({x + .5, 64.5}) * ratio;
+            const QPoint pixel(qFloor(point.x()), qFloor(point.y()));
+            const QColor a = actual.pixelColor(pixel), b = expected.pixelColor(pixel);
+            if (!require(qAbs(a.red() - b.red()) <= 2 && qAbs(a.green() - b.green()) <= 2 &&
+                             qAbs(a.blue() - b.blue()) <= 2,
+                         "native frequency source matches the CPU composite"))
+                return false;
+        }
+        canvas.setGpuStackEnabled(true);
+        document.setLayerOpacity(document.activeLayer(), .5);
+        frame();
+        frame();
+        if (!require(!document.gpuLayerStack().valid && !canvas.gpuStackActive(),
+                     "an edited frequency pair uses the CPU compositor"))
+            return false;
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

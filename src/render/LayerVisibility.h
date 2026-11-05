@@ -38,6 +38,22 @@ inline bool contributes(const Layer &_layer)
     return true;
 }
 
+inline bool reconstructsFrequencySource(const QVector<Layer> &_layers, qsizetype _index)
+{
+    const auto &low = _layers[_index];
+    if (low.kind != QStringLiteral("frequencyLow") || _index + 1 >= _layers.size())
+        return false;
+    const auto &high   = _layers[_index + 1];
+    const auto  pairId = low.parameters.value("pairId").toString();
+    return !low.clippingMask && !high.clippingMask &&
+           (_index + 2 == _layers.size() || !_layers[_index + 2].clippingMask) && high.visible &&
+           high.kind == QStringLiteral("frequencyHigh") && !pairId.isEmpty() &&
+           high.parameters.value("pairId").toString() == pairId &&
+           low.source.cacheKey() == high.source.cacheKey() && qFuzzyCompare(low.opacity, 1.) &&
+           qFuzzyCompare(high.opacity, 1.) && low.blend == 0 && high.blend == 16 &&
+           (!low.maskEnabled || low.mask.isNull()) && (!high.maskEnabled || high.mask.isNull());
+}
+
 inline int opaqueCoverIndex(const QVector<Layer> &_layers, const QSize &_size)
 {
     QHash<QString, bool> groups;

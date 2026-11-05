@@ -4,6 +4,7 @@
 #include <QSGRendererInterface>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <cmath>
 
 inline bool runLayerStackSmoke(QQuickWindow *window)
 {
@@ -47,24 +48,34 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         document.fillWithColor(true);
         document.setEditingMask(false);
         for (int mode = 0; mode < 27; ++mode) {
-            if (mode == 1 || mode == 18)
-                continue;
             document.setLayerBlend(document.activeLayer(), mode);
             frame();
             const auto result   = frame();
             const auto expected = document.composite();
-            if (result.isNull() || canvas.gpuStackActive() != hardware)
+            const bool eligible = mode != 18 || document.gpuLayerStack().valid;
+            if (result.isNull() || canvas.gpuStackActive() != (hardware && eligible))
                 qWarning() << "Stack activation" << bits << mode << document.gpuLayerStack().valid
                            << streaming;
-            if (!require(!result.isNull() && canvas.gpuStackActive() == hardware,
+            if (!require(!result.isNull() && canvas.gpuStackActive() == (hardware && eligible),
                          "hardware stack or software fallback is active"))
                 return false;
+            QImage dissolveReference;
+            if (mode == 1) {
+                canvas.setGpuStackEnabled(false);
+                frame();
+                dissolveReference = frame();
+                canvas.setGpuStackEnabled(true);
+                frame();
+            }
             const double ratio = double(result.width()) / window->width();
             for (int x : {10, 255, 511, 512, 1023, 1024, 1190}) {
                 const QPointF point = canvas.mapToScene({(x + .5) * .5, 64.5});
                 const QColor  actual =
                     result.pixelColor(qFloor(point.x() * ratio), qFloor(point.y() * ratio));
-                const QColor reference = expected.pixelColor(x, 64);
+                const QColor reference =
+                    mode == 1 ? dissolveReference.pixelColor(qFloor(point.x() * ratio),
+                                                             qFloor(point.y() * ratio))
+                              : expected.pixelColor(x, 64);
                 if (qAbs(actual.red() - reference.red()) > 2 ||
                     qAbs(actual.green() - reference.green()) > 2 ||
                     qAbs(actual.blue() - reference.blue()) > 2) {
@@ -372,13 +383,14 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         document.setColor(QColor(197, 42, 111, 173));
         document.fillWithColor(true);
         document.setLayerOpacity(document.activeLayer(), .61);
-        for (int mode : {23, 24, 25, 26}) {
+        for (int mode : {1, 18, 23, 24, 25, 26}) {
             document.setLayerBlend(document.activeLayer(), mode);
             canvas.setGpuStackEnabled(true);
             frame();
             const auto actual = frame();
-            if (!require(canvas.gpuStackActive() == hardware,
-                         "transparent HSL blends stay on the hardware stack"))
+            if (!require(
+                    canvas.gpuStackActive() == (hardware && mode != 18),
+                    "transparent HSL/Fondu stay on GPU; hard-mix keeps its exact CPU fallback"))
                 return false;
             canvas.setGpuStackEnabled(false);
             frame();
@@ -396,6 +408,81 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         }
     }
     canvas.setGpuStackEnabled(true);
+    // Every native source coordinate, plus either side of the hard-mix seam.
+    for (int bits : {8, 16}) {
+        QTemporaryDir directory;
+        if (!directory.isValid())
+            return false;
+        const int  maximum = bits == 16 ? 65535 : 255;
+        const auto format =
+            bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
+        QImage base(1057, 195, format), source(base.size(), format);
+        for (int y = 0; y < base.height(); ++y)
+            for (int x = 0; x < base.width(); ++x) {
+                const int  i = (x + (y % 65) * 1057) % (maximum + 1), offset = y / 65 - 1;
+                const auto c = [&](int multiplier) { return (i * multiplier) % (maximum + 1); };
+                if (bits == 16) {
+                    reinterpret_cast<QRgba64 *>(source.scanLine(y))[x] =
+                        QRgba64::fromRgba64(c(1), c(53), c(109), 65535);
+                    reinterpret_cast<QRgba64 *>(base.scanLine(y))[x] =
+                        QRgba64::fromRgba64(qBound(0, maximum - c(1) + offset, maximum),
+                                            qBound(0, maximum - c(53) + offset, maximum),
+                                            qBound(0, maximum - c(109) + offset, maximum), 65535);
+                } else {
+                    reinterpret_cast<QRgb *>(source.scanLine(y))[x] = qRgb(c(1), c(53), c(109));
+                    reinterpret_cast<QRgb *>(base.scanLine(y))[x] =
+                        qRgb(qBound(0, maximum - c(1) + offset, maximum),
+                             qBound(0, maximum - c(53) + offset, maximum),
+                             qBound(0, maximum - c(109) + offset, maximum));
+                }
+            }
+        const auto baseFile   = QUrl::fromLocalFile(directory.filePath("base.png"));
+        const auto sourceFile = QUrl::fromLocalFile(directory.filePath("source.png"));
+        if (!base.save(baseFile.toLocalFile()) || !source.save(sourceFile.toLocalFile()) ||
+            !document.openFile(baseFile) || !document.importLayer(sourceFile))
+            return false;
+        canvas.setSize({600, 120});
+        for (int mode : {1, 18}) {
+            document.setMaskEnabled(false);
+            document.setLayerBlend(document.activeLayer(), mode);
+            for (double opacity : {.4, .63, 1., .5}) {
+                if (opacity == .5) {
+                    document.addLayerMask();
+                    document.setMaskEnabled(true);
+                    document.setEditingMask(true);
+                    document.setColor(Qt::gray);
+                    document.fillWithColor(true);
+                    document.setEditingMask(false);
+                }
+                document.setLayerOpacity(document.activeLayer(), opacity);
+                canvas.setGpuStackEnabled(true);
+                frame();
+                const auto actual = frame();
+                if (!require(canvas.gpuStackActive() == (hardware && (mode != 18 || opacity != .5)),
+                             "opaque hard-mix/Fondu use GPU; attenuated hard-mix falls back"))
+                    return false;
+                canvas.setGpuStackEnabled(false);
+                frame();
+                const auto   expected = frame();
+                const double ratio    = double(actual.width()) / window->width();
+                for (int y = 1; y < 195; y += 3)
+                    for (int x = 1; x < 1057; x += 7) {
+                        const auto point =
+                            canvas.mapToScene({(x + .5) * 600 / 1057., (y + .5) * 120 / 195.}) *
+                            ratio;
+                        const auto a = actual.pixelColor(qFloor(point.x()), qFloor(point.y()));
+                        const auto b = expected.pixelColor(qFloor(point.x()), qFloor(point.y()));
+                        if (qAbs(a.red() - b.red()) > 2 || qAbs(a.green() - b.green()) > 2 ||
+                            qAbs(a.blue() - b.blue()) > 2) {
+                            qWarning() << "Discontinuous blend difference" << bits << mode
+                                       << opacity << x << y << a << b;
+                            return false;
+                        }
+                    }
+            }
+        }
+    }
+    canvas.setGpuStackEnabled(true);
     // Different tile results must survive reuse of the same native scratch and
     // horizontal reduction targets, including after zoom changes and cache hits.
     for (int bits : {8, 16}) {
@@ -409,7 +496,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         document.endStroke();
         document.addAdjustmentLayer("colorBalance");
         document.beginLayerPreview();
-        document.previewLayerParameter("red", 17);
+        document.previewLayerParameter("cyanRed", 17);
         document.finishLayerPreview("Balance");
         for (int width : {600, 300, 150, 600, 300}) {
             canvas.setSize({qreal(width), 128});
@@ -419,6 +506,22 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             if (!require(canvas.gpuStackActive() == hardware,
                          "zoomed stacks remain on available hardware"))
                 return false;
+            if (hardware) {
+                auto budget         = document.gpuLayerStack();
+                budget.streamInputs = streaming;
+                budget.shareScratch =
+                    qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH");
+                const double scale = qMin(
+                    canvas.width() * window->effectiveDevicePixelRatio() / budget.size.width(),
+                    canvas.height() * window->effectiveDevicePixelRatio() / budget.size.height());
+                budget.displayLevel = qMax(0, int(std::floor(std::log2(1. / scale))));
+                const auto estimate =
+                    PhotoCrap::Render::stackWorkingBytes(budget, QRect(QPoint{}, budget.size));
+                if (!require(canvas.stackTextureBytes() <= quint64(estimate),
+                             "actual retained stack resources respect the conservative estimate "
+                             "after zoom changes"))
+                    return false;
+            }
             canvas.setGpuStackEnabled(false);
             frame();
             const auto   expected = frame();

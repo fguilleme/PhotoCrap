@@ -8,6 +8,7 @@
 #include "ShortcutManager.h"
 #include "WorkspaceSettings.h"
 #include "filters/BlackWhiteFilter.h"
+#include "filters/BlendMath.h"
 #include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
 #include "filters/ColorFilter.h"
@@ -228,6 +229,53 @@ private slots:
             QVERIFY(!d.gpuLayerStack().valid);
             d.setMaskEnabled(false);
             QVERIFY(d.gpuLayerStack().valid);
+        }
+    }
+    void gpuBlendTablesKeepDiscontinuousNativeDecisions()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(1200, 128, false, bits));
+            const int maximum = bits == 16 ? 65535 : 255;
+            for (int mode : {1, 18}) {
+                d.setLayerBlend(0, mode);
+                d.setLayerOpacity(0, .63);
+                const auto stack = d.gpuLayerStack();
+                QVERIFY(stack.valid);
+                const auto table = QImage(stack.layers.first().blendTable);
+                QCOMPARE(table.format(), QImage::Format_RGBA32FPx4);
+                QCOMPARE(table.size(), QSize(256, bits == 16 ? 256 : 1));
+                const auto key = stack.layers.first().blendTable.cacheKey();
+                QCOMPARE(d.gpuLayerStack().layers.first().blendTable.cacheKey(), key);
+                const auto upload = table.convertToFormat(QImage::Format_RGBA32FPx4);
+                for (int i = 0; i <= maximum; ++i) {
+                    const auto raw =
+                        reinterpret_cast<const float *>(upload.constScanLine(i / 256)) +
+                        4 * (i % 256);
+                    const auto stored = table.pixelColor(i % 256, i / 256).rgba64();
+                    QCOMPARE(qRound(raw[0] * 65535), int(stored.red()));
+                    QCOMPARE(qRound(raw[1] * 65535), int(stored.green()));
+                    QCOMPARE(qRound(raw[2] * 65535), int(stored.blue()));
+                    QCOMPARE(qRound(raw[3] * 65535), int(stored.alpha()));
+                    const double source = (bits == 16 ? i / 257. : double(i)) / 255.;
+                    const double base =
+                        (bits == 16 ? (maximum - i) / 257. : double(maximum - i)) / 255.;
+                    const auto value = table.pixelColor(i % 256, i / 256).rgba64().red();
+                    if (mode == 1)
+                        QCOMPARE(value, quint16(quint32(source * .63 * 65535.)));
+                    else
+                        QCOMPARE(value,
+                                 quint16(PhotoCrap::Filters::blendChannel(base, source, 18) > .0
+                                             ? 65535
+                                             : 0));
+                }
+            }
+            d.addAdjustmentLayer("invert");
+            d.addLayer();
+            d.setColor(Qt::red);
+            d.fillWithColor(true);
+            d.setLayerBlend(d.activeLayer(), 18);
+            QVERIFY(!d.gpuLayerStack().valid); // Never amplify an approximate tonal intermediate.
         }
     }
     void gpuStreamedInputsBoundDeepStackWorkingSet()

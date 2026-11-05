@@ -70,7 +70,7 @@ demande en attente est conservée. La validation finale reste un calcul CPU nati
 asynchrone. Annuler restaure immédiatement le snapshot précédent ; un résultat
 CPU périmé ne remplace pas ce nouvel état.
 
-Les modes et combinaisons non pris en charge, les masques adoucis, les formats
+Les modes et combinaisons non pris en charge et les formats
 indisponibles et les jeux de travail trop grands conservent le repli CPU. Les
 calques uniformément transparents ne créent pas de passes ; les ruptures de
 chaînes d'écrêtage consécutives sont regroupées.
@@ -79,10 +79,10 @@ chaînes d'écrêtage consécutives sont regroupées.
 
 `LayerStackNode` utilise QRhi et des passes hors écran par tuile de 512 px. Les
 calques de pixels, le texte et Couleur unie sont composés avec leurs masques,
-opacités et écrêtages, en respectant les groupes masqués. Les 21 modes pris en
-charge sont comparés au CPU en 8 et 16 bits. Les modes 1, 18 et 23–26, les
-réglages tonals autres que Couleur unie et les masques adoucis déclenchent un repli de
-toute la pile vers le chemin existant. Le rendu final natif CPU reste la référence.
+opacités et écrêtages, en respectant les groupes masqués. Les extensions du
+5 novembre ajoutent les 18 réglages tonals, les masques progressifs et les quatre
+modes HSL. Fondu et Mélange maximal ont une éligibilité plus stricte, décrite
+ci-dessous. Le rendu final natif CPU reste la référence.
 
 Les entrées et les cibles sont RGBA8 en 8 bits. En 16 bits, les entrées et les
 intermédiaires sont RGBA32F, avec quantification à 65 535 entre les opérations ;
@@ -103,8 +103,8 @@ source est réfléchie dans la texture entière avant son inversion, afin de ne 
 décaler la marge de voisinage dans la partie visible.
 
 Le jeu de travail visible est estimé avant allocation ; s'il dépasse le budget,
-l'affichage utilise le chemin CPU. Le budget graphique global et les niveaux de
-détail GPU restent les étapes suivantes du plan de migration.
+l'affichage utilise le chemin CPU. Les ressources conservées partagent le budget graphique global ; les paliers
+à entrées réutilisées puis à scratch partagé sont essayés avant le repli CPU.
 
 Ce chemin est compilé lorsque Qt 6.6+ fournit `GuiPrivate`, et activé uniquement
 sur un backend QRhi ayant les formats requis. Les ressources vivent sur le thread
@@ -2098,5 +2098,34 @@ Teinte, Saturation, Couleur et Luminosité sont composées avec les mêmes
 conversions HSL et quantifications QColor que le CPU. L’alpha source, celui
 du fond, les masques, l’opacité et la couverture d’écrêtage sont conservés.
 La suite Metal compare les quatre modes en 8/16 bits sur fonds opaques puis
-sur sources et fonds translucides. Fondu et Mélange maximal restent séparés
-car leurs décisions discontinues exigent des tables de référence exactes.
+sur sources et fonds translucides. Les deux modes discontinus ci-dessous exigent des tables et conditions supplémentaires.
+
+## Fondu et Mélange maximal natifs (5 novembre 2026)
+
+Fondu conserve le hash des coordonnées absolues du CPU, y compris à travers les
+raccords des tuiles. Une table par profondeur/opacité fournit le seuil entier
+pour chaque alpha natif, sans modifier sa décision par arrondi float. Les masques
+à densité pleine utilisent la multiplication entière native. Les ajustements,
+écrêtages, masques progressifs non uniformes et densités fractionnaires 16 bits
+gardent leur chemin CPU ou leur aperçu tonal isolé antérieur.
+
+Mélange maximal accélère les sources opaques sur un fond natif opaque exact,
+sans atténuation de masque, écrêtage ni passe tonale/spatiale intermédiaire. La
+métadonnée d’opacité évite une analyse des photos dans le thread d’interface. La
+table du bord noir/blanc reprend les décisions double du CPU pour les 256 ou
+65 536 valeurs, y compris les égalités ; les autres cas conservent le repli CPU.
+Une erreur d’un bit ne doit pas devenir un saut complet de noir à blanc.
+
+Ces tables utilisent des texels FP32 bruts avec des mots de réciproques Qt pour
+les lectures natives : leurs canaux ne sont pas des couleurs prémultipliées. Le
+cache CPU de 4 Mio et les textures sont comptés séparément. Les trois modes de
+stockage GPU incluent cette entrée supplémentaire dans leurs clés et budgets.
+Les changements de format/mode libèrent l’ancien pool ; un zoom réduit libère la
+copie native privée devenue inutile. Le smoke test contrôle que les ressources
+retenues restent sous la prévision après les changements de zoom.
+
+Les références comprennent les deux côtés du seuil et le seuil lui-même, en
+8/16 bits, des opacités et des masques. Elles vérifient aussi explicitement les
+replis, et ne présentent pas ces derniers comme des cas accélérés. Les captures
+Fondu sont comparées au même affichage CPU interpolé, plutôt qu’à un seul pixel
+natif lorsque le centre écran tombe entre deux lignes.

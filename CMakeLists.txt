@@ -835,7 +835,7 @@ if(BUILD_TESTING)
     set_tests_properties(spatial_render PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
     set_tests_properties(stack_render PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 90)
     set_tests_properties(canvas_render PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME measurement_overlay COMMAND PhotoCrap --smoke-test --measurement-overlay-test)

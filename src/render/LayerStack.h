@@ -15,7 +15,7 @@ struct StackStatistics {
     std::function<void(quint64)> changed;
 };
 struct StackLayer {
-    PixelPlane                              image, mask, toneTable;
+    PixelPlane                              image, mask, toneTable, blendTable;
     float                                   opacity = 1, density = 1;
     int                                     blend   = 0;
     bool                                    clipped = false, reset = false;
@@ -56,7 +56,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             const bool   scratch    = !stack.shareScratch || !worksets.contains(size);
             worksets.insert(size);
             qint64 working    = pixels * (colorBytes + 1) * 2;
-            qint64 tableBytes = 0;
+            qint64 tableBytes = 0, blendBytes = 0;
             bool   spatial = false, masks = false;
             if (stack.streamInputs)
                 working += pixels * (colorBytes + 1);
@@ -78,12 +78,19 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                     tableBytes = qMax(tableBytes, table);
                 else
                     working += table;
+                const qint64 blend = layer.blendTable.isNull() ? 0
+                                                               : qint64(layer.blendTable.width()) *
+                                                                     layer.blendTable.height() * 16;
+                if (stack.streamInputs)
+                    blendBytes = qMax(blendBytes, blend);
+                else
+                    working += blend;
                 if (layer.spatial.type != SpatialFilter::None)
                     working += 7 * 96;
                 if (layer.maskFilter.type != SpatialFilter::None)
                     working += 2 * 96;
             }
-            working += tableBytes;
+            working += tableBytes + blendBytes;
             if (spatial)
                 working += pixels * (colorBytes + 16) + 64;
             if (masks)

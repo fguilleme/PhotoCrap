@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "filters/BlendMath.h"
 #include "filters/ToneMappingTable.h"
 #include "render/LayerVisibility.h"
 #include <QDataStream>
@@ -44,9 +45,34 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
                                  : SpatialFilter::None;
         if ((layer.kind != "pixel" && !solid && !tonal && layer.kind != "text" &&
              layer.kind != "shape" && spatial == SpatialFilter::None) ||
-            (!solid && !tonal && spatial == SpatialFilter::None && layer.image.isNull()) ||
-            layer.blend == 1 || layer.blend == 18)
+            (!solid && !tonal && spatial == SpatialFilter::None && layer.image.isNull()))
             return {};
+        // Discontinuous decisions must not amplify an approximate earlier pass.
+        // Pixel/text/shape sources have exact stored native alpha; analytic and
+        // spatial adjustments retain their existing CPU/isolated-preview path.
+        if ((layer.blend == 1 || layer.blend == 18) && (tonal || spatial != SpatialFilter::None))
+            return {};
+        if ((layer.blend == 1 || layer.blend == 18) && layer.clippingMask)
+            return {};
+        if (layer.blend == 1 && masked &&
+            ((m_channelBits == 16 &&
+              layer.parameters.value("_maskDensity", 100.).toDouble() != 100.) ||
+             (!layer.mask.isUniform() &&
+              layer.parameters.value("_maskFeather", 0.).toDouble() >= .5)))
+            return {};
+        if (layer.blend == 18) {
+            if (masked || (!solid && !layer.image.knownOpaque()))
+                return {};
+            if (stack.layers.size() > 1)
+                return {};
+            if (!stack.layers.isEmpty()) {
+                const auto &base = stack.layers.first();
+                if (!base.image.knownOpaque() || base.opacity != 1 || base.blend != 0 ||
+                    base.clipped || !base.mask.isNull() || !base.toneTable.isNull() ||
+                    base.spatial.type != SpatialFilter::None)
+                    return {};
+            }
+        }
         StackLayer entry;
         if (tonal) {
             entry.tone =
@@ -94,6 +120,43 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
                 entry.toneTable = table;
             }
         }
+        if (layer.blend == 1 || layer.blend == 18) {
+            QByteArray  key;
+            QDataStream stream(&key, QIODevice::WriteOnly);
+            stream << QStringLiteral("stack-blend") << m_channelBits << layer.blend;
+            if (layer.blend == 1)
+                stream << layer.opacity;
+            const auto cached = m_gpuChannelTables.object(key);
+            QImage     table  = cached ? *cached : QImage{};
+            if (table.isNull()) {
+                table = QImage(256, m_channelBits == 16 ? 256 : 1, QImage::Format_RGBA32FPx4);
+                if (table.isNull())
+                    return {};
+                const int maximum = m_channelBits == 16 ? 65535 : 255;
+                for (int i = 0; i <= maximum; ++i) {
+                    const double source = (m_channelBits == 16 ? i / 257. : double(i)) / 255.;
+                    const double base =
+                        (m_channelBits == 16 ? (maximum - i) / 257. : double(maximum - i)) / 255.;
+                    const quint16 value =
+                        layer.blend == 1 ? quint16(quint32(source * layer.opacity * 65535.))
+                        : PhotoCrap::Filters::blendChannel(base, source, 18) > 0 ? 65535
+                                                                                 : 0;
+                    const quint64 reciprocal =
+                        i == 0 ? 0
+                        : m_channelBits == 16
+                            ? (Q_UINT64_C(0xffff00008000) + quint64(i / 2)) / quint64(i)
+                            : qt_inv_premul_factor[i];
+                    auto *pixel =
+                        reinterpret_cast<float *>(table.scanLine(i / 256)) + 4 * (i % 256);
+                    pixel[0] = float(value) / 65535.f;
+                    pixel[1] = float(quint16(reciprocal)) / 65535.f;
+                    pixel[2] = float(quint16(reciprocal >> 16)) / 65535.f;
+                    pixel[3] = float(quint16(reciprocal >> 32)) / 65535.f;
+                }
+                m_gpuChannelTables.insert(key, new QImage(table), int(table.sizeInBytes()));
+            }
+            entry.blendTable = table;
+        }
         entry.spatial.type = spatial;
         if (spatial != SpatialFilter::None) {
             const double radius  = layer.parameters
@@ -124,6 +187,8 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             color.fill(QColor(layer.parameters.value("color", "#000000").toString()));
             entry.image = color;
         }
+        if (layer.blend == 18 && !entry.image.knownOpaque())
+            return {};
         entry.mask = masked ? layer.mask : PixelPlane{};
         if (masked && !layer.mask.isUniform()) {
             const int radius =

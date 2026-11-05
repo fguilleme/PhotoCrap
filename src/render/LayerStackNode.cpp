@@ -149,7 +149,7 @@ public:
     QRect                                      region;
     int                                        bits;
     bool                                       streaming;
-    QSize                                      tableSize{1, 1};
+    QSize                                      tableSize{1, 1}, blendSize{1, 1};
     QRectF                                     geometry;
     PhotoCrap::Render::LayerStack              stack;
     QByteArray                                 renderedKey;
@@ -258,6 +258,8 @@ public:
             wrapper   = next;
             displayed = texture;
         }
+        if (sharedWork && displayLevel > 0)
+            retained.reset(); // Reduced views do not retain an unbudgeted native copy.
         QRect source = box.translated(-textureRegion.topLeft());
         if (rhi->isYUpInFramebuffer())
             source.moveTop(textureRegion.height() - source.y() - source.height());
@@ -284,41 +286,47 @@ public:
     }
     std::shared_ptr<Input> input(const PixelPlane &plane, bool mask,
                                  QRhiResourceUpdateBatch *updates, QSet<QByteArray> &used,
-                                 bool whole = false, bool stageOnly = false)
+                                 int whole = 0, bool stageOnly = false)
     {
-        QByteArray key = whole ? "t" : mask ? "m" : "c";
+        QByteArray key = whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c";
         // Whole work->inputs are immutable LUT QImages reused by the document cache.
         // Freezing a fresh wrapper would manufacture new tile versions each frame.
         key += whole ? QByteArray::number(plane.cacheKey()) : plane.regionKey(region);
         const QByteArray contentKey = key;
         if (streaming)
-            key = whole ? "stream-table" : mask ? "stream-mask" : "stream-color";
+            key = whole == 2 ? "stream-blend"
+                  : whole    ? "stream-table"
+                  : mask     ? "stream-mask"
+                             : "stream-color";
         used.insert(key);
         auto value = work->inputs.value(key);
         if (value && (!streaming || stageOnly || value->contentKey == contentKey))
             return value;
-        const QSize extent = streaming ? (whole ? tableSize : region.size())
+        const QSize extent = streaming ? (whole == 2 ? blendSize
+                                          : whole    ? tableSize
+                                                     : region.size())
                              : plane.isNull() || plane.size() == QSize(1, 1) ? QSize(1, 1)
                              : whole                                         ? plane.size()
                                                                              : region.size();
         if (!value) {
             value = std::make_shared<Input>();
-            value->texture.reset(rhi->newTexture(mask         ? QRhiTexture::R8
-                                                 : bits == 16 ? QRhiTexture::RGBA32F
-                                                              : QRhiTexture::RGBA8,
+            value->texture.reset(rhi->newTexture(mask                       ? QRhiTexture::R8
+                                                 : bits == 16 || whole == 2 ? QRhiTexture::RGBA32F
+                                                                            : QRhiTexture::RGBA8,
                                                  extent));
             if (!value->texture->create())
                 return {};
             value->bytes = qint64(extent.width()) * extent.height() *
-                           (mask         ? 1
-                            : bits == 16 ? 16
-                                         : 4);
+                           (mask                       ? 1
+                            : bits == 16 || whole == 2 ? 16
+                                                       : 4);
             work->inputs.insert(key, value);
         }
         if (streaming && stageOnly)
             return value;
         QImage     pixels;
-        const auto format = mask         ? QImage::Format_Grayscale8
+        const auto format = whole == 2   ? QImage::Format_RGBA32FPx4
+                            : mask       ? QImage::Format_Grayscale8
                             : bits == 16 ? QImage::Format_RGBA32FPx4_Premultiplied
                                          : QImage::Format_RGBA8888_Premultiplied;
         if (plane.isNull()) {
@@ -346,12 +354,16 @@ public:
             return;
         const auto layers = std::move(stack.layers);
         tableSize         = {1, 1};
-        for (const auto &layer : layers)
+        blendSize         = {1, 1};
+        for (const auto &layer : layers) {
             tableSize = tableSize.expandedTo(layer.toneTable.size());
+            blendSize = blendSize.expandedTo(layer.blendTable.size());
+        }
         QByteArray key;
         for (const auto &layer : layers) {
             for (const auto &part : {layer.image.regionKey(region), layer.mask.regionKey(region),
-                                     QByteArray::number(layer.toneTable.cacheKey())}) {
+                                     QByteArray::number(layer.toneTable.cacheKey()),
+                                     QByteArray::number(layer.blendTable.cacheKey())}) {
                 const qint64 size = part.size();
                 key.append(reinterpret_cast<const char *>(&size), sizeof(size));
                 key += part;
@@ -401,6 +413,9 @@ public:
             const auto table = work->inputs.value("stream-table");
             if (table && table->texture->pixelSize() != tableSize)
                 work->inputs.remove("stream-table");
+            const auto blend = work->inputs.value("stream-blend");
+            if (blend && blend->texture->pixelSize() != blendSize)
+                work->inputs.remove("stream-blend");
         }
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
@@ -410,7 +425,10 @@ public:
             auto        table = layer.toneTable.isNull()
                                     ? color
                                     : input(layer.toneTable, false, updates, used, true, streaming);
-            if (!color || !mask || !table) {
+            const auto  blend = layer.blendTable.isNull()
+                                    ? color
+                                    : input(layer.blendTable, false, updates, used, 2, streaming);
+            if (!color || !mask || !table || !blend) {
                 ok = false;
                 break;
             }
@@ -466,7 +484,7 @@ public:
                              maskRun < 0
                          ? 32
                          : 0),
-                index == 0};
+                region.x() | (region.y() << 14) | (index == 0 ? 1 << 30 : 0)};
             const float values[] = {layer.opacity, layer.density,
                                     stack.bits == 16 ? 65535.f : 255.f,
                                     rhi->isYUpInFramebuffer() ? 1.f : 0.f};
@@ -504,6 +522,8 @@ public:
                  QRhiShaderResourceBinding::sampledTexture(4, stage, work->clips[index % 2].get(),
                                                            sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(5, stage, table->texture.get(),
+                                                           sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(6, stage, blend->texture.get(),
                                                            sampler.get())});
             if (!pass->bindings->create()) {
                 ok = false;
@@ -550,7 +570,9 @@ public:
                 const bool  valid =
                     input(layer.image, false, upload, used) &&
                     input(layer.mask, true, upload, used) &&
-                    (layer.toneTable.isNull() || input(layer.toneTable, false, upload, used, true));
+                    (layer.toneTable.isNull() ||
+                     input(layer.toneTable, false, upload, used, true)) &&
+                    (layer.blendTable.isNull() || input(layer.blendTable, false, upload, used, 2));
                 if (!valid) {
                     upload->release();
                     reject(__LINE__);
@@ -630,7 +652,9 @@ struct LayerStackNode::Data {
     std::function<void()>                       failure;
     QHash<quint64, Tile *>                      tiles;
     QHash<quint64, quint64>                     lastUse;
-    quint64                                     clock = 0;
+    quint64                                     clock     = 0;
+    int                                         bits      = 0;
+    bool                                        streaming = false, sharing = false;
     QSize                                       document;
     QHash<QByteArray, std::weak_ptr<Workspace>> workspaces;
     std::shared_ptr<DisplayPyramidScratchPool>  reductions;
@@ -687,7 +711,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
         QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
             .toAlignedRect()
             .intersected(bounds);
-    if (d->document != stack.size) {
+    if (d->document != stack.size || d->bits != stack.bits || d->streaming != stack.streamInputs ||
+        d->sharing != stack.shareScratch) {
         for (auto *tile : std::as_const(d->tiles)) {
             if (tile->parent())
                 removeChildNode(tile);
@@ -697,7 +722,10 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
         d->lastUse.clear();
         d->workspaces.clear();
         d->reductions.reset();
-        d->document = stack.size;
+        d->document  = stack.size;
+        d->bits      = stack.bits;
+        d->streaming = stack.streamInputs;
+        d->sharing   = stack.shareScratch;
     }
     if (stack.shareScratch && !d->reductions) {
         const auto counters = d->counters;
@@ -731,13 +759,18 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
             std::shared_ptr<Workspace> workspace;
             if (stack.shareScratch) {
                 QSize tableSize(1, 1);
-                for (const auto &layer : stack.layers)
+                QSize blendSize(1, 1);
+                for (const auto &layer : stack.layers) {
                     tableSize = tableSize.expandedTo(layer.toneTable.size());
+                    blendSize = blendSize.expandedTo(layer.blendTable.size());
+                }
                 const QByteArray workKey = QByteArray::number(padded.width()) + "/" +
                                            QByteArray::number(padded.height()) + "/" +
                                            QByteArray::number(stack.bits) + "/" +
                                            QByteArray::number(tableSize.width()) + "/" +
-                                           QByteArray::number(tableSize.height());
+                                           QByteArray::number(tableSize.height()) + "/" +
+                                           QByteArray::number(blendSize.width()) + "/" +
+                                           QByteArray::number(blendSize.height());
                 workspace                = d->workspaces.value(workKey).lock();
                 if (!workspace) {
                     workspace = std::make_shared<Workspace>(d->window->rhi(), padded.size(),

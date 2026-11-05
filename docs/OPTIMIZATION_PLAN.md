@@ -172,10 +172,10 @@ bornées ; une retouche voisine n’invalide plus une bordure inchangée. Les tu
 gardent leurs identifiants rapides. Les 21 modes pris en charge utilisent RGBA8 pour les
 documents 8 bits et RGBA32F pour les intermédiaires 16 bits ; les couvertures sont en R8. Les
 versions régionales conservent les textures et composites de tuiles inchangées. Le budget du
-jeu de travail visible est vérifié avant allocation. Les réglages tonals, les modes
-Dissoudre/Mélange maximal/TSL et les contours progressifs utilisent encore le composite CPU,
-ainsi que les backends sans formats requis. Ce rendu concerne l'affichage ; les exports et
-projets gardent leur référence native CPU.
+jeu de travail visible est vérifié avant allocation. La pile prend aussi en charge les
+réglages tonals, les contours progressifs, les modes TSL et les combinaisons éligibles
+de Fondu et Mélange maximal. Les cas incompatibles et les backends sans formats requis
+repassent par le CPU. Les exports et les projets utilisent le rendu natif CPU.
 
 - [x] Composition des calques pris en charge par tuiles, masques et modes de fusion,
   invalidation régionale et conservation des intermédiaires utiles.
@@ -224,8 +224,16 @@ comme calque utilise le mode édition du worker, y compris le centrage et la con
 plans lors d’une promotion 8→16 bits ; une fin valide crée une seule étape d’historique. La
 sauvegarde v9 écrit désormais ses PNG/Base64 et son JSON en flux atomique pour éviter
 l’accumulation du projet encodé ; un LRU de 8 Mio réutilise les petits payloads
-répétés, avec une capture bornée et un repli en flux. Le codec peut encore demander
-un plan natif complet sur un cache miss.
+répétés, avec une capture bornée et un repli en flux. Les grands plans natifs sont
+encodés par bandes. Leurs PNG non entrelacés compatibles sont décodés directement
+en tuiles, avec le même choix de fond compact que l’import intégral. Le lecteur
+historique reste disponible pour les autres formats PNG. Les données Base64 et
+les octets compressés sont encore traités un plan à la fois.
+
+Les grands exports JPEG consomment des bandes et aplatissent leur transparence
+sur blanc. WebP remplit les plans YUVA exigés par son encodeur directement depuis
+les bandes, ce qui évite un composite Qt complet pour les piles régionales. Les
+piles qui requièrent un composite intégral utilisent encore ce repli.
 
 ## 5. Niveaux de détail GPU et budget graphique global
 

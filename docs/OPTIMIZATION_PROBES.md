@@ -146,3 +146,17 @@ produit. Le journal d’échec a été gardé ; le scénario dense et les sept s
 logiciel ont ensuite tous réussi. Les deux rapports JSON, nommés
 `photocrap-optimization-final-campaign` et `photocrap-optimization-final-cpu-recheck`
 dans le dossier temporaire de cette session, conservent cette distinction.
+
+## Mesures séparées des entrées et sorties de projet
+
+Sur le Mac de référence, le projet synthétique de quatre calques de 24 Mpx en
+16 bits occupe 18,8 Mo sur disque. Les calques partagent leur dégradé initial et
+trois retouches distinctes déclenchent leur encodage séparé.
+
+| Phase | Temps de l’opération | Pic RSS du processus |
+|---|---:|---:|
+| Sauvegarde | 5,87 s | 265 Mio |
+| Ouverture | 1,18 s | 801 Mio |
+
+Le scénario de déchargement et de réouverture de quatre plans denses passe aussi
+sur le SSD externe USB. La campagne sur disque lent demande un volume de ce type.

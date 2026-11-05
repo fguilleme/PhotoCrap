@@ -40,10 +40,14 @@ bool writeProjectPng(QIODevice &_output, const PixelPlane &_plane,
             top  = _top;
             return band.size() == region.size();
         }
-    } state{_output, _plane, _keepGoing, bandHeight,
+    } state{_output,
+            _plane,
+            _keepGoing,
+            bandHeight,
             gray   ? QImage::Format_Grayscale8
             : wide ? QImage::Format_RGBA64
-                   : QImage::Format_RGBA8888};
+                   : QImage::Format_RGBA8888,
+            {}};
     if (!state.load(0))
         return false;
     const ProjectPngImage image{unsigned(_plane.width()),

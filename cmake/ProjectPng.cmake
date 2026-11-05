@@ -21,6 +21,12 @@ target_link_libraries(photocrap_png PRIVATE photocrap_raw_zlib)
 set_target_properties(photocrap_png PROPERTIES AUTOMOC OFF AUTOUIC OFF
     C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
 
+add_library(photocrap_png_codec STATIC
+    src/storage/ProjectPngCodec.c src/storage/ProjectPngCodec.h)
+target_link_libraries(photocrap_png_codec PRIVATE photocrap_png)
+set_target_properties(photocrap_png_codec PROPERTIES AUTOMOC OFF AUTOUIC OFF
+    C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
+
 function(photocrap_install_png_license)
     if(APPLE)
         set(notices "PhotoCrap.app/Contents/Resources/third-party")

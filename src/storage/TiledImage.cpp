@@ -40,6 +40,25 @@ QByteArray uniformRegionKey(const QImage &_pixel, const QSize &_size)
     return result;
 }
 
+bool isUniformRegion(const QImage &_image, const QRect &_bounds, const uchar *_pixel)
+{
+    const int   bytes = _image.depth() / 8;
+    const int   x     = _bounds.x() * bytes;
+    const auto *first = _image.constScanLine(_bounds.top()) + x;
+    if (_pixel && std::memcmp(first, _pixel, size_t(bytes)) != 0)
+        return false;
+    // Verify the first row by doubling its known uniform prefix, then compare
+    // whole rows. This ignores scanline padding and keeps native pixel bits.
+    for (int prefix = 1; prefix < _bounds.width(); prefix *= 2)
+        if (std::memcmp(first, first + prefix * bytes,
+                        size_t(qMin(prefix, _bounds.width() - prefix)) * bytes) != 0)
+            return false;
+    for (int y = _bounds.top() + 1; y <= _bounds.bottom(); ++y)
+        if (std::memcmp(first, _image.constScanLine(y) + x, size_t(_bounds.width()) * bytes) != 0)
+            return false;
+    return true;
+}
+
 // Only uniform tiles can be represented by the shared background. Choose the
 // native pixel that saves the most allocated bytes, including partial edge tiles.
 QImage importedBackground(const QImage &_image)
@@ -53,20 +72,10 @@ QImage importedBackground(const QImage &_image)
         for (int left = 0; left < _image.width(); left += TiledImage::TileSize) {
             const int   width   = qMin(TiledImage::TileSize, _image.width() - left);
             const int   height  = qMin(TiledImage::TileSize, _image.height() - top);
-            const auto *row     = _image.constScanLine(top) + left * bytes;
-            bool        uniform = true;
-            for (int x = 1; x < width; ++x)
-                if (std::memcmp(row, row + x * bytes, size_t(bytes))) {
-                    uniform = false;
-                    break;
-                }
-            for (int y = 1; uniform && y < height; ++y)
-                uniform = std::memcmp(row, _image.constScanLine(top + y) + left * bytes,
-                                      size_t(width) * bytes) == 0;
-            if (!uniform)
+            if (!isUniformRegion(_image, {left, top, width, height}, nullptr))
                 continue;
             quint64 pixel = 0;
-            std::memcpy(&pixel, row, size_t(bytes));
+            std::memcpy(&pixel, _image.constScanLine(top) + left * bytes, size_t(bytes));
             const auto weight = (weights[pixel] += qint64((width * bytes + 3) & ~3) * height);
             if (weight > bestWeight) {
                 bestWeight = weight;
@@ -438,25 +447,28 @@ bool TiledImage::replace(const QImage &_image)
             const auto   bounds   = next->rect(column, row);
             const int    key      = next->key(column, row);
             const auto   previous = next->tiles.value(key);
-            const QImage pixels   = previous ? previous->image() : next->blank(bounds.size());
-            bool         equal    = true;
-            for (int y = 0; y < bounds.height(); ++y)
-                if (std::memcmp(pixels.constScanLine(y),
-                                _image.constScanLine(bounds.y() + y) + bounds.x() * pixelBytes,
-                                size_t(bounds.width()) * pixelBytes) != 0) {
-                    equal = false;
-                    break;
-                }
-            if (!equal) {
-                const QImage replacement = _image.copy(bounds);
-                if (replacement.isNull())
+            const QImage pixels   = previous ? previous->image() : QImage{};
+            if (previous) {
+                if (pixels.isNull())
                     return false;
-                if (replacement == next->blank(bounds.size()))
-                    next->setTile(key, {});
-                else
-                    next->setTile(key,
-                                  changedTile(replacement, previous, pixels, replacement.rect()));
+                bool equal = true;
+                for (int y = 0; y < bounds.height() && equal; ++y)
+                    equal =
+                        std::memcmp(pixels.constScanLine(y),
+                                    _image.constScanLine(bounds.y() + y) + bounds.x() * pixelBytes,
+                                    size_t(bounds.width()) * pixelBytes) == 0;
+                if (equal)
+                    continue;
             }
+            if (isUniformRegion(_image, bounds, next->background.constBits())) {
+                if (previous)
+                    next->setTile(key, {});
+                continue;
+            }
+            const QImage replacement = _image.copy(bounds);
+            if (replacement.isNull())
+                return false;
+            next->setTile(key, changedTile(replacement, previous, pixels, replacement.rect()));
         }
     m_data = std::move(next);
     return true;
@@ -484,7 +496,7 @@ TiledImage TiledImage::convertedTo(QImage::Format               _format,
         const QImage pixels = it.value()->image().convertToFormat(_format);
         if (pixels.isNull())
             return {};
-        if (pixels != converted.m_data->blank(pixels.size()))
+        if (!isUniformRegion(pixels, pixels.rect(), background.constBits()))
             converted.m_data->setTile(it.key(), std::make_shared<Tile>(pixels));
     }
     if (_continue && !_continue())
@@ -644,19 +656,17 @@ bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool 
             const QImage old      = previous ? previous->image() : QImage{};
             if (previous && old.isNull())
                 return false;
+            const QRect source = overlap.translated(-_origin);
             bool equal = true;
-            for (int row = overlap.top(); row <= overlap.bottom() && equal; ++row) {
-                const auto *input =
-                    _pixels.constScanLine(row - _origin.y()) + (overlap.x() - _origin.x()) * bytes;
-                if (previous)
-                    equal = std::memcmp(old.constScanLine(row - bounds.y()) +
-                                            (overlap.x() - bounds.x()) * bytes,
-                                        input, size_t(overlap.width()) * bytes) == 0;
-                else
-                    for (int column = 0; column < overlap.width() && equal; ++column)
-                        equal = std::memcmp(input + column * bytes, m_data->background.constBits(),
-                                            size_t(bytes)) == 0;
-            }
+            if (previous) {
+                for (int row = 0; row < overlap.height() && equal; ++row)
+                    equal =
+                        std::memcmp(old.constScanLine(overlap.y() - bounds.y() + row) +
+                                        (overlap.x() - bounds.x()) * bytes,
+                                    _pixels.constScanLine(source.y() + row) + source.x() * bytes,
+                                    size_t(overlap.width()) * bytes) == 0;
+            } else
+                equal = isUniformRegion(_pixels, source, m_data->background.constBits());
             if (equal)
                 continue;
             if (!next)
@@ -669,7 +679,7 @@ bool TiledImage::writeRegion(const QPoint &_origin, const QImage &_pixels, bool 
                             _pixels.constScanLine(row - _origin.y()) +
                                 (overlap.x() - _origin.x()) * bytes,
                             size_t(overlap.width()) * bytes);
-            if (image == next->blank(bounds.size()))
+            if (isUniformRegion(image, image.rect(), next->background.constBits()))
                 next->setTile(next->key(x, y), {});
             else
                 next->setTile(next->key(x, y),

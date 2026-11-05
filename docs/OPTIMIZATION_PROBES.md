@@ -169,3 +169,19 @@ sur trois ouvertures par variante.
 
 Le scénario de déchargement et de réouverture de quatre plans denses passe aussi
 sur le SSD externe USB. La campagne sur disque lent demande un volume de ce type.
+
+## Prélèvement sur tous les calques
+
+Sur un document de 24 Mpx avec un flou de boîte visible, la comparaison A/B
+Qt 6.12 mesure 80 déplacements de 2 px avec une brosse de 24 px. Deux séries
+de dix gestes par variante, après échauffement, donnent les ordres de grandeur
+suivants.
+
+| Outil | Premier clic avant / après | Geste complet avant / après |
+|---|---:|---:|
+| Tampon 16 bits | 0,28 / 0,27 ms | 7,6 / 4,8 ms |
+| Doigt 8 bits | 0,07 / 0,07 ms | 1,35 / 1,27 ms |
+
+La fenêtre de réutilisation garde jusqu’à 256 Kio de pixels composés par geste.
+Le premier prélèvement reste à la taille demandée. Les empreintes voisines
+peuvent réutiliser la fenêtre quand leurs sources sont figées.

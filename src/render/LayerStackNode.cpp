@@ -370,10 +370,18 @@ public:
         }
         if (pixels.isNull())
             return {};
-        QRhiTextureSubresourceUploadDescription data(pixels.constBits(),
-                                                     quint32(pixels.sizeInBytes()));
-        data.setDataStride(quint32(pixels.bytesPerLine()));
-        data.setSourceSize(pixels.size());
+        QRhiTextureSubresourceUploadDescription data;
+        if (!whole && !compact && (mask || bits == 8) &&
+            pixels.size() == value->texture->pixelSize()) {
+            // Region reads own their pixels. Let QRhi retain that image
+            // through submission instead of copying it to a raw byte array.
+            data.setImage(pixels);
+        } else {
+            data = QRhiTextureSubresourceUploadDescription(pixels.constBits(),
+                                                           quint32(pixels.sizeInBytes()));
+            data.setDataStride(quint32(pixels.bytesPerLine()));
+            data.setSourceSize(pixels.size());
+        }
         if (!updates)
             updates = rhi->nextResourceUpdateBatch();
         updates->uploadTexture(value->texture.get(),

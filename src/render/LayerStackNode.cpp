@@ -343,6 +343,7 @@ public:
         if (displayLevel > 0) {
             if (!pyramid)
                 pyramid = std::make_unique<DisplayPyramidPass>(rhi, region, stack.size, bits,
+                                                               *draw.vertices, *draw.sampler,
                                                                *counters, reductionPool);
             texture = pyramid->ensure(texture, displayLevel);
             if (!texture) {

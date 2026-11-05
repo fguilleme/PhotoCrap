@@ -96,19 +96,9 @@ struct DisplayPyramidPass::Data {
     int                                        bits;
     PhotoCrap::Render::StackStatistics        *statistics;
     std::shared_ptr<DisplayPyramidScratchPool> pool;
-    std::unique_ptr<QRhiSampler>               sampler;
-    std::unique_ptr<QRhiBuffer>                vertices;
+    QRhiSampler                               *sampler;
+    QRhiBuffer                                *vertices;
     QMap<int, std::shared_ptr<Level>>          levels;
-    bool                                       uploaded = false;
-    bool                                       init()
-    {
-        if (vertices)
-            return true;
-        vertices.reset(rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, 64));
-        sampler.reset(rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
-                                      QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
-        return vertices->create() && sampler->create();
-    }
     bool binding(Level &level, int axis, QRhiTexture *source)
     {
         level.bindings[axis].reset(rhi->newShaderResourceBindings());
@@ -117,12 +107,13 @@ struct DisplayPyramidPass::Data {
         level.bindings[axis]->setBindings(
             {QRhiShaderResourceBinding::uniformBuffer(0, stages, level.uniforms[axis].get()),
              QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage,
-                                                       source, sampler.get())});
+                                                       source, sampler)});
         return level.bindings[axis]->create();
     }
 };
 DisplayPyramidPass::DisplayPyramidPass(QRhi *rhi, const QRect &native, const QSize &document,
-                                       int bits, PhotoCrap::Render::StackStatistics &statistics,
+                                       int bits, QRhiBuffer &vertices, QRhiSampler &sampler,
+                                       PhotoCrap::Render::StackStatistics        &statistics,
                                        std::shared_ptr<DisplayPyramidScratchPool> pool)
     : d(std::make_unique<Data>())
 {
@@ -131,12 +122,14 @@ DisplayPyramidPass::DisplayPyramidPass(QRhi *rhi, const QRect &native, const QSi
     d->document = document;
     d->bits     = bits;
     d->statistics = &statistics;
+    d->vertices   = &vertices;
+    d->sampler    = &sampler;
     d->pool     = std::move(pool);
 }
 DisplayPyramidPass::~DisplayPyramidPass() = default;
 QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
 {
-    if (index < 1 || index > 4 || !d->init())
+    if (index < 1 || index > 4)
         return nullptr;
     if (auto level = d->levels.value(index)) {
         if (level->source != source) {
@@ -234,11 +227,6 @@ quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 gen
         return 0;
     if (!level->uploaded) {
         auto *updates = d->rhi->nextResourceUpdateBatch();
-        if (!d->uploaded) {
-            const float quad[] = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
-            updates->uploadStaticBuffer(d->vertices.get(), quad);
-            d->uploaded = true;
-        }
         for (int axis = 0; axis < 2; ++axis)
             updates->updateDynamicBuffer(level->uniforms[axis].get(), 0, 128,
                                          level->data[axis].constData());
@@ -254,7 +242,7 @@ quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 gen
         const auto size = level->regions[axis].size();
         cb->setViewport(QRhiViewport(0, 0, size.width(), size.height()));
         cb->setShaderResources(level->bindings[axis].get());
-        const QRhiCommandBuffer::VertexInput input{d->vertices.get(), 0};
+        const QRhiCommandBuffer::VertexInput input{d->vertices, 0};
         cb->setVertexInput(0, 1, &input);
         cb->draw(4);
         cb->endPass();
@@ -264,7 +252,7 @@ quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 gen
 }
 qint64 DisplayPyramidPass::bytes() const
 {
-    qint64 result = d->vertices ? 64 : 0;
+    qint64 result = 0;
     for (const auto &level : d->levels)
         for (int axis = 0; axis < 2; ++axis) {
             const auto size = level->regions[axis].size();
@@ -287,8 +275,8 @@ qint64 DisplayPyramidScratchPool::bytes() const
     return 0;
 }
 struct DisplayPyramidPass::Data {};
-DisplayPyramidPass::DisplayPyramidPass(QRhi *, const QRect &, const QSize &, int,
-                                       PhotoCrap::Render::StackStatistics &,
+DisplayPyramidPass::DisplayPyramidPass(QRhi *, const QRect &, const QSize &, int, QRhiBuffer &,
+                                       QRhiSampler &, PhotoCrap::Render::StackStatistics &,
                                        std::shared_ptr<DisplayPyramidScratchPool>)
     : d(std::make_unique<Data>())
 {

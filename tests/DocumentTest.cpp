@@ -417,7 +417,7 @@ private slots:
         QCOMPARE(dense - compact, (pixels - 1) * 17);
         // Ping-pong color/coverage, display pyramid, two input texels and
         // fixed per-tile buffers. No tone or blend lookup tables are present.
-        QCOMPARE(compact, pixels * (34 + 22) + 17 + 1408);
+        QCOMPARE(compact, pixels * (34 + 22) + 17 + 1344);
         stack.streamInputs = true;
         QCOMPARE(stackWorkingBytes(stack, visible), compact);
         stack.layers[0].image = image;

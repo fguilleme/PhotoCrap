@@ -163,11 +163,11 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                         reductions.insert(horizontal);
                         bytes += qint64(horizontal.width()) * horizontal.height() * 16;
                     }
-                    bytes += qint64(qMax(0, right - left)) * qMax(0, bottom - top) * colorBytes +
-                             256 + 64;
+                    bytes +=
+                        qint64(qMax(0, right - left)) * qMax(0, bottom - top) * colorBytes + 256;
                 }
             } else
-                bytes += pixels * (16 + (colorBytes + 2) / 3) + 4 * 256 + 64;
+                bytes += pixels * (16 + (colorBytes + 2) / 3) + 4 * 256;
         }
     return bytes;
 }

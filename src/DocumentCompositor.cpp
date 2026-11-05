@@ -15,12 +15,23 @@ using PhotoCrap::Render::LayerVisibility::contributes;
 using PhotoCrap::Render::LayerVisibility::needsMask;
 using PhotoCrap::Render::LayerVisibility::opaqueCoverIndex;
 
-bool requiresFullComposite(const Layer &_layer)
+bool requiresFullComposite(const Layer &_layer, bool _opaqueBase, bool _hasClipping)
 {
-    // These filters currently depend on absolute image coordinates. The blur
-    // family is local and can be recomputed from a padded dirty rectangle.
-    return contributes(_layer) && _layer.kind == QStringLiteral("adjustment") &&
-           _layer.adjustmentType == QStringLiteral("mosaic");
+    if (!contributes(_layer))
+        return false;
+    // Preserve the full-image rounding paths for clipped dissolve stacks and
+    // for noise over transparency. Mosaic still uses the document-wide grid.
+    return (_layer.blend == 1 && _hasClipping) ||
+           (_layer.kind == QStringLiteral("adjustment") &&
+            (_layer.adjustmentType == QStringLiteral("mosaic") ||
+             (_layer.adjustmentType == QStringLiteral("noise") && !_opaqueBase)));
+}
+
+bool opaqueBase(const Layer &_layer)
+{
+    return _layer.kind == QStringLiteral("pixel") && _layer.visible && _layer.opacity == 1 &&
+           _layer.blend == 0 && !_layer.clippingMask && _layer.groupId.isEmpty() &&
+           !needsMask(_layer) && _layer.image.knownOpaque();
 }
 
 int effectMargin(const Layer &_layer)
@@ -61,7 +72,12 @@ const QImage &Document::composite() const
         return m_composite;
     const QRect documentRect(QPoint{}, m_size);
     const auto  first       = m_layers.cbegin() + opaqueCoverIndex(m_layers, m_size);
-    const bool  fullEffect  = std::any_of(first, m_layers.cend(), requiresFullComposite);
+    const bool  opaque      = first != m_layers.cend() && opaqueBase(*first);
+    const bool  clipping =
+        std::any_of(first, m_layers.cend(), [](const Layer &layer) { return layer.clippingMask; });
+    const bool  fullEffect  = std::any_of(first, m_layers.cend(), [&](const Layer &_layer) {
+        return requiresFullComposite(_layer, opaque, clipping);
+    });
     const bool  fullRender  = m_fullCompositeDirty || fullEffect || m_composite.size() != m_size;
     const QRect dirtyRegion = fullRender ? documentRect : m_dirtyRegion.intersected(documentRect);
     if (dirtyRegion.isEmpty()) {
@@ -108,16 +124,19 @@ QImage Document::compositeRegion(const QRect &_region) const
     // Preserve coordinate-dependent effects, draft rendering, and native image
     // scaling until those paths support an explicit document-space origin.
     const auto first = m_layers.cbegin() + opaqueCoverIndex(m_layers, m_size);
+    const bool opaque = first != m_layers.cend() && opaqueBase(*first);
+    const bool clipping =
+        std::any_of(first, m_layers.cend(), [](const Layer &layer) { return layer.clippingMask; });
     const bool full =
-        m_previewingLayer || std::any_of(first, m_layers.cend(), [](const Layer &_layer) {
+        m_previewingLayer || std::any_of(first, m_layers.cend(), [&](const Layer &_layer) {
             if (!contributes(_layer))
                 return false;
             const auto scaled = [](const PixelPlane &_plane) {
                 return !_plane.isNull() && _plane.tileImage(0, 0).devicePixelRatio() != 1.;
             };
-            return requiresFullComposite(_layer) || _layer.kind.startsWith("frequency") ||
-                   scaled(_layer.image) || scaled(_layer.source) ||
-                   (needsMask(_layer) && scaled(_layer.mask));
+            return requiresFullComposite(_layer, opaque, clipping) ||
+                   _layer.kind.startsWith("frequency") || scaled(_layer.image) ||
+                   scaled(_layer.source) || (needsMask(_layer) && scaled(_layer.mask));
         });
     if (full)
         return composite().copy(region);

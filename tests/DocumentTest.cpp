@@ -10990,7 +10990,7 @@ private slots:
         for (const QRect &region : regions)
             samples.append(d.compositeRegion(region));
         QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
-        const bool fallback = effect == "frequency" || effect == "mosaic";
+        const bool fallback = effect == "frequency" || effect == "mosaic" || effect == "noise";
         if (!fallback)
             QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
         const QImage reference = d.composite();
@@ -11102,7 +11102,7 @@ private slots:
         const QImage regional = d.composite();
         const QRect  bounds   = d.compositeUpdateRegion(before.cacheKey(), regional.cacheKey());
         QVERIFY(bounds.contains(QPoint(128, 96)));
-        if (effect == "dissolve" || effect == "noise" || effect == "mosaic")
+        if (effect == "mosaic")
             QCOMPARE(bounds, regional.rect());
         else {
             QVERIFY(bounds.width() < regional.width());

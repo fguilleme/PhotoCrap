@@ -272,12 +272,16 @@ void main()
         coverage = vec4(0.0);
         return;
     }
-    vec4 source = (ubuf.modes.z & 16) != 0 ? texelFetch(sourceTexture, ivec2(0), 0) : texture(sourceTexture, (ubuf.modes.z & 2) != 0 ? framebufferUV : uv);
+    vec4 source;
     if ((ubuf.modes.z & 4) != 0) {
         vec3 straight = base.a > 0.0 ? base.rgb/base.a : vec3(0.0);
         source = native(vec4(nativeTone(straight).rgb*base.a,base.a));
+    } else {
+        source = (ubuf.modes.z & 16) != 0 ? texelFetch(sourceTexture, ivec2(0), 0) : texture(sourceTexture, (ubuf.modes.z & 2) != 0 ? framebufferUV : uv);
     }
-    float mask = floor(255.0 - (255.0 - ((ubuf.modes.z & 32) != 0 ? texelFetch(maskTexture, ivec2(0), 0).r : texture(maskTexture, (ubuf.modes.z & 8) != 0 ? framebufferUV : uv).r) * 255.0) * ubuf.values.y + 0.5) / 255.0;
+    float mask = 1.0;
+    if ((ubuf.modes.z & 64) == 0)
+        mask = floor(255.0 - (255.0 - ((ubuf.modes.z & 32) != 0 ? texelFetch(maskTexture, ivec2(0), 0).r : texture(maskTexture, (ubuf.modes.z & 8) != 0 ? framebufferUV : uv).r) * 255.0) * ubuf.values.y + 0.5) / 255.0;
     source = nativeMask(source,mask);
     if (ubuf.modes.y != 0)
         source = nativeMask(source,clip);

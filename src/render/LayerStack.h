@@ -21,6 +21,15 @@ struct StackLayer {
     bool                                    clipped = false, reset = false;
     SpatialFilterSettings                   spatial, maskFilter;
     PhotoCrap::Filters::ToneMappingSettings tone;
+
+    bool needsColorInput() const
+    {
+        return !reset && toneTable.isNull() && spatial.type == SpatialFilter::None;
+    }
+    bool needsMaskInput() const
+    {
+        return !reset && (!mask.isNull() || maskFilter.type != SpatialFilter::None);
+    }
 };
 // Immutable, shallow GUI-thread snapshot. Pixel reads and GPU resources belong
 // to the scene graph thread; no live Document is accessed there.
@@ -58,16 +67,20 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             qint64 working    = pixels * (colorBytes + 1) * 2;
             qint64 tableBytes = 0, blendBytes = 0;
             bool   spatial = false, masks = false;
-            if (stack.streamInputs)
-                working += pixels * (colorBytes + 1);
+            bool   colorInput = false, maskInput = false;
             for (const auto &layer : stack.layers) {
                 spatial |= layer.spatial.type != SpatialFilter::None;
                 masks |= layer.maskFilter.type != SpatialFilter::None;
+                colorInput |= layer.needsColorInput();
+                maskInput |= layer.needsMaskInput();
                 if (!stack.streamInputs) {
-                    working += layer.image.size() == QSize(1, 1) || layer.image.isNull()
-                                   ? colorBytes
-                                   : pixels * colorBytes;
-                    working += layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
+                    if (layer.needsColorInput())
+                        working += layer.image.size() == QSize(1, 1) || layer.image.isNull()
+                                       ? colorBytes
+                                       : pixels * colorBytes;
+                    if (layer.needsMaskInput())
+                        working +=
+                            layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
                 }
                 bytes += 256;
                 const qint64 table =
@@ -90,6 +103,8 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                 if (layer.maskFilter.type != SpatialFilter::None)
                     working += 2 * 96;
             }
+            if (stack.streamInputs)
+                working += pixels * (colorInput * colorBytes + maskInput);
             working += tableBytes + blendBytes;
             if (spatial)
                 working += pixels * (colorBytes + 16) + 64;

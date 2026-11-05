@@ -361,9 +361,11 @@ public:
         }
         QByteArray key;
         for (const auto &layer : layers) {
-            for (const auto &part : {layer.image.regionKey(region), layer.mask.regionKey(region),
-                                     QByteArray::number(layer.toneTable.cacheKey()),
-                                     QByteArray::number(layer.blendTable.cacheKey())}) {
+            for (const auto &part :
+                 {layer.needsColorInput() ? layer.image.regionKey(region) : QByteArray{},
+                  layer.needsMaskInput() ? layer.mask.regionKey(region) : QByteArray{},
+                  QByteArray::number(layer.toneTable.cacheKey()),
+                  QByteArray::number(layer.blendTable.cacheKey())}) {
                 const qint64 size = part.size();
                 key.append(reinterpret_cast<const char *>(&size), sizeof(size));
                 key += part;
@@ -420,19 +422,27 @@ public:
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
             const auto &layer = layers[index];
-            auto        color = input(layer.image, false, updates, used, false, streaming);
-            auto        mask  = input(layer.mask, true, updates, used, false, streaming);
-            auto        table = layer.toneTable.isNull()
-                                    ? color
+            const auto  color = layer.needsColorInput()
+                                    ? input(layer.image, false, updates, used, false, streaming)
+                                    : nullptr;
+            const auto  mask  = layer.needsMaskInput()
+                                    ? input(layer.mask, true, updates, used, false, streaming)
+                                    : nullptr;
+            const auto  table = layer.toneTable.isNull()
+                                    ? nullptr
                                     : input(layer.toneTable, false, updates, used, true, streaming);
             const auto  blend = layer.blendTable.isNull()
-                                    ? color
+                                    ? nullptr
                                     : input(layer.blendTable, false, updates, used, 2, streaming);
-            if (!color || !mask || !table || !blend) {
+            if ((layer.needsColorInput() && !color) || (layer.needsMaskInput() && !mask) ||
+                (!layer.toneTable.isNull() && !table) || (!layer.blendTable.isNull() && !blend)) {
                 ok = false;
                 break;
             }
-            QRhiTexture *maskSource = mask->texture.get();
+            // The shader still needs valid bindings for samplers it does not read.
+            auto        *backdrop   = work->colors[index % 2].get();
+            auto        *coverage   = work->clips[index % 2].get();
+            QRhiTexture *maskSource = mask ? mask->texture.get() : coverage;
             int          maskRun    = -1;
             if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->masks)
@@ -447,7 +457,7 @@ public:
                 maskRun    = prepared.index;
             }
             maskRuns.push_back(maskRun);
-            QRhiTexture *source = color->texture.get();
+            QRhiTexture *source = color ? color->texture.get() : backdrop;
             int          run    = -1;
             if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->spatial)
@@ -483,7 +493,8 @@ public:
                     (streaming && (layer.mask.isNull() || layer.mask.size() == QSize(1, 1)) &&
                              maskRun < 0
                          ? 32
-                         : 0),
+                         : 0) +
+                    (!layer.needsMaskInput() ? 64 : 0),
                 region.x() | (region.y() << 14) | (index == 0 ? 1 << 30 : 0)};
             const float values[] = {layer.opacity, layer.density,
                                     stack.bits == 16 ? 65535.f : 255.f,
@@ -515,16 +526,14 @@ public:
             pass->bindings->setBindings(
                 {QRhiShaderResourceBinding::uniformBuffer(
                      0, stage | QRhiShaderResourceBinding::VertexStage, pass->uniform.get()),
-                 QRhiShaderResourceBinding::sampledTexture(1, stage, work->colors[index % 2].get(),
-                                                           sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(1, stage, backdrop, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(4, stage, work->clips[index % 2].get(),
-                                                           sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(5, stage, table->texture.get(),
-                                                           sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(6, stage, blend->texture.get(),
-                                                           sampler.get())});
+                 QRhiShaderResourceBinding::sampledTexture(4, stage, coverage, sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(
+                     5, stage, table ? table->texture.get() : backdrop, sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(
+                     6, stage, blend ? blend->texture.get() : backdrop, sampler.get())});
             if (!pass->bindings->create()) {
                 ok = false;
                 break;
@@ -568,8 +577,8 @@ public:
                 auto       *upload = rhi->nextResourceUpdateBatch();
                 const auto &layer  = layers[qsizetype(index)];
                 const bool  valid =
-                    input(layer.image, false, upload, used) &&
-                    input(layer.mask, true, upload, used) &&
+                    (!layer.needsColorInput() || input(layer.image, false, upload, used)) &&
+                    (!layer.needsMaskInput() || input(layer.mask, true, upload, used)) &&
                     (layer.toneTable.isNull() ||
                      input(layer.toneTable, false, upload, used, true)) &&
                     (layer.blendTable.isNull() || input(layer.blendTable, false, upload, used, 2));

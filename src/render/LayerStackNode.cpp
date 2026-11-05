@@ -160,7 +160,7 @@ public:
     std::unique_ptr<QRhiSampler>               sampler;
     std::unique_ptr<QRhiBuffer>                vertices;
     std::unique_ptr<QRhiGraphicsPipeline>      pipeline;
-    std::vector<std::unique_ptr<Pass>>         passes;
+    std::vector<Pass>                          passes;
     QSGImageNode                              *image          = nullptr;
     QSGTexture                                *wrapper        = nullptr;
     int                                        output         = -1;
@@ -415,7 +415,8 @@ public:
             work->spatial->resetFrame();
         if (work->masks)
             work->masks->resetFrame();
-        passes.clear();
+        if (passes.size() > size_t(layers.size()))
+            passes.resize(size_t(layers.size()));
         if (streaming) {
             const auto table = work->inputs.value("stream-table");
             if (table && table->texture->pixelSize() != tableSize)
@@ -477,14 +478,20 @@ public:
                 run    = prepared.index;
             }
             filterRuns.push_back(run);
-            auto pass = std::make_unique<Pass>();
-            pass->uniform.reset(
-                rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 256));
-            if (!pass->uniform->create()) {
-                ok = false;
-                break;
+            // Keep the per-tile uniform buffers across edits. Bindings are
+            // rebuilt because a texture can change independently of the slot.
+            if (size_t(index) == passes.size()) {
+                Pass created;
+                created.uniform.reset(
+                    rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 256));
+                if (!created.uniform->create()) {
+                    ok = false;
+                    break;
+                }
+                passes.push_back(std::move(created));
             }
-            QByteArray uniform(256, 0);
+            auto                 &pass = passes[size_t(index)];
+            std::array<char, 256> uniform{};
             const auto matrix = rhi->clipSpaceCorrMatrix();
             std::memcpy(uniform.data(), matrix.constData(), 64);
             const qint32 modes[] = {
@@ -525,12 +532,12 @@ public:
                     const float v = parameters[i][c];
                     std::memcpy(uniform.data() + 112 + i * 16 + c * 4, &v, 4);
                 }
-            updates->updateDynamicBuffer(pass->uniform.get(), 0, 256, uniform.constData());
-            pass->bindings.reset(rhi->newShaderResourceBindings());
+            updates->updateDynamicBuffer(pass.uniform.get(), 0, 256, uniform.data());
+            pass.bindings.reset(rhi->newShaderResourceBindings());
             const auto stage = QRhiShaderResourceBinding::FragmentStage;
-            pass->bindings->setBindings(
+            pass.bindings->setBindings(
                 {QRhiShaderResourceBinding::uniformBuffer(
-                     0, stage | QRhiShaderResourceBinding::VertexStage, pass->uniform.get()),
+                     0, stage | QRhiShaderResourceBinding::VertexStage, pass.uniform.get()),
                  QRhiShaderResourceBinding::sampledTexture(1, stage, backdrop, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler.get()),
@@ -539,11 +546,10 @@ public:
                      5, stage, table ? table->texture.get() : backdrop, sampler.get()),
                  QRhiShaderResourceBinding::sampledTexture(
                      6, stage, blend ? blend->texture.get() : backdrop, sampler.get())});
-            if (!pass->bindings->create()) {
+            if (!pass.bindings->create()) {
                 ok = false;
                 break;
             }
-            passes.push_back(std::move(pass));
         }
         if (ok && !pipeline) {
             pipeline.reset(rhi->newGraphicsPipeline());
@@ -559,7 +565,7 @@ public:
             pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
             pipeline->setTargetBlends(
                 {QRhiGraphicsPipeline::TargetBlend{}, QRhiGraphicsPipeline::TargetBlend{}});
-            pipeline->setShaderResourceBindings(passes.front()->bindings.get());
+            pipeline->setShaderResourceBindings(passes.front().bindings.get());
             pipeline->setRenderPassDescriptor(work->descriptor.get());
             ok = pipeline->create();
         }
@@ -569,7 +575,7 @@ public:
             reject(__LINE__);
             return;
         }
-        pipeline->setShaderResourceBindings(passes.front()->bindings.get());
+        pipeline->setShaderResourceBindings(passes.front().bindings.get());
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
         if (!filterRuns.empty() && (filterRuns.front() >= 0 || layers.front().tonal)) {
@@ -600,7 +606,7 @@ public:
             cb->beginPass(work->targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0});
             cb->setGraphicsPipeline(pipeline.get());
             cb->setViewport(QRhiViewport(0, 0, region.width(), region.height()));
-            cb->setShaderResources(passes[index]->bindings.get());
+            cb->setShaderResources(passes[index].bindings.get());
             const QRhiCommandBuffer::VertexInput input{vertices.get(), 0};
             cb->setVertexInput(0, 1, &input);
             cb->draw(4);

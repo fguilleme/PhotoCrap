@@ -9212,7 +9212,7 @@ private slots:
             hash.result().toHex(),
             filterReference("d1248fbf79d7a21b50c08712b1b363c54c55d0166063e5d201e7f7afae60ea3b",
                             "78e3c549fe042c02dcb1e8d293e31fa3a087138099863635c7edade059817f91",
-                            "1c9554a71c9557fbfc6de711783b6ed4b59482e9d7e3fdacd58fc1b26de0d9ee",
+                            "129d7ad8f348629123e544c611b5416588cde3df7d1585ac47f808c92165a0f0",
                             "1c9554a71c9557fbfc6de711783b6ed4b59482e9d7e3fdacd58fc1b26de0d9ee"));
     }
     void uniformCompositionKeepsLowNativeAlphaAndPaintedCoverage()

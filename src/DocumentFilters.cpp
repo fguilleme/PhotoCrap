@@ -125,15 +125,26 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
             background.setColorSpace(QColorSpace::SRgb);
             return background;
         }
-        QImage       background = _base.convertToFormat(P::format);
-        const QImage foreground = _source.convertToFormat(P::format);
+        // Qt's vectorized 16-bit unpremultiplication and its scalar tail can
+        // round differently. Blend the same native pixels for every ROI width.
+        constexpr auto inputFormat = P::wide ? P::premultiplied : P::format;
+        QImage         background  = _base.convertToFormat(inputFormat);
+        const QImage   foreground  = _source.convertToFormat(inputFormat);
+        auto          *pixels      = background.bits();
+        const auto     stride      = background.bytesPerLine();
+        const auto     straight    = [](Pixel pixel) {
+            if constexpr (P::wide)
+                return pixel.unpremultiplied();
+            else
+                return pixel;
+        };
         QVector<int> rows(background.height());
         std::iota(rows.begin(), rows.end(), 0);
         ImageUtils::blockingMap(rows, [&](int _y) {
-            auto       *destination = reinterpret_cast<Pixel *>(background.scanLine(_y));
+            auto       *destination = reinterpret_cast<Pixel *>(pixels + _y * stride);
             const auto *source      = reinterpret_cast<const Pixel *>(foreground.constScanLine(_y));
             for (int x = 0; x < background.width(); ++x) {
-                const Pixel  bc = destination[x], sc = source[x];
+                const Pixel  bc = straight(destination[x]), sc = straight(source[x]);
                 const double br = P::red(bc) / 255., bg = P::green(bc) / 255.,
                              bb = P::blue(bc) / 255.;
                 const double sr = P::red(sc) / 255., sg = P::green(sc) / 255.,
@@ -195,10 +206,15 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
                             P::round(qBound(0., compose(bg, sg, mixedGreen), 1.) * 255.),
                             P::round(qBound(0., compose(bb, sb, mixedBlue), 1.) * 255.),
                             P::round(qBound(0., ao, 1.) * 255.));
+                if constexpr (P::wide)
+                    destination[x] = destination[x].premultiplied();
             }
         });
         background.setColorSpace(QColorSpace::SRgb);
-        return background.convertToFormat(P::premultiplied);
+        if constexpr (P::wide)
+            return background;
+        else
+            return background.convertToFormat(P::premultiplied);
     };
     return ImageUtils::is16Bit(_source) || ImageUtils::is16Bit(_base)
                ? render.template operator()<QRgba64>()

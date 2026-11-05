@@ -24,6 +24,8 @@ et un journal par processus. Une exécution en échec reste dans le rapport et f
   opération, taille des fichiers, pixels des plans et historique partagé.
 - Historique : versions de petites retouches d’une tuile dense dans les trois
   formats natifs, comparaison exacte avant/après déchargement et vidage du cache.
+- Pièce : mesure du geste jusqu’au relâchement et jusqu’au résultat observé,
+  avec comparaison native après le calcul et relevé des plans conservés.
 - Écrivains : PNG/BMP natifs, décodage indépendant, erreurs, écritures courtes et
   annulation. Le temps de cette suite comprend ses vérifications.
 - GPU : piles natives 8/16 bits, réglages, masques, modes de fusion éligibles,
@@ -38,6 +40,10 @@ et un journal par processus. Une exécution en échec reste dans le rapport et f
   DPR et ressources graphiques. C’est une latence de fenêtre, pas un chronométrage
   isolé du shader. La synchronisation écran et les autres activités influencent
   ces vingt échantillons.
+- Aperçus spatiaux : une modification rendue par filtre et profondeur, mesure de
+  la présentation et écart RVB échantillonné entre l’aperçu et la référence
+  native. La sonde relève aussi les octets de l’aperçu CPU et les ressources
+  graphiques comptées par PhotoCrap.
 
 Le temps externe inclut démarrage, vérifications et fermeture. Sur macOS et Linux,
 `/usr/bin/time` relève le pic RSS du processus ; le script convertit les unités
@@ -55,9 +61,15 @@ python3 benchmarks/run_optimization_probes.py --build-dir build --dense
 
 `--dense` ajoute le test de quatre plans remplis de 24 Mpx/16 bits avec cache
 disque, sauvegarde et réouverture, ainsi que la réduction native 24 Mpx → aperçu.
+Il mesure aussi l’écriture et l’ouverture d’un même projet dans deux processus.
+Le RSS de l’écriture comprend la préparation des calques dans son processus,
+tandis que le chronomètre intégré démarre au début de la sauvegarde.
 Prévoir plus de 4 Gio libres pour les fichiers temporaires et suffisamment de RAM
 pour les références complètes de ce test. Le budget RAM du document n’est pas un
 plafond du processus.
+
+Avec `--dense --scratch-dir /chemin/du/volume`, le test de déchargement crée
+son cache sur le volume choisi pour mesurer le comportement de ce disque.
 
 Les contrôles GPU nécessitent une session graphique native. Par défaut, macOS
 exécute logiciel, Metal et OpenGL Core ; ailleurs, seul le logiciel est choisi.

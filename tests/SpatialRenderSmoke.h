@@ -1,6 +1,8 @@
 #pragma once
 #include "CanvasItem.h"
 #include <QElapsedTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPainter>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
@@ -34,6 +36,70 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
         window->update();
         QTest::qWait(60);
         return window->grabWindow();
+    };
+    const bool profiling      = qEnvironmentVariableIsSet("PHOTOCRAP_OPTIMIZATION_PROBES");
+    const auto profilePreview = [&](const QString &_type, int _bits) {
+        const auto    baseline   = frame();
+        const auto    displayKey = document.displayComposite().cacheKey();
+        const auto    passes     = canvas.stackPasses();
+        QSignalSpy    swapped(window, &QQuickWindow::frameSwapped);
+        QElapsedTimer time;
+        time.start();
+        document.previewLayerParameter(_type == "motionBlur" ? "distance" : "radius", 19);
+        do {
+            swapped.clear();
+            window->update();
+            const int remaining = qMax(1, 5000 - int(time.elapsed()));
+            if (!require((!swapped.isEmpty() || swapped.wait(remaining)) && time.elapsed() < 5000,
+                         "profile observes a changed filter frame"))
+                return false;
+        } while (hardware ? canvas.stackPasses() == passes
+                          : document.displayComposite().cacheKey() == displayKey);
+        const double latency = time.nsecsElapsed() / 1e6;
+        const auto   draft   = window->grabWindow();
+        const auto   screen  = document.displayComposite();
+        const auto   memory  = canvas.graphicsMemoryUsage();
+        document.finishLayerPreview();
+        const auto reference = document.composite();
+        const auto ratio     = double(draft.width()) / window->width();
+        const auto viewport  = canvas.mapRectToScene(canvas.boundingRect());
+        const auto crop      = QRectF(viewport.topLeft() * ratio, viewport.size() * ratio)
+                                   .toAlignedRect()
+                                   .intersected(draft.rect());
+        if (!require(!crop.isEmpty() && !reference.isNull() && draft.size() == baseline.size() &&
+                         draft.copy(crop) != baseline.copy(crop),
+                     "the timed filter frame changed visible pixels"))
+            return false;
+        int    maxError = 0, samples = 0;
+        qint64 sum = 0;
+        for (int y = crop.top(); y <= crop.bottom(); y += 4)
+            for (int x = crop.left(); x <= crop.right(); x += 4) {
+                const auto a = draft.pixel(x, y);
+                const int  sx =
+                    qBound(0, qFloor((x + .5) / ratio - viewport.left()), reference.width() - 1);
+                const int sy =
+                    qBound(0, qFloor((y + .5) / ratio - viewport.top()), reference.height() - 1);
+                const auto b  = reference.pixel(sx, sy);
+                const int  r  = qAbs(qRed(a) - qRed(b));
+                const int  g  = qAbs(qGreen(a) - qGreen(b));
+                const int  bl = qAbs(qBlue(a) - qBlue(b));
+                maxError      = qMax(maxError, qMax(r, qMax(g, bl)));
+                sum += r + g + bl;
+                samples += 3;
+            }
+        const QJsonObject probe{{"kind", "spatial-preview"},
+                                {"filter", _type},
+                                {"bits", _bits},
+                                {"graphics_api", int(window->rendererInterface()->graphicsApi())},
+                                {"present_ms", latency},
+                                {"max_rgb_error", maxError},
+                                {"mean_rgb_error", double(sum) / samples},
+                                {"channel_samples", samples},
+                                {"cpu_preview_bytes", double(screen.sizeInBytes())},
+                                {"graphics_memory", QJsonObject::fromVariantMap(memory)}};
+        qInfo().noquote() << "PHOTOCRAP_PROBE"
+                          << QJsonDocument(probe).toJson(QJsonDocument::Compact);
+        return true;
     };
     const auto check = [&](const QString &type, int bits, int radius) {
         // Compute the native reference after committing the gesture, so it is
@@ -137,6 +203,8 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
             document.setEditingMask(false);
             document.setLayerOpacity(document.activeLayer(), .63);
             if (!check(type + " masked", bits, 100))
+                return false;
+            if (profiling && !profilePreview(type, bits))
                 return false;
             document.removeLayer();
         }

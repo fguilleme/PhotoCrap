@@ -80,8 +80,12 @@ def main():
     parser.add_argument("--modes", default="normal,stream,shared")
     parser.add_argument("--skip-cpu", action="store_true")
     parser.add_argument("--dense", action="store_true", help="Include 24 MP / 16-bit disk-backed stress probes")
+    parser.add_argument("--scratch-dir", type=Path,
+                        help="Place the dense cache fixture on this volume (for example a slow disk)")
     parser.add_argument("--timeout", type=int, default=300)
     args = parser.parse_args()
+    if args.scratch_dir and (not args.dense or args.skip_cpu):
+        parser.error("--scratch-dir requires --dense with CPU probes enabled")
     backends = args.backends.split(",")
     modes = args.modes.split(",")
     if any(b not in ("software", "metal", "opengl", "vulkan", "d3d11", "d3d12") for b in backends):
@@ -104,13 +108,27 @@ def main():
                   "fullGradientBandsMatchNativePainter"], software),
                  ("history-deltas", [str(build / ("photocrap_tiled_tests" + suffix)),
                   "smallNativeTileEditsStoreBoundedDeltas"], software),
-                 ("streaming-writers", [str(build / ("photocrap_project_write_tests" + suffix))], software)]
+                 ("streaming-writers", [str(build / ("photocrap_project_write_tests" + suffix))], software),
+                 ("patch-preview", [str(build / ("photocrap_tests" + suffix)),
+                  "patchAsyncSoftSelectionMatchesRepairReference"], software)]
         if args.dense:
             dense = dict(software, PHOTOCRAP_DENSE_MEMORY_TEST="1")
+            if args.scratch_dir:
+                scratch = args.scratch_dir.resolve()
+                if not scratch.is_dir():
+                    parser.error("--scratch-dir must be an existing directory")
+                dense.update(TMPDIR=str(scratch), TMP=str(scratch), TEMP=str(scratch))
             jobs += [("dense-24mp-disk", [str(build / ("photocrap_tests" + suffix)),
                       "denseTwentyFourMegapixelPlanesSurviveOffloadAndReload"], dense),
                      ("dense-24mp-preview", [str(build / ("photocrap_tiled_tests" + suffix)),
                       "denseFastPreviewBenchmark"], dense)]
+            phase_dir = Path(tempfile.mkdtemp(prefix="project-phase-", dir=output))
+            project = phase_dir / "native-24mp.pcr"
+            for phase in ("save", "open"):
+                jobs.append((f"dense-project-{phase}",
+                             [str(build / ("photocrap_tests" + suffix)), "denseProjectPhaseProbe"],
+                             dict(software, PHOTOCRAP_PROJECT_BAND_PHASE=phase,
+                                  PHOTOCRAP_PROJECT_BAND_PATH=str(project))))
     for backend in backends:
         for mode in modes:
             env = dict(PHOTOCRAP_OPTIMIZATION_PROBES="1")

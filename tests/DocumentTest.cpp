@@ -575,6 +575,55 @@ private slots:
             QColor(Qt::red));
     }
 
+    void denseProjectPhaseProbe()
+    {
+        const QString phase = qEnvironmentVariable("PHOTOCRAP_PROJECT_BAND_PHASE");
+        const QString path  = qEnvironmentVariable("PHOTOCRAP_PROJECT_BAND_PATH");
+        if ((phase != "save" && phase != "open") || path.isEmpty())
+            QSKIP("Run from the dense optimization probe.");
+        const auto project = QUrl::fromLocalFile(path);
+        Document   document;
+        document.setBackgroundEditThreshold(-1);
+        QElapsedTimer timer;
+        if (phase == "save") {
+            QVERIFY(document.newDocument(6000, 4000, false, 16));
+            document.setTool("gradient");
+            document.setColor(QColor(110, 70, 25));
+            document.setSecondaryColor(QColor(25, 80, 165));
+            document.beginStroke(10, 10);
+            document.continueStroke(5900, 3900);
+            document.endStroke();
+            document.setTool("pencil");
+            document.setBrushSize(7);
+            for (int i = 0; i < 3; ++i) {
+                document.duplicateLayer();
+                document.setColor(QColor(200 + i, 25 + i, 30));
+                document.beginStroke(100, 100);
+                document.endStroke();
+            }
+            QCOMPARE(document.layers().size(), 4);
+            timer.start();
+            QVERIFY(document.saveProject(project));
+        } else {
+            timer.start();
+            QVERIFY(document.openFile(project));
+        }
+        const double ms = timer.nsecsElapsed() / 1e6;
+        QCOMPARE(document.layers().size(), 4);
+        QCOMPARE(document.channelBits(), 16);
+        const auto stack = document.gpuLayerStack();
+        QVERIFY(stack.valid && !stack.layers.isEmpty());
+        QCOMPARE(stack.layers.constLast().image.region({100, 100, 1, 1}).pixelColor(0, 0),
+                 QColor(202, 27, 30));
+        const QJsonObject probe{{"kind", "project-phase"},
+                                {"phase", phase},
+                                {"elapsed_ms", ms},
+                                {"file_bytes", double(QFileInfo(path).size())},
+                                {"memory", QJsonObject::fromVariantMap(document.memoryUsage())}};
+        qInfo().noquote() << "PHOTOCRAP_PROBE"
+                          << QJsonDocument(probe).toJson(QJsonDocument::Compact);
+    }
+
     void tiledHistorySurvivesEvictionAndCacheClearing()
     {
         QTemporaryDir directory;
@@ -4343,9 +4392,12 @@ private slots:
         const int     history          = d.historyIndex();
         d.setTool("patch");
         d.setPatchMode(mode);
+        QElapsedTimer repairTimer;
+        repairTimer.start();
         d.beginStroke(50, 50);
         d.continueStroke(100, 50);
         d.endStroke();
+        const double releaseMs = repairTimer.nsecsElapsed() / 1e6;
         QVERIFY(d.patchBusy());
         const QRegion target   = d.patchTargetRegion();
         const QImage  coverage = d.selectionMask();
@@ -4360,6 +4412,7 @@ private slots:
         SelectionCoverage::blend(expected, original, coverage, target.boundingRect());
         QVERIFY(expected != original);
         QTRY_VERIFY_WITH_TIMEOUT(!d.patchBusy(), 5000);
+        const double repairMs = repairTimer.nsecsElapsed() / 1e6;
         QTRY_VERIFY_WITH_TIMEOUT(!d.patchDragging(), 5000);
         QCOMPARE(d.channelBits(), bits);
         QCOMPARE(d.layerImage(0), expected);
@@ -4370,6 +4423,19 @@ private slots:
         QCOMPARE(d.selectionMask(), originalCoverage);
         d.redo();
         QCOMPARE(d.layerImage(0), expected);
+        if (qEnvironmentVariableIsSet("PHOTOCRAP_OPTIMIZATION_PROBES")) {
+            const QJsonObject probe{
+                {"kind", "tool-preview"},
+                {"tool", "patch"},
+                {"bits", bits},
+                {"mode", mode},
+                {"release_ms", releaseMs},
+                {"repair_observed_ms", repairMs},
+                {"target_pixels", target.boundingRect().width() * target.boundingRect().height()},
+                {"memory", QJsonObject::fromVariantMap(d.memoryUsage())}};
+            qInfo().noquote() << "PHOTOCRAP_PROBE"
+                              << QJsonDocument(probe).toJson(QJsonDocument::Compact);
+        }
     }
 
     void patchPendingRepairProtectsSaveAndCleanDocument()

@@ -98,12 +98,15 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                          "unchanged stacks reuse source textures and completed intermediates"))
                 return false;
             const auto snapshot = canvas.stackSnapshotPreparations();
-            canvas.setSize({601, 128});
+            canvas.setSize({600, 129});
             frame();
             canvas.setSize({600, 128});
             frame();
             if (!require(canvas.stackSnapshotPreparations() == snapshot,
                          "geometry-only frames reuse the stack snapshot"))
+                return false;
+            if (!require(canvas.stackTextureUploads() == uploads && canvas.stackPasses() == passes,
+                         "geometry-only frames reuse the rendered GPU tiles"))
                 return false;
             document.setLayerBlend(document.activeLayer(), 0);
             frame();

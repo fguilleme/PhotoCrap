@@ -277,9 +277,7 @@ void CanvasItem::updatePolish()
         if (m_imageDirty || !m_stackSnapshotPrepared) {
             m_stackSnapshot         = m_document->gpuLayerStack();
             m_stackSnapshotPrepared = true;
-#ifdef PHOTOCRAP_TESTING
-            ++m_stackSnapshotPreparations;
-#endif
+            ++m_stackSnapshotRevision;
         }
         m_stack = m_stackSnapshot;
     } else {
@@ -821,7 +819,8 @@ QSGNode *CanvasItem::updatePaintNode(QSGNode *_oldNode, UpdatePaintNodeData *)
             node->stack = new LayerStackNode(window(), failure, m_stackStatistics);
             node->photo.appendChildNode(node->stack);
         }
-        if (!node->stack->update(m_stack, boundingRect(), visible, m_graphicsClient->allowance())) {
+        if (!node->stack->update(m_stack, m_stackSnapshotRevision, boundingRect(), visible,
+                                 m_graphicsClient->allowance())) {
             QMetaObject::invokeMethod(
                 this,
                 [this] {

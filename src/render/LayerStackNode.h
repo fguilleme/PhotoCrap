@@ -14,8 +14,8 @@ public:
                    std::shared_ptr<PhotoCrap::Render::StackStatistics> statistics);
     ~LayerStackNode() override;
     static bool supported(QQuickWindow *window, int bits, bool spatial);
-    bool        update(const PhotoCrap::Render::LayerStack &stack, const QRectF &item,
-                       const QRectF &visible, qint64 cacheBytes);
+    bool        update(const PhotoCrap::Render::LayerStack &stack, quint64 snapshotRevision,
+                       const QRectF &item, const QRectF &visible, qint64 cacheBytes);
     quint64     uploads() const;
     quint64     passes() const;
     quint64     bytes() const;

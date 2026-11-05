@@ -151,6 +151,8 @@ public:
     QRectF                                     geometry;
     PhotoCrap::Render::LayerStack              stack;
     QByteArray                                 renderedKey;
+    quint64                                    snapshotRevision = 0, renderedRevision = 0;
+    int                                        renderedDisplayLevel = -1;
     std::shared_ptr<Workspace>                 work;
     bool                                       sharedWork = false;
     std::shared_ptr<DisplayPyramidScratchPool> reductionPool;
@@ -206,11 +208,12 @@ public:
         updateBytes();
         return image;
     }
-    void setStack(const PhotoCrap::Render::LayerStack &value, const QRect &content,
-                  const QRectF &rect)
+    void setStack(const PhotoCrap::Render::LayerStack &value, quint64 revision,
+                  const QRect &content, const QRectF &rect)
     {
-        stack        = value;
-        displayLevel = stack.displayLevel;
+        stack            = value;
+        snapshotRevision = revision;
+        displayLevel     = stack.displayLevel;
         if (pyramidDocument != stack.size) {
             pyramid.reset();
             pyramidDocument = stack.size;
@@ -240,6 +243,8 @@ public:
         }
         if (sharedWork && displayLevel == 0) {
             if (!retained) {
+                renderedKey.clear();
+                renderedRevision = 0;
                 retained.reset(
                     rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
                                     region.size(), 1, QRhiTexture::RenderTarget));
@@ -375,18 +380,16 @@ public:
         if (failed || stack.layers.isEmpty())
             return;
         const auto layers = std::move(stack.layers);
-        if (streaming) {
-            tableSize = blendSize = colorSize = maskSize = QSize(1, 1);
-            for (const auto &layer : layers) {
-                tableSize = tableSize.expandedTo(layer.toneTable.size());
-                blendSize = blendSize.expandedTo(layer.blendTable.size());
-                if (layer.needsColorInput() &&
-                    !PhotoCrap::Render::compactStackInput(layer.image, stack.size))
-                    colorSize = region.size();
-                if (layer.needsMaskInput() &&
-                    !PhotoCrap::Render::compactStackInput(layer.mask, stack.size))
-                    maskSize = region.size();
-            }
+        const auto reduce = [&](QRhiCommandBuffer *cb) {
+            if (pyramid && displayLevel > 0)
+                counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
+        };
+        // A geometry-only frame supplies the same immutable source snapshot.
+        // Shared scratch must still be regenerated for a different zoom level.
+        if (renderedRevision != 0 && snapshotRevision == renderedRevision &&
+            (!sharedWork || displayLevel == renderedDisplayLevel)) {
+            reduce(commandBuffer());
+            return;
         }
         QByteArray key;
         for (const auto &layer : layers) {
@@ -424,11 +427,23 @@ public:
         if (sharedWork)
             key += "/" + QByteArray::number(displayLevel);
         if (key == renderedKey) {
-            if (pyramid && displayLevel > 0) {
-                const auto count = pyramid->render(commandBuffer(), displayLevel, generation);
-                counters->reductions.fetch_add(count);
-            }
+            renderedRevision     = snapshotRevision;
+            renderedDisplayLevel = displayLevel;
+            reduce(commandBuffer());
             return;
+        }
+        if (streaming) {
+            tableSize = blendSize = colorSize = maskSize = QSize(1, 1);
+            for (const auto &layer : layers) {
+                tableSize = tableSize.expandedTo(layer.toneTable.size());
+                blendSize = blendSize.expandedTo(layer.blendTable.size());
+                if (layer.needsColorInput() &&
+                    !PhotoCrap::Render::compactStackInput(layer.image, stack.size))
+                    colorSize = region.size();
+                if (layer.needsMaskInput() &&
+                    !PhotoCrap::Render::compactStackInput(layer.mask, stack.size))
+                    maskSize = region.size();
+            }
         }
         auto       *updates = rhi->nextResourceUpdateBatch();
         const float quad[]  = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
@@ -654,9 +669,10 @@ public:
             else
                 ++it;
         renderedKey = key;
+        renderedRevision     = snapshotRevision;
+        renderedDisplayLevel = displayLevel;
         ++generation;
-        if (pyramid && displayLevel > 0)
-            counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
+        reduce(cb);
         updateBytes();
     }
     void render(const RenderState *) override
@@ -751,8 +767,8 @@ bool LayerStackNode::supported(QQuickWindow *window, int bits, bool spatial)
                                          QRhiTexture::RenderTarget) &&
            rhi->isTextureFormatSupported(QRhiTexture::R8, QRhiTexture::RenderTarget);
 }
-bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QRectF &item,
-                            const QRectF &visible, qint64 cacheBytes)
+bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 snapshotRevision,
+                            const QRectF &item, const QRectF &visible, qint64 cacheBytes)
 {
     const double sx = item.width() / stack.size.width(), sy = item.height() / stack.size.height();
     const QRect  bounds(QPoint{}, stack.size);
@@ -845,7 +861,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                 if (!tile->image->parent())
                     appendChildNode(tile->image);
             }
-            tile->setStack(stack, content, item);
+            tile->setStack(stack, snapshotRevision, content, item);
             used.insert(key);
             d->lastUse.insert(key, d->clock);
         }
@@ -902,8 +918,8 @@ bool LayerStackNode::supported(QQuickWindow *, int, bool)
 {
     return false;
 }
-bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &, const QRectF &, const QRectF &,
-                            qint64)
+bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &, quint64, const QRectF &,
+                            const QRectF &, qint64)
 {
     return false;
 }

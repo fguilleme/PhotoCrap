@@ -178,6 +178,10 @@ private slots:
                 QCOMPARE(plane.tileImage(0, 0), expected);
                 for (const auto &crop : {bounds, bounds.adjusted(-3, -2, 4, 6), QRect(3, 5, 2, 3)})
                     QCOMPARE(plane.region(crop), expected.copy(crop));
+                if (i == 7)
+                    QCOMPARE(
+                        plane.scaledFast({127, 131}),
+                        expected.scaled(127, 131, Qt::IgnoreAspectRatio, Qt::FastTransformation));
                 QCOMPARE(plane.regionKey({0, 0, 5, 5}), untouched);
                 QVERIFY(plane.heapBytes() <= expected.sizeInBytes() + 8 * patch.sizeInBytes());
                 versions.append(plane);

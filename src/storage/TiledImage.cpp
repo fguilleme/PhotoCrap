@@ -633,25 +633,40 @@ QImage TiledImage::scaledFast(const QSize &target) const
         coordinates(size().height(), target.height(), true, size().width() != target.width());
     if (xs.size() != target.width() || ys.size() != target.height())
         return {};
-    const int bytes = result.depth() / 8;
-    for (int y = 0; y < target.height(); ++y) {
-        uchar    *output = result.scanLine(y);
-        const int row    = ys[y] / TileSize;
-        for (int x = 0; x < target.width();) {
-            const int column = xs[x] / TileSize;
-            int       end    = x + 1;
-            while (end < target.width() && xs[end] / TileSize == column)
+    struct TileRun {
+        int index, first, end;
+    };
+    const auto tileRuns = [](const QVector<int> &_samples) {
+        QVector<TileRun> runs;
+        for (int first = 0; first < _samples.size();) {
+            const int index = _samples[first] / TileSize;
+            int       end   = first + 1;
+            while (end < _samples.size() && _samples[end] / TileSize == index)
                 ++end;
-            if (const auto tile = m_data->tiles.value(m_data->key(column, row))) {
-                const QImage pixels = tile->image();
-                const uchar *input  = pixels.constScanLine(ys[y] - row * TileSize);
-                for (; x < end; ++x)
-                    std::memcpy(output + x * bytes, input + (xs[x] - column * TileSize) * bytes,
-                                size_t(bytes));
-            } else
-                x = end; // Uniform pixels were already filled by blank().
+            runs.append({index, first, end});
+            first = end;
         }
-    }
+        return runs;
+    };
+    const auto columns = tileRuns(xs);
+    const int  bytes   = result.depth() / 8;
+    // Visit each sampled tile once, even if its native pixels are stored as deltas.
+    for (const auto &row : tileRuns(ys))
+        for (const auto &column : columns) {
+            const auto tile = m_data->tiles.value(m_data->key(column.index, row.index));
+            if (!tile)
+                continue;
+            const QImage pixels = tile->image();
+            if (pixels.isNull())
+                return {};
+            for (int y = row.first; y < row.end; ++y) {
+                auto       *output = result.scanLine(y);
+                const auto *input  = pixels.constScanLine(ys[y] - row.index * TileSize);
+                for (int x = column.first; x < column.end; ++x)
+                    std::memcpy(output + x * bytes,
+                                input + (xs[x] - column.index * TileSize) * bytes, size_t(bytes));
+            }
+        }
     return result;
 }
 

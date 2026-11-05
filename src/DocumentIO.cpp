@@ -2,6 +2,7 @@
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "shapes/ShapeLayer.h"
+#include "storage/ProjectPng.h"
 #include "storage/ProjectReadIndex.h"
 #include "storage/ProjectWriteDevice.h"
 #include "storage/StreamingImageWriter.h"
@@ -480,13 +481,27 @@ bool Document::saveProject(const QUrl &_url)
             }
             return operationStep(completed, total);
         }
-        const QImage pixels = _plane;
-        if (pixels.isNull() || !operationStep(completed++, total))
+        if (!operationStep(completed++, total))
             return false;
+        const auto encode = [&](Base64WriteDevice &_encoder) {
+            const auto space = _plane.colorSpace();
+            const auto format = _plane.format();
+            const bool native = format == QImage::Format_Grayscale8 ||
+                                format == QImage::Format_ARGB32_Premultiplied ||
+                                format == QImage::Format_RGBA64_Premultiplied;
+            const bool largeNative =
+                native && qint64(_plane.width()) * _plane.height() >= 4LL * 1024 * 1024 &&
+                (!space.isValid() || space == QColorSpace(QColorSpace::SRgb));
+            const bool written =
+                largeNative ? PhotoCrap::Storage::writeProjectPng(
+                                  _encoder, _plane, [&] { return operationStep(completed, total); })
+                            : QImage(_plane).save(&_encoder, "PNG");
+            return written && _encoder.finish();
+        };
         if (references.value(key) > 1 && !uncachedPayloads.contains(key)) {
             RecordingWriteDevice recording(output, payloadBudget);
             Base64WriteDevice    encoder(recording);
-            if (!pixels.save(&encoder, "PNG") || !encoder.finish())
+            if (!encode(encoder))
                 return false;
             if (recording.recordingComplete()) {
                 const auto bytes = recording.recording();
@@ -496,7 +511,7 @@ bool Document::saveProject(const QUrl &_url)
             return operationStep(completed, total);
         }
         Base64WriteDevice encoder(output);
-        return pixels.save(&encoder, "PNG") && encoder.finish() && operationStep(completed, total);
+        return encode(encoder) && operationStep(completed, total);
     };
     // Empty named paths need the new reader; keep ordinary documents readable
     // by v9 applications, whose path decoder requires at least one anchor.

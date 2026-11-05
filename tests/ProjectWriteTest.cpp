@@ -1,3 +1,5 @@
+#include "storage/PixelPlane.h"
+#include "storage/ProjectPng.h"
 #include "storage/ProjectWriteDevice.h"
 #include "storage/StreamingImageWriter.h"
 #include <QBuffer>
@@ -381,6 +383,27 @@ private slots:
             QVERIFY(recording.recordingComplete());
             QCOMPARE(recording.recording(), previous.toBase64());
             QVERIFY(sink.largestRequest <= 16 * 1024);
+
+            PixelPlane plane(image);
+            QVERIFY(plane.freeze());
+            ShortSink banded;
+            int       bands = 0;
+            QVERIFY(PhotoCrap::Storage::writeProjectPng(banded, plane, [&] {
+                ++bands;
+                return true;
+            }));
+            QCOMPARE(bands, 2);
+            QCOMPARE(QImage::fromData(banded.bytes, "PNG").convertToFormat(format),
+                     QImage::fromData(previous, "PNG").convertToFormat(format));
+
+            ShortSink cancelled;
+            bands = 0;
+            QVERIFY(!PhotoCrap::Storage::writeProjectPng(cancelled, plane,
+                                                         [&] { return ++bands < 2; }));
+            QCOMPARE(bands, 2);
+            ShortSink failed;
+            failed.failAfter = 100;
+            QVERIFY(!PhotoCrap::Storage::writeProjectPng(failed, plane, {}));
         }
     }
 };

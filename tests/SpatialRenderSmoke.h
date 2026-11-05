@@ -166,6 +166,22 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
                 << maximum;
         return true;
     };
+    if (hardware) {
+        canvas.setSize({600, 96});
+        if (!require(document.newDocument(600, 96, false, 16), "create a two-tile image"))
+            return false;
+        frame();
+        frame();
+        const auto pipelines = canvas.stackPipelineCreations();
+        const auto passes    = canvas.stackPasses();
+        document.addAdjustmentLayer("motionBlur");
+        frame();
+        frame();
+        if (!require(canvas.gpuStackActive() && canvas.stackPasses() >= passes + 6 &&
+                         canvas.stackPipelineCreations() == pipelines + 1,
+                     "two distinct tile sizes share a single spatial pipeline"))
+            return false;
+    }
     for (int bits : {8, 16}) {
         if (hardware) {
             canvas.setSize({96, 96});
@@ -182,12 +198,16 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
                              motionBytes == baseBytes + 96 * 96 * 16 + 96 + 256,
                          "motion allocates one texture and uniforms, sharing the existing quad"))
                 return false;
+            const auto pipelines = canvas.stackPipelineCreations();
             document.addAdjustmentLayer("boxBlur");
             frame();
             frame();
             if (!require(canvas.stackTextureBytes() ==
                              motionBytes + 96 * 96 * (bits == 16 ? 16 : 4) + 448,
                          "a separable filter adds the second spatial texture"))
+                return false;
+            if (!require(canvas.stackPipelineCreations() <= pipelines + (bits == 16 ? 0 : 1),
+                         "the second target reuses its compatible pipeline"))
                 return false;
             document.removeLayer();
             frame();

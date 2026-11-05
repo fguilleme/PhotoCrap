@@ -50,6 +50,7 @@ struct DrawResources {
     std::unique_ptr<QRhiBuffer>  vertices;
     std::unique_ptr<QRhiShaderResourceBindings> pipelineLayout;
     std::vector<Pipeline>                       pipelines;
+    SpatialFilterPipelines                      spatialPipelines;
     Counters                    *counters = nullptr;
     bool                         uploaded = false;
     QHash<QByteArray, std::weak_ptr<Input>> tables;
@@ -644,7 +645,8 @@ public:
             if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->masks)
                     work->masks = std::make_unique<SpatialFilterPass>(
-                        rhi, region.size(), 8, *draw.vertices, *draw.sampler, *counters);
+                        rhi, region.size(), 8, *draw.vertices, *draw.sampler, draw.spatialPipelines,
+                        *counters);
                 const auto prepared = work->masks->prepare(maskSource, layer.maskFilter, updates,
                                                            true, mask ? mask->id : 0);
                 if (!prepared.texture) {
@@ -660,7 +662,8 @@ public:
             if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->spatial)
                     work->spatial = std::make_unique<SpatialFilterPass>(
-                        rhi, region.size(), bits, *draw.vertices, *draw.sampler, *counters);
+                        rhi, region.size(), bits, *draw.vertices, *draw.sampler,
+                        draw.spatialPipelines, *counters);
                 const auto prepared =
                     work->spatial->prepare(work->colors[index % 2].get(), layer.spatial, updates);
                 if (!prepared.texture) {

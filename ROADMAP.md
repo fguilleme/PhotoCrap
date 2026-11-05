@@ -335,7 +335,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Signatures régionales réutilisées entre composition et transfert. Les tuiles couleur et masque 8 bits transmises en entier utilisent directement leur image de préparation. Les tuiles d’un canevas partagent un tampon de sommets et un échantillonneur.
 - [x] Tables de réglage et de fusion immuables transférées et budgétées une fois par canevas en mode à entrées conservées. Les tuiles partagent les pipelines compatibles et les retouches de paramètres conservent les liaisons GPU quand les textures restent les mêmes.
 - [x] Buffers et liaisons des passes de flou, de netteté et de masque progressif réutilisés dans les espaces de travail privés. Les paramètres inchangés des passes conservées ne sont plus retransmis au GPU.
-- [x] Cibles spatiales allouées à la demande. Le flou directionnel utilise une seule cible et la seconde est libérée après retrait des filtres qui l’utilisent. Les passes spatiales et les masques progressifs partagent la géométrie et l’échantillonneur du canevas.
+- [x] Cibles spatiales allouées à la demande. Le flou directionnel utilise une seule cible et la seconde est libérée après retrait des filtres qui l’utilisent. Les passes spatiales et les masques progressifs partagent la géométrie, l’échantillonneur et les pipelines compatibles sur tout le canevas.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

@@ -10,8 +10,23 @@ class QRhi;
 class QRhiTexture;
 class QRhiBuffer;
 class QRhiSampler;
+class QRhiGraphicsPipeline;
+class QRhiTextureRenderTarget;
 class QRhiCommandBuffer;
 class QRhiResourceUpdateBatch;
+class SpatialFilterPipelines
+{
+public:
+    SpatialFilterPipelines();
+    ~SpatialFilterPipelines();
+    QRhiGraphicsPipeline *get(QRhiTextureRenderTarget            &target,
+                              PhotoCrap::Render::StackStatistics &statistics);
+
+private:
+    struct Data;
+    std::unique_ptr<Data> d;
+};
+
 class SpatialFilterPass
 {
 public:
@@ -20,7 +35,8 @@ public:
         QRhiTexture *texture = nullptr;
     };
     SpatialFilterPass(QRhi *rhi, const QSize &size, int bits, QRhiBuffer &vertices,
-                      QRhiSampler &sampler, PhotoCrap::Render::StackStatistics &statistics);
+                      QRhiSampler &sampler, SpatialFilterPipelines &pipelines,
+                      PhotoCrap::Render::StackStatistics &statistics);
     ~SpatialFilterPass();
     void    resetFrame(bool reuseSteps);
     void    finishPreparation();

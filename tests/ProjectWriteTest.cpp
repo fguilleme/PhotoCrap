@@ -17,6 +17,7 @@
 #include <QSaveFile>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <cstring>
 #include <limits>
 
 namespace
@@ -395,6 +396,33 @@ private slots:
             QCOMPARE(bands, 2);
             QCOMPARE(QImage::fromData(banded.bytes, "PNG").convertToFormat(format),
                      QImage::fromData(previous, "PNG").convertToFormat(format));
+
+            using PhotoCrap::Storage::ProjectPngRead;
+            for (QByteArray encoded : {previous, banded.bytes}) {
+                QBuffer input(&encoded);
+                QVERIFY(input.open(QIODevice::ReadOnly));
+                PixelPlane restored;
+                QCOMPARE(
+                    PhotoCrap::Storage::readProjectPng(input, image.size(), format, restored, {}),
+                    ProjectPngRead::Loaded);
+                const auto expected = QImage::fromData(encoded, "PNG").convertToFormat(format);
+                const auto actual   = restored.region(image.rect());
+                QCOMPARE(actual.size(), expected.size());
+                QCOMPARE(actual.format(), expected.format());
+                QCOMPARE(actual.dotsPerMeterX(), expected.dotsPerMeterX());
+                QCOMPARE(actual.dotsPerMeterY(), expected.dotsPerMeterY());
+                for (int y = 0; y < image.height(); ++y)
+                    QCOMPARE(std::memcmp(actual.constScanLine(y), expected.constScanLine(y),
+                                         size_t(image.width() * image.depth() / 8)),
+                             0);
+                encoded.chop(12); // IEND must be validated before publishing any tiles.
+                QVERIFY(input.seek(0));
+                PixelPlane truncated;
+                QCOMPARE(
+                    PhotoCrap::Storage::readProjectPng(input, image.size(), format, truncated, {}),
+                    ProjectPngRead::Failed);
+                QVERIFY(truncated.isNull());
+            }
 
             ShortSink cancelled;
             bands = 0;

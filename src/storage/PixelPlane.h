@@ -13,6 +13,15 @@ public:
         : m_image(image), m_key(image.cacheKey()), m_readKey(image.cacheKey())
     {
     }
+    static PixelPlane fromTiles(TiledImage _tiles)
+    {
+        PixelPlane result;
+        if (!_tiles.isNull()) {
+            result.m_tiles = std::move(_tiles);
+            result.m_key   = nextVersionKey();
+        }
+        return result;
+    }
     // Give a native one-pixel background logical dimensions without expanding
     // its pixels. Geometry is part of the plane's identity, not the pixel key.
     static PixelPlane uniform(const QSize &_size, const QImage &_pixel)

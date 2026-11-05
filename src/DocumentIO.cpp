@@ -658,20 +658,35 @@ bool Document::loadProject(const QString &_path)
                                                       QByteArray::AbortOnBase64DecodingErrors);
             QBuffer    buffer(&bytes);
             buffer.open(QIODevice::ReadOnly);
-            QImageReader reader(&buffer, "PNG");
-            if (reader.size() != (_compact ? QSize(1, 1) : QSize(w, h)))
-                return {};
-            const QByteArray key = QByteArray::number(int(_format)) + ':' +
+            const QSize      size = _compact ? QSize(1, 1) : QSize(w, h);
+            const QByteArray key = QByteArray::number(int(_format)) + (_compact ? 'c' : 'd') + ':' +
                                    QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
             if (auto found = planes.constFind(key); found != planes.cend())
                 return operationStep(completed, total) ? found.value() : PixelPlane{};
-            QImage decoded = reader.read().convertToFormat(_format);
-            if (_format != QImage::Format_Grayscale8)
-                decoded.setColorSpace(QColorSpace::SRgb);
+            using PhotoCrap::Storage::ProjectPngRead;
+            PixelPlane plane;
+            const auto streamed = qint64(size.width()) * size.height() >= 4LL * 1024 * 1024
+                                      ? PhotoCrap::Storage::readProjectPng(
+                                            buffer, size, _format, plane,
+                                            [&] { return operationStep(completed, total); })
+                                      : ProjectPngRead::Unsupported;
+            if (streamed == ProjectPngRead::Failed)
+                return {};
+            if (streamed == ProjectPngRead::Unsupported) {
+                if (!buffer.seek(0))
+                    return {};
+                QImageReader reader(&buffer, "PNG");
+                if (reader.size() != size)
+                    return {};
+                QImage decoded = reader.read().convertToFormat(_format);
+                if (decoded.isNull())
+                    return {};
+                if (_format != QImage::Format_Grayscale8)
+                    decoded.setColorSpace(QColorSpace::SRgb);
+                plane = PixelPlane(decoded);
+            }
             if (!operationStep(completed, total))
                 return {};
-            PixelPlane plane(decoded);
-            decoded = {};
             // Seal each plane before decoding the next. Do not retain an
             // entire stack of PNG buffers beside the imported tile versions.
             if (!plane.freeze() || !prepareNativePlane(plane, _format, budget)) {

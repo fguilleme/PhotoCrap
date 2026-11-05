@@ -536,6 +536,72 @@ bool TiledImage::replace(const QImage &_image)
     return true;
 }
 
+TiledImage TiledImage::fromBands(const QSize &_size, QImage::Format _format,
+                                 const std::function<QImage(const QRect &)> &_read)
+{
+    TiledImage result(_size, _format, Qt::transparent);
+    if (result.isNull() || !_read)
+        return {};
+    auto &data = *result.m_data;
+    struct Uniform {
+        int     key;
+        quint64 value;
+        QImage  pixel;
+    };
+    QVector<Uniform>       uniforms;
+    QHash<quint64, qint64> weights;
+    qint64                 bestWeight = 0;
+    quint64                bestValue  = 0;
+    const int              bytes      = data.background.depth() / 8;
+    for (int top = 0; top < _size.height(); top += TileSize) {
+        const QRect  area(0, top, _size.width(), qMin(TileSize, _size.height() - top));
+        const QImage band = _read(area);
+        if (band.size() != area.size() || band.format() != _format)
+            return {};
+        if (top == 0) {
+            data.background = band.copy(0, 0, 1, 1);
+            if (data.background.isNull())
+                return {};
+            data.background.fill(Qt::transparent);
+        }
+        for (int column = 0; column < data.columns(); ++column) {
+            const int   key     = data.key(column, top / TileSize);
+            const QRect bounds  = data.rect(column, top / TileSize).translated(0, -top);
+            const bool  uniform = isUniformRegion(band, bounds, nullptr);
+            const auto  pixels = band.copy(uniform ? QRect(bounds.topLeft(), QSize(1, 1)) : bounds);
+            if (pixels.isNull())
+                return {};
+            if (!uniform) {
+                data.setTile(key, std::make_shared<Tile>(pixels));
+                continue;
+            }
+            quint64 value = 0;
+            std::memcpy(&value, pixels.constBits(), size_t(bytes));
+            const auto weight =
+                (weights[value] += qint64((bounds.width() * bytes + 3) & ~3) * bounds.height());
+            if (weight > bestWeight) {
+                bestWeight      = weight;
+                bestValue       = value;
+                data.background = pixels;
+            }
+            uniforms.append({key, value, pixels});
+        }
+    }
+    // Keep the same dominant compact background as a whole-image import,
+    // without allocating uniform tiles before that background is known.
+    Data minority;
+    for (const auto &tile : uniforms)
+        if (tile.value != bestValue) {
+            minority.background = tile.pixel;
+            const auto pixels   = minority.blank(
+                data.rect(tile.key % data.columns(), tile.key / data.columns()).size());
+            if (pixels.isNull())
+                return {};
+            data.setTile(tile.key, std::make_shared<Tile>(pixels));
+        }
+    return result;
+}
+
 TiledImage TiledImage::convertedTo(QImage::Format               _format,
                                    const std::function<bool()> &_continue) const
 {

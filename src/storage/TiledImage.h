@@ -33,6 +33,8 @@ public:
     // Import native pixels exactly; updates retain immutable versions of
     // unchanged tiles, including their disk leases.
     bool replace(const QImage &_image);
+    static TiledImage fromBands(const QSize &_size, QImage::Format _format,
+                                const std::function<QImage(const QRect &)> &_read);
     // Convert native pixels per stored tile; failure/cancellation leaves this
     // snapshot intact. The callback is checked between tile conversions.
     TiledImage convertedTo(QImage::Format               _format,

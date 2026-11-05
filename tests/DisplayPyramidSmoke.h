@@ -128,6 +128,30 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
             std::sort(timings.begin(), timings.end());
             qInfo() << "Cached zoom frame submission ms" << bits << "median" << timings[5]
                     << "maximum" << timings.last();
+            if (!check(4))
+                return false;
+            const auto   parameters         = canvas.stackUniformUpdates();
+            const auto   previousReductions = canvas.gpuReductionPasses();
+            const auto   sample             = canvas.mapToScene({5.5 / ratio, 5.5 / ratio}) * ratio;
+            const QPoint pixel(qFloor(sample.x()), qFloor(sample.y()));
+            const auto   oldPixel = frame().pixelColor(pixel);
+            document.setTool("pencil");
+            document.setColor(Qt::magenta);
+            document.setBrushSize(48);
+            document.beginStroke(87, 87);
+            document.endStroke();
+            frame();
+            const auto changed = frame();
+            if (!require(canvas.gpuReductionPasses() > previousReductions,
+                         "painting redraws the GPU pyramid") ||
+                !require(changed.pixelColor(pixel) != oldPixel,
+                         "the reduced image shows the new brush stroke") ||
+                !require(canvas.stackUniformUpdates() == parameters,
+                         "the redraw reuses fixed reduction parameters"))
+                return false;
+            document.undo();
+            if (!check(4))
+                return false;
             canvas.setTextureCacheMiB(0);
             frame();
             frame();

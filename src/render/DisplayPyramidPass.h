@@ -2,6 +2,10 @@
 #include <QRect>
 #include <functional>
 #include <memory>
+namespace PhotoCrap::Render
+{
+struct StackStatistics;
+}
 class QRhi;
 class QRhiTexture;
 class QRhiCommandBuffer;
@@ -22,7 +26,8 @@ class DisplayPyramidPass
 {
 public:
     DisplayPyramidPass(QRhi *rhi, const QRect &nativeRegion, const QSize &documentSize, int bits,
-                       std::shared_ptr<DisplayPyramidScratchPool> pool = {});
+                       PhotoCrap::Render::StackStatistics        &statistics,
+                       std::shared_ptr<DisplayPyramidScratchPool> pool);
     ~DisplayPyramidPass();
     // Creates a retained level; input remains owned by the native tile.
     QRhiTexture *ensure(QRhiTexture *source, int level);

@@ -1,5 +1,6 @@
 #include "DisplayPyramidPass.h"
 #ifdef PHOTOCRAP_RHI_STACK
+#include "LayerStack.h"
 #include <QFile>
 #include <QMap>
 #include <array>
@@ -43,6 +44,7 @@ std::shared_ptr<PyramidTarget> pyramidTarget(QRhi *rhi, const QSize &size,
 struct Level {
     std::array<std::shared_ptr<PyramidTarget>, 2>              surfaces;
     bool                                                       borrowedScratch = false;
+    bool                                                       uploaded        = false;
     std::array<std::unique_ptr<QRhiGraphicsPipeline>, 2>       pipelines;
     std::array<std::unique_ptr<QRhiBuffer>, 2>                 uniforms;
     std::array<std::unique_ptr<QRhiShaderResourceBindings>, 2> bindings;
@@ -92,6 +94,7 @@ struct DisplayPyramidPass::Data {
     QRect                                      native;
     QSize                                      document;
     int                                        bits;
+    PhotoCrap::Render::StackStatistics        *statistics;
     std::shared_ptr<DisplayPyramidScratchPool> pool;
     std::unique_ptr<QRhiSampler>               sampler;
     std::unique_ptr<QRhiBuffer>                vertices;
@@ -119,13 +122,15 @@ struct DisplayPyramidPass::Data {
     }
 };
 DisplayPyramidPass::DisplayPyramidPass(QRhi *rhi, const QRect &native, const QSize &document,
-                                       int bits, std::shared_ptr<DisplayPyramidScratchPool> pool)
+                                       int bits, PhotoCrap::Render::StackStatistics &statistics,
+                                       std::shared_ptr<DisplayPyramidScratchPool> pool)
     : d(std::make_unique<Data>())
 {
     d->rhi      = rhi;
     d->native   = native;
     d->document = document;
     d->bits     = bits;
+    d->statistics = &statistics;
     d->pool     = std::move(pool);
 }
 DisplayPyramidPass::~DisplayPyramidPass() = default;
@@ -227,16 +232,22 @@ quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 gen
     auto level = d->levels.value(index);
     if (!level || level->generation == generation)
         return 0;
-    auto *updates = d->rhi->nextResourceUpdateBatch();
-    if (!d->uploaded) {
-        const float quad[] = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
-        updates->uploadStaticBuffer(d->vertices.get(), quad);
-        d->uploaded = true;
+    if (!level->uploaded) {
+        auto *updates = d->rhi->nextResourceUpdateBatch();
+        if (!d->uploaded) {
+            const float quad[] = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
+            updates->uploadStaticBuffer(d->vertices.get(), quad);
+            d->uploaded = true;
+        }
+        for (int axis = 0; axis < 2; ++axis)
+            updates->updateDynamicBuffer(level->uniforms[axis].get(), 0, 128,
+                                         level->data[axis].constData());
+        cb->resourceUpdate(updates);
+        level->uploaded = true;
+        d->statistics->uniformUpdates.fetch_add(2);
+        // Each level has a fixed sampling grid, even when its input changes.
+        level->data = {};
     }
-    for (int axis = 0; axis < 2; ++axis)
-        updates->updateDynamicBuffer(level->uniforms[axis].get(), 0, 128,
-                                     level->data[axis].constData());
-    cb->resourceUpdate(updates);
     for (int axis = 0; axis < 2; ++axis) {
         cb->beginPass(level->surfaces[axis]->target.get(), Qt::transparent, {1.f, 0});
         cb->setGraphicsPipeline(level->pipelines[axis].get());
@@ -277,6 +288,7 @@ qint64 DisplayPyramidScratchPool::bytes() const
 }
 struct DisplayPyramidPass::Data {};
 DisplayPyramidPass::DisplayPyramidPass(QRhi *, const QRect &, const QSize &, int,
+                                       PhotoCrap::Render::StackStatistics &,
                                        std::shared_ptr<DisplayPyramidScratchPool>)
     : d(std::make_unique<Data>())
 {

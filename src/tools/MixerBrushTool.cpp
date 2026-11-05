@@ -357,8 +357,8 @@ void Document::prepareMixerStroke()
     painter.end();
     // Hold other layers stable without preparing a full-sized image. The active
     // plane is refreshed before each dab so pickup sees freshly deposited paint.
-    m_mixerCompositeSource =
-        m_mixerSampleAllLayers && !m_editingMask ? nativeCompositeSource(m_layers) : nullptr;
+    if (m_mixerWet > 0 && m_mixerSampleAllLayers && !m_editingMask)
+        m_mixerCompositeSource = nativeCompositeSource(m_layers);
 }
 void Document::finishMixerStroke(bool _cancel)
 {
@@ -393,22 +393,26 @@ void Document::mixerDab(const QPointF &_point)
         region = region.intersected(m_selection);
     if (region.isEmpty())
         return;
-    // The pickup must see the paint left by earlier dabs, not the immutable
-    // pre-stroke image. Keep the other layers stable while updating this one.
-    if (m_mixerCompositeSource)
-        m_mixerCompositeSource->m_layers[m_active].image = target;
-    const QImage sampled = patch(target, dab, m_size, m_mixerCompositeSource.get());
-    QImage       paint   = ImageUtils::blank(region.size());
-    if (sampled.isNull() || paint.isNull()) {
+    const bool wet = m_mixerWet > 0;
+    QImage     sampled;
+    if (wet) {
+        // The pickup must see the paint left by earlier dabs. Keep the
+        // other layers stable while updating the active plane.
+        if (m_mixerCompositeSource)
+            m_mixerCompositeSource->m_layers[m_active].image = target;
+        sampled = patch(target, dab, m_size, m_mixerCompositeSource.get());
+    }
+    QImage paint = ImageUtils::blank(region.size());
+    if ((wet && sampled.isNull()) || paint.isNull()) {
         m_strokeCoverageFailed = true;
         return;
     }
     const QPoint offset = region.topLeft() - dab.topLeft();
-    const QRgb   contact =
-        m_mixerWet > 0 ? contactColor(sampled, m_mixerTip, region, offset, *this) : 0;
+    const QRgb   contact = wet ? contactColor(sampled, m_mixerTip, region, offset, *this) : 0;
     for (int y = 0; y < region.height(); ++y) {
         auto       *pickup = reinterpret_cast<QRgb *>(m_mixerPickup.scanLine(offset.y() + y));
-        const auto *src    = reinterpret_cast<const QRgb *>(sampled.constScanLine(offset.y() + y));
+        const auto *src =
+            wet ? reinterpret_cast<const QRgb *>(sampled.constScanLine(offset.y() + y)) : nullptr;
         const auto *tip = reinterpret_cast<const QRgb *>(m_mixerTip.constScanLine(offset.y() + y));
         const auto *loaded =
             reinterpret_cast<const QRgb *>(m_mixerReservoirTip.constScanLine(offset.y() + y));
@@ -419,9 +423,8 @@ void Document::mixerDab(const QPointF &_point)
             if (coverage <= 0 ||
                 (hasSelection() && !m_selectionRegion.contains(region.topLeft() + QPoint(x, y))))
                 continue;
-            const QRgb incoming =
-                m_mixerWet > 0 ? interpolate(src[local], contact, m_mixerWet * .25) : 0;
-            if (m_mixerWet > 0 && qAlpha(incoming)) {
+            const QRgb incoming = wet ? interpolate(src[local], contact, m_mixerWet * .25) : 0;
+            if (qAlpha(incoming)) {
                 // A wet tip retains paint along its path. A dry tip neither
                 // picks up image pixels nor contributes canvas paint.
                 const qreal pickupRate = .05 + (1. - m_mixerWet) * .25;
@@ -434,7 +437,7 @@ void Document::mixerDab(const QPointF &_point)
                                     : incoming;
             }
             QRgb ink = attenuate(loaded[local], m_mixerRemaining);
-            if (m_mixerWet > 0)
+            if (wet)
                 ink = interpolate(ink, attenuate(pickup[local], m_mixerWet), m_mixerMix);
             if (m_editingMask) {
                 const int alpha = qAlpha(ink);
@@ -468,7 +471,7 @@ void Document::mixerDab(const QPointF &_point)
     // Charge determines the distance before the reservoir runs dry. Flow and
     // dab spacing determine consumption, rather than mouse event frequency.
     const qreal step           = qMax(1., m_brushSize * m_brushSpacing) / m_brushSize;
-    const qreal reservoirShare = m_mixerWet > 0 ? 1. - m_mixerMix : 1.;
+    const qreal reservoirShare = wet ? 1. - m_mixerMix : 1.;
     m_mixerRemaining = qMax(0., m_mixerRemaining - m_mixerFlow * reservoirShare * step /
                                                        (1. + 100. * m_mixerLoad * m_mixerLoad));
 }

@@ -6,6 +6,7 @@
 #include "storage/ProjectReadIndex.h"
 #include "storage/ProjectWriteDevice.h"
 #include "storage/StreamingImageWriter.h"
+#include "storage/WebpExport.h"
 #include "text/TextLayer.h"
 
 #include <QBuffer>
@@ -831,7 +832,7 @@ bool Document::exportImage(const QUrl &_url)
     if (!operationStep(0, 4))
         return false;
     const bool jpeg = suffix == "jpg" || suffix == "jpeg";
-    if ((suffix == "png" || suffix == "bmp" || jpeg) &&
+    if ((suffix == "png" || suffix == "bmp" || jpeg || suffix == "webp") &&
         qint64(width()) * height() >= 4LL * 1024 * 1024) {
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly))
@@ -843,8 +844,10 @@ bool Document::exportImage(const QUrl &_url)
         };
         const bool written =
             jpeg ? PhotoCrap::Storage::writeJpegBands(file, m_size, read, progress, error)
-                 : PhotoCrap::Storage::writeImageBands(file, m_size, m_channelBits, suffix == "png",
-                                                       read, progress, error);
+            : suffix == "webp"
+                ? PhotoCrap::Storage::writeWebpBands(file, m_size, read, progress, error)
+                : PhotoCrap::Storage::writeImageBands(file, m_size, m_channelBits, suffix == "png",
+                                                      read, progress, error);
         if (!written) {
             if (!operationStep(0, 1))
                 return false;

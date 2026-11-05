@@ -2,6 +2,7 @@
 #include "storage/ProjectPng.h"
 #include "storage/ProjectWriteDevice.h"
 #include "storage/StreamingImageWriter.h"
+#include "storage/WebpExport.h"
 #include <QBuffer>
 #include <QColorSpace>
 #include <QCryptographicHash>
@@ -67,6 +68,46 @@ class ProjectWriteTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void webpKeepsAlphaAcrossBandBoundaries()
+    {
+        QImage source(257, 513, QImage::Format_RGBA64_Premultiplied);
+        source.fill(QColor(70, 100, 150, 95));
+        {
+            QPainter painter(&source);
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(0, 0, source.width(), 256, QColor(70, 100, 150));
+        }
+        ShortSink  sink;
+        QString    error;
+        int        reads = 0;
+        const auto read  = [&](const QRect &_area) {
+            ++reads;
+            return _area.height() <= 256 && _area.y() % 2 == 0 ? source.copy(_area) : QImage{};
+        };
+        QVERIFY2(PhotoCrap::Storage::writeWebpBands(sink, source.size(), read, {}, error),
+                 qPrintable(error));
+        QCOMPARE(reads, 3);
+        QVERIFY(sink.bytes.startsWith("RIFF") && sink.bytes.mid(8, 4) == "WEBP");
+        if (QImageReader::supportedImageFormats().contains("webp")) {
+            const auto decoded = QImage::fromData(sink.bytes, "WEBP");
+            QCOMPARE(decoded.size(), source.size());
+            QCOMPARE(decoded.pixelColor(128, 255).alpha(), 255);
+            QCOMPARE(decoded.pixelColor(128, 256).alpha(), 95);
+            for (const int y : {255, 256, 511, 512}) {
+                const auto pixel = decoded.pixelColor(128, y);
+                QVERIFY(qAbs(pixel.red() - 70) <= 3 && qAbs(pixel.green() - 100) <= 3 &&
+                        qAbs(pixel.blue() - 150) <= 3);
+            }
+        }
+        ShortSink cancelled;
+        QVERIFY(!PhotoCrap::Storage::writeWebpBands(
+            cancelled, source.size(), read, [](int _progress, int) { return _progress < 600; },
+            error));
+        ShortSink failed;
+        failed.failAfter = 50;
+        QVERIFY(!PhotoCrap::Storage::writeWebpBands(failed, source.size(), read, {}, error));
+    }
+
     void jpegReadsBandsAndCompositesTransparencyOnWhite()
     {
         QImage source(257, 301, QImage::Format_RGBA64_Premultiplied);

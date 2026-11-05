@@ -823,6 +823,29 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                      "undo restores the one-texel streamed color slot"))
             return false;
     }
+    if (hardware && !streaming) {
+        canvas.setSize({600, 128});
+        canvas.setGpuStackEnabled(true);
+        if (!document.newDocument(1200, 128, false, 16))
+            return false;
+        frame();
+        frame();
+        const auto uploads = canvas.stackTextureUploads();
+        document.addAdjustmentLayer("invert");
+        frame();
+        const auto result = frame();
+        if (!require(canvas.gpuStackActive() && canvas.stackTextureUploads() == uploads + 1,
+                     "three retained tiles share one lookup texture upload"))
+            return false;
+        const double ratio = double(result.width()) / window->width();
+        for (const int x : {4, 511, 512, 1024, 1195}) {
+            const auto point = canvas.mapToScene({(x + .5) * .5, 64.5}) * ratio;
+            const auto pixel = result.pixelColor(qFloor(point.x()), qFloor(point.y()));
+            if (!require(pixel.red() <= 2 && pixel.green() <= 2 && pixel.blue() <= 2,
+                         "each tile sees the uploaded shared lookup table"))
+                return false;
+        }
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

@@ -430,6 +430,23 @@ private slots:
         const auto right      = stackWorkingBytes(stack, {512, 0, 512, 64});
         QCOMPARE(left + right - stackWorkingBytes(stack, QRect(QPoint{}, stack.size)), qint64(64));
     }
+    void gpuRetainedTablesAreBudgetedOncePerCanvas()
+    {
+        using namespace PhotoCrap::Render;
+        LayerStack stack;
+        stack.size = {1537, 96};
+        stack.bits = 16;
+        StackLayer layer;
+        layer.tonal  = true;
+        stack.layers = {layer, layer};
+        const QRect visible(QPoint{}, stack.size);
+        const auto  baseline = stackWorkingBytes(stack, visible);
+        QImage      table(256, 256, QImage::Format_RGBA64_Premultiplied);
+        QImage      blend(256, 256, QImage::Format_RGBA32FPx4);
+        stack.layers[0].toneTable = stack.layers[1].toneTable = table;
+        stack.layers[0].blendTable = stack.layers[1].blendTable = blend;
+        QCOMPARE(stackWorkingBytes(stack, visible) - baseline, 2 * 256 * 256 * qint64(16));
+    }
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {
         Document d;

@@ -27,11 +27,25 @@ QShader       shader(const char *name)
     return file.open(QIODevice::ReadOnly) ? QShader::fromSerialized(file.readAll()) : QShader{};
 }
 using Counters = PhotoCrap::Render::StackStatistics;
+struct Input;
 struct DrawResources {
     std::unique_ptr<QRhiSampler> sampler;
     std::unique_ptr<QRhiBuffer>  vertices;
     Counters                    *counters = nullptr;
     bool                         uploaded = false;
+    QHash<QByteArray, std::weak_ptr<Input>> tables;
+    qint64                                  tableBytes = 0;
+
+    void changeTableBytes(qint64 delta)
+    {
+        tableBytes += delta;
+        if (delta > 0)
+            counters->bytes.fetch_add(quint64(delta));
+        else
+            counters->bytes.fetch_sub(quint64(-delta));
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
+    }
 
     ~DrawResources()
     {
@@ -63,6 +77,13 @@ struct Input {
     std::unique_ptr<QRhiTexture> texture;
     qint64                       bytes = 0;
     QByteArray                   contentKey;
+    DrawResources               *sharedOwner = nullptr;
+
+    ~Input()
+    {
+        if (sharedOwner)
+            sharedOwner->changeTableBytes(-bytes);
+    }
 };
 struct Pass {
     std::unique_ptr<QRhiBuffer>                 uniform;
@@ -156,7 +177,8 @@ struct Workspace {
     {
         qint64 result = qint64(size.width()) * size.height() * (bits == 16 ? 34 : 10);
         for (const auto &input : inputs)
-            result += input->bytes;
+            if (!input->sharedOwner)
+                result += input->bytes;
         return result + (spatial ? spatial->bytes() : 0) + (masks ? masks->bytes() : 0);
     }
     void updateBytes()
@@ -188,6 +210,7 @@ public:
     QRectF                                     geometry;
     PhotoCrap::Render::LayerStack              stack;
     QByteArray                                 renderedKey;
+    QList<QByteArray>                          pendingSharedTables;
     quint64                                    snapshotRevision = 0, renderedRevision = 0;
     int                                        renderedDisplayLevel = -1;
     std::shared_ptr<Workspace>                 work;
@@ -359,6 +382,14 @@ public:
         auto value = work->inputs.value(key);
         if (value && (!streaming || stageOnly || value->contentKey == contentKey))
             return value;
+        const bool shareTable = whole && !streaming;
+        if (shareTable) {
+            value = draw.tables.value(key).lock();
+            if (value) {
+                work->inputs.insert(key, value);
+                return value;
+            }
+        }
         const QSize extent = streaming ? (whole == 2 ? blendSize
                                           : whole    ? tableSize
                                           : mask     ? maskSize
@@ -415,6 +446,11 @@ public:
         updates->uploadTexture(value->texture.get(),
                                QRhiTextureUploadDescription({QRhiTextureUploadEntry(0, 0, data)}));
         value->contentKey = contentKey;
+        if (shareTable) {
+            value->sharedOwner = &draw;
+            draw.changeTableBytes(value->bytes);
+            pendingSharedTables.append(key);
+        }
         ++counters->uploads;
         return value;
     }
@@ -673,6 +709,11 @@ public:
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
         draw.uploaded = true;
+        // A later tile may use these textures only after their uploads have
+        // been recorded in this frame's command buffer.
+        for (const auto &key : std::as_const(pendingSharedTables))
+            draw.tables.insert(key, work->inputs.value(key));
+        pendingSharedTables.clear();
         if (!filterRuns.empty() && (filterRuns.front() >= 0 || layers.front().tonal)) {
             cb->beginPass(work->targets[0].get(), Qt::transparent, {1.f, 0});
             cb->endPass();
@@ -865,6 +906,11 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
             it = d->workspaces.erase(it);
         else
             ++it;
+    for (auto it = d->draw.tables.begin(); it != d->draw.tables.end();)
+        if (it.value().expired())
+            it = d->draw.tables.erase(it);
+        else
+            ++it;
     ++d->clock;
     for (int y = area.top() / tileSize; !area.isEmpty() && y <= area.bottom() / tileSize; ++y)
         for (int x = area.left() / tileSize; x <= area.right() / tileSize; ++x) {
@@ -923,7 +969,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
     for (auto it = d->tiles.cbegin(); it != d->tiles.cend(); ++it)
         entries.append(
             {it.key(), it.value()->bytes(), d->lastUse.value(it.key()), used.contains(it.key())});
-    const qint64 drawBytes = d->draw.vertices ? sizeof(stackQuad) : 0;
+    const qint64 drawBytes = (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.tableBytes;
     const auto   retained =
         PhotoCrap::Render::retainedTiles(entries, qMax(qint64(0), cacheBytes - drawBytes));
     for (auto it = d->tiles.begin(); it != d->tiles.end();) {

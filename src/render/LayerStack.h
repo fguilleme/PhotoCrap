@@ -62,6 +62,8 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     qint64    bytesPerPixel = (colorBytes + 1) * 2;
     const qint64 perTile       = 256 * stack.layers.size();
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
+    qint64       sharedTableBytes = 0;
+    QSet<qint64> sharedToneTables, sharedBlendTables;
     bool      spatial = false, masks = false, colorInput = false, maskInput = false;
     bool         denseColor = false, denseMask = false;
     for (const auto &layer : stack.layers) {
@@ -98,8 +100,16 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         if (stack.streamInputs) {
             tableBytes = qMax(tableBytes, table);
             blendBytes = qMax(blendBytes, blend);
-        } else
-            scratchBytes += table + blend;
+        } else {
+            if (table && !sharedToneTables.contains(layer.toneTable.cacheKey())) {
+                sharedToneTables.insert(layer.toneTable.cacheKey());
+                sharedTableBytes += table;
+            }
+            if (blend && !sharedBlendTables.contains(layer.blendTable.cacheKey())) {
+                sharedBlendTables.insert(layer.blendTable.cacheKey());
+                sharedTableBytes += blend;
+            }
+        }
         if (layer.spatial.type != SpatialFilter::None)
             scratchBytes += 7 * 96;
         if (layer.maskFilter.type != SpatialFilter::None)
@@ -119,7 +129,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         scratchBytes += 64;
     }
 
-    qint64      bytes = 64; // The immutable quad is shared by all tiles.
+    qint64      bytes = 64 + sharedTableBytes;
     QSet<QSize> worksets, reductions;
     for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
         for (int x = area.left() / tile; x <= area.right() / tile; ++x) {

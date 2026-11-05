@@ -4,7 +4,8 @@
 
 Le workflow du 5 novembre 2026 a compilé le commit `3c728d3` avec Qt 6.8.3 sur
 les trois runners. Chaque job a ensuite échoué pendant les tests. GitHub a
-ignoré l’étape de publication, et v0.16 reste la dernière release téléchargeable.
+ignoré l’étape de publication. À la fin de ce workflow, v0.16 restait la
+dernière version téléchargeable.
 [Workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013) ·
 [Étape de publication](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013/job/127580286452)
 

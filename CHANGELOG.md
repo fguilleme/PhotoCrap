@@ -4,10 +4,20 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.17 — tag du 5 novembre 2026, publication bloquée
+## v0.17.1
 
-Le tag `v0.17` correspond à la version interne `0.17.0`. La dernière version
-téléchargeable reste v0.16. [Validation du tag](docs/VALIDATION.md#validation-du-tag-v017)
+- Stabiliser les arrondis de conversion alpha dans les modes de fusion 16 bits
+  pour obtenir les mêmes pixels en composition régionale et intégrale.
+- Synchroniser les contrôles de survol du lasso polygonal et du recadrage avec
+  les événements et le rendu QML.
+- Vérifier les empreintes exactes du moteur avec les références des backends
+  raster utilisés sur les plateformes de validation.
+
+## v0.17 — tag du 5 novembre 2026, publication ignorée
+
+Le tag `v0.17` correspond à la version interne `0.17.0`. GitHub Actions a
+ignoré sa publication à la suite des échecs de tests.
+[Validation du tag](docs/VALIDATION.md#validation-du-tag-v017)
 
 - Étendre la retouche native au 16 bits et ajouter les calques de forme
   éditables de la Plume, la conversion d’un tracé en forme et le panneau Tracés.

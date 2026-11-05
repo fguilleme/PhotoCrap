@@ -1,20 +1,20 @@
 # Roadmap PhotoCrap
 
-État au **6 novembre 2026**. La dernière version publiée est **v0.16**
-(version interne **0.16.0**). Le tag **v0.17** (version interne **0.17.0**)
-regroupe les étapes ajoutées depuis v0.16. Sa publication dépend de la
-correction des échecs CI. [Validation du tag](docs/VALIDATION.md#validation-du-tag-v017)
+État au **6 novembre 2026**. **v0.17.1** regroupe les changements de **v0.17**
+et les correctifs de composition et de tests préparés après son passage en CI.
+[Notes de version](CHANGELOG.md) ·
+[Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-## Blocages de publication de v0.17
+## Correctifs de publication de v0.17.1
 
-- [ ] Rétablir les comparaisons de pixels du moteur sur Ubuntu et Windows.
-  Le test `document` échoue sur les mêmes 18 assertions dans les deux environnements,
-  dont neuf cas d’équivalence entre composition régionale et intégrale en 16 bits.
-- [ ] Corriger l’échec du smoke test macOS sur le guide du lasso polygonal au survol.
-- [ ] Valider les builds, tests et paquets sur les trois plateformes.
-  [Workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/42119272013)
+- [x] Stabiliser les conversions alpha 16 bits lors du mélange. Vérifier les
+  comparaisons entre composition régionale et intégrale.
+- [x] Synchroniser les assertions de survol du lasso polygonal et du recadrage
+  avec les événements et les images produites par QML.
+- [ ] Valider les builds, tests et paquets du tag v0.17.1 sur les trois plateformes.
+  [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
 ## Optimisations du 4 novembre 2026 — non publiées
 

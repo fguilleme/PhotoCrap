@@ -4,14 +4,19 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-**v0.16** (internal version **0.16.0**) is the latest downloadable release.
-The source is tagged **v0.17** (internal version **0.17.0**). GitHub Actions
-tests failed on Ubuntu, Windows, and macOS, so the workflow skipped publishing
-v0.17. [Roadmap](ROADMAP.md) · [Results by platform](docs/VALIDATION.md#validation-du-tag-v017)
+This source tree is **v0.17.1**. It includes
+the 16-bit compositing fix and the test updates following the v0.17 release
+attempt. [Release notes](CHANGELOG.md) ·
+[Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download
 
-[Release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**, a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256` files. Publication runs automatically after builds, tests, and deployment checks succeed on all three platforms; see [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) for its status. Qt is bundled; a Qt installation is needed only to build the project.
+Each release provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**,
+a **Windows x64 installer**, and a **portable Windows ZIP**, with `.sha256`
+files. The packages bundle Qt. GitHub publishes them after builds, tests,
+and deployment checks pass on all three platforms.
+[Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
+[GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
 ## New in v0.15
 

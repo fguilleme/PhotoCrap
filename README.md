@@ -4,15 +4,19 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La dernière version téléchargeable est **v0.16** (version interne **0.16.0**).
-Le code source porte le tag **v0.17** (version interne **0.17.0**). Les tests
-GitHub Actions ont échoué sur Ubuntu, Windows et macOS. Le workflow a donc
-sauté l’étape de publication de v0.17.
-[Suivi du projet](ROADMAP.md) · [Résultats par plateforme](docs/VALIDATION.md#validation-du-tag-v017)
+Le code source correspond à **v0.17.1**. Il inclut
+le correctif de composition 16 bits et les ajustements de tests qui suivent
+la tentative de publication de v0.17.
+[Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Télécharger
 
-La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**, un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de fichiers `.sha256`. La publication est automatique après réussite des builds, tests et contrôles de déploiement des trois plateformes ; consulter [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml) pour son état. Les paquets embarquent Qt ; une installation de Qt est nécessaire seulement pour compiler le projet.
+Chaque release fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**,
+un **installateur Windows x64** et un **ZIP Windows portable**, accompagnés de
+fichiers `.sha256`. Les paquets embarquent Qt. GitHub les publie après la
+validation des builds, tests et contrôles de déploiement des trois plateformes.
+[Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
+[GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
 ## Nouveautés de v0.15
 

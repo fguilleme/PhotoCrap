@@ -195,9 +195,11 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
         std::memcpy(data.data() + 96, scale, 16);
         std::memcpy(data.data() + 112, options, 16);
         auto &pipeline = level->pipelines[axis];
+        static const QShader vertexShader   = load("pyramid.vert");
+        static const QShader fragmentShader = load("pyramid.frag");
         pipeline.reset(d->rhi->newGraphicsPipeline());
-        pipeline->setShaderStages({{QRhiShaderStage::Vertex, load("pyramid.vert")},
-                                   {QRhiShaderStage::Fragment, load("pyramid.frag")}});
+        pipeline->setShaderStages(
+            {{QRhiShaderStage::Vertex, vertexShader}, {QRhiShaderStage::Fragment, fragmentShader}});
         QRhiVertexInputLayout layout;
         layout.setBindings({QRhiVertexInputBinding(4 * sizeof(float))});
         layout.setAttributes(

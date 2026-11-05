@@ -552,9 +552,11 @@ public:
             }
         }
         if (ok && !pipeline) {
+            static const QShader vertexShader   = shader("stack_tonal.vert");
+            static const QShader fragmentShader = shader("stack.frag");
             pipeline.reset(rhi->newGraphicsPipeline());
-            pipeline->setShaderStages({{QRhiShaderStage::Vertex, shader("stack_tonal.vert")},
-                                       {QRhiShaderStage::Fragment, shader("stack.frag")}});
+            pipeline->setShaderStages({{QRhiShaderStage::Vertex, vertexShader},
+                                       {QRhiShaderStage::Fragment, fragmentShader}});
             QRhiVertexInputLayout layout;
             layout.setBindings({QRhiVertexInputBinding(4 * sizeof(float))});
             layout.setAttributes(

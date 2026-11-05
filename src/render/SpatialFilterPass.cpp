@@ -152,10 +152,11 @@ SpatialFilterPass::prepare(QRhiTexture                                    *sourc
     }
     for (int target = 0; target < 2; ++target)
         if (!d->pipelines[target]) {
+            static const QShader vertexShader   = loadShader("stack.vert");
+            static const QShader fragmentShader = loadShader("spatial.frag");
             d->pipelines[target].reset(d->rhi->newGraphicsPipeline());
-            d->pipelines[target]->setShaderStages(
-                {{QRhiShaderStage::Vertex, loadShader("stack.vert")},
-                 {QRhiShaderStage::Fragment, loadShader("spatial.frag")}});
+            d->pipelines[target]->setShaderStages({{QRhiShaderStage::Vertex, vertexShader},
+                                                   {QRhiShaderStage::Fragment, fragmentShader}});
             QRhiVertexInputLayout layout;
             layout.setBindings({QRhiVertexInputBinding(16)});
             layout.setAttributes(

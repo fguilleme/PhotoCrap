@@ -56,11 +56,22 @@
 
 namespace
 {
-QByteArray filterReference(const char *_accelerate, const char *_portable)
+QByteArray filterReference(const char *_accelerate, const char *_portable,
+                           const char *_portableX86 = nullptr, const char *_intelMac = nullptr)
 {
-    // Both references were checked against full-image source sampling. The
-    // existing box-filter backends round differently; regional reads must not
-    // turn that platform difference into a false regression.
+    // Whole-image fixtures capture Qt raster rounding and the existing noise
+    // channel order. Keep exact references for the backends that differ.
+#if defined(Q_PROCESSOR_X86_64) && !defined(PHOTOCRAP_TEST_ACCELERATE)
+#if defined(Q_OS_MACOS)
+    if (_intelMac)
+        return QByteArray(_intelMac);
+#else
+    if (_portableX86)
+        return QByteArray(_portableX86);
+#endif
+#endif
+    Q_UNUSED(_portableX86);
+    Q_UNUSED(_intelMac);
 #ifdef PHOTOCRAP_TEST_ACCELERATE
     Q_UNUSED(_portable);
     return QByteArray(_accelerate);
@@ -2564,7 +2575,8 @@ private slots:
         QCOMPARE(
             hash.result().toHex(),
             filterReference("7376129ff7bec138618e931011e97cf886c57a1a49798aec0407213a28df11ae",
-                            "668592579e0d8efb126cf66b5c9357783a185dbc78d05c5ec7eb9e3124b1faa8"));
+                            "668592579e0d8efb126cf66b5c9357783a185dbc78d05c5ec7eb9e3124b1faa8",
+                            "317242ab1ec9982f76d81a0909a8dc2f0937085916022e4b73b96fa6bcce0a63"));
     }
     void quickSelectionHandlesCompactPlanesWithoutRebuildingDisplay()
     {
@@ -2712,7 +2724,8 @@ private slots:
         QCOMPARE(
             hash.result().toHex(),
             filterReference("c775db53fad8e01d5fbf270fbed9745d586c59884cd1aac2dd050eed1bdcb77c",
-                            "fba56b9c727d606f5ac31b5831999b03a4e9e7314f4c15672df73f92376bfef9"));
+                            "fba56b9c727d606f5ac31b5831999b03a4e9e7314f4c15672df73f92376bfef9",
+                            "a0fae7a70b4681bae0fb3e8ae9afcf532b965411f0064755758e9ef378bcb90b"));
     }
 
     void featheredClipboardMatchesWholeImageReference()
@@ -2842,8 +2855,12 @@ private slots:
                 QCOMPARE(d.memoryUsage()["layerBytes"], bytes);
             }
         }
-        QCOMPARE(hash.result().toHex(),
-                 QByteArray("8cbfba681bbdb74e073f0ded5b4bbc6d854d6aff4d899953dcdb89fd98b20317"));
+        QCOMPARE(
+            hash.result().toHex(),
+            filterReference("8cbfba681bbdb74e073f0ded5b4bbc6d854d6aff4d899953dcdb89fd98b20317",
+                            "8cbfba681bbdb74e073f0ded5b4bbc6d854d6aff4d899953dcdb89fd98b20317",
+                            "79cbae5a3e2d6acfb3ca849b012687ea240dfa5051c6c07c8bb695662c5fe6ae",
+                            "79cbae5a3e2d6acfb3ca849b012687ea240dfa5051c6c07c8bb695662c5fe6ae"));
     }
     void largeNativeEyedropperProbe()
     {
@@ -6197,10 +6214,12 @@ private slots:
                  tool == "smudge"
                      ? filterReference(
                            "78315359d8def1e00cf94dd46b784e1a213f50482a70606d436e894bef7d4e15",
-                           "252c539838bd1b2d888a71c3d725c1890c7dacc9dc7947497883c6c8d0825ad4")
+                           "252c539838bd1b2d888a71c3d725c1890c7dacc9dc7947497883c6c8d0825ad4",
+                           "46b1b7649f8407555c8370b461ce05969c2cbc1caf137932db168b67862654af")
                      : filterReference(
                            "cce25b12be8a9cf6b88a90c5c3965bf1263e5b39f83db33ebe9d88b03cf22638",
-                           "147be86cbc11cfa885cb831d7d1ba7e69c57b97a787d307b4850dbee20b8bf6b"));
+                           "147be86cbc11cfa885cb831d7d1ba7e69c57b97a787d307b4850dbee20b8bf6b",
+                           "2c3aa3b7367c884414dae5b3a2e2be7aa4925894a23f3c8fd10b290daae39ecb"));
     }
     void largeCompositePickupProbe()
     {
@@ -6603,7 +6622,9 @@ private slots:
         QCOMPARE(
             hash.result().toHex(),
             filterReference("13537ea6c2f1f78417bfe686cc085a7dd3b969b2061ae2af6830aacac6715d62",
-                            "4e9144d74453c0546afde97b06f273757033eb93ae831eee49a4219fe999da34"));
+                            "4e9144d74453c0546afde97b06f273757033eb93ae831eee49a4219fe999da34",
+                            "61c0138f0c668fa95bb354ef209475db6ff918590e7a6671fca0c6424a50f455",
+                            "e4f8847b2208630c723806bb376eae1eba5e02c9d9422bc62af7f22562efec93"));
     }
     void largeCompositeCloneProbe()
     {
@@ -9057,7 +9078,9 @@ private slots:
         QCOMPARE(
             hash.result().toHex(),
             filterReference("993ab1b5af16ca8702cc04efc780eafcacf5f56ec1ab01b36b0ec2171866dfe7",
-                            "51188a22e3391e86a0f4e4ea476865574befde98674e9b2c739f9e9c8c7a2fa7"));
+                            "51188a22e3391e86a0f4e4ea476865574befde98674e9b2c739f9e9c8c7a2fa7",
+                            "601542fc69cfe907d5c16e1d422b5a060504a0b32493329606893afa15ffc599",
+                            "601542fc69cfe907d5c16e1d422b5a060504a0b32493329606893afa15ffc599"));
     }
     void opaqueUniformCoverProbe()
     {
@@ -9188,7 +9211,9 @@ private slots:
         QCOMPARE(
             hash.result().toHex(),
             filterReference("d1248fbf79d7a21b50c08712b1b363c54c55d0166063e5d201e7f7afae60ea3b",
-                            "78e3c549fe042c02dcb1e8d293e31fa3a087138099863635c7edade059817f91"));
+                            "78e3c549fe042c02dcb1e8d293e31fa3a087138099863635c7edade059817f91",
+                            "1c9554a71c9557fbfc6de711783b6ed4b59482e9d7e3fdacd58fc1b26de0d9ee",
+                            "1c9554a71c9557fbfc6de711783b6ed4b59482e9d7e3fdacd58fc1b26de0d9ee"));
     }
     void uniformCompositionKeepsLowNativeAlphaAndPaintedCoverage()
     {
@@ -10344,7 +10369,9 @@ private slots:
         QCOMPARE(
             hash.result().toHex(),
             filterReference("05f6ee8bb2a0fc1c457699d9babbf0ed07a0c7aee79b96d42f96b1266e17250d",
-                            "36170c0ebf9a9e6e2ab623ae60a5930c8c32f18255c09337de74f44c09e79d30"));
+                            "36170c0ebf9a9e6e2ab623ae60a5930c8c32f18255c09337de74f44c09e79d30",
+                            "b8648fb639e6f6abc2b4e8f05b9069840b71cad06fdd3d5f66106602fb17e38b",
+                            "255f9dfc4ed6b6e66893b628ac29657cd9b6179e29a967ceadd8304f909b28d1"));
     }
     void frequencyNeutralMasksKeepNativeSources_data()
     {

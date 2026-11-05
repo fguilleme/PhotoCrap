@@ -966,16 +966,30 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(!selectionAnimation->property("running").toBool(),
                  "an unfinished solid polygon does not animate invisible dashes"))
         return false;
-    QTest::qWait(40);
+    _window->grabWindow();
     QSignalSpy guidePaints(lassoGuide, SIGNAL(painted()));
     QTest::qWait(80);
     if (!require(guidePaints.isEmpty(), "solid polygon guides remain idle without pointer motion"))
         return false;
-    QTest::mouseMove(
-        _window, area->mapToScene(QPointF(90, 50) * _window->property("zoom").toReal()).toPoint());
-    QTest::qWait(60);
-    if (!require(lassoGuide->property("gpuGuide").toBool() ? guidePaints.isEmpty()
-                                                           : !guidePaints.isEmpty(),
+    const auto hover =
+        area->mapToScene(QPointF(90, 50) * _window->property("zoom").toReal()).toPoint();
+    QTest::mouseMove(_window, hover);
+    const auto localHover = area->mapFromScene(hover);
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return lassoGuide->property("pointerInside").toBool() &&
+                                qAbs(lassoGuide->property("pointerX").toReal() - localHover.x()) <=
+                                    1 &&
+                                qAbs(lassoGuide->property("pointerY").toReal() - localHover.y()) <=
+                                    1;
+                     },
+                     1000),
+                 "polygon guide receives the hover position"))
+        return false;
+    _window->grabWindow();
+    if (!require(lassoGuide->property("gpuGuide").toBool()
+                     ? guidePaints.isEmpty()
+                     : QTest::qWaitFor([&] { return !guidePaints.isEmpty(); }, 1000),
                  "polygon hover uses GPU geometry or repaints the software guide on demand"))
         return false;
     _document.cancelPolygonLasso();
@@ -2050,18 +2064,23 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_document.hasCrop() && cropOverlay->isVisible() && !_document.hasSelection(),
                  "drawing a crop frame leaves the pixel selection separate"))
         return false;
-    QTest::qWait(60);
+    _window->grabWindow();
     QSignalSpy cropPaints(cropOverlay, SIGNAL(painted()));
     QSignalSpy cropSnapshots(cropOverlay, SIGNAL(pointsChanged()));
     QTest::mouseMove(_window, cropScene(100, 80), 20);
-    if (!require(_window->property("canvasCursorShape").toInt() == int(Qt::SizeAllCursor),
+    const auto waitForCropCursor = [&](Qt::CursorShape shape) {
+        return QTest::qWaitFor(
+            [&] { return _window->property("canvasCursorShape").toInt() == int(shape); }, 1000);
+    };
+    if (!require(waitForCropCursor(Qt::SizeAllCursor),
                  "crop hover uses the retained interior for the move cursor"))
         return false;
     QTest::mouseMove(_window, cropScene(20, 20), 20);
-    QTest::qWait(60);
+    if (!require(waitForCropCursor(Qt::SizeFDiagCursor), "crop hover reaches the corner cursor"))
+        return false;
+    _window->grabWindow();
     if (!require(
-            _window->property("canvasCursorShape").toInt() == int(Qt::SizeFDiagCursor) &&
-                cropPaints.isEmpty() && cropSnapshots.isEmpty(),
+            cropPaints.isEmpty() && cropSnapshots.isEmpty(),
             "crop corner hover updates the real cursor without repainting or rereading points"))
         return false;
     QTest::keyClick(_window, Qt::Key_Escape);

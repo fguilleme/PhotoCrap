@@ -329,6 +329,8 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Réglages analytiques de la pile GPU sans texture de table factice. Buffers de paramètres réutilisés entre retouches et shaders précompilés désérialisés une fois pour la pile, les filtres spatiaux et la pyramide d’affichage.
 - [x] Ajout de bruit sur GPU en 8/16 bits sur fonds opaques et translucides. Le motif utilise les coordonnées du document et l’ordre des canaux de la référence CPU. Comparaisons du rendu écran avec alpha variable, masque, opacité et raccords de tuiles.
 - [x] Mosaïque sur GPU en 8/16 bits. Une table compacte réutilise la grille d’échantillonnage Qt sur les deux axes, avec le halo nécessaire aux raccords. Le shader conserve l’alpha du pixel échantillonné.
+- [x] Changements de vue et de budget sans reconstruire la description de la pile GPU. Le redimensionnement d’une table de réglage conserve les cibles partagées et les textures couleur compatibles.
+- [x] Entrées GPU réutilisées limitées à un texel quand tous leurs plans sont uniformes. Allocation d’une tuile à la première retouche et retour au format compact avec Annuler.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

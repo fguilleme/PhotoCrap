@@ -150,6 +150,7 @@ public:
     int                                        bits;
     bool                                       streaming;
     QSize                                      tableSize{1, 1}, blendSize{1, 1};
+    QSize                                      colorSize{1, 1}, maskSize{1, 1};
     QRectF                                     geometry;
     PhotoCrap::Render::LayerStack              stack;
     QByteArray                                 renderedKey;
@@ -306,7 +307,8 @@ public:
             return value;
         const QSize extent = streaming ? (whole == 2 ? blendSize
                                           : whole    ? tableSize
-                                                     : region.size())
+                                          : mask     ? maskSize
+                                                     : colorSize)
                              : compact ? QSize(1, 1)
                              : whole   ? plane.size()
                                        : region.size();
@@ -357,11 +359,18 @@ public:
         if (failed || stack.layers.isEmpty())
             return;
         const auto layers = std::move(stack.layers);
-        tableSize         = {1, 1};
-        blendSize         = {1, 1};
-        for (const auto &layer : layers) {
-            tableSize = tableSize.expandedTo(layer.toneTable.size());
-            blendSize = blendSize.expandedTo(layer.blendTable.size());
+        if (streaming) {
+            tableSize = blendSize = colorSize = maskSize = QSize(1, 1);
+            for (const auto &layer : layers) {
+                tableSize = tableSize.expandedTo(layer.toneTable.size());
+                blendSize = blendSize.expandedTo(layer.blendTable.size());
+                if (layer.needsColorInput() &&
+                    !PhotoCrap::Render::compactStackInput(layer.image, stack.size))
+                    colorSize = region.size();
+                if (layer.needsMaskInput() &&
+                    !PhotoCrap::Render::compactStackInput(layer.mask, stack.size))
+                    maskSize = region.size();
+            }
         }
         QByteArray key;
         for (const auto &layer : layers) {
@@ -418,12 +427,15 @@ public:
         if (passes.size() > size_t(layers.size()))
             passes.resize(size_t(layers.size()));
         if (streaming) {
-            const auto table = work->inputs.value("stream-table");
-            if (table && table->texture->pixelSize() != tableSize)
-                work->inputs.remove("stream-table");
-            const auto blend = work->inputs.value("stream-blend");
-            if (blend && blend->texture->pixelSize() != blendSize)
-                work->inputs.remove("stream-blend");
+            const std::pair<const char *, QSize> extents[] = {{"stream-table", tableSize},
+                                                              {"stream-blend", blendSize},
+                                                              {"stream-color", colorSize},
+                                                              {"stream-mask", maskSize}};
+            for (const auto &[key, extent] : extents) {
+                const auto slot = work->inputs.value(key);
+                if (slot && slot->texture->pixelSize() != extent)
+                    work->inputs.remove(key);
+            }
         }
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {

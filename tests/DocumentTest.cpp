@@ -418,6 +418,10 @@ private slots:
         // Ping-pong color/coverage, display pyramid, two input texels and
         // fixed per-tile buffers. No tone or blend lookup tables are present.
         QCOMPARE(compact, pixels * (34 + 22) + 17 + 1408);
+        stack.streamInputs = true;
+        QCOMPARE(stackWorkingBytes(stack, visible), compact);
+        stack.layers[0].image = image;
+        QCOMPARE(stackWorkingBytes(stack, visible), compact + (pixels - 1) * 16);
     }
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {

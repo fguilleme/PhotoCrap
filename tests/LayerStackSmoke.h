@@ -800,6 +800,25 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         if (!require(canvas.gpuStackActive() && canvas.stackTextureUploads() == uploads,
                      "removing a lookup texture keeps the shared workspace and source upload"))
             return false;
+        const auto compactBytes = canvas.stackTextureBytes();
+        document.setActiveLayer(0);
+        document.setTool("pencil");
+        document.setColor(Qt::red);
+        document.setBrushSize(8);
+        document.beginStroke(24, 32);
+        document.endStroke();
+        frame();
+        frame();
+        if (!require(canvas.gpuStackActive() &&
+                         canvas.stackTextureBytes() == compactBytes + (128 * 64 - 1) * 16,
+                     "painting allocates only the larger streamed color slot"))
+            return false;
+        document.undo();
+        frame();
+        frame();
+        if (!require(canvas.gpuStackActive() && canvas.stackTextureBytes() == compactBytes,
+                     "undo restores the one-texel streamed color slot"))
+            return false;
     }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;

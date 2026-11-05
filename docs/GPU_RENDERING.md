@@ -2061,9 +2061,10 @@ leur bloc séparé pour assurer aussi le lien des programmes OpenGL.
 ## Entrées de piles profondes (5 novembre 2026)
 
 Si les textures de sources dépassent le budget disponible, le canevas essaie
-un mode à trois emplacements réutilisés : couleur, masque et table native. Les
-téléversements sont ordonnés entre les passes de calques ; les sources constantes
-utilisent un texel explicite. Le mode à entrées conservées reste prioritaire pour
+un mode qui réutilise ses entrées couleur, masque et tables de réglage ou de
+fusion. Les téléversements sont ordonnés entre les passes de calques. Quand les
+sources d’une entrée sont toutes uniformes, son emplacement ne réserve qu’un
+texel, même en mode partagé. Le mode à entrées conservées reste prioritaire pour
 les petites piles. Les résultats intermédiaires de chaque tuile et les pixels de
 travail gardent leur précision. Une vue immobile ne téléverse ni ne compose.
 

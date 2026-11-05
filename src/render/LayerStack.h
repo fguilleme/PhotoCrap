@@ -63,13 +63,16 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     const qint64 perTile       = 64 + 256 * stack.layers.size();
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
     bool      spatial = false, masks = false, colorInput = false, maskInput = false;
+    bool         denseColor = false, denseMask = false;
     for (const auto &layer : stack.layers) {
         spatial |= layer.spatial.type != SpatialFilter::None;
         masks |= layer.maskFilter.type != SpatialFilter::None;
         if (layer.needsColorInput()) {
             colorInput = true;
+            const bool compact = compactStackInput(layer.image, stack.size);
+            denseColor |= !compact;
             if (!stack.streamInputs) {
-                if (compactStackInput(layer.image, stack.size))
+                if (compact)
                     scratchBytes += colorBytes;
                 else
                     bytesPerPixel += colorBytes;
@@ -77,8 +80,10 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         }
         if (layer.needsMaskInput()) {
             maskInput = true;
+            const bool compact = compactStackInput(layer.mask, stack.size);
+            denseMask |= !compact;
             if (!stack.streamInputs) {
-                if (compactStackInput(layer.mask, stack.size))
+                if (compact)
                     ++scratchBytes;
                 else
                     ++bytesPerPixel;
@@ -101,8 +106,9 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             scratchBytes += 2 * 96;
     }
     if (stack.streamInputs) {
-        bytesPerPixel += colorInput * colorBytes + maskInput;
-        scratchBytes += tableBytes + blendBytes;
+        bytesPerPixel += denseColor * colorBytes + denseMask;
+        scratchBytes += tableBytes + blendBytes + (colorInput && !denseColor) * colorBytes +
+                        (maskInput && !denseMask);
     }
     if (spatial) {
         bytesPerPixel += colorBytes + 16;

@@ -8,11 +8,11 @@
 namespace
 {
 struct MoveResult {
-    QImage image;
-    QRect  dirty;
+    PixelPlane plane;
+    QRect      dirty;
 };
 
-MoveResult assembleMove(const QImage &_source, const QRegion &_original,
+MoveResult assembleMove(const PixelPlane &_source, const QSize &_size, const QRegion &_original,
                         const QRegion &_destination, const QImage &_fill, const QImage &_moved,
                         int _mode, const QImage &_coverage, const QPoint &_offset,
                         const std::shared_ptr<std::atomic_bool> &_cancel)
@@ -20,7 +20,7 @@ MoveResult assembleMove(const QImage &_source, const QRegion &_original,
     if (_cancel->load() || _moved.isNull() || (_mode == 0 && _fill.isNull()))
         return {};
     const QRect sourceBounds = _original.boundingRect(), targetBounds = _destination.boundingRect();
-    const QImage oldSource = _source.copy(sourceBounds), oldTarget = _source.copy(targetBounds);
+    const QImage oldSource = _source.region(sourceBounds), oldTarget = _source.region(targetBounds);
     if (oldSource.isNull() || oldTarget.isNull() || _cancel->load())
         return {};
     QImage sourceWork = oldSource, targetWork = oldTarget;
@@ -47,43 +47,34 @@ MoveResult assembleMove(const QImage &_source, const QRegion &_original,
         return {};
     if (!sourceChanged && !targetChanged)
         return {_source, {}};
-    // Detach the full layer here, not in the GUI completion callback.
-    QImage result = _source.copy();
-    if (result.isNull() || _cancel->load())
-        return {};
-    {
-        QPainter painter(&result);
-        painter.setCompositionMode(QPainter::CompositionMode_Source);
-        if (sourceChanged) {
-            painter.setClipRegion(_original);
-            painter.drawImage(sourceBounds.topLeft(), sourceWork);
-        }
-        if (targetChanged || (sourceChanged && !(_original & _destination).isEmpty())) {
-            painter.setClipRegion(_destination);
-            painter.drawImage(targetBounds.topLeft(), targetWork);
-        }
-    }
-    QRect dirty;
-    if (sourceChanged)
-        dirty = sourceBounds;
-    if (targetChanged)
-        dirty |= targetBounds;
-    if (!_coverage.isNull()) {
-        QImage coverage = _coverage;
-        {
+    PixelPlane result = _source;
+    const auto apply  = [&](const QRect &_bounds, QImage &_work, const QImage &_before) {
+        if (_cancel->load())
+            return false;
+        if (!_coverage.isNull()) {
+            auto coverage = _coverage.copy(_bounds);
+            if (coverage.isNull())
+                return false;
             QPainter painter(&coverage);
             painter.setCompositionMode(QPainter::CompositionMode_Lighten);
-            painter.drawImage(_offset, _coverage);
+            painter.drawImage(_offset - _bounds.topLeft(), _coverage);
+            painter.end();
+            SelectionCoverage::blend(_work, _before, coverage, _work.rect());
         }
-        // The empty gap between separated source/destination regions needs no
-        // soft-coverage work. The same maximum coverage preserves their overlap.
-        const QRegion affected = (_original | _destination) & dirty;
-        for (const QRect &span : affected) {
-            if (_cancel->load())
-                return {};
-            SelectionCoverage::blend(result, _source, coverage, span);
-        }
+        return result.writeRegion(_bounds.topLeft(), _work, _size);
+    };
+    QRect dirty;
+    if (sourceChanged) {
+        if (!apply(sourceBounds, sourceWork, oldSource))
+            return {};
+        dirty = sourceBounds;
     }
+    if (targetChanged || (sourceChanged && !(_original & _destination).isEmpty())) {
+        if (!apply(targetBounds, targetWork, oldTarget))
+            return {};
+    }
+    if (targetChanged)
+        dirty |= targetBounds;
     return _cancel->load() ? MoveResult{} : MoveResult{result, dirty};
 }
 
@@ -196,23 +187,16 @@ void Document::finishContentMove(bool _cancel)
                 m_contentMoveBusy = false;
                 m_contentMoveCancel.reset();
                 m_beforeContentMove = {};
-                if (result.image.isNull() || result.dirty.isEmpty()) {
+                if (result.plane.isNull() || result.dirty.isEmpty()) {
                     clearPatch();
                     emit settingsChanged();
                     emit historyChanged();
-                    if (result.image.isNull())
+                    if (result.plane.isNull())
                         emit statusMessage(
                             tr("Pas assez de pixels voisins pour reconstruire cette zone."));
                     return;
                 }
-                QImage *target = paintTarget();
-                if (!target) {
-                    clearPatch();
-                    emit settingsChanged();
-                    emit historyChanged();
-                    return;
-                }
-                *target = result.image;
+                m_layers[m_active].image = result.plane;
                 m_dirtyRegion =
                     m_dirtyRegion.isEmpty() ? result.dirty : m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Déplacement basé sur le contenu"), false, false);
@@ -226,14 +210,11 @@ void Document::finishContentMove(bool _cancel)
     watcher->setFuture(
         QtConcurrent::run([plane, sampledLayers, documentSize, original, destination, offset, mode,
                            structure, color, coverage, cancel] {
-            const QImage source = plane.region(QRect(QPoint{}, documentSize));
-            if (source.isNull() || cancel->load())
-                return MoveResult{};
             const QImage sample =
                 sampledLayers.isEmpty()
-                    ? source
+                    ? plane.region(QRect(QPoint{}, documentSize))
                     : renderPreviewSnapshot(sampledLayers, documentSize, documentSize, false);
-            if (cancel->load())
+            if (sample.isNull() || cancel->load())
                 return MoveResult{};
             QImage fill;
             if (mode == 0) {
@@ -245,7 +226,7 @@ void Document::finishContentMove(bool _cancel)
             const QImage moved =
                 RegionHealing::blend(sample, sample, destination, -offset, 8 - structure,
                                      color / 10., false, (7 - structure) / 2, cancel);
-            return assembleMove(source, original, destination, fill, moved, mode, coverage, offset,
-                                cancel);
+            return assembleMove(plane, documentSize, original, destination, fill, moved, mode,
+                                coverage, offset, cancel);
         }));
 }

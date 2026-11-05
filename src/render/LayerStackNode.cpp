@@ -286,7 +286,7 @@ public:
         }
     }
     std::shared_ptr<Input> input(const PixelPlane &plane, bool mask,
-                                 QRhiResourceUpdateBatch *updates, QSet<QByteArray> &used,
+                                 QRhiResourceUpdateBatch *&updates, QSet<QByteArray> &used,
                                  int whole = 0, bool stageOnly = false)
     {
         QByteArray key = whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c";
@@ -348,6 +348,8 @@ public:
                                                      quint32(pixels.sizeInBytes()));
         data.setDataStride(quint32(pixels.bytesPerLine()));
         data.setSourceSize(pixels.size());
+        if (!updates)
+            updates = rhi->nextResourceUpdateBatch();
         updates->uploadTexture(value->texture.get(),
                                QRhiTextureUploadDescription({QRhiTextureUploadEntry(0, 0, data)}));
         value->contentKey = contentKey;
@@ -598,7 +600,7 @@ public:
         }
         for (size_t index = 0; index < passes.size(); ++index) {
             if (streaming) {
-                auto       *upload = rhi->nextResourceUpdateBatch();
+                QRhiResourceUpdateBatch *upload = nullptr;
                 const auto &layer  = layers[qsizetype(index)];
                 const bool  valid =
                     (!layer.needsColorInput() || input(layer.image, false, upload, used)) &&
@@ -607,11 +609,13 @@ public:
                      input(layer.toneTable, false, upload, used, true)) &&
                     (layer.blendTable.isNull() || input(layer.blendTable, false, upload, used, 2));
                 if (!valid) {
-                    upload->release();
+                    if (upload)
+                        upload->release();
                     reject(__LINE__);
                     return;
                 }
-                cb->resourceUpdate(upload);
+                if (upload)
+                    cb->resourceUpdate(upload);
             }
             if (maskRuns[index] >= 0)
                 counters->passes.fetch_add(work->masks->render(cb, maskRuns[index]));

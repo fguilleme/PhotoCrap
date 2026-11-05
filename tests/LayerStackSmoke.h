@@ -776,6 +776,31 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                 }
         }
     }
+    if (hardware && qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH")) {
+        canvas.setGpuStackEnabled(true);
+        canvas.setSize({128, 64});
+        if (!document.newDocument(128, 64, false, 16))
+            return false;
+        document.addAdjustmentLayer("mosaic");
+        const auto setCell = [&](int cell) {
+            document.beginLayerPreview();
+            document.previewLayerParameter("cellSize", cell);
+            document.finishLayerPreview("Mosaic cell size");
+            frame();
+            frame();
+        };
+        setCell(1);
+        auto uploads = canvas.stackTextureUploads();
+        setCell(17);
+        if (!require(canvas.gpuStackActive() && canvas.stackTextureUploads() == uploads + 1,
+                     "adding a lookup texture keeps the shared workspace and source upload"))
+            return false;
+        uploads = canvas.stackTextureUploads();
+        setCell(1);
+        if (!require(canvas.gpuStackActive() && canvas.stackTextureUploads() == uploads,
+                     "removing a lookup texture keeps the shared workspace and source upload"))
+            return false;
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

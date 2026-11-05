@@ -677,7 +677,7 @@ struct LayerStackNode::Data {
     int                                         bits      = 0;
     bool                                        streaming = false, sharing = false;
     QSize                                       document;
-    QHash<QByteArray, std::weak_ptr<Workspace>> workspaces;
+    QHash<QSize, std::weak_ptr<Workspace>>      workspaces;
     std::shared_ptr<DisplayPyramidScratchPool>  reductions;
 
     std::shared_ptr<Counters> counters;
@@ -779,24 +779,14 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, const QR
                     .intersected(bounds);
             std::shared_ptr<Workspace> workspace;
             if (stack.shareScratch) {
-                QSize tableSize(1, 1);
-                QSize blendSize(1, 1);
-                for (const auto &layer : stack.layers) {
-                    tableSize = tableSize.expandedTo(layer.toneTable.size());
-                    blendSize = blendSize.expandedTo(layer.blendTable.size());
-                }
-                const QByteArray workKey = QByteArray::number(padded.width()) + "/" +
-                                           QByteArray::number(padded.height()) + "/" +
-                                           QByteArray::number(stack.bits) + "/" +
-                                           QByteArray::number(tableSize.width()) + "/" +
-                                           QByteArray::number(tableSize.height()) + "/" +
-                                           QByteArray::number(blendSize.width()) + "/" +
-                                           QByteArray::number(blendSize.height());
-                workspace                = d->workspaces.value(workKey).lock();
+                // Table slots resize in prepare(). Their dimensions do not
+                // change the color/coverage targets or their render passes.
+                const QSize extent = padded.size();
+                workspace          = d->workspaces.value(extent).lock();
                 if (!workspace) {
-                    workspace = std::make_shared<Workspace>(d->window->rhi(), padded.size(),
-                                                            stack.bits, d->counters.get());
-                    d->workspaces.insert(workKey, workspace);
+                    workspace = std::make_shared<Workspace>(d->window->rhi(), extent, stack.bits,
+                                                            d->counters.get());
+                    d->workspaces.insert(extent, workspace);
                 }
             }
             auto *tile = d->tiles.value(key);

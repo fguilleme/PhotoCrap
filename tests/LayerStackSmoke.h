@@ -705,6 +705,66 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         if (!require(!document.gpuLayerStack().valid, "noise over transparency uses CPU"))
             return false;
     }
+    for (const int bits : {8, 16}) {
+        QImage source(1057, 527, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+        for (int y = 0; y < source.height(); ++y)
+            for (int x = 0; x < source.width(); ++x)
+                source.setPixelColor(
+                    x, y,
+                    QColor::fromRgba64(ushort(x * 311 + y * 733), ushort(x * 193 + y * 947),
+                                       ushort(x * 317 + y * 279),
+                                       ushort(8000 + (x * 135 + y * 311) % 57536)));
+        const auto path = directory.filePath("mosaic-" + QString::number(bits) + ".png");
+        if (!source.save(path) || !document.openFile(QUrl::fromLocalFile(path)))
+            return false;
+        canvas.setSize({600, 300});
+        document.addAdjustmentLayer("mosaic");
+        for (const int cell : {1, 2, 17, 200}) {
+            document.beginLayerPreview();
+            document.previewLayerParameter("cellSize", cell);
+            document.finishLayerPreview("Mosaic cell size");
+            if (cell == 17) {
+                document.addLayerMask();
+                document.fillMaskWithColor(QColor(173, 173, 173));
+                document.setEditingMask(false);
+                document.setLayerOpacity(document.activeLayer(), .63);
+            }
+            const auto stack = document.gpuLayerStack();
+            if (!require(stack.valid && stack.halo == (cell == 1 ? 0 : cell + 2) &&
+                             stack.layers.last().toneTable.isNull() == (cell == 1),
+                         "mosaic has a native coordinate table and a sampling halo"))
+                return false;
+            const auto tableKey = stack.layers.last().toneTable.cacheKey();
+            if (!require(document.gpuLayerStack().layers.last().toneTable.cacheKey() == tableKey,
+                         "mosaic keeps the coordinate table between frames"))
+                return false;
+            canvas.setGpuStackEnabled(true);
+            frame();
+            const auto actual = frame();
+            if (!require(!actual.isNull() && canvas.gpuStackActive() == hardware,
+                         "mosaic uses hardware when available"))
+                return false;
+            canvas.setGpuStackEnabled(false);
+            frame();
+            const auto expected = frame();
+            if (expected.isNull())
+                return false;
+            const double ratio = double(actual.width()) / window->width();
+            for (const int y : {0, 9, 255, 510, 511, 512, 523})
+                for (const int x : {0, 41, 510, 511, 512, 513, 1023, 1024, 1052}) {
+                    const auto p =
+                        canvas.mapToScene({(x + .5) * 600. / 1057., (y + .5) * 300. / 527.}) *
+                        ratio;
+                    const auto a = actual.pixelColor(qFloor(p.x()), qFloor(p.y()));
+                    const auto b = expected.pixelColor(qFloor(p.x()), qFloor(p.y()));
+                    if (qAbs(a.red() - b.red()) > 2 || qAbs(a.green() - b.green()) > 2 ||
+                        qAbs(a.blue() - b.blue()) > 2) {
+                        qWarning() << "Mosaic stack difference" << bits << cell << x << y << a << b;
+                        return false;
+                    }
+                }
+        }
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

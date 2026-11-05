@@ -459,19 +459,14 @@ QImage Document::mosaicImage(const QImage &_source, int _cellSize, const QPoint 
     if (_source.isNull() || _cellSize <= 1)
         return _source;
     _cellSize = qBound(2, _cellSize, 200);
-    const auto  size = _documentSize.isEmpty() ? _source.size() : _documentSize;
-    const QSize reduced((size.width() + _cellSize - 1) / _cellSize,
-                        (size.height() + _cellSize - 1) / _cellSize);
+    using namespace PhotoCrap::ImageSampling;
+    const auto size    = _documentSize.isEmpty() ? _source.size() : _documentSize;
+    const auto reduced = mosaicReducedSize(size, _cellSize);
     if (size == _source.size())
         return _source.scaled(reduced, Qt::IgnoreAspectRatio, Qt::FastTransformation)
             .scaled(size, Qt::IgnoreAspectRatio, Qt::FastTransformation);
 
-    using PhotoCrap::ImageSampling::nearestAxis;
-    const bool wide = ImageUtils::is16Bit(_source);
-    auto xs = nearestAxis(size.width(), reduced.width(), false, size.height() != reduced.height(),
-                          wide, true);
-    const auto ys = nearestAxis(size.height(), reduced.height(), true,
-                                size.width() != reduced.width(), wide, true);
+    auto [xs, ys] = mosaicSampleAxes(size, reduced, ImageUtils::is16Bit(_source));
     if (xs.size() != size.width() || ys.size() != size.height())
         return {};
     auto result = _source.copy();

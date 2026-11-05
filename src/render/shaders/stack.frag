@@ -142,11 +142,36 @@ vec3 hslToRgb(vec3 hsl)
     vec3 ramp = clamp(abs(mod(vec3(hsl.x * 6.0) + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
     return clamp(vec3(hsl.z) + (ramp - 0.5) * ((1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y), 0.0, 1.0);
 }
+ivec2 tileOrigin()
+{
+    return ivec2(ubuf.modes.w & 16383, (ubuf.modes.w >> 14) & 16383);
+}
+ivec2 tilePixel(ivec2 size)
+{
+    return clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - 1);
+}
 ivec2 documentPixel()
 {
-    ivec2 origin = ivec2(ubuf.modes.w & 16383, (ubuf.modes.w >> 14) & 16383);
+    return tileOrigin() + tilePixel(textureSize(backdropTexture, 0));
+}
+int mosaicCoordinate(int coordinate, int axis)
+{
+    ivec2 index = ivec2(coordinate % 256, 2 * (coordinate / 256) + axis);
+    ivec2 packed = ivec2(floor(texelFetch(tableTexture, index, 0).rg * 255.0 + 0.5));
+    return packed.x + packed.y * 256;
+}
+vec4 mosaicSource(vec4 base)
+{
+    if (ubuf.parameters[0].x <= 1.0)
+        return base;
     ivec2 size = textureSize(backdropTexture, 0);
-    return origin + clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - 1);
+    ivec2 origin = tileOrigin();
+    ivec2 point = origin + tilePixel(size);
+    ivec2 samplePixel = ivec2(mosaicCoordinate(point.x, 0), mosaicCoordinate(point.y, 1));
+    samplePixel = clamp(samplePixel - origin, ivec2(0), size - 1);
+    if (ubuf.values.w > 0.5)
+        samplePixel.y = size.y - 1 - samplePixel.y;
+    return texelFetch(backdropTexture, samplePixel, 0);
 }
 int noiseDelta(inout uint hash, int amplitude)
 {
@@ -298,7 +323,9 @@ void main()
         return;
     }
     vec4 source;
-    if ((ubuf.modes.z & 4) != 0) {
+    if ((ubuf.modes.z & 4) != 0 && ubuf.toneModes.x == 13) {
+        source = mosaicSource(base);
+    } else if ((ubuf.modes.z & 4) != 0) {
         vec3 straight = base.a > 0.0 ? base.rgb/base.a : vec3(0.0);
         source = native(vec4(nativeTone(straight).rgb*base.a,base.a));
     } else {

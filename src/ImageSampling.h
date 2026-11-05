@@ -2,6 +2,7 @@
 
 #include <QImage>
 #include <QVector>
+#include <array>
 
 namespace PhotoCrap::ImageSampling
 {
@@ -39,5 +40,20 @@ inline QVector<int> nearestAxis(int _source, int _destination, bool _vertical, b
                                 : int(reinterpret_cast<const QRgb *>(row)[x] & 0x00ffffffu);
     }
     return values;
+}
+
+inline QSize mosaicReducedSize(const QSize &_size, int _cellSize)
+{
+    return {(_size.width() + _cellSize - 1) / _cellSize,
+            (_size.height() + _cellSize - 1) / _cellSize};
+}
+
+inline std::array<QVector<int>, 2> mosaicSampleAxes(const QSize &_size, const QSize &_reduced,
+                                                    bool _wide)
+{
+    return {nearestAxis(_size.width(), _reduced.width(), false, _size.height() != _reduced.height(),
+                        _wide, true),
+            nearestAxis(_size.height(), _reduced.height(), true, _size.width() != _reduced.width(),
+                        _wide, true)};
 }
 } // namespace PhotoCrap::ImageSampling

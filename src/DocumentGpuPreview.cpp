@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ImageSampling.h"
 #include "ImageUtils.h"
 #include "filters/BlendMath.h"
 #include "filters/NoiseMath.h"
@@ -47,13 +48,15 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         // partially composed result may be presented as the complete stack.
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
         const bool noise = layer.kind == "adjustment" && layer.adjustmentType == "noise";
+        const bool mosaic = layer.kind == "adjustment" && layer.adjustmentType == "mosaic";
         if (noise && !opaqueBackdrop)
             return {}; // Match Qt's full-image straight-alpha conversion on translucent piles.
         const bool tonal =
-            noise || (layer.kind == "adjustment" &&
-                      PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
-                      (layer.adjustmentType != "selectiveColor" ||
-                       layer.parameters.contains("redsCyanRed")));
+            noise || mosaic ||
+            (layer.kind == "adjustment" &&
+             PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
+             (layer.adjustmentType != "selectiveColor" ||
+              layer.parameters.contains("redsCyanRed")));
         const bool                                 masked = LayerVisibility::needsMask(layer);
         static const QHash<QString, SpatialFilter> spatialTypes{
             {"boxBlur", SpatialFilter::Box},
@@ -127,6 +130,44 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             entry.tone.mode      = ToneMappingMode::StackNoise;
             const auto amplitude = noiseAmplitude(amount, m_channelBits == 16);
             entry.tone.color     = QVector4D(float(amplitude), order.x(), order.y(), order.z());
+        } else if (mosaic) {
+            using namespace PhotoCrap::ImageSampling;
+            const int cell  = qBound(1, layer.parameters.value("cellSize", 12).toInt(), 200);
+            entry.tonal     = true;
+            entry.tone.mode = PhotoCrap::Filters::ToneMappingMode::StackMosaic;
+            entry.tone.color.setX(float(cell));
+            if (cell > 1) {
+                stack.halo += cell + 2;
+                QByteArray  key;
+                QDataStream stream(&key, QIODevice::WriteOnly);
+                stream << QStringLiteral("stack-mosaic") << m_size << m_channelBits << cell;
+                const auto cached = m_gpuChannelTables.object(key);
+                QImage     table  = cached ? *cached : QImage{};
+                if (table.isNull()) {
+                    const auto axes = mosaicSampleAxes(m_size, mosaicReducedSize(m_size, cell),
+                                                       m_channelBits == 16);
+                    if (axes[0].size() != m_size.width() || axes[1].size() != m_size.height())
+                        return {};
+                    // Alternate rows for X/Y, with each coordinate packed in
+                    // two color channels to preserve the full native index.
+                    constexpr int columns = 256;
+                    const int     span    = qMax(m_size.width(), m_size.height());
+                    table                 = QImage(columns, 2 * ((span + columns - 1) / columns),
+                                                   QImage::Format_ARGB32);
+                    if (table.isNull())
+                        return {};
+                    table.fill(Qt::black);
+                    for (int axis = 0; axis < 2; ++axis)
+                        for (int i = 0; i < axes[axis].size(); ++i) {
+                            auto *row =
+                                reinterpret_cast<QRgb *>(table.scanLine(2 * (i / columns) + axis));
+                            const int value  = axes[axis][i];
+                            row[i % columns] = qRgb(value & 255, value >> 8, 0);
+                        }
+                    m_gpuChannelTables.insert(key, new QImage(table), int(table.sizeInBytes()));
+                }
+                entry.toneTable = table;
+            }
         } else if (tonal) {
             using PhotoCrap::Filters::ToneMappingMode;
             entry.tonal = true;

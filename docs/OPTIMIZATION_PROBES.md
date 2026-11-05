@@ -78,3 +78,59 @@ après validation du même code CPU ; `--modes shared` cible un mode particulier
 Les seuils de latence ne sont pas imposés en CI : ils dépendraient du matériel.
 Les assertions portent sur les pixels, les annulations, la conservation des
 versions et les bornes d’allocation, qui doivent rester reproductibles.
+
+## Campagne de référence du 5 novembre 2026
+
+Machine : Apple M2 Pro, 16 Gio, macOS 26.6.2, DPR 2 ; build Release Qt 6.12.0
+avec Accelerate. Les contrôles croisés utilisent aussi Qt 6.8.3 et une build sans
+Accelerate. Les chiffres suivants décrivent l’état mesuré ; ce n’est pas une
+comparaison chronométrée avec une ancienne version.
+
+Temps des opérations sur l’image de 4 Mpx :
+
+| Profondeur | Dégradé | Déplacer/abandonner | 40 retouches | PNG | Sauver PCR | Ouvrir PCR |
+|---|---:|---:|---:|---:|---:|---:|
+| 8 bits | 10,0 ms | 24,9 ms | 4,4 ms | 101 ms | 154 ms | 38,7 ms |
+| 16 bits | 10,8 ms | 28,2 ms | 6,1 ms | 233 ms | 364 ms | 80,6 ms |
+
+Latence des 20 changements réellement rendus dans la petite scène GPU :
+
+| Stockage | Metal médiane / p95 | OpenGL Core médiane / p95 |
+|---|---:|---:|
+| Entrées conservées | 16,64 / 18,71 ms | 16,53 / 24,61 ms |
+| Entrées réutilisées | 25,50 / 36,34 ms | 25,23 / 34,80 ms |
+| Intermédiaires partagés | 22,83 / 35,24 ms | 32,31 / 37,89 ms |
+
+Cette petite scène tient dans le budget : le mode conservé y reste préférable.
+Les autres modes échangent des transferts supplémentaires contre un jeu de
+ressources borné lorsque les piles plus grandes ne tiennent plus. Ils ne doivent
+pas être forcés comme accélération universelle. Les références de zoom vérifient
+également les ressources réellement retenues contre leur prévision.
+
+Le scénario de quatre plans remplis de 24 Mpx/16 bits passe : 768 000 000 octets
+de plans natifs, 1 536 blocs déchargés et zéro octet de tuiles courantes sur le tas
+après déchargement. Peinture, Annuler/Rétablir, vidage du cache, sauvegarde et
+réouverture sont contrôlés. Le pic RSS du processus atteint environ **1,72 Gio**,
+avec décodeurs, mappings et références de test : zéro tuile sur le tas ne signifie
+pas zéro RAM résidente.
+
+Validation conservée :
+
+- Qt 6.12 : dix suites ciblées, dont documents, workers, écrivains, tuiles,
+  rendu, smoke QML et les trois fermetures, toutes réussies.
+- Qt 6.8.3 : cinq suites ciblées et smoke de pile Metal natif réussis.
+- CPU portable sans Accelerate : les quatre suites documents/workers/stockage
+  réussissent avec leurs références d’arrondi propres.
+- Logiciel, Metal et OpenGL Core : les trois modes de stockage et les filtres
+  spatiaux passent. Les reports de backend sont vérifiés, sans repli silencieux
+  présenté comme une exécution de l’API demandée.
+- Vulkan et Direct3D : validation physique encore nécessaire hors de ce Mac.
+
+La campagne graphique correspond à `27e2c52`. Son premier test dense employait à
+tort la première entrée du snapshot GPU pour lire le calque inférieur, désormais
+exclu du rendu par la photo opaque. L’assertion a été corrigée dans `c9a200f` pour
+inspecter séparément le plan masqué puis le plan visible, sans changement de code
+produit. Le journal d’échec a été gardé ; le scénario dense et les sept sondes CPU/
+logiciel ont ensuite tous réussi. Les deux rapports JSON, nommés
+`photocrap-optimization-final-campaign` et `photocrap-optimization-final-cpu-recheck`
+dans le dossier temporaire de cette session, conservent cette distinction.

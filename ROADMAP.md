@@ -201,7 +201,7 @@ Le programme des cinq migrations de performance demandées le 2 novembre est
 détaillé dans [docs/OPTIMIZATION_PLAN.md](docs/OPTIMIZATION_PLAN.md). Le raccordement
 des plans de calques par tuiles, la composition GPU, les filtres spatiaux,
 l’asynchrone commun et les niveaux de détail GPU ont maintenant une base validée.
-Les extensions de novembre couvrent aussi les déplacements denses, les dégradés pleine image, les petits deltas d’historique et les photos opaques couvrantes. Les validations physiques Vulkan/Direct3D restent à réaliser sur le matériel concerné.
+Les extensions de novembre couvrent aussi les déplacements denses, les dégradés pleine image, les petits deltas d’historique et les photos opaques couvrantes. La campagne finale passe en logiciel, Metal et OpenGL Core ; documents et stockage sont aussi contrôlés sur Qt 6.8.3 et sans Accelerate. Les validations physiques Vulkan/Direct3D restent à réaliser sur le matériel concerné.
 
 Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il reste à couvrir les chemins encore synchrones et à réduire le coût mémoire des grandes images.
 

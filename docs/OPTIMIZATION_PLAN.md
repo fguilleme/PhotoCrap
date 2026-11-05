@@ -51,8 +51,9 @@ Progression par optimisations vérifiées et commits distincts :
   l’import et métrique RAM des plans courants indépendante du sous-ensemble GPU.
 - [x] Sondes reproductibles de latence/RAM : outils, historique, I/O, ressources
   graphiques et frames réellement modifiées ; JSON, RSS par processus et contrôle
-  de l’API exécutée. Campagne finale des configurations disponibles suivie dans
-  [la procédure](OPTIMIZATION_PROBES.md) ; Vulkan/Direct3D nécessitent leur matériel.
+  de l’API exécutée. Campagnes logiciel/Metal/OpenGL Core validées, ainsi que
+  Qt 6.8.3, Qt 6.12 et CPU portable ; résultats et reprise du test dense dans
+  [la procédure](OPTIMIZATION_PROBES.md). Vulkan/Direct3D nécessitent leur matériel.
 
 ## 1. Plans éditables et historique par tuiles
 

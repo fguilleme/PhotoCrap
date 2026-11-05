@@ -325,6 +325,8 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Masques sans effet : densité nulle sans copie des pixels, et calques masqués par un masque compact entièrement noir écartés avant les filtres et les marges de composition.
 - [x] Estimation du budget graphique : coût par calque agrégé une fois par mode de stockage, puis appliqué aux tuiles visibles. Les plans natifs uniformes utilisent un seul texel pour leurs entrées couleur ou masque.
 - [x] Paires de fréquences intactes affichées par la pile GPU à partir d’un seul plan source, avec repli CPU dès qu’un réglage de la paire change la composition.
+- [x] Visibilité des fonds et des masques uniformes lue sur leur pixel natif. Les calques écrêtés sans base visible sont écartés avant la validation GPU et les piles vides gardent leur sortie transparente.
+- [x] Réglages analytiques de la pile GPU sans texture de table factice. Buffers de paramètres réutilisés entre retouches et shaders précompilés désérialisés une fois pour la pile, les filtres spatiaux et la pyramide d’affichage.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

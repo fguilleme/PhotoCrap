@@ -44,6 +44,12 @@ public:
     {
         return size() == QSize(1, 1) || (!m_dirty && !m_tiles.isNull() && m_tiles.tileCount() == 0);
     }
+    QImage uniformPixel() const
+    {
+        if (size() == QSize(1, 1))
+            return tileImage(0, 0);
+        return isUniform() ? m_tiles.backgroundPixel() : QImage{};
+    }
     bool knownOpaque() const
     {
         if (size() == QSize(1, 1)) {

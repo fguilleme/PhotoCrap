@@ -8,8 +8,10 @@ namespace PhotoCrap::Render::LayerVisibility
 {
 inline bool uniformMaskValue(const PixelPlane &_mask, int _value)
 {
-    return _mask.isUniform() && _mask.format() == QImage::Format_Grayscale8 &&
-           _mask.tileImage(0, 0).constScanLine(0)[0] == _value;
+    if (_mask.format() != QImage::Format_Grayscale8)
+        return false;
+    const QImage pixel = _mask.uniformPixel();
+    return !pixel.isNull() && pixel.constBits()[0] == _value;
 }
 
 inline bool needsMask(const Layer &_layer)
@@ -31,9 +33,10 @@ inline bool contributes(const Layer &_layer)
     // previous compact-plane rule, including its eight-bit alpha rounding.
     if (_layer.kind == QStringLiteral("pixel")) {
         if (ImageUtils::compact(_layer.image))
-            return _layer.image.pixelColor(0, 0).alpha() != 0;
-        if (_layer.image.isUniform())
-            return _layer.image.tileImage(0, 0).pixelColor(0, 0).alphaF() != 0;
+            return _layer.image.uniformPixel().pixelColor(0, 0).alpha() != 0;
+        const QImage pixel = _layer.image.uniformPixel();
+        if (!pixel.isNull())
+            return pixel.pixelColor(0, 0).alphaF() != 0;
     }
     return true;
 }

@@ -36,6 +36,7 @@ private slots:
             auto plane = PixelPlane::uniform({6000, 4000}, pixel);
             QVERIFY(!plane.isNull());
             QVERIFY(plane.isUniform());
+            QCOMPARE(plane.uniformPixel().cacheKey(), pixel.cacheKey());
             QCOMPARE(plane.size(), QSize(6000, 4000));
             QCOMPARE(plane.format(), format);
             QCOMPARE(plane.sizeInBytes(), qint64(0));
@@ -65,6 +66,8 @@ private slots:
             QVERIFY(!versions.contains(plane.cacheKey()));
             versions.insert(plane.cacheKey());
             QCOMPARE(plane.tiles().tileCount(), 1);
+            QVERIFY(plane.uniformPixel().isNull());
+            QCOMPARE(before.uniformPixel().cacheKey(), pixel.cacheKey());
             QCOMPARE(before.region({258, 257, 1, 1}), pixel);
             QCOMPARE(plane.region({258, 257, 1, 1}), changed);
             for (const QSize size : {QSize(1, 1), QSize(601, 503), QSize(6000, 4000)}) {

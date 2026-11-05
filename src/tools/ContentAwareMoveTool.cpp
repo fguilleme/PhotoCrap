@@ -169,7 +169,7 @@ void Document::finishContentMove(bool _cancel)
         return;
     }
     const Snapshot       before        = m_beforeStroke;
-    const QImage         source        = m_patchSource;
+    const PixelPlane     plane         = m_patchSource;
     const QVector<Layer> sampledLayers = m_contentMoveSampleAllLayers ? m_layers : QVector<Layer>{};
     const QSize          documentSize  = m_size;
     const QImage         coverage      = before.selectionMask;
@@ -224,8 +224,11 @@ void Document::finishContentMove(bool _cancel)
             });
     // Only value types cross the worker boundary: no QML objects or Document access.
     watcher->setFuture(
-        QtConcurrent::run([source, sampledLayers, documentSize, original, destination, offset, mode,
+        QtConcurrent::run([plane, sampledLayers, documentSize, original, destination, offset, mode,
                            structure, color, coverage, cancel] {
+            const QImage source = plane.region(QRect(QPoint{}, documentSize));
+            if (source.isNull() || cancel->load())
+                return MoveResult{};
             const QImage sample =
                 sampledLayers.isEmpty()
                     ? source

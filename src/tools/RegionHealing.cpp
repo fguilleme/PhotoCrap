@@ -41,8 +41,10 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
                     const QPoint &_offset, int _diffusion,
                     const std::shared_ptr<std::atomic_bool> &_cancel)
 {
-    const QRect bounds =
-        _region.boundingRect().adjusted(-4, -4, 4, 4).intersected(_reference.rect());
+    const QRect   bounds = _region.boundingRect()
+                               .adjusted(-RegionHealing::ToneHalo, -RegionHealing::ToneHalo,
+                                         RegionHealing::ToneHalo, RegionHealing::ToneHalo)
+                               .intersected(_reference.rect());
     const int     side = 48 - 5 * (_diffusion - 1);
     const QSize   size(qBound(2, bounds.width(), side), qBound(2, bounds.height(), side));
     PatchTone     field{size, bounds, QVector<Tone>(size.width() * size.height())};

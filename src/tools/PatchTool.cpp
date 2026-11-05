@@ -42,8 +42,7 @@ void Document::beginPatch(const QPointF &_point)
         return;
     }
     m_beforeStroke        = snapshot(tr("Pièce"));
-    m_patchSource         = *paintTarget();
-    m_regionPreviewSource = m_patchSource;
+    m_patchSource         = m_layers[m_active].image;
     m_patchOffset         = {};
     m_patchDragging       = true;
     m_drawing             = true;
@@ -83,12 +82,20 @@ void Document::continueRegionDrag(const QPointF &_point, bool _sourceMode)
     m_patchPreview.fill(Qt::transparent);
     QPainter painter(&m_patchPreview);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
-    const QImage &sample = m_regionPreviewSource;
-    const QRectF  sampleRect(source.x() * qreal(sample.width()) / width(),
-                             source.y() * qreal(sample.height()) / height(),
-                             source.width() * qreal(sample.width()) / width(),
-                             source.height() * qreal(sample.height()) / height());
-    painter.drawImage(m_patchPreview.rect(), sample, sampleRect);
+    if (m_regionPreviewSource.isNull()) {
+        const auto sampleBounds =
+            source.adjusted(-1, -1, 1, 1).intersected(QRect(QPoint{}, m_size));
+        const auto sample = m_patchSource.region(sampleBounds);
+        painter.drawImage(m_patchPreview.rect(), sample,
+                          source.translated(-sampleBounds.topLeft()));
+    } else {
+        const auto  &sample = m_regionPreviewSource;
+        const QRectF sampleRect(source.x() * qreal(sample.width()) / width(),
+                                source.y() * qreal(sample.height()) / height(),
+                                source.width() * qreal(sample.width()) / width(),
+                                source.height() * qreal(sample.height()) / height());
+        painter.drawImage(m_patchPreview.rect(), sample, sampleRect);
+    }
     painter.end();
     emit selectionChanged();
     emit patchPreviewChanged();
@@ -101,14 +108,25 @@ struct PatchResult {
     QRect  dirty;
 };
 
-PatchResult repairPatch(const QImage &_source, const QRegion &_region, const QPoint &_offset,
-                        int _diffusion, const QImage &_coverage,
+PatchResult repairPatch(const PixelPlane &_source, const QSize &_size, const QRegion &_region,
+                        const QPoint &_offset, int _diffusion, const QImage &_coverage,
                         const std::shared_ptr<std::atomic_bool> &_cancel)
 {
-    const QRect  bounds = _region.boundingRect();
-    const QImage repaired =
-        RegionHealing::blend(_source, _source, _region, _offset, _diffusion, 1., true, 0, _cancel);
-    if (repaired.isNull() || _cancel->load())
+    const QRect  document(QPoint{}, _size);
+    const QRect  bounds          = _region.boundingRect();
+    const int    halo            = RegionHealing::ToneHalo;
+    const QRect  referenceBounds = bounds.adjusted(-halo, -halo, halo, halo).intersected(document);
+    const QRect  donorBounds     = referenceBounds.translated(_offset).intersected(document);
+    const QImage reference       = _source.region(referenceBounds);
+    const QImage donor           = _source.region(donorBounds);
+    if (reference.isNull() || donor.isNull() || _cancel->load())
+        return {};
+    const auto localRegion = _region.translated(-referenceBounds.topLeft());
+    QImage     repaired    = RegionHealing::blend(
+        donor, reference, localRegion, _offset + referenceBounds.topLeft() - donorBounds.topLeft(),
+        _diffusion, 1., true, 0, _cancel);
+    const QImage original = reference.copy(bounds.translated(-referenceBounds.topLeft()));
+    if (repaired.isNull() || original.isNull() || _cancel->load())
         return {};
     QRect modified;
     for (const QRect &span : _region)
@@ -116,12 +134,12 @@ PatchResult repairPatch(const QImage &_source, const QRegion &_region, const QPo
             if (_cancel->load())
                 return {};
             const auto *line       = repaired.constScanLine(y - bounds.y());
-            const auto *before     = _source.constScanLine(y);
+            const auto *before     = original.constScanLine(y - bounds.y());
             const int   pixelBytes = repaired.depth() / 8;
             int         left = span.right() + 1, right = span.left() - 1;
             for (int x = span.left(); x <= span.right(); ++x)
-                if (std::memcmp(line + (x - bounds.x()) * pixelBytes, before + x * pixelBytes,
-                                pixelBytes) != 0) {
+                if (std::memcmp(line + (x - bounds.x()) * pixelBytes,
+                                before + (x - bounds.x()) * pixelBytes, pixelBytes) != 0) {
                     left  = qMin(left, x);
                     right = x;
                 }
@@ -129,20 +147,13 @@ PatchResult repairPatch(const QImage &_source, const QRegion &_region, const QPo
                 modified |= QRect(left, y, right - left + 1, 1);
         }
     if (modified.isEmpty())
-        return {_source, {}};
-    // QImage's copy-on-write detachment also belongs on the worker: committing
-    // a small repair must not copy a full-resolution layer on the GUI thread.
-    QImage result = _source.copy();
-    if (result.isNull() || _cancel->load())
-        return {};
-    QPainter painter(&result);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.drawImage(modified.topLeft(), repaired, modified.translated(-bounds.topLeft()));
-    painter.end();
-    SelectionCoverage::blend(result, _source, _coverage, modified);
+        return {original, {}};
+    const QRect local = modified.translated(-bounds.topLeft());
+    if (!_coverage.isNull())
+        SelectionCoverage::blend(repaired, original, _coverage.copy(bounds), local);
     if (_cancel->load())
         return {};
-    return {result, modified};
+    return {repaired.copy(local), modified};
 }
 } // namespace
 
@@ -176,7 +187,9 @@ void Document::invalidatePatch(bool _restoreSelection)
 void Document::startPatchRepair()
 {
     const Snapshot before = m_beforeStroke;
-    const QImage   source = m_patchSource, coverage = m_selectionMask;
+    const PixelPlane source     = m_patchSource;
+    const QImage     coverage   = m_selectionMask;
+    const QSize      size       = m_size;
     const QRegion  region     = m_patchTarget;
     const QPoint   offset     = m_patchMode == 0 ? m_patchOffset : -m_patchOffset;
     const int      diffusion  = m_patchDiffusion;
@@ -208,14 +221,13 @@ void Document::startPatchRepair()
                             tr("Impossible de calculer la réparation de cette zone."));
                     return;
                 }
-                QImage *target = paintTarget();
-                if (!target) {
+                if (!m_layers[m_active].image.writeRegion(result.dirty.topLeft(), result.image,
+                                                          m_size)) {
                     clearPatch();
                     emit settingsChanged();
                     emit historyChanged();
                     return;
                 }
-                *target = result.image;
                 m_dirtyRegion =
                     m_dirtyRegion.isEmpty() ? result.dirty : m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Pièce"), false, false);
@@ -226,9 +238,10 @@ void Document::startPatchRepair()
                 emit settingsChanged();
             });
     // All inputs are immutable values; the worker never accesses Document or QML.
-    watcher->setFuture(QtConcurrent::run([source, region, offset, diffusion, coverage, cancel] {
-        return repairPatch(source, region, offset, diffusion, coverage, cancel);
-    }));
+    watcher->setFuture(
+        QtConcurrent::run([source, size, region, offset, diffusion, coverage, cancel] {
+            return repairPatch(source, size, region, offset, diffusion, coverage, cancel);
+        }));
 }
 
 void Document::finishPatch(bool _cancel)

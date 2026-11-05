@@ -1438,7 +1438,8 @@ private:
     std::shared_ptr<std::atomic_bool> m_patchCancel;
     QPoint                            m_patchOffset;
     QRegion                           m_patchTarget;
-    QImage                            m_patchSource, m_patchPreview, m_regionPreviewSource;
+    PixelPlane                        m_patchSource;
+    QImage                            m_patchPreview, m_regionPreviewSource;
     bool                              m_spotHealingSampleAllLayers = false;
     int                               m_spotHealingMode            = 0;
     PixelPlane                        m_spotHealingSample;

@@ -60,7 +60,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         return 0;
     const int colorBytes    = stack.bits == 16 ? 16 : 4;
     qint64    bytesPerPixel = (colorBytes + 1) * 2;
-    const qint64 perTile       = 64 + 256 * stack.layers.size();
+    const qint64 perTile       = 256 * stack.layers.size();
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
     bool      spatial = false, masks = false, colorInput = false, maskInput = false;
     bool         denseColor = false, denseMask = false;
@@ -119,7 +119,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         scratchBytes += 64;
     }
 
-    qint64      bytes = 0;
+    qint64      bytes = 64; // The immutable quad is shared by all tiles.
     QSet<QSize> worksets, reductions;
     for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
         for (int x = area.left() / tile; x <= area.right() / tile; ++x) {

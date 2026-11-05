@@ -19,6 +19,7 @@
 namespace
 {
 constexpr int tileSize = 512;
+constexpr float stackQuad[] = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
 QShader       shader(const char *name)
 {
     QFile file(QStringLiteral(":/PhotoCrap/src/render/shaders/") + QString::fromLatin1(name) +
@@ -26,6 +27,38 @@ QShader       shader(const char *name)
     return file.open(QIODevice::ReadOnly) ? QShader::fromSerialized(file.readAll()) : QShader{};
 }
 using Counters = PhotoCrap::Render::StackStatistics;
+struct DrawResources {
+    std::unique_ptr<QRhiSampler> sampler;
+    std::unique_ptr<QRhiBuffer>  vertices;
+    Counters                    *counters = nullptr;
+    bool                         uploaded = false;
+
+    ~DrawResources()
+    {
+        if (!vertices)
+            return;
+        counters->bytes.fetch_sub(sizeof(stackQuad));
+        if (counters->changed)
+            counters->changed(counters->bytes.load());
+    }
+    bool init(QRhi *rhi, Counters *stats)
+    {
+        if (vertices)
+            return true;
+        std::unique_ptr<QRhiSampler> nextSampler(
+            rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                            QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
+        std::unique_ptr<QRhiBuffer> nextVertices(
+            rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, sizeof(stackQuad)));
+        if (!nextSampler->create() || !nextVertices->create())
+            return false;
+        sampler  = std::move(nextSampler);
+        vertices = std::move(nextVertices);
+        counters = stats;
+        counters->bytes.fetch_add(sizeof(stackQuad));
+        return true;
+    }
+};
 struct Input {
     std::unique_ptr<QRhiTexture> texture;
     qint64                       bytes = 0;
@@ -143,6 +176,7 @@ class Tile final : public QSGRenderNode
 public:
     QQuickWindow                              *window;
     QRhi                                      *rhi;
+    DrawResources                             &draw;
     Counters                                  *counters;
     std::function<void()>                      failure;
     bool                                       failed = false;
@@ -161,8 +195,6 @@ public:
     std::shared_ptr<DisplayPyramidScratchPool> reductionPool;
     std::unique_ptr<QRhiTexture>               retained;
     std::unique_ptr<QRhiTextureRenderTarget>   retainedTarget;
-    std::unique_ptr<QRhiSampler>               sampler;
-    std::unique_ptr<QRhiBuffer>                vertices;
     std::unique_ptr<QRhiGraphicsPipeline>      pipeline;
     std::vector<Pass>                          passes;
     QSGImageNode                              *image          = nullptr;
@@ -174,11 +206,11 @@ public:
     int                                        displayLevel = 0;
     quint64                                    generation   = 0;
     QRhiTexture                               *displayed    = nullptr;
-    Tile(QQuickWindow *owner, const QRect &bounds, int depth, bool stream, Counters *stats,
-         std::shared_ptr<Workspace> shared, std::shared_ptr<DisplayPyramidScratchPool> reductions,
-         std::function<void()> rejected)
-        : window(owner), rhi(owner->rhi()), counters(stats), failure(std::move(rejected)),
-          region(bounds), bits(depth), streaming(stream)
+    Tile(QQuickWindow *owner, DrawResources &drawResources, const QRect &bounds, int depth,
+         bool stream, Counters *stats, std::shared_ptr<Workspace> shared,
+         std::shared_ptr<DisplayPyramidScratchPool> reductions, std::function<void()> rejected)
+        : window(owner), rhi(owner->rhi()), draw(drawResources), counters(stats),
+          failure(std::move(rejected)), region(bounds), bits(depth), streaming(stream)
     {
         reductionPool = std::move(reductions);
         sharedWork    = bool(shared);
@@ -199,11 +231,7 @@ public:
     }
     bool init()
     {
-        sampler.reset(rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
-                                      QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
-        vertices.reset(
-            rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, 16 * sizeof(float)));
-        if (!sampler->create() || !vertices->create())
+        if (!draw.init(rhi, counters))
             return false;
         if (!work->init())
             return false;
@@ -465,9 +493,8 @@ public:
             }
         }
         auto       *updates = rhi->nextResourceUpdateBatch();
-        const float quad[]  = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
-        if (renderedKey.isEmpty())
-            updates->uploadStaticBuffer(vertices.get(), quad);
+        if (!draw.uploaded)
+            updates->uploadStaticBuffer(draw.vertices.get(), stackQuad);
         QSet<QByteArray> used;
         std::vector<int> filterRuns, maskRuns;
         if (work->spatial)
@@ -599,17 +626,18 @@ public:
             updates->updateDynamicBuffer(pass.uniform.get(), 0, 256, uniform.data());
             pass.bindings.reset(rhi->newShaderResourceBindings());
             const auto stage = QRhiShaderResourceBinding::FragmentStage;
+            auto      *sampler = draw.sampler.get();
             pass.bindings->setBindings(
                 {QRhiShaderResourceBinding::uniformBuffer(
                      0, stage | QRhiShaderResourceBinding::VertexStage, pass.uniform.get()),
-                 QRhiShaderResourceBinding::sampledTexture(1, stage, backdrop, sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler.get()),
-                 QRhiShaderResourceBinding::sampledTexture(4, stage, coverage, sampler.get()),
+                 QRhiShaderResourceBinding::sampledTexture(1, stage, backdrop, sampler),
+                 QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler),
+                 QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler),
+                 QRhiShaderResourceBinding::sampledTexture(4, stage, coverage, sampler),
                  QRhiShaderResourceBinding::sampledTexture(
-                     5, stage, table ? table->texture.get() : backdrop, sampler.get()),
+                     5, stage, table ? table->texture.get() : backdrop, sampler),
                  QRhiShaderResourceBinding::sampledTexture(
-                     6, stage, blend ? blend->texture.get() : backdrop, sampler.get())});
+                     6, stage, blend ? blend->texture.get() : backdrop, sampler)});
             if (!pass.bindings->create()) {
                 ok = false;
                 break;
@@ -644,6 +672,7 @@ public:
         pipeline->setShaderResourceBindings(passes.front().bindings.get());
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
+        draw.uploaded = true;
         if (!filterRuns.empty() && (filterRuns.front() >= 0 || layers.front().tonal)) {
             cb->beginPass(work->targets[0].get(), Qt::transparent, {1.f, 0});
             cb->endPass();
@@ -681,7 +710,7 @@ public:
             cb->setGraphicsPipeline(pipeline.get());
             cb->setViewport(QRhiViewport(0, 0, region.width(), region.height()));
             cb->setShaderResources(passes[index].bindings.get());
-            const QRhiCommandBuffer::VertexInput input{vertices.get(), 0};
+            const QRhiCommandBuffer::VertexInput input{draw.vertices.get(), 0};
             cb->setVertexInput(0, 1, &input);
             cb->draw(4);
             cb->endPass();
@@ -716,7 +745,7 @@ public:
     }
     qint64 bytes(bool includeWorkspace = true) const
     {
-        qint64 result = 64 + qint64(passes.size()) * 256 + (pyramid ? pyramid->bytes() : 0);
+        qint64 result = qint64(passes.size()) * 256 + (pyramid ? pyramid->bytes() : 0);
         if (retained)
             result += qint64(region.width()) * region.height() * (bits == 16 ? 16 : 4);
         return result + (includeWorkspace ? work->bytes() : 0);
@@ -749,6 +778,7 @@ struct LayerStackNode::Data {
     std::shared_ptr<DisplayPyramidScratchPool>  reductions;
 
     std::shared_ptr<Counters> counters;
+    DrawResources             draw;
 };
 LayerStackNode::LayerStackNode(QQuickWindow *window, std::function<void()> failure,
                                std::shared_ptr<Counters> statistics)
@@ -869,9 +899,9 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
                 tile = nullptr;
             }
             if (!tile) {
-                tile =
-                    new Tile(d->window, padded, stack.bits, stack.streamInputs, d->counters.get(),
-                             workspace, stack.shareScratch ? d->reductions : nullptr, d->failure);
+                tile = new Tile(d->window, d->draw, padded, stack.bits, stack.streamInputs,
+                                d->counters.get(), workspace,
+                                stack.shareScratch ? d->reductions : nullptr, d->failure);
                 if (!tile->init()) {
                     delete tile;
                     return false;
@@ -893,7 +923,9 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
     for (auto it = d->tiles.cbegin(); it != d->tiles.cend(); ++it)
         entries.append(
             {it.key(), it.value()->bytes(), d->lastUse.value(it.key()), used.contains(it.key())});
-    const auto retained = PhotoCrap::Render::retainedTiles(entries, cacheBytes);
+    const qint64 drawBytes = d->draw.vertices ? sizeof(stackQuad) : 0;
+    const auto   retained =
+        PhotoCrap::Render::retainedTiles(entries, qMax(qint64(0), cacheBytes - drawBytes));
     for (auto it = d->tiles.begin(); it != d->tiles.end();) {
         auto *tile = it.value();
         if (!retained.contains(it.key())) {

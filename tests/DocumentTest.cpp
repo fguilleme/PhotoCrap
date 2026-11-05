@@ -422,6 +422,13 @@ private slots:
         QCOMPARE(stackWorkingBytes(stack, visible), compact);
         stack.layers[0].image = image;
         QCOMPARE(stackWorkingBytes(stack, visible), compact + (pixels - 1) * 16);
+
+        stack.size            = {1024, 64};
+        stack.layers[0].image = PixelPlane::uniform(stack.size, image.copy(0, 0, 1, 1));
+        stack.layers[0].mask  = PixelPlane::uniform(stack.size, mask.copy(0, 0, 1, 1));
+        const auto left       = stackWorkingBytes(stack, {0, 0, 512, 64});
+        const auto right      = stackWorkingBytes(stack, {512, 0, 512, 64});
+        QCOMPARE(left + right - stackWorkingBytes(stack, QRect(QPoint{}, stack.size)), qint64(64));
     }
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {

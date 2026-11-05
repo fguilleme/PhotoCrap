@@ -15,6 +15,7 @@
 #include "filters/InvertFilter.h"
 #include "filters/LevelsFilter.h"
 #include "filters/LightFilter.h"
+#include "filters/NoiseMath.h"
 #include "filters/PhotoFilterFilter.h"
 #include "filters/PosterizeFilter.h"
 #include "filters/SelectiveColorFilter.h"
@@ -497,21 +498,15 @@ QImage Document::noiseImage(const QImage &_source, qreal _amount, const QPoint &
     const auto render = [&]<typename Pixel>() -> QImage {
         using P                = ImageUtils::PixelAccess<Pixel>;
         QImage       result    = _source.convertToFormat(P::format);
-        const int    amplitude = P::round(qBound(0., _amount, 100.) * 1.275);
+        const int    amplitude = PhotoCrap::Filters::noiseAmplitude(_amount, P::wide);
         QVector<int> rows(result.height());
         std::iota(rows.begin(), rows.end(), 0);
         ImageUtils::blockingMap(rows, [&](int _y) {
             auto row = reinterpret_cast<Pixel *>(result.scanLine(_y));
             for (int x = 0; x < result.width(); ++x) {
                 const Pixel pixel = row[x];
-                quint32     hash  = quint32(x + _origin.x()) * 0x9e3779b1u ^
-                                    quint32(_y + _origin.y()) * 0x85ebca6bu;
-                auto        delta = [&]() {
-                    hash ^= hash << 13;
-                    hash ^= hash >> 17;
-                    hash ^= hash << 5;
-                    return int(hash % quint32(amplitude * 2 + 1)) - amplitude;
-                };
+                quint32     hash = PhotoCrap::Filters::noiseSeed(x + _origin.x(), _y + _origin.y());
+                auto delta = [&]() { return PhotoCrap::Filters::noiseDelta(hash, amplitude); };
                 row[x] = P::rgba(qBound(0., P::red(pixel) + delta(), 255.),
                                  qBound(0., P::green(pixel) + delta(), 255.),
                                  qBound(0., P::blue(pixel) + delta(), 255.), P::alpha(pixel));

@@ -1,9 +1,11 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "filters/BlendMath.h"
+#include "filters/NoiseMath.h"
 #include "filters/ToneMappingTable.h"
 #include "render/LayerVisibility.h"
 #include <QDataStream>
+#include <algorithm>
 
 PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
 {
@@ -17,7 +19,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     for (const auto &layer : m_layers)
         if (layer.kind == "group")
             groups.insert(layer.groupId, layer.visible);
-    bool hasClippingBase = false;
+    bool hasClippingBase = false, opaqueBackdrop = false;
     for (int index = LayerVisibility::opaqueCoverIndex(m_layers, m_size); index < m_layers.size();
          ++index) {
         const auto &layer = m_layers[index];
@@ -44,10 +46,14 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
+        const bool noise = layer.kind == "adjustment" && layer.adjustmentType == "noise";
+        if (noise && !opaqueBackdrop)
+            return {}; // Match Qt's full-image straight-alpha conversion on translucent piles.
         const bool tonal =
-            layer.kind == "adjustment" &&
-            PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
-            (layer.adjustmentType != "selectiveColor" || layer.parameters.contains("redsCyanRed"));
+            noise || (layer.kind == "adjustment" &&
+                      PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
+                      (layer.adjustmentType != "selectiveColor" ||
+                       layer.parameters.contains("redsCyanRed")));
         const bool                                 masked = LayerVisibility::needsMask(layer);
         static const QHash<QString, SpatialFilter> spatialTypes{
             {"boxBlur", SpatialFilter::Box},
@@ -89,7 +95,39 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             }
         }
         StackLayer entry;
-        if (tonal) {
+        if (noise) {
+            using namespace PhotoCrap::Filters;
+            // Existing projects use the CPU build's argument evaluation order
+            // for RGB. Read that order once from the actual native filter.
+            const auto readOrder = [](bool wide) {
+                constexpr double amount = 50.;
+                const QPoint     origin(1, 2);
+                QImage           gray(1, 1,
+                                      wide ? QImage::Format_RGBA64_Premultiplied
+                                           : QImage::Format_ARGB32_Premultiplied);
+                gray.fill(QColor(128, 128, 128));
+                const auto               pixel = noiseImage(gray, amount, origin).pixelColor(0, 0);
+                const int                amplitude = noiseAmplitude(amount, wide);
+                auto                     hash      = noiseSeed(origin.x(), origin.y());
+                const std::array<int, 3> deltas{noiseDelta(hash, amplitude),
+                                                noiseDelta(hash, amplitude),
+                                                noiseDelta(hash, amplitude)};
+                const auto               index = [&](int channel) {
+                    const auto it = std::find(deltas.cbegin(), deltas.cend(), channel - 128);
+                    return it == deltas.cend() ? -1.f : float(it - deltas.cbegin());
+                };
+                return QVector3D(index(pixel.red()), index(pixel.green()), index(pixel.blue()));
+            };
+            static const auto order8 = readOrder(false), order16 = readOrder(true);
+            const auto        order = m_channelBits == 16 ? order16 : order8;
+            if (order.x() < 0 || order.y() < 0 || order.z() < 0)
+                return {};
+            const auto amount    = layer.parameters.value("amount", 8.).toDouble();
+            entry.tonal          = true;
+            entry.tone.mode      = ToneMappingMode::StackNoise;
+            const auto amplitude = noiseAmplitude(amount, m_channelBits == 16);
+            entry.tone.color     = QVector4D(float(amplitude), order.x(), order.y(), order.z());
+        } else if (tonal) {
             using PhotoCrap::Filters::ToneMappingMode;
             entry.tonal = true;
             entry.tone =
@@ -220,6 +258,11 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             float(qBound(0., layer.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.));
         entry.blend   = layer.blend;
         entry.clipped = layer.clippingMask;
+        opaqueBackdrop =
+            opaqueBackdrop || (!entry.clipped && !entry.tonal && spatial == SpatialFilter::None &&
+                               layer.opacity == 1 && entry.blend == 0 && !masked &&
+                               (entry.image.size() == m_size || ImageUtils::compact(entry.image)) &&
+                               entry.image.devicePixelRatio() == 1. && entry.image.knownOpaque());
         stack.layers.append(std::move(entry));
         if (!layer.clippingMask)
             hasClippingBase = true;

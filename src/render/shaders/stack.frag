@@ -142,9 +142,34 @@ vec3 hslToRgb(vec3 hsl)
     vec3 ramp = clamp(abs(mod(vec3(hsl.x * 6.0) + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
     return clamp(vec3(hsl.z) + (ramp - 0.5) * ((1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y), 0.0, 1.0);
 }
+ivec2 documentPixel()
+{
+    ivec2 origin = ivec2(ubuf.modes.w & 16383, (ubuf.modes.w >> 14) & 16383);
+    ivec2 size = textureSize(backdropTexture, 0);
+    return origin + clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - 1);
+}
+int noiseDelta(inout uint hash, int amplitude)
+{
+    hash ^= hash << 13;
+    hash ^= hash >> 17;
+    hash ^= hash << 5;
+    return int(hash % uint(amplitude * 2 + 1)) - amplitude;
+}
 vec4 nativeTone(vec3 rgb) {
     vec3 index=floor(rgb*ubuf.values.z+0.5)*(255.0/ubuf.values.z);
     int mode=ubuf.toneModes.x;
+    if (mode == 12) {
+        ivec2 p = documentPixel();
+        int amplitude = int(ubuf.parameters[0].x);
+        uint hash = (uint(p.x) * 0x9e3779b1u) ^ (uint(p.y) * 0x85ebca6bu);
+        vec3 offsets;
+        offsets.x = float(noiseDelta(hash, amplitude));
+        offsets.y = float(noiseDelta(hash, amplitude));
+        offsets.z = float(noiseDelta(hash, amplitude));
+        ivec3 order = ivec3(ubuf.parameters[0].yzw);
+        vec3 adjusted = index + vec3(offsets[order.x], offsets[order.y], offsets[order.z]);
+        return vec4(clamp(adjusted / 255.0, 0.0, 1.0), 1.0);
+    }
     if (mode == 11) {
         vec3 hsl = rgbToHsl(index / 255.0);
         hsl.x = floor(fract(hsl.x + ubuf.parameters[0].x + 1.0) * 36000.0 + 0.5) / 36000.0;
@@ -298,9 +323,7 @@ void main()
     }
     float ab = base.a, as = source.a * ubuf.values.x;
     if (ubuf.modes.x==1) {
-        ivec2 origin=ivec2(ubuf.modes.w & 16383,(ubuf.modes.w>>14)&16383);
-        ivec2 size=textureSize(backdropTexture,0);
-        ivec2 p=origin+clamp(ivec2(floor(uv*vec2(size))),ivec2(0),size-1);
+        ivec2 p = documentPixel();
         uint hash=(uint(p.x)*73856093u) ^ (uint(p.y)*19349663u);
         int alpha=int(floor(source.a*ubuf.values.z+0.5));
         uint threshold=uint(floor(texelFetch(blendTexture,ivec2(alpha%256,alpha/256),0).r*65535.0+0.5));

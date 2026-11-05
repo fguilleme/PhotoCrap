@@ -276,7 +276,7 @@ private slots:
     {
         for (int bits : {8, 16}) {
             Document d;
-            QVERIFY(d.newDocument(517, 523, false, bits));
+            QVERIFY(d.newDocument(517, 523, true, bits));
             d.addAdjustmentLayer("noise");
             QVERIFY(!d.gpuLayerStack().valid);
             d.addLayer();
@@ -443,7 +443,8 @@ private slots:
         d.addAdjustmentLayer("boxBlur");
         QVERIFY(d.gpuLayerStack().valid);
         QVERIFY(d.gpuLayerStack().halo > 0);
-        d.addAdjustmentLayer("noise");
+        d.addAdjustmentLayer("invert");
+        d.setLayerBlend(d.activeLayer(), 1);
         QVERIFY(!d.gpuLayerStack().valid);
         d.setLayerVisible(d.activeLayer(), false);
         QVERIFY(d.gpuLayerStack().valid);
@@ -495,7 +496,8 @@ private slots:
         d.addLayer();
         d.setColor(QColor(84, 103, 218, 170));
         d.fillWithColor(true);
-        d.addAdjustmentLayer("noise");
+        d.addAdjustmentLayer("invert");
+        d.setLayerBlend(d.activeLayer(), 1);
         d.setClippingMask(true);
         QVERIFY(!d.gpuLayerStack().valid);
         d.setLayerVisible(1, false);

@@ -49,7 +49,10 @@ Progression par optimisations vérifiées et commits distincts :
 - [x] Métadonnées d’opacité natives et exclusion des photos opaques couvrantes,
   sans lecture des mappings à la requête ; préparation des entrées native dès
   l’import et métrique RAM des plans courants indépendante du sous-ensemble GPU.
-- [ ] Consolider les sondes de latence/RAM et les validations matérielles disponibles.
+- [x] Sondes reproductibles de latence/RAM : outils, historique, I/O, ressources
+  graphiques et frames réellement modifiées ; JSON, RSS par processus et contrôle
+  de l’API exécutée. Campagne finale des configurations disponibles suivie dans
+  [la procédure](OPTIMIZATION_PROBES.md) ; Vulkan/Direct3D nécessitent leur matériel.
 
 ## 1. Plans éditables et historique par tuiles
 

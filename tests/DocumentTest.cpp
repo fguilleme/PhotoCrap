@@ -197,6 +197,80 @@ private slots:
         }
     }
 
+    void optimizationMemoryAndLatencyProbe()
+    {
+        if (!qEnvironmentVariableIsSet("PHOTOCRAP_OPTIMIZATION_PROBES"))
+            QSKIP("Opt-in CPU tools, history and streaming I/O latency/RAM probe.");
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(2048, 2048, false, bits));
+            d.setTool("gradient");
+            d.setColor(QColor(25, 72, 186));
+            d.setSecondaryColor(QColor(224, 151, 37));
+            QElapsedTimer timer;
+            timer.start();
+            d.beginStroke(0, 0);
+            d.continueStroke(2047, 2047);
+            d.endStroke();
+            const double gradientMs = timer.nsecsElapsed() / 1e6;
+            const auto reference = d.gpuLayerStack().layers.first().image.region({0, 0, 256, 256});
+            d.setTool("move");
+            timer.restart();
+            d.beginStroke(0, 0);
+            d.continueStroke(17, 19);
+            d.cancelStroke();
+            const double moveMs = timer.nsecsElapsed() / 1e6;
+            d.setTool("pencil");
+            d.setBrushSize(3);
+            d.setBrushSmoothing(0);
+            timer.restart();
+            for (int i = 0; i < 40; ++i) {
+                d.setColor(QColor((i * 41) % 256, (i * 71) % 256, (i * 103) % 256));
+                d.beginStroke(20 + (i % 10) * 12, 20 + (i / 10) * 12);
+                d.endStroke();
+            }
+            const double historyMs = timer.nsecsElapsed() / 1e6;
+            const auto   memory    = d.memoryUsage();
+            for (int i = 0; i < 40; ++i)
+                d.undo();
+            QCOMPARE(d.gpuLayerStack().layers.first().image.region({0, 0, 256, 256}), reference);
+            for (int i = 0; i < 40; ++i)
+                d.redo();
+            const auto png =
+                QUrl::fromLocalFile(directory.filePath(QString("native-%1.png").arg(bits)));
+            timer.restart();
+            QVERIFY(d.exportImage(png));
+            const double pngMs = timer.nsecsElapsed() / 1e6;
+            const auto   project =
+                QUrl::fromLocalFile(directory.filePath(QString("native-%1.pcr").arg(bits)));
+            timer.restart();
+            QVERIFY(d.saveProject(project));
+            const double saveMs = timer.nsecsElapsed() / 1e6;
+            Document     reopened;
+            timer.restart();
+            QVERIFY(reopened.openFile(project));
+            const double openMs = timer.nsecsElapsed() / 1e6;
+            QCOMPARE(reopened.gpuLayerStack().layers.first().image.region({0, 0, 256, 256}),
+                     d.gpuLayerStack().layers.first().image.region({0, 0, 256, 256}));
+            QJsonObject probe{{"kind", "cpu-tools-history-io"},
+                              {"bits", bits},
+                              {"width", 2048},
+                              {"height", 2048},
+                              {"gradient_ms", gradientMs},
+                              {"move_cancel_ms", moveMs},
+                              {"forty_history_edits_ms", historyMs},
+                              {"png_export_ms", pngMs},
+                              {"pcr_save_ms", saveMs},
+                              {"pcr_open_ms", openMs},
+                              {"png_bytes", double(QFileInfo(png.toLocalFile()).size())},
+                              {"pcr_bytes", double(QFileInfo(project.toLocalFile()).size())},
+                              {"memory_after_edits", QJsonObject::fromVariantMap(memory)}};
+            qInfo().noquote() << "PHOTOCRAP_PROBE"
+                              << QJsonDocument(probe).toJson(QJsonDocument::Compact);
+        }
+    }
     void denseOpaqueCoverSkipsHiddenUnsupportedLayers()
     {
         for (int bits : {8, 16}) {

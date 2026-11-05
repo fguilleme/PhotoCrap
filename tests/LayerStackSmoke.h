@@ -1,9 +1,14 @@
 #pragma once
 #include "CanvasItem.h"
+#include <QElapsedTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <algorithm>
 #include <cmath>
 
 inline bool runLayerStackSmoke(QQuickWindow *window)
@@ -539,6 +544,59 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         }
     }
     canvas.setGpuStackEnabled(true);
+    if (hardware && qEnvironmentVariableIsSet("PHOTOCRAP_OPTIMIZATION_PROBES")) {
+        canvas.setSize({600, 128});
+        frame();
+        frame();
+        const auto uploads = canvas.stackTextureUploads(), passes = canvas.stackPasses();
+        document.beginLayerPreview();
+        QVector<double> timings;
+        for (int i = 0; i < 20; ++i) {
+            QSignalSpy    swapped(window, &QQuickWindow::frameSwapped);
+            const auto    beforePasses = canvas.stackPasses();
+            QElapsedTimer timer;
+            timer.start();
+            document.previewLayerParameter("cyanRed", i - 10);
+            do {
+                swapped.clear();
+                window->update();
+                const int remaining = qMax(1, 5000 - int(timer.elapsed()));
+                if (!require(!swapped.isEmpty() || swapped.wait(remaining),
+                             "latency probe observes a presented frame"))
+                    return false;
+                if (!require(timer.elapsed() < 5000,
+                             "latency probe actually renders the changed table"))
+                    return false;
+            } while (canvas.stackPasses() == beforePasses);
+            timings.append(timer.nsecsElapsed() / 1e6);
+        }
+        document.finishLayerPreview("Latency probe");
+        frame();
+        std::sort(timings.begin(), timings.end());
+        const auto    api     = window->rendererInterface()->graphicsApi();
+        const QString backend = api == QSGRendererInterface::Metal        ? "metal"
+                                : api == QSGRendererInterface::OpenGL     ? "opengl"
+                                : api == QSGRendererInterface::Vulkan     ? "vulkan"
+                                : api == QSGRendererInterface::Direct3D11 ? "d3d11"
+                                : api == QSGRendererInterface::Direct3D12 ? "d3d12"
+                                                                          : "unknown";
+        QJsonObject   probe{
+            {"kind", "native-stack-frame"},
+            {"backend", backend},
+            {"bits", document.channelBits()},
+            {"graphics_api", int(window->rendererInterface()->graphicsApi())},
+            {"dpr", window->effectiveDevicePixelRatio()},
+            {"samples", timings.size()},
+            {"median_ms", (timings[(timings.size() - 1) / 2] + timings[timings.size() / 2]) / 2},
+            {"p95_ms",
+             timings[qMin(timings.size() - 1, qsizetype((timings.size() * 95 + 99) / 100 - 1))]},
+            {"uploads", double(canvas.stackTextureUploads() - uploads)},
+            {"passes", double(canvas.stackPasses() - passes)},
+            {"stack_bytes", double(canvas.stackTextureBytes())},
+            {"graphics_memory", QJsonObject::fromVariantMap(canvas.graphicsMemoryUsage())}};
+        qInfo().noquote() << "PHOTOCRAP_PROBE"
+                          << QJsonDocument(probe).toJson(QJsonDocument::Compact);
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

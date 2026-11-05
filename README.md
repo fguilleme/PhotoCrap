@@ -400,3 +400,23 @@ Les réglages par canal (Courbes, Niveaux, Luminosité/Contraste, Exposition, Ba
 L’ouverture des projets lit maintenant un index de calques avec un buffer de 16 Kio, puis valide et décode une enveloppe à la fois ; le JSON de tous les pixels encodés n’est plus conservé en mémoire.
 
 Les grands exports PNG 8/16 bits et BMP se composent et s’écrivent par bandes natives bornées, avec annulation et publication atomique ; les piles non locales gardent leur repli complet.
+
+## Optimisations natives de novembre 2026
+
+Les piles GPU prennent en charge les 18 réglages tonals et les masques progressifs,
+avec 25 modes de fusion généraux et deux modes discontinus conditionnels. Elles
+essaient successivement les entrées conservées, les entrées réutilisées, puis les
+intermédiaires partagés lorsque le budget l’exige. Les cas non exacts et effets
+non pris en charge gardent le moteur CPU ; export et sauvegarde restent natifs.
+
+L’ouverture `.pcr` indexe les enveloppes avant de décoder les calques un à un.
+Les grands PNG 8/16 bits et BMP sont exportés par bandes bornées et publication
+atomique ; les codecs Qt JPEG/WebP nécessitent toujours une image complète.
+Les déplacements denses et dégradés pleine image travaillent par tuiles/bandes.
+L’historique compacte les petites différences et les photos opaques couvrantes
+évitent de recalculer les couches masquées.
+
+Les [sondes reproductibles](docs/OPTIMIZATION_PROBES.md) conservent les références
+de pixels, latences, pics RSS et compteurs GPU dans un rapport JSON. Elles servent
+à vérifier les trois modes de stockage sur chaque API disponible, sans assimiler
+le budget de tuiles à un plafond de RAM du processus.

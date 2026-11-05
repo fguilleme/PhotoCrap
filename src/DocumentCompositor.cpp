@@ -158,8 +158,9 @@ QImage Document::compositeRegion(const QRect &_region) const
         std::accumulate(first, m_layers.cend(), 0,
                         [](int _sum, const Layer &_layer) { return _sum + effectMargin(_layer); });
     const QRect workRegion = expanded(region, margin, bounds);
-    return renderCompositeRect(workRegion)
-        .copy(QRect(region.topLeft() - workRegion.topLeft(), region.size()));
+    const QImage rendered   = renderCompositeRect(workRegion);
+    return workRegion == region ? rendered
+                                : rendered.copy(region.translated(-workRegion.topLeft()));
 }
 
 QImage Document::renderCompositeRect(const QRect &_region) const

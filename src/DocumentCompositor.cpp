@@ -20,11 +20,10 @@ bool requiresFullComposite(const Layer &_layer, bool _opaqueBase, bool _hasClipp
     if (!contributes(_layer))
         return false;
     // Preserve the full-image rounding paths for clipped dissolve stacks and
-    // for noise over transparency. Mosaic still uses the document-wide grid.
+    // for noise over transparency.
     return (_layer.blend == 1 && _hasClipping) ||
            (_layer.kind == QStringLiteral("adjustment") &&
-            (_layer.adjustmentType == QStringLiteral("mosaic") ||
-             (_layer.adjustmentType == QStringLiteral("noise") && !_opaqueBase)));
+            _layer.adjustmentType == QStringLiteral("noise") && !_opaqueBase);
 }
 
 bool opaqueBase(const Layer &_layer)
@@ -56,6 +55,10 @@ int effectMargin(const Layer &_layer)
     if (_layer.adjustmentType == QStringLiteral("motionBlur"))
         return maskMargin +
                qBound(0, qCeil(_layer.parameters.value("distance").toDouble() / 2.) + 2, 102);
+    if (_layer.adjustmentType == QStringLiteral("mosaic")) {
+        const int cell = _layer.parameters.value("cellSize", 12).toInt();
+        return maskMargin + (cell > 1 ? qMin(200, cell) + 2 : 0);
+    }
     return maskMargin;
 }
 
@@ -241,7 +244,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                                        Qt::SmoothTransformation);
             } else
                 rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters,
-                                         _region.topLeft());
+                                         _region.topLeft(), m_size);
         } else if (layer.kind.startsWith(QStringLiteral("frequency")))
             rendered = regionImage(frequencyImage(layer));
         else

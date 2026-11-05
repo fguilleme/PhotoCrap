@@ -11031,11 +11031,11 @@ private slots:
         for (const QRect &region : regions)
             samples.append(d.compositeRegion(region));
         QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
-        const bool fallback = effect == "frequency" || effect == "mosaic" || effect == "noise";
+        const bool fallback = effect == "frequency" || effect == "noise";
         if (!fallback)
             QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
         const QImage reference = d.composite();
-        if (mode == 1 || effect == "noise") {
+        if (mode == 1 || effect == "noise" || effect == "mosaic") {
             QTemporaryDir directory;
             QVERIFY(directory.isValid());
             const auto project = QUrl::fromLocalFile(directory.filePath("regional.pcr"));
@@ -11049,6 +11049,46 @@ private slots:
             QCOMPARE(d.compositeRegion(regions[i]), samples[i]); // Warm cache has the same pixels.
         }
         QCOMPARE(d.history(), history);
+    }
+
+    void mosaicRegionsKeepTheDocumentSamplingPhase()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (const int bits : {8, 16})
+            for (const QSize size : {QSize(517, 389), QSize(1, 911), QSize(913, 1)}) {
+                QImage image(size, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+                for (int y = 0; y < size.height(); ++y)
+                    for (int x = 0; x < size.width(); ++x)
+                        image.setPixelColor(x, y,
+                                            QColor::fromRgba64(ushort(x * 353 + y * 61),
+                                                               ushort(x * 111 + y * 233),
+                                                               ushort(x * 55 + y * 311), 65535));
+                const auto file = QUrl::fromLocalFile(directory.filePath("mosaic-grid.png"));
+                QVERIFY(image.save(file.toLocalFile()));
+                Document doc;
+                QVERIFY(doc.openFile(file));
+                QCOMPARE(doc.channelBits(), bits);
+                const QImage base = doc.layerImage(0);
+                doc.addAdjustmentLayer("mosaic");
+                for (int cell : {2, 17, 200}) {
+                    doc.previewLayerParameter("cellSize", cell);
+                    doc.finishLayerPreview();
+                    const QSize reduced((size.width() + cell - 1) / cell,
+                                        (size.height() + cell - 1) / cell);
+                    const auto  expected =
+                        base.scaled(reduced, Qt::IgnoreAspectRatio, Qt::FastTransformation)
+                            .scaled(size, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+                    const QPoint centers[] = {{0, 0},
+                                              {size.width() / 2, size.height() / 2},
+                                              {size.width() - 1, size.height() - 1}};
+                    for (const auto &center : centers) {
+                        const auto region = QRect(center - QPoint(7, 9), QSize(17, 19))
+                                                .intersected(expected.rect());
+                        QCOMPARE(doc.compositeRegion(region), expected.copy(region));
+                    }
+                }
+            }
     }
 
     void compositeRegionPreservesGroupsAndClipping()
@@ -11143,18 +11183,14 @@ private slots:
         const QImage regional = d.composite();
         const QRect  bounds   = d.compositeUpdateRegion(before.cacheKey(), regional.cacheKey());
         QVERIFY(bounds.contains(QPoint(128, 96)));
-        if (effect == "mosaic")
-            QCOMPARE(bounds, regional.rect());
-        else {
-            QVERIFY(bounds.width() < regional.width());
-            QVERIFY(bounds.height() < regional.height());
-            if (effect == "maskFeather")
-                QVERIFY(bounds.width() >= 24);
-            for (int y = 0; y < regional.height(); ++y)
-                for (int x = 0; x < regional.width(); ++x)
-                    if (!bounds.contains(x, y))
-                        QCOMPARE(regional.pixelColor(x, y), before.pixelColor(x, y));
-        }
+        QVERIFY(bounds.width() < regional.width());
+        QVERIFY(bounds.height() < regional.height());
+        if (effect == "maskFeather")
+            QVERIFY(bounds.width() >= 24);
+        for (int y = 0; y < regional.height(); ++y)
+            for (int x = 0; x < regional.width(); ++x)
+                if (!bounds.contains(x, y))
+                    QCOMPARE(regional.pixelColor(x, y), before.pixelColor(x, y));
         // Force a full rebuild: regional output and its filtering halo must agree.
         d.setLayerVisible(0, false);
         d.setLayerVisible(0, true);

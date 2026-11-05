@@ -1,4 +1,5 @@
 #include "TiledImage.h"
+#include "ImageSampling.h"
 #include "ScratchImageCache.h"
 
 #include <QCache>
@@ -678,44 +679,12 @@ QImage TiledImage::scaledFast(const QSize &target) const
     QImage result = m_data->readBuffer(target);
     if (result.isNull() || m_data->tiles.isEmpty())
         return result;
-    // Qt's horizontal and vertical paths can use different rounding. Obtain
-    // each axis in its own direction, in the native wide-pixel format when needed.
-    const auto coordinates = [wide = format() == QImage::Format_RGBA64_Premultiplied](
-                                 int source, int destination, bool vertical, bool otherChanges) {
-        // Preserve Qt's one-axis versus two-axis scaler selection.
-        const int fromOther = otherChanges ? 2 : 1;
-        QImage    strip(vertical ? QSize(fromOther, source) : QSize(source, fromOther),
-                        wide ? QImage::Format_RGBA64_Premultiplied
-                             : QImage::Format_ARGB32_Premultiplied);
-        if (strip.isNull())
-            return QVector<int>{};
-        for (int i = 0; i < source; ++i)
-            for (int other = 0; other < fromOther; ++other) {
-                auto     *row = strip.scanLine(vertical ? i : other);
-                const int x   = vertical ? other : i;
-                if (wide)
-                    reinterpret_cast<QRgba64 *>(row)[x] =
-                        QRgba64::fromRgba64(0, 0, ushort(i), 65535);
-                else
-                    reinterpret_cast<QRgb *>(row)[x] = 0xff000000u | quint32(i);
-            }
-        strip = strip.scaled(vertical ? QSize(1, destination) : QSize(destination, 1),
-                             Qt::IgnoreAspectRatio, Qt::FastTransformation);
-        if (strip.isNull())
-            return QVector<int>{};
-        QVector<int> values(destination);
-        for (int i = 0; i < destination; ++i) {
-            const auto *row = strip.constScanLine(vertical ? i : 0);
-            const int   x   = vertical ? 0 : i;
-            values[i]       = wide ? int(reinterpret_cast<const QRgba64 *>(row)[x].blue())
-                                   : int(reinterpret_cast<const QRgb *>(row)[x] & 0x00ffffffu);
-        }
-        return values;
-    };
-    const auto xs =
-        coordinates(size().width(), target.width(), false, size().height() != target.height());
+    using PhotoCrap::ImageSampling::nearestAxis;
+    const bool wide = format() == QImage::Format_RGBA64_Premultiplied;
+    const auto xs   = nearestAxis(size().width(), target.width(), false,
+                                  size().height() != target.height(), wide);
     const auto ys =
-        coordinates(size().height(), target.height(), true, size().width() != target.width());
+        nearestAxis(size().height(), target.height(), true, size().width() != target.width(), wide);
     if (xs.size() != target.width() || ys.size() != target.height())
         return {};
     struct TileRun {

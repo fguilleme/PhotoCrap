@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImagePixels.h"
+#include "ImageSampling.h"
 #include "filters/BlackWhiteFilter.h"
 #include "filters/BlendMath.h"
 #include "filters/BrightnessContrastFilter.h"
@@ -451,15 +452,43 @@ QImage Document::highPassImage(const QImage &_source, qreal _radius)
     return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()
                                         : render.template operator()<QRgb>();
 }
-QImage Document::mosaicImage(const QImage &_source, int _cellSize)
+QImage Document::mosaicImage(const QImage &_source, int _cellSize, const QPoint &_origin,
+                             const QSize &_documentSize)
 {
     if (_source.isNull() || _cellSize <= 1)
         return _source;
     _cellSize = qBound(2, _cellSize, 200);
-    const QSize reduced(qMax(1, (_source.width() + _cellSize - 1) / _cellSize),
-                        qMax(1, (_source.height() + _cellSize - 1) / _cellSize));
-    return _source.scaled(reduced, Qt::IgnoreAspectRatio, Qt::FastTransformation)
-        .scaled(_source.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    const auto  size = _documentSize.isEmpty() ? _source.size() : _documentSize;
+    const QSize reduced((size.width() + _cellSize - 1) / _cellSize,
+                        (size.height() + _cellSize - 1) / _cellSize);
+    if (size == _source.size())
+        return _source.scaled(reduced, Qt::IgnoreAspectRatio, Qt::FastTransformation)
+            .scaled(size, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+
+    using PhotoCrap::ImageSampling::nearestAxis;
+    const bool wide = ImageUtils::is16Bit(_source);
+    auto xs = nearestAxis(size.width(), reduced.width(), false, size.height() != reduced.height(),
+                          wide, true);
+    const auto ys = nearestAxis(size.height(), reduced.height(), true,
+                                size.width() != reduced.width(), wide, true);
+    if (xs.size() != size.width() || ys.size() != size.height())
+        return {};
+    auto result = _source.copy();
+    if (result.isNull())
+        return {};
+    const int bytes = _source.depth() / 8;
+    // Only the outer halo can address pixels outside this input region. The
+    // compositor discards those edge samples after all following passes.
+    for (int x = 0; x < result.width(); ++x)
+        xs[x] = qBound(0, xs[x + _origin.x()] - _origin.x(), _source.width() - 1) * bytes;
+    for (int y = 0; y < result.height(); ++y) {
+        const int   sy  = qBound(0, ys[y + _origin.y()] - _origin.y(), _source.height() - 1);
+        const auto *src = _source.constScanLine(sy);
+        auto       *dst = result.scanLine(y);
+        for (int x = 0; x < result.width(); ++x)
+            std::memcpy(dst + x * bytes, src + xs[x], size_t(bytes));
+    }
+    return result;
 }
 QImage Document::noiseImage(const QImage &_source, qreal _amount, const QPoint &_origin)
 {
@@ -582,7 +611,7 @@ QImage Document::frequencyImage(const Layer &_layer) const
                                               : render.template operator()<QRgb>();
 }
 QImage Document::adjustedImage(const QImage &_source, const QString &_type, const QVariantMap &_p,
-                               const QPoint &_origin)
+                               const QPoint &_origin, const QSize &_documentSize)
 {
     if (_source.isNull())
         return _source;
@@ -644,7 +673,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         if (_type == "highPass")
             return highPassImage(_source, _p.value("radius", 4.).toDouble());
         if (_type == "mosaic")
-            return mosaicImage(_source, _p.value("cellSize", 12).toInt());
+            return mosaicImage(_source, _p.value("cellSize", 12).toInt(), _origin, _documentSize);
         if (_type == "noise")
             return noiseImage(_source, _p.value("amount", 8.).toDouble(), _origin);
         return _source;

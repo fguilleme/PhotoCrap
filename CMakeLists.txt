@@ -182,6 +182,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/render/LayerVisibility.h
     src/Document.h
     src/ImageUtils.h
+    src/ImageSampling.h
     src/ImageHistogram.h
     src/ImageAlpha.h
     src/tools/RegionHealing.h src/tools/HealingPixels.h
@@ -429,6 +430,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/SliceDescriptionCache.cpp
     src/tools/SliceDescriptionCache.h
     src/ImageUtils.h
+    src/ImageSampling.h
     src/ImageHistogram.h
     src/ImageAlpha.h
     src/filters/BlackWhiteFilter.cpp

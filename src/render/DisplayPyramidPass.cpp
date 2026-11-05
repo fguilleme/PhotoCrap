@@ -21,10 +21,14 @@ struct PyramidTarget {
     std::unique_ptr<QRhiTexture>              texture;
     std::unique_ptr<QRhiTextureRenderTarget>  target;
     std::unique_ptr<QRhiRenderPassDescriptor> descriptor;
+    std::function<void()>                     releaseScratch;
     ~PyramidTarget()
     {
         target.reset();
         descriptor.reset();
+        texture.reset();
+        if (releaseScratch)
+            releaseScratch();
     }
 };
 std::shared_ptr<PyramidTarget> pyramidTarget(QRhi *rhi, const QSize &size,
@@ -126,7 +130,7 @@ QRhiGraphicsPipeline *DisplayPyramidPipelines::get(QRhiTextureRenderTarget      
 }
 struct DisplayPyramidScratchPool::Data {
     QRhi                                          *rhi;
-    QHash<quint64, std::shared_ptr<PyramidTarget>> targets;
+    QHash<quint64, std::weak_ptr<PyramidTarget>>   targets;
     qint64                                         bytes = 0;
     std::function<void(qint64)>                    delta;
 };
@@ -136,11 +140,7 @@ DisplayPyramidScratchPool::DisplayPyramidScratchPool(QRhi *rhi, std::function<vo
     d->rhi   = rhi;
     d->delta = std::move(delta);
 }
-DisplayPyramidScratchPool::~DisplayPyramidScratchPool()
-{
-    d->targets.clear();
-    d->delta(-d->bytes);
-}
+DisplayPyramidScratchPool::~DisplayPyramidScratchPool() = default;
 qint64 DisplayPyramidScratchPool::bytes() const
 {
     return d->bytes;
@@ -208,16 +208,23 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
             return nullptr;
         if (axis == 0 && d->pool) {
             const quint64 key = (quint64(quint32(target.width())) << 32) | quint32(target.height());
-            auto         &cached = d->pool->d->targets[key];
-            if (!cached) {
-                cached = pyramidTarget(d->rhi, target.size(), QRhiTexture::RGBA32F);
-                if (!cached)
+            auto         &scratch = *d->pool->d;
+            auto          targetTexture = scratch.targets.value(key).lock();
+            if (!targetTexture) {
+                targetTexture = pyramidTarget(d->rhi, target.size(), QRhiTexture::RGBA32F);
+                if (!targetTexture)
                     return nullptr;
                 const qint64 bytes = qint64(target.width()) * target.height() * 16;
-                d->pool->d->bytes += bytes;
-                d->pool->d->delta(bytes);
+                targetTexture->releaseScratch = [pool = d->pool, key, bytes] {
+                    pool->d->targets.remove(key);
+                    pool->d->bytes -= bytes;
+                    pool->d->delta(-bytes);
+                };
+                scratch.targets.insert(key, targetTexture);
+                scratch.bytes += bytes;
+                scratch.delta(bytes);
             }
-            level->surfaces[axis]  = cached;
+            level->surfaces[axis]  = std::move(targetTexture);
             level->borrowedScratch = true;
         } else
             level->surfaces[axis] = pyramidTarget(d->rhi, target.size(),

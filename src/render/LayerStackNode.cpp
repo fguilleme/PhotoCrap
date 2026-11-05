@@ -1033,7 +1033,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
     for (auto it = d->tiles.cbegin(); it != d->tiles.cend(); ++it)
         entries.append(
             {it.key(), it.value()->bytes(), d->lastUse.value(it.key()), used.contains(it.key())});
-    const qint64 drawBytes = (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.tableBytes;
+    const qint64 drawBytes = (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.tableBytes +
+                             (d->reductions ? d->reductions->bytes() : 0);
     const auto   retained =
         PhotoCrap::Render::retainedTiles(entries, qMax(qint64(0), cacheBytes - drawBytes));
     for (auto it = d->tiles.begin(); it != d->tiles.end();) {

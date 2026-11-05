@@ -24,6 +24,7 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
     const bool hardware =
         !qEnvironmentVariableIsSet("PHOTOCRAP_TEST_GL_LEGACY") &&
         QSGRendererInterface::isApiRhiBased(window->rendererInterface()->graphicsApi());
+    const bool sharedScratch = qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH");
     Document   document;
     CanvasItem canvas;
     canvas.setParentItem(window->contentItem());
@@ -103,10 +104,26 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
                 return false;
             if (!check(2) || !check(4))
                 return false;
-            if (!require(canvas.stackTextureUploads() == uploads &&
-                             canvas.stackPasses() == passes &&
-                             canvas.gpuReductionPasses() == reductions,
-                         "zooming reuses native textures and completed GPU levels"))
+            if (sharedScratch) {
+                const auto bytes       = canvas.stackTextureBytes();
+                const auto priorPasses = canvas.stackPasses();
+                document.addAdjustmentLayer("boxBlur");
+                frame();
+                frame();
+                if (!require(canvas.gpuStackActive() && canvas.stackPasses() > priorPasses,
+                             "the filter renders with different scratch dimensions"))
+                    return false;
+                document.removeLayer();
+                for (int level : {1, 2, 3, 4})
+                    if (!check(level))
+                        return false;
+                if (!require(canvas.stackTextureBytes() == bytes,
+                             "unused shared scratch dimensions are released"))
+                    return false;
+            } else if (!require(canvas.stackTextureUploads() == uploads &&
+                                    canvas.stackPasses() == passes &&
+                                    canvas.gpuReductionPasses() == reductions,
+                                "zooming reuses native textures and completed GPU levels"))
                 return false;
             QList<double> timings;
             for (int iteration = 0; iteration < 10; ++iteration) {

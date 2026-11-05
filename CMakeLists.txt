@@ -57,6 +57,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
     src/storage/ProjectReadIndex.h
+    src/storage/ProjectPayloadDevice.h
     src/storage/ProjectPng.cpp src/storage/ProjectPng.h
     src/storage/StreamingImageWriter.cpp
     src/storage/StreamingImageWriter.h
@@ -375,6 +376,7 @@ qt_add_library(photocrap_core STATIC
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
     src/storage/ProjectReadIndex.h
+    src/storage/ProjectPayloadDevice.h
     src/storage/ProjectPng.cpp src/storage/ProjectPng.h
     src/storage/StreamingImageWriter.cpp
     src/storage/StreamingImageWriter.h

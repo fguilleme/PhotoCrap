@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QIODevice>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -6,14 +7,24 @@
 #include <QVector>
 #include <functional>
 
-// Index the layer array without retaining its PNG/Base64 strings. Only the
-// metadata and byte ranges survive the scan; callers decode one layer at a time.
-// The ordinary Qt JSON parser still validates every metadata/layer value.
+// Index the layer array without retaining its PNG/Base64 strings. The ordinary
+// Qt parser validates metadata values, and pixel strings retain file offsets.
 class ProjectReadIndex
 {
 public:
     struct Span {
         qint64 offset = 0, size = 0;
+    };
+    struct Payload : Span {
+        bool escaped = false;
+    };
+    struct LayerEntry {
+        QJsonObject             metadata;
+        QHash<QString, Payload> payloads;
+        Payload                 payload(const QString &_name) const
+        {
+            return payloads.value(_name);
+        }
     };
     QJsonObject   metadata;
     QVector<Span> layers;
@@ -82,17 +93,45 @@ public:
         }
         return false;
     }
-    QJsonObject layer(QIODevice &_device, int _index, bool &_ok)
+    LayerEntry layer(int _index, bool &_ok)
     {
         _ok = false;
         if (_index < 0 || _index >= layers.size())
             return {};
-        device                = &_device;
-        const auto      bytes = raw(layers[_index]);
-        QJsonParseError error;
-        const auto      json = QJsonDocument::fromJson(bytes, &error);
-        _ok = !failed && error.error == QJsonParseError::NoError && json.isObject();
-        return _ok ? json.object() : QJsonObject{};
+        const auto span = layers[_index];
+        position        = span.offset;
+        LayerEntry entry;
+        if (!take('{'))
+            return {};
+        if (!take('}')) {
+            while (!failed) {
+                space();
+                if (peek() != '"')
+                    return {};
+                const auto key = parse(value()).value("value").toString();
+                if (!take(':'))
+                    return {};
+                const bool payload = key == "png" || key == "mask" || key == "source";
+                space();
+                if (payload && peek() == '"')
+                    entry.payloads.insert(key, payloadString());
+                else {
+                    const auto object = parse(value());
+                    if (failed || object.isEmpty())
+                        return {};
+                    if (payload)
+                        entry.payloads.remove(key);
+                    else
+                        entry.metadata.insert(key, object.value("value"));
+                }
+                if (take('}'))
+                    break;
+                if (!take(','))
+                    return {};
+            }
+        }
+        _ok = !failed && position == span.offset + span.size;
+        return _ok ? entry : LayerEntry{};
     }
 
 private:
@@ -144,6 +183,53 @@ private:
     {
         space();
         return !failed && position == length;
+    }
+    Payload payloadString()
+    {
+        ++position; // Opening quote.
+        Payload result{{position, 0}, false};
+        while (!failed && position < length) {
+            const uchar c = uchar(next());
+            if (c == '"') {
+                result.size = position - result.offset - 1;
+                return result;
+            }
+            if (c < 0x20)
+                break;
+            if (c == '\\') {
+                result.escaped    = true;
+                const char escape = next();
+                if (escape == 'u') {
+                    for (int i = 0; i < 4; ++i) {
+                        const char hex = next();
+                        if (!((hex >= '0' && hex <= '9') || (hex >= 'a' && hex <= 'f') ||
+                              (hex >= 'A' && hex <= 'F'))) {
+                            failed = true;
+                            break;
+                        }
+                    }
+                } else if (escape != '"' && escape != '\\' && escape != '/' && escape != 'b' &&
+                           escape != 'f' && escape != 'n' && escape != 'r' && escape != 't')
+                    break;
+            } else if (c >= 0x80) {
+                // Metadata is parsed by Qt. For payload strings, validate UTF-8
+                // here even when the layer never uses the resulting PNG.
+                int trailing = c >= 0xf0 ? 3 : c >= 0xe0 ? 2 : 1;
+                if (c < 0xc2 || c > 0xf4)
+                    break;
+                for (int i = 0; i < trailing; ++i) {
+                    const uchar byte = uchar(next());
+                    if (byte < 0x80 || byte > 0xbf ||
+                        (i == 0 && ((c == 0xe0 && byte < 0xa0) || (c == 0xed && byte >= 0xa0) ||
+                                    (c == 0xf0 && byte < 0x90) || (c == 0xf4 && byte >= 0x90)))) {
+                        failed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        failed = true;
+        return {};
     }
     Span value()
     {

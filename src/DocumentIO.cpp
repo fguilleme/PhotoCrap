@@ -2,6 +2,7 @@
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "shapes/ShapeLayer.h"
+#include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectPng.h"
 #include "storage/ProjectReadIndex.h"
 #include "storage/ProjectWriteDevice.h"
@@ -620,18 +621,21 @@ bool Document::loadProject(const QString &_path)
     if (!validSize(w, h, int(array.size())))
         return false;
     int colors = 0, masks = 0;
+    QVector<ProjectReadIndex::LayerEntry> entries;
+    entries.reserve(array.size());
     // Reserve the complete logical storage before decoding any pixel. The
     // preflight parses one envelope at a time and immediately releases it.
     for (int layerIndex = 0; layerIndex < array.size(); ++layerIndex) {
-        bool       valid  = false;
-        const auto object = index.layer(file, layerIndex, valid);
+        bool valid = false;
+        auto entry = index.layer(layerIndex, valid);
         if (!valid)
             return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
-        colors += (!object["png"].toString().isEmpty() &&
-                   !(version >= 7 && object["compactPixels"].toBool())) +
-                  !object["source"].toString().isEmpty();
-        masks += !object["mask"].toString().isEmpty() &&
-                 !(version >= 7 && object["compactMask"].toBool());
+        colors += (entry.payload("png").size > 0 &&
+                   !(version >= 7 && entry.metadata["compactPixels"].toBool())) +
+                  (entry.payload("source").size > 0);
+        masks += entry.payload("mask").size > 0 &&
+                 !(version >= 7 && entry.metadata["compactMask"].toBool());
+        entries.append(std::move(entry));
     }
     if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
@@ -643,27 +647,28 @@ bool Document::loadProject(const QString &_path)
     QHash<QByteArray, PixelPlane> planes;
     int                           completed = 1;
     const int                     total     = 3 * int(array.size()) + 2;
-    for (int layerIndex = 0; layerIndex < array.size(); ++layerIndex) {
+    for (auto &stored : entries) {
         if (!operationStep(completed, total))
             return false;
-        bool valid  = false;
-        auto object = index.layer(file, layerIndex, valid);
-        if (!valid)
-            return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
+        const auto  entry  = std::move(stored);
+        const auto &object = entry.metadata;
         QString decodeError;
-        auto    decode = [&](const QString &_encoded, QImage::Format _format,
-                             bool _compact = false) -> PixelPlane {
-            if (!operationStep(++completed, total) || _encoded.isEmpty() || !decodeError.isEmpty())
+        auto        decode = [&](ProjectReadIndex::Payload _payload, QImage::Format _format,
+                                 bool _compact = false) -> PixelPlane {
+            if (!operationStep(++completed, total) || !_payload.size || !decodeError.isEmpty())
                 return {};
-            QByteArray bytes = QByteArray::fromBase64(_encoded.toLatin1(),
-                                                      QByteArray::AbortOnBase64DecodingErrors);
-            QBuffer    buffer(&bytes);
-            buffer.open(QIODevice::ReadOnly);
+            ProjectPayloadDevice buffer(file, _payload,
+                                        [&] { return operationStep(completed, total); });
+            QCryptographicHash   hash(QCryptographicHash::Sha256);
+            if (!buffer.isOpen() || !hash.addData(&buffer) || buffer.failed())
+                return {};
             const QSize      size = _compact ? QSize(1, 1) : QSize(w, h);
-            const QByteArray key = QByteArray::number(int(_format)) + (_compact ? 'c' : 'd') + ':' +
-                                   QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
+            const QByteArray key =
+                QByteArray::number(int(_format)) + (_compact ? 'c' : 'd') + ':' + hash.result();
             if (auto found = planes.constFind(key); found != planes.cend())
                 return operationStep(completed, total) ? found.value() : PixelPlane{};
+            if (!buffer.rewind())
+                return {};
             using PhotoCrap::Storage::ProjectPngRead;
             PixelPlane plane;
             const auto streamed = qint64(size.width()) * size.height() >= 4LL * 1024 * 1024
@@ -674,7 +679,7 @@ bool Document::loadProject(const QString &_path)
             if (streamed == ProjectPngRead::Failed)
                 return {};
             if (streamed == ProjectPngRead::Unsupported) {
-                if (!buffer.seek(0))
+                if (!buffer.rewind())
                     return {};
                 QImageReader reader(&buffer, "PNG");
                 if (reader.size() != size)
@@ -703,16 +708,16 @@ bool Document::loadProject(const QString &_path)
             kind != "frequencyLow" && kind != "frequencyHigh" &&
             !(version >= 9 && kind == "text") && !(version >= 11 && kind == "shape"))
             return fail(tr("Type de calque inconnu."));
-        auto image  = decode(object["png"].toString(), format,
-                             version >= 7 && object["compactPixels"].toBool());
-        auto mask   = decode(object["mask"].toString(), QImage::Format_Grayscale8,
+        auto image =
+            decode(entry.payload("png"), format, version >= 7 && object["compactPixels"].toBool());
+        auto mask   = decode(entry.payload("mask"), QImage::Format_Grayscale8,
                              version >= 7 && object["compactMask"].toBool());
-        auto source = decode(object["source"].toString(), format);
+        auto source = decode(entry.payload("source"), format);
         if (!decodeError.isEmpty())
             return fail(decodeError);
         if (((kind == "pixel" || kind == "text" || kind == "shape") && image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||
-            (!object["mask"].toString().isEmpty() && mask.isNull()))
+            (entry.payload("mask").size > 0 && mask.isNull()))
             return fail(tr("Calque corrompu ou dimensions incohérentes."));
         if (!image.isNull())
             image.setColorSpace(QColorSpace::SRgb);

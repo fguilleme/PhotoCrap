@@ -25,6 +25,7 @@
 #include "filters/SelectiveColorFilter.h"
 #include "filters/ThresholdFilter.h"
 #include "filters/VibranceFilter.h"
+#include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectReadIndex.h"
 #include "storage/ScratchImageCache.h"
 #include "tools/ColorFlood.h"
@@ -7791,7 +7792,7 @@ private slots:
         QJsonArray layers;
         for (int i = 0; i < 128; ++i)
             layers.append(QJsonObject{{"name", QString::fromUtf8("Texte é [ ] { } \\\" ")},
-                                      {"png", QString(8192, 'A')},
+                                      {"png", QString(65536, 'A')},
                                       {"index", i}});
         const QJsonObject root{{"layers", layers},      {"width", 16},
                                {"height", 16},          {"version", 11},
@@ -7807,8 +7808,14 @@ private slots:
         QVERIFY(index.largestRead <= 16 * 1024);
         for (int i : {0, 63, 127}) {
             bool valid = false;
-            QCOMPARE(index.layer(device, i, valid), layers[i].toObject());
+            const auto layer = index.layer(i, valid);
             QVERIFY(valid);
+            auto metadata = layers[i].toObject();
+            metadata.remove("png");
+            QCOMPARE(layer.metadata, metadata);
+            ProjectPayloadDevice payload(device, layer.payload("png"), {});
+            QCOMPARE(payload.readAll(), QByteArray(49152, '\0'));
+            QVERIFY(!payload.failed());
         }
         QVERIFY(index.largestRead <= 16 * 1024);
         QVERIFY(!index.read(device, [] { return false; }));
@@ -7826,15 +7833,49 @@ private slots:
         QVERIFY(device.open(QIODevice::ReadOnly));
         QVERIFY(index.read(device));
         bool valid = true;
-        index.layer(device, 0, valid);
+        index.layer(0, valid);
         QVERIFY(!valid);
         device.close();
         device.setData("{\"layers\":[0],\"layers\":[{\"png\":\"last\"}],\"width\":16}");
         QVERIFY(device.open(QIODevice::ReadOnly));
         QVERIFY(index.read(device));
         QCOMPARE(index.layers.size(), 1);
-        QCOMPARE(index.layer(device, 0, valid).value("png").toString(), QString("last"));
+        const auto last = index.layer(0, valid);
         QVERIFY(valid);
+        ProjectPayloadDevice payload(device, last.payload("png"), {});
+        QCOMPARE(payload.readAll(), QByteArray::fromBase64("last"));
+    }
+
+    void indexedPayloadsDecodeEscapesAcrossBlocks()
+    {
+        const QByteArray original(16384, char(255));
+        const auto       encoded = original.toBase64();
+        auto             escaped = encoded;
+        escaped.replace(16378, 1, "\\/"); // The first escape shifts this one to byte 16383.
+        escaped.replace(0, 1, "\\u002f");
+        QBuffer device;
+        device.setData("{\"layers\":[{\"png\":\"AAAA\",\"p\\u006eg\":\"" + escaped +
+                       "\",\"mask\":\"" + encoded + "AAAA\"}]}");
+        QVERIFY(device.open(QIODevice::ReadOnly));
+        ProjectReadIndex index;
+        QVERIFY(index.read(device));
+        bool       valid = false;
+        const auto layer = index.layer(0, valid);
+        QVERIFY(valid);
+        ProjectPayloadDevice payload(device, layer.payload("png"), {});
+        QCOMPARE(payload.readAll(), original);
+        QVERIFY(!payload.failed());
+        QVERIFY(payload.rewind());
+        QCOMPARE(payload.read(19), original.first(19));
+        ProjectPayloadDevice invalid(device, layer.payload("mask"), {});
+        invalid.readAll();
+        QVERIFY(invalid.failed());
+        int reads = 0;
+        ProjectPayloadDevice cancelled(device, layer.payload("png"), [&] { return ++reads < 2; });
+        cancelled.readAll();
+        QCOMPARE(reads, 2);
+        QVERIFY(cancelled.failed());
+        QVERIFY(index.largestRead <= 16 * 1024);
     }
 
     void streamedProjectPreservesNativePlanesAndEscapedMetadata()

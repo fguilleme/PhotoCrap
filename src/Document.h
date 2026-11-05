@@ -1761,9 +1761,9 @@ private:
                                    int _threshold);
     static QImage highPassImage(const QImage &_source, qreal _radius);
     static QImage mosaicImage(const QImage &_source, int _cellSize);
-    static QImage noiseImage(const QImage &_source, qreal _amount);
+    static QImage noiseImage(const QImage &_source, qreal _amount, const QPoint &_origin);
     static QImage adjustedImage(const QImage &_source, const QString &_type,
-                                const QVariantMap &_parameters);
+                                const QVariantMap &_parameters, const QPoint &_origin = {});
     QImage        frequencyImage(const Layer &_layer) const;
     void          requestPreviewRender(bool _draft, bool _refine = false, bool _allowGpu = true);
     void          applyMagicEraser(const QPoint &_seed);

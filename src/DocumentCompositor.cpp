@@ -19,9 +19,8 @@ bool requiresFullComposite(const Layer &_layer)
 {
     // These filters currently depend on absolute image coordinates. The blur
     // family is local and can be recomputed from a padded dirty rectangle.
-    static const QStringList filters{QStringLiteral("mosaic"), QStringLiteral("noise")};
     return contributes(_layer) && _layer.kind == QStringLiteral("adjustment") &&
-           filters.contains(_layer.adjustmentType);
+           _layer.adjustmentType == QStringLiteral("mosaic");
 }
 
 int effectMargin(const Layer &_layer)
@@ -222,7 +221,8 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                                .scaled(regionComposite.size(), Qt::IgnoreAspectRatio,
                                        Qt::SmoothTransformation);
             } else
-                rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters);
+                rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters,
+                                         _region.topLeft());
         } else if (layer.kind.startsWith(QStringLiteral("frequency")))
             rendered = regionImage(frequencyImage(layer));
         else

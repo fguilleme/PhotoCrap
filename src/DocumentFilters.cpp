@@ -461,7 +461,7 @@ QImage Document::mosaicImage(const QImage &_source, int _cellSize)
     return _source.scaled(reduced, Qt::IgnoreAspectRatio, Qt::FastTransformation)
         .scaled(_source.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
 }
-QImage Document::noiseImage(const QImage &_source, qreal _amount)
+QImage Document::noiseImage(const QImage &_source, qreal _amount, const QPoint &_origin)
 {
     if (_source.isNull() || _amount <= 0)
         return _source;
@@ -475,7 +475,8 @@ QImage Document::noiseImage(const QImage &_source, qreal _amount)
             auto row = reinterpret_cast<Pixel *>(result.scanLine(_y));
             for (int x = 0; x < result.width(); ++x) {
                 const Pixel pixel = row[x];
-                quint32     hash  = quint32(x) * 0x9e3779b1u ^ quint32(_y) * 0x85ebca6bu;
+                quint32     hash  = quint32(x + _origin.x()) * 0x9e3779b1u ^
+                                    quint32(_y + _origin.y()) * 0x85ebca6bu;
                 auto        delta = [&]() {
                     hash ^= hash << 13;
                     hash ^= hash >> 17;
@@ -580,7 +581,8 @@ QImage Document::frequencyImage(const Layer &_layer) const
     return ImageUtils::is16Bit(_layer.source) ? render.template operator()<QRgba64>()
                                               : render.template operator()<QRgb>();
 }
-QImage Document::adjustedImage(const QImage &_source, const QString &_type, const QVariantMap &_p)
+QImage Document::adjustedImage(const QImage &_source, const QString &_type, const QVariantMap &_p,
+                               const QPoint &_origin)
 {
     if (_source.isNull())
         return _source;
@@ -644,7 +646,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         if (_type == "mosaic")
             return mosaicImage(_source, _p.value("cellSize", 12).toInt());
         if (_type == "noise")
-            return noiseImage(_source, _p.value("amount", 8.).toDouble());
+            return noiseImage(_source, _p.value("amount", 8.).toDouble(), _origin);
         return _source;
     };
     return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()

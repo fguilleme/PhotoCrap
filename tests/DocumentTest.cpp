@@ -10990,14 +10990,14 @@ private slots:
         for (const QRect &region : regions)
             samples.append(d.compositeRegion(region));
         QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
-        const bool fallback = effect == "frequency" || effect == "mosaic" || effect == "noise";
+        const bool fallback = effect == "frequency" || effect == "mosaic";
         if (!fallback)
             QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
         const QImage reference = d.composite();
-        if (mode == 1) {
+        if (mode == 1 || effect == "noise") {
             QTemporaryDir directory;
             QVERIFY(directory.isValid());
-            const auto project = QUrl::fromLocalFile(directory.filePath("regional-dissolve.pcr"));
+            const auto project = QUrl::fromLocalFile(directory.filePath("regional.pcr"));
             QVERIFY(d.saveProject(project));
             Document reopened;
             QVERIFY(reopened.openFile(project));

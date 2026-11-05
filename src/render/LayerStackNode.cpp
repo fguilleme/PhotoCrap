@@ -98,12 +98,9 @@ struct Workspace {
         if (descriptor)
             return true;
         for (int i = 0; i < 2; ++i) {
-            colors[i].reset(
-                rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8, size, 1,
-                                QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource));
-            clips[i].reset(
-                rhi->newTexture(QRhiTexture::R8, size, 1,
-                                QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource));
+            colors[i].reset(rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
+                                            size, 1, QRhiTexture::RenderTarget));
+            clips[i].reset(rhi->newTexture(QRhiTexture::R8, size, 1, QRhiTexture::RenderTarget));
             if (!colors[i]->create() || !clips[i]->create())
                 return false;
             QRhiTextureRenderTargetDescription description;
@@ -158,13 +155,14 @@ public:
     bool                                       sharedWork = false;
     std::shared_ptr<DisplayPyramidScratchPool> reductionPool;
     std::unique_ptr<QRhiTexture>               retained;
+    std::unique_ptr<QRhiTextureRenderTarget>   retainedTarget;
     std::unique_ptr<QRhiSampler>               sampler;
     std::unique_ptr<QRhiBuffer>                vertices;
     std::unique_ptr<QRhiGraphicsPipeline>      pipeline;
     std::vector<Pass>                          passes;
     QSGImageNode                              *image          = nullptr;
     QSGTexture                                *wrapper        = nullptr;
-    int                                        output         = -1;
+    int                                        retainedCoverage = -1;
     qint64                                     accountedBytes = 0;
     std::unique_ptr<DisplayPyramidPass>        pyramid;
     QSize                                      pyramidDocument;
@@ -218,7 +216,6 @@ public:
             pyramidDocument = stack.size;
         }
         const int last       = stack.layers.isEmpty() ? 0 : int(stack.layers.size()) % 2;
-        output               = last;
         QRhiTexture *texture = work->colors[last].get();
         QSize        size    = stack.size;
         QRect        box = content, textureRegion = region;
@@ -243,12 +240,27 @@ public:
         }
         if (sharedWork && displayLevel == 0) {
             if (!retained) {
-                retained.reset(rhi->newTexture(
-                    bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8, region.size()));
+                retained.reset(
+                    rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
+                                    region.size(), 1, QRhiTexture::RenderTarget));
                 if (!retained->create()) {
                     reject(__LINE__);
                     return;
                 }
+            }
+            if (!retainedTarget || retainedCoverage != last) {
+                // The last pass owns its color output. Coverage remains in the
+                // shared scratch slot opposite the coverage being sampled.
+                QRhiTextureRenderTargetDescription description;
+                description.setColorAttachments({QRhiColorAttachment(retained.get()),
+                                                 QRhiColorAttachment(work->clips[last].get())});
+                retainedTarget.reset(rhi->newTextureRenderTarget(description));
+                retainedTarget->setRenderPassDescriptor(work->descriptor.get());
+                if (!retainedTarget->create()) {
+                    reject(__LINE__);
+                    return;
+                }
+                retainedCoverage = last;
             }
             texture = retained.get();
         }
@@ -259,8 +271,10 @@ public:
             wrapper   = next;
             displayed = texture;
         }
-        if (sharedWork && displayLevel > 0)
-            retained.reset(); // Reduced views do not retain an unbudgeted native copy.
+        if (sharedWork && displayLevel > 0) {
+            retainedTarget.reset();
+            retained.reset(); // Reduced views retain only the reduced output.
+        }
         QRect source = box.translated(-textureRegion.topLeft());
         if (rhi->isYUpInFramebuffer())
             source.moveTop(textureRegion.height() - source.y() - source.height());
@@ -621,7 +635,10 @@ public:
                 counters->passes.fetch_add(work->masks->render(cb, maskRuns[index]));
             if (filterRuns[index] >= 0)
                 counters->passes.fetch_add(work->spatial->render(cb, filterRuns[index]));
-            cb->beginPass(work->targets[(index + 1) % 2].get(), Qt::transparent, {1.f, 0});
+            auto *target = index + 1 == passes.size() && retainedTarget
+                               ? retainedTarget.get()
+                               : work->targets[(index + 1) % 2].get();
+            cb->beginPass(target, Qt::transparent, {1.f, 0});
             cb->setGraphicsPipeline(pipeline.get());
             cb->setViewport(QRhiViewport(0, 0, region.width(), region.height()));
             cb->setShaderResources(passes[index].bindings.get());
@@ -640,11 +657,6 @@ public:
         ++generation;
         if (pyramid && displayLevel > 0)
             counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
-        if (sharedWork && displayLevel == 0) {
-            auto *copy = rhi->nextResourceUpdateBatch();
-            copy->copyTexture(retained.get(), work->colors[output].get());
-            cb->resourceUpdate(copy);
-        }
         updateBytes();
     }
     void render(const RenderState *) override

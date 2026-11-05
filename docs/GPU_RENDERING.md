@@ -2080,8 +2080,9 @@ maintenu si les accumulateurs et réductions dépassent encore le budget.
 Lorsque le mode à entrées réutilisées dépasse encore le budget, un second palier
 partage les accumulateurs couleur/couverture et les passes spatiales entre les
 tuiles de mêmes dimensions. Les passes horizontales de réduction sont également
-partagées ; chaque tuile conserve sa propre sortie réduite, ou une copie native
-si aucun niveau réduit ne convient. Un changement de zoom reconstruit cette
+partagées ; chaque tuile conserve sa propre sortie réduite ou sa cible native.
+À pleine résolution, la dernière passe écrit directement dans la cible native.
+Un changement de zoom reconstruit cette
 sortie avant affichage, sans lire le scratch laissé par une autre tuile.
 
 La prévision compte les différents formats de bords et quatre niveaux conservés ;

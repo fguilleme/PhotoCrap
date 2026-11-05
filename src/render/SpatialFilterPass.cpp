@@ -36,8 +36,8 @@ struct SpatialFilterPass::Data {
     std::array<std::unique_ptr<QRhiTexture>, 2>              textures;
     std::array<std::unique_ptr<QRhiTextureRenderTarget>, 2>  targets;
     std::array<std::unique_ptr<QRhiRenderPassDescriptor>, 2> descriptors;
-    std::unique_ptr<QRhiBuffer>                              vertices;
-    std::unique_ptr<QRhiSampler>                             sampler;
+    QRhiBuffer                                              *vertices;
+    QRhiSampler                                             *sampler;
     std::array<std::unique_ptr<QRhiGraphicsPipeline>, 2>     pipelines;
     std::unique_ptr<QRhiShaderResourceBindings>              layoutBindings;
     std::vector<Job>                                         jobs;
@@ -52,8 +52,8 @@ struct SpatialFilterPass::Data {
         bindings.setBindings(
             {QRhiShaderResourceBinding::uniformBuffer(
                  0, stage | QRhiShaderResourceBinding::VertexStage, buffer),
-             QRhiShaderResourceBinding::sampledTexture(1, stage, source, sampler.get()),
-             QRhiShaderResourceBinding::sampledTexture(2, stage, original, sampler.get())});
+             QRhiShaderResourceBinding::sampledTexture(1, stage, source, sampler),
+             QRhiShaderResourceBinding::sampledTexture(2, stage, original, sampler)});
     }
 
     bool initLayout()
@@ -68,20 +68,6 @@ struct SpatialFilterPass::Data {
         layoutBindings = std::move(bindings);
         return true;
     }
-    bool                                                     init(QRhiResourceUpdateBatch *updates)
-    {
-        if (vertices)
-            return true;
-        sampler.reset(rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
-                                      QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
-        vertices.reset(rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, 64));
-        if (!sampler->create() || !vertices->create())
-            return false;
-        const float quad[] = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
-        updates->uploadStaticBuffer(vertices.get(), quad);
-        return true;
-    }
-
     bool ensureTarget(int index)
     {
         if (targets[index])
@@ -165,7 +151,8 @@ struct SpatialFilterPass::Data {
         return true;
     }
 };
-SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits,
+SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits, QRhiBuffer &vertices,
+                                     QRhiSampler                        &sampler,
                                      PhotoCrap::Render::StackStatistics &statistics)
     : d(std::make_unique<Data>())
 {
@@ -173,6 +160,8 @@ SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits,
     d->size = size;
     d->bits = bits;
     d->statistics = &statistics;
+    d->vertices   = &vertices;
+    d->sampler    = &sampler;
 }
 SpatialFilterPass::~SpatialFilterPass()
 {
@@ -209,7 +198,7 @@ SpatialFilterPass::prepare(QRhiTexture                                    *sourc
                            QRhiResourceUpdateBatch *updates, bool uploaded, quint64 sourceId)
 {
     using PhotoCrap::Render::SpatialFilter;
-    if (!source || !d->init(updates) || !d->initLayout())
+    if (!source || !d->initLayout())
         return {};
     if (d->preparedJobs == d->jobs.size())
         d->jobs.emplace_back();
@@ -261,7 +250,7 @@ quint64 SpatialFilterPass::render(QRhiCommandBuffer *cb, int run)
         cb->setGraphicsPipeline(d->pipelines[step.target].get());
         cb->setViewport(QRhiViewport(0, 0, d->size.width(), d->size.height()));
         cb->setShaderResources(step.bindings.get());
-        const QRhiCommandBuffer::VertexInput input{d->vertices.get(), 0};
+        const QRhiCommandBuffer::VertexInput input{d->vertices, 0};
         cb->setVertexInput(0, 1, &input);
         cb->draw(4);
         cb->endPass();
@@ -271,8 +260,8 @@ quint64 SpatialFilterPass::render(QRhiCommandBuffer *cb, int run)
 qint64 SpatialFilterPass::bytes() const
 {
     const qint64 pixels = qint64(d->size.width()) * d->size.height();
-    qint64       result = (d->vertices ? 64 : 0) + (d->targets[0] ? pixels * 16 : 0) +
-                          (d->targets[1] ? pixels * (d->bits == 16 ? 16 : 4) : 0);
+    qint64       result =
+        (d->targets[0] ? pixels * 16 : 0) + (d->targets[1] ? pixels * (d->bits == 16 ? 16 : 4) : 0);
     for (const auto &job : d->jobs)
         result += qint64(job.steps.size()) * 96;
     return result;

@@ -8,6 +8,8 @@ struct StackStatistics;
 }
 class QRhi;
 class QRhiTexture;
+class QRhiBuffer;
+class QRhiSampler;
 class QRhiCommandBuffer;
 class QRhiResourceUpdateBatch;
 class SpatialFilterPass
@@ -17,8 +19,8 @@ public:
         int          index   = -1;
         QRhiTexture *texture = nullptr;
     };
-    SpatialFilterPass(QRhi *rhi, const QSize &size, int bits,
-                      PhotoCrap::Render::StackStatistics &statistics);
+    SpatialFilterPass(QRhi *rhi, const QSize &size, int bits, QRhiBuffer &vertices,
+                      QRhiSampler &sampler, PhotoCrap::Render::StackStatistics &statistics);
     ~SpatialFilterPass();
     void    resetFrame(bool reuseSteps);
     void    finishPreparation();

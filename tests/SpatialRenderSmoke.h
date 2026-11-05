@@ -178,8 +178,9 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
             frame();
             frame();
             const auto motionBytes = canvas.stackTextureBytes();
-            if (!require(canvas.gpuStackActive() && motionBytes == baseBytes + 96 * 96 * 16 + 416,
-                         "motion allocates one spatial texture and one uniform"))
+            if (!require(canvas.gpuStackActive() &&
+                             motionBytes == baseBytes + 96 * 96 * 16 + 96 + 256,
+                         "motion allocates one texture and uniforms, sharing the existing quad"))
                 return false;
             document.addAdjustmentLayer("boxBlur");
             frame();

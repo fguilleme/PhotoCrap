@@ -121,14 +121,10 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         scratchBytes += tableBytes + blendBytes + (colorInput && !denseColor) * colorBytes +
                         (maskInput && !denseMask);
     }
-    if (spatialTargets) {
+    if (spatialTargets)
         bytesPerPixel += 16 + (spatialTargets - 1) * colorBytes;
-        scratchBytes += 64;
-    }
-    if (maskTargets) {
+    if (maskTargets)
         bytesPerPixel += 16 + (maskTargets - 1) * 4;
-        scratchBytes += 64;
-    }
 
     qint64      bytes = 64 + sharedTableBytes;
     QSet<QSize> worksets, reductions;

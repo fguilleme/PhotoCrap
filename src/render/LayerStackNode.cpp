@@ -643,8 +643,8 @@ public:
             int          maskRun    = -1;
             if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->masks)
-                    work->masks =
-                        std::make_unique<SpatialFilterPass>(rhi, region.size(), 8, *counters);
+                    work->masks = std::make_unique<SpatialFilterPass>(
+                        rhi, region.size(), 8, *draw.vertices, *draw.sampler, *counters);
                 const auto prepared = work->masks->prepare(maskSource, layer.maskFilter, updates,
                                                            true, mask ? mask->id : 0);
                 if (!prepared.texture) {
@@ -659,8 +659,8 @@ public:
             int          run    = -1;
             if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->spatial)
-                    work->spatial =
-                        std::make_unique<SpatialFilterPass>(rhi, region.size(), bits, *counters);
+                    work->spatial = std::make_unique<SpatialFilterPass>(
+                        rhi, region.size(), bits, *draw.vertices, *draw.sampler, *counters);
                 const auto prepared =
                     work->spatial->prepare(work->colors[index % 2].get(), layer.spatial, updates);
                 if (!prepared.texture) {

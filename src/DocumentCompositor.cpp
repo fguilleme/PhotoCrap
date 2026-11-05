@@ -33,6 +33,15 @@ bool opaqueBase(const Layer &_layer)
            !needsMask(_layer) && _layer.image.knownOpaque();
 }
 
+bool canRenderFrequencyRegion(const Layer &_layer, const QSize &_size)
+{
+    // Straight-alpha conversion of 8-bit pixels can round differently in
+    // Qt's vector and tail code. High frequencies subtract those values.
+    return _layer.source.size() == _size && _layer.source.devicePixelRatio() == 1. &&
+           (_layer.kind != QStringLiteral("frequencyHigh") || ImageUtils::is16Bit(_layer.source) ||
+            _layer.source.knownOpaque());
+}
+
 int effectMargin(const Layer &_layer)
 {
     if (!contributes(_layer))
@@ -124,22 +133,24 @@ QImage Document::compositeRegion(const QRect &_region) const
         return {};
     if (!m_cacheDirty && m_composite.size() == m_size)
         return m_composite.copy(region);
-    // Preserve coordinate-dependent effects, draft rendering, and native image
-    // scaling until those paths support an explicit document-space origin.
+    // Preserve draft rendering and native image scaling when sampling directly.
     const auto first = m_layers.cbegin() + opaqueCoverIndex(m_layers, m_size);
     const bool opaque = first != m_layers.cend() && opaqueBase(*first);
     const bool clipping =
         std::any_of(first, m_layers.cend(), [](const Layer &layer) { return layer.clippingMask; });
     const bool full =
-        m_previewingLayer || std::any_of(first, m_layers.cend(), [&](const Layer &_layer) {
+        m_previewingLayer || m_frequencyPreviewDraft ||
+        std::any_of(first, m_layers.cend(), [&](const Layer &_layer) {
             if (!contributes(_layer))
                 return false;
             const auto scaled = [](const PixelPlane &_plane) {
                 return _plane.devicePixelRatio() != 1.;
             };
             return requiresFullComposite(_layer, opaque, clipping) ||
-                   _layer.kind.startsWith("frequency") || scaled(_layer.image) ||
-                   scaled(_layer.source) || (needsMask(_layer) && scaled(_layer.mask));
+                   (_layer.kind.startsWith("frequency") &&
+                    !canRenderFrequencyRegion(_layer, m_size)) ||
+                   scaled(_layer.image) || scaled(_layer.source) ||
+                   (needsMask(_layer) && scaled(_layer.mask));
         });
     if (full)
         return composite().copy(region);
@@ -213,7 +224,11 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                 layer.source.cacheKey() == high.source.cacheKey() &&
                 qFuzzyCompare(layer.opacity, 1.) && qFuzzyCompare(high.opacity, 1.) &&
                 layer.blend == 0 && high.blend == 16 && plainMasks) {
-                compositeLayer(regionImage(layer.source), 0, 1.);
+                compositeLayer(_region.size() != m_size && layer.source.size() == m_size &&
+                                       layer.source.devicePixelRatio() == 1.
+                                   ? layer.source.region(_region)
+                                   : regionImage(layer.source),
+                               0, 1.);
                 ++layerIndex;
                 continue;
             }
@@ -245,9 +260,12 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             } else
                 rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters,
                                          _region.topLeft(), m_size);
-        } else if (layer.kind.startsWith(QStringLiteral("frequency")))
-            rendered = regionImage(frequencyImage(layer));
-        else
+        } else if (layer.kind.startsWith(QStringLiteral("frequency"))) {
+            const bool regional = !m_frequencyPreviewDraft && _region.size() != m_size &&
+                                  canRenderFrequencyRegion(layer, m_size);
+            rendered =
+                regional ? frequencyImage(layer, _region) : regionImage(frequencyImage(layer));
+        } else
             rendered = ImageUtils::compact(layer.image)
                            ? ImageUtils::expandedPlane(layer.image, _region.size())
                            : layer.image.region(_region);

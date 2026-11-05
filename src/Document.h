@@ -1766,7 +1766,7 @@ private:
     static QImage adjustedImage(const QImage &_source, const QString &_type,
                                 const QVariantMap &_parameters, const QPoint &_origin = {},
                                 const QSize &_documentSize = {});
-    QImage        frequencyImage(const Layer &_layer) const;
+    QImage        frequencyImage(const Layer &_layer, const QRect &_region = {}) const;
     void          requestPreviewRender(bool _draft, bool _refine = false, bool _allowGpu = true);
     void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();

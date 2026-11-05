@@ -11031,7 +11031,7 @@ private slots:
         for (const QRect &region : regions)
             samples.append(d.compositeRegion(region));
         QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
-        const bool fallback = effect == "frequency" || effect == "noise";
+        const bool fallback = effect == "noise" || (effect == "frequency" && bits == 8);
         if (!fallback)
             QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
         const QImage reference = d.composite();
@@ -11204,6 +11204,56 @@ private slots:
         const auto next = d.composite().cacheKey();
         QVERIFY(d.compositeUpdateRegion(regional.cacheKey(), next).isEmpty());
         QVERIFY(!d.compositeUpdateRegion(rebuilt.cacheKey(), next).isEmpty());
+    }
+    void coldFrequencyRegionsMatchFullBands()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (const int bits : {8, 16})
+            for (const bool opaque : {false, true}) {
+                QImage source(537, 413, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+                for (int y = 0; y < source.height(); ++y)
+                    for (int x = 0; x < source.width(); ++x)
+                        source.setPixelColor(
+                            x, y,
+                            QColor::fromRgba64(ushort(x * 353 + y * 61), ushort(x * 111 + y * 233),
+                                               ushort(x * 55 + y * 311),
+                                               opaque ? 65535 : ushort(x * 341 + y * 121)));
+                const auto file = QUrl::fromLocalFile(directory.filePath("frequency-source.png"));
+                QVERIFY(source.save(file.toLocalFile()));
+                for (const int band : {1, 2})
+                    for (const int radius : {1, 7, 100}) {
+                        Document doc;
+                        QVERIFY(doc.openFile(file));
+                        doc.addFrequencySeparation(radius);
+                        doc.setLayerVisible(0, false);
+                        doc.setLayerVisible(3 - band, false);
+                        // Normal blending lets us compare the isolated band itself.
+                        doc.setLayerBlend(band, 0);
+                        const QList<QRect> areas{
+                            {0, 0, 19, 12}, {242, 248, 57, 37}, {521, 396, 16, 17}, {507, 0, 1, 1}};
+                        QList<QImage> samples;
+                        for (const QRect &area : areas)
+                            samples.append(doc.compositeRegion(area));
+                        const auto cacheBytes =
+                            doc.memoryUsage()["frequencyCacheBytes"].toLongLong();
+                        if (bits == 8 && !opaque && band == 2)
+                            QVERIFY(cacheBytes > 0);
+                        else
+                            QCOMPARE(cacheBytes, qint64(0));
+                        const QImage full = doc.composite();
+                        QVERIFY(doc.memoryUsage()["frequencyCacheBytes"].toLongLong() > 0);
+                        for (qsizetype i = 0; i < areas.size(); ++i) {
+                            const QImage expected = full.copy(areas[i]);
+                            QVERIFY2(samples[i] == expected,
+                                     qPrintable(QString("%1-bit band %2, radius %3, area %4")
+                                                    .arg(bits)
+                                                    .arg(band)
+                                                    .arg(radius)
+                                                    .arg(i)));
+                        }
+                    }
+            }
     }
     void highFrequencyMaskUsesRegionalCompositeWithoutChangingResult()
     {

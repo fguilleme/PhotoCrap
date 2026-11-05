@@ -523,13 +523,14 @@ QImage Document::noiseImage(const QImage &_source, qreal _amount, const QPoint &
     return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()
                                         : render.template operator()<QRgb>();
 }
-QImage Document::frequencyImage(const Layer &_layer) const
+QImage Document::frequencyImage(const Layer &_layer, const QRect &_region) const
 {
     if (_layer.source.isNull())
         return {};
     // Only render workers use disk. Small previews and UI thumbnail requests
     // stay in RAM and never perform filesystem work on the input thread.
-    const bool useScratch = m_scratchCache && _layer.source.sizeInBytes() >= 16LL * 1024 * 1024 &&
+    const bool useScratch = !_region.isValid() && m_scratchCache &&
+                            _layer.source.sizeInBytes() >= 16LL * 1024 * 1024 &&
                             QThreadPool::globalInstance()->contains(QThread::currentThread());
     const auto cachedBand = [&](const QString &_key) {
         if (const auto cached = m_frequencyCache.object(_key))
@@ -541,6 +542,8 @@ QImage Document::frequencyImage(const Layer &_layer) const
         return image;
     };
     const auto storeBand = [&](const QString &_key, const QImage &_image) {
+        if (_image.isNull())
+            return;
         m_frequencyCache.insert(_key, new QImage(_image),
                                 int((_image.sizeInBytes() + 1023) / 1024));
         if (useScratch)
@@ -549,6 +552,35 @@ QImage Document::frequencyImage(const Layer &_layer) const
     const auto render = [&]<typename Pixel>() -> QImage {
         using P                = ImageUtils::PixelAccess<Pixel>;
         const int radius       = qBound(1, _layer.parameters.value("radius", 8).toInt(), 100);
+        const auto splitBand = [&](const QImage &_source, const QImage &_low, const QRect &_area) {
+            if (_source.isNull() || _low.size() != _source.size())
+                return QImage{};
+            QImage result(_area.size(), P::format);
+            if (result.isNull())
+                return QImage{};
+            QVector<int> rows(_area.height());
+            std::iota(rows.begin(), rows.end(), 0);
+            ImageUtils::blockingMap(rows, [&](int _y) {
+                const int  row = _area.y() + _y;
+                const auto s =
+                    reinterpret_cast<const Pixel *>(_source.constScanLine(row)) + _area.x();
+                const auto l = reinterpret_cast<const Pixel *>(_low.constScanLine(row)) + _area.x();
+                auto       out   = reinterpret_cast<Pixel *>(result.scanLine(_y));
+                const auto split = [](double _sourceValue, double _lowValue) {
+                    if constexpr (P::wide)
+                        return (_sourceValue - _lowValue + 255.) / 2.;
+                    else
+                        return double((int(_sourceValue) - int(_lowValue) + 256) / 2);
+                };
+                for (int x = 0; x < _area.width(); ++x)
+                    out[x] = P::rgba(split(P::red(s[x]), P::red(l[x])),
+                                     split(P::green(s[x]), P::green(l[x])),
+                                     split(P::blue(s[x]), P::blue(l[x])), P::alpha(s[x]));
+            });
+            result = result.convertToFormat(P::premultiplied);
+            result.setColorSpace(_layer.source.colorSpace());
+            return result;
+        };
         qreal     previewScale = 1.;
         if (m_frequencyPreviewDraft && qMax(_layer.source.width(), _layer.source.height()) > 960)
             previewScale = 960. / qreal(qMax(_layer.source.width(), _layer.source.height()));
@@ -560,6 +592,21 @@ QImage Document::frequencyImage(const Layer &_layer) const
                  : QStringLiteral("/full"));
         const QString lowKey  = QStringLiteral("low/") + cacheBase;
         const QString highKey = QStringLiteral("high/") + cacheBase;
+        if (_region.isValid()) {
+            const bool lowBand = _layer.kind == QStringLiteral("frequencyLow");
+            if (const auto cached = m_frequencyCache.object(lowBand ? lowKey : highKey))
+                return cached->copy(_region);
+            const QRect work   = _region.adjusted(-radius, -radius, radius, radius)
+                                     .intersected(_layer.source.rect());
+            const QRect local  = _region.translated(-work.topLeft());
+            const auto  source = _layer.source.region(work).convertToFormat(P::format);
+            const auto  low    = blurImage(source, radius).convertToFormat(P::format);
+            if (low.isNull())
+                return {};
+            if (lowBand)
+                return low.copy(local);
+            return splitBand(source, low, local);
+        }
         // A cached high band is complete on its own. Looking up/rebuilding its
         // low band first can evict this very result from the byte-bounded LRU.
         if (_layer.kind != QStringLiteral("frequencyLow")) {
@@ -583,27 +630,8 @@ QImage Document::frequencyImage(const Layer &_layer) const
         }
         if (_layer.kind == QStringLiteral("frequencyLow"))
             return low;
-        const QImage fullSource = _layer.source.convertToFormat(P::format);
-        QImage       result(fullSource.size(), P::format);
-        QVector<int> rows(fullSource.height());
-        std::iota(rows.begin(), rows.end(), 0);
-        ImageUtils::blockingMap(rows, [&](int _y) {
-            const auto s     = reinterpret_cast<const Pixel *>(fullSource.constScanLine(_y));
-            const auto l     = reinterpret_cast<const Pixel *>(low.constScanLine(_y));
-            auto       out   = reinterpret_cast<Pixel *>(result.scanLine(_y));
-            const auto split = [](double _sourceValue, double _lowValue) {
-                if constexpr (P::wide)
-                    return (_sourceValue - _lowValue + 255.) / 2.;
-                else
-                    return double((int(_sourceValue) - int(_lowValue) + 256) / 2);
-            };
-            for (int x = 0; x < fullSource.width(); ++x)
-                out[x] = P::rgba(split(P::red(s[x]), P::red(l[x])),
-                                 split(P::green(s[x]), P::green(l[x])),
-                                 split(P::blue(s[x]), P::blue(l[x])), P::alpha(s[x]));
-        });
-        result = result.convertToFormat(P::premultiplied);
-        result.setColorSpace(_layer.source.colorSpace());
+        const auto result =
+            splitBand(_layer.source.convertToFormat(P::format), low, _layer.source.rect());
         storeBand(highKey, result);
         return result;
     };

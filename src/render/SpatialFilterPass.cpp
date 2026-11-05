@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <rhi/qrhi.h>
 #include <rhi/qshader.h>
 #include <vector>
@@ -16,6 +17,7 @@ struct Step {
     QRhiTexture                                *source = nullptr, *original = nullptr;
     std::unique_ptr<QRhiBuffer>                 uniform;
     std::unique_ptr<QRhiShaderResourceBindings> bindings;
+    std::optional<std::array<char, 96>>         uploadedUniform;
 };
 struct Job {
     std::vector<Step> steps;
@@ -111,7 +113,11 @@ struct SpatialFilterPass::Data {
         const float  values[] = {bits == 16 ? 65535.f : 255.f, a, b, roundBox2D ? 1.f : 0.f};
         std::memcpy(data.data() + 64, modes, sizeof(modes));
         std::memcpy(data.data() + 80, values, sizeof(values));
-        updates->updateDynamicBuffer(step.uniform.get(), 0, data.size(), data.data());
+        if (step.uploadedUniform != data) {
+            updates->updateDynamicBuffer(step.uniform.get(), 0, data.size(), data.data());
+            step.uploadedUniform = data;
+            ++statistics->uniformUpdates;
+        }
         // The mask input may be replaced by an allocation at the same address.
         if (!step.bindings || step.sourceId != sourceId || step.source != source ||
             step.original != original) {

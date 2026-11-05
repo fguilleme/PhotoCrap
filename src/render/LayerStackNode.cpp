@@ -12,6 +12,7 @@
 #include <QSet>
 #include <array>
 #include <cstring>
+#include <optional>
 #include <rhi/qrhi.h>
 #include <rhi/qshader.h>
 #include <vector>
@@ -151,6 +152,7 @@ struct Pass {
     std::unique_ptr<QRhiShaderResourceBindings> bindings;
     std::array<QRhiTexture *, 6>                textures{};
     std::array<quint64, 4>                      inputIds{};
+    std::optional<std::array<char, 256>>        uploadedUniform;
 };
 struct SourceKeys {
     QByteArray color, mask, tone, blend;
@@ -669,8 +671,7 @@ public:
                 run    = prepared.index;
             }
             filterRuns.push_back(run);
-            // Keep the per-tile uniform buffers across edits. Bindings are
-            // rebuilt because a texture can change independently of the slot.
+            // Each tile owns its uniforms, even when sharing render targets.
             if (size_t(index) == passes.size()) {
                 Pass created;
                 created.uniform.reset(
@@ -723,7 +724,11 @@ public:
                     const float v = parameters[i][c];
                     std::memcpy(uniform.data() + 112 + i * 16 + c * 4, &v, 4);
                 }
-            updates->updateDynamicBuffer(pass.uniform.get(), 0, 256, uniform.data());
+            if (pass.uploadedUniform != uniform) {
+                updates->updateDynamicBuffer(pass.uniform.get(), 0, uniform.size(), uniform.data());
+                pass.uploadedUniform = uniform;
+                ++counters->uniformUpdates;
+            }
             const std::array<QRhiTexture *, 6> textures{backdrop,
                                                         source,
                                                         maskSource,

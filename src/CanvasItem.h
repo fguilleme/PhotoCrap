@@ -81,6 +81,10 @@ public:
     {
         return m_stackStatistics->bindingCreations.load();
     }
+    quint64 stackUniformUpdates() const
+    {
+        return m_stackStatistics->uniformUpdates.load();
+    }
     quint64 stackTextureBytes() const
     {
         return m_stackStatistics->bytes.load();

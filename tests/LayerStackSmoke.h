@@ -610,6 +610,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             {"passes", double(canvas.stackPasses() - passes)},
             {"pipeline_creations", double(canvas.stackPipelineCreations())},
             {"binding_creations", double(canvas.stackBindingCreations())},
+            {"uniform_updates", double(canvas.stackUniformUpdates())},
             {"stack_bytes", double(canvas.stackTextureBytes())},
             {"graphics_memory", QJsonObject::fromVariantMap(canvas.graphicsMemoryUsage())}};
         qInfo().noquote() << "PHOTOCRAP_PROBE"
@@ -855,6 +856,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         }
         const auto bindings        = canvas.stackBindingCreations();
         const auto retainedUploads = canvas.stackTextureUploads();
+        const auto uniformUpdates  = canvas.stackUniformUpdates();
         document.setLayerOpacity(document.activeLayer(), .7);
         frame();
         const auto adjusted = frame();
@@ -866,7 +868,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                          qAbs(actual.red() - expected.red()) <= 2 &&
                          qAbs(actual.green() - expected.green()) <= 2 &&
                          qAbs(actual.blue() - expected.blue()) <= 2,
-                     "opacity edits reuse bindings while updating the rendered pixels"))
+                     "opacity edits reuse bindings while updating the rendered pixels") ||
+            !require(canvas.stackUniformUpdates() == uniformUpdates + 3,
+                     "only the changed layer updates its uniforms across three tiles"))
             return false;
     }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;

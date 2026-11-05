@@ -175,6 +175,9 @@ private slots:
                 else
                     QVERIFY(plane.replace(expected));
                 QCOMPARE(plane.region(expected.rect()), expected);
+                QCOMPARE(plane.tileImage(0, 0), expected);
+                for (const auto &crop : {bounds, bounds.adjusted(-3, -2, 4, 6), QRect(3, 5, 2, 3)})
+                    QCOMPARE(plane.region(crop), expected.copy(crop));
                 QCOMPARE(plane.regionKey({0, 0, 5, 5}), untouched);
                 QVERIFY(plane.heapBytes() <= expected.sizeInBytes() + 8 * patch.sizeInBytes());
                 versions.append(plane);

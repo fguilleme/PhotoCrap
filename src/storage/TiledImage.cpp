@@ -134,7 +134,10 @@ struct Tile {
             patch = pixels;
             rect  = patchRect;
         }
-        QImage result = base->image().copy();
+        // The first write detaches the base. Each newer delta can reuse that image.
+        QImage result = base->image();
+        if (!result.isDetached())
+            result = result.copy();
         if (result.isNull())
             return {};
         const int bytes = result.depth() / 8;
@@ -142,6 +145,32 @@ struct Tile {
             std::memcpy(result.scanLine(rect.y() + y) + rect.x() * bytes, patch.constScanLine(y),
                         size_t(rect.width()) * bytes);
         return result;
+    }
+    bool copyRegion(const QRect &_region, QImage &_output, const QPoint &_destination) const
+    {
+        std::shared_ptr<Tile> base;
+        QImage                source;
+        QRect                 sourceRect;
+        {
+            QMutexLocker locker(&mutex);
+            source     = pixels;
+            base       = parent;
+            sourceRect = base ? patchRect : pixels.rect();
+        }
+        if (base && !sourceRect.contains(_region) &&
+            !base->copyRegion(_region, _output, _destination))
+            return false;
+        if (source.isNull())
+            return false;
+        const QRect overlap = _region.intersected(sourceRect);
+        const int   bytes   = source.depth() / 8;
+        const auto  offset  = _destination + overlap.topLeft() - _region.topLeft();
+        for (int row = 0; row < overlap.height(); ++row)
+            std::memcpy(_output.scanLine(offset.y() + row) + offset.x() * bytes,
+                        source.constScanLine(overlap.y() - sourceRect.y() + row) +
+                            (overlap.x() - sourceRect.x()) * bytes,
+                        size_t(overlap.width()) * bytes);
+        return true;
     }
     void blocks(QHash<qint64, qint64> &result, bool heap) const
     {
@@ -162,18 +191,32 @@ struct Tile {
     {
         const quint32 key = (quint32(_region.x()) << 24) | (quint32(_region.y()) << 16) |
                             (quint32(_region.width() - 1) << 8) | quint32(_region.height() - 1);
+        QImage         source;
+        QImage::Format patchFormat = QImage::Format_Invalid;
         {
             QMutexLocker locker(&mutex);
             if (auto found = partialKeys.constFind(key); found != partialKeys.cend())
                 return found.value();
+            if (parent)
+                patchFormat = pixels.format();
+            else
+                source = pixels;
         }
-        const auto         image = this->image();
+        QRect bounds = _region;
+        if (patchFormat != QImage::Format_Invalid) {
+            source = QImage(_region.size(), patchFormat);
+            if (source.isNull() || !copyRegion(_region, source, {}))
+                return {};
+            bounds = source.rect();
+        }
+        if (source.isNull())
+            return {};
         QCryptographicHash hash(QCryptographicHash::Sha256);
-        const int          bytes = image.depth() / 8;
-        for (int y = _region.top(); y <= _region.bottom(); ++y)
+        const int          bytes = source.depth() / 8;
+        for (int y = bounds.top(); y <= bounds.bottom(); ++y)
             hash.addData(QByteArrayView(
-                reinterpret_cast<const char *>(image.constScanLine(y) + _region.x() * bytes),
-                _region.width() * bytes));
+                reinterpret_cast<const char *>(source.constScanLine(y) + bounds.x() * bytes),
+                bounds.width() * bytes));
         const auto   result = hash.result();
         QMutexLocker locker(&mutex);
         if (partialKeys.size() >= 8)
@@ -524,21 +567,16 @@ QImage TiledImage::region(const QRect &_region) const
     QImage result = m_data->blank(region.size());
     if (result.isNull())
         return {};
-    const int pixelBytes = result.depth() / 8;
     for (int row = region.top() / TileSize; row <= region.bottom() / TileSize; ++row)
         for (int column = region.left() / TileSize; column <= region.right() / TileSize; ++column) {
             const auto tile = m_data->tiles.value(m_data->key(column, row));
             if (!tile)
                 continue;
-            const QImage image   = tile->image();
-            const QRect  bounds  = m_data->rect(column, row);
-            const QRect  overlap = bounds.intersected(region);
-            for (int y = overlap.top(); y <= overlap.bottom(); ++y)
-                std::memcpy(result.scanLine(y - region.top()) +
-                                (overlap.left() - region.left()) * pixelBytes,
-                            image.constScanLine(y - bounds.top()) +
-                                (overlap.left() - bounds.left()) * pixelBytes,
-                            size_t(overlap.width()) * pixelBytes);
+            const QRect bounds  = m_data->rect(column, row);
+            const QRect overlap = bounds.intersected(region);
+            if (!tile->copyRegion(overlap.translated(-bounds.topLeft()), result,
+                                  overlap.topLeft() - region.topLeft()))
+                return {};
         }
     return result;
 }

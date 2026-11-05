@@ -22,7 +22,7 @@ bool uniformWandStack(const QVector<Layer> &_layers, const QSize &_size)
     const auto uniform = [&](const PixelPlane &_plane) {
         return _plane.isNull() ||
                (_plane.isUniform() && (_plane.size() == QSize(1, 1) || _plane.size() == _size) &&
-                _plane.tileImage(0, 0).devicePixelRatio() == 1.);
+                _plane.devicePixelRatio() == 1.);
     };
     for (const auto &layer : _layers) {
         if (layer.kind == "group" || !layer.visible || layer.opacity <= 0)

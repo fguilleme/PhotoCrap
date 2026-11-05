@@ -550,6 +550,7 @@ private slots:
                                                                ushort(20000 + (x + y) % 40000)));
                 PixelPlane plane(image);
                 QVERIFY(plane.offload(cache));
+                QCOMPARE(plane.devicePixelRatio(), image.devicePixelRatio());
                 for (QSize target : {QSize(128, 73), QSize(51, 33), QSize(1, 1), QSize(2, 3),
                                      QSize(733, 413), QSize(0, 10)})
                     for (auto aspect : {Qt::IgnoreAspectRatio, Qt::KeepAspectRatio,

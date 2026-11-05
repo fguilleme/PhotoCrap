@@ -46,6 +46,7 @@ public:
     bool                  knownOpaque() const;
     QImage::Format        format() const;
     QColorSpace           colorSpace() const;
+    qreal                 devicePixelRatio() const;
     QHash<qint64, qint64> storageBlocks() const;
     QHash<qint64, qint64> heapBlocks() const;
     QByteArray            regionKey(const QRect &_region) const;

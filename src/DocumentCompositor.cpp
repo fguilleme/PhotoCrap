@@ -135,7 +135,7 @@ QImage Document::compositeRegion(const QRect &_region) const
             if (!contributes(_layer))
                 return false;
             const auto scaled = [](const PixelPlane &_plane) {
-                return !_plane.isNull() && _plane.tileImage(0, 0).devicePixelRatio() != 1.;
+                return _plane.devicePixelRatio() != 1.;
             };
             return requiresFullComposite(_layer, opaque, clipping) ||
                    _layer.kind.startsWith("frequency") || scaled(_layer.image) ||

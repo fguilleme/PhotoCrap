@@ -83,6 +83,10 @@ public:
     {
         return m_image.isNull() ? m_tiles.colorSpace() : m_image.colorSpace();
     }
+    qreal devicePixelRatio() const
+    {
+        return m_image.isNull() ? m_tiles.devicePixelRatio() : m_image.devicePixelRatio();
+    }
     QHash<qint64, qint64> storageBlocks() const
     {
         if (!m_dirty && !m_tiles.isNull())

@@ -223,7 +223,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_beforeStroke = snapshot(toolLabel(m_tool));
     if ((isShapeStrokeTool(m_tool) && m_tool != "move" &&
          (m_tool != "gradient" || hasSelection() ||
-          m_layers[m_active].image.tileImage(0, 0).devicePixelRatio() == 1.)) ||
+          m_layers[m_active].image.devicePixelRatio() == 1.)) ||
         (m_tool == "move" &&
          (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape" ||
           hasSelection() ||

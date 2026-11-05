@@ -735,6 +735,11 @@ bool TiledImage::knownOpaque() const
            (m_data->background.pixelColor(0, 0).alphaF() == 1. || m_data->hasEveryTile());
 }
 
+qreal TiledImage::devicePixelRatio() const
+{
+    return m_data ? m_data->background.devicePixelRatio() : 1.;
+}
+
 bool TiledImage::sharedStorage() const
 {
     return m_data && (m_data.use_count() > 1 || !m_data->tiles.isDetached());

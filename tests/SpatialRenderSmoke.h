@@ -167,6 +167,35 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
         return true;
     };
     for (int bits : {8, 16}) {
+        if (hardware) {
+            canvas.setSize({96, 96});
+            if (!require(document.newDocument(96, 96, false, bits), "create a one-tile image"))
+                return false;
+            frame();
+            frame();
+            const auto baseBytes = canvas.stackTextureBytes();
+            document.addAdjustmentLayer("motionBlur");
+            frame();
+            frame();
+            const auto motionBytes = canvas.stackTextureBytes();
+            if (!require(canvas.gpuStackActive() && motionBytes == baseBytes + 96 * 96 * 16 + 416,
+                         "motion allocates one spatial texture and one uniform"))
+                return false;
+            document.addAdjustmentLayer("boxBlur");
+            frame();
+            frame();
+            if (!require(canvas.stackTextureBytes() ==
+                             motionBytes + 96 * 96 * (bits == 16 ? 16 : 4) + 448,
+                         "a separable filter adds the second spatial texture"))
+                return false;
+            document.removeLayer();
+            frame();
+            frame();
+            if (!require(canvas.stackTextureBytes() == motionBytes,
+                         "removing the separable filter releases the second target"))
+                return false;
+            canvas.setSize({1056, 96});
+        }
         QImage source(1056, 96, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
         for (int y = 0; y < source.height(); ++y)
             for (int x = 0; x < source.width(); ++x) {

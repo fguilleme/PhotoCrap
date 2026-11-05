@@ -430,6 +430,25 @@ private slots:
         const auto right      = stackWorkingBytes(stack, {512, 0, 512, 64});
         QCOMPARE(left + right - stackWorkingBytes(stack, QRect(QPoint{}, stack.size)), qint64(64));
     }
+    void gpuMotionBlurBudgetsOneSpatialTarget()
+    {
+        using namespace PhotoCrap::Render;
+        LayerStack stack;
+        stack.size = {128, 64};
+        StackLayer layer;
+        layer.spatial.type = SpatialFilter::Motion;
+        stack.layers       = {layer};
+        const QRect  visible(QPoint{}, stack.size);
+        const qint64 pixels = qint64(visible.width()) * visible.height();
+        for (int bits : {8, 16}) {
+            stack.bits                   = bits;
+            stack.layers[0].spatial.type = SpatialFilter::Motion;
+            const auto motion            = stackWorkingBytes(stack, visible);
+            stack.layers[0].spatial.type = SpatialFilter::Box;
+            QCOMPARE(stackWorkingBytes(stack, visible) - motion,
+                     pixels * (bits == 16 ? 16 : 4) + 96);
+        }
+    }
     void gpuRetainedTablesAreBudgetedOncePerCanvas()
     {
         using namespace PhotoCrap::Render;

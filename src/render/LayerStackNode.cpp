@@ -735,12 +735,11 @@ public:
                                                         coverage,
                                                         table ? table->texture.get() : backdrop,
                                                         blend ? blend->texture.get() : backdrop};
-            // An evicted input can be replaced at the same address. Check the
-            // allocation identities as well as the bound texture pointers.
-            const std::array<quint64, 4> inputIds{
-                color && color->texture.get() == source ? color->id : 0,
-                mask && mask->texture.get() == maskSource ? mask->id : 0, table ? table->id : 0,
-                blend ? blend->id : 0};
+            // Evicted inputs and spatial targets can be replaced at the same
+            // address, including while a tile using them was offscreen.
+            const std::array<quint64, 4> inputIds{source->globalResourceId(),
+                                                  maskSource->globalResourceId(),
+                                                  table ? table->id : 0, blend ? blend->id : 0};
             if (!pass.bindings || pass.inputIds != inputIds || pass.textures != textures) {
                 auto bindings =
                     std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());

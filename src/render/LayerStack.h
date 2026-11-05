@@ -65,11 +65,14 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
     qint64       sharedTableBytes = 0;
     QSet<qint64> sharedToneTables, sharedBlendTables;
-    bool      spatial = false, masks = false, colorInput = false, maskInput = false;
+    int          spatialTargets = 0, maskTargets = 0;
+    bool         colorInput = false, maskInput = false;
     bool         denseColor = false, denseMask = false;
     for (const auto &layer : stack.layers) {
-        spatial |= layer.spatial.type != SpatialFilter::None;
-        masks |= layer.maskFilter.type != SpatialFilter::None;
+        const int spatialPasses = layer.spatial.passCount();
+        const int maskPasses    = layer.maskFilter.passCount();
+        spatialTargets          = qMax(spatialTargets, qMin(2, spatialPasses));
+        maskTargets             = qMax(maskTargets, qMin(2, maskPasses));
         if (layer.needsColorInput()) {
             colorInput = true;
             const bool compact = compactStackInput(layer.image, stack.size);
@@ -111,22 +114,19 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                 sharedTableBytes += blend;
             }
         }
-        if (layer.spatial.type != SpatialFilter::None)
-            scratchBytes += 7 * 96;
-        if (layer.maskFilter.type != SpatialFilter::None)
-            scratchBytes += 2 * 96;
+        scratchBytes += qint64(spatialPasses + maskPasses) * 96;
     }
     if (stack.streamInputs) {
         bytesPerPixel += denseColor * colorBytes + denseMask;
         scratchBytes += tableBytes + blendBytes + (colorInput && !denseColor) * colorBytes +
                         (maskInput && !denseMask);
     }
-    if (spatial) {
-        bytesPerPixel += colorBytes + 16;
+    if (spatialTargets) {
+        bytesPerPixel += 16 + (spatialTargets - 1) * colorBytes;
         scratchBytes += 64;
     }
-    if (masks) {
-        bytesPerPixel += 20;
+    if (maskTargets) {
+        bytesPerPixel += 16 + (maskTargets - 1) * 4;
         scratchBytes += 64;
     }
 

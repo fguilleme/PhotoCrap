@@ -9,6 +9,23 @@ struct SpatialFilterSettings {
     int           radius = 8, threshold = 0;
     float         distance = 20, angle = 0, amount = 100;
     bool          roundBox2D = false;
+    int           passCount() const
+    {
+        switch (type) {
+        case SpatialFilter::None:
+            return 0;
+        case SpatialFilter::Motion:
+            return 1;
+        case SpatialFilter::Box:
+            return 2;
+        case SpatialFilter::Gaussian:
+            return 6;
+        case SpatialFilter::Unsharp:
+        case SpatialFilter::HighPass:
+            return 7;
+        }
+        return 0;
+    }
     int           halo() const
     {
         if (type == SpatialFilter::None)

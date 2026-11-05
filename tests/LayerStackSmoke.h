@@ -609,6 +609,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             {"uploads", double(canvas.stackTextureUploads() - uploads)},
             {"passes", double(canvas.stackPasses() - passes)},
             {"pipeline_creations", double(canvas.stackPipelineCreations())},
+            {"binding_creations", double(canvas.stackBindingCreations())},
             {"stack_bytes", double(canvas.stackTextureBytes())},
             {"graphics_memory", QJsonObject::fromVariantMap(canvas.graphicsMemoryUsage())}};
         qInfo().noquote() << "PHOTOCRAP_PROBE"
@@ -852,6 +853,21 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                          "each tile sees the uploaded shared lookup table"))
                 return false;
         }
+        const auto bindings        = canvas.stackBindingCreations();
+        const auto retainedUploads = canvas.stackTextureUploads();
+        document.setLayerOpacity(document.activeLayer(), .7);
+        frame();
+        const auto adjusted = frame();
+        const auto point    = canvas.mapToScene({55.25, 64.5}) * ratio;
+        const auto actual   = adjusted.pixelColor(qFloor(point.x()), qFloor(point.y()));
+        const auto expected = document.composite().pixelColor(110, 64);
+        if (!require(canvas.stackBindingCreations() == bindings &&
+                         canvas.stackTextureUploads() == retainedUploads &&
+                         qAbs(actual.red() - expected.red()) <= 2 &&
+                         qAbs(actual.green() - expected.green()) <= 2 &&
+                         qAbs(actual.blue() - expected.blue()) <= 2,
+                     "opacity edits reuse bindings while updating the rendered pixels"))
+            return false;
     }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;

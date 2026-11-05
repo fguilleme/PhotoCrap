@@ -333,6 +333,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Entrées GPU réutilisées limitées à un texel quand tous leurs plans sont uniformes. Allocation d’une tuile à la première retouche et retour au format compact avec Annuler.
 - [x] Lots de transfert GPU créés à la demande. En mode partagé, la dernière passe écrit directement dans la texture native affichée. Les changements de géométrie réutilisent le rendu des tuiles sans recalculer leurs signatures.
 - [x] Signatures régionales réutilisées entre composition et transfert. Les tuiles couleur et masque 8 bits transmises en entier utilisent directement leur image de préparation. Les tuiles d’un canevas partagent un tampon de sommets et un échantillonneur.
+- [x] Tables de réglage et de fusion immuables transférées et budgétées une fois par canevas en mode à entrées conservées. Les tuiles partagent les pipelines compatibles et les retouches de paramètres conservent les liaisons GPU quand les textures restent les mêmes.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 
 Étape en développement après v0.16 : cadres et poignées de tranches en chemins GPU

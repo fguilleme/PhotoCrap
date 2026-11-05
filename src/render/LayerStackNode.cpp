@@ -53,6 +53,7 @@ struct DrawResources {
     bool                         uploaded = false;
     QHash<QByteArray, std::weak_ptr<Input>> tables;
     qint64                                  tableBytes = 0;
+    quint64                                     nextInputId = 0;
 
     void changeTableBytes(qint64 delta)
     {
@@ -135,6 +136,7 @@ struct DrawResources {
 struct Input {
     std::unique_ptr<QRhiTexture> texture;
     qint64                       bytes = 0;
+    quint64                      id    = 0;
     QByteArray                   contentKey;
     DrawResources               *sharedOwner = nullptr;
 
@@ -147,6 +149,8 @@ struct Input {
 struct Pass {
     std::unique_ptr<QRhiBuffer>                 uniform;
     std::unique_ptr<QRhiShaderResourceBindings> bindings;
+    std::array<QRhiTexture *, 6>                textures{};
+    std::array<quint64, 4>                      inputIds{};
 };
 struct SourceKeys {
     QByteArray color, mask, tone, blend;
@@ -462,6 +466,7 @@ public:
                                                  extent));
             if (!value->texture->create())
                 return {};
+            value->id    = ++draw.nextInputId;
             value->bytes = qint64(extent.width()) * extent.height() *
                            (mask                       ? 1
                             : bits == 16 || whole == 2 ? 16
@@ -717,14 +722,30 @@ public:
                     std::memcpy(uniform.data() + 112 + i * 16 + c * 4, &v, 4);
                 }
             updates->updateDynamicBuffer(pass.uniform.get(), 0, 256, uniform.data());
-            pass.bindings.reset(rhi->newShaderResourceBindings());
-            setStackBindings(*pass.bindings, pass.uniform.get(), draw.sampler.get(),
-                             {backdrop, source, maskSource, coverage,
-                              table ? table->texture.get() : backdrop,
-                              blend ? blend->texture.get() : backdrop});
-            if (!pass.bindings->create()) {
-                ok = false;
-                break;
+            const std::array<QRhiTexture *, 6> textures{backdrop,
+                                                        source,
+                                                        maskSource,
+                                                        coverage,
+                                                        table ? table->texture.get() : backdrop,
+                                                        blend ? blend->texture.get() : backdrop};
+            // An evicted input can be replaced at the same address. Check the
+            // allocation identities as well as the bound texture pointers.
+            const std::array<quint64, 4> inputIds{
+                color && color->texture.get() == source ? color->id : 0,
+                mask && mask->texture.get() == maskSource ? mask->id : 0, table ? table->id : 0,
+                blend ? blend->id : 0};
+            if (!pass.bindings || pass.inputIds != inputIds || pass.textures != textures) {
+                auto bindings =
+                    std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+                setStackBindings(*bindings, pass.uniform.get(), draw.sampler.get(), textures);
+                if (!bindings->create()) {
+                    ok = false;
+                    break;
+                }
+                pass.bindings = std::move(bindings);
+                pass.textures = textures;
+                pass.inputIds = inputIds;
+                ++counters->bindingCreations;
             }
         }
         auto *pipeline = ok ? draw.pipelineFor(rhi, work->targets[0].get()) : nullptr;

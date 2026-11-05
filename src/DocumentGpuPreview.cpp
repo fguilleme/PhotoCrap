@@ -20,7 +20,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     for (const auto &layer : m_layers)
         if (layer.kind == "group")
             groups.insert(layer.groupId, layer.visible);
-    bool hasClippingBase = false, opaqueBackdrop = false;
+    bool hasClippingBase = false;
     for (int index = LayerVisibility::opaqueCoverIndex(m_layers, m_size); index < m_layers.size();
          ++index) {
         const auto &layer = m_layers[index];
@@ -49,8 +49,6 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
         const bool noise = layer.kind == "adjustment" && layer.adjustmentType == "noise";
         const bool mosaic = layer.kind == "adjustment" && layer.adjustmentType == "mosaic";
-        if (noise && !opaqueBackdrop)
-            return {}; // Match Qt's full-image straight-alpha conversion on translucent piles.
         const bool tonal =
             noise || mosaic ||
             (layer.kind == "adjustment" &&
@@ -299,11 +297,6 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             float(qBound(0., layer.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.));
         entry.blend   = layer.blend;
         entry.clipped = layer.clippingMask;
-        opaqueBackdrop =
-            opaqueBackdrop || (!entry.clipped && !entry.tonal && spatial == SpatialFilter::None &&
-                               layer.opacity == 1 && entry.blend == 0 && !masked &&
-                               (entry.image.size() == m_size || ImageUtils::compact(entry.image)) &&
-                               entry.image.devicePixelRatio() == 1. && entry.image.knownOpaque());
         stack.layers.append(std::move(entry));
         if (!layer.clippingMask)
             hasClippingBase = true;

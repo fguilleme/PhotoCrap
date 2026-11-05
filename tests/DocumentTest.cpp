@@ -276,8 +276,9 @@ private slots:
     {
         for (int bits : {8, 16}) {
             Document d;
-            QVERIFY(d.newDocument(517, 523, true, bits));
-            d.addAdjustmentLayer("noise");
+            QVERIFY(d.newDocument(517, 523, false, bits));
+            d.addAdjustmentLayer("invert");
+            d.setLayerBlend(d.activeLayer(), 1);
             QVERIFY(!d.gpuLayerStack().valid);
             d.addLayer();
             const auto layer = d.activeLayer();

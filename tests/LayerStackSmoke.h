@@ -661,61 +661,61 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                      "an edited frequency pair uses the CPU compositor"))
             return false;
     }
-    for (const int bits : {8, 16}) {
-        QImage source(1057, 71, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
-        for (int y = 0; y < source.height(); ++y)
-            for (int x = 0; x < source.width(); ++x)
-                source.setPixelColor(x, y,
-                                     QColor::fromRgba64(ushort(x * 73 + y * 211),
-                                                        ushort(x * 193 + y * 47),
-                                                        ushort(x * 317 + y * 79), 65535));
-        const auto path = directory.filePath("noise-" + QString::number(bits) + ".png");
-        if (!source.save(path) || !document.openFile(QUrl::fromLocalFile(path)))
-            return false;
-        canvas.setSize({600, 71});
-        document.addAdjustmentLayer("noise");
-        document.addLayerMask();
-        document.fillMaskWithColor(QColor(173, 173, 173));
-        document.setEditingMask(false);
-        document.setLayerOpacity(document.activeLayer(), .63);
-        for (const double amount : {0., .4, 13.5, 100.}) {
-            document.beginLayerPreview();
-            document.previewLayerParameter("amount", amount);
-            document.finishLayerPreview("Noise amount");
-            const auto stack = document.gpuLayerStack();
-            if (!require(stack.valid && stack.layers.last().tonal &&
-                             stack.layers.last().toneTable.isNull(),
-                         "noise stays in the GPU stack without a lookup texture"))
+    for (const bool translucent : {false, true})
+        for (const int bits : {8, 16}) {
+            QImage source(1057, 71, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+            for (int y = 0; y < source.height(); ++y)
+                for (int x = 0; x < source.width(); ++x)
+                    source.setPixelColor(x, y,
+                                         QColor::fromRgba64(ushort(x * 73 + y * 211),
+                                                            ushort(x * 193 + y * 47),
+                                                            ushort(x * 317 + y * 79),
+                                                            translucent ? ushort(x * 135 + y * 311)
+                                                                        : ushort(65535)));
+            const auto path = directory.filePath("noise-" + QString::number(bits) + ".png");
+            if (!source.save(path) || !document.openFile(QUrl::fromLocalFile(path)))
                 return false;
-            canvas.setGpuStackEnabled(true);
-            frame();
-            const auto actual = frame();
-            if (!require(!actual.isNull() && canvas.gpuStackActive() == hardware,
-                         "noise uses hardware when available"))
-                return false;
-            canvas.setGpuStackEnabled(false);
-            frame();
-            const auto expected = frame();
-            if (expected.isNull())
-                return false;
-            const double ratio = double(actual.width()) / window->width();
-            for (const int y : {0, 7, 34, 69})
-                for (const int x : {0, 41, 510, 511, 512, 513, 1023, 1024, 1052}) {
-                    const auto p = canvas.mapToScene({(x + .5) * 600. / 1057., y + .5}) * ratio;
-                    const auto a = actual.pixelColor(qFloor(p.x()), qFloor(p.y()));
-                    const auto b = expected.pixelColor(qFloor(p.x()), qFloor(p.y()));
-                    if (qAbs(a.red() - b.red()) > 2 || qAbs(a.green() - b.green()) > 2 ||
-                        qAbs(a.blue() - b.blue()) > 2) {
-                        qWarning()
-                            << "Noise stack difference" << bits << amount << x << y << a << b;
-                        return false;
+            canvas.setSize({600, 71});
+            document.addAdjustmentLayer("noise");
+            document.addLayerMask();
+            document.fillMaskWithColor(QColor(173, 173, 173));
+            document.setEditingMask(false);
+            document.setLayerOpacity(document.activeLayer(), .63);
+            for (const double amount : {0., .4, 13.5, 100.}) {
+                document.beginLayerPreview();
+                document.previewLayerParameter("amount", amount);
+                document.finishLayerPreview("Noise amount");
+                const auto stack = document.gpuLayerStack();
+                if (!require(stack.valid && stack.layers.last().tonal &&
+                                 stack.layers.last().toneTable.isNull(),
+                             "noise stays in the GPU stack without a lookup texture"))
+                    return false;
+                canvas.setGpuStackEnabled(true);
+                frame();
+                const auto actual = frame();
+                if (!require(!actual.isNull() && canvas.gpuStackActive() == hardware,
+                             "noise uses hardware when available"))
+                    return false;
+                canvas.setGpuStackEnabled(false);
+                frame();
+                const auto expected = frame();
+                if (expected.isNull())
+                    return false;
+                const double ratio = double(actual.width()) / window->width();
+                for (const int y : {0, 7, 34, 69})
+                    for (const int x : {0, 41, 510, 511, 512, 513, 1023, 1024, 1052}) {
+                        const auto p = canvas.mapToScene({(x + .5) * 600. / 1057., y + .5}) * ratio;
+                        const auto a = actual.pixelColor(qFloor(p.x()), qFloor(p.y()));
+                        const auto b = expected.pixelColor(qFloor(p.x()), qFloor(p.y()));
+                        if (qAbs(a.red() - b.red()) > 2 || qAbs(a.green() - b.green()) > 2 ||
+                            qAbs(a.blue() - b.blue()) > 2) {
+                            qWarning() << "Noise stack difference" << bits << translucent << amount
+                                       << x << y << a << b;
+                            return false;
+                        }
                     }
-                }
+            }
         }
-        document.setLayerOpacity(0, .5);
-        if (!require(!document.gpuLayerStack().valid, "noise over transparency uses CPU"))
-            return false;
-    }
     for (const int bits : {8, 16}) {
         QImage source(1057, 527, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
         for (int y = 0; y < source.height(); ++y)

@@ -327,7 +327,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Paires de fréquences intactes affichées par la pile GPU à partir d’un seul plan source, avec repli CPU dès qu’un réglage de la paire change la composition.
 - [x] Visibilité des fonds et des masques uniformes lue sur leur pixel natif. Les calques écrêtés sans base visible sont écartés avant la validation GPU et les piles vides gardent leur sortie transparente.
 - [x] Réglages analytiques de la pile GPU sans texture de table factice. Buffers de paramètres réutilisés entre retouches et shaders précompilés désérialisés une fois pour la pile, les filtres spatiaux et la pyramide d’affichage.
-- [x] Ajout de bruit sur GPU en 8/16 bits sur fond opaque. Le motif utilise les coordonnées du document et l’ordre des canaux de la référence CPU. Les fonds translucides gardent le rendu CPU pour préserver les arrondis alpha.
+- [x] Ajout de bruit sur GPU en 8/16 bits sur fonds opaques et translucides. Le motif utilise les coordonnées du document et l’ordre des canaux de la référence CPU. Comparaisons du rendu écran avec alpha variable, masque, opacité et raccords de tuiles.
 - [x] Mosaïque sur GPU en 8/16 bits. Une table compacte réutilise la grille d’échantillonnage Qt sur les deux axes, avec le halo nécessaire aux raccords. Le shader conserve l’alpha du pixel échantillonné.
 - [ ] Étendre les filtres et la composition sur GPU aux autres réglages, masques et mélanges ; autres surimpressions par shaders et budget global de VRAM. Mesurer les gains et la fidélité sur chaque backend matériel. Réduction du bruit avancée.
 

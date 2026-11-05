@@ -284,19 +284,22 @@ void CanvasItem::updatePolish()
                                       visible.width() * m_stack.size.width() / width(),
                                       visible.height() * m_stack.size.height() / height())
                                    .toAlignedRect();
-        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available() ||
-            qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING"))
+        const qint64 available = m_graphicsClient->available();
+        qint64       working   = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
+        if (working > available || qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING")) {
             m_stack.streamInputs = true;
-        if (PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available() ||
+            working              = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
+        }
+        if (working > available ||
             qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH")) {
             m_stack.streamInputs = true;
             m_stack.shareScratch = true;
+            working              = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
         }
-        if (m_stack.displayLevel > 4 ||
-            PhotoCrap::Render::stackWorkingBytes(m_stack, native) > m_graphicsClient->available())
+        if (m_stack.displayLevel > 4 || working > available)
             m_stack = {};
         else
-            m_graphicsClient->pin(PhotoCrap::Render::stackWorkingBytes(m_stack, native));
+            m_graphicsClient->pin(working);
     }
     if (previousStack != m_stack.valid)
         m_imageDirty = true;

@@ -51,6 +51,58 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     const QRect   area = visible.intersected(QRect(QPoint{}, stack.size));
     if (area.isEmpty())
         return 0;
+    const int colorBytes    = stack.bits == 16 ? 16 : 4;
+    qint64    bytesPerPixel = (colorBytes + 1) * 2;
+    qint64    perTile       = 64 + 256 * stack.layers.size();
+    qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
+    bool      spatial = false, masks = false, colorInput = false, maskInput = false;
+    for (const auto &layer : stack.layers) {
+        spatial |= layer.spatial.type != SpatialFilter::None;
+        masks |= layer.maskFilter.type != SpatialFilter::None;
+        if (layer.needsColorInput()) {
+            colorInput = true;
+            if (!stack.streamInputs) {
+                if (layer.image.size() == QSize(1, 1) || layer.image.isNull())
+                    scratchBytes += colorBytes;
+                else
+                    bytesPerPixel += colorBytes;
+            }
+        }
+        if (layer.needsMaskInput()) {
+            maskInput = true;
+            if (!stack.streamInputs) {
+                if (layer.mask.size() == QSize(1, 1) || layer.mask.isNull())
+                    ++scratchBytes;
+                else
+                    ++bytesPerPixel;
+            }
+        }
+        const qint64 table =
+            qint64(layer.toneTable.width()) * layer.toneTable.height() * colorBytes;
+        const qint64 blend = qint64(layer.blendTable.width()) * layer.blendTable.height() * 16;
+        if (stack.streamInputs) {
+            tableBytes = qMax(tableBytes, table);
+            blendBytes = qMax(blendBytes, blend);
+        } else
+            scratchBytes += table + blend;
+        if (layer.spatial.type != SpatialFilter::None)
+            scratchBytes += 7 * 96;
+        if (layer.maskFilter.type != SpatialFilter::None)
+            scratchBytes += 2 * 96;
+    }
+    if (stack.streamInputs) {
+        bytesPerPixel += colorInput * colorBytes + maskInput;
+        scratchBytes += tableBytes + blendBytes;
+    }
+    if (spatial) {
+        bytesPerPixel += colorBytes + 16;
+        scratchBytes += 64;
+    }
+    if (masks) {
+        bytesPerPixel += 20;
+        scratchBytes += 64;
+    }
+
     qint64      bytes = 0;
     QSet<QSize> worksets, reductions;
     for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
@@ -61,58 +113,12 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
                                        .intersected(QRect(QPoint{}, stack.size));
             const QSize  size    = region.size();
             const qint64 pixels  = qint64(size.width()) * size.height();
-            const int    colorBytes = stack.bits == 16 ? 16 : 4;
-            const bool   scratch    = !stack.shareScratch || !worksets.contains(size);
-            worksets.insert(size);
-            qint64 working    = pixels * (colorBytes + 1) * 2;
-            qint64 tableBytes = 0, blendBytes = 0;
-            bool   spatial = false, masks = false;
-            bool   colorInput = false, maskInput = false;
-            for (const auto &layer : stack.layers) {
-                spatial |= layer.spatial.type != SpatialFilter::None;
-                masks |= layer.maskFilter.type != SpatialFilter::None;
-                colorInput |= layer.needsColorInput();
-                maskInput |= layer.needsMaskInput();
-                if (!stack.streamInputs) {
-                    if (layer.needsColorInput())
-                        working += layer.image.size() == QSize(1, 1) || layer.image.isNull()
-                                       ? colorBytes
-                                       : pixels * colorBytes;
-                    if (layer.needsMaskInput())
-                        working +=
-                            layer.mask.size() == QSize(1, 1) || layer.mask.isNull() ? 1 : pixels;
-                }
-                bytes += 256;
-                const qint64 table =
-                    layer.toneTable.isNull()
-                        ? 0
-                        : qint64(layer.toneTable.width()) * layer.toneTable.height() * colorBytes;
-                if (stack.streamInputs)
-                    tableBytes = qMax(tableBytes, table);
-                else
-                    working += table;
-                const qint64 blend = layer.blendTable.isNull() ? 0
-                                                               : qint64(layer.blendTable.width()) *
-                                                                     layer.blendTable.height() * 16;
-                if (stack.streamInputs)
-                    blendBytes = qMax(blendBytes, blend);
-                else
-                    working += blend;
-                if (layer.spatial.type != SpatialFilter::None)
-                    working += 7 * 96;
-                if (layer.maskFilter.type != SpatialFilter::None)
-                    working += 2 * 96;
+            if (!stack.shareScratch || !worksets.contains(size)) {
+                bytes += pixels * bytesPerPixel + scratchBytes;
+                if (stack.shareScratch)
+                    worksets.insert(size);
             }
-            if (stack.streamInputs)
-                working += pixels * (colorInput * colorBytes + maskInput);
-            working += tableBytes + blendBytes;
-            if (spatial)
-                working += pixels * (colorBytes + 16) + 64;
-            if (masks)
-                working += pixels * 20 + 64;
-            if (scratch)
-                bytes += working;
-            bytes += 64;
+            bytes += perTile;
             if (stack.shareScratch && stack.displayLevel == 0)
                 bytes += pixels * colorBytes;
             if (stack.shareScratch) {

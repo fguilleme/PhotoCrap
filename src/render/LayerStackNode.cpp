@@ -35,6 +35,9 @@ struct Pass {
     std::unique_ptr<QRhiBuffer>                 uniform;
     std::unique_ptr<QRhiShaderResourceBindings> bindings;
 };
+struct SourceKeys {
+    QByteArray color, mask, tone, blend;
+};
 // QQuickWindow::createTextureFromRhiTexture transfers ownership. These ping-pong
 // targets instead remain owned by the tile, including when the final parity changes.
 class BorrowedTexture final : public QSGTexture
@@ -304,17 +307,21 @@ public:
             failure();
         }
     }
-    std::shared_ptr<Input> input(const PixelPlane &plane, bool mask,
+    std::shared_ptr<Input> input(const PixelPlane &plane, const QByteArray &signature, bool mask,
                                  QRhiResourceUpdateBatch *&updates, QSet<QByteArray> &used,
                                  int whole = 0, bool stageOnly = false)
     {
-        QByteArray key = whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c";
         const bool compact = !whole && PhotoCrap::Render::compactStackInput(plane, stack.size);
-        // Whole work->inputs are immutable LUT QImages reused by the document cache.
-        // Freezing a fresh wrapper would manufacture new tile versions each frame.
-        key += whole ? QByteArray::number(plane.cacheKey())
-                     : plane.regionKey(compact ? QRect(0, 0, 1, 1) : region);
-        const QByteArray contentKey = key;
+        QByteArray contentKey;
+        if (!stageOnly) {
+            contentKey = whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c";
+            // Compact inputs share a texel across the whole document, even
+            // though the render signature tracks the full tile region.
+            contentKey += compact && plane.size() == stack.size && stack.size != QSize(1, 1)
+                              ? plane.regionKey(QRect(0, 0, 1, 1))
+                              : signature;
+        }
+        QByteArray key = contentKey;
         if (streaming)
             key = whole == 2 ? "stream-blend"
                   : whole    ? "stream-table"
@@ -392,16 +399,20 @@ public:
             return;
         }
         QByteArray key;
+        QVector<SourceKeys> sourceKeys;
+        sourceKeys.reserve(layers.size());
         for (const auto &layer : layers) {
-            for (const auto &part :
-                 {layer.needsColorInput() ? layer.image.regionKey(region) : QByteArray{},
-                  layer.needsMaskInput() ? layer.mask.regionKey(region) : QByteArray{},
-                  QByteArray::number(layer.toneTable.cacheKey()),
-                  QByteArray::number(layer.blendTable.cacheKey())}) {
-                const qint64 size = part.size();
+            const SourceKeys keys{
+                layer.needsColorInput() ? layer.image.regionKey(region) : QByteArray{},
+                layer.needsMaskInput() ? layer.mask.regionKey(region) : QByteArray{},
+                QByteArray::number(layer.toneTable.cacheKey()),
+                QByteArray::number(layer.blendTable.cacheKey())};
+            for (const auto *part : {&keys.color, &keys.mask, &keys.tone, &keys.blend}) {
+                const qint64 size = part->size();
                 key.append(reinterpret_cast<const char *>(&size), sizeof(size));
-                key += part;
+                key += *part;
             }
+            sourceKeys.append(keys);
             key.append(reinterpret_cast<const char *>(&layer.opacity), sizeof(layer.opacity));
             key.append(reinterpret_cast<const char *>(&layer.density), sizeof(layer.density));
             key.append(char(layer.blend));
@@ -471,18 +482,20 @@ public:
         bool ok = true;
         for (int index = 0; index < layers.size(); ++index) {
             const auto &layer = layers[index];
-            const auto  color = layer.needsColorInput()
-                                    ? input(layer.image, false, updates, used, false, streaming)
-                                    : nullptr;
-            const auto  mask  = layer.needsMaskInput()
-                                    ? input(layer.mask, true, updates, used, false, streaming)
-                                    : nullptr;
-            const auto  table = layer.toneTable.isNull()
-                                    ? nullptr
-                                    : input(layer.toneTable, false, updates, used, true, streaming);
-            const auto  blend = layer.blendTable.isNull()
-                                    ? nullptr
-                                    : input(layer.blendTable, false, updates, used, 2, streaming);
+            const auto &keys  = sourceKeys[index];
+            const auto  color = layer.needsColorInput() ? input(layer.image, keys.color, false,
+                                                                updates, used, false, streaming)
+                                                        : nullptr;
+            const auto  mask  = layer.needsMaskInput() ? input(layer.mask, keys.mask, true, updates,
+                                                               used, false, streaming)
+                                                       : nullptr;
+            const auto  table = layer.toneTable.isNull() ? nullptr
+                                                         : input(layer.toneTable, keys.tone, false,
+                                                                 updates, used, true, streaming);
+            const auto  blend =
+                layer.blendTable.isNull()
+                    ? nullptr
+                    : input(layer.blendTable, keys.blend, false, updates, used, 2, streaming);
             if ((layer.needsColorInput() && !color) || (layer.needsMaskInput() && !mask) ||
                 (!layer.toneTable.isNull() && !table) || (!layer.blendTable.isNull() && !blend)) {
                 ok = false;
@@ -631,12 +644,15 @@ public:
             if (streaming) {
                 QRhiResourceUpdateBatch *upload = nullptr;
                 const auto &layer  = layers[qsizetype(index)];
-                const bool  valid =
-                    (!layer.needsColorInput() || input(layer.image, false, upload, used)) &&
-                    (!layer.needsMaskInput() || input(layer.mask, true, upload, used)) &&
+                const auto              &keys   = sourceKeys[qsizetype(index)];
+                const bool               valid =
+                    (!layer.needsColorInput() ||
+                     input(layer.image, keys.color, false, upload, used)) &&
+                    (!layer.needsMaskInput() || input(layer.mask, keys.mask, true, upload, used)) &&
                     (layer.toneTable.isNull() ||
-                     input(layer.toneTable, false, upload, used, true)) &&
-                    (layer.blendTable.isNull() || input(layer.blendTable, false, upload, used, 2));
+                     input(layer.toneTable, keys.tone, false, upload, used, true)) &&
+                    (layer.blendTable.isNull() ||
+                     input(layer.blendTable, keys.blend, false, upload, used, 2));
                 if (!valid) {
                     if (upload)
                         upload->release();

@@ -559,9 +559,20 @@ private slots:
         QCOMPARE(loaded.channelBits(), 16);
         const auto planes = loaded.gpuLayerStack();
         QVERIFY(planes.valid);
-        QCOMPARE(planes.layers.first().image.region({90, 90, 20, 20}), expected);
+        QCOMPARE(planes.layers.size(), 1); // Only the edited opaque cover needs rendering.
         QCOMPARE(planes.layers.last().image.region({100, 100, 1, 1}).pixelColor(0, 0),
                  QColor(Qt::red));
+        // Inspect the saved lower plane too: render snapshots deliberately omit
+        // layers hidden behind the dense opaque cover.
+        for (int i = 1; i < 4; ++i)
+            loaded.setLayerVisible(i, false);
+        const auto bottom = loaded.gpuLayerStack();
+        QVERIFY(bottom.valid);
+        QCOMPARE(bottom.layers.first().image.region({90, 90, 20, 20}), expected);
+        loaded.setLayerVisible(3, true);
+        QCOMPARE(
+            loaded.gpuLayerStack().layers.last().image.region({100, 100, 1, 1}).pixelColor(0, 0),
+            QColor(Qt::red));
     }
 
     void tiledHistorySurvivesEvictionAndCacheClearing()

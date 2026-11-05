@@ -1,4 +1,6 @@
 #include "StreamingImageWriter.h"
+#include "JpegExportCodec.h"
+#include <QColorSpace>
 #include <QPainter>
 #include <QScopeGuard>
 #include <QtEndian>
@@ -165,6 +167,65 @@ bool writeImageBands(QIODevice &_output, const QSize &_size, int _bits, bool _pn
     const int  band   = qBound(1, 4 * 1024 * 1024 / (_size.width() * (_bits == 16 ? 8 : 4)), 256);
     const bool result = _png ? png(_output, _size, _bits, band, _read, _progress)
                              : bmp(_output, _size, band, _read, _progress);
+    if (!result)
+        _error = _output.errorString();
+    return result;
+}
+
+bool writeJpegBands(QIODevice &_output, const QSize &_size, const ImageBandReader &_read,
+                    const ImageWriteProgress &_progress, QString &_error)
+{
+    _error.clear();
+    if (!_output.isWritable() || !_read || _size.isEmpty() || _size.width() > 16384 ||
+        _size.height() > 16384 || qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024) {
+        _error = QStringLiteral("Invalid streaming JPEG dimensions or output");
+        return false;
+    }
+    struct State {
+        QIODevice                &output;
+        QSize                     size;
+        const ImageBandReader    &read;
+        const ImageWriteProgress &progress;
+        QImage                    band;
+        int                       top;
+    } state{_output, _size, _read, _progress, {}, -1};
+    const auto profile = QColorSpace(QColorSpace::SRgb).iccProfile();
+    const bool result  = exportJpegRows(
+        unsigned(_size.width()), unsigned(_size.height()),
+        reinterpret_cast<const unsigned char *>(profile.constData()), unsigned(profile.size()),
+        &state,
+        [](void *_context, unsigned _row) -> const unsigned char  *{
+            auto     &state = *static_cast<State *>(_context);
+            const int y     = int(_row);
+            if (state.progress && !state.progress(y, state.size.height()))
+                return nullptr;
+            if (y >= state.top + state.band.height()) {
+                const int width = state.size.width();
+                const int height =
+                    qMin(qMin(256, 4 * 1024 * 1024 / (width * 8)), state.size.height() - y);
+                const QRect  area(0, y, width, height);
+                const QImage source = state.read(area);
+                if (source.size() != area.size())
+                    return nullptr;
+                QImage white(area.size(), QImage::Format_RGB32);
+                if (white.isNull())
+                    return nullptr;
+                white.fill(Qt::white);
+                QPainter painter(&white);
+                painter.drawImage(0, 0, source);
+                painter.end();
+                state.band = std::move(white).convertToFormat(QImage::Format_RGB888);
+                state.top  = y;
+                if (state.band.isNull())
+                    return nullptr;
+            }
+            return state.band.constScanLine(y - state.top);
+        },
+        [](void *_context, const unsigned char *_bytes, size_t _size) {
+            auto &state = *static_cast<State *>(_context);
+            return int(
+                writeAll(state.output, reinterpret_cast<const char *>(_bytes), qint64(_size)));
+        });
     if (!result)
         _error = _output.errorString();
     return result;

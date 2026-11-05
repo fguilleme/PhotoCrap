@@ -12,4 +12,6 @@ using ImageWriteProgress = std::function<bool(int, int)>;
 bool writeImageBands(QIODevice &_output, const QSize &_size, int _bits, bool _png,
                      const ImageBandReader &_read, const ImageWriteProgress &_progress,
                      QString &_error);
+bool writeJpegBands(QIODevice &_output, const QSize &_size, const ImageBandReader &_read,
+                    const ImageWriteProgress &_progress, QString &_error);
 } // namespace PhotoCrap::Storage

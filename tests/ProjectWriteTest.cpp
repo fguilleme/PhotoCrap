@@ -67,6 +67,38 @@ class ProjectWriteTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void jpegReadsBandsAndCompositesTransparencyOnWhite()
+    {
+        QImage source(257, 301, QImage::Format_RGBA64_Premultiplied);
+        source.fill(QColor(45, 100, 180, 127));
+        ShortSink  sink;
+        QString    error;
+        int        reads = 0;
+        const auto read  = [&](const QRect &_area) {
+            ++reads;
+            return _area.height() <= 256 ? source.copy(_area) : QImage{};
+        };
+        const bool written =
+            PhotoCrap::Storage::writeJpegBands(sink, source.size(), read, {}, error);
+        QVERIFY2(
+            written,
+            qPrintable(
+                QString("%1 reads, %2 bytes: %3").arg(reads).arg(sink.bytes.size()).arg(error)));
+        QCOMPARE(reads, 2);
+        const auto decoded = QImage::fromData(sink.bytes, "JPEG");
+        QCOMPARE(decoded.size(), source.size());
+        QVERIFY(decoded.colorSpace().isValid());
+        const auto color = decoded.pixelColor(128, 150);
+        QVERIFY(qAbs(color.red() - 150) <= 2 && qAbs(color.green() - 178) <= 2 &&
+                qAbs(color.blue() - 218) <= 2);
+        ShortSink cancelled;
+        QVERIFY(!PhotoCrap::Storage::writeJpegBands(
+            cancelled, source.size(), read, [](int _row, int) { return _row < 270; }, error));
+        ShortSink failed;
+        failed.failAfter = 300;
+        QVERIFY(!PhotoCrap::Storage::writeJpegBands(failed, source.size(), read, {}, error));
+    }
+
     void streamingImagesKeepNativePixelsAndBoundTheirReads()
     {
         for (int bits : {8, 16})

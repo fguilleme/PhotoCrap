@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
 include(cmake/RawDependencies.cmake)
 include(cmake/ProjectPng.cmake)
+include(cmake/JpegExport.cmake)
 
 set(PHOTOCRAP_CXX_SOURCES
     src/RawImageReader.cpp
@@ -469,7 +470,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/ThresholdFilter.h
 )
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent)
-target_link_libraries(photocrap_core PRIVATE photocrap_libraw photocrap_raw_zlib photocrap_png)
+target_link_libraries(photocrap_core PRIVATE photocrap_libraw photocrap_raw_zlib photocrap_png
+    photocrap_jpeg_codec)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE AND PHOTOCRAP_ENABLE_ACCELERATE)
     target_compile_definitions(photocrap_core PRIVATE PHOTOCRAP_USE_ACCELERATE)
@@ -926,6 +928,7 @@ qt_generate_deploy_qml_app_script(TARGET PhotoCrap OUTPUT_SCRIPT deploy_script N
 install(SCRIPT ${deploy_script})
 photocrap_install_raw_sources()
 photocrap_install_png_license()
+photocrap_install_jpeg_license()
 if(APPLE)
     # Qt's deployment step adds frameworks, plugins and QML resources after
     # the executable has received its linker signature. Seal the completed

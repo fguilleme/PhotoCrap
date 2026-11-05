@@ -830,18 +830,21 @@ bool Document::exportImage(const QUrl &_url)
             tr("Export disponible en PNG, JPEG, BMP ou WebP (si le module Qt est installé)."));
     if (!operationStep(0, 4))
         return false;
-    if ((suffix == "png" || suffix == "bmp") && qint64(width()) * height() >= 4LL * 1024 * 1024) {
+    const bool jpeg = suffix == "jpg" || suffix == "jpeg";
+    if ((suffix == "png" || suffix == "bmp" || jpeg) &&
+        qint64(width()) * height() >= 4LL * 1024 * 1024) {
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly))
             return fail(file.errorString());
         QString    error;
-        const bool written = PhotoCrap::Storage::writeImageBands(
-            file, m_size, m_channelBits, suffix == "png",
-            [this](const QRect &_region) { return compositeRegion(_region); },
-            [this](int _done, int _total) {
-                return operationStep(100 + 650 * _done / _total, 1000);
-            },
-            error);
+        const auto read     = [this](const QRect &_region) { return compositeRegion(_region); };
+        const auto progress = [this](int _done, int _total) {
+            return operationStep(100 + 650 * _done / _total, 1000);
+        };
+        const bool written =
+            jpeg ? PhotoCrap::Storage::writeJpegBands(file, m_size, read, progress, error)
+                 : PhotoCrap::Storage::writeImageBands(file, m_size, m_channelBits, suffix == "png",
+                                                       read, progress, error);
         if (!written) {
             if (!operationStep(0, 1))
                 return false;

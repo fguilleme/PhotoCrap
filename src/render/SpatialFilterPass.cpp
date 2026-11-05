@@ -1,5 +1,6 @@
 #include "SpatialFilterPass.h"
 #ifdef PHOTOCRAP_RHI_STACK
+#include "LayerStack.h"
 #include <QFile>
 #include <array>
 #include <cmath>
@@ -11,11 +12,13 @@ namespace
 {
 struct Step {
     int                                         target = 0;
+    quint64                                     sourceId = 0;
+    QRhiTexture                                *source = nullptr, *original = nullptr;
     std::unique_ptr<QRhiBuffer>                 uniform;
     std::unique_ptr<QRhiShaderResourceBindings> bindings;
 };
 struct Job {
-    std::vector<std::unique_ptr<Step>> steps;
+    std::vector<Step> steps;
 };
 QShader loadShader(const char *name)
 {
@@ -34,7 +37,34 @@ struct SpatialFilterPass::Data {
     std::unique_ptr<QRhiBuffer>                              vertices;
     std::unique_ptr<QRhiSampler>                             sampler;
     std::array<std::unique_ptr<QRhiGraphicsPipeline>, 2>     pipelines;
+    std::unique_ptr<QRhiShaderResourceBindings>              layoutBindings;
     std::vector<Job>                                         jobs;
+    size_t                                                   preparedJobs = 0;
+    PhotoCrap::Render::StackStatistics                      *statistics;
+
+    void setBindings(QRhiShaderResourceBindings &bindings, QRhiBuffer *buffer, QRhiTexture *source,
+                     QRhiTexture *original) const
+    {
+        const auto stage = QRhiShaderResourceBinding::FragmentStage;
+        bindings.setBindings(
+            {QRhiShaderResourceBinding::uniformBuffer(
+                 0, stage | QRhiShaderResourceBinding::VertexStage, buffer),
+             QRhiShaderResourceBinding::sampledTexture(1, stage, source, sampler.get()),
+             QRhiShaderResourceBinding::sampledTexture(2, stage, original, sampler.get())});
+    }
+
+    bool initLayout()
+    {
+        if (layoutBindings)
+            return true;
+        auto bindings =
+            std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+        setBindings(*bindings, nullptr, nullptr, nullptr);
+        if (!bindings->create())
+            return false;
+        layoutBindings = std::move(bindings);
+        return true;
+    }
     bool                                                     init(QRhiResourceUpdateBatch *updates)
     {
         if (vertices)
@@ -61,16 +91,19 @@ struct SpatialFilterPass::Data {
         }
         return true;
     }
-    std::unique_ptr<Step> step(QRhiTexture *source, QRhiTexture *original, int target,
-                               int operation, int radius, bool vertical, float a, float b,
-                               QRhiResourceUpdateBatch *updates, bool roundBox2D, bool uploaded)
+    bool prepareStep(Step &step, QRhiTexture *source, QRhiTexture *original, quint64 sourceId,
+                     int target, int operation, int radius, bool vertical, float a, float b,
+                     QRhiResourceUpdateBatch *updates, bool roundBox2D, bool uploaded)
     {
-        auto result    = std::make_unique<Step>();
-        result->target = target;
-        result->uniform.reset(rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 96));
-        if (!result->uniform->create())
-            return {};
-        QByteArray data(96, 0);
+        step.target = target;
+        if (!step.uniform) {
+            auto uniform = std::unique_ptr<QRhiBuffer>(
+                rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 96));
+            if (!uniform->create())
+                return false;
+            step.uniform = std::move(uniform);
+        }
+        std::array<char, 96> data{};
         const auto matrix = rhi->clipSpaceCorrMatrix();
         std::memcpy(data.data(), matrix.constData(), 64);
         const qint32 modes[]  = {operation, radius, vertical,
@@ -78,25 +111,32 @@ struct SpatialFilterPass::Data {
         const float  values[] = {bits == 16 ? 65535.f : 255.f, a, b, roundBox2D ? 1.f : 0.f};
         std::memcpy(data.data() + 64, modes, sizeof(modes));
         std::memcpy(data.data() + 80, values, sizeof(values));
-        updates->updateDynamicBuffer(result->uniform.get(), 0, 96, data.constData());
-        result->bindings.reset(rhi->newShaderResourceBindings());
-        const auto stage = QRhiShaderResourceBinding::FragmentStage;
-        result->bindings->setBindings(
-            {QRhiShaderResourceBinding::uniformBuffer(
-                 0, stage | QRhiShaderResourceBinding::VertexStage, result->uniform.get()),
-             QRhiShaderResourceBinding::sampledTexture(1, stage, source, sampler.get()),
-             QRhiShaderResourceBinding::sampledTexture(2, stage, original, sampler.get())});
-        if (!result->bindings->create())
-            return {};
-        return result;
+        updates->updateDynamicBuffer(step.uniform.get(), 0, data.size(), data.data());
+        // The mask input may be replaced by an allocation at the same address.
+        if (!step.bindings || step.sourceId != sourceId || step.source != source ||
+            step.original != original) {
+            auto bindings =
+                std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+            setBindings(*bindings, step.uniform.get(), source, original);
+            if (!bindings->create())
+                return false;
+            step.bindings = std::move(bindings);
+            step.sourceId = sourceId;
+            step.source   = source;
+            step.original = original;
+            ++statistics->bindingCreations;
+        }
+        return true;
     }
 };
-SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits)
+SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits,
+                                     PhotoCrap::Render::StackStatistics &statistics)
     : d(std::make_unique<Data>())
 {
     d->rhi  = rhi;
     d->size = size;
     d->bits = bits;
+    d->statistics = &statistics;
 }
 SpatialFilterPass::~SpatialFilterPass()
 {
@@ -108,27 +148,40 @@ SpatialFilterPass::~SpatialFilterPass()
     for (auto &descriptor : d->descriptors)
         descriptor.reset();
 }
-void SpatialFilterPass::resetFrame()
+void SpatialFilterPass::resetFrame(bool reuseSteps)
 {
-    d->jobs.clear();
+    d->preparedJobs = 0;
+    // A shared workspace can be prepared by several tiles in one command
+    // buffer. Each tile then needs independent dynamic uniform storage.
+    if (!reuseSteps)
+        d->jobs.clear();
+}
+void SpatialFilterPass::finishPreparation()
+{
+    d->jobs.resize(d->preparedJobs);
 }
 SpatialFilterPass::Run
 SpatialFilterPass::prepare(QRhiTexture                                    *source,
                            const PhotoCrap::Render::SpatialFilterSettings &settings,
-                           QRhiResourceUpdateBatch *updates, bool uploaded)
+                           QRhiResourceUpdateBatch *updates, bool uploaded, quint64 sourceId)
 {
     using PhotoCrap::Render::SpatialFilter;
-    if (!source || !d->init(updates))
+    if (!source || !d->init(updates) || !d->initLayout())
         return {};
-    Job          job;
+    if (d->preparedJobs == d->jobs.size())
+        d->jobs.emplace_back();
+    auto        &steps         = d->jobs[d->preparedJobs].steps;
+    size_t       preparedSteps = 0;
     QRhiTexture *current = source;
     const auto   append  = [&](int operation, int radius, bool vertical, float a = 0, float b = 0) {
         const int target = current == d->textures[0].get() ? 1 : 0;
-        auto step = d->step(current, source, target, operation, radius, vertical, a, b, updates,
-                            settings.roundBox2D, uploaded && current == source);
-        if (!step)
+        if (preparedSteps == steps.size())
+            steps.emplace_back();
+        if (!d->prepareStep(steps[preparedSteps], current, source, sourceId, target, operation,
+                            radius, vertical, a, b, updates, settings.roundBox2D,
+                            uploaded && current == source))
             return false;
-        job.steps.push_back(std::move(step));
+        ++preparedSteps;
         current = d->textures[target].get();
         return true;
     };
@@ -164,25 +217,23 @@ SpatialFilterPass::prepare(QRhiTexture                                    *sourc
                  QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float2, 8)});
             d->pipelines[target]->setVertexInputLayout(layout);
             d->pipelines[target]->setTopology(QRhiGraphicsPipeline::TriangleStrip);
-            d->pipelines[target]->setShaderResourceBindings(job.steps.front()->bindings.get());
+            d->pipelines[target]->setShaderResourceBindings(d->layoutBindings.get());
             d->pipelines[target]->setRenderPassDescriptor(d->descriptors[target].get());
             if (!d->pipelines[target]->create())
                 return {};
         }
-    const int index = int(d->jobs.size());
-    d->jobs.push_back(std::move(job));
-    return {index, current};
+    steps.resize(preparedSteps);
+    return {int(d->preparedJobs++), current};
 }
 quint64 SpatialFilterPass::render(QRhiCommandBuffer *cb, int run)
 {
     if (run < 0 || run >= int(d->jobs.size()))
         return 0;
     for (const auto &step : d->jobs[run].steps) {
-        cb->beginPass(d->targets[step->target].get(), Qt::transparent, {1.f, 0});
-        d->pipelines[step->target]->setShaderResourceBindings(step->bindings.get());
-        cb->setGraphicsPipeline(d->pipelines[step->target].get());
+        cb->beginPass(d->targets[step.target].get(), Qt::transparent, {1.f, 0});
+        cb->setGraphicsPipeline(d->pipelines[step.target].get());
         cb->setViewport(QRhiViewport(0, 0, d->size.width(), d->size.height()));
-        cb->setShaderResources(step->bindings.get());
+        cb->setShaderResources(step.bindings.get());
         const QRhiCommandBuffer::VertexInput input{d->vertices.get(), 0};
         cb->setVertexInput(0, 1, &input);
         cb->draw(4);

@@ -204,6 +204,16 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
             document.setLayerOpacity(document.activeLayer(), .63);
             if (!check(type + " masked", bits, 100))
                 return false;
+            if (hardware && !qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH")) {
+                const auto bindings = canvas.stackBindingCreations();
+                const auto passes   = canvas.stackPasses();
+                document.setLayerOpacity(document.activeLayer(), .81);
+                if (!check(type + " opacity", bits, 100) ||
+                    !require(canvas.stackPasses() > passes &&
+                                 canvas.stackBindingCreations() == bindings,
+                             "spatial edits redraw with existing bindings"))
+                    return false;
+            }
             if (profiling && !profilePreview(type, bits))
                 return false;
             document.removeLayer();

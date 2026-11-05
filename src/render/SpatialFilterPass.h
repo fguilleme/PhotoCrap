@@ -2,6 +2,10 @@
 #include "SpatialFilterSettings.h"
 #include <QSize>
 #include <memory>
+namespace PhotoCrap::Render
+{
+struct StackStatistics;
+}
 class QRhi;
 class QRhiTexture;
 class QRhiCommandBuffer;
@@ -13,11 +17,13 @@ public:
         int          index   = -1;
         QRhiTexture *texture = nullptr;
     };
-    SpatialFilterPass(QRhi *rhi, const QSize &size, int bits);
+    SpatialFilterPass(QRhi *rhi, const QSize &size, int bits,
+                      PhotoCrap::Render::StackStatistics &statistics);
     ~SpatialFilterPass();
-    void    resetFrame();
+    void    resetFrame(bool reuseSteps);
+    void    finishPreparation();
     Run     prepare(QRhiTexture *source, const PhotoCrap::Render::SpatialFilterSettings &settings,
-                    QRhiResourceUpdateBatch *updates, bool uploaded = false);
+                    QRhiResourceUpdateBatch *updates, bool uploaded = false, quint64 sourceId = 0);
     quint64 render(QRhiCommandBuffer *cb, int run);
     qint64  bytes() const;
 

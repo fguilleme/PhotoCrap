@@ -596,9 +596,9 @@ public:
         QSet<QByteArray> used;
         std::vector<int> filterRuns, maskRuns;
         if (work->spatial)
-            work->spatial->resetFrame();
+            work->spatial->resetFrame(!sharedWork);
         if (work->masks)
-            work->masks->resetFrame();
+            work->masks->resetFrame(!sharedWork);
         if (passes.size() > size_t(layers.size()))
             passes.resize(size_t(layers.size()));
         if (streaming) {
@@ -641,9 +641,10 @@ public:
             int          maskRun    = -1;
             if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->masks)
-                    work->masks = std::make_unique<SpatialFilterPass>(rhi, region.size(), 8);
-                const auto prepared =
-                    work->masks->prepare(maskSource, layer.maskFilter, updates, true);
+                    work->masks =
+                        std::make_unique<SpatialFilterPass>(rhi, region.size(), 8, *counters);
+                const auto prepared = work->masks->prepare(maskSource, layer.maskFilter, updates,
+                                                           true, mask ? mask->id : 0);
                 if (!prepared.texture) {
                     ok = false;
                     break;
@@ -656,7 +657,8 @@ public:
             int          run    = -1;
             if (layer.spatial.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->spatial)
-                    work->spatial = std::make_unique<SpatialFilterPass>(rhi, region.size(), bits);
+                    work->spatial =
+                        std::make_unique<SpatialFilterPass>(rhi, region.size(), bits, *counters);
                 const auto prepared =
                     work->spatial->prepare(work->colors[index % 2].get(), layer.spatial, updates);
                 if (!prepared.texture) {
@@ -755,6 +757,10 @@ public:
             reject(__LINE__);
             return;
         }
+        if (work->spatial)
+            work->spatial->finishPreparation();
+        if (work->masks)
+            work->masks->finishPreparation();
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
         draw.uploaded = true;

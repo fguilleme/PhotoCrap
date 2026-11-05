@@ -83,25 +83,23 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             if (!stack.layers.isEmpty()) {
                 const auto &base = stack.layers.first();
                 if (!base.image.knownOpaque() || base.opacity != 1 || base.blend != 0 ||
-                    base.clipped || !base.mask.isNull() || !base.toneTable.isNull() ||
+                    base.clipped || !base.mask.isNull() || base.tonal ||
                     base.spatial.type != SpatialFilter::None)
                     return {};
             }
         }
         StackLayer entry;
         if (tonal) {
+            using PhotoCrap::Filters::ToneMappingMode;
+            entry.tonal = true;
             entry.tone =
                 PhotoCrap::Filters::toneMappingSettings(layer.adjustmentType, layer.parameters);
-            const int  mode   = int(entry.tone.mode);
-            const bool lookup = mode == 0 || mode == 1 || mode == 3 || mode == 4 || mode == 6;
-            if (!lookup) {
-                static const QImage unused = [] {
-                    QImage pixel(1, 1, QImage::Format_ARGB32_Premultiplied);
-                    pixel.fill(Qt::white);
-                    return pixel;
-                }();
-                entry.toneTable = unused;
-            } else {
+            const auto mode = entry.tone.mode;
+            const bool lookup =
+                mode == ToneMappingMode::Channels || mode == ToneMappingMode::Luminance ||
+                mode == ToneMappingMode::GradientMap || mode == ToneMappingMode::BlackWhite ||
+                mode == ToneMappingMode::Threshold;
+            if (lookup) {
                 auto parameters = layer.parameters;
                 for (auto it = parameters.begin(); it != parameters.end();)
                     if (it.key().startsWith('_'))

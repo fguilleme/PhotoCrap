@@ -468,6 +468,11 @@ private slots:
             QVERIFY(!d.gpuLayerStack().layers.last().toneTable.isNull());
             d.undo();
             QCOMPARE(d.gpuLayerStack().layers.last().toneTable.cacheKey(), key);
+            d.addAdjustmentLayer("channelMixer");
+            const auto analytic = d.gpuLayerStack().layers.last();
+            QVERIFY(analytic.tonal);
+            QVERIFY(!analytic.needsColorInput());
+            QVERIFY(analytic.toneTable.isNull());
         }
     }
 

@@ -379,6 +379,7 @@ public:
             key.append(char(layer.blend));
             key.append(char(layer.clipped));
             key.append(char(layer.reset));
+            key.append(char(layer.tonal));
             key += layer.spatial.key();
             key += layer.maskFilter.key();
             const auto  &tone = layer.tone;
@@ -488,7 +489,7 @@ public:
             std::memcpy(uniform.data(), matrix.constData(), 64);
             const qint32 modes[] = {
                 layer.blend, layer.clipped,
-                int(layer.reset) + (run >= 0 ? 2 : 0) + (!layer.toneTable.isNull() ? 4 : 0) +
+                int(layer.reset) + (run >= 0 ? 2 : 0) + (layer.tonal ? 4 : 0) +
                     (maskRun >= 0 ? 8 : 0) +
                     (streaming && PhotoCrap::Render::compactStackInput(layer.image, stack.size) &&
                              run < 0
@@ -571,8 +572,7 @@ public:
         pipeline->setShaderResourceBindings(passes.front()->bindings.get());
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
-        if (!filterRuns.empty() &&
-            (filterRuns.front() >= 0 || !layers.front().toneTable.isNull())) {
+        if (!filterRuns.empty() && (filterRuns.front() >= 0 || layers.front().tonal)) {
             cb->beginPass(work->targets[0].get(), Qt::transparent, {1.f, 0});
             cb->endPass();
         }

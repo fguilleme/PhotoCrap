@@ -19,12 +19,13 @@ struct StackLayer {
     float                                   opacity = 1, density = 1;
     int                                     blend   = 0;
     bool                                    clipped = false, reset = false;
+    bool                                    tonal = false;
     SpatialFilterSettings                   spatial, maskFilter;
     PhotoCrap::Filters::ToneMappingSettings tone;
 
     bool needsColorInput() const
     {
-        return !reset && toneTable.isNull() && spatial.type == SpatialFilter::None;
+        return !reset && !tonal && spatial.type == SpatialFilter::None;
     }
     bool needsMaskInput() const
     {

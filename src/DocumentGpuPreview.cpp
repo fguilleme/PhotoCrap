@@ -17,15 +17,20 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     for (const auto &layer : m_layers)
         if (layer.kind == "group")
             groups.insert(layer.groupId, layer.visible);
+    bool hasClippingBase = false;
     for (int index = LayerVisibility::opaqueCoverIndex(m_layers, m_size); index < m_layers.size();
          ++index) {
         const auto &layer = m_layers[index];
         if (layer.kind == "group" || !LayerVisibility::contributes(layer) ||
             (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
-            if (!layer.clippingMask && !stack.layers.isEmpty() && !stack.layers.constLast().reset)
-                stack.layers.append(StackLayer{.reset = true});
+            if (layer.kind == "group" || !layer.clippingMask)
+                hasClippingBase = false;
             continue;
         }
+        // A clipped layer with no base has no effect. Skip it before checking
+        // GPU eligibility, so a hidden base needs no separate GPU reset pass.
+        if (layer.clippingMask && !hasClippingBase)
+            continue;
         // The CPU compositor treats an untouched frequency pair as a single
         // normal draw of its source. Use the same native pixels on the GPU.
         if (LayerVisibility::reconstructsFrequencySource(m_layers, index) &&
@@ -218,6 +223,8 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         entry.blend   = layer.blend;
         entry.clipped = layer.clippingMask;
         stack.layers.append(std::move(entry));
+        if (!layer.clippingMask)
+            hasClippingBase = true;
     }
     if (stack.layers.isEmpty())
         stack.layers.append(StackLayer{.reset = true});

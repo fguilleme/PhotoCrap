@@ -477,10 +477,27 @@ private slots:
         QVERIFY(d.newDocument(16, 16, false));
         for (int i = 0; i < 30; ++i)
             d.addLayer();
-        QCOMPARE(d.gpuLayerStack().layers.size(), qsizetype(2));
+        QCOMPARE(d.gpuLayerStack().layers.size(), qsizetype(1));
         QVERIFY(d.newDocument(16, 16, true));
         QCOMPARE(d.gpuLayerStack().layers.size(), qsizetype(1));
         QVERIFY(d.gpuLayerStack().layers.first().reset);
+    }
+
+    void clippedAdjustmentsWithoutABaseKeepTheGpuStack()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 32, false));
+        d.addLayer();
+        d.setColor(QColor(84, 103, 218, 170));
+        d.fillWithColor(true);
+        d.addAdjustmentLayer("noise");
+        d.setClippingMask(true);
+        QVERIFY(!d.gpuLayerStack().valid);
+        d.setLayerVisible(1, false);
+        const auto stack = d.gpuLayerStack();
+        QVERIFY(stack.valid);
+        QCOMPARE(stack.layers.size(), qsizetype(1));
+        QCOMPARE(d.composite().pixelColor(16, 16), QColor(Qt::white));
     }
 
     void initTestCase()
@@ -8955,8 +8972,8 @@ private slots:
                                           kind == "nonuniform";
                     QCOMPARE(gpu.valid, eligible);
                     if (eligible) {
-                        QCOMPARE(gpu.layers.size(),
-                                 kind == "visibleGroup" ? qsizetype(3) : qsizetype(2));
+                        QCOMPARE(gpu.layers.size(), qsizetype(2));
+                        QVERIFY(gpu.layers.last().clipped);
                         QVERIFY(gpu.layers.first().mask.isNull());
                         QCOMPARE(gpu.halo, 0);
                     }

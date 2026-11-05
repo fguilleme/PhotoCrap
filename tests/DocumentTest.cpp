@@ -393,6 +393,31 @@ private slots:
         QVERIFY(shared * 3 < separate);
         QVERIFY(shared < 320LL * 1024 * 1024);
     }
+    void gpuUniformNativePlanesNeedOneTexel()
+    {
+        using namespace PhotoCrap::Render;
+        LayerStack stack;
+        stack.size = {128, 64};
+        stack.bits = 16;
+        QImage image(stack.size, QImage::Format_RGBA64_Premultiplied);
+        QImage mask(stack.size, QImage::Format_Grayscale8);
+        image.fill(Qt::blue);
+        mask.fill(127);
+        StackLayer layer;
+        layer.image = image;
+        layer.mask  = mask;
+        stack.layers.append(layer);
+        const QRect visible(QPoint{}, stack.size);
+        const auto  dense     = stackWorkingBytes(stack, visible);
+        stack.layers[0].image = PixelPlane::uniform(stack.size, image.copy(0, 0, 1, 1));
+        stack.layers[0].mask  = PixelPlane::uniform(stack.size, mask.copy(0, 0, 1, 1));
+        const auto   compact  = stackWorkingBytes(stack, visible);
+        const qint64 pixels   = qint64(stack.size.width()) * stack.size.height();
+        QCOMPARE(dense - compact, (pixels - 1) * 17);
+        // Ping-pong color/coverage, display pyramid, two input texels and
+        // fixed per-tile buffers. No tone or blend lookup tables are present.
+        QCOMPARE(compact, pixels * (34 + 22) + 17 + 1408);
+    }
     void gpuStackSnapshotsKeepPixelsAndRejectUnsupportedEffects()
     {
         Document d;

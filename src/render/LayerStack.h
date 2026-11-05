@@ -43,6 +43,12 @@ struct LayerStack {
     bool                streamInputs = false;
     bool                shareScratch = false;
 };
+inline bool compactStackInput(const PixelPlane &_plane, const QSize &_size)
+{
+    return _plane.isNull() || _plane.size() == QSize(1, 1) ||
+           (_plane.size() == _size && _plane.isUniform());
+}
+
 // Conservative peak for simultaneously visible tiles. Refuse a GPU stack
 // before allocation when even its pinned working set would exceed the budget.
 inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
@@ -53,7 +59,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         return 0;
     const int colorBytes    = stack.bits == 16 ? 16 : 4;
     qint64    bytesPerPixel = (colorBytes + 1) * 2;
-    qint64    perTile       = 64 + 256 * stack.layers.size();
+    const qint64 perTile       = 64 + 256 * stack.layers.size();
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
     bool      spatial = false, masks = false, colorInput = false, maskInput = false;
     for (const auto &layer : stack.layers) {
@@ -62,7 +68,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         if (layer.needsColorInput()) {
             colorInput = true;
             if (!stack.streamInputs) {
-                if (layer.image.size() == QSize(1, 1) || layer.image.isNull())
+                if (compactStackInput(layer.image, stack.size))
                     scratchBytes += colorBytes;
                 else
                     bytesPerPixel += colorBytes;
@@ -71,15 +77,18 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         if (layer.needsMaskInput()) {
             maskInput = true;
             if (!stack.streamInputs) {
-                if (layer.mask.size() == QSize(1, 1) || layer.mask.isNull())
+                if (compactStackInput(layer.mask, stack.size))
                     ++scratchBytes;
                 else
                     ++bytesPerPixel;
             }
         }
-        const qint64 table =
-            qint64(layer.toneTable.width()) * layer.toneTable.height() * colorBytes;
-        const qint64 blend = qint64(layer.blendTable.width()) * layer.blendTable.height() * 16;
+        const qint64 table = layer.toneTable.isNull() ? 0
+                                                      : qint64(layer.toneTable.width()) *
+                                                            layer.toneTable.height() * colorBytes;
+        const qint64 blend = layer.blendTable.isNull() ? 0
+                                                       : qint64(layer.blendTable.width()) *
+                                                             layer.blendTable.height() * 16;
         if (stack.streamInputs) {
             tableBytes = qMax(tableBytes, table);
             blendBytes = qMax(blendBytes, blend);

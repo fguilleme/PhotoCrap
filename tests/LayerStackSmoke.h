@@ -601,17 +601,23 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         canvas.setSize({600, 128});
         if (!document.newDocument(600, 128, false, bits))
             return false;
-        document.setColor(QColor(72, 113, 189));
-        document.fillWithColor(true);
-        document.setColor(QColor(224, 84, 42));
-        document.setBrushSize(35);
-        document.beginStroke(512, 64);
-        document.endStroke();
+        if (bits == 8) {
+            document.setColor(QColor(72, 113, 189));
+            document.fillWithColor(true);
+            document.setColor(QColor(224, 84, 42));
+            document.setBrushSize(35);
+            document.beginStroke(512, 64);
+            document.endStroke();
+        }
         document.addFrequencySeparation(7);
         document.setLayerVisible(0, false);
         const auto stack = document.gpuLayerStack();
         if (!require(stack.valid && stack.layers.size() == 1 && stack.halo == 0,
                      "an untouched frequency pair supplies one native source"))
+            return false;
+        if (bits == 16 && !require(stack.layers.first().image.size() == stack.size &&
+                                       stack.layers.first().image.isUniform(),
+                                   "a uniform native plane can be uploaded as a single texel"))
             return false;
         canvas.setGpuStackEnabled(true);
         frame();

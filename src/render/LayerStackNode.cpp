@@ -289,9 +289,11 @@ public:
                                  int whole = 0, bool stageOnly = false)
     {
         QByteArray key = whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c";
+        const bool compact = !whole && PhotoCrap::Render::compactStackInput(plane, stack.size);
         // Whole work->inputs are immutable LUT QImages reused by the document cache.
         // Freezing a fresh wrapper would manufacture new tile versions each frame.
-        key += whole ? QByteArray::number(plane.cacheKey()) : plane.regionKey(region);
+        key += whole ? QByteArray::number(plane.cacheKey())
+                     : plane.regionKey(compact ? QRect(0, 0, 1, 1) : region);
         const QByteArray contentKey = key;
         if (streaming)
             key = whole == 2 ? "stream-blend"
@@ -305,9 +307,9 @@ public:
         const QSize extent = streaming ? (whole == 2 ? blendSize
                                           : whole    ? tableSize
                                                      : region.size())
-                             : plane.isNull() || plane.size() == QSize(1, 1) ? QSize(1, 1)
-                             : whole                                         ? plane.size()
-                                                                             : region.size();
+                             : compact ? QSize(1, 1)
+                             : whole   ? plane.size()
+                                       : region.size();
         if (!value) {
             value = std::make_shared<Input>();
             value->texture.reset(rhi->newTexture(mask                       ? QRhiTexture::R8
@@ -333,7 +335,9 @@ public:
             pixels = QImage(1, 1, format);
             pixels.fill(mask ? Qt::white : Qt::transparent);
         } else {
-            pixels = whole || plane.size() == QSize(1, 1) ? QImage(plane) : plane.region(region);
+            pixels = whole || plane.size() == QSize(1, 1) ? QImage(plane)
+                     : compact                            ? plane.tiles().backgroundPixel()
+                                                          : plane.region(region);
             pixels = pixels.convertToFormat(format);
         }
         if (pixels.isNull())
@@ -486,11 +490,11 @@ public:
                 layer.blend, layer.clipped,
                 int(layer.reset) + (run >= 0 ? 2 : 0) + (!layer.toneTable.isNull() ? 4 : 0) +
                     (maskRun >= 0 ? 8 : 0) +
-                    (streaming && (layer.image.isNull() || layer.image.size() == QSize(1, 1)) &&
+                    (streaming && PhotoCrap::Render::compactStackInput(layer.image, stack.size) &&
                              run < 0
                          ? 16
                          : 0) +
-                    (streaming && (layer.mask.isNull() || layer.mask.size() == QSize(1, 1)) &&
+                    (streaming && PhotoCrap::Render::compactStackInput(layer.mask, stack.size) &&
                              maskRun < 0
                          ? 32
                          : 0) +

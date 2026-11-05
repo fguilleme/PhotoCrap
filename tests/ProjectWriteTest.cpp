@@ -117,6 +117,7 @@ private slots:
                 if (png) {
                     QCOMPARE(uchar(sink.bytes.at(24)), uchar(bits));
                     QCOMPARE(decoded.colorSpace(), QColorSpace(QColorSpace::SRgb));
+                    QCOMPARE(sink.bytes.last(12), QByteArray::fromHex("0000000049454e44ae426082"));
                 }
                 ShortSink interrupted;
                 interrupted.failAfter = 100;

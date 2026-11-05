@@ -21,12 +21,13 @@ bool writeAll(QIODevice &_output, const char *_data, qint64 _size)
     }
     return true;
 }
-bool chunk(QIODevice &_output, const char *_type, const QByteArray &_bytes)
+bool chunk(QIODevice &_output, const char *_type, QByteArrayView _bytes)
 {
     std::array<char, 4> length{}, checksum{};
     qToBigEndian(quint32(_bytes.size()), length.data());
     auto crc = crc32(0, reinterpret_cast<const Bytef *>(_type), 4);
-    crc      = crc32(crc, reinterpret_cast<const Bytef *>(_bytes.constData()), uInt(_bytes.size()));
+    if (!_bytes.isEmpty())
+        crc = crc32(crc, reinterpret_cast<const Bytef *>(_bytes.constData()), uInt(_bytes.size()));
     qToBigEndian(quint32(crc), checksum.data());
     return writeAll(_output, length.data(), 4) && writeAll(_output, _type, 4) &&
            writeAll(_output, _bytes.constData(), _bytes.size()) &&
@@ -60,14 +61,18 @@ bool png(QIODevice &_output, const QSize &_size, int _bits, int _bandHeight,
             if (result != Z_OK && result != Z_STREAM_END)
                 return false;
             const auto count = output.size() - stream.avail_out;
-            if (count && !chunk(_output, "IDAT", output.first(count)))
+            if (count && !chunk(_output, "IDAT", QByteArrayView(output.constData(), count)))
                 return false;
         } while (stream.avail_in || (_finish && result != Z_STREAM_END));
         return true;
     };
-    const int  bytes = _bits == 16 ? 8 : 4;
-    QByteArray raw(_size.width() * bytes, 0), row(raw.size() + 1, 0);
-    row[0] = 1; // Sub filter, preserving bytes exactly before DEFLATE.
+    const int  bytes    = _bits == 16 ? 8 : 4;
+    const int  rowBytes = _size.width() * bytes;
+    QByteArray bigEndian(_bits == 16 ? rowBytes : 0, Qt::Uninitialized);
+    QByteArray row(rowBytes + 1, Qt::Uninitialized);
+    auto      *converted = reinterpret_cast<uchar *>(bigEndian.data());
+    auto      *filtered  = reinterpret_cast<uchar *>(row.data());
+    filtered[0]          = 1; // Sub filter, preserving bytes exactly before DEFLATE.
     for (int top = 0; top < _size.height(); top += _bandHeight) {
         const QRect  region(0, top, _size.width(), qMin(_bandHeight, _size.height() - top));
         const QImage band = _read(region).convertToFormat(_bits == 16 ? QImage::Format_RGBA64
@@ -77,18 +82,21 @@ bool png(QIODevice &_output, const QSize &_size, int _bits, int _bandHeight,
         for (int y = 0; y < band.height(); ++y) {
             if (_progress && !_progress(top + y, _size.height()))
                 return false;
+            const auto *raw = band.constScanLine(y);
             if (_bits == 16) {
-                const auto *source = reinterpret_cast<const QRgba64 *>(band.constScanLine(y));
+                const auto *source = reinterpret_cast<const QRgba64 *>(raw);
                 for (int x = 0; x < band.width(); ++x) {
-                    qToBigEndian(source[x].red(), raw.data() + x * 8);
-                    qToBigEndian(source[x].green(), raw.data() + x * 8 + 2);
-                    qToBigEndian(source[x].blue(), raw.data() + x * 8 + 4);
-                    qToBigEndian(source[x].alpha(), raw.data() + x * 8 + 6);
+                    auto *pixel = converted + x * 8;
+                    qToBigEndian(source[x].red(), pixel);
+                    qToBigEndian(source[x].green(), pixel + 2);
+                    qToBigEndian(source[x].blue(), pixel + 4);
+                    qToBigEndian(source[x].alpha(), pixel + 6);
                 }
-            } else
-                std::memcpy(raw.data(), band.constScanLine(y), size_t(raw.size()));
-            for (qsizetype x = 0; x < raw.size(); ++x)
-                row[x + 1] = char(uchar(raw[x]) - (x >= bytes ? uchar(raw[x - bytes]) : 0));
+                raw = converted;
+            }
+            std::memcpy(filtered + 1, raw, size_t(bytes));
+            for (int x = bytes; x < rowBytes; ++x)
+                filtered[x + 1] = uchar(raw[x] - raw[x - bytes]);
             if (!compress(row, false))
                 return false;
         }

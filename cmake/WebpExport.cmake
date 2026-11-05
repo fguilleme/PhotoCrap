@@ -26,6 +26,6 @@ function(photocrap_install_webp_license)
     else()
         set(notices "share/PhotoCrap/third-party")
     endif()
-    install(FILES "${photocrap_webp_SOURCE_DIR}/LICENSE" "${photocrap_webp_SOURCE_DIR}/PATENTS"
+    install(FILES "${photocrap_webp_SOURCE_DIR}/COPYING" "${photocrap_webp_SOURCE_DIR}/PATENTS"
             DESTINATION "${notices}/libwebp-1.6.0")
 endfunction()

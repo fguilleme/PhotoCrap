@@ -20,9 +20,8 @@ bool requiresFullComposite(const Layer &_layer)
     // These filters currently depend on absolute image coordinates. The blur
     // family is local and can be recomputed from a padded dirty rectangle.
     static const QStringList filters{QStringLiteral("mosaic"), QStringLiteral("noise")};
-    return contributes(_layer) &&
-           (_layer.blend == 1 || (_layer.kind == QStringLiteral("adjustment") &&
-                                  filters.contains(_layer.adjustmentType)));
+    return contributes(_layer) && _layer.kind == QStringLiteral("adjustment") &&
+           filters.contains(_layer.adjustmentType);
 }
 
 int effectMargin(const Layer &_layer)
@@ -142,7 +141,8 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             painter.setOpacity(qBound(0., _opacity, 1.));
             painter.drawImage(0, 0, _source);
         } else
-            regionComposite = blendImages(regionComposite, _source, _mode, _opacity);
+            regionComposite =
+                blendImages(regionComposite, _source, _mode, _opacity, _region.topLeft());
     };
     const auto regionImage = [&](const QImage &_image) {
         // QImage keeps immutable source pixels shared. Only a partial render

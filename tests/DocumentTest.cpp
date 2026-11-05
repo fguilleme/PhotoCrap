@@ -10990,11 +10990,19 @@ private slots:
         for (const QRect &region : regions)
             samples.append(d.compositeRegion(region));
         QVERIFY(d.compositeRegion({-20, -20, 2, 2}).isNull());
-        const bool fallback =
-            mode == 1 || effect == "frequency" || effect == "mosaic" || effect == "noise";
+        const bool fallback = effect == "frequency" || effect == "mosaic" || effect == "noise";
         if (!fallback)
             QCOMPARE(cache.cacheKey(), key); // Sampling must not replace the display cache.
         const QImage reference = d.composite();
+        if (mode == 1) {
+            QTemporaryDir directory;
+            QVERIFY(directory.isValid());
+            const auto project = QUrl::fromLocalFile(directory.filePath("regional-dissolve.pcr"));
+            QVERIFY(d.saveProject(project));
+            Document reopened;
+            QVERIFY(reopened.openFile(project));
+            QCOMPARE(reference, reopened.composite());
+        }
         for (int i = 0; i < regions.size(); ++i) {
             QCOMPARE(samples[i], reference.copy(regions[i].intersected(reference.rect())));
             QCOMPARE(d.compositeRegion(regions[i]), samples[i]); // Warm cache has the same pixels.

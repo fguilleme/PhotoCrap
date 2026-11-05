@@ -105,7 +105,8 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
     return ImageUtils::is16Bit(_source) ? render.template operator()<QRgba64>()
                                         : render.template operator()<QRgb>();
 }
-QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mode, qreal _opacity)
+QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mode, qreal _opacity,
+                             const QPoint &_origin)
 {
     if (_source.isNull())
         return _base;
@@ -138,7 +139,8 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
                 const double ab = P::alpha(bc) / 255.;
                 double       as = P::alpha(sc) / 255. * _opacity;
                 if (_mode == 1) {
-                    const quint32 hash = quint32(x * 73856093u) ^ quint32(_y * 19349663u);
+                    const quint32 hash = quint32(x + _origin.x()) * 73856093u ^
+                                         quint32(_y + _origin.y()) * 19349663u;
                     as                 = (hash & 0xffffu) < quint32(as * 65535.) ? 1. : 0.;
                 }
                 if (as <= 0)

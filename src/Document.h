@@ -1752,8 +1752,8 @@ private:
     void    acceptProjectSave(const QString &_path);
     static QImage applyMask(const QImage &_source, const QImage &_mask, qreal _density = 1,
                             qreal _feather = 0);
-    static QImage blendImages(const QImage &_base, const QImage &_source, int _mode,
-                              qreal _opacity);
+    static QImage blendImages(const QImage &_base, const QImage &_source, int _mode, qreal _opacity,
+                              const QPoint &_origin = {});
     static QImage blurImage(const QImage &_source, int _radius);
     static QImage gaussianBlurImage(const QImage &_source, qreal _radius);
     static QImage motionBlurImage(const QImage &_source, qreal _distance, qreal _angle);

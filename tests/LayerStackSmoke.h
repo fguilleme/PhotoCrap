@@ -608,6 +608,7 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
              timings[qMin(timings.size() - 1, qsizetype((timings.size() * 95 + 99) / 100 - 1))]},
             {"uploads", double(canvas.stackTextureUploads() - uploads)},
             {"passes", double(canvas.stackPasses() - passes)},
+            {"pipeline_creations", double(canvas.stackPipelineCreations())},
             {"stack_bytes", double(canvas.stackTextureBytes())},
             {"graphics_memory", QJsonObject::fromVariantMap(canvas.graphicsMemoryUsage())}};
         qInfo().noquote() << "PHOTOCRAP_PROBE"
@@ -825,6 +826,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
     }
     if (hardware && !streaming) {
         canvas.setSize({600, 128});
+        canvas.setGpuStackEnabled(false);
+        frame();
+        const auto pipelines = canvas.stackPipelineCreations();
         canvas.setGpuStackEnabled(true);
         if (!document.newDocument(1200, 128, false, 16))
             return false;
@@ -834,6 +838,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         document.addAdjustmentLayer("invert");
         frame();
         const auto result = frame();
+        if (!require(canvas.stackPipelineCreations() == pipelines + 1,
+                     "three retained tiles share a compatible graphics pipeline"))
+            return false;
         if (!require(canvas.gpuStackActive() && canvas.stackTextureUploads() == uploads + 1,
                      "three retained tiles share one lookup texture upload"))
             return false;

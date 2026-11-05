@@ -27,10 +27,28 @@ QShader       shader(const char *name)
     return file.open(QIODevice::ReadOnly) ? QShader::fromSerialized(file.readAll()) : QShader{};
 }
 using Counters = PhotoCrap::Render::StackStatistics;
+void setStackBindings(QRhiShaderResourceBindings &bindings, QRhiBuffer *uniform,
+                      QRhiSampler *sampler, const std::array<QRhiTexture *, 6> &textures)
+{
+    const auto                               stage = QRhiShaderResourceBinding::FragmentStage;
+    std::array<QRhiShaderResourceBinding, 7> entries;
+    entries[0] = QRhiShaderResourceBinding::uniformBuffer(
+        0, stage | QRhiShaderResourceBinding::VertexStage, uniform);
+    for (int i = 0; i < int(textures.size()); ++i)
+        entries[i + 1] =
+            QRhiShaderResourceBinding::sampledTexture(i + 1, stage, textures[i], sampler);
+    bindings.setBindings(entries.cbegin(), entries.cend());
+}
 struct Input;
 struct DrawResources {
+    struct Pipeline {
+        std::unique_ptr<QRhiRenderPassDescriptor> descriptor;
+        std::unique_ptr<QRhiGraphicsPipeline>     pipeline;
+    };
     std::unique_ptr<QRhiSampler> sampler;
     std::unique_ptr<QRhiBuffer>  vertices;
+    std::unique_ptr<QRhiShaderResourceBindings> pipelineLayout;
+    std::vector<Pipeline>                       pipelines;
     Counters                    *counters = nullptr;
     bool                         uploaded = false;
     QHash<QByteArray, std::weak_ptr<Input>> tables;
@@ -71,6 +89,47 @@ struct DrawResources {
         counters = stats;
         counters->bytes.fetch_add(sizeof(stackQuad));
         return true;
+    }
+    QRhiGraphicsPipeline *pipelineFor(QRhi *rhi, QRhiTextureRenderTarget *target)
+    {
+        for (const auto &item : pipelines)
+            if (item.descriptor->isCompatible(target->renderPassDescriptor()))
+                return item.pipeline.get();
+        if (!pipelineLayout) {
+            auto layout =
+                std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+            // Bind only the layout here. Each draw supplies the actual tile
+            // textures and its own uniform buffer through setShaderResources.
+            setStackBindings(*layout, nullptr, nullptr, {});
+            if (!layout->create())
+                return nullptr;
+            pipelineLayout = std::move(layout);
+        }
+        Pipeline item;
+        item.descriptor.reset(target->newCompatibleRenderPassDescriptor());
+        if (!item.descriptor)
+            return nullptr;
+        item.pipeline.reset(rhi->newGraphicsPipeline());
+        static const QShader vertexShader   = shader("stack_tonal.vert");
+        static const QShader fragmentShader = shader("stack.frag");
+        item.pipeline->setShaderStages(
+            {{QRhiShaderStage::Vertex, vertexShader}, {QRhiShaderStage::Fragment, fragmentShader}});
+        QRhiVertexInputLayout layout;
+        layout.setBindings({QRhiVertexInputBinding(4 * sizeof(float))});
+        layout.setAttributes(
+            {QRhiVertexInputAttribute(0, 0, QRhiVertexInputAttribute::Float2, 0),
+             QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float2, 2 * sizeof(float))});
+        item.pipeline->setVertexInputLayout(layout);
+        item.pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
+        item.pipeline->setTargetBlends(
+            {QRhiGraphicsPipeline::TargetBlend{}, QRhiGraphicsPipeline::TargetBlend{}});
+        item.pipeline->setShaderResourceBindings(pipelineLayout.get());
+        item.pipeline->setRenderPassDescriptor(item.descriptor.get());
+        if (!item.pipeline->create())
+            return nullptr;
+        pipelines.push_back(std::move(item));
+        ++counters->pipelineCreations;
+        return pipelines.back().pipeline.get();
     }
 };
 struct Input {
@@ -218,7 +277,6 @@ public:
     std::shared_ptr<DisplayPyramidScratchPool> reductionPool;
     std::unique_ptr<QRhiTexture>               retained;
     std::unique_ptr<QRhiTextureRenderTarget>   retainedTarget;
-    std::unique_ptr<QRhiGraphicsPipeline>      pipeline;
     std::vector<Pass>                          passes;
     QSGImageNode                              *image          = nullptr;
     QSGTexture                                *wrapper        = nullptr;
@@ -250,7 +308,6 @@ public:
         delete image;
         delete wrapper;
         passes.clear();
-        pipeline.reset();
     }
     bool init()
     {
@@ -661,51 +718,22 @@ public:
                 }
             updates->updateDynamicBuffer(pass.uniform.get(), 0, 256, uniform.data());
             pass.bindings.reset(rhi->newShaderResourceBindings());
-            const auto stage = QRhiShaderResourceBinding::FragmentStage;
-            auto      *sampler = draw.sampler.get();
-            pass.bindings->setBindings(
-                {QRhiShaderResourceBinding::uniformBuffer(
-                     0, stage | QRhiShaderResourceBinding::VertexStage, pass.uniform.get()),
-                 QRhiShaderResourceBinding::sampledTexture(1, stage, backdrop, sampler),
-                 QRhiShaderResourceBinding::sampledTexture(2, stage, source, sampler),
-                 QRhiShaderResourceBinding::sampledTexture(3, stage, maskSource, sampler),
-                 QRhiShaderResourceBinding::sampledTexture(4, stage, coverage, sampler),
-                 QRhiShaderResourceBinding::sampledTexture(
-                     5, stage, table ? table->texture.get() : backdrop, sampler),
-                 QRhiShaderResourceBinding::sampledTexture(
-                     6, stage, blend ? blend->texture.get() : backdrop, sampler)});
+            setStackBindings(*pass.bindings, pass.uniform.get(), draw.sampler.get(),
+                             {backdrop, source, maskSource, coverage,
+                              table ? table->texture.get() : backdrop,
+                              blend ? blend->texture.get() : backdrop});
             if (!pass.bindings->create()) {
                 ok = false;
                 break;
             }
         }
-        if (ok && !pipeline) {
-            static const QShader vertexShader   = shader("stack_tonal.vert");
-            static const QShader fragmentShader = shader("stack.frag");
-            pipeline.reset(rhi->newGraphicsPipeline());
-            pipeline->setShaderStages({{QRhiShaderStage::Vertex, vertexShader},
-                                       {QRhiShaderStage::Fragment, fragmentShader}});
-            QRhiVertexInputLayout layout;
-            layout.setBindings({QRhiVertexInputBinding(4 * sizeof(float))});
-            layout.setAttributes(
-                {QRhiVertexInputAttribute(0, 0, QRhiVertexInputAttribute::Float2, 0),
-                 QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float2,
-                                          2 * sizeof(float))});
-            pipeline->setVertexInputLayout(layout);
-            pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
-            pipeline->setTargetBlends(
-                {QRhiGraphicsPipeline::TargetBlend{}, QRhiGraphicsPipeline::TargetBlend{}});
-            pipeline->setShaderResourceBindings(passes.front().bindings.get());
-            pipeline->setRenderPassDescriptor(work->descriptor.get());
-            ok = pipeline->create();
-        }
-        if (!ok) {
+        auto *pipeline = ok ? draw.pipelineFor(rhi, work->targets[0].get()) : nullptr;
+        if (!pipeline) {
             updateBytes();
             updates->release();
             reject(__LINE__);
             return;
         }
-        pipeline->setShaderResourceBindings(passes.front().bindings.get());
         auto *cb = commandBuffer();
         cb->resourceUpdate(updates);
         draw.uploaded = true;
@@ -748,7 +776,7 @@ public:
                                ? retainedTarget.get()
                                : work->targets[(index + 1) % 2].get();
             cb->beginPass(target, Qt::transparent, {1.f, 0});
-            cb->setGraphicsPipeline(pipeline.get());
+            cb->setGraphicsPipeline(pipeline);
             cb->setViewport(QRhiViewport(0, 0, region.width(), region.height()));
             cb->setShaderResources(passes[index].bindings.get());
             const QRhiCommandBuffer::VertexInput input{draw.vertices.get(), 0};

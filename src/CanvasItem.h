@@ -73,6 +73,10 @@ public:
     {
         return m_stackStatistics->passes.load();
     }
+    quint64 stackPipelineCreations() const
+    {
+        return m_stackStatistics->pipelineCreations.load();
+    }
     quint64 stackTextureBytes() const
     {
         return m_stackStatistics->bytes.load();

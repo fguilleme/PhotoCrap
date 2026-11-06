@@ -254,6 +254,27 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
                                                      QSGRendererInterface::Metal)),
                          "feathering uses single-channel targets with an optional wide first pass"))
                 return false;
+            const auto passesBeforeOpacity = canvas.stackPasses();
+            document.setLayerOpacity(document.activeLayer(), .75);
+            frame();
+            frame();
+            if (!require(canvas.stackPasses() == passesBeforeOpacity + 1,
+                         "opacity recomposes the tile without feathering the same mask again"))
+                return false;
+            const auto passesBeforePaint = canvas.stackPasses();
+            document.setEditingMask(true);
+            document.setBrushSize(12);
+            document.setColor(Qt::white);
+            document.beginStroke(48, 48);
+            document.endStroke();
+            document.setEditingMask(false);
+            frame();
+            frame();
+            if (!require(canvas.stackPasses() == passesBeforePaint + 3,
+                         "painting the mask recomputes both feathering passes"))
+                return false;
+            document.undo();
+            document.undo();
             document.undo();
             frame();
             frame();

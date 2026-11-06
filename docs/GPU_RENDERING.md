@@ -89,7 +89,10 @@ et des passes actives. Les masques progressifs n’utilisent que le canal rouge.
 Leur passe horizontale choisit R32F lorsque le backend le permet, avec RGBA32F
 en repli. La verticale utilise R8 et conserve l’arrondi de la référence CPU.
 Les deux textures représentent 5 octets par pixel en R32F, contre 20 auparavant.
-La prévision réserve 17 octets par pixel pour couvrir le repli.
+La prévision réserve 17 octets par pixel pour couvrir le repli. Le résultat
+du dernier masque calculé reste dans la texture existante. Une modification
+d’opacité ou de densité le réutilise si la zone du masque et les paramètres
+de convolution sont identiques et qu’un autre masque ne l’a pas remplacé.
 
 Les paramètres actualisent directement le snapshot GPU, indépendamment d'un
 worker CPU occupé. Les aperçus CPU auxiliaires du Navigateur/histogramme sont

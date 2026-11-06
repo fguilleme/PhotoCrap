@@ -21,6 +21,7 @@ struct Step {
 };
 struct Job {
     std::vector<Step> steps;
+    QByteArray        outputKey;
 };
 QShader loadShader(const char *name)
 {
@@ -112,6 +113,7 @@ struct SpatialFilterPass::Data {
     std::array<QRhiGraphicsPipeline *, 2>                    pipelines{};
     SpatialFilterPipelines                                  *pool;
     std::vector<Job>                                         jobs;
+    QByteArray                                               renderedKey;
     size_t                                                   preparedJobs = 0;
     bool                                                     secondTargetUsed = false;
     PhotoCrap::Render::StackStatistics                      *statistics;
@@ -233,23 +235,24 @@ void SpatialFilterPass::finishPreparation()
     for (int index = targetsUsed; index < 2; ++index) {
         if (!d->targets[index])
             continue;
+        d->renderedKey.clear();
         d->pipelines[index] = nullptr;
         d->targets[index].release()->deleteLater();
         d->descriptors[index].release()->deleteLater();
         d->textures[index].release()->deleteLater();
     }
 }
-SpatialFilterPass::Run
-SpatialFilterPass::prepare(QRhiTexture                                    *source,
-                           const PhotoCrap::Render::SpatialFilterSettings &settings,
-                           QRhiResourceUpdateBatch *updates, bool uploaded, quint64 sourceId)
+SpatialFilterPass::Run SpatialFilterPass::prepare(
+    QRhiTexture *source, const PhotoCrap::Render::SpatialFilterSettings &settings,
+    QRhiResourceUpdateBatch *updates, bool uploaded, quint64 sourceId, const QByteArray &sourceKey)
 {
     using PhotoCrap::Render::SpatialFilter;
     if (!source)
         return {};
     if (d->preparedJobs == d->jobs.size())
         d->jobs.emplace_back();
-    auto        &steps         = d->jobs[d->preparedJobs].steps;
+    auto &       job           = d->jobs[d->preparedJobs];
+    auto &       steps         = job.steps;
     size_t       preparedSteps = 0;
     QRhiTexture *current = source;
     const auto   append  = [&](int operation, int radius, bool vertical, float a = 0, float b = 0) {
@@ -286,13 +289,19 @@ SpatialFilterPass::prepare(QRhiTexture                                    *sourc
                 return {};
     }
     steps.resize(preparedSteps);
+    job.outputKey = sourceKey.isEmpty() ? QByteArray{} : sourceKey + settings.key();
     return {int(d->preparedJobs++), current};
 }
 quint64 SpatialFilterPass::render(QRhiCommandBuffer *cb, int run)
 {
     if (run < 0 || run >= int(d->jobs.size()))
         return 0;
-    for (const auto &step : d->jobs[run].steps) {
+    const auto &job = d->jobs[run];
+    // Only the most recent job still owns the scratch result. In streamed
+    // mode the source texture may change contents without changing identity.
+    if (!job.outputKey.isEmpty() && job.outputKey == d->renderedKey)
+        return 0;
+    for (const auto &step : job.steps) {
         cb->beginPass(d->targets[step.target].get(), Qt::transparent, {1.f, 0});
         cb->setGraphicsPipeline(d->pipelines[step.target]);
         cb->setViewport(QRhiViewport(0, 0, d->size.width(), d->size.height()));
@@ -302,7 +311,8 @@ quint64 SpatialFilterPass::render(QRhiCommandBuffer *cb, int run)
         cb->draw(4);
         cb->endPass();
     }
-    return d->jobs[run].steps.size();
+    d->renderedKey = job.outputKey;
+    return job.steps.size();
 }
 qint64 SpatialFilterPass::bytes() const
 {

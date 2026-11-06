@@ -647,7 +647,7 @@ public:
                         rhi, region.size(), 8, *draw.vertices, *draw.sampler, draw.spatialPipelines,
                         *counters, SpatialFilterPass::Plane::Mask);
                 const auto prepared = work->masks->prepare(maskSource, layer.maskFilter, updates,
-                                                           true, mask ? mask->id : 0);
+                                                           true, mask ? mask->id : 0, keys.mask);
                 if (!prepared.texture) {
                     ok = false;
                     break;

@@ -42,7 +42,8 @@ public:
     void    resetFrame(bool reuseSteps);
     void    finishPreparation();
     Run     prepare(QRhiTexture *source, const PhotoCrap::Render::SpatialFilterSettings &settings,
-                    QRhiResourceUpdateBatch *updates, bool uploaded = false, quint64 sourceId = 0);
+                    QRhiResourceUpdateBatch *updates, bool uploaded = false, quint64 sourceId = 0,
+                    const QByteArray &sourceKey = {});
     quint64 render(QRhiCommandBuffer *cb, int run);
     qint64  bytes() const;
 

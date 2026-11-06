@@ -2124,7 +2124,10 @@ La prévision compte les différents formats de bords et quatre niveaux conserv�
 Le canevas conserve les estimations tant que les calques et l’ensemble des tuiles
 visibles restent identiques. Le mode partagé a un coût distinct à pleine
 résolution. Le budget disponible est relu à chaque mise à jour pour choisir le
-mode de rendu et déclencher le repli CPU si nécessaire. Les ressources
+mode de rendu et déclencher le repli CPU si nécessaire. Les paramètres et les
+clés des tables sont encodés une fois par révision de la pile. Chaque tuile y
+ajoute les clés des pixels et des masques de sa propre région, afin qu’une
+retouche locale continue d’invalider uniquement les tuiles concernées. Les ressources
 partagées sont comptées une fois dans les statistiques résidentes, tandis que
 l’éviction réserve conservativement leur coût avec les tuiles retenues. Les
 textures horizontales partagées sont libérées avec le dernier niveau qui les

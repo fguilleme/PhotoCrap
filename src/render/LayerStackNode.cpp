@@ -159,6 +159,46 @@ struct Pass {
 struct SourceKeys {
     QByteArray color, mask, tone, blend;
 };
+struct LayerKeys {
+    QByteArray fixed, tone, blend;
+};
+void appendKeyPart(QByteArray &key, const QByteArray &part)
+{
+    const qint64 size = part.size();
+    key.append(reinterpret_cast<const char *>(&size), sizeof(size));
+    key += part;
+}
+LayerKeys layerKeys(const PhotoCrap::Render::StackLayer &layer)
+{
+    LayerKeys result;
+    result.tone  = QByteArray::number(layer.toneTable.cacheKey());
+    result.blend = QByteArray::number(layer.blendTable.cacheKey());
+    auto &key    = result.fixed;
+    key.reserve(384);
+    appendKeyPart(key, result.tone);
+    appendKeyPart(key, result.blend);
+    key.append(reinterpret_cast<const char *>(&layer.opacity), sizeof(layer.opacity));
+    key.append(reinterpret_cast<const char *>(&layer.density), sizeof(layer.density));
+    key.append(char(layer.blend));
+    key.append(char(layer.clipped));
+    key.append(char(layer.reset));
+    key.append(char(layer.tonal));
+    key += layer.spatial.key();
+    key += layer.maskFilter.key();
+    const auto  &tone = layer.tone;
+    const qint32 mode = qint32(tone.mode);
+    key.append(reinterpret_cast<const char *>(&mode), sizeof(mode));
+    for (const auto &vector :
+         {tone.color, tone.families0, tone.families1, tone.matrix[0], tone.matrix[1],
+          tone.matrix[2], tone.selective[0], tone.selective[1], tone.selective[2],
+          tone.selective[3], tone.selective[4], tone.selective[5], tone.selective[6],
+          tone.selective[7], tone.selective[8]})
+        for (int channel = 0; channel < 4; ++channel) {
+            const float value = vector[channel];
+            key.append(reinterpret_cast<const char *>(&value), sizeof(value));
+        }
+    return result;
+}
 // QQuickWindow::createTextureFromRhiTexture transfers ownership. These ping-pong
 // targets instead remain owned by the tile, including when the final parity changes.
 class BorrowedTexture final : public QSGTexture
@@ -276,6 +316,7 @@ public:
     QSize                                      colorSize{1, 1}, maskSize{1, 1};
     QRectF                                     geometry;
     PhotoCrap::Render::LayerStack              stack;
+    QVector<LayerKeys>                         signatures;
     QByteArray                                 renderedKey;
     QList<QByteArray>                          pendingSharedInputs;
     quint64                                    snapshotRevision = 0, renderedRevision = 0;
@@ -327,10 +368,11 @@ public:
         updateBytes();
         return image;
     }
-    void setStack(const PhotoCrap::Render::LayerStack &value, quint64 revision,
-                  const QRect &content, const QRectF &rect)
+    void setStack(const PhotoCrap::Render::LayerStack &value, const QVector<LayerKeys> &keys,
+                  quint64 revision, const QRect &content, const QRectF &rect)
     {
         stack            = value;
+        signatures       = keys;
         snapshotRevision = revision;
         displayLevel     = stack.displayLevel;
         if (pyramidDocument != stack.size) {
@@ -523,7 +565,8 @@ public:
     {
         if (failed || stack.layers.isEmpty())
             return;
-        const auto layers = std::move(stack.layers);
+        const auto layers          = std::move(stack.layers);
+        const auto layerSignatures = std::move(signatures);
         const auto reduce = [&](QRhiCommandBuffer *cb) {
             if (pyramid && displayLevel > 0)
                 counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
@@ -541,38 +584,17 @@ public:
         QByteArray key;
         QVector<SourceKeys> sourceKeys;
         sourceKeys.reserve(layers.size());
-        for (const auto &layer : layers) {
+        for (qsizetype index = 0; index < layers.size(); ++index) {
+            const auto &layer = layers[index];
+            const auto &signature = layerSignatures[index];
             const SourceKeys keys{
                 layer.needsColorInput() ? layer.image.regionKey(region) : QByteArray{},
                 layer.needsMaskInput() ? layer.mask.regionKey(region) : QByteArray{},
-                QByteArray::number(layer.toneTable.cacheKey()),
-                QByteArray::number(layer.blendTable.cacheKey())};
-            for (const auto *part : {&keys.color, &keys.mask, &keys.tone, &keys.blend}) {
-                const qint64 size = part->size();
-                key.append(reinterpret_cast<const char *>(&size), sizeof(size));
-                key += *part;
-            }
+                signature.tone, signature.blend};
+            appendKeyPart(key, keys.color);
+            appendKeyPart(key, keys.mask);
+            key += signature.fixed;
             sourceKeys.append(keys);
-            key.append(reinterpret_cast<const char *>(&layer.opacity), sizeof(layer.opacity));
-            key.append(reinterpret_cast<const char *>(&layer.density), sizeof(layer.density));
-            key.append(char(layer.blend));
-            key.append(char(layer.clipped));
-            key.append(char(layer.reset));
-            key.append(char(layer.tonal));
-            key += layer.spatial.key();
-            key += layer.maskFilter.key();
-            const auto  &tone = layer.tone;
-            const qint32 mode = qint32(tone.mode);
-            key.append(reinterpret_cast<const char *>(&mode), sizeof(mode));
-            for (const auto &vector :
-                 {tone.color, tone.families0, tone.families1, tone.matrix[0], tone.matrix[1],
-                  tone.matrix[2], tone.selective[0], tone.selective[1], tone.selective[2],
-                  tone.selective[3], tone.selective[4], tone.selective[5], tone.selective[6],
-                  tone.selective[7], tone.selective[8]})
-                for (int channel = 0; channel < 4; ++channel) {
-                    const float value = vector[channel];
-                    key.append(reinterpret_cast<const char *>(&value), sizeof(value));
-                }
         }
         key += QByteArray::number(stack.bits);
         if (key == renderedKey && reuseOutput()) {
@@ -876,6 +898,8 @@ struct LayerStackNode::Data {
     QHash<quint64, Tile *>                      tiles;
     QHash<quint64, quint64>                     lastUse;
     quint64                                     clock     = 0;
+    std::optional<quint64>                       signatureRevision;
+    QVector<LayerKeys>                          signatures;
     int                                         bits      = 0;
     bool                                        streaming = false, sharing = false;
     QSize                                       document;
@@ -951,6 +975,13 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
         d->streaming = stack.streamInputs;
         d->sharing   = stack.shareScratch;
     }
+    if (!tiles.isEmpty() && d->signatureRevision != snapshotRevision) {
+        d->signatures.clear();
+        d->signatures.reserve(stack.layers.size());
+        for (const auto &layer : stack.layers)
+            d->signatures.append(layerKeys(layer));
+        d->signatureRevision = snapshotRevision;
+    }
     if (!d->reductions) {
         const auto counters = d->counters;
         d->reductions =
@@ -1024,7 +1055,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
                 if (!tile->image->parent())
                     appendChildNode(tile->image);
             }
-            tile->setStack(stack, snapshotRevision, content, item);
+            tile->setStack(stack, d->signatures, snapshotRevision, content, item);
             used.insert(key);
             d->lastUse.insert(key, d->clock);
         }
@@ -1047,6 +1078,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
         } else {
             if (!used.contains(it.key())) {
                 tile->stack.layers.clear();
+                tile->signatures.clear();
                 if (tile->parent())
                     removeChildNode(tile);
                 if (tile->image->parent())

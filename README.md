@@ -4,7 +4,7 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Le code source correspond à **v0.17.1**. Il inclut
+Le code source correspond à **v0.17.2**. Il inclut
 le correctif de composition 16 bits et les ajustements de tests qui suivent
 la tentative de publication de v0.17.
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)

@@ -1,19 +1,21 @@
 # Roadmap PhotoCrap
 
-État au **6 novembre 2026**. **v0.17.1** regroupe les changements de **v0.17**
+État au **6 novembre 2026**. **v0.17.2** regroupe les changements de **v0.17**
 et les correctifs de composition et de tests préparés après son passage en CI.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-## Correctifs de publication de v0.17.1
+## Correctifs de publication de v0.17.2
 
 - [x] Stabiliser les conversions alpha 16 bits lors du mélange. Vérifier les
   comparaisons entre composition régionale et intégrale.
 - [x] Synchroniser les assertions de survol du lasso polygonal et du recadrage
   avec les événements et les images produites par QML.
-- [ ] Valider les builds, tests et paquets du tag v0.17.1 sur les trois plateformes.
+- [x] Vérifier les quatre empreintes raster variables à partir des deux jeux de
+  références x86-64 observés en CI.
+- [ ] Valider les builds, tests et paquets du tag v0.17.2 sur les trois plateformes.
   [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
 ## Optimisations du 4 novembre 2026 — non publiées

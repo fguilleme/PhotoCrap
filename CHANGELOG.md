@@ -4,7 +4,17 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.17.1
+## v0.17.2
+
+- Vérifier les quatre empreintes raster qui varient entre runners x86-64 à
+  l’aide des deux références exactes observées. Les tests d’équivalence entre
+  composition régionale et intégrale continuent de comparer chaque pixel.
+
+## v0.17.1 — publication ignorée
+
+Le workflow a validé Ubuntu et macOS. Le runner Windows a validé l’équivalence
+de composition et signalé quatre empreintes raster différentes du premier
+runner Windows. [Workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/42130216592)
 
 - Stabiliser les arrondis de conversion alpha dans les modes de fusion 16 bits
   pour obtenir les mêmes pixels en composition régionale et intégrale.

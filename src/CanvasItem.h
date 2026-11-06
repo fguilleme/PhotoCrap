@@ -7,6 +7,7 @@
 #include <QPainterPath>
 #include <QPointer>
 #include <QQuickItem>
+#include <array>
 #ifdef PHOTOCRAP_TESTING
 #include <atomic>
 #endif
@@ -92,6 +93,10 @@ public:
     quint64 stackSnapshotPreparations() const
     {
         return m_stackSnapshotRevision;
+    }
+    quint64 stackBudgetEstimates() const
+    {
+        return m_stackBudgetEstimates;
     }
     bool gpuStackActive() const
     {
@@ -212,11 +217,18 @@ private:
     bool   m_gpuStackEnabled = false, m_gpuStackRejected = false;
     bool   m_stackSnapshotPrepared = false;
     quint64 m_stackSnapshotRevision = 0;
+    struct StackBudgetCache {
+        quint64 revision = 0;
+        QRect   tiles;
+        // Retained inputs, streamed inputs, shared scratch at reduced/native size.
+        std::array<qint64, 4> bytes{-1, -1, -1, -1};
+    } m_stackBudget;
     PhotoCrap::Render::LayerStack                       m_stackSnapshot;
     PhotoCrap::Render::LayerStack                       m_stack;
     std::shared_ptr<PhotoCrap::Render::StackStatistics> m_stackStatistics =
         std::make_shared<PhotoCrap::Render::StackStatistics>();
 #ifdef PHOTOCRAP_TESTING
+    quint64           m_stackBudgetEstimates = 0;
     std::atomic<bool> m_gpuStackActive{false};
 #endif
     PhotoCrap::Filters::ToneMappingSettings                    m_toneSettings;

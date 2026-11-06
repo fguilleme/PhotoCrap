@@ -2111,8 +2111,11 @@ Chaque sortie réduite reste réutilisable tant que le contenu de la tuile est
 courant. Pour un niveau absent ou périmé, la tuile reconstruit d’abord sa
 composition dans les textures partagées.
 
-La prévision compte les différents formats de bords et quatre niveaux conservés ;
-le repli CPU reste actif si elle ne tient pas dans le budget. Les ressources
+La prévision compte les différents formats de bords et quatre niveaux conservés.
+Le canevas conserve les estimations tant que les calques et l’ensemble des tuiles
+visibles restent identiques. Le mode partagé a un coût distinct à pleine
+résolution. Le budget disponible est relu à chaque mise à jour pour choisir le
+mode de rendu et déclencher le repli CPU si nécessaire. Les ressources
 partagées sont comptées une fois dans les statistiques résidentes, tandis que
 l’éviction réserve conservativement leur coût avec les tuiles retenues. Les
 textures horizontales partagées sont libérées avec le dernier niveau qui les

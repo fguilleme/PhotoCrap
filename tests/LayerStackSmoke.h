@@ -98,21 +98,39 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                          "unchanged stacks reuse source textures and completed intermediates"))
                 return false;
             const auto snapshot = canvas.stackSnapshotPreparations();
+            const auto estimates = canvas.stackBudgetEstimates();
             canvas.setSize({600, 129});
             frame();
             canvas.setSize({600, 128});
             frame();
             if (!require(canvas.stackSnapshotPreparations() == snapshot,
-                         "geometry-only frames reuse the stack snapshot"))
+                         "geometry-only frames reuse the stack snapshot") ||
+                !require(canvas.stackBudgetEstimates() == estimates,
+                         "resizing within the same tile footprint reuses the memory forecast"))
                 return false;
             if (!require(canvas.stackTextureUploads() == uploads && canvas.stackPasses() == passes,
                          "geometry-only frames reuse the rendered GPU tiles"))
                 return false;
+            const auto viewport = canvas.viewportRect();
+            canvas.setViewportRect({10, 0, 160, 128});
+            frame();
+            const auto firstTileEstimates = canvas.stackBudgetEstimates();
+            canvas.setViewportRect({20, 0, 160, 128});
+            frame();
+            if (!require(firstTileEstimates > estimates &&
+                             canvas.stackBudgetEstimates() == firstTileEstimates,
+                         "panning reforecasts only when the visible tiles change"))
+                return false;
+            canvas.setViewportRect(viewport);
+            frame();
+            const auto beforeEdit = canvas.stackBudgetEstimates();
             document.setLayerBlend(document.activeLayer(), 0);
             frame();
             frame();
             if (!require(canvas.stackSnapshotPreparations() > snapshot,
-                         "layer edits refresh the stack snapshot"))
+                         "layer edits refresh the stack snapshot") ||
+                !require(canvas.stackBudgetEstimates() > beforeEdit,
+                         "layer edits invalidate the memory forecast"))
                 return false;
             const auto before = canvas.stackTextureUploads();
             const auto beforePixel =

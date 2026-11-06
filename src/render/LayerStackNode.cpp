@@ -19,7 +19,7 @@
 
 namespace
 {
-constexpr int tileSize = 512;
+using PhotoCrap::Render::StackTileSize;
 constexpr float stackQuad[] = {-1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0};
 QShader       shader(const char *name)
 {
@@ -918,7 +918,7 @@ bool LayerStackNode::supported(QQuickWindow *window, int bits, bool spatial)
         return false;
 #endif
     }
-    return rhi && rhi->resourceLimit(QRhi::TextureSizeMax) >= tileSize + 2 &&
+    return rhi && rhi->resourceLimit(QRhi::TextureSizeMax) >= StackTileSize + 2 &&
            rhi->isFeatureSupported(QRhi::TexelFetch) &&
            rhi->resourceLimit(QRhi::MaxColorAttachments) >= 2 &&
            rhi->isTextureFormatSupported(bits == 16 || spatial ? QRhiTexture::RGBA32F
@@ -931,10 +931,10 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
 {
     const double sx = item.width() / stack.size.width(), sy = item.height() / stack.size.height();
     const QRect  bounds(QPoint{}, stack.size);
-    const QRect  area =
+    const QRect  tiles = PhotoCrap::Render::stackVisibleTiles(
+        stack.size,
         QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
-            .toAlignedRect()
-            .intersected(bounds);
+            .toAlignedRect());
     if (d->document != stack.size || d->bits != stack.bits || d->streaming != stack.streamInputs ||
         d->sharing != stack.shareScratch) {
         for (auto *tile : std::as_const(d->tiles)) {
@@ -975,11 +975,12 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
         else
             ++it;
     ++d->clock;
-    for (int y = area.top() / tileSize; !area.isEmpty() && y <= area.bottom() / tileSize; ++y)
-        for (int x = area.left() / tileSize; x <= area.right() / tileSize; ++x) {
+    for (int y = tiles.top(); y <= tiles.bottom(); ++y)
+        for (int x = tiles.left(); x <= tiles.right(); ++x) {
             const quint64 key = (quint64(quint32(y)) << 32) | quint32(x);
             const QRect   content =
-                QRect(x * tileSize, y * tileSize, tileSize, tileSize).intersected(bounds);
+                QRect(x * StackTileSize, y * StackTileSize, StackTileSize, StackTileSize)
+                    .intersected(bounds);
             const QRect padded =
                 content
                     .adjusted(-stack.halo - 33, -stack.halo - 33, stack.halo + 33, stack.halo + 33)

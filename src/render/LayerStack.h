@@ -56,13 +56,23 @@ inline QByteArray compactStackKey(const PixelPlane &plane)
     return plane.regionKey(QRect(0, 0, 1, 1));
 }
 
+inline constexpr int StackTileSize = 512;
+
+inline QRect stackVisibleTiles(const QSize &size, const QRect &visible)
+{
+    const QRect area = visible.intersected(QRect(QPoint{}, size));
+    if (area.isEmpty())
+        return {};
+    return QRect(QPoint(area.left() / StackTileSize, area.top() / StackTileSize),
+                 QPoint(area.right() / StackTileSize, area.bottom() / StackTileSize));
+}
+
 // Conservative peak for simultaneously visible tiles. Refuse a GPU stack
 // before allocation when even its pinned working set would exceed the budget.
 inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
 {
-    constexpr int tile = 512;
-    const QRect   area = visible.intersected(QRect(QPoint{}, stack.size));
-    if (area.isEmpty())
+    const QRect tiles = stackVisibleTiles(stack.size, visible);
+    if (tiles.isEmpty())
         return 0;
     const int colorBytes    = stack.bits == 16 ? 16 : 4;
     qint64    bytesPerPixel = (colorBytes + 1) * 2;
@@ -134,11 +144,11 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
 
     qint64 bytes = 64 + sharedInputBytes + sharedColors.size() * colorBytes + sharedMasks.size();
     QSet<QSize> worksets, reductions;
-    for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
-        for (int x = area.left() / tile; x <= area.right() / tile; ++x) {
+    for (int y = tiles.top(); y <= tiles.bottom(); ++y)
+        for (int x = tiles.left(); x <= tiles.right(); ++x) {
             const int    padding = stack.halo + 33;
-            const QRect  region  = QRect(x * tile - padding, y * tile - padding, tile + 2 * padding,
-                                         tile + 2 * padding)
+            const QRect  region  = QRect(x * StackTileSize - padding, y * StackTileSize - padding,
+                                         StackTileSize + 2 * padding, StackTileSize + 2 * padding)
                                        .intersected(QRect(QPoint{}, stack.size));
             const QSize  size    = region.size();
             const qint64 pixels  = qint64(size.width()) * size.height();

@@ -338,7 +338,7 @@ Les proxies et le rendu asynchrone des réglages sont déjà disponibles. Il res
 - [x] Masques 8 bits : table de couverture par densité et multiplication entière exacte des canaux prémultipliés, avec conservation des arrondis du calcul flottant.
 - [x] Composition : rejet anticipé des calques à opacité nulle et des calques écrêtés sans base visible ; les effets à opacité nulle ne forcent plus une recomposition intégrale ni une marge de filtre.
 - [x] Masques sans effet : densité nulle sans copie des pixels, et calques masqués par un masque compact entièrement noir écartés avant les filtres et les marges de composition.
-- [x] Estimation du budget graphique : coût par calque agrégé une fois par mode de stockage, puis appliqué aux tuiles visibles. Les plans natifs uniformes utilisent un seul texel pour leurs entrées couleur ou masque.
+- [x] Estimation du budget graphique : coût par calque agrégé par mode de stockage, puis appliqué aux tuiles visibles. La prévision est conservée tant que le contenu et les tuiles visibles restent identiques. Les plans natifs uniformes utilisent un seul texel pour leurs entrées couleur ou masque.
 - [x] Paires de fréquences intactes affichées par la pile GPU à partir d’un seul plan source, avec repli CPU dès qu’un réglage de la paire change la composition.
 - [x] Visibilité des fonds et des masques uniformes lue sur leur pixel natif. Les calques écrêtés sans base visible sont écartés avant la validation GPU et les piles vides gardent leur sortie transparente.
 - [x] Réglages analytiques de la pile GPU sans texture de table factice. Buffers de paramètres réutilisés entre retouches et shaders précompilés désérialisés une fois pour la pile, les filtres spatiaux et la pyramide d’affichage.

@@ -296,17 +296,31 @@ void CanvasItem::updatePolish()
                                       visible.width() * m_stack.size.width() / width(),
                                       visible.height() * m_stack.size.height() / height())
                                    .toAlignedRect();
+        const QRect tiles = PhotoCrap::Render::stackVisibleTiles(m_stack.size, native);
+        if (m_stackBudget.revision != m_stackSnapshotRevision || m_stackBudget.tiles != tiles)
+            m_stackBudget = {m_stackSnapshotRevision, tiles};
+
+        const auto estimate = [&](size_t mode) {
+            auto &bytes = m_stackBudget.bytes[mode];
+            if (bytes < 0) {
+                bytes = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
+#ifdef PHOTOCRAP_TESTING
+                ++m_stackBudgetEstimates;
+#endif
+            }
+            return bytes;
+        };
         const qint64 available = m_graphicsClient->available();
-        qint64       working   = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
+        qint64       working   = estimate(0);
         if (working > available || qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_STREAMING")) {
             m_stack.streamInputs = true;
-            working              = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
+            working              = estimate(1);
         }
         if (working > available ||
             qEnvironmentVariableIsSet("PHOTOCRAP_TEST_STACK_SHARED_SCRATCH")) {
             m_stack.streamInputs = true;
             m_stack.shareScratch = true;
-            working              = PhotoCrap::Render::stackWorkingBytes(m_stack, native);
+            working              = estimate(m_stack.displayLevel == 0 ? 3 : 2);
         }
         if (m_stack.displayLevel > 4 || working > available)
             m_stack = {};

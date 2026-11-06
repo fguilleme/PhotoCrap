@@ -96,6 +96,11 @@ QRhiGraphicsPipeline *SpatialFilterPipelines::get(QRhiTextureRenderTarget       
 }
 
 struct SpatialFilterPass::Data {
+    struct TargetFormat {
+        QRhiTexture::Format format;
+        int                 bytesPerTexel;
+    };
+    std::array<TargetFormat, 2>                              formats;
     QRhi                                                    *rhi;
     QSize                                                    size;
     int                                                      bits;
@@ -116,8 +121,7 @@ struct SpatialFilterPass::Data {
         if (targets[index])
             return true;
         auto texture = std::unique_ptr<QRhiTexture>(
-            rhi->newTexture(bits == 16 || index == 0 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
-                            size, 1, QRhiTexture::RenderTarget));
+            rhi->newTexture(formats[index].format, size, 1, QRhiTexture::RenderTarget));
         if (!texture->create())
             return false;
         std::unique_ptr<QRhiRenderPassDescriptor> descriptor;
@@ -184,7 +188,7 @@ struct SpatialFilterPass::Data {
 };
 SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits, QRhiBuffer &vertices,
                                      QRhiSampler &sampler, SpatialFilterPipelines &pipelines,
-                                     PhotoCrap::Render::StackStatistics &statistics)
+                                     PhotoCrap::Render::StackStatistics &statistics, Plane plane)
     : d(std::make_unique<Data>())
 {
     d->rhi  = rhi;
@@ -194,6 +198,16 @@ SpatialFilterPass::SpatialFilterPass(QRhi *rhi, const QSize &size, int bits, QRh
     d->vertices   = &vertices;
     d->sampler    = &sampler;
     d->pool       = &pipelines;
+    d->formats[0] = {QRhiTexture::RGBA32F, 16};
+    d->formats[1] = bits == 16 ? Data::TargetFormat{QRhiTexture::RGBA32F, 16}
+                               : Data::TargetFormat{QRhiTexture::RGBA8, 4};
+    if (plane == Plane::Mask) {
+        // The horizontal pass can contain unnormalized sums. Keep full
+        // floating-point precision, but the mask consumes only red.
+        if (rhi->isTextureFormatSupported(QRhiTexture::R32F, QRhiTexture::RenderTarget))
+            d->formats[0] = {QRhiTexture::R32F, 4};
+        d->formats[1] = {QRhiTexture::R8, 1};
+    }
 }
 SpatialFilterPass::~SpatialFilterPass()
 {
@@ -293,8 +307,10 @@ quint64 SpatialFilterPass::render(QRhiCommandBuffer *cb, int run)
 qint64 SpatialFilterPass::bytes() const
 {
     const qint64 pixels = qint64(d->size.width()) * d->size.height();
-    qint64       result =
-        (d->targets[0] ? pixels * 16 : 0) + (d->targets[1] ? pixels * (d->bits == 16 ? 16 : 4) : 0);
+    qint64       result = 0;
+    for (size_t index = 0; index < d->targets.size(); ++index)
+        if (d->targets[index])
+            result += pixels * d->formats[index].bytesPerTexel;
     for (const auto &job : d->jobs)
         result += qint64(job.steps.size()) * 96;
     return result;

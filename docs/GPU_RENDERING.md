@@ -85,7 +85,11 @@ utilise une seule cible. La seconde est créée à la première passe qui la dem
 et libérée lorsque les filtres actifs se contentent de la première. La dernière
 cible est libérée quand aucun filtre spatial ou aucun masque progressif, selon
 l’espace de travail concerné, n’en a besoin. Le budget tient compte des cibles
-et des passes actives.
+et des passes actives. Les masques progressifs n’utilisent que le canal rouge.
+Leur passe horizontale choisit R32F lorsque le backend le permet, avec RGBA32F
+en repli. La verticale utilise R8 et conserve l’arrondi de la référence CPU.
+Les deux textures représentent 5 octets par pixel en R32F, contre 20 auparavant.
+La prévision réserve 17 octets par pixel pour couvrir le repli.
 
 Les paramètres actualisent directement le snapshot GPU, indépendamment d'un
 worker CPU occupé. Les aperçus CPU auxiliaires du Navigateur/histogramme sont

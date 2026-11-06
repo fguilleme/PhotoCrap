@@ -645,7 +645,7 @@ public:
                 if (!work->masks)
                     work->masks = std::make_unique<SpatialFilterPass>(
                         rhi, region.size(), 8, *draw.vertices, *draw.sampler, draw.spatialPipelines,
-                        *counters);
+                        *counters, SpatialFilterPass::Plane::Mask);
                 const auto prepared = work->masks->prepare(maskSource, layer.maskFilter, updates,
                                                            true, mask ? mask->id : 0);
                 if (!prepared.texture) {

@@ -30,13 +30,14 @@ private:
 class SpatialFilterPass
 {
 public:
+    enum class Plane { Color, Mask };
     struct Run {
         int          index   = -1;
         QRhiTexture *texture = nullptr;
     };
     SpatialFilterPass(QRhi *rhi, const QSize &size, int bits, QRhiBuffer &vertices,
                       QRhiSampler &sampler, SpatialFilterPipelines &pipelines,
-                      PhotoCrap::Render::StackStatistics &statistics);
+                      PhotoCrap::Render::StackStatistics &statistics, Plane plane = Plane::Color);
     ~SpatialFilterPass();
     void    resetFrame(bool reuseSteps);
     void    finishPreparation();

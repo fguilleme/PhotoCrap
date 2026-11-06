@@ -227,6 +227,39 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
             if (!require(canvas.gpuStackActive() && canvas.stackTextureBytes() == motionBytes,
                          "undo recreates the spatial target and its pass"))
                 return false;
+            document.removeLayer();
+            document.addLayerMask();
+            document.setEditingMask(true);
+            document.setTool("pencil");
+            document.setBrushSize(24);
+            document.setColor(Qt::black);
+            document.beginStroke(48, 48);
+            document.endStroke();
+            document.setEditingMask(false);
+            frame();
+            frame();
+            const auto unfeathered = canvas.stackTextureBytes();
+            document.beginLayerPreview();
+            document.previewLayerParameter("_maskFeather", 7);
+            document.finishLayerPreview("Feather");
+            frame();
+            frame();
+            const auto        feathered      = canvas.stackTextureBytes();
+            constexpr quint64 pixels         = 96 * 96;
+            const bool        compactMask    = feathered == unfeathered + 5 * pixels + 2 * 96;
+            const bool        wideHorizontal = feathered == unfeathered + 17 * pixels + 2 * 96;
+            if (!require(canvas.gpuStackActive() &&
+                             (compactMask ||
+                              (wideHorizontal && window->rendererInterface()->graphicsApi() !=
+                                                     QSGRendererInterface::Metal)),
+                         "feathering uses single-channel targets with an optional wide first pass"))
+                return false;
+            document.undo();
+            frame();
+            frame();
+            if (!require(canvas.gpuStackActive() && canvas.stackTextureBytes() == unfeathered,
+                         "clearing feathering releases both mask targets"))
+                return false;
             canvas.setSize({1056, 96});
         }
         QImage source(1056, 96, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);

@@ -140,7 +140,8 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     if (spatialTargets)
         bytesPerPixel += 16 + (spatialTargets - 1) * colorBytes;
     if (maskTargets)
-        bytesPerPixel += 16 + (maskTargets - 1) * 4;
+        // The horizontal target may fall back to RGBA32F on the render thread.
+        bytesPerPixel += 16 + (maskTargets - 1);
 
     qint64 bytes = 64 + sharedInputBytes + sharedColors.size() * colorBytes + sharedMasks.size();
     QSet<QSize> worksets, reductions;

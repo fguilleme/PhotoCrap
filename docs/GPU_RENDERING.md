@@ -108,6 +108,12 @@ chaînes d'écrêtage consécutives sont regroupées.
 
 ## Composition tuilée de la pile — 3 novembre 2026
 
+Les piles sans calque écrêté utilisent une variante du shader à une seule
+sortie couleur. Les deux textures R8 de couverture ne sont allouées que quand
+un calque visible en a besoin. Le coût baisse de deux octets par pixel de
+l’espace de travail pour les piles sans écrêtage. L’ajout ou le retrait du dernier
+écrêtage recrée les cibles compatibles et recalcule la composition.
+
 `LayerStackNode` utilise QRhi et des passes hors écran par tuile de 512 px. Les
 calques de pixels, le texte et Couleur unie sont composés avec leurs masques,
 opacités et écrêtages, en respectant les groupes masqués. Les extensions du

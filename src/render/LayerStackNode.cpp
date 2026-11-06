@@ -29,26 +29,30 @@ QShader       shader(const char *name)
 }
 using Counters = PhotoCrap::Render::StackStatistics;
 void setStackBindings(QRhiShaderResourceBindings &bindings, QRhiBuffer *uniform,
-                      QRhiSampler *sampler, const std::array<QRhiTexture *, 6> &textures)
+                      QRhiSampler *sampler, const std::array<QRhiTexture *, 6> &textures,
+                      bool clipping)
 {
     const auto                               stage = QRhiShaderResourceBinding::FragmentStage;
     std::array<QRhiShaderResourceBinding, 7> entries;
     entries[0] = QRhiShaderResourceBinding::uniformBuffer(
         0, stage | QRhiShaderResourceBinding::VertexStage, uniform);
+    int count = 1;
     for (int i = 0; i < int(textures.size()); ++i)
-        entries[i + 1] =
-            QRhiShaderResourceBinding::sampledTexture(i + 1, stage, textures[i], sampler);
-    bindings.setBindings(entries.cbegin(), entries.cend());
+        if (i != 3 || clipping)
+            entries[count++] =
+                QRhiShaderResourceBinding::sampledTexture(i + 1, stage, textures[i], sampler);
+    bindings.setBindings(entries.cbegin(), entries.cbegin() + count);
 }
 struct Input;
 struct DrawResources {
     struct Pipeline {
+        bool                                      clipping = false;
         std::unique_ptr<QRhiRenderPassDescriptor> descriptor;
         std::unique_ptr<QRhiGraphicsPipeline>     pipeline;
     };
     std::unique_ptr<QRhiSampler> sampler;
     std::unique_ptr<QRhiBuffer>  vertices;
-    std::unique_ptr<QRhiShaderResourceBindings> pipelineLayout;
+    std::array<std::unique_ptr<QRhiShaderResourceBindings>, 2> pipelineLayouts;
     std::vector<Pipeline>                       pipelines;
     SpatialFilterPipelines                      spatialPipelines;
     DisplayPyramidPipelines                     pyramidPipelines;
@@ -94,30 +98,35 @@ struct DrawResources {
         counters->bytes.fetch_add(sizeof(stackQuad));
         return true;
     }
-    QRhiGraphicsPipeline *pipelineFor(QRhi *rhi, QRhiTextureRenderTarget *target)
+    QRhiGraphicsPipeline *pipelineFor(QRhi *rhi, QRhiTextureRenderTarget *target, bool clipping)
     {
         for (const auto &item : pipelines)
-            if (item.descriptor->isCompatible(target->renderPassDescriptor()))
+            if (item.clipping == clipping &&
+                item.descriptor->isCompatible(target->renderPassDescriptor()))
                 return item.pipeline.get();
+        auto &pipelineLayout = pipelineLayouts[clipping];
         if (!pipelineLayout) {
             auto layout =
                 std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
             // Bind only the layout here. Each draw supplies the actual tile
             // textures and its own uniform buffer through setShaderResources.
-            setStackBindings(*layout, nullptr, nullptr, {});
+            setStackBindings(*layout, nullptr, nullptr, {}, clipping);
             if (!layout->create())
                 return nullptr;
             pipelineLayout = std::move(layout);
         }
         Pipeline item;
+        item.clipping = clipping;
         item.descriptor.reset(target->newCompatibleRenderPassDescriptor());
         if (!item.descriptor)
             return nullptr;
         item.pipeline.reset(rhi->newGraphicsPipeline());
         static const QShader vertexShader   = shader("stack_tonal.vert");
-        static const QShader fragmentShader = shader("stack.frag");
+        static const QShader clippedShader  = shader("stack.frag");
+        static const QShader colorShader    = shader("stack_color_only.frag");
         item.pipeline->setShaderStages(
-            {{QRhiShaderStage::Vertex, vertexShader}, {QRhiShaderStage::Fragment, fragmentShader}});
+            {{QRhiShaderStage::Vertex, vertexShader},
+             {QRhiShaderStage::Fragment, clipping ? clippedShader : colorShader}});
         QRhiVertexInputLayout layout;
         layout.setBindings({QRhiVertexInputBinding(4 * sizeof(float))});
         layout.setAttributes(
@@ -125,8 +134,9 @@ struct DrawResources {
              QRhiVertexInputAttribute(0, 1, QRhiVertexInputAttribute::Float2, 2 * sizeof(float))});
         item.pipeline->setVertexInputLayout(layout);
         item.pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
-        item.pipeline->setTargetBlends(
-            {QRhiGraphicsPipeline::TargetBlend{}, QRhiGraphicsPipeline::TargetBlend{}});
+        if (clipping)
+            item.pipeline->setTargetBlends(
+                {QRhiGraphicsPipeline::TargetBlend{}, QRhiGraphicsPipeline::TargetBlend{}});
         item.pipeline->setShaderResourceBindings(pipelineLayout.get());
         item.pipeline->setRenderPassDescriptor(item.descriptor.get());
         if (!item.pipeline->create())
@@ -242,8 +252,9 @@ struct Workspace {
     std::unique_ptr<QRhiRenderPassDescriptor>               descriptor;
     std::unique_ptr<SpatialFilterPass>                      spatial, masks;
     QHash<QByteArray, std::shared_ptr<Input>>               inputs;
-    Workspace(QRhi *device, QSize extent, int depth, Counters *stats)
-        : rhi(device), size(extent), bits(depth), counters(stats)
+    bool                                                    clipping;
+    Workspace(QRhi *device, QSize extent, int depth, Counters *stats, bool usesClipping)
+        : rhi(device), size(extent), bits(depth), counters(stats), clipping(usesClipping)
     {
     }
     ~Workspace()
@@ -264,12 +275,15 @@ struct Workspace {
         for (int i = 0; i < 2; ++i) {
             colors[i].reset(rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
                                             size, 1, QRhiTexture::RenderTarget));
-            clips[i].reset(rhi->newTexture(QRhiTexture::R8, size, 1, QRhiTexture::RenderTarget));
-            if (!colors[i]->create() || !clips[i]->create())
+            if (!colors[i]->create())
                 return false;
-            QRhiTextureRenderTargetDescription description;
-            description.setColorAttachments(
-                {QRhiColorAttachment(colors[i].get()), QRhiColorAttachment(clips[i].get())});
+            if (clipping) {
+                clips[i].reset(
+                    rhi->newTexture(QRhiTexture::R8, size, 1, QRhiTexture::RenderTarget));
+                if (!clips[i]->create())
+                    return false;
+            }
+            const auto description = targetDescription(colors[i].get(), i);
             targets[i].reset(rhi->newTextureRenderTarget(description));
             if (!descriptor)
                 descriptor.reset(targets[i]->newCompatibleRenderPassDescriptor());
@@ -280,9 +294,18 @@ struct Workspace {
         updateBytes();
         return true;
     }
+    QRhiTextureRenderTargetDescription targetDescription(QRhiTexture *color, int index) const
+    {
+        const QRhiColorAttachment          attachment(color);
+        QRhiTextureRenderTargetDescription description(attachment);
+        if (clipping)
+            description.setColorAttachments({attachment, QRhiColorAttachment(clips[index].get())});
+        return description;
+    }
     qint64 bytes() const
     {
-        qint64 result = qint64(size.width()) * size.height() * (bits == 16 ? 34 : 10);
+        qint64 result =
+            qint64(size.width()) * size.height() * ((bits == 16 ? 16 : 4) + int(clipping)) * 2;
         for (const auto &input : inputs)
             if (!input->sharedOwner)
                 result += input->bytes;
@@ -337,7 +360,7 @@ public:
     quint64                                    generation   = 0;
     QRhiTexture                               *displayed    = nullptr;
     Tile(QQuickWindow *owner, DrawResources &drawResources, const QRect &bounds, int depth,
-         bool stream, Counters *stats, std::shared_ptr<Workspace> shared,
+         bool stream, bool clipping, Counters *stats, std::shared_ptr<Workspace> shared,
          std::shared_ptr<DisplayPyramidScratchPool> reductions, std::function<void()> rejected)
         : window(owner), rhi(owner->rhi()), draw(drawResources), counters(stats),
           failure(std::move(rejected)), region(bounds), bits(depth), streaming(stream)
@@ -345,7 +368,7 @@ public:
         reductionPool = std::move(reductions);
         sharedWork    = bool(shared);
         work          = shared ? std::move(shared)
-                               : std::make_shared<Workspace>(rhi, region.size(), bits, counters);
+                               : std::make_shared<Workspace>(rhi, region.size(), bits, counters, clipping);
     }
     ~Tile() override
     {
@@ -414,12 +437,10 @@ public:
                     return;
                 }
             }
-            if (!retainedTarget || retainedCoverage != last) {
-                // The last pass owns its color output. Coverage remains in the
-                // shared scratch slot opposite the coverage being sampled.
-                QRhiTextureRenderTargetDescription description;
-                description.setColorAttachments({QRhiColorAttachment(retained.get()),
-                                                 QRhiColorAttachment(work->clips[last].get())});
+            if (!retainedTarget || (work->clipping && retainedCoverage != last)) {
+                // The last pass owns its color output. If clipping is enabled,
+                // coverage remains in the shared slot opposite its input.
+                const auto description = work->targetDescription(retained.get(), last);
                 retainedTarget.reset(rhi->newTextureRenderTarget(description));
                 retainedTarget->setRenderPassDescriptor(work->descriptor.get());
                 if (!retainedTarget->create()) {
@@ -661,7 +682,7 @@ public:
             // The shader still needs valid bindings for samplers it does not read.
             auto        *backdrop   = work->colors[index % 2].get();
             auto        *coverage   = work->clips[index % 2].get();
-            QRhiTexture *maskSource = mask ? mask->texture.get() : coverage;
+            QRhiTexture *maskSource = mask ? mask->texture.get() : backdrop;
             int          maskRun    = -1;
             if (layer.maskFilter.type != PhotoCrap::Render::SpatialFilter::None) {
                 if (!work->masks)
@@ -767,7 +788,8 @@ public:
             if (!pass.bindings || pass.inputIds != inputIds || pass.textures != textures) {
                 auto bindings =
                     std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
-                setStackBindings(*bindings, pass.uniform.get(), draw.sampler.get(), textures);
+                setStackBindings(*bindings, pass.uniform.get(), draw.sampler.get(), textures,
+                                 work->clipping);
                 if (!bindings->create()) {
                     ok = false;
                     break;
@@ -778,7 +800,8 @@ public:
                 ++counters->bindingCreations;
             }
         }
-        auto *pipeline = ok ? draw.pipelineFor(rhi, work->targets[0].get()) : nullptr;
+        auto *pipeline =
+            ok ? draw.pipelineFor(rhi, work->targets[0].get(), work->clipping) : nullptr;
         if (!pipeline) {
             updateBytes();
             updates->release();
@@ -901,7 +924,7 @@ struct LayerStackNode::Data {
     std::optional<quint64>                       signatureRevision;
     QVector<LayerKeys>                          signatures;
     int                                         bits      = 0;
-    bool                                        streaming = false, sharing = false;
+    bool streaming = false, sharing = false, clipping = false;
     QSize                                       document;
     QHash<QSize, std::weak_ptr<Workspace>>      workspaces;
     std::shared_ptr<DisplayPyramidScratchPool>  reductions;
@@ -959,8 +982,9 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
         stack.size,
         QRectF(visible.x() / sx, visible.y() / sy, visible.width() / sx, visible.height() / sy)
             .toAlignedRect());
+    const bool clipping = PhotoCrap::Render::stackUsesClipping(stack);
     if (d->document != stack.size || d->bits != stack.bits || d->streaming != stack.streamInputs ||
-        d->sharing != stack.shareScratch) {
+        d->sharing != stack.shareScratch || d->clipping != clipping) {
         for (auto *tile : std::as_const(d->tiles)) {
             if (tile->parent())
                 removeChildNode(tile);
@@ -974,6 +998,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
         d->bits      = stack.bits;
         d->streaming = stack.streamInputs;
         d->sharing   = stack.shareScratch;
+        d->clipping  = clipping;
     }
     if (!tiles.isEmpty() && d->signatureRevision != snapshotRevision) {
         d->signatures.clear();
@@ -1024,7 +1049,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
                 workspace          = d->workspaces.value(extent).lock();
                 if (!workspace) {
                     workspace = std::make_shared<Workspace>(d->window->rhi(), extent, stack.bits,
-                                                            d->counters.get());
+                                                            d->counters.get(), clipping);
                     d->workspaces.insert(extent, workspace);
                 }
             }
@@ -1041,7 +1066,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
             }
             if (!tile) {
                 tile = new Tile(d->window, d->draw, padded, stack.bits, stack.streamInputs,
-                                d->counters.get(), workspace, d->reductions, d->failure);
+                                clipping, d->counters.get(), workspace, d->reductions, d->failure);
                 if (!tile->init()) {
                     delete tile;
                     return false;

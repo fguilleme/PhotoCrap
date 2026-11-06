@@ -895,6 +895,31 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                      "only the changed layer updates its uniforms across three tiles"))
             return false;
     }
+    if (hardware) {
+        canvas.setSize({96, 96});
+        if (!document.newDocument(96, 96, false, 16))
+            return false;
+        document.addLayer();
+        document.setColor(Qt::red);
+        document.fillWithColor(true);
+        document.setLayerOpacity(document.activeLayer(), .65);
+        frame();
+        frame();
+        const auto colorBytes = canvas.stackTextureBytes();
+        document.setClippingMask(true);
+        frame();
+        frame();
+        if (!require(canvas.gpuStackActive() &&
+                         canvas.stackTextureBytes() == colorBytes + 2 * 96 * 96,
+                     "enabling clipping allocates the two coverage textures"))
+            return false;
+        document.setClippingMask(false);
+        frame();
+        frame();
+        if (!require(canvas.gpuStackActive() && canvas.stackTextureBytes() == colorBytes,
+                     "disabling clipping restores color-only targets"))
+            return false;
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

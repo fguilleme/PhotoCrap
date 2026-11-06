@@ -5,6 +5,7 @@
 #include "SpatialFilterSettings.h"
 #include <QSet>
 #include <QVector>
+#include <algorithm>
 #include <atomic>
 #include <functional>
 
@@ -45,6 +46,11 @@ struct LayerStack {
     bool                streamInputs = false;
     bool                shareScratch = false;
 };
+inline bool stackUsesClipping(const LayerStack &stack)
+{
+    return std::any_of(stack.layers.cbegin(), stack.layers.cend(),
+                       [](const StackLayer &layer) { return layer.clipped; });
+}
 inline bool compactStackInput(const PixelPlane &_plane, const QSize &_size)
 {
     return _plane.isNull() || _plane.size() == QSize(1, 1) ||
@@ -75,7 +81,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     if (tiles.isEmpty())
         return 0;
     const int colorBytes    = stack.bits == 16 ? 16 : 4;
-    qint64    bytesPerPixel = (colorBytes + 1) * 2;
+    qint64           bytesPerPixel = (colorBytes + int(stackUsesClipping(stack))) * 2;
     const qint64 perTile       = 256 * stack.layers.size();
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
     qint64           sharedInputBytes = 0;

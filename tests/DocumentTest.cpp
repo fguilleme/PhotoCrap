@@ -440,9 +440,12 @@ private slots:
         const auto   compact  = stackWorkingBytes(stack, visible);
         const qint64 pixels   = qint64(stack.size.width()) * stack.size.height();
         QCOMPARE(dense - compact, (pixels - 1) * 17);
-        // Ping-pong color/coverage, display pyramid, two input texels and
+        // Ping-pong color, display pyramid, two input texels and
         // fixed per-tile buffers. No tone or blend lookup tables are present.
-        QCOMPARE(compact, pixels * 34 + (120 * 64 + 2720) * 16 + 17 + 1344);
+        QCOMPARE(compact, pixels * 32 + (120 * 64 + 2720) * 16 + 17 + 1344);
+        stack.layers[0].clipped = true;
+        QCOMPARE(stackWorkingBytes(stack, visible), compact + pixels * 2);
+        stack.layers[0].clipped = false;
         stack.streamInputs = true;
         QCOMPARE(stackWorkingBytes(stack, visible), compact);
         stack.layers[0].image = image;

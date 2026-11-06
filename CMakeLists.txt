@@ -528,6 +528,13 @@ qt_add_shaders(PhotoCrap stack_shaders
     FILES src/render/shaders/stack.vert src/render/shaders/stack_tonal.vert src/render/shaders/stack.frag src/render/shaders/spatial.frag
         src/render/shaders/pyramid.vert src/render/shaders/pyramid.frag
 )
+qt_add_shaders(PhotoCrap stack_color_only_shader
+    PREFIX "/PhotoCrap"
+    GLSL "330,300es"
+    DEFINES "STACK_COLOR_ONLY=1"
+    FILES src/render/shaders/stack.frag
+    OUTPUTS src/render/shaders/stack_color_only.frag.qsb
+)
 if(TARGET Qt6::GuiPrivate AND Qt6_VERSION VERSION_GREATER_EQUAL 6.6)
     target_link_libraries(PhotoCrap PRIVATE Qt6::GuiPrivate)
     target_compile_definitions(PhotoCrap PRIVATE PHOTOCRAP_RHI_STACK)

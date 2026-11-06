@@ -831,12 +831,16 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         canvas.setGpuStackEnabled(false);
         frame();
         const auto pipelines = canvas.stackPipelineCreations();
+        const auto before    = canvas.stackTextureUploads();
         canvas.setGpuStackEnabled(true);
         if (!document.newDocument(1200, 128, false, 16))
             return false;
         frame();
         frame();
         const auto uploads = canvas.stackTextureUploads();
+        if (!require(canvas.gpuStackActive() && uploads == before + 1,
+                     "three retained tiles share one uniform color upload"))
+            return false;
         document.addAdjustmentLayer("invert");
         frame();
         const auto result = frame();

@@ -451,12 +451,17 @@ private slots:
         stack.size            = {1024, 64};
         stack.layers[0].image = PixelPlane::uniform(stack.size, image.copy(0, 0, 1, 1));
         stack.layers[0].mask  = PixelPlane::uniform(stack.size, mask.copy(0, 0, 1, 1));
-        const auto left       = stackWorkingBytes(stack, {0, 0, 512, 64});
-        const auto right      = stackWorkingBytes(stack, {512, 0, 512, 64});
+        const QRect whole(QPoint{}, stack.size);
+        const QRect first(0, 0, 512, 64), second(512, 0, 512, 64);
         // Both tiles have the same horizontal target sizes at every zoom level.
         const qint64 sharedReduction = qint64(272 + 136 + 68 + 34) * 64 * 16;
-        QCOMPARE(left + right - stackWorkingBytes(stack, QRect(QPoint{}, stack.size)),
+        QCOMPARE(stackWorkingBytes(stack, first) + stackWorkingBytes(stack, second) -
+                     stackWorkingBytes(stack, whole),
                  64 + sharedReduction);
+        stack.streamInputs = false;
+        QCOMPARE(stackWorkingBytes(stack, first) + stackWorkingBytes(stack, second) -
+                     stackWorkingBytes(stack, whole),
+                 64 + sharedReduction + 17);
     }
     void gpuMotionBlurBudgetsOneSpatialTarget()
     {

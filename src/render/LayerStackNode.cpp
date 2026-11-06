@@ -54,13 +54,13 @@ struct DrawResources {
     DisplayPyramidPipelines                     pyramidPipelines;
     Counters                    *counters = nullptr;
     bool                         uploaded = false;
-    QHash<QByteArray, std::weak_ptr<Input>> tables;
-    qint64                                  tableBytes = 0;
+    QHash<QByteArray, std::weak_ptr<Input>>     sharedInputs;
+    qint64                                      sharedInputBytes = 0;
     quint64                                     nextInputId = 0;
 
-    void changeTableBytes(qint64 delta)
+    void changeSharedInputBytes(qint64 delta)
     {
-        tableBytes += delta;
+        sharedInputBytes += delta;
         if (delta > 0)
             counters->bytes.fetch_add(quint64(delta));
         else
@@ -146,7 +146,7 @@ struct Input {
     ~Input()
     {
         if (sharedOwner)
-            sharedOwner->changeTableBytes(-bytes);
+            sharedOwner->changeSharedInputBytes(-bytes);
     }
 };
 struct Pass {
@@ -277,7 +277,7 @@ public:
     QRectF                                     geometry;
     PhotoCrap::Render::LayerStack              stack;
     QByteArray                                 renderedKey;
-    QList<QByteArray>                          pendingSharedTables;
+    QList<QByteArray>                          pendingSharedInputs;
     quint64                                    snapshotRevision = 0, renderedRevision = 0;
     quint64                                    retainedGeneration = 0;
     std::shared_ptr<Workspace>                 work;
@@ -430,12 +430,11 @@ public:
         const bool compact = !whole && PhotoCrap::Render::compactStackInput(plane, stack.size);
         QByteArray contentKey;
         if (!stageOnly) {
-            contentKey = whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c";
-            // Compact inputs share a texel across the whole document, even
-            // though the render signature tracks the full tile region.
-            contentKey += compact && plane.size() == stack.size && stack.size != QSize(1, 1)
-                              ? plane.regionKey(QRect(0, 0, 1, 1))
-                              : signature;
+            if (compact)
+                contentKey = (mask ? QByteArrayLiteral("um") : QByteArrayLiteral("uc")) +
+                             PhotoCrap::Render::compactStackKey(plane);
+            else
+                contentKey = (whole == 2 ? "b" : whole ? "t" : mask ? "m" : "c") + signature;
         }
         QByteArray key = contentKey;
         if (streaming)
@@ -447,9 +446,9 @@ public:
         auto value = work->inputs.value(key);
         if (value && (!streaming || stageOnly || value->contentKey == contentKey))
             return value;
-        const bool shareTable = whole && !streaming;
-        if (shareTable) {
-            value = draw.tables.value(key).lock();
+        const bool shareInput = !streaming && (whole || compact);
+        if (shareInput) {
+            value = draw.sharedInputs.value(key).lock();
             if (value) {
                 work->inputs.insert(key, value);
                 return value;
@@ -512,10 +511,10 @@ public:
         updates->uploadTexture(value->texture.get(),
                                QRhiTextureUploadDescription({QRhiTextureUploadEntry(0, 0, data)}));
         value->contentKey = contentKey;
-        if (shareTable) {
+        if (shareInput) {
             value->sharedOwner = &draw;
-            draw.changeTableBytes(value->bytes);
-            pendingSharedTables.append(key);
+            draw.changeSharedInputBytes(value->bytes);
+            pendingSharedInputs.append(key);
         }
         ++counters->uploads;
         return value;
@@ -773,9 +772,9 @@ public:
         draw.uploaded = true;
         // A later tile may use these textures only after their uploads have
         // been recorded in this frame's command buffer.
-        for (const auto &key : std::as_const(pendingSharedTables))
-            draw.tables.insert(key, work->inputs.value(key));
-        pendingSharedTables.clear();
+        for (const auto &key : std::as_const(pendingSharedInputs))
+            draw.sharedInputs.insert(key, work->inputs.value(key));
+        pendingSharedInputs.clear();
         if (!filterRuns.empty() && (filterRuns.front() >= 0 || layers.front().tonal)) {
             cb->beginPass(work->targets[0].get(), Qt::transparent, {1.f, 0});
             cb->endPass();
@@ -970,9 +969,9 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
             it = d->workspaces.erase(it);
         else
             ++it;
-    for (auto it = d->draw.tables.begin(); it != d->draw.tables.end();)
+    for (auto it = d->draw.sharedInputs.begin(); it != d->draw.sharedInputs.end();)
         if (it.value().expired())
-            it = d->draw.tables.erase(it);
+            it = d->draw.sharedInputs.erase(it);
         else
             ++it;
     ++d->clock;
@@ -1032,8 +1031,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
     for (auto it = d->tiles.cbegin(); it != d->tiles.cend(); ++it)
         entries.append(
             {it.key(), it.value()->bytes(), d->lastUse.value(it.key()), used.contains(it.key())});
-    const qint64 drawBytes =
-        (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.tableBytes + d->reductions->bytes();
+    const qint64 drawBytes = (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.sharedInputBytes +
+                             d->reductions->bytes();
     const auto   retained =
         PhotoCrap::Render::retainedTiles(entries, qMax(qint64(0), cacheBytes - drawBytes));
     for (auto it = d->tiles.begin(); it != d->tiles.end();) {

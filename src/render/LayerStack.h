@@ -51,6 +51,11 @@ inline bool compactStackInput(const PixelPlane &_plane, const QSize &_size)
            (_plane.size() == _size && _plane.isUniform());
 }
 
+inline QByteArray compactStackKey(const PixelPlane &plane)
+{
+    return plane.regionKey(QRect(0, 0, 1, 1));
+}
+
 // Conservative peak for simultaneously visible tiles. Refuse a GPU stack
 // before allocation when even its pinned working set would exceed the budget.
 inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
@@ -63,8 +68,9 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     qint64    bytesPerPixel = (colorBytes + 1) * 2;
     const qint64 perTile       = 256 * stack.layers.size();
     qint64    scratchBytes = 0, tableBytes = 0, blendBytes = 0;
-    qint64       sharedTableBytes = 0;
+    qint64           sharedInputBytes = 0;
     QSet<qint64> sharedToneTables, sharedBlendTables;
+    QSet<QByteArray> sharedColors, sharedMasks;
     int          spatialTargets = 0, maskTargets = 0;
     bool         colorInput = false, maskInput = false;
     bool         denseColor = false, denseMask = false;
@@ -79,7 +85,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             denseColor |= !compact;
             if (!stack.streamInputs) {
                 if (compact)
-                    scratchBytes += colorBytes;
+                    sharedColors.insert(compactStackKey(layer.image));
                 else
                     bytesPerPixel += colorBytes;
             }
@@ -90,7 +96,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             denseMask |= !compact;
             if (!stack.streamInputs) {
                 if (compact)
-                    ++scratchBytes;
+                    sharedMasks.insert(compactStackKey(layer.mask));
                 else
                     ++bytesPerPixel;
             }
@@ -107,11 +113,11 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
         } else {
             if (table && !sharedToneTables.contains(layer.toneTable.cacheKey())) {
                 sharedToneTables.insert(layer.toneTable.cacheKey());
-                sharedTableBytes += table;
+                sharedInputBytes += table;
             }
             if (blend && !sharedBlendTables.contains(layer.blendTable.cacheKey())) {
                 sharedBlendTables.insert(layer.blendTable.cacheKey());
-                sharedTableBytes += blend;
+                sharedInputBytes += blend;
             }
         }
         scratchBytes += qint64(spatialPasses + maskPasses) * 96;
@@ -126,7 +132,7 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
     if (maskTargets)
         bytesPerPixel += 16 + (maskTargets - 1) * 4;
 
-    qint64      bytes = 64 + sharedTableBytes;
+    qint64 bytes = 64 + sharedInputBytes + sharedColors.size() * colorBytes + sharedMasks.size();
     QSet<QSize> worksets, reductions;
     for (int y = area.top() / tile; y <= area.bottom() / tile; ++y)
         for (int x = area.left() / tile; x <= area.right() / tile; ++x) {

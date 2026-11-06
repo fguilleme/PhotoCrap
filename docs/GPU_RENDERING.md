@@ -2087,8 +2087,10 @@ un mode qui réutilise ses entrées couleur, masque et tables de réglage ou de
 fusion. Les téléversements sont ordonnés entre les passes de calques. Quand les
 sources d’une entrée sont toutes uniformes, son emplacement ne réserve qu’un
 texel, même en mode partagé. Le mode à entrées conservées reste prioritaire pour
-les petites piles. Les résultats intermédiaires de chaque tuile et les pixels de
-travail gardent leur précision. Une vue immobile ne téléverse ni ne compose.
+les petites piles. Dans ce mode, les tuiles partagent une texture immuable pour
+chaque entrée couleur ou masque uniforme identique. Son transfert et son coût
+mémoire sont comptés une fois par canevas. Les résultats intermédiaires de
+chaque tuile et les pixels de travail gardent leur précision. Une vue immobile ne téléverse ni ne compose.
 
 La suite native Metal compare les deux modes au CPU en 8/16 bits, dont les
 18 réglages, masques progressifs et écrêtages. Le test de budget 64→128 calques

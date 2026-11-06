@@ -15,8 +15,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   avec les événements et les images produites par QML.
 - [x] Vérifier les quatre empreintes raster variables à partir des deux jeux de
   références x86-64 observés en CI.
-- [ ] Valider les builds, tests et paquets du tag v0.17.2 sur les trois plateformes.
-  [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+- [x] Valider les builds, tests et paquets du tag v0.17.2 sur les trois plateformes.
+  [Workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/42133723208) ·
+  [Release v0.17.2](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.17.2)
 
 ## Optimisations du 4 novembre 2026 — non publiées
 

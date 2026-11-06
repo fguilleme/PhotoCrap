@@ -1,5 +1,17 @@
 # Validation
 
+## Publication de v0.17.2 — 6 novembre 2026
+
+Le workflow du tag `v0.17.2` a validé les builds, tests et paquets sur macOS 15,
+Ubuntu 22.04 et Windows 2022 avec Qt 6.8.3. Les cas de fusion 16 bits passent
+les comparaisons exactes entre composition régionale et intégrale. Les quatre
+empreintes raster qui varient entre runners x86-64 conservent deux références
+exactes relevées en CI. [Workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/42133723208)
+
+GitHub a publié le DMG macOS arm64, l’AppImage Linux x86-64, l’installateur
+Windows x64 et le ZIP portable Windows. Chaque paquet a un fichier SHA-256.
+[Release v0.17.2](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.17.2)
+
 ## Validation du tag v0.17
 
 Le workflow du 5 novembre 2026 a compilé le commit `3c728d3` avec Qt 6.8.3 sur

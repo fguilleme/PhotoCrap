@@ -82,8 +82,10 @@ reprend les positions et le nombre d'échantillons du CPU. Netteté et Passe-hau
 utilisent l'image originale et le gaussien sans écraser l'accumulateur de la pile.
 Les filtres successifs réutilisent les cibles auxiliaires. Le flou directionnel
 utilise une seule cible. La seconde est créée à la première passe qui la demande
-et libérée lorsque les filtres actifs se contentent de la première. Le nombre de
-cibles et de passes entre dans l’estimation du budget.
+et libérée lorsque les filtres actifs se contentent de la première. La dernière
+cible est libérée quand aucun filtre spatial ou aucun masque progressif, selon
+l’espace de travail concerné, n’en a besoin. Le budget tient compte des cibles
+et des passes actives.
 
 Les paramètres actualisent directement le snapshot GPU, indépendamment d'un
 worker CPU occupé. Les aperçus CPU auxiliaires du Navigateur/histogramme sont

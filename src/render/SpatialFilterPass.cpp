@@ -215,11 +215,14 @@ void SpatialFilterPass::resetFrame(bool reuseSteps)
 void SpatialFilterPass::finishPreparation()
 {
     d->jobs.resize(d->preparedJobs);
-    if (!d->secondTargetUsed && d->targets[1]) {
-        d->pipelines[1] = nullptr;
-        d->targets[1].release()->deleteLater();
-        d->descriptors[1].release()->deleteLater();
-        d->textures[1].release()->deleteLater();
+    const int targetsUsed = d->preparedJobs == 0 ? 0 : d->secondTargetUsed ? 2 : 1;
+    for (int index = targetsUsed; index < 2; ++index) {
+        if (!d->targets[index])
+            continue;
+        d->pipelines[index] = nullptr;
+        d->targets[index].release()->deleteLater();
+        d->descriptors[index].release()->deleteLater();
+        d->textures[index].release()->deleteLater();
     }
 }
 SpatialFilterPass::Run

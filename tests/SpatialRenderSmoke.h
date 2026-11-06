@@ -215,6 +215,18 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
             if (!require(canvas.stackTextureBytes() == motionBytes,
                          "removing the separable filter releases the second target"))
                 return false;
+            document.removeLayer();
+            frame();
+            frame();
+            if (!require(canvas.gpuStackActive() && canvas.stackTextureBytes() == baseBytes,
+                         "removing the last spatial filter releases its remaining target"))
+                return false;
+            document.undo();
+            frame();
+            frame();
+            if (!require(canvas.gpuStackActive() && canvas.stackTextureBytes() == motionBytes,
+                         "undo recreates the spatial target and its pass"))
+                return false;
             canvas.setSize({1056, 96});
         }
         QImage source(1056, 96, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);

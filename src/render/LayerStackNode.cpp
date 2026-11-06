@@ -171,6 +171,8 @@ struct SourceKeys {
 };
 struct LayerKeys {
     QByteArray fixed, tone, blend;
+    // std140 ivec4 toneModes followed by nine vec4 parameters.
+    std::array<char, 160> toneUniform{};
 };
 void appendKeyPart(QByteArray &key, const QByteArray &part)
 {
@@ -184,7 +186,7 @@ LayerKeys layerKeys(const PhotoCrap::Render::StackLayer &layer)
     result.tone  = QByteArray::number(layer.toneTable.cacheKey());
     result.blend = QByteArray::number(layer.blendTable.cacheKey());
     auto &key    = result.fixed;
-    key.reserve(384);
+    key.reserve(96);
     appendKeyPart(key, result.tone);
     appendKeyPart(key, result.blend);
     key.append(reinterpret_cast<const char *>(&layer.opacity), sizeof(layer.opacity));
@@ -197,15 +199,23 @@ LayerKeys layerKeys(const PhotoCrap::Render::StackLayer &layer)
     key += layer.maskFilter.key();
     const auto  &tone = layer.tone;
     const qint32 mode = qint32(tone.mode);
-    key.append(reinterpret_cast<const char *>(&mode), sizeof(mode));
-    for (const auto &vector :
-         {tone.color, tone.families0, tone.families1, tone.matrix[0], tone.matrix[1],
-          tone.matrix[2], tone.selective[0], tone.selective[1], tone.selective[2],
-          tone.selective[3], tone.selective[4], tone.selective[5], tone.selective[6],
-          tone.selective[7], tone.selective[8]})
-        for (int channel = 0; channel < 4; ++channel) {
-            const float value = vector[channel];
-            key.append(reinterpret_cast<const char *>(&value), sizeof(value));
+    std::memcpy(result.toneUniform.data(), &mode, sizeof(mode));
+    auto parameters = tone.selective;
+    if (tone.mode != PhotoCrap::Filters::ToneMappingMode::SelectiveColorRelative &&
+        tone.mode != PhotoCrap::Filters::ToneMappingMode::SelectiveColorAbsolute)
+        parameters = {tone.color,
+                      tone.families0,
+                      tone.families1,
+                      tone.matrix[0],
+                      tone.matrix[1],
+                      tone.matrix[2],
+                      {},
+                      {},
+                      {}};
+    for (size_t i = 0; i < parameters.size(); ++i)
+        for (int c = 0; c < 4; ++c) {
+            const float v = parameters[i][c];
+            std::memcpy(result.toneUniform.data() + 16 + i * 16 + c * 4, &v, 4);
         }
     return result;
 }
@@ -615,6 +625,7 @@ public:
             appendKeyPart(key, keys.color);
             appendKeyPart(key, keys.mask);
             key += signature.fixed;
+            key.append(signature.toneUniform.data(), signature.toneUniform.size());
             sourceKeys.append(keys);
         }
         key += QByteArray::number(stack.bits);
@@ -658,6 +669,9 @@ public:
             }
         }
         bool ok = true;
+        const auto  matrix    = rhi->clipSpaceCorrMatrix();
+        const float nativeMax = bits == 16 ? 65535.f : 255.f;
+        const float flip      = rhi->isYUpInFramebuffer() ? 1.f : 0.f;
         for (int index = 0; index < layers.size(); ++index) {
             const auto &layer = layers[index];
             const auto &keys  = sourceKeys[index];
@@ -729,7 +743,6 @@ public:
             }
             auto                 &pass = passes[size_t(index)];
             std::array<char, 256> uniform{};
-            const auto matrix = rhi->clipSpaceCorrMatrix();
             std::memcpy(uniform.data(), matrix.constData(), 64);
             const qint32 modes[] = {
                 layer.blend, layer.clipped,
@@ -745,30 +758,11 @@ public:
                          : 0) +
                     (!layer.needsMaskInput() ? 64 : 0),
                 region.x() | (region.y() << 14) | (index == 0 ? 1 << 30 : 0)};
-            const float values[] = {layer.opacity, layer.density,
-                                    stack.bits == 16 ? 65535.f : 255.f,
-                                    rhi->isYUpInFramebuffer() ? 1.f : 0.f};
+            const float values[] = {layer.opacity, layer.density, nativeMax, flip};
             std::memcpy(uniform.data() + 64, modes, sizeof(modes));
             std::memcpy(uniform.data() + 80, values, sizeof(values));
-            const qint32 toneMode = int(layer.tone.mode);
-            std::memcpy(uniform.data() + 96, &toneMode, 4);
-            auto parameters = layer.tone.selective;
-            if (layer.tone.mode != PhotoCrap::Filters::ToneMappingMode::SelectiveColorRelative &&
-                layer.tone.mode != PhotoCrap::Filters::ToneMappingMode::SelectiveColorAbsolute)
-                parameters = {layer.tone.color,
-                              layer.tone.families0,
-                              layer.tone.families1,
-                              layer.tone.matrix[0],
-                              layer.tone.matrix[1],
-                              layer.tone.matrix[2],
-                              {},
-                              {},
-                              {}};
-            for (size_t i = 0; i < parameters.size(); ++i)
-                for (int c = 0; c < 4; ++c) {
-                    const float v = parameters[i][c];
-                    std::memcpy(uniform.data() + 112 + i * 16 + c * 4, &v, 4);
-                }
+            const auto &toneUniform = layerSignatures[index].toneUniform;
+            std::memcpy(uniform.data() + 96, toneUniform.data(), toneUniform.size());
             if (pass.uploadedUniform != uniform) {
                 updates->updateDynamicBuffer(pass.uniform.get(), 0, uniform.size(), uniform.data());
                 pass.uploadedUniform = uniform;

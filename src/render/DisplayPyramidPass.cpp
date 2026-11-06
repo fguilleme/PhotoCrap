@@ -266,6 +266,11 @@ QRect DisplayPyramidPass::region(int level) const
     auto value = d->levels.value(level);
     return value ? value->regions[1] : QRect{};
 }
+bool DisplayPyramidPass::hasOutput(int index, quint64 generation) const
+{
+    const auto level = d->levels.value(index);
+    return generation != 0 && level && level->generation == generation;
+}
 quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 generation)
 {
     auto level = d->levels.value(index);
@@ -339,6 +344,10 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *, int)
 QRect DisplayPyramidPass::region(int) const
 {
     return {};
+}
+bool DisplayPyramidPass::hasOutput(int, quint64) const
+{
+    return false;
 }
 quint64 DisplayPyramidPass::render(QRhiCommandBuffer *, int, quint64)
 {

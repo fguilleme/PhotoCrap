@@ -50,6 +50,7 @@ public:
     // Creates a retained level; input remains owned by the native tile.
     QRhiTexture *ensure(QRhiTexture *source, int level);
     QRect        region(int level) const;
+    bool         hasOutput(int level, quint64 generation) const;
     quint64      render(QRhiCommandBuffer *cb, int level, quint64 generation);
     qint64       bytes() const;
 

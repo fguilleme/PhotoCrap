@@ -279,7 +279,7 @@ public:
     QByteArray                                 renderedKey;
     QList<QByteArray>                          pendingSharedTables;
     quint64                                    snapshotRevision = 0, renderedRevision = 0;
-    int                                        renderedDisplayLevel = -1;
+    quint64                                    retainedGeneration = 0;
     std::shared_ptr<Workspace>                 work;
     bool                                       sharedWork = false;
     std::shared_ptr<DisplayPyramidScratchPool> reductionPool;
@@ -363,8 +363,7 @@ public:
         }
         if (sharedWork && displayLevel == 0) {
             if (!retained) {
-                renderedKey.clear();
-                renderedRevision = 0;
+                retainedGeneration = 0;
                 retained.reset(
                     rhi->newTexture(bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8,
                                     region.size(), 1, QRhiTexture::RenderTarget));
@@ -530,13 +529,16 @@ public:
             if (pyramid && displayLevel > 0)
                 counters->reductions.fetch_add(pyramid->render(cb, displayLevel, generation));
         };
-        // A geometry-only frame supplies the same immutable source snapshot.
-        // Shared scratch must still be regenerated for a different zoom level.
-        if (renderedRevision != 0 && snapshotRevision == renderedRevision &&
-            (!sharedWork || displayLevel == renderedDisplayLevel)) {
+        const auto reuseOutput = [&] {
+            if (sharedWork)
+                return displayLevel > 0 ? pyramid->hasOutput(displayLevel, generation)
+                                        : retained && retainedGeneration == generation;
             reduce(commandBuffer());
+            return true;
+        };
+        // Scratch may belong to another tile, but completed outputs are private.
+        if (renderedRevision != 0 && snapshotRevision == renderedRevision && reuseOutput())
             return;
-        }
         QByteArray key;
         QVector<SourceKeys> sourceKeys;
         sourceKeys.reserve(layers.size());
@@ -574,12 +576,8 @@ public:
                 }
         }
         key += QByteArray::number(stack.bits);
-        if (sharedWork)
-            key += "/" + QByteArray::number(displayLevel);
-        if (key == renderedKey) {
-            renderedRevision     = snapshotRevision;
-            renderedDisplayLevel = displayLevel;
-            reduce(commandBuffer());
+        if (key == renderedKey && reuseOutput()) {
+            renderedRevision = snapshotRevision;
             return;
         }
         if (streaming) {
@@ -826,10 +824,13 @@ public:
                 it = work->inputs.erase(it);
             else
                 ++it;
-        renderedKey = key;
-        renderedRevision     = snapshotRevision;
-        renderedDisplayLevel = displayLevel;
-        ++generation;
+        if (key != renderedKey) {
+            renderedKey = std::move(key);
+            ++generation;
+        }
+        renderedRevision = snapshotRevision;
+        if (retainedTarget)
+            retainedGeneration = generation;
         reduce(cb);
         updateBytes();
     }

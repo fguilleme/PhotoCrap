@@ -43,10 +43,11 @@ Chaque niveau garde une passe horizontale RGBA32F et une sortie RGBA8 ou RGBA32F
 selon la profondeur du document. Les réductions 8/16 bits conservent l’alpha
 prémultiplié ; la sortie est quantifiée selon la profondeur native.
 
-Les niveaux sont créés à la demande. En mode à accumulateurs privés, un zoom
-vers un niveau déjà calculé réutilise la texture si le composite natif est
-encore courant. En mode partagé, changer de niveau peut redemander la composition
-native. Après une modification des pixels, seul le niveau demandé est réduit.
+Les niveaux sont créés à la demande. Un zoom vers un niveau déjà calculé
+réutilise la texture tant que le contenu de la tuile est courant, même avec
+des accumulateurs partagés. Dans ce mode, un niveau absent ou périmé requiert
+une nouvelle composition native. Après une modification des pixels, seul le
+niveau demandé est réduit.
 Les sorties et leurs intermédiaires entrent dans le budget du jeu de travail
 visible. Le LRU évince les tuiles hors écran. La destruction du graphe libère
 aussi les niveaux.
@@ -2101,8 +2102,9 @@ partage les accumulateurs couleur/couverture et les passes spatiales entre les
 tuiles de mêmes dimensions. Les passes horizontales de réduction sont également
 partagées ; chaque tuile conserve sa propre sortie réduite ou sa cible native.
 À pleine résolution, la dernière passe écrit directement dans la cible native.
-Un changement de zoom reconstruit cette
-sortie avant affichage, sans lire le scratch laissé par une autre tuile.
+Chaque sortie réduite reste réutilisable tant que le contenu de la tuile est
+courant. Pour un niveau absent ou périmé, la tuile reconstruit d’abord sa
+composition dans les textures partagées.
 
 La prévision compte les différents formats de bords et quatre niveaux conservés ;
 le repli CPU reste actif si elle ne tient pas dans le budget. Les ressources

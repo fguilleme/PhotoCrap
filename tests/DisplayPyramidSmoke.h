@@ -54,15 +54,15 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
             return false;
         const auto  reference = document.composite();
         const qreal ratio     = window->effectiveDevicePixelRatio();
-        const auto  check     = [&](int level) {
+        const auto  check     = [&](int level, const QImage *edited = nullptr) {
             const QSize size(reference.width() >> level, reference.height() >> level);
             canvas.setSize({size.width() / ratio, size.height() / ratio});
             canvas.setViewportRect(canvas.boundingRect());
             frame();
             const auto screenshot = frame();
-            const auto expected =
-                reference.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-                    .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            const auto expected = (edited ? *edited : reference)
+                                      .scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                                      .convertToFormat(QImage::Format_ARGB32_Premultiplied);
             int        maximum = 0;
             double     total   = 0;
             int        samples = 0;
@@ -102,7 +102,11 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
             if (!require(reductions > 0 && canvas.displayLevelSourcePixels() == cpuBefore,
                          "reduction ran on GPU without CPU scaling"))
                 return false;
-            if (!check(2) || !check(4))
+            if (!check(2) || !check(4) ||
+                !require(canvas.stackTextureUploads() == uploads &&
+                             canvas.stackPasses() == passes &&
+                             canvas.gpuReductionPasses() == reductions,
+                         "cached zoom submits no uploads, composition or reduction passes"))
                 return false;
             if (sharedScratch) {
                 const auto bytes       = canvas.stackTextureBytes();
@@ -120,11 +124,7 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
                 if (!require(canvas.stackTextureBytes() == bytes,
                              "unused shared scratch dimensions are released"))
                     return false;
-            } else if (!require(canvas.stackTextureUploads() == uploads &&
-                                    canvas.stackPasses() == passes &&
-                                    canvas.gpuReductionPasses() == reductions,
-                                "zooming reuses native textures and completed GPU levels"))
-                return false;
+            }
             QList<double> timings;
             for (int iteration = 0; iteration < 10; ++iteration) {
                 QCoreApplication::processEvents();
@@ -173,6 +173,9 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
                          "the reduced image shows the new brush stroke") ||
                 !require(canvas.stackUniformUpdates() == parameters,
                          "the redraw reuses fixed reduction parameters"))
+                return false;
+            const auto edited = document.composite();
+            if (!check(2, &edited))
                 return false;
             document.undo();
             if (!check(4))

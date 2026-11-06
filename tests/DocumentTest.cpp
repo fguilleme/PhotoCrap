@@ -442,7 +442,7 @@ private slots:
         QCOMPARE(dense - compact, (pixels - 1) * 17);
         // Ping-pong color/coverage, display pyramid, two input texels and
         // fixed per-tile buffers. No tone or blend lookup tables are present.
-        QCOMPARE(compact, pixels * (34 + 22) + 17 + 1344);
+        QCOMPARE(compact, pixels * 34 + (120 * 64 + 2720) * 16 + 17 + 1344);
         stack.streamInputs = true;
         QCOMPARE(stackWorkingBytes(stack, visible), compact);
         stack.layers[0].image = image;
@@ -453,7 +453,10 @@ private slots:
         stack.layers[0].mask  = PixelPlane::uniform(stack.size, mask.copy(0, 0, 1, 1));
         const auto left       = stackWorkingBytes(stack, {0, 0, 512, 64});
         const auto right      = stackWorkingBytes(stack, {512, 0, 512, 64});
-        QCOMPARE(left + right - stackWorkingBytes(stack, QRect(QPoint{}, stack.size)), qint64(64));
+        // Both tiles have the same horizontal target sizes at every zoom level.
+        const qint64 sharedReduction = qint64(272 + 136 + 68 + 34) * 64 * 16;
+        QCOMPARE(left + right - stackWorkingBytes(stack, QRect(QPoint{}, stack.size)),
+                 64 + sharedReduction);
     }
     void gpuMotionBlurBudgetsOneSpatialTarget()
     {

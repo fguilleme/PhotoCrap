@@ -952,7 +952,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
         d->streaming = stack.streamInputs;
         d->sharing   = stack.shareScratch;
     }
-    if (stack.shareScratch && !d->reductions) {
+    if (!d->reductions) {
         const auto counters = d->counters;
         d->reductions =
             std::make_shared<DisplayPyramidScratchPool>(d->window->rhi(), [counters](qint64 delta) {
@@ -963,8 +963,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
                 if (counters->changed)
                     counters->changed(counters->bytes.load());
             });
-    } else if (!stack.shareScratch)
-        d->reductions.reset();
+    }
     QSet<quint64> used;
     for (auto it = d->workspaces.begin(); it != d->workspaces.end();)
         if (it.value().expired())
@@ -1011,8 +1010,7 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
             }
             if (!tile) {
                 tile = new Tile(d->window, d->draw, padded, stack.bits, stack.streamInputs,
-                                d->counters.get(), workspace,
-                                stack.shareScratch ? d->reductions : nullptr, d->failure);
+                                d->counters.get(), workspace, d->reductions, d->failure);
                 if (!tile->init()) {
                     delete tile;
                     return false;
@@ -1034,8 +1032,8 @@ bool LayerStackNode::update(const PhotoCrap::Render::LayerStack &stack, quint64 
     for (auto it = d->tiles.cbegin(); it != d->tiles.cend(); ++it)
         entries.append(
             {it.key(), it.value()->bytes(), d->lastUse.value(it.key()), used.contains(it.key())});
-    const qint64 drawBytes = (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.tableBytes +
-                             (d->reductions ? d->reductions->bytes() : 0);
+    const qint64 drawBytes =
+        (d->draw.vertices ? sizeof(stackQuad) : 0) + d->draw.tableBytes + d->reductions->bytes();
     const auto   retained =
         PhotoCrap::Render::retainedTiles(entries, qMax(qint64(0), cacheBytes - drawBytes));
     for (auto it = d->tiles.begin(); it != d->tiles.end();) {

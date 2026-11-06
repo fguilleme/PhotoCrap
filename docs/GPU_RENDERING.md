@@ -39,9 +39,11 @@ par deux passes d’aire sur le composite natif de chaque tuile. La grille est c
 du document complet ; les deux coordonnées globales servent à définir les poids,
 y compris pour les dimensions impaires. Une marge native fixe de 33 pixels,
 ajoutée au halo spatial, fournit les voisins nécessaires au filtrage des niveaux.
-Chaque niveau garde une passe horizontale RGBA32F et une sortie RGBA8 ou RGBA32F
-selon la profondeur du document. Les réductions 8/16 bits conservent l’alpha
-prémultiplié ; la sortie est quantifiée selon la profondeur native.
+La passe horizontale RGBA32F utilise une cible partagée par les tuiles de mêmes
+dimensions, quel que soit le mode des accumulateurs. Chaque tuile garde sa
+propre sortie RGBA8 ou RGBA32F selon la profondeur du document. Les réductions
+8/16 bits conservent l’alpha prémultiplié et quantifient la sortie selon la
+profondeur native.
 
 Les niveaux sont créés à la demande. Un zoom vers un niveau déjà calculé
 réutilise la texture tant que le contenu de la tuile est courant, même avec
@@ -2099,8 +2101,9 @@ maintenu si les accumulateurs et réductions dépassent encore le budget.
 
 Lorsque le mode à entrées réutilisées dépasse encore le budget, un second palier
 partage les accumulateurs couleur/couverture et les passes spatiales entre les
-tuiles de mêmes dimensions. Les passes horizontales de réduction sont également
-partagées ; chaque tuile conserve sa propre sortie réduite ou sa cible native.
+tuiles de mêmes dimensions. Comme en mode à accumulateurs privés, les passes
+horizontales de réduction utilisent une cible commune par dimension. Chaque
+tuile conserve sa propre sortie réduite ou sa cible native.
 À pleine résolution, la dernière passe écrit directement dans la cible native.
 Chaque sortie réduite reste réutilisable tant que le contenu de la tuile est
 courant. Pour un niveau absent ou périmé, la tuile reconstruit d’abord sa

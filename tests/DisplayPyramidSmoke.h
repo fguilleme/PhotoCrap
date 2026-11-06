@@ -214,6 +214,29 @@ inline bool runDisplayPyramidSmoke(QQuickWindow *)
                 return false;
         }
     }
+    if (hardware && !sharedScratch) {
+        if (!document.newDocument(1024, 64, false, 16))
+            return false;
+        const qreal ratio = window->effectiveDevicePixelRatio();
+        canvas.setSize({1024 / ratio, 64 / ratio});
+        canvas.setViewportRect(canvas.boundingRect());
+        frame();
+        frame();
+        const auto nativeBytes = canvas.stackTextureBytes();
+        const auto reductions  = canvas.gpuReductionPasses();
+        if (!require(canvas.gpuStackActive(), "both native tiles fit with private accumulators"))
+            return false;
+        canvas.setSize({512 / ratio, 32 / ratio});
+        canvas.setViewportRect(canvas.boundingRect());
+        frame();
+        frame();
+        // Two private outputs and their uniforms, but one horizontal target.
+        const quint64 levelBytes = 272 * 64 * 16 + 2 * (272 * 32 * 16 + 256);
+        if (!require(canvas.gpuReductionPasses() == reductions + 4 &&
+                         canvas.stackTextureBytes() == nativeBytes + levelBytes,
+                     "equal-sized tiles share one horizontal reduction target"))
+            return false;
+    }
     canvas.setDocument(nullptr);
     frame();
     frame();

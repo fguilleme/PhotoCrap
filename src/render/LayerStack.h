@@ -1,11 +1,11 @@
 #pragma once
 #include "../filters/ToneMappingTable.h"
 #include "../storage/PixelPlane.h"
+#include "DisplayPyramidGeometry.h"
 #include "SpatialFilterSettings.h"
 #include <QSet>
 #include <QVector>
 #include <atomic>
-#include <cmath>
 #include <functional>
 
 namespace PhotoCrap::Render
@@ -144,30 +144,20 @@ inline qint64 stackWorkingBytes(const LayerStack &stack, const QRect &visible)
             bytes += perTile;
             if (stack.shareScratch && stack.displayLevel == 0)
                 bytes += pixels * colorBytes;
-            if (stack.shareScratch) {
-                // All four retained zoom levels are budgeted. Horizontal native
-                // scratch is shared by dimensions, but each output stays private.
-                for (int level = 1; level <= 4; ++level) {
-                    const QSize reduced(qMax(1, stack.size.width() >> level),
-                                        qMax(1, stack.size.height() >> level));
-                    const int   left =
-                        int(std::ceil(double(region.x()) * reduced.width() / stack.size.width()));
-                    const int right = int(std::floor(double(region.x() + region.width()) *
-                                                     reduced.width() / stack.size.width()));
-                    const int top =
-                        int(std::ceil(double(region.y()) * reduced.height() / stack.size.height()));
-                    const int   bottom = int(std::floor(double(region.y() + region.height()) *
-                                                        reduced.height() / stack.size.height()));
-                    const QSize horizontal(qMax(0, right - left), region.height());
-                    if (!reductions.contains(horizontal)) {
-                        reductions.insert(horizontal);
-                        bytes += qint64(horizontal.width()) * horizontal.height() * 16;
-                    }
-                    bytes +=
-                        qint64(qMax(0, right - left)) * qMax(0, bottom - top) * colorBytes + 256;
+            // All four retained levels are budgeted, with one horizontal
+            // target per size and one output per tile and level.
+            for (int level = 1; level <= 4; ++level) {
+                const QSize reduced(qMax(1, stack.size.width() >> level),
+                                    qMax(1, stack.size.height() >> level));
+                const auto [horizontal, output] = pyramidRegions(region, stack.size, reduced);
+                if (output.isEmpty())
+                    continue;
+                if (!reductions.contains(horizontal.size())) {
+                    reductions.insert(horizontal.size());
+                    bytes += qint64(horizontal.width()) * horizontal.height() * 16;
                 }
-            } else
-                bytes += pixels * (16 + (colorBytes + 2) / 3) + 4 * 256;
+                bytes += qint64(output.width()) * output.height() * colorBytes + 256;
+            }
         }
     return bytes;
 }

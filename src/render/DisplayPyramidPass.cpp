@@ -4,7 +4,6 @@
 #include <QFile>
 #include <QMap>
 #include <array>
-#include <cmath>
 #include <cstring>
 #include <rhi/qrhi.h>
 #include <rhi/qshader.h>
@@ -48,7 +47,6 @@ std::shared_ptr<PyramidTarget> pyramidTarget(QRhi *rhi, const QSize &size,
 }
 struct Level {
     std::array<std::shared_ptr<PyramidTarget>, 2>              surfaces;
-    bool                                                       borrowedScratch = false;
     bool                                                       uploaded        = false;
     std::array<QRhiGraphicsPipeline *, 2>                      pipelines{};
     std::array<std::unique_ptr<QRhiBuffer>, 2>                 uniforms;
@@ -65,13 +63,6 @@ void setPyramidBindings(QRhiShaderResourceBindings &bindings, QRhiBuffer *unifor
     bindings.setBindings({QRhiShaderResourceBinding::uniformBuffer(
                               0, QRhiShaderResourceBinding::VertexStage | stage, uniform),
                           QRhiShaderResourceBinding::sampledTexture(1, stage, source, sampler)});
-}
-// An output pixel is valid only when its whole area is inside this native tile.
-// Extra native padding provides the neighboring output pixel needed for filtering.
-QPair<int, int> extent(int first, int length, int original, int reduced)
-{
-    return {int(std::ceil(double(first) * reduced / original)),
-            int(std::floor(double(first + length) * reduced / original))};
 }
 } // namespace
 struct DisplayPyramidPipelines::Data {
@@ -197,16 +188,12 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
     const QSize reduced(qMax(1, d->document.width() >> index),
                         qMax(1, d->document.height() >> index));
     auto        level = std::make_shared<Level>();
-    const auto  x = extent(d->native.x(), d->native.width(), d->document.width(), reduced.width());
-    const auto  y =
-        extent(d->native.y(), d->native.height(), d->document.height(), reduced.height());
-    level->regions[0] = QRect(x.first, d->native.y(), x.second - x.first, d->native.height());
-    level->regions[1] = QRect(x.first, y.first, x.second - x.first, y.second - y.first);
+    level->regions    = PhotoCrap::Render::pyramidRegions(d->native, d->document, reduced);
+    if (level->regions[1].isEmpty())
+        return nullptr;
     for (int axis = 0; axis < 2; ++axis) {
         const QRect target = level->regions[axis];
-        if (target.isEmpty())
-            return nullptr;
-        if (axis == 0 && d->pool) {
+        if (axis == 0) {
             const quint64 key = (quint64(quint32(target.width())) << 32) | quint32(target.height());
             auto         &scratch = *d->pool->d;
             auto          targetTexture = scratch.targets.value(key).lock();
@@ -224,12 +211,10 @@ QRhiTexture *DisplayPyramidPass::ensure(QRhiTexture *source, int index)
                 scratch.bytes += bytes;
                 scratch.delta(bytes);
             }
-            level->surfaces[axis]  = std::move(targetTexture);
-            level->borrowedScratch = true;
+            level->surfaces[axis] = std::move(targetTexture);
         } else
-            level->surfaces[axis] = pyramidTarget(d->rhi, target.size(),
-                                                  axis == 0 || d->bits == 16 ? QRhiTexture::RGBA32F
-                                                                             : QRhiTexture::RGBA8);
+            level->surfaces[axis] = pyramidTarget(
+                d->rhi, target.size(), d->bits == 16 ? QRhiTexture::RGBA32F : QRhiTexture::RGBA8);
         if (!level->surfaces[axis])
             return nullptr;
         level->uniforms[axis].reset(
@@ -304,14 +289,10 @@ quint64 DisplayPyramidPass::render(QRhiCommandBuffer *cb, int index, quint64 gen
 qint64 DisplayPyramidPass::bytes() const
 {
     qint64 result = 0;
-    for (const auto &level : d->levels)
-        for (int axis = 0; axis < 2; ++axis) {
-            const auto size = level->regions[axis].size();
-            result += 128;
-            if (axis != 0 || !level->borrowedScratch)
-                result +=
-                    qint64(size.width()) * size.height() * (axis == 0 || d->bits == 16 ? 16 : 4);
-        }
+    for (const auto &level : d->levels) {
+        const auto size = level->regions[1].size();
+        result += 256 + qint64(size.width()) * size.height() * (d->bits == 16 ? 16 : 4);
+    }
     return result;
 }
 #else

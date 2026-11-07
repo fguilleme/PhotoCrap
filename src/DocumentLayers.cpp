@@ -81,42 +81,6 @@ void Document::moveLayer(int _direction)
         selectOnly(m_active);
     });
 }
-void Document::mergeDown()
-{
-    if (finishTextForLayer(m_active) < 0)
-        return;
-    if (m_active < 1 || m_active >= m_layers.size())
-        return;
-    const auto &lower = m_layers[m_active - 1];
-    const auto &upper = m_layers[m_active];
-    if (lower.locked || upper.locked || lower.kind != "pixel" || upper.kind != "pixel" ||
-        (lower.maskEnabled && !lower.mask.isNull()) ||
-        (upper.maskEnabled && !upper.mask.isNull()) || !lower.visible || !upper.visible ||
-        lower.blend != 0 || upper.blend != 0 || lower.groupId != upper.groupId) {
-        fail(tr("La fusion nécessite deux calques visibles en mode Normal, non verrouillés."));
-        return;
-    }
-    if (deferEdit(tr("Fusionner vers le bas"), editCost(false) * 2,
-                  [](Document &d) { d.mergeDown(); }))
-        return;
-    edit(tr("Fusionner vers le bas"), [&] {
-        if (!operationStep(0, 1))
-            return;
-        auto       &bottom = m_layers[m_active - 1];
-        const auto &top    = m_layers[m_active];
-        QImage      image  = ImageUtils::blank(m_size, workingFormat());
-        QPainter    painter(&image);
-        painter.setOpacity(bottom.opacity);
-        painter.drawImage(0, 0, bottom.image);
-        painter.setOpacity(top.opacity);
-        painter.drawImage(0, 0, top.image);
-        painter.end();
-        bottom.image   = image;
-        bottom.opacity = 1;
-        m_layers.removeAt(m_active--);
-        selectOnly(m_active);
-    });
-}
 void Document::groupSelectedLayers()
 {
     if (finishTextForLayer(m_active) < 0)

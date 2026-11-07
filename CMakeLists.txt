@@ -65,6 +65,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/storage/StreamingImageWriter.cpp
     src/storage/StreamingImageWriter.h
     src/DocumentLayers.cpp
+    src/DocumentLayerMerge.cpp
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
     src/storage/ScratchImageCache.cpp
@@ -392,6 +393,7 @@ qt_add_library(photocrap_core STATIC
     src/RawImageReader.cpp
     src/RawImageReader.h
     src/DocumentLayers.cpp
+    src/DocumentLayerMerge.cpp
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
     src/tools/BrushTool.cpp
@@ -846,6 +848,11 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_marquee_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME marquee COMMAND photocrap_marquee_tests)
     set_tests_properties(marquee PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    qt_add_executable(photocrap_layer_merge_tests tests/LayerMergeTest.cpp)
+    target_link_libraries(photocrap_layer_merge_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME layer_merge COMMAND photocrap_layer_merge_tests)
+    set_tests_properties(layer_merge PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
     qt_add_executable(photocrap_clipboard_tests tests/ClipboardTest.cpp)
     target_link_libraries(photocrap_clipboard_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME clipboard COMMAND photocrap_clipboard_tests)

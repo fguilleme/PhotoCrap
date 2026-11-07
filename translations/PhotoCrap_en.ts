@@ -842,6 +842,22 @@
     <message><source>Copier avec fusion</source><translation>Copy Merged</translation></message>
     <message><source>Nouveau calque par couper</source><translation>Layer via Cut</translation></message>
     <message><source>Nouveau calque par copie de sélection</source><translation>Layer via Copy</translation></message>
+    <message><source>Fusionner les calques sélectionnés</source><translation>Merge Layers</translation></message>
+    <message><source>Fusionner le groupe</source><translation>Merge Group</translation></message>
+    <message><source>Fusionner les calques visibles</source><translation>Merge Visible</translation></message>
+    <message><source>Créer un calque des sélectionnés fusionnés</source><translation>Stamp Selected Layers</translation></message>
+    <message><source>Créer un calque des visibles fusionnés</source><translation>Stamp Visible Layers</translation></message>
+    <message><source>Fusionner le masque d’écrêtage</source><translation>Merge Clipping Mask</translation></message>
+    <message><source>Aplatir l’image</source><translation>Flatten Image</translation></message>
+    <message><source>Copie des calques visibles</source><translation>Visible layers copy</translation></message>
+    <message><source>Copie fusionnée</source><translation>Merged copy</translation></message>
+    <message><source>Mémoire insuffisante pour fusionner les calques.</source><translation>Not enough memory to merge the layers.</translation></message>
+    <message><source>Impossible de placer le calque fusionné.</source><translation>Unable to place the merged layer.</translation></message>
+    <message><source>La fusion vers le bas nécessite un calque de pixels visible juste en dessous, dans le même groupe.</source><translation>Merge Down requires a visible pixel layer directly below, within the same group.</translation></message>
+    <message><source>Sélectionnez la base de pixels visible d’un groupe d’écrêtage.</source><translation>Select the visible pixel base of a clipping group.</translation></message>
+    <message><source>La base de la fusion doit contenir des pixels, du texte ou une forme, et non seulement des réglages.</source><translation>The merge base must contain pixels, text, or a shape rather than only adjustments.</translation></message>
+    <message><source>Incluez la base du masque d’écrêtage dans la fusion, ou utilisez Fusionner le masque d’écrêtage.</source><translation>Include the clipping base in the merge, or use Merge Clipping Mask.</translation></message>
+    <message><source>Déverrouillez les calques concernés avant de les fusionner. Une copie fusionnée conserve les originaux verrouillés.</source><translation>Unlock the affected layers before merging. A stamped copy preserves locked originals.</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2698,6 +2714,16 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Nouveau calque par couper</source><translation>Layer via Cut</translation></message>
     <message><source>Nouveau calque par copie de sélection</source><translation>Layer via Copy</translation></message>
     <message><source>Presse-papiers</source><translation>Clipboard</translation></message>
+    <message><source>Fusionner les calques sélectionnés</source><translation>Merge Layers</translation></message>
+    <message><source>Fusionner le groupe</source><translation>Merge Group</translation></message>
+    <message><source>Fusionner les calques visibles</source><translation>Merge Visible</translation></message>
+    <message><source>Créer un calque des sélectionnés fusionnés</source><translation>Stamp Selected Layers</translation></message>
+    <message><source>Créer un calque des visibles fusionnés</source><translation>Stamp Visible Layers</translation></message>
+    <message><source>Fusionner le masque d’écrêtage</source><translation>Merge Clipping Mask</translation></message>
+    <message><source>Aplatir l’image</source><translation>Flatten Image</translation></message>
+    <message><source>Supprimer les calques masqués ?</source><translation>Discard hidden layers?</translation></message>
+    <message><source>L’aplatissement conserve le rendu visible, supprime les calques masqués et remplit les zones transparentes en blanc.</source><translation>Flattening keeps the visible appearance, discards hidden layers, and fills transparent areas with white.</translation></message>
+    <message><source>Aplatir</source><translation>Flatten</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -4340,6 +4366,10 @@ Independent software, not affiliated with Adobe.</translation>
         <translation>PhotoCrap: color picker, pixels or mask</translation>
     </message>
     <message><source>Coller hors de la sélection</source><translation>Paste Outside</translation></message>
+    <message><source>Fusionner le groupe</source><translation>Merge Group</translation></message>
+    <message><source>Créer un calque des sélectionnés fusionnés</source><translation>Stamp Selected Layers</translation></message>
+    <message><source>Fusionner le masque d’écrêtage</source><translation>Merge Clipping Mask</translation></message>
+    <message><source>Aplatir l’image</source><translation>Flatten Image</translation></message>
 </context>
 <context><name>MixerBrushOptions</name>
 <message><source>Personnalisé</source><translation>Custom</translation></message>
@@ -4691,6 +4721,13 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Pixelliser la forme</source>
         <translation>Rasterize shape</translation>
     </message>
+    <message><source>Fusionner les calques sélectionnés</source><translation>Merge Layers</translation></message>
+    <message><source>Fusionner le groupe</source><translation>Merge Group</translation></message>
+    <message><source>Fusionner les calques visibles</source><translation>Merge Visible</translation></message>
+    <message><source>Créer un calque des sélectionnés fusionnés</source><translation>Stamp Selected Layers</translation></message>
+    <message><source>Créer un calque des visibles fusionnés</source><translation>Stamp Visible Layers</translation></message>
+    <message><source>Fusionner le masque d’écrêtage</source><translation>Merge Clipping Mask</translation></message>
+    <message><source>Aplatir l’image</source><translation>Flatten Image</translation></message>
 </context>
   <context>
     <name>MaskContextMenu</name>

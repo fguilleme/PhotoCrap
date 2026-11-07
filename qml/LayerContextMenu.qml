@@ -9,6 +9,7 @@ DarkMenu {
     readonly property bool singleLayer: document.selectedLayerCount === 1
     signal propertiesRequested()
     signal renameRequested()
+    signal flattenRequested()
 
     ContextMenuItem {
         objectName: "contextLayerProperties"
@@ -80,14 +81,16 @@ DarkMenu {
     ContextMenuItem { text: menu.layerInfo.kind==="shape" ? qsTr("Pixelliser la forme") : menu.layerInfo.kind==="text" ? qsTr("Pixelliser le texte") : qsTr("Pixelliser le calque (NYI)"); enabled: (menu.layerInfo.kind==="text" || menu.layerInfo.kind==="shape") && !menu.layerInfo.locked; onTriggered:menu.layerInfo.kind==="shape" ? menu.document.rasterizeShapeLayer() : menu.document.rasterizeTextLayer() }
     MenuSeparator {}
     ContextMenuItem {
-        text: qsTr("Fusionner avec le calque inférieur")
-        enabled: menu.singleLayer && menu.document.activeLayer > 0 &&
-                 menu.layerInfo.kind === "pixel" && !menu.layerInfo.locked
-        onTriggered: menu.document.mergeDown()
+        objectName: "contextMergeLayers"
+        text: menu.document.selectedLayerCount > 1 ? qsTr("Fusionner les calques sélectionnés") : menu.layerInfo.kind === "group" ? qsTr("Fusionner le groupe") : qsTr("Fusionner avec le calque inférieur")
+        enabled: menu.document.layerMergeActions.selected
+        onTriggered: menu.document.mergeLayers("selected")
     }
-    ContextMenuItem { text: qsTr("Fusionner les calques sélectionnés (NYI)"); enabled: false }
-    ContextMenuItem { text: qsTr("Fusionner les calques visibles (NYI)"); enabled: false }
-    ContextMenuItem { text: qsTr("Aplatir l’image (NYI)"); enabled: false }
+    ContextMenuItem { text: qsTr("Fusionner le masque d’écrêtage"); enabled: menu.document.layerMergeActions.clipping; onTriggered: menu.document.mergeLayers("clipping") }
+    ContextMenuItem { objectName: "contextMergeVisible"; text: qsTr("Fusionner les calques visibles"); enabled: menu.document.layerMergeActions.visible; onTriggered: menu.document.mergeLayers("visible") }
+    ContextMenuItem { text: qsTr("Créer un calque des sélectionnés fusionnés"); enabled: menu.document.layerMergeActions.stampSelected; onTriggered: menu.document.mergeLayers("stampSelected") }
+    ContextMenuItem { objectName: "contextStampVisible"; text: qsTr("Créer un calque des visibles fusionnés"); enabled: menu.document.layerMergeActions.stampVisible; onTriggered: menu.document.mergeLayers("stampVisible") }
+    ContextMenuItem { objectName: "contextFlatten"; text: qsTr("Aplatir l’image"); enabled: menu.document.layerMergeActions.flatten; onTriggered: menu.flattenRequested() }
     MenuSeparator {}
     ContextMenuItem {
         text: menu.layerInfo.visible ? qsTr("Masquer le calque") : qsTr("Afficher le calque")

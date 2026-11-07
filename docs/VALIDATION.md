@@ -1,5 +1,30 @@
 # Validation
 
+## Fusions de calques — 7 novembre 2026
+
+Le build complet Qt 6.12/Apple Silicon passe, ainsi que les **59 tests CTest non
+interactifs** (trois tests macOS dédiés exclus). `layer_merge` compare le rendu
+natif avant/après fusion en 8/16 bits, les 27 modes, masques progressifs et leur
+densité, réglages, remplissages, texte et formes vectorielles, groupes repliés,
+écrêtage, sources cachées et copies préservant les originaux. Annuler/Rétablir,
+verrouillage, cibles invalides, annulation du worker, fonds uniformes et
+aller-retour `.pcr` sont contrôlés. Un cas supplémentaire conserve exactement un
+alpha de 1/65 535 après fusion d’une source uniforme 16 bits.
+
+`qml_smoke` vérifie Cmd/Ctrl-E, les variantes Option/Alt et Maj, le nouveau calque
+copié, la confirmation d’abandon des sources cachées et son annulation. Le test
+macOS ciblé `--smoke-test --layer-merge-test` passe également en Cocoa/Metal.
+
+Le parcours UI **général** sur Cocoa/Metal ne passe pas encore : il atteint le
+contrôle de réorganisation des miniatures d’accueil à largeur réduite, puis échoue
+sur cette assertion. Ce contrôle est extérieur aux fusions. Son premier lancement
+avait planté dans `QQuickMenuPrivate::setNativeMenuVisible` lors d’un appel direct
+à `open()` sur le sous-menu natif des fichiers récents. Le scénario évite désormais
+cet appel réservé à AppKit sur Cocoa, vérifie les mêmes données/contraintes de
+largeur et conserve l’ouverture visuelle sur le backend hors écran. Les nouveaux
+changements n’ont pas encore été validés sur les runners Windows/Linux.
+[Commandes et limites de rendu](LAYER_MERGE.md).
+
 ## Presse-papiers de sélection — 7 novembre 2026
 
 Le build complet Qt 6.12 sur Apple Silicon et les **58 tests CTest non interactifs**

@@ -249,7 +249,7 @@ ApplicationWindow {
     property var pendingLayerPreviewValue
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool pathDialogOpen: false
-    property bool modalOpen: pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -1028,6 +1028,10 @@ ApplicationWindow {
         cancelLayerPreviewQueue()
         editor.cancelLayerPreview()
     }
+    function requestFlatten() {
+        if (editor.layerMergeActions.hidden) flattenDialog.open()
+        else editor.mergeLayers("flatten")
+    }
     function openLayerContextMenu() {
         maskContextMenu.close()
         layerContextMenu.popup()
@@ -1229,6 +1233,12 @@ ApplicationWindow {
     Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: { if(window.penToolActive)editor.deletePenPoints();else if(window.sliceToolActive) editor.deleteActiveSlice(); else editor.clearSelected() } }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
     Action { id: duplicateAction; text: editor.hasSelection && !editor.editingMask ? qsTr("Nouveau calque par copie de sélection") : qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { if(editor.hasSelection && !editor.editingMask)editor.layerViaSelection(false);else editor.duplicateLayer() } }
+    Action { id: mergeAction; objectName: "mergeLayersAction"; text: editor.selectedLayerCount > 1 ? qsTr("Fusionner les calques sélectionnés") : activeInfo.kind === "group" ? qsTr("Fusionner le groupe") : qsTr("Fusionner vers le bas"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeLayers")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.selected; onTriggered: editor.mergeLayers("selected") }
+    Action { id: mergeVisibleAction; objectName: "mergeVisibleAction"; text: qsTr("Fusionner les calques visibles"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeVisible")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.visible; onTriggered: editor.mergeLayers("visible") }
+    Action { id: stampSelectedAction; text: qsTr("Créer un calque des sélectionnés fusionnés"); shortcut: (shortcuts.revision, shortcuts.sequence("stampSelected")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.stampSelected; onTriggered: editor.mergeLayers("stampSelected") }
+    Action { id: stampVisibleAction; objectName: "stampVisibleAction"; text: qsTr("Créer un calque des visibles fusionnés"); shortcut: (shortcuts.revision, shortcuts.sequence("stampVisible")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.stampVisible; onTriggered: editor.mergeLayers("stampVisible") }
+    Action { id: mergeClippingAction; text: qsTr("Fusionner le masque d’écrêtage"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeClipping")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.clipping; onTriggered: editor.mergeLayers("clipping") }
+    Action { id: flattenAction; objectName: "flattenAction"; text: qsTr("Aplatir l’image"); shortcut: (shortcuts.revision, shortcuts.sequence("flattenImage")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.flatten; onTriggered: window.requestFlatten() }
     Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
     Instantiator {
         model: (window.toolbarRevision, window.toolLayout)
@@ -1445,7 +1455,13 @@ ApplicationWindow {
             }
             DarkMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
             DarkMenuItem { text: qsTr("Propriétés…"); enabled: window.canOpenLayerProperties(activeInfo); onTriggered: window.openActiveLayerProperties() }
-            DarkMenuItem { text: qsTr("Fusionner vers le bas"); enabled: editor.activeLayer>0; onTriggered: editor.mergeDown() }
+            MenuSeparator {}
+            DarkMenuItem { action: mergeAction }
+            DarkMenuItem { action: mergeClippingAction }
+            DarkMenuItem { action: mergeVisibleAction }
+            DarkMenuItem { action: stampSelectedAction }
+            DarkMenuItem { action: stampVisibleAction }
+            DarkMenuItem { action: flattenAction }
             DarkMenuItem { text: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onTriggered: editor.removeLayer() }
         }
         SelectionMenu {
@@ -3803,6 +3819,7 @@ ApplicationWindow {
             window.openActiveLayerProperties()
         }
         onRenameRequested: { layerName.text=activeInfo.name; renameDialog.open() }
+        onFlattenRequested: window.requestFlatten()
     }
     MaskContextMenu {
         id: maskContextMenu
@@ -4016,6 +4033,15 @@ ApplicationWindow {
             changingBlackWhiteTint = false
             changingPhotoFilterColor = false
         }
+    }
+    Dialog {
+        id: flattenDialog; objectName: "flattenDialog"; title: qsTr("Supprimer les calques masqués ?"); anchors.centerIn: parent; modal: true; width: 430
+        Label { width: parent.width; wrapMode: Text.WordWrap; text: qsTr("L’aplatissement conserve le rendu visible, supprime les calques masqués et remplit les zones transparentes en blanc.") }
+        footer: DialogButtonBox {
+            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: flattenDialog.reject() }
+            DialogActionButton { text: qsTr("Aplatir"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: flattenDialog.accept() }
+        }
+        onAccepted: editor.mergeLayers("flatten")
     }
     Dialog {
         id: newDialog; objectName: "newDialog"; title: qsTr("Nouveau document"); anchors.centerIn: parent; modal: true; width: 410

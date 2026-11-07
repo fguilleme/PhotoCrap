@@ -38,6 +38,12 @@ La Gomme magique est maintenant disponible dans le groupe E : Maj+E parcourt les
 | Contour progressif | Shift+F6 | Document |
 | Plage de couleurs | Aucun raccourci par défaut | Document |
 | Intervertir (touche de fonction) | Shift+F7 | Document |
+| Fusionner vers le bas / sélection / groupe | Ctrl+E | Selon la sélection de calques |
+| Fusionner les calques visibles | Ctrl+Shift+E | Sources visibles déverrouillées |
+| Créer un calque des sélectionnés fusionnés | Ctrl+Alt+E | Sources sélectionnées conservées |
+| Créer un calque des visibles fusionnés | Ctrl+Alt+Shift+E | Sources visibles conservées |
+| Fusionner le masque d’écrêtage | Aucun par défaut | Base de pixels et membres visibles |
+| Aplatir l’image | Aucun par défaut | Rendu visible opaque, sources cachées retirées |
 | Grouper les calques | Ctrl+G | Document |
 | Dissocier les calques | Ctrl+Shift+G | Document |
 | Créer/libérer le masque d’écrêtage | Ctrl+Alt+G | Document |
@@ -172,9 +178,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Sélectionner et masquer | Ctrl+Alt+R | Document |
 | Mode masque rapide | Q | Document |
 | Transformer la sélection | Aucun raccourci par défaut | Document |
-| Fusionner les calques sélectionnés | Ctrl+E | Document |
-| Fusionner les calques visibles | Ctrl+Shift+E | Document |
-| Créer un calque des visibles fusionnés | Ctrl+Alt+Shift+E | Document |
 | Placer le calque tout en haut | Ctrl+Shift+] | Document |
 | Placer le calque tout en bas | Ctrl+Shift+[ | Document |
 | Verrouiller les pixels transparents | / | Document |
@@ -282,3 +285,5 @@ Le catalogue recense aussi les entrées NYI Étendre, Généraliser, Zone de mis
 ## Texte éditable
 
 Depuis le calque de texte éditable, Cmd/Ctrl+A sélectionne le texte et Cmd/Ctrl+Entrée valide la session. Ces deux gestes sont désormais disponibles dans le catalogue (298 entrées, 119 NYI). Cmd/Ctrl+B, I et U mettent en forme les caractères ; Échap annule la session. Les raccourcis avancés de taille, interligne, approche et alignement restent NYI ; leurs réglages sont accessibles dans le panneau Caractère / Paragraphe. Voir [le guide texte](TEXT_TOOL.md).
+
+Les variantes de fusion, leurs cibles, l’annulation et les limites de rendu sont détaillées dans le [guide des fusions](LAYER_MERGE.md).

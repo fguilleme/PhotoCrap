@@ -264,12 +264,20 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      recentLabel->property("text").toString() == recentText,
                  "recent-files menu renders a compact path with both ends preserved"))
         return false;
-    QMetaObject::invokeMethod(recentMenu, "open");
-    QTest::qWait(50);
+    // A Cocoa menu-bar submenu is opened by AppKit, not by QQuickMenu::open().
+    // Calling open() outside input delivery has no Quick delivery agent on Qt
+    // 6.12 and crashes before these UI checks reach the editing commands.
+    const bool nativeRecentMenu = QGuiApplication::platformName() == "cocoa";
+    if (!nativeRecentMenu) {
+        QMetaObject::invokeMethod(recentMenu, "open");
+        QTest::qWait(50);
+    } else
+        QMetaObject::invokeMethod(recentMenu, "aboutToShow");
     if (!require(recentMenu->property("width").toReal() <= 300.5,
                  "recent-files menu stays compact for long paths"))
         return false;
-    QMetaObject::invokeMethod(recentMenu, "close");
+    if (!nativeRecentMenu)
+        QMetaObject::invokeMethod(recentMenu, "close");
     auto *welcome = _window->findChild<QObject *>("welcomeDialog");
     if (!require(welcome && QMetaObject::invokeMethod(welcome, "open"), "welcome dialog opens"))
         return false;

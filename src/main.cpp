@@ -385,6 +385,11 @@ int main(int argc, char *argv[])
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }
+            if (args.contains("--layer-merge-test")) {
+                passed = window && runLayerMergeSmoke(window, document);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--tool-layer-test")) {
                 passed = window && runToolLayerSmoke(window, document, workspaceSettings);
                 app.exit(passed && !qmlWarnings ? 0 : 3);

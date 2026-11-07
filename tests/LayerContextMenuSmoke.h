@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "LayerMergeSmoke.h"
 #include <QJSValue>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -145,5 +146,5 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
         return false;
     properties->setProperty("keepChanges", true);
     QMetaObject::invokeMethod(properties, "accept");
-    return true;
+    return runLayerMergeSmoke(_window, _document);
 }

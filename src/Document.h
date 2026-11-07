@@ -1140,7 +1140,10 @@ public:
     Q_INVOKABLE void duplicateLayer();
     Q_INVOKABLE void removeLayer();
     Q_INVOKABLE void moveLayer(int _direction);
+    Q_PROPERTY(QVariantMap layerMergeActions READ layerMergeActions NOTIFY layersChanged)
+    QVariantMap      layerMergeActions() const;
     Q_INVOKABLE void mergeDown();
+    Q_INVOKABLE void mergeLayers(const QString &_mode = QStringLiteral("selected"));
     Q_INVOKABLE void groupSelectedLayers();
     Q_INVOKABLE void ungroupActiveLayers();
     Q_INVOKABLE void toggleGroupCollapsed(int _index);
@@ -1367,6 +1370,14 @@ private:
     QString m_queuedClipboardPaste;
     std::shared_ptr<PhotoCrap::Clipboard::Pixels> m_clipboardTransferPixels;
     QMetaObject::Connection                       m_clipboardFinishConnection;
+    struct LayerMergePlan {
+        QSet<int> inputs, removed;
+        int       insertion = 0;
+        QString   groupId, name, label;
+        bool      stamp = false, white = false;
+    };
+    bool planLayerMerge(const QString &_mode, LayerMergePlan &_plan, QString &_reason) const;
+    bool applyLayerMerge(const LayerMergePlan &_plan);
     struct BackgroundOperation;
     std::shared_ptr<BackgroundOperation> m_backgroundOperation;
     qint64                               m_backgroundEditThreshold = 4LL * 1024 * 1024;

@@ -42,7 +42,7 @@ QString toolLabel(const QString &_tool)
         {"cloneStamp", QT_TRANSLATE_NOOP("Document", "Tampon de duplication")},
         {"patternStamp", QT_TRANSLATE_NOOP("Document", "Tampon de motif")},
         {"eraser", QT_TRANSLATE_NOOP("Document", "Gomme")},
-        {"fill", QT_TRANSLATE_NOOP("Document", "Remplissage")},
+        {"fill", QT_TRANSLATE_NOOP("Document", "Pot de peinture")},
         {"move", QT_TRANSLATE_NOOP("Document", "Déplacement")},
         {"select", QT_TRANSLATE_NOOP("Document", "Sélection rectangulaire")},
         {"ellipticalSelect", QT_TRANSLATE_NOOP("Document", "Sélection elliptique")},

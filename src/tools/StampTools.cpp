@@ -57,17 +57,19 @@ bool Document::defineStampPattern()
     return true;
 }
 
-QImage Document::stampPatternImage() const
+QImage Document::stampPatternImage(int _pattern) const
 {
-    if (m_stampPattern == 3)
+    if (_pattern < 0)
+        _pattern = m_stampPattern;
+    if (_pattern == 3)
         return m_customStampPattern;
     QImage tile = ImageUtils::blank(QSize(24, 24));
     tile.fill(QColor("#eeeeee"));
     QPainter painter(&tile);
-    if (m_stampPattern == 0) {
+    if (_pattern == 0) {
         painter.fillRect(0, 0, 12, 12, QColor("#777777"));
         painter.fillRect(12, 12, 12, 12, QColor("#777777"));
-    } else if (m_stampPattern == 1) {
+    } else if (_pattern == 1) {
         painter.setBrush(QColor("#666666"));
         painter.setPen(Qt::NoPen);
         painter.setRenderHint(QPainter::Antialiasing);

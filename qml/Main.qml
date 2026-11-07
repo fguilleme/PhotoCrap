@@ -205,8 +205,8 @@ ApplicationWindow {
                                               || editor.tool === "sponge" || editor.tool === "smudge"
     readonly property bool paintToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                             || editor.tool === "eraser" || editor.tool === "remove" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
-    readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
-                                              || editor.tool === "eraser" || editor.tool === "magicEraser" || editor.tool === "fill"
+    readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil" || editor.tool === "fill"
+                                              || editor.tool === "eraser" || editor.tool === "magicEraser"
                                               || editor.tool === "text" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || stampToolActive
     property bool layerContextMenuVisible: layerContextMenu.visible
     property bool maskContextMenuVisible: maskContextMenu.visible
@@ -316,7 +316,7 @@ ApplicationWindow {
         {name:"backgroundEraser", icon:"◇", label:qsTr("Gomme d’arrière-plan"), implemented:false},
         {name:"magicEraser", icon:"✧", label:qsTr("Gomme magique"), implemented:true},
         {name:"gradient", icon:"▨", label:qsTr("Dégradé"), implemented:true},
-        {name:"fill", icon:"◩", label:qsTr("Remplissage contigu"), implemented:true},
+        {name:"fill", icon:"◩", label:qsTr("Pot de peinture"), implemented:true},
         {name:"blur", icon:"●", label:qsTr("Flou"), implemented:true},
         {name:"sharpen", icon:"▲", label:qsTr("Netteté"), implemented:true},
         {name:"smudge", icon:"≈", label:qsTr("Doigt"), implemented:true},
@@ -1068,7 +1068,8 @@ ApplicationWindow {
             return
         }
         const brushBlendTools = ["brush", "pencil", "eraser", "cloneStamp", "patternStamp", "historyBrush", "artHistoryBrush"]
-        if (brushBlendTools.indexOf(editor.tool) >= 0) editor.brushBlend = mode
+        if (editor.tool === "fill") editor.fillBlend = mode
+        else if (brushBlendTools.indexOf(editor.tool) >= 0) editor.brushBlend = mode
         else if (editor.tool === "move" || editor.tool === "hand" || editor.tool === "zoomTool" || window.selectionToolActive)
             editor.setLayerBlend(editor.activeLayer, mode)
     }
@@ -1118,7 +1119,8 @@ ApplicationWindow {
         else if (id === "fillDialogF5") openFillColor()
         else if (id === "blendNext" || id === "blendPrevious") {
             const brushBlendTools = ["brush", "pencil", "eraser", "cloneStamp", "patternStamp", "historyBrush", "artHistoryBrush"]
-            const current = brushBlendTools.indexOf(editor.tool) >= 0 ? editor.brushBlend : activeInfo.blend
+            const current = editor.tool === "fill" ? editor.fillBlend
+                : brushBlendTools.indexOf(editor.tool) >= 0 ? editor.brushBlend : activeInfo.blend
             applyBlendShortcut((Number(current) + (id === "blendNext" ? 1 : 26)) % 27)
         }
         else if (id.indexOf("blend") === 0) applyBlendShortcut(Number(id.substring(5)))
@@ -1143,6 +1145,8 @@ ApplicationWindow {
     onDockGroupActiveChanged: scheduleWorkspaceSave()
     onDockPanelVisibilityChanged: scheduleWorkspaceSave()
     Component.onCompleted: {
+        editor.fillTolerance = 32
+        editor.fillAntialias = true
         editor.gradientNewLayer = true
         editor.gradientMethod = 2
         editor.gradientDither = true
@@ -1665,6 +1669,25 @@ ApplicationWindow {
                         onEditCommitted: workspace.forceActiveFocus()
                     }
                 }
+                ScrollView {
+                    visible: editor.tool === "fill"
+                    Layout.fillWidth: visible
+                    Layout.minimumWidth: 0
+                    Layout.preferredHeight: 40
+                    contentWidth: fillOptions.implicitWidth
+                    contentHeight: 38
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+                    FillOptions {
+                        id: fillOptions
+                        objectName: "fillOptions"
+                        width: implicitWidth
+                        height: 34
+                        document: editor
+                        blendModes: window.blendModeNames
+                        onEditCommitted: workspace.forceActiveFocus()
+                    }
+                }
                 RowLayout {
                     visible: window.smartSelectionToolActive
                     spacing: 1
@@ -1750,8 +1773,8 @@ ApplicationWindow {
                     text: qsTr("Effacement… Échap pour annuler")
                     color: "#c8d0d9"
                 }
-                Label { visible: window.opacityToolActive; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
-                DarkSpinBox { objectName: "brushOpacityTop"; visible: window.opacityToolActive; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
+                Label { visible: window.opacityToolActive && editor.tool !== "fill"; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
+                DarkSpinBox { objectName: "brushOpacityTop"; visible: window.opacityToolActive && editor.tool !== "fill"; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
                 Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
                 DarkSpinBox { objectName: "brushFlowTop"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushFlow=value/100 }
                 Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
@@ -2055,7 +2078,7 @@ ApplicationWindow {
                     implicitHeight: 32
                     onClicked: fitCanvas()
                 }
-                Item { visible: editor.tool !== "gradient"; Layout.fillWidth: true }
+                Item { visible: editor.tool !== "gradient" && editor.tool !== "fill"; Layout.fillWidth: true }
                 IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
                 IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
                 Button {

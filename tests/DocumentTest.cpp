@@ -8738,6 +8738,146 @@ private slots:
         QVERIFY(center.red() < 80);
         QCOMPARE(d.historyIndex(), 1);
     }
+    void bucketOptionsMatchIslandsAndPreserveNativeDepth()
+    {
+        using namespace PhotoCrap::Tools;
+        for (auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
+            QImage image(40, 12, format);
+            image.fill(Qt::black);
+            QPainter painter(&image);
+            painter.fillRect(2, 2, 8, 8, QColor(100, 110, 120));
+            painter.fillRect(22, 2, 8, 8, QColor(105, 115, 125));
+            painter.end();
+            PixelPlane       source(image);
+            FloodFillOptions options;
+            options.size          = image.size();
+            options.overlayFormat = format;
+            options.replacement   = Qt::red;
+            options.tolerance     = 6;
+            const auto local      = floodFill(source, {4, 4}, options);
+            QVERIFY(local.valid);
+            QCOMPARE(local.image.region(image.rect()).pixelColor(24, 4), image.pixelColor(24, 4));
+            options.contiguous = false;
+            const auto global  = floodFill(source, {4, 4}, options);
+            QVERIFY(global.valid);
+            QCOMPARE(global.filledPixels, qint64(128));
+            QCOMPARE(global.image.region(image.rect()).pixelColor(24, 4), QColor(Qt::red));
+            QCOMPARE(global.image.format(), format);
+            QCOMPARE(global.image.region(image.rect()).pixelColor(15, 4), QColor(Qt::black));
+
+            options.antialias = true;
+            const auto smooth = floodFill(source, {4, 4}, options);
+            QVERIFY(smooth.valid);
+            const auto pixels = smooth.image.region(image.rect());
+            QCOMPARE(pixels.pixelColor(4, 4), QColor(Qt::red));
+            const auto edge = pixels.pixelColor(2, 2);
+            QVERIFY(edge.red() > 100 && edge.red() < 255);
+            QCOMPARE(pixels.pixelColor(1, 2), QColor(Qt::black));
+
+            options.antialias   = false;
+            options.selection   = QRegion(0, 0, 12, 12);
+            const auto selected = floodFill(source, {4, 4}, options);
+            QVERIFY(selected.valid);
+            QCOMPARE(selected.filledPixels, qint64(64));
+            QCOMPARE(selected.image.region(image.rect()).pixelColor(24, 4),
+                     image.pixelColor(24, 4));
+
+            options.selection  = {};
+            options.contiguous = true;
+            options.sample     = source;
+            QImage blank(1, 1, format);
+            blank.fill(Qt::transparent);
+            const auto sampled = floodFill(PixelPlane(blank), {4, 4}, options);
+            QVERIFY(sampled.valid);
+            QCOMPARE(sampled.image.region(image.rect()).pixelColor(4, 4), QColor(Qt::red));
+            QCOMPARE(sampled.image.region(image.rect()).pixelColor(24, 4).alpha(), 0);
+        }
+    }
+    void bucketPatternsStayAlignedAcrossTilesAndBlendAtNativeDepth()
+    {
+        using namespace PhotoCrap::Tools;
+        for (auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
+            QImage source(600, 4, format);
+            source.fill(Qt::white);
+            QImage pattern(7, 1, format);
+            pattern.fill(Qt::red);
+            pattern.setPixelColor(0, 0, Qt::blue);
+            FloodFillOptions options;
+            options.size          = source.size();
+            options.overlayFormat = format;
+            options.replacement   = Qt::black;
+            options.pattern       = pattern;
+            options.selection     = QRegion(3, 0, 594, 4);
+            const auto result     = floodFill(PixelPlane(source), {4, 2}, options);
+            QVERIFY(result.valid);
+            const auto pixels = result.image.region(source.rect());
+            for (int x = 3; x < 597; ++x)
+                QCOMPARE(pixels.pixelColor(x, 2), pattern.pixelColor(x % 7, 0));
+            QCOMPARE(pixels.pixelColor(2, 2), QColor(Qt::white));
+        }
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(20, 12, false, bits));
+            d.setColor(QColor(128, 128, 128));
+            d.fillWithColor(true);
+            d.setTool("fill");
+            d.setColor(Qt::red);
+            d.setBrushOpacity(.5);
+            d.setProperty("fillBlend", 3); // Multiply
+            const auto before = d.layerImage(0);
+            d.beginStroke(3, 3);
+            const auto after = d.layerImage(0);
+            QCOMPARE(after.format(), before.format());
+            const auto color = after.pixelColor(3, 3);
+            QVERIFY(qAbs(color.red() - 128) <= 1);
+            QVERIFY(qAbs(color.green() - 64) <= 1);
+            QVERIFY(qAbs(color.blue() - 64) <= 1);
+            d.undo();
+            QCOMPARE(d.layerImage(0), before);
+
+            d.addLayerMask(true);
+            const auto maskBefore = d.maskImage(0);
+            d.setColor(Qt::black);
+            d.beginStroke(3, 3);
+            const auto maskAfter = d.maskImage(0);
+            QCOMPARE(maskAfter.format(), maskBefore.format());
+            QVERIFY(qAbs(maskAfter.pixelColor(3, 3).red() - 128) <= 1);
+            d.undo();
+            QCOMPARE(d.maskImage(0), maskBefore);
+        }
+    }
+    void bucketSamplesVisibleLayersButPaintsOnlyTheActiveLayer()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(48, 24, false, bits));
+            d.setTool("pencil");
+            d.setBrushSize(4);
+            d.setColor(Qt::black);
+            d.beginStroke(24, 0);
+            d.continueStroke(24, 24);
+            d.endStroke();
+            const auto base = d.layerImage(0);
+            d.addLayer();
+            d.setTool("fill");
+            d.setColor(Qt::red);
+            d.setProperty("fillSampleAllLayers", true);
+            d.setProperty("fillContiguous", false);
+            d.setProperty("fillTolerance", 0);
+            d.beginStroke(2, 12);
+            const auto overlay = d.layerImage(1);
+            QCOMPARE(overlay.pixelColor(2, 12), QColor(Qt::red));
+            QCOMPARE(overlay.pixelColor(44, 12), QColor(Qt::red));
+            QCOMPARE(overlay.pixelColor(24, 12).alpha(), 0);
+            QCOMPARE(d.layerImage(0), base);
+            d.undo();
+            QCOMPARE(d.layerImage(1).pixelColor(2, 12).alpha(), 0);
+            d.redo();
+            QCOMPARE(d.layerImage(1), overlay);
+        }
+    }
     void bucketFillCancelsDuringSparseTraversal()
     {
         QImage pixel(1, 1, QImage::Format_RGBA64_Premultiplied);

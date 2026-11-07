@@ -587,6 +587,7 @@ qt_add_qml_module(PhotoCrap
         qml/PenOptions.qml
         qml/SelectionOptions.qml
         qml/GradientOptions.qml
+        qml/FillOptions.qml
         qml/GradientGuide.qml
         qml/ColorSelectionPreview.qml
         qml/ColorSelectionDialog.qml

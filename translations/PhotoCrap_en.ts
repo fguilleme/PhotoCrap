@@ -113,6 +113,10 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Pot de peinture</source><translation>Paint Bucket</translation></message>
+    <message><source>Mémoire insuffisante pour le remplissage.</source><translation>Not enough memory for the fill.</translation></message>
+    <message><source>Choisissez un motif disponible pour le remplissage.</source><translation>Choose an available fill pattern.</translation></message>
+    <message><source>Mémoire insuffisante pour échantillonner les calques.</source><translation>Not enough memory to sample the layers.</translation></message>
     <message><source>Ouvrir l’image</source><translation>Open image</translation></message>
     <message><source>Ouvrir le projet</source><translation>Open project</translation></message>
     <message><source>Enregistrer le projet</source><translation>Save project</translation></message>
@@ -1263,8 +1267,8 @@
     </message>
     <message>
       <location filename="../qml/Main.qml" line="78" />
-      <source>Remplissage contigu</source>
-      <translation>Contiguous Fill</translation>
+      <source>Pot de peinture</source>
+      <translation>Paint Bucket</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="79" />
@@ -2891,8 +2895,8 @@ Independent software, not affiliated with Adobe.</translation>
     </message>
     <message>
       <location filename="../src/ShortcutManager.cpp" line="26" />
-      <source>Remplissage contigu</source>
-      <translation>Contiguous Fill</translation>
+      <source>Pot de peinture</source>
+      <translation>Paint Bucket</translation>
     </message>
     <message><source>Dégradé et remplissage</source><translation>Gradient and Fill</translation></message>
     <message><source>Formes</source><translation>Shapes</translation></message>
@@ -5211,4 +5215,24 @@ Independent software, not affiliated with Adobe.</translation>
 <message><source>Pointes à soies et simulation physique (NYI)</source><translation>Bristle tips and physical simulation (NYI)</translation></message>
 <message><source>Pression et inclinaison du stylet (NYI)</source><translation>Stylus pressure and tilt (NYI)</translation></message>
 </context>
+  <context>
+    <name>FillOptions</name>
+    <message><source>Premier plan</source><translation>Foreground</translation></message>
+    <message><source>Motif</source><translation>Pattern</translation></message>
+    <message><source>Damier</source><translation>Checkerboard</translation></message>
+    <message><source>Points</source><translation>Dots</translation></message>
+    <message><source>Rayures</source><translation>Stripes</translation></message>
+    <message><source>Motif personnalisé</source><translation>Custom Pattern</translation></message>
+    <message><source>Motif de remplissage, aligné sur le document</source><translation>Fill pattern, aligned to the document</translation></message>
+    <message><source>Définir…</source><translation>Define…</translation></message>
+    <message><source>Créer un motif à partir de la sélection</source><translation>Create a pattern from the selection</translation></message>
+    <message><source>Mode</source><translation>Mode</translation></message>
+    <message><source>Opacité</source><translation>Opacity</translation></message>
+    <message><source>Tolérance</source><translation>Tolerance</translation></message>
+    <message><source>Anticrénelage</source><translation>Anti-alias</translation></message>
+    <message><source>Pixels contigus</source><translation>Contiguous</translation></message>
+    <message><source>Décocher pour remplir aussi les zones de couleur similaire séparées</source><translation>Uncheck to also fill separate areas with similar colors</translation></message>
+    <message><source>Tous les calques</source><translation>All Layers</translation></message>
+    <message><source>Détecter les couleurs sur les calques visibles et remplir le calque actif</source><translation>Sample colors from visible layers and fill the active layer</translation></message>
+  </context>
 </TS>

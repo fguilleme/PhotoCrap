@@ -56,6 +56,25 @@ J les active donc aussi en 16 bits, sans le suffixe de limitation « 8 bits ».
 - Option/Alt avec pinceau, crayon, gomme, formes d’historique, remplissage ou dégradé prélève le premier plan, sans peindre. La pipette normale prélève l’arrière-plan avec Option/Alt ; Maj ajoute un échantillon.
 - Les variantes existantes restent en place : Option/Alt définit la source du tampon/correcteur, charge le pinceau mélangeur et prélève la couleur de remplacement ; il inverse Flou/Netteté et Densité −/+.
 
+## Pot de peinture
+
+Le groupe G contient **Dégradé** et **Pot de peinture**. Le pot remplit avec la
+couleur de premier plan ou un motif (damier, points, rayures, ou une sélection
+définie comme motif). Sa barre propose mode de fusion, opacité, tolérance de 0
+à 255, anticrénelage, **Pixels contigus** et **Tous les calques**.
+
+- Pixels contigus coché : seules les couleurs similaires reliées au clic sont
+  remplies. Décoché : les zones séparées de couleur similaire le sont aussi.
+- Une sélection limite toujours le remplissage, avec sa couverture progressive.
+- Tous les calques détecte les couleurs dans la composition visible ; les pixels
+  sont déposés uniquement sur le calque actif. Cette option est désactivée lors
+  de l’édition d’un masque, qui reste une surface en niveaux de gris.
+- Les calques 8 et 16 bits gardent leur profondeur. Les gros remplissages passent
+  en arrière-plan et sont annulables pendant le calcul ; un remplissage achevé
+  correspond à une seule étape d’historique.
+
+Référence : [remplir avec le Pot de peinture, Adobe](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/fill-objects-selections-layers/fill-paint-bucket-tool.html).
+
 ## Formes, déplacement, recadrage et tranches
 
 - Formes : Maj pour des proportions égales, Option/Alt pour dessiner depuis le centre, Espace pour repositionner pendant le tracé. Ligne/dégradé : Maj contraint les angles par pas de 45°.

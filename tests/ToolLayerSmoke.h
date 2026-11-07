@@ -266,6 +266,24 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     QMetaObject::invokeMethod(autoLayerCheck, "toggled");
 
     _document.newDocument(160, 120, true);
+    _document.setTool("fill");
+    QTest::qWait(40);
+    auto *fill       = _window->findChild<QQuickItem *>("fillOptions");
+    auto *contiguous = _window->findChild<QObject *>("fillContiguous");
+    auto *tolerance  = _window->findChild<QObject *>("fillTolerance");
+    if (!require(fill && fill->isVisible() && contiguous && tolerance &&
+                     tolerance->property("value").toInt() == 32,
+                 "the paint bucket exposes its tolerance and connectivity"))
+        return false;
+    contiguous->setProperty("checked", false);
+    QMetaObject::invokeMethod(contiguous, "toggled");
+    if (!require(!_document.property("fillContiguous").toBool(),
+                 "the connectivity checkbox changes the fill behavior"))
+        return false;
+    contiguous->setProperty("checked", true);
+    QMetaObject::invokeMethod(contiguous, "toggled");
+
+    _document.newDocument(160, 120, true);
     _document.setTool("gradient");
     QTest::qWait(60);
     auto *gradient = _window->findChild<QQuickItem *>("gradientOptions");

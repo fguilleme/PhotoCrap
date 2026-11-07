@@ -59,7 +59,7 @@ const char *translatedShortcutText(const QString &_source)
         {"Recadrage", QT_TRANSLATE_NOOP("ShortcutManager", "Recadrage")},
         {"Pinceau", QT_TRANSLATE_NOOP("ShortcutManager", "Pinceau")},
         {"Gomme", QT_TRANSLATE_NOOP("ShortcutManager", "Gomme")},
-        {"Remplissage contigu", QT_TRANSLATE_NOOP("ShortcutManager", "Remplissage contigu")},
+        {"Pot de peinture", QT_TRANSLATE_NOOP("ShortcutManager", "Pot de peinture")},
         {"Dégradé", QT_TRANSLATE_NOOP("ShortcutManager", "Dégradé")},
         {"Pipette", QT_TRANSLATE_NOOP("ShortcutManager", "Pipette")},
         {"Texte éditable", QT_TRANSLATE_NOOP("ShortcutManager", "Texte éditable")},

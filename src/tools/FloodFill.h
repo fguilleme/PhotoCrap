@@ -1,11 +1,17 @@
 #pragma once
 #include "storage/PixelPlane.h"
 #include <QRegion>
+#include <functional>
 
 namespace PhotoCrap::Tools
 {
 struct FloodFillOptions {
     QSize          size;
+    PixelPlane     sample;
+    QImage         pattern;
+    int            tolerance  = 0;
+    bool           contiguous = true, antialias = false;
+    std::function<QImage(const QImage &, const QImage &, const QPoint &)> compose;
     QRegion        selection;
     QImage         selectionMask;
     QColor         replacement;

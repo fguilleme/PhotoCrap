@@ -28,6 +28,10 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
         !_options.replacement.isValid() || !std::isfinite(_options.opacity) ||
         _options.opacity < 0 || _options.opacity > 1)
         return result;
+    const PixelPlane &sample = _options.sample.isNull() ? _source : _options.sample;
+    if (_options.tolerance < 0 || _options.tolerance > 255 || sample.isNull() ||
+        (sample.size() != QSize(1, 1) && sample.size() != _options.size) || !sample.freeze())
+        return result;
     const QRect documentRect(QPoint{}, _options.size);
     const bool  selected = !_options.selection.isEmpty();
     const QRect bounds =
@@ -50,7 +54,7 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
     const auto      colorAt = [&](int x, int y) {
         auto &tile = inputs[(y / side) * columns + x / side];
         if (tile.isNull())
-            tile = _source.tileImage(x / side, y / side);
+            tile = sample.tileImage(x / side, y / side);
         if (tile.isNull()) {
             failed = true;
             return QColor{};
@@ -61,7 +65,9 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
     const QColor target = colorAt(_seed.x(), _seed.y());
     if (failed)
         return result;
-    if (target == _options.replacement && qFuzzyCompare(_options.opacity, 1.)) {
+    if (_options.sample.isNull() && _options.pattern.isNull() && !_options.compose &&
+        _options.tolerance == 0 && target == _options.replacement &&
+        qFuzzyCompare(_options.opacity, 1.)) {
         result.valid = true;
         return result;
     }
@@ -69,10 +75,65 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
         if (failed || (selected && !_options.selection.contains(QPoint(x, y))))
             return false;
         const auto &mask = visited[(y / side) * columns + x / side];
-        return (mask.isNull() || !mask.constScanLine(y % side)[x % side]) &&
-               colorAt(x, y) == target;
+        if (!mask.isNull() && mask.constScanLine(y % side)[x % side])
+            return false;
+        const auto color = colorAt(x, y);
+        if (_options.tolerance == 0)
+            return color == target;
+        const auto a = color.rgba64(), b = target.rgba64();
+        if (b.alpha() == 0)
+            return a.alpha() == 0;
+        const int tolerance = _options.tolerance * 257;
+        return a.alpha() > 0 && qAbs(int(a.red()) - b.red()) <= tolerance &&
+               qAbs(int(a.green()) - b.green()) <= tolerance &&
+               qAbs(int(a.blue()) - b.blue()) <= tolerance;
     };
-    QVector<QPoint> pending{_seed};
+    const auto markRun = [&](int left, int right, int y) {
+        for (int x = left; x <= right;) {
+            const int column = x / side, row = y / side;
+            auto &    mask = visited[row * columns + column];
+            if (mask.isNull()) {
+                mask = QImage(qMin(side, _options.size.width() - column * side),
+                              qMin(side, _options.size.height() - row * side),
+                              QImage::Format_Grayscale8);
+                if (mask.isNull()) {
+                    failed = true;
+                    return;
+                }
+                mask.fill(0);
+                result.visitedBytes += mask.sizeInBytes();
+                ++result.visitedTiles;
+            }
+            const int end = qMin(right + 1, (column + 1) * side);
+            std::memset(mask.scanLine(y % side) + x % side, 255, size_t(end - x));
+            footprints[row * columns + column] |= QRect(x % side, y % side, end - x, 1);
+            x = end;
+        }
+        result.filledPixels += right - left + 1;
+        result.region |= QRect(left, y, right - left + 1, 1);
+    };
+    if (!_options.contiguous) {
+        for (int y = bounds.top(); y <= bounds.bottom() && !failed; ++y) {
+            if (cancelled()) {
+                result.cancelled = true;
+                return result;
+            }
+            for (int x = bounds.left(); x <= bounds.right();) {
+                while (x <= bounds.right() && !matches(x, y))
+                    ++x;
+                const int first = x;
+                while (x <= bounds.right() && matches(x, y))
+                    ++x;
+                if (first < x)
+                    markRun(first, x - 1, y);
+            }
+            if (_progress)
+                _progress->store(50 * (y - bounds.top() + 1) / bounds.height());
+        }
+    }
+    QVector<QPoint> pending;
+    if (_options.contiguous)
+        pending.append(_seed);
     while (!pending.isEmpty() && !failed) {
         if (cancelled()) {
             result.cancelled = true;
@@ -86,30 +147,9 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
             --left;
         while (right < bounds.right() && matches(right + 1, seed.y()))
             ++right;
-        for (int x = left; x <= right;) {
-            const int column = x / side, row = seed.y() / side;
-            auto     &mask = visited[row * columns + column];
-            if (mask.isNull()) {
-                mask = QImage(qMin(side, _options.size.width() - column * side),
-                              qMin(side, _options.size.height() - row * side),
-                              QImage::Format_Grayscale8);
-                if (mask.isNull()) {
-                    failed = true;
-                    break;
-                }
-                mask.fill(0);
-                result.visitedBytes += mask.sizeInBytes();
-                ++result.visitedTiles;
-            }
-            const int end = qMin(right + 1, (column + 1) * side);
-            std::memset(mask.scanLine(seed.y() % side) + x % side, 255, size_t(end - x));
-            footprints[row * columns + column] |= QRect(x % side, seed.y() % side, end - x, 1);
-            x = end;
-        }
+        markRun(left, right, seed.y());
         if (failed)
             break;
-        result.filledPixels += right - left + 1;
-        result.region |= QRect(left, seed.y(), right - left + 1, 1);
         if (_progress)
             _progress->store(
                 int(50 * result.filledPixels / (qint64(bounds.width()) * bounds.height())));
@@ -143,14 +183,53 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
         QImage      output  = _source.region(tileRect);
         if (overlay.isNull() || output.isNull())
             return result;
-        overlay.fill(_options.replacement);
-        SelectionCoverage::attenuate(overlay, mask, footprint.topLeft());
+        if (_options.pattern.isNull())
+            overlay.fill(_options.replacement);
+        else {
+            QPainter painter(&overlay);
+            painter.setBrushOrigin(-origin);
+            painter.fillRect(overlay.rect(), QBrush(_options.pattern));
+        }
+        QImage coverage;
+        if (_options.antialias) {
+            coverage = QImage(footprint.size(), QImage::Format_Grayscale8);
+            if (coverage.isNull())
+                return result;
+            const auto marked = [&](int x, int y) {
+                if (!bounds.contains(x, y) ||
+                    (selected && !_options.selection.contains(QPoint(x, y))))
+                    return 255;
+                const auto &tile = visited[(y / side) * columns + x / side];
+                return tile.isNull() ? 0 : int(tile.constScanLine(y % side)[x % side]);
+            };
+            for (int y = 0; y < coverage.height(); ++y) {
+                auto *row = coverage.scanLine(y);
+                for (int x = 0; x < coverage.width(); ++x) {
+                    const int px = origin.x() + x, py = origin.y() + y;
+                    if (!mask.constScanLine(py % side)[px % side]) {
+                        row[x] = 0;
+                        continue;
+                    }
+                    int sum = 0;
+                    for (int dy = -1; dy <= 1; ++dy)
+                        for (int dx = -1; dx <= 1; ++dx)
+                            sum += marked(px + dx, py + dy) * (dx == 0 ? 2 : 1) * (dy == 0 ? 2 : 1);
+                    row[x] = uchar((sum + 8) / 16);
+                }
+            }
+            SelectionCoverage::attenuate(overlay, coverage, {});
+        } else
+            SelectionCoverage::attenuate(overlay, mask, footprint.topLeft());
         SelectionCoverage::attenuate(overlay, _options.selectionMask, origin);
-        {
+        if (_options.compose)
+            output = _options.compose(output, overlay, origin).convertToFormat(format);
+        else {
             QPainter painter(&output);
             painter.setOpacity(_options.opacity);
             painter.drawImage(0, 0, overlay);
         }
+        if (output.isNull())
+            return result;
         if (!result.image.writeRegion(origin, output, _options.size))
             return result;
         if (_progress)

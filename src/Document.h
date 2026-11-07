@@ -55,6 +55,13 @@ class Document : public QObject
     Q_PROPERTY(
         int displayChannel READ displayChannel WRITE setDisplayChannel NOTIFY displayChannelChanged)
     Q_PROPERTY(int maskOnlyLayer READ maskOnlyLayer NOTIFY displayChannelChanged)
+    Q_PROPERTY(int fillTolerance MEMBER m_fillTolerance NOTIFY settingsChanged)
+    Q_PROPERTY(bool fillContiguous MEMBER m_fillContiguous NOTIFY settingsChanged)
+    Q_PROPERTY(bool fillAntialias MEMBER m_fillAntialias NOTIFY settingsChanged)
+    Q_PROPERTY(bool fillSampleAllLayers MEMBER m_fillSampleAllLayers NOTIFY settingsChanged)
+    Q_PROPERTY(bool fillUsePattern MEMBER m_fillUsePattern NOTIFY settingsChanged)
+    Q_PROPERTY(int fillPattern MEMBER m_fillPattern NOTIFY settingsChanged)
+    Q_PROPERTY(int fillBlend MEMBER m_fillBlend NOTIFY settingsChanged)
     Q_PROPERTY(int gradientPreset MEMBER m_gradientPreset NOTIFY settingsChanged)
     Q_PROPERTY(int gradientShape MEMBER m_gradientShape NOTIFY settingsChanged)
     Q_PROPERTY(int gradientMethod MEMBER m_gradientMethod NOTIFY settingsChanged)
@@ -1436,6 +1443,9 @@ private:
     enum { NoGradientGesture = -4, CreateGradient = -3, GradientStartHandle = -2, GradientEndHandle = -1 };
     int m_gradientGesture = NoGradientGesture;
     bool m_gradientGestureChanged = false;
+    int              m_fillTolerance = 0, m_fillPattern = 0, m_fillBlend = 0;
+    bool             m_fillContiguous = true, m_fillAntialias = false;
+    bool             m_fillSampleAllLayers = false, m_fillUsePattern = false;
     int m_gradientPreset = 0, m_gradientShape = 0, m_gradientMethod = 0;
     bool m_gradientReverse = false, m_gradientDither = false, m_gradientNewLayer = false;
     QColor           m_color{Qt::black}, m_secondary{Qt::white};
@@ -1781,7 +1791,7 @@ private:
     void    reloadMixerPaint();
     bool    prepareStampStroke();
     void    renderStampStroke();
-    QImage  stampPatternImage() const;
+    QImage        stampPatternImage(int _pattern = -1) const;
     void    renderShape(const QPointF &_to);
     void    floodFill(QPoint _point);
     QImage *paintTarget();

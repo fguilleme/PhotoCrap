@@ -39,7 +39,11 @@ ColumnLayout {
             spacing: 2
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: modelData.label; color: "#d5dbe0"; Layout.fillWidth: true }
+                ScrubLabel {
+                    control: slider; text: modelData.label; color: "#d5dbe0"; Layout.fillWidth: true
+                    onScrubStarted: root.editStarted()
+                    onScrubFinished: root.committed(modelData.key, slider.value)
+                }
                 Label { text: Number(slider.value).toFixed(0); color: "#aab4bd"; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
             }
             Slider {

@@ -24,6 +24,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DashedGuideItem.cpp
     src/render/DashedGuideNode.cpp
     src/text/TextEditorController.cpp
+    src/controls/ValueScrubber.cpp
     src/render/CropShade.cpp
     src/render/HistogramGeometry.cpp
     src/render/CurvesGeometry.cpp
@@ -158,6 +159,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     src/DashedGuideItem.h
     src/render/DashedGuideNode.h
     src/text/TextEditorController.h
+    src/controls/ValueScrubber.h
     src/render/CropShade.h
     src/render/HistogramGeometry.h
     src/render/CurvesGeometry.h
@@ -493,6 +495,7 @@ qt_add_executable(PhotoCrap
     src/DashedGuideItem.cpp src/DashedGuideItem.h
     src/render/DashedGuideNode.cpp src/render/DashedGuideNode.h
     src/text/TextEditorController.cpp src/text/TextEditorController.h
+    src/controls/ValueScrubber.cpp src/controls/ValueScrubber.h
     src/render/CropShade.cpp src/render/CropShade.h
     src/render/HistogramGeometry.cpp src/render/HistogramGeometry.h
     src/render/CurvesGeometry.cpp src/render/CurvesGeometry.h
@@ -572,6 +575,7 @@ qt_add_qml_module(PhotoCrap
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES
         qml/Main.qml
+        qml/ScrubLabel.qml
         qml/ScratchCachePreferences.qml
         qml/DialogActionButton.qml
         qml/DockablePanel.qml

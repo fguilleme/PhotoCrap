@@ -101,7 +101,7 @@ Dialog {
             Label { text: qsTr("%1 échantillon(s)").arg(root.document.colorSelectionSampleCount); color: "#aab6c4" }
         }
         RowLayout {
-            Label { text: qsTr("Tolérance :"); color: "#dbe1e8" }
+            ScrubLabel { control: fuzz; text: qsTr("Tolérance :"); color: "#dbe1e8" }
             Slider { enabled: family.currentIndex<7; id: fuzz; objectName: "colorSelectionFuzziness"; from: 0; to: 200; value: 40; stepSize: 1; Layout.fillWidth: true; onMoved: root.recalculate() }
             DarkSpinBox { enabled: family.currentIndex<7; from: 0; to: 200; value: fuzz.value; editable: true; onValueModified: {fuzz.value=value;root.recalculate()} }
         }

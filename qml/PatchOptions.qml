@@ -28,8 +28,8 @@ Rectangle {
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Sélectionner une texture saine, puis glisser vers la zone à réparer")
         }
-        Label { text: qsTr("Diffusion"); color: "#aebbc8"; Layout.leftMargin: 12 }
-        DarkSpinBox {
+        ScrubLabel { control: patchDiffusion; text: qsTr("Diffusion"); color: "#aebbc8"; Layout.leftMargin: 12 }
+        DarkSpinBox { id: patchDiffusion;
             objectName: "patchDiffusion"
             from: 1; to: 7
             value: root.document.patchDiffusion

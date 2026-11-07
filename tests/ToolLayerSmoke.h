@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "ValueScrubberSmoke.h"
 #include "WorkspaceSettings.h"
 #include "text/TextEditorController.h"
 #include "text/TextLayer.h"
@@ -23,6 +24,8 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     };
     auto *area = _window->findChild<QQuickItem *>("drawingArea");
     if (!require(area, "the drawing area exists"))
+        return false;
+    if (!runValueScrubberSmoke(_window, _document))
         return false;
     // Creating content on an adjustment must select a new layer through real tool input.
     _document.newDocument(160, 120, true);
@@ -218,6 +221,28 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
         return false;
     if (QCoreApplication::arguments().contains("--capture-text"))
         _window->grabWindow().save("/tmp/photocrap-text-editor.png");
+    auto *fontSizeLabel = _window->findChild<QQuickItem *>("textFontSizeLabel");
+    if (!require(fontSizeLabel && fontSizeLabel->isVisible(), "the font size title is draggable"))
+        return false;
+    const auto sizePoint =
+        fontSizeLabel->mapToScene(QPointF(fontSizeLabel->width() / 2, fontSizeLabel->height() / 2))
+            .toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, sizePoint);
+    QTest::mouseMove(_window, sizePoint + QPoint(20, 0), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, sizePoint + QPoint(20, 0));
+    if (!require(textInput->hasActiveFocus(),
+                 "finishing a typography scrub restores canvas typing focus"))
+        return false;
+    auto *     fontSizeField = _window->findChild<QObject *>("textFontSize");
+    const auto originalSize  = fontSizeField->property("value");
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, sizePoint);
+    QTest::mouseMove(_window, sizePoint + QPoint(20, 0), 20);
+    QTest::keyClick(_window, Qt::Key_Escape);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, sizePoint + QPoint(20, 0));
+    if (!require(typography->property("visible").toBool() &&
+                     fontSizeField->property("value") == originalSize,
+                 "Escape cancels a numeric drag without closing its popup"))
+        return false;
     QMetaObject::invokeMethod(typography, "close");
     QTest::qWait(40);
     formatting->apply({{"size", 32.}, {"bold", true}, {"baseline", 20.}}, 0, 3);

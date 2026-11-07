@@ -53,8 +53,8 @@ Rectangle {
                 ModeButton {mode:3;help:qsTr("Intersection avec la sélection")}
             }
             Rectangle {Layout.preferredWidth:1;Layout.preferredHeight:24;color:"#48535f"}
-            Label {text:qsTr("Contour progressif");color:"#cbd4dc"}
-            DarkSpinBox {
+            ScrubLabel { control: selectionFeather;text:qsTr("Contour progressif");color:"#cbd4dc"}
+            DarkSpinBox { id: selectionFeather;
                 objectName: "selectionFeather"
                 from:0;to:1000;value:root.document.selectionFeather;suffix:" px";implicitWidth:128
                 onValueModified:root.document.selectionFeather=value
@@ -76,7 +76,7 @@ Rectangle {
                 currentIndex:root.document.marqueeStyle
                 onActivated:root.document.marqueeStyle=currentIndex
             }
-            Label {visible:root.marquee;text:qsTr("Largeur");color:root.document.marqueeStyle ? "#cbd4dc" : "#717c87"}
+            ScrubLabel { control: widthNumber;visible:root.marquee;text:qsTr("Largeur");color:root.document.marqueeStyle ? "#cbd4dc" : "#717c87"}
             DarkSpinBox {
                 id: widthNumber
                 objectName:"marqueeWidth"
@@ -95,7 +95,7 @@ Rectangle {
                 onClicked:root.document.swapMarqueeDimensions()
                 ToolTip.text:qsTr("Permuter largeur et hauteur");ToolTip.visible:hovered
             }
-            Label {visible:root.marquee;text:qsTr("Hauteur");color:root.document.marqueeStyle ? "#cbd4dc" : "#717c87"}
+            ScrubLabel { control: heightNumber;visible:root.marquee;text:qsTr("Hauteur");color:root.document.marqueeStyle ? "#cbd4dc" : "#717c87"}
             DarkSpinBox {
                 id: heightNumber
                 objectName:"marqueeHeight"

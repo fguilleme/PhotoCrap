@@ -147,8 +147,8 @@ RowLayout {
             root.editCommitted()
         }
     }
-    Label { visible: !root.document.gradientNewLayer; text: qsTr("Opacité"); color: "#c8d0d9" }
-    DarkSpinBox {
+    ScrubLabel { control: gradientOpacity; visible: !root.document.gradientNewLayer; text: qsTr("Opacité"); color: "#c8d0d9" }
+    DarkSpinBox { id: gradientOpacity;
         objectName: "gradientOpacity"
         visible: !root.document.gradientNewLayer
         from: 1; to: 100

@@ -14,6 +14,7 @@
 #include "render/HistogramGeometry.h"
 #include "render/PenBandGeometry.h"
 #include "text/TextEditorController.h"
+#include "controls/ValueScrubber.h"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -217,6 +218,7 @@ int main(int argc, char *argv[])
         "PhotoCrap.Native", 1, 0, "PenBandGeometry",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new PenBandGeometry; });
     qmlRegisterType<TextEditorController>("PhotoCrap.Native", 1, 0, "TextFormatting");
+    qmlRegisterType<ValueScrubber>("PhotoCrap.Native", 1, 0, "ValueScrubber");
     qmlRegisterUncreatableType<Document>("PhotoCrap.Native", 1, 0, "ImageDocument",
                                          "Provided by the application");
     LanguageManager    languageManager(nullptr, !smoke);

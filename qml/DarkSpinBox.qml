@@ -5,6 +5,7 @@ SpinBox {
     id: control
 
     property string suffix: ""
+    property bool scrubbing: false
 
     implicitWidth: 112
     implicitHeight: 32

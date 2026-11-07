@@ -19,16 +19,20 @@ ColumnLayout {
 
     RowLayout {
         Layout.fillWidth: true
-        Label { text: qsTr("Rayon du flou gaussien"); color: "#d5dbe0"; Layout.fillWidth: true }
-        DarkSpinBox {
+        ScrubLabel {
+            control: frequencyRadiusValue; text: qsTr("Rayon du flou gaussien"); color: "#d5dbe0"; Layout.fillWidth: true
+            onScrubStarted: root.editStarted()
+            onScrubFinished: root.committed("radius", frequencyRadiusValue.value)
+        }
+        DarkSpinBox { id: frequencyRadiusValue;
             objectName: "frequencyRadiusValue"
             from: 1; to: 100
             suffix: " px"
             value: root.radius
             enabled: !root.prepared && !root.busy && !root.locked
             onValueModified: {
-                root.editStarted()
-                root.committed("radius", value)
+                if (scrubbing) root.previewed("radius", value)
+                else { root.editStarted(); root.committed("radius", value) }
             }
         }
     }

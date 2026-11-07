@@ -47,8 +47,8 @@ Popup {
                 color:"#ecc388";wrapMode:Text.WordWrap;Layout.fillWidth:true
             }
             RowLayout {
-                Label {text:qsTr("Taille");color:"#cbd4dc"}
-                DarkSpinBox {objectName:"textFontSize";from:1;to:1024;suffix:" px";value:Math.round(root.textEditor.style.size || 64);onValueModified:root.apply({size:value})}
+                ScrubLabel { onScrubFinished: root.textEditor.input.forceActiveFocus(); objectName:"textFontSizeLabel"; control: textFontSize;text:qsTr("Taille");color:"#cbd4dc"}
+                DarkSpinBox { id: textFontSize;objectName:"textFontSize";from:1;to:1024;suffix:" px";value:Math.round(root.textEditor.style.size || 64);onValueModified:root.apply({size:value})}
                 Repeater {
                     model:[{label:"B",key:"bold"},{label:"I",key:"italic"},{label:"U",key:"underline"},{label:"S̶",key:"strike"}]
                     Button {
@@ -73,8 +73,8 @@ Popup {
                 RowLayout {
                     required property var modelData
                     Layout.fillWidth:true
-                    Label {text:modelData.label;color:"#cbd4dc";Layout.fillWidth:true}
-                    DarkSpinBox {from:modelData.min;to:modelData.max;value:Math.round(root.textEditor.style[modelData.key] || (modelData.key==="stretch"?100:0));onValueModified:{const v={};v[modelData.key]=value;root.apply(v)}}
+                    ScrubLabel { onScrubFinished: root.textEditor.input.forceActiveFocus(); control: scrubValue2;text:modelData.label;color:"#cbd4dc";Layout.fillWidth:true}
+                    DarkSpinBox { id: scrubValue2;from:modelData.min;to:modelData.max;value:Math.round(root.textEditor.style[modelData.key] || (modelData.key==="stretch"?100:0));onValueModified:{const v={};v[modelData.key]=value;root.apply(v)}}
                 }
             }
             CheckBox {text:qsTr("Crénage métrique");checked:root.textEditor.style.kerning!==false;onToggled:root.apply({kerning:checked})}
@@ -92,16 +92,16 @@ Popup {
                 RowLayout {
                     required property var modelData
                     Layout.fillWidth:true
-                    Label {text:modelData.label;color:"#cbd4dc";Layout.fillWidth:true}
-                    DarkSpinBox {from:modelData.key==="indent"?-4096:0;to:4096;suffix:" px";value:Math.round(root.textEditor.style[modelData.key] || 0);onValueModified:{const v={};v[modelData.key]=value;root.apply(v)}}
+                    ScrubLabel { onScrubFinished: root.textEditor.input.forceActiveFocus(); control: scrubValue3;text:modelData.label;color:"#cbd4dc";Layout.fillWidth:true}
+                    DarkSpinBox { id: scrubValue3;from:modelData.key==="indent"?-4096:0;to:4096;suffix:" px";value:Math.round(root.textEditor.style[modelData.key] || 0);onValueModified:{const v={};v[modelData.key]=value;root.apply(v)}}
                 }
             }
             CheckBox {text:qsTr("Bloc de paragraphe");checked:Boolean(root.textEditor.state.paragraph);onToggled:root.document.setTextBox(checked,root.textEditor.state.width || 320,root.textEditor.state.height || 180)}
             RowLayout {
-                Label {text:qsTr("L");color:"#cbd4dc"}
-                DarkSpinBox {from:16;to:32768;suffix:" px";value:Math.round(root.textEditor.state.width || 320);onValueModified:root.document.setTextBox(true,value,root.textEditor.state.height || 180)}
-                Label {text:qsTr("H");color:"#cbd4dc"}
-                DarkSpinBox {from:16;to:32768;suffix:" px";value:Math.round(root.textEditor.state.height || 180);onValueModified:root.document.setTextBox(true,root.textEditor.state.width || 320,value)}
+                ScrubLabel { onScrubFinished: root.textEditor.input.forceActiveFocus(); control: scrubValue4;text:qsTr("L");color:"#cbd4dc"}
+                DarkSpinBox { id: scrubValue4;from:16;to:32768;suffix:" px";value:Math.round(root.textEditor.state.width || 320);onValueModified:root.document.setTextBox(true,value,root.textEditor.state.height || 180)}
+                ScrubLabel { onScrubFinished: root.textEditor.input.forceActiveFocus(); control: scrubValue5;text:qsTr("H");color:"#cbd4dc"}
+                DarkSpinBox { id: scrubValue5;from:16;to:32768;suffix:" px";value:Math.round(root.textEditor.state.height || 180);onValueModified:root.document.setTextBox(true,root.textEditor.state.width || 320,value)}
             }
             Label {text:qsTr("Fonctions avancées");font.bold:true;color:"white"}
             Repeater {

@@ -13,15 +13,15 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.rightMargin: 18
         spacing: 8
-        Label { text: qsTr("Taille de pupille"); color: "#aebbc8" }
-        DarkSpinBox {
+        ScrubLabel { control: redEyePupilSize; text: qsTr("Taille de pupille"); color: "#aebbc8" }
+        DarkSpinBox { id: redEyePupilSize;
             objectName: "redEyePupilSize"
             from: 1; to: 100; suffix: " %"; implicitWidth: 112
             value: Math.round(root.document.redEyePupilSize * 100)
             onValueModified: root.document.redEyePupilSize = value / 100
         }
-        Label { text: qsTr("Obscurcissement"); color: "#aebbc8"; Layout.leftMargin: 12 }
-        DarkSpinBox {
+        ScrubLabel { control: redEyeDarken; text: qsTr("Obscurcissement"); color: "#aebbc8"; Layout.leftMargin: 12 }
+        DarkSpinBox { id: redEyeDarken;
             objectName: "redEyeDarken"
             from: 0; to: 100; suffix: " %"; implicitWidth: 112
             value: Math.round(root.document.redEyeDarken * 100)

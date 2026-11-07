@@ -19,8 +19,8 @@ Rectangle {
             implicitWidth: 150; implicitHeight: 30
             onActivated: root.document.contentMoveMode = currentIndex
         }
-        Label { text: qsTr("Structure"); color: "#aebbc8" }
-        DarkSpinBox {
+        ScrubLabel { control: contentMoveStructure; text: qsTr("Structure"); color: "#aebbc8" }
+        DarkSpinBox { id: contentMoveStructure;
             objectName: "contentMoveStructure"
             from: 1; to: 7; implicitWidth: 80
             value: root.document.contentMoveStructure
@@ -28,8 +28,8 @@ Rectangle {
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Faible : raccord souple ; élevée : préserver les motifs")
         }
-        Label { text: qsTr("Couleur"); color: "#aebbc8" }
-        DarkSpinBox {
+        ScrubLabel { control: contentMoveColor; text: qsTr("Couleur"); color: "#aebbc8" }
+        DarkSpinBox { id: contentMoveColor;
             objectName: "contentMoveColor"
             from: 0; to: 10; implicitWidth: 80
             value: root.document.contentMoveColor

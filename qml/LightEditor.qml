@@ -39,7 +39,11 @@ ColumnLayout {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
-                Label {
+                ScrubLabel {
+                    control: lightSlider
+                    objectName: "lightScrub_" + modelData.key
+                    onScrubStarted: root.editStarted()
+                    onScrubFinished: root.committed(modelData.key, lightSlider.value)
                     text: modelData.label
                     color: "#d5dbe0"
                     Layout.fillWidth: true

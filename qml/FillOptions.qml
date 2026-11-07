@@ -57,8 +57,8 @@ RowLayout {
             root.editCommitted()
         }
     }
-    Label { text: qsTr("Opacité"); color: "#c8d0d9" }
-    DarkSpinBox {
+    ScrubLabel { control: fillOpacity; text: qsTr("Opacité"); color: "#c8d0d9" }
+    DarkSpinBox { id: fillOpacity;
         objectName: "fillOpacity"
         from: 0; to: 100
         value: Math.round(root.document.brushOpacity * 100)
@@ -66,8 +66,8 @@ RowLayout {
         implicitWidth: 96
         onValueModified: root.document.brushOpacity = value / 100
     }
-    Label { text: qsTr("Tolérance"); color: "#c8d0d9" }
-    DarkSpinBox {
+    ScrubLabel { control: fillTolerance; text: qsTr("Tolérance"); color: "#c8d0d9" }
+    DarkSpinBox { id: fillTolerance;
         objectName: "fillTolerance"
         from: 0; to: 255
         value: root.document.fillTolerance

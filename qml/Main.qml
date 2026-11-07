@@ -1709,12 +1709,12 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
-                DarkSpinBox { visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                Label { visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
-                Label { visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { objectName: "brushSizeLabel"; control: brushSizeTop; visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
+                DarkSpinBox { id: brushSizeTop; objectName: "brushSizeTop"; visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
+                ScrubLabel { control: brushHardnessTop; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { id: brushHardnessTop; objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
+                ScrubLabel { control: selectionTolerance; visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
+                DarkSpinBox { id: selectionTolerance;
                     objectName: "selectionTolerance"
                     visible: editor.tool === "magicWand"
                     from: 0; to: 255; value: editor.selectionTolerance
@@ -1743,8 +1743,8 @@ ApplicationWindow {
                     checked: editor.selectionEnhanceEdge
                     onToggled: editor.selectionEnhanceEdge = checked
                 }
-                Label { visible: editor.tool === "magicEraser"; text: qsTr("Tolérance"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: magicEraserTolerance; visible: editor.tool === "magicEraser"; text: qsTr("Tolérance"); color: "#87929e" }
+                DarkSpinBox { id: magicEraserTolerance;
                     objectName: "magicEraserTolerance"
                     visible: editor.tool === "magicEraser"
                     from: 0; to: 255; value: editor.magicEraserTolerance
@@ -1775,10 +1775,10 @@ ApplicationWindow {
                     text: qsTr("Effacement… Échap pour annuler")
                     color: "#c8d0d9"
                 }
-                Label { visible: window.opacityToolActive && editor.tool !== "fill"; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
-                DarkSpinBox { objectName: "brushOpacityTop"; visible: window.opacityToolActive && editor.tool !== "fill"; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
-                Label { visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
-                DarkSpinBox { objectName: "brushFlowTop"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushFlow=value/100 }
+                ScrubLabel { control: brushOpacityTop; visible: window.opacityToolActive && editor.tool !== "fill"; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
+                DarkSpinBox { id: brushOpacityTop; objectName: "brushOpacityTop"; visible: window.opacityToolActive && editor.tool !== "fill"; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
+                ScrubLabel { control: brushFlowTop; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
+                DarkSpinBox { id: brushFlowTop; objectName: "brushFlowTop"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushFlow=value/100 }
                 Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox {
                     objectName: "stampAligned"
@@ -1823,8 +1823,8 @@ ApplicationWindow {
                     checked: editor.pencilAutoErase
                     onToggled: editor.pencilAutoErase=checked
                 }
-                Label { visible: editor.tool === "blur" || editor.tool === "sharpen" || editor.tool === "smudge"; text: qsTr("Intensité"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: retouchStrength; visible: editor.tool === "blur" || editor.tool === "sharpen" || editor.tool === "smudge"; text: qsTr("Intensité"); color: "#87929e" }
+                DarkSpinBox { id: retouchStrength;
                     objectName: "retouchStrength"
                     visible: editor.tool === "blur" || editor.tool === "sharpen" || editor.tool === "smudge"
                     from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
@@ -1886,8 +1886,8 @@ ApplicationWindow {
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Limites du remplacement")
                 }
-                Label { visible: editor.tool === "colorReplacement"; text: qsTr("Tolérance"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: replacementTolerance; visible: editor.tool === "colorReplacement"; text: qsTr("Tolérance"); color: "#87929e" }
+                DarkSpinBox { id: replacementTolerance;
                     objectName: "replacementTolerance"
                     visible: editor.tool === "colorReplacement"
                     from: 0; to: 100; value: editor.replacementTolerance
@@ -1910,8 +1910,8 @@ ApplicationWindow {
                     implicitWidth: 118; implicitHeight: 30
                     onActivated: editor.retouchRange=currentIndex
                 }
-                Label { visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Exposition"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: scrubValue9; visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Exposition"); color: "#87929e" }
+                DarkSpinBox { id: scrubValue9;
                     visible: editor.tool === "dodge" || editor.tool === "burn"
                     from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
                     implicitWidth: 92
@@ -1933,8 +1933,8 @@ ApplicationWindow {
                     implicitWidth: 108; implicitHeight: 30
                     onActivated: editor.spongeSaturate=currentIndex === 1
                 }
-                Label { visible: editor.tool === "sponge"; text: qsTr("Débit"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: scrubValue10; visible: editor.tool === "sponge"; text: qsTr("Débit"); color: "#87929e" }
+                DarkSpinBox { id: scrubValue10;
                     visible: editor.tool === "sponge"
                     from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
                     implicitWidth: 92
@@ -2018,24 +2018,24 @@ ApplicationWindow {
                     implicitWidth: 104; implicitHeight: 30
                     onActivated: editor.shapeStrokeStyle=currentIndex
                 }
-                Label { visible: editor.tool === "rectangle"; text: qsTr("Rayon"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: shapeCornerRadius; visible: editor.tool === "rectangle"; text: qsTr("Rayon"); color: "#87929e" }
+                DarkSpinBox { id: shapeCornerRadius;
                     objectName: "shapeCornerRadius"
                     visible: editor.tool === "rectangle"
                     from: 0; to: 500; value: Math.round(editor.shapeCornerRadius); suffix: " px"
                     implicitWidth: 88
                     onValueModified: editor.shapeCornerRadius=value
                 }
-                Label { visible: editor.tool === "polygon" || editor.tool === "star"; text: qsTr("Côtés"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: shapeSides; visible: editor.tool === "polygon" || editor.tool === "star"; text: qsTr("Côtés"); color: "#87929e" }
+                DarkSpinBox { id: shapeSides;
                     objectName: "shapeSides"
                     visible: editor.tool === "polygon" || editor.tool === "star"
                     from: 3; to: 100; value: editor.shapeSides
                     implicitWidth: 70
                     onValueModified: editor.shapeSides=value
                 }
-                Label { visible: editor.tool === "star"; text: qsTr("Creux"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: shapeStarRatio; visible: editor.tool === "star"; text: qsTr("Creux"); color: "#87929e" }
+                DarkSpinBox { id: shapeStarRatio;
                     objectName: "shapeStarRatio"
                     visible: editor.tool === "star"
                     from: 5; to: 95; value: Math.round(editor.shapeStarRatio*100); suffix: " %"
@@ -2049,8 +2049,8 @@ ApplicationWindow {
                     checked: editor.shapeAlignPixels
                     onToggled: editor.shapeAlignPixels=checked
                 }
-                Label { visible: editor.tool === "rotateView"; text: qsTr("Angle"); color: "#87929e" }
-                DarkSpinBox {
+                ScrubLabel { control: viewRotationAngle; visible: editor.tool === "rotateView"; text: qsTr("Angle"); color: "#87929e" }
+                DarkSpinBox { id: viewRotationAngle;
                     objectName: "viewRotationAngle"
                     visible: editor.tool === "rotateView"
                     from: -180; to: 180; value: Math.round(window.canvasRotation); suffix: " °"
@@ -4014,8 +4014,8 @@ ApplicationWindow {
                     newWidth.value=sizes[currentIndex][0]; newHeight.value=sizes[currentIndex][1]
                 }
             }
-            RowLayout { Label { text: qsTr("Largeur (px)"); Layout.preferredWidth: 140 } DarkSpinBox { id: newWidth; from: 1; to: 16384; value: 1280; suffix: " px"; Layout.fillWidth: true } }
-            RowLayout { Label { text: qsTr("Hauteur (px)"); Layout.preferredWidth: 140 } DarkSpinBox { id: newHeight; from: 1; to: 16384; value: 800; suffix: " px"; Layout.fillWidth: true } }
+            RowLayout { ScrubLabel { control: newWidth; text: qsTr("Largeur (px)"); Layout.preferredWidth: 140 } DarkSpinBox { id: newWidth; from: 1; to: 16384; value: 1280; suffix: " px"; Layout.fillWidth: true } }
+            RowLayout { ScrubLabel { control: newHeight; text: qsTr("Hauteur (px)"); Layout.preferredWidth: 140 } DarkSpinBox { id: newHeight; from: 1; to: 16384; value: 800; suffix: " px"; Layout.fillWidth: true } }
             CheckBox { id: transparent; text: qsTr("Arrière-plan transparent") }
             RowLayout { Label { text: qsTr("Profondeur"); Layout.preferredWidth: 140 } ComboBox { id: newDepth; model: [qsTr("8 bits par canal"), qsTr("16 bits par canal")]; Layout.fillWidth: true } }
             Label { text: qsTr("RVB · sRGB"); color: "#8794a2" }
@@ -4030,8 +4030,8 @@ ApplicationWindow {
         id: resizeDialog; title: qsTr("Dimensions de l’image"); anchors.centerIn: parent; modal: true; width: 370
         ColumnLayout {
             anchors.fill: parent; spacing: 16
-            RowLayout { Label { text: qsTr("Largeur"); Layout.preferredWidth: 100 } DarkSpinBox { id: resizeWidth; from: 1; to: 16384; suffix: " px" } }
-            RowLayout { Label { text: qsTr("Hauteur"); Layout.preferredWidth: 100 } DarkSpinBox { id: resizeHeight; from: 1; to: 16384; suffix: " px" } }
+            RowLayout { ScrubLabel { control: resizeWidth; text: qsTr("Largeur"); Layout.preferredWidth: 100 } DarkSpinBox { id: resizeWidth; from: 1; to: 16384; suffix: " px" } }
+            RowLayout { ScrubLabel { control: resizeHeight; text: qsTr("Hauteur"); Layout.preferredWidth: 100 } DarkSpinBox { id: resizeHeight; from: 1; to: 16384; suffix: " px" } }
             Label { text: qsTr("Tous les calques sont rééchantillonnés.\nLes proportions sont libres."); color: "#9eabb7" }
         }
         footer: DialogButtonBox {

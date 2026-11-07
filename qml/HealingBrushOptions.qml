@@ -42,8 +42,8 @@ Rectangle {
             checked: root.document.healingIgnoreAdjustments
             onToggled: root.document.healingIgnoreAdjustments = checked
         }
-        Label { text: qsTr("Diffusion"); color: "#aebbc8" }
-        DarkSpinBox {
+        ScrubLabel { control: healingDiffusion; text: qsTr("Diffusion"); color: "#aebbc8" }
+        DarkSpinBox { id: healingDiffusion;
             objectName: "healingDiffusion"
             from: 1; to: 7
             value: root.document.healingDiffusion

@@ -47,8 +47,8 @@ Rectangle {
             implicitWidth: 180; implicitHeight: 30
             onActivated: root.document.artHistoryStyle = currentIndex
         }
-        Label { text: qsTr("Zone"); color: "#aebbc8" }
-        DarkSpinBox {
+        ScrubLabel { control: artHistoryArea; text: qsTr("Zone"); color: "#aebbc8" }
+        DarkSpinBox { id: artHistoryArea;
             objectName: "artHistoryArea"
             from: 1; to: 500; value: root.document.artHistoryArea
             suffix: " px"; implicitWidth: 90
@@ -56,8 +56,8 @@ Rectangle {
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Une zone plus grande produit davantage de touches autour du pinceau")
         }
-        Label { text: qsTr("Tolérance"); color: "#aebbc8" }
-        DarkSpinBox {
+        ScrubLabel { control: artHistoryTolerance; text: qsTr("Tolérance"); color: "#aebbc8" }
+        DarkSpinBox { id: artHistoryTolerance;
             objectName: "artHistoryTolerance"
             from: 0; to: 100; value: root.document.artHistoryTolerance
             suffix: " %"; implicitWidth: 90

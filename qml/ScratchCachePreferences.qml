@@ -29,8 +29,8 @@ ScrollView {
     Label { text: qsTr("Cache de travail"); color: "#eef2f5"; font.pixelSize: 20; font.bold: true }
     RowLayout {
         Layout.fillWidth: true
-        Label { text: qsTr("Cache graphique"); color: "#d3dbe2"; Layout.fillWidth: true }
-        DarkSpinBox {
+        ScrubLabel { control: textureCacheBudget; text: qsTr("Cache graphique"); color: "#d3dbe2"; Layout.fillWidth: true }
+        DarkSpinBox { id: textureCacheBudget;
             objectName: "textureCacheBudget"
             from: 0; to: 1024; value: panel.settings.textureCacheMiB; suffix: qsTr("Mio")
             Accessible.name: qsTr("Budget du cache graphique")
@@ -50,8 +50,8 @@ ScrollView {
     Rectangle { Layout.fillWidth: true; height: 1; color: "#39424c" }
     RowLayout {
         Layout.fillWidth: true
-        Label { text: qsTr("Budget disque"); color: "#d3dbe2"; Layout.fillWidth: true }
-        DarkSpinBox {
+        ScrubLabel { control: scratchDiskBudget; text: qsTr("Budget disque"); color: "#d3dbe2"; Layout.fillWidth: true }
+        DarkSpinBox { id: scratchDiskBudget;
             objectName: "scratchDiskBudget"
             from: 0; to: 64; value: panel.settings.scratchDiskGiB; suffix: qsTr("Gio")
             Accessible.name: qsTr("Budget du cache disque")
@@ -65,8 +65,8 @@ ScrollView {
     }
     RowLayout {
         Layout.fillWidth: true
-        Label { text: qsTr("Tuiles en mémoire"); color: "#d3dbe2"; Layout.fillWidth: true }
-        DarkSpinBox {
+        ScrubLabel { control: planeRamBudget; text: qsTr("Tuiles en mémoire"); color: "#d3dbe2"; Layout.fillWidth: true }
+        DarkSpinBox { id: planeRamBudget;
             objectName: "planeRamBudget"
             from: 0; to: 4096; value: panel.settings.planeRamMiB; suffix: qsTr("Mio")
             Accessible.name: qsTr("Budget RAM des tuiles")

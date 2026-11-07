@@ -23,7 +23,7 @@ Dialog {
     contentItem: ColumnLayout {
         spacing: 12
         RowLayout {
-            Label { text: root.operation === "border" ? qsTr("Largeur :") : qsTr("Rayon :"); color: "#dbe1e8" }
+            ScrubLabel { control: amount; text: root.operation === "border" ? qsTr("Largeur :") : qsTr("Rayon :"); color: "#dbe1e8" }
             DarkSpinBox { id: amount; objectName: "selectionModifyAmount"; from: 1; to: root.operation === "feather" ? 1000 : root.operation === "border" ? 200 : 100; suffix: " px"; editable: true }
         }
         Label { text: qsTr("Cette opération modifie uniquement le contour de la sélection."); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: "#aab6c4" }

@@ -62,8 +62,12 @@ ColumnLayout {
         Layout.fillWidth: true
         Label { text: qsTr("Noir"); color: "#9ba6af" }
         Item { Layout.fillWidth: true }
-        Label { text: qsTr("Seuil"); color: "#d5dbe0" }
-        DarkSpinBox {
+        ScrubLabel {
+            control: thresholdValue; text: qsTr("Seuil"); color: "#d5dbe0"
+            onScrubStarted: root.editStarted()
+            onScrubFinished: root.committed("level", thresholdValue.value)
+        }
+        DarkSpinBox { id: thresholdValue;
             objectName: "thresholdValue"
             from: 0
             to: 255
@@ -71,9 +75,9 @@ ColumnLayout {
             implicitWidth: 96
             onValueModified: {
                 root.level = value
-                root.editStarted()
+                if (!scrubbing) root.editStarted()
                 root.previewed("level", value)
-                root.committed("level", value)
+                if (!scrubbing) root.committed("level", value)
             }
         }
         Item { Layout.fillWidth: true }

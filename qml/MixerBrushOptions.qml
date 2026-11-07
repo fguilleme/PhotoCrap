@@ -21,7 +21,12 @@ Rectangle {
         id: percentControl
         required property string setting
         property alias contentItem: number
-        readonly property int value: Math.round(root.document[setting]*100)
+        property int value: Math.round(root.document[setting]*100)
+        readonly property int from: 0
+        readonly property int to: 100
+        readonly property int stepSize: 1
+        signal valueModified()
+        onValueModified: root.document[setting] = value / 100
         implicitWidth:72;implicitHeight:30
         function commit() {
             const value=Number.fromLocaleString(Qt.locale(),number.text.trim())
@@ -121,8 +126,9 @@ Rectangle {
                 delegate:RowLayout {
                     required property var modelData
                     spacing:4
-                    Label {text:modelData.label;color:"#cbd4dc"}
+                    ScrubLabel {control:percent;text:modelData.label;color:"#cbd4dc"}
                     PercentControl {
+                        id:percent
                         objectName:modelData.key;setting:modelData.key
                         enabled:modelData.key!=="mixerMix" || root.document.mixerWet>0
                         ToolTip.text:modelData.hint
@@ -135,8 +141,8 @@ Rectangle {
             Label {text:"◐";color:"#cbd4dc"}
             PercentControl {objectName:"mixerSmoothing";setting:"brushSmoothing";ToolTip.text:qsTr("Lissage du trait");ToolTip.visible:smoothHover.hovered;HoverHandler{id:smoothHover}}
             ToolButton {text:"⚙";implicitWidth:30;implicitHeight:30;onClicked:settings.popup(this,0,height);ToolTip.text:qsTr("Options du pinceau mélangeur");ToolTip.visible:hovered}
-            Label {text:qsTr("Angle");color:"#cbd4dc"}
-            DarkSpinBox {objectName:"mixerAngle";from:-180;to:180;value:Math.round(root.document.brushAngle);suffix:"°";implicitWidth:105;onValueModified:root.document.brushAngle=value}
+            ScrubLabel { control: mixerAngle;text:qsTr("Angle");color:"#cbd4dc"}
+            DarkSpinBox { id: mixerAngle;objectName:"mixerAngle";from:-180;to:180;value:Math.round(root.document.brushAngle);suffix:"°";implicitWidth:105;onValueModified:root.document.brushAngle=value}
             CheckBox {
                 objectName:"mixerSampleAllLayers"
                 text:qsTr("Tous les calques");enabled:!root.document.editingMask

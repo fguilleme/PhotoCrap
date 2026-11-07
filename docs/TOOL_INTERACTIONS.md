@@ -36,7 +36,15 @@ Les commandes **Sélection → Modifier** offrent Contour progressif (Maj+F6), F
 
 Les champs numériques de la barre valident la valeur par **Retour** ou quand on
 quitte la saisie ; px et % restent affichés à côté du nombre, hors du texte
-éditable. Pour le pinceau, la dureté modifie la douceur du bord, l’opacité
+éditable. Leurs libellés affichent une main au survol : cliquer-glisser
+horizontalement sur « Taille », « Dureté », « Opacité », etc. ajuste la valeur en
+direct. **Maj** accélère dix fois ; **Option/Alt** affine dix fois. Le geste reste
+capturé en quittant le libellé, respecte les bornes du champ et **Échap** restaure
+la valeur initiale. Les libellés des réglages Lumière et Couleur suivent aussi ce
+comportement ; un glissement constitue une seule validation du réglage.
+Référence : [saisie des valeurs et curseurs de défilement, Adobe](https://helpx.adobe.com/photoshop/using/panels-menus.html).
+
+Pour le pinceau, la dureté modifie la douceur du bord, l’opacité
 plafonne un passage et le débit règle le dépôt par empreinte. Le crayon garde
 un bord net sans anticrénelage : la dureté n’y est pas réglable ; opacité et
 débit modifient toujours sa peinture. Référence : [peindre avec le pinceau ou

@@ -1,0 +1,129 @@
+#pragma once
+#include "AiProgressSmoke.h"
+#include "Document.h"
+#include "ai/AiImageController.h"
+#include <QQuickItem>
+#include <QQuickWindow>
+#include <QtTest>
+
+inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettings &_settings,
+                            AiImageController &_controller)
+{
+    const auto require = [](bool _ok, const char *_message) {
+        if (!_ok)
+            qWarning("AI UI check failed: %s", _message);
+        return _ok;
+    };
+    _document.newDocument(160, 120, true, 16);
+    _document.setTool("ellipticalSelect");
+    _document.beginStroke(20, 20);
+    _document.continueStroke(100, 90);
+    _document.endStroke();
+    auto *action   = _window->findChild<QObject *>("aiImageAction");
+    auto *dialog   = _window->findChild<QObject *>("aiImageDialog");
+    auto *provider = _window->findChild<QObject *>("aiGenerationProvider");
+    auto *variants = _window->findChild<QObject *>("aiVariantCount");
+    auto *source   = _window->findChild<QObject *>("aiGenerationSource");
+    auto *prompts  = _window->findChild<QObject *>("aiGenerationPrompt");
+    auto *prompt   = _window->findChild<QQuickItem *>("aiGenerationText");
+    if (!require(action && dialog && provider && source && prompts && prompt && variants,
+                 "AI dialog and action are present"))
+        return false;
+    QMetaObject::invokeMethod(action, "triggered");
+    QTest::qWait(80);
+    if (!require(dialog->property("visible").toBool() && provider->property("count").toInt() == 3 &&
+                     source->property("currentIndex").toInt() == 1,
+                 "dialog defaults to the active selection and lists all providers"))
+        return false;
+    if (!require(variants->property("from").toInt() == 1 && variants->property("to").toInt() == 8 &&
+                     variants->property("value").toInt() == 1,
+                 "variant count defaults to one and supports up to eight"))
+        return false;
+    variants->setProperty("value", 3);
+    const int count = prompts->property("count").toInt();
+    _settings.savePrompt({{"name", "UI prompt"}, {"text", "Preserve the subject"}});
+    QTest::qWait(20);
+    if (!require(prompts->property("count").toInt() == count + 1,
+                 "saved prompts update the generation menu"))
+        return false;
+    prompt->setProperty("text", "First line");
+    prompt->forceActiveFocus();
+    QTest::keyClick(_window, Qt::Key_End, Qt::ControlModifier);
+    QTest::keyClick(_window, Qt::Key_Return);
+    QTest::qWait(30);
+    if (!require(prompt->property("text").toString().contains('\n') && !_controller.busy(),
+                 "Return adds a prompt paragraph and never submits an image"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "reject");
+    QMetaObject::invokeMethod(dialog, "settingsRequested");
+    QTest::qWait(60);
+    auto *preferences = _window->findChild<QObject *>("preferencesDialog");
+    auto *panel       = _window->findChild<QObject *>("aiPreferencesPanel");
+    auto *key         = _window->findChild<QObject *>("aiApiKey");
+    auto *name        = _window->findChild<QObject *>("aiProviderName");
+    auto *address     = _window->findChild<QObject *>("aiProviderAddress");
+    auto *save        = _window->findChild<QQuickItem *>("aiSaveProvider");
+    auto *list        = _window->findChild<QObject *>("aiProviderList");
+    auto *feedback    = _window->findChild<QQuickItem *>("aiProviderFeedback");
+    if (!require(preferences && preferences->property("visible").toBool() &&
+                     _window->property("preferencesPage").toInt() == 4 && key && name && save &&
+                     panel && list && address && feedback,
+                 "AI settings expose a provider list, form and pinned save button"))
+        return false;
+    if (!require(address->property("text").toString() == "https://api.openai.com/v1" &&
+                     key->property("echoMode").toInt() != 0 &&
+                     key->property("text").toString().isEmpty(),
+                 "the server address is populated and API keys are never displayed"))
+        return false;
+    QMetaObject::invokeMethod(panel, "createProvider", Q_ARG(QVariant, QVariant("openai")));
+    QTest::qWait(30);
+    if (!require(_settings.providers().size() == 4 && list->property("count").toInt() == 4 &&
+                     panel->property("providerId").toString() ==
+                         _settings.providers().last().toMap().value("id").toString(),
+                 "adding a provider creates and selects a real saved profile immediately"))
+        return false;
+    address->setProperty("text", "");
+    QMetaObject::invokeMethod(save, "clicked");
+    QTest::qWait(20);
+    if (!require(!_settings.error().isEmpty() && feedback->isVisible() &&
+                     _window->height() > feedback->mapToScene(QPointF()).y() + feedback->height(),
+                 "validation errors stay visible above the pinned save action"))
+        return false;
+    address->setProperty("text", "https://api.openai.com/v1");
+    name->setProperty("text", "Configured provider");
+    key->setProperty("text", "ui-only-dummy-key");
+    QMetaObject::invokeMethod(save, "clicked");
+    QTest::qWait(40);
+    const auto id = panel->property("providerId").toString();
+    if (!require(_settings.provider(id).value("name").toString() == "Configured provider" &&
+                     _settings.error().isEmpty() && _settings.hasKey(id) &&
+                     key->property("text").toString().isEmpty(),
+                 "saving a provider also stores its API key and clears the input"))
+        return false;
+    QMetaObject::invokeMethod(preferences, "close");
+    QTest::qWait(30);
+    if (!require(dialog->property("visible").toBool() &&
+                     provider->property("currentIndex").toInt() == 3 && !_controller.busy(),
+                 "closing settings returns to generation with the saved provider selected"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "reject");
+    QVariant          description;
+    const QVariantMap ai{{"provider", "Test provider"},
+                         {"model", "image-test"},
+                         {"variant", 2},
+                         {"variantCount", 3},
+                         {"date", "2026-11-08T12:00:00Z"},
+                         {"prompt", "Preserve <subject>"}};
+    if (!require(
+            QMetaObject::invokeMethod(_window, "aiLayerDescription",
+                                      Q_RETURN_ARG(QVariant, description),
+                                      Q_ARG(QVariant, QVariant(ai))) &&
+                description.toString().contains("Test provider") &&
+                description.toString().contains("image-test") &&
+                description.toString().contains("2/3") &&
+                description.toString().contains("Preserve <subject>") &&
+                description.toString().contains("2026"),
+            "layer information includes provider, model, variant count, date and literal prompt"))
+        return false;
+    return runAiProgressSmoke(_window);
+}

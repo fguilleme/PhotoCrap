@@ -14,6 +14,10 @@ struct ShortcutDefinition {
 
 // Sources and scope are recorded in docs/SHORTCUTS.md.
 inline constexpr ShortcutDefinition adobeShortcuts[] = {
+    {"aiGenerate", QT_TRANSLATE_NOOP("ShortcutManager", "Édition"),
+     QT_TRANSLATE_NOOP("ShortcutManager", "Créer un calque avec l’IA"), "",
+     QT_TRANSLATE_NOOP("ShortcutManager", "Document"), true, true,
+     QT_TRANSLATE_NOOP("ShortcutManager", "")},
     {"keyboardSettings", QT_TRANSLATE_NOOP("ShortcutManager", "Édition"),
      QT_TRANSLATE_NOOP("ShortcutManager", "Configurer les raccourcis"), "Ctrl+Alt+Shift+K",
      QT_TRANSLATE_NOOP("ShortcutManager", "Document"), true, true,

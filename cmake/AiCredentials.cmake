@@ -1,0 +1,27 @@
+include(FetchContent)
+FetchContent_Declare(photocrap_qtkeychain
+    URL https://codeload.github.com/frankosterfeld/qtkeychain/tar.gz/refs/tags/0.15.0
+    URL_HASH SHA256=f4254dc8f0933b06d90672d683eab08ef770acd8336e44dfa030ce041dc2ca22
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR photocrap-no-upstream-build)
+FetchContent_MakeAvailable(photocrap_qtkeychain)
+function(photocrap_add_keychain)
+    set(BUILD_WITH_QT6 ON)
+    set(BUILD_SHARED_LIBS OFF)
+    set(BUILD_TRANSLATIONS OFF)
+    set(BUILD_TESTING OFF)
+    set(BUILD_TEST_APPLICATION OFF)
+    add_subdirectory("${photocrap_qtkeychain_SOURCE_DIR}" "${photocrap_qtkeychain_BINARY_DIR}" EXCLUDE_FROM_ALL)
+endfunction()
+photocrap_add_keychain()
+set_target_properties(qt6keychain PROPERTIES AUTOMOC OFF AUTOUIC OFF POSITION_INDEPENDENT_CODE ON)
+function(photocrap_install_keychain_license)
+    if(APPLE)
+        set(destination "PhotoCrap.app/Contents/Resources/third-party/QtKeychain")
+    elseif(WIN32)
+        set(destination "third-party/QtKeychain")
+    else()
+        set(destination "share/PhotoCrap/third-party/QtKeychain")
+    endif()
+    install(FILES "${photocrap_qtkeychain_SOURCE_DIR}/COPYING" DESTINATION "${destination}")
+endfunction()

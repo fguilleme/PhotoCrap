@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCrap VERSION 0.17.2 LANGUAGES CXX)
+project(PhotoCrap VERSION 0.18.0 LANGUAGES CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()
@@ -66,6 +66,12 @@ set(PHOTOCRAP_CXX_SOURCES
     src/storage/StreamingImageWriter.h
     src/DocumentLayers.cpp
     src/DocumentLayerMerge.cpp
+    src/DocumentAi.cpp
+    src/ai/AiImageTypes.cpp src/ai/AiImageTypes.h
+    src/ai/AiSettings.cpp src/ai/AiSettings.h
+    src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
+    src/ai/AiImageJob.cpp src/ai/AiImageJob.h
+    src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
     src/storage/ScratchImageCache.cpp
@@ -341,7 +347,8 @@ else()
     message(STATUS "clang-tidy not found; lint target is disabled")
 endif()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent LinguistTools ShaderTools)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Network Qml Quick QuickControls2 Concurrent LinguistTools ShaderTools)
+include(cmake/AiCredentials.cmake)
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.6)
     find_package(Qt6 QUIET COMPONENTS GuiPrivate)
 endif()
@@ -394,6 +401,12 @@ qt_add_library(photocrap_core STATIC
     src/RawImageReader.h
     src/DocumentLayers.cpp
     src/DocumentLayerMerge.cpp
+    src/DocumentAi.cpp
+    src/ai/AiImageTypes.cpp src/ai/AiImageTypes.h
+    src/ai/AiSettings.cpp src/ai/AiSettings.h
+    src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
+    src/ai/AiImageJob.cpp src/ai/AiImageJob.h
+    src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
     src/tools/BrushTool.cpp
@@ -483,8 +496,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/ThresholdFilter.cpp
     src/filters/ThresholdFilter.h
 )
-target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent)
-target_link_libraries(photocrap_core PRIVATE photocrap_libraw photocrap_raw_zlib photocrap_png_codec
+target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Concurrent)
+target_link_libraries(photocrap_core PRIVATE qt6keychain photocrap_libraw photocrap_raw_zlib photocrap_png_codec
     photocrap_jpeg_codec webp)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE AND PHOTOCRAP_ENABLE_ACCELERATE)
@@ -583,6 +596,12 @@ qt_add_qml_module(PhotoCrap
         qml/Main.qml
         qml/ScrubLabel.qml
         qml/ScratchCachePreferences.qml
+        qml/AiTextField.qml
+        qml/AiActionButton.qml
+        qml/AiProviderList.qml
+        qml/AiPreferences.qml
+        qml/AiImageDialog.qml
+        qml/AiProgressPanel.qml
         qml/DialogActionButton.qml
         qml/DockablePanel.qml
         qml/IconButton.qml
@@ -848,6 +867,11 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_marquee_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME marquee COMMAND photocrap_marquee_tests)
     set_tests_properties(marquee PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    qt_add_executable(photocrap_ai_tests tests/AiImageTest.cpp)
+    target_link_libraries(photocrap_ai_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
+    add_test(NAME ai_images COMMAND photocrap_ai_tests)
+    set_tests_properties(ai_images PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
     qt_add_executable(photocrap_layer_merge_tests tests/LayerMergeTest.cpp)
     target_link_libraries(photocrap_layer_merge_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME layer_merge COMMAND photocrap_layer_merge_tests)
@@ -932,6 +956,9 @@ if(BUILD_TESTING)
     add_test(NAME mixer_ui COMMAND PhotoCrap --smoke-test --mixer-test)
     set_tests_properties(mixer_ui PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME ai_ui COMMAND PhotoCrap --smoke-test --ai-image-test)
+    set_tests_properties(ai_ui PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)
@@ -966,6 +993,7 @@ photocrap_install_raw_sources()
 photocrap_install_png_license()
 photocrap_install_jpeg_license()
 photocrap_install_webp_license()
+photocrap_install_keychain_license()
 if(APPLE)
     # Qt's deployment step adds frameworks, plugins and QML resources after
     # the executable has received its linker signature. Seal the completed

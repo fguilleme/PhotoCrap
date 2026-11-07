@@ -858,6 +858,50 @@
     <message><source>La base de la fusion doit contenir des pixels, du texte ou une forme, et non seulement des réglages.</source><translation>The merge base must contain pixels, text, or a shape rather than only adjustments.</translation></message>
     <message><source>Incluez la base du masque d’écrêtage dans la fusion, ou utilisez Fusionner le masque d’écrêtage.</source><translation>Include the clipping base in the merge, or use Merge Clipping Mask.</translation></message>
     <message><source>Déverrouillez les calques concernés avant de les fusionner. Une copie fusionnée conserve les originaux verrouillés.</source><translation>Unlock the affected layers before merging. A stamped copy preserves locked originals.</translation></message>
+    <message>
+        <source>Terminez les opérations en cours et choisissez une image ou une sélection valide.</source>
+        <translation>Finish ongoing operations and choose a valid image or selection.</translation>
+    </message>
+    <message>
+        <source>Impossible de préparer l’image à envoyer.</source>
+        <translation>Unable to prepare the image to send.</translation>
+    </message>
+    <message>
+        <source>Impossible de préparer la sélection à envoyer.</source>
+        <translation>Unable to prepare the selection to send.</translation>
+    </message>
+    <message>
+        <source>Impossible d’encoder l’image IA.</source>
+        <translation>Unable to encode the AI image.</translation>
+    </message>
+    <message>
+        <source>L’image ou le masque est trop volumineux. Réduisez la taille d’envoi dans les réglages IA.</source>
+        <translation>The image or mask is too large. Reduce the upload size in AI settings.</translation>
+    </message>
+    <message>
+        <source>Le document a changé. Le résultat IA n’a pas été inséré.</source>
+        <translation>The document changed. The AI result was not inserted.</translation>
+    </message>
+    <message>
+        <source>Terminez l’édition en cours avant de relancer la génération IA.</source>
+        <translation>Finish the current edit before restarting AI generation.</translation>
+    </message>
+    <message>
+        <source>La limite de calques ou de mémoire empêche l’ajout du résultat IA.</source>
+        <translation>The layer or memory limit prevents adding the AI result.</translation>
+    </message>
+    <message>
+        <source>Calque IA — %1</source>
+        <translation>AI layer — %1</translation>
+    </message>
+    <message>
+        <source> · Variante %1/%2</source>
+        <translation> · Variant %1/%2</translation>
+    </message>
+    <message>
+        <source>Source de calque IA invalide.</source>
+        <translation>Invalid AI layer source.</translation>
+    </message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2724,6 +2768,30 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Supprimer les calques masqués ?</source><translation>Discard hidden layers?</translation></message>
     <message><source>L’aplatissement conserve le rendu visible, supprime les calques masqués et remplit les zones transparentes en blanc.</source><translation>Flattening keeps the visible appearance, discards hidden layers, and fills transparent areas with white.</translation></message>
     <message><source>Aplatir</source><translation>Flatten</translation></message>
+    <message>
+        <source>Créer avec l’IA…</source>
+        <translation>Create with AI…</translation>
+    </message>
+    <message>
+        <source>Ajouter le résultat</source>
+        <translation>Add result</translation>
+    </message>
+    <message>
+        <source>IA</source>
+        <translation>AI</translation>
+    </message>
+    <message>
+        <source>IA · Fournisseurs et prompts</source>
+        <translation>AI · Providers and prompts</translation>
+    </message>
+    <message>
+        <source>Intelligence artificielle</source>
+        <translation>Artificial intelligence</translation>
+    </message>
+    <message>
+        <source>Enregistrez les fournisseurs et prompts avec leur bouton Enregistrer.</source>
+        <translation>Save providers and prompts using their Save button.</translation>
+    </message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -4370,6 +4438,10 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Créer un calque des sélectionnés fusionnés</source><translation>Stamp Selected Layers</translation></message>
     <message><source>Fusionner le masque d’écrêtage</source><translation>Merge Clipping Mask</translation></message>
     <message><source>Aplatir l’image</source><translation>Flatten Image</translation></message>
+    <message>
+        <source>Créer un calque avec l’IA</source>
+        <translation>Create an AI layer</translation>
+    </message>
 </context>
 <context><name>MixerBrushOptions</name>
 <message><source>Personnalisé</source><translation>Custom</translation></message>
@@ -5303,5 +5375,674 @@ Independent software, not affiliated with Adobe.</translation>
   <context>
     <name>HealingBrushOptions</name>
     <message><source>Masque de fusion</source><translation>Layer Mask</translation></message>
+  </context>
+<context>
+    <name>AiSettings</name>
+    <message>
+        <source>Retouche naturelle</source>
+        <translation>Natural retouch</translation>
+    </message>
+    <message>
+        <source>Améliore subtilement cette photo : détails, lumière et couleurs naturelles. Préserve la composition, les visages et leur identité.</source>
+        <translation>Subtly enhance this photo: natural details, light and colors. Preserve the composition, faces and their identity.</translation>
+    </message>
+    <message>
+        <source>Retirer un élément</source>
+        <translation>Remove an element</translation>
+    </message>
+    <message>
+        <source>Retire l’élément indésirable de la zone envoyée et reconstruis le décor de façon réaliste, en respectant la lumière et les textures.</source>
+        <translation>Remove the unwanted element from the submitted area and realistically reconstruct the scene, preserving its light and textures.</translation>
+    </message>
+    <message>
+        <source>Changer d’ambiance</source>
+        <translation>Change the atmosphere</translation>
+    </message>
+    <message>
+        <source>Donne à cette image une ambiance cinématographique douce. Conserve la composition, les détails du sujet et des couleurs crédibles.</source>
+        <translation>Give this image a soft cinematic atmosphere. Preserve the composition, subject details and believable colors.</translation>
+    </message>
+    <message>
+        <source>Restaurer une photo</source>
+        <translation>Restore a photo</translation>
+    </message>
+    <message>
+        <source>Restaure cette photo : corrige les rayures, les taches et le bruit sans inventer de nouveaux détails ni modifier les traits des personnes.</source>
+        <translation>Restore this photo: fix scratches, stains and noise without inventing new details or changing people's features.</translation>
+    </message>
+    <message>
+        <source>Nouveau fournisseur</source>
+        <translation>New provider</translation>
+    </message>
+    <message>
+        <source>Serveur compatible OpenAI</source>
+        <translation>OpenAI-compatible server</translation>
+    </message>
+    <message>
+        <source>Indiquez un nom, un type et une adresse HTTP(S) valides.</source>
+        <translation>Enter a valid name, type and HTTP(S) address.</translation>
+    </message>
+    <message>
+        <source>Les options avancées doivent être un objet JSON.</source>
+        <translation>Advanced options must be a JSON object.</translation>
+    </message>
+    <message>
+        <source>Indiquez le chemin du modèle fal.ai, par exemple fal-ai/flux-2/edit.</source>
+        <translation>Enter the fal.ai model path, for example fal-ai/flux-2/edit.</translation>
+    </message>
+    <message>
+        <source>Chargez un workflow ComfyUI exporté au format API, et non le format de l’éditeur.</source>
+        <translation>Load a ComfyUI workflow exported in API format, rather than the editor format.</translation>
+    </message>
+    <message>
+        <source>Le nom de variable d’environnement n’est pas valide.</source>
+        <translation>The environment variable name is invalid.</translation>
+    </message>
+    <message>
+        <source>Indiquez un nom et un prompt de 1 à 32 000 caractères.</source>
+        <translation>Enter a name and a prompt of 1 to 32,000 characters.</translation>
+    </message>
+    <message>
+        <source>Workflow illisible ou supérieur à 2 Mio.</source>
+        <translation>Workflow unreadable or larger than 2 MiB.</translation>
+    </message>
+    <message>
+        <source>Impossible d’accéder au trousseau : %1</source>
+        <translation>Unable to access the credential store: %1</translation>
+    </message>
+    <message>
+        <source>Choisissez un fournisseur et saisissez une clé API.</source>
+        <translation>Choose a provider and enter an API key.</translation>
+    </message>
+    <message>
+        <source>La clé n’a pas été enregistrée dans le trousseau : %1</source>
+        <translation>The key was not saved in the credential store: %1</translation>
+    </message>
+    <message>
+        <source>Impossible de supprimer la clé du trousseau : %1</source>
+        <translation>Unable to delete the key from the credential store: %1</translation>
+    </message>
+</context>
+<context>
+    <name>AiImageJob</name>
+    <message>
+        <source>Le délai de génération IA est dépassé.</source>
+        <translation>The AI generation timed out.</translation>
+    </message>
+    <message>
+        <source>La réponse IA dépasse 100 Mio.</source>
+        <translation>The AI response exceeds 100 MiB.</translation>
+    </message>
+    <message>
+        <source>Le fournisseur redirige la requête. Vérifiez son adresse dans les réglages IA.</source>
+        <translation>The provider redirects the request. Check its address in AI settings.</translation>
+    </message>
+    <message>
+        <source>Erreur IA (%1) : %2</source>
+        <translation>AI error (%1): %2</translation>
+    </message>
+    <message>
+        <source>Envoi au fournisseur…</source>
+        <translation>Sending to provider…</translation>
+    </message>
+    <message>
+        <source>La file IA a renvoyé des adresses de suivi invalides.</source>
+        <translation>The AI queue returned invalid tracking addresses.</translation>
+    </message>
+    <message>
+        <source>Ce type de fournisseur n’est pas pris en charge.</source>
+        <translation>This provider type is not supported.</translation>
+    </message>
+    <message>
+        <source>En attente chez le fournisseur…</source>
+        <translation>Queued at provider…</translation>
+    </message>
+    <message>
+        <source>Génération de l’image…</source>
+        <translation>Generating image…</translation>
+    </message>
+    <message>
+        <source>La file IA a renvoyé un état inattendu.</source>
+        <translation>The AI queue returned an unexpected status.</translation>
+    </message>
+    <message>
+        <source>Le fournisseur n’a renvoyé aucune image.</source>
+        <translation>The provider returned no image.</translation>
+    </message>
+    <message>
+        <source>L’image IA encodée est invalide.</source>
+        <translation>The encoded AI image is invalid.</translation>
+    </message>
+    <message>
+        <source>L’adresse de l’image renvoyée par l’IA n’est pas valide.</source>
+        <translation>The image address returned by the AI is invalid.</translation>
+    </message>
+    <message>
+        <source>Récupération du résultat…</source>
+        <translation>Retrieving result…</translation>
+    </message>
+    <message>
+        <source>ComfyUI n’a pas accepté l’image source.</source>
+        <translation>ComfyUI did not accept the source image.</translation>
+    </message>
+    <message>
+        <source>ComfyUI n’a pas accepté le masque.</source>
+        <translation>ComfyUI did not accept the mask.</translation>
+    </message>
+    <message>
+        <source>ComfyUI a refusé le workflow. Vérifiez le checkpoint et les nœuds installés.</source>
+        <translation>ComfyUI rejected the workflow. Check the checkpoint and installed nodes.</translation>
+    </message>
+    <message>
+        <source>Le workflow ComfyUI a échoué.</source>
+        <translation>The ComfyUI workflow failed.</translation>
+    </message>
+    <message>
+        <source>Le workflow ComfyUI ne produit aucune image. Ajoutez un nœud SaveImage ou PreviewImage.</source>
+        <translation>The ComfyUI workflow produces no image. Add a SaveImage or PreviewImage node.</translation>
+    </message>
+    <message>
+        <source>Génération dans ComfyUI…</source>
+        <translation>Generating in ComfyUI…</translation>
+    </message>
+    <message>
+        <source>En attente du résultat chez le fournisseur…</source>
+        <translation>Waiting for the result from the provider…</translation>
+    </message>
+</context>
+<context>
+    <name>AiImageController</name>
+    <message>
+        <source>La taille du document a changé. La demande IA a été annulée.</source>
+        <translation>The document size changed. The AI request was canceled.</translation>
+    </message>
+    <message>
+        <source>Prêt</source>
+        <translation>Ready</translation>
+    </message>
+    <message>
+        <source>La génération n’a pas abouti</source>
+        <translation>Generation unsuccessful</translation>
+    </message>
+    <message>
+        <source>Demande IA annulée</source>
+        <translation>AI request canceled</translation>
+    </message>
+    <message>
+        <source>Choisissez un fournisseur et saisissez un prompt valide.</source>
+        <translation>Choose a provider and enter a valid prompt.</translation>
+    </message>
+    <message>
+        <source>Ajoutez une clé API dans Réglages → IA, ou définissez sa variable d’environnement.</source>
+        <translation>Add an API key in Settings → AI, or set its environment variable.</translation>
+    </message>
+    <message>
+        <source>Indiquez un modèle dans les réglages du fournisseur IA.</source>
+        <translation>Enter a model in the AI provider settings.</translation>
+    </message>
+    <message>
+        <source>Préparation de l’image…</source>
+        <translation>Preparing image…</translation>
+    </message>
+    <message>
+        <source>Mémoire insuffisante pour préparer l’image IA.</source>
+        <translation>Not enough memory to prepare the AI image.</translation>
+    </message>
+    <message>
+        <source>Le document a changé pendant la préparation IA.</source>
+        <translation>The document changed during AI preparation.</translation>
+    </message>
+    <message>
+        <source>Préparation du nouveau calque…</source>
+        <translation>Preparing new layer…</translation>
+    </message>
+    <message>
+        <source>Mémoire insuffisante pour préparer le calque IA.</source>
+        <translation>Not enough memory to prepare the AI layer.</translation>
+    </message>
+    <message>
+        <source>Le document a changé. Le résultat IA n’a pas été inséré.</source>
+        <translation>The document changed. The AI result was not inserted.</translation>
+    </message>
+    <message>
+        <source>Résultat prêt — terminez l’édition en cours…</source>
+        <translation>Result ready — finish the current edit…</translation>
+    </message>
+    <message>
+        <source>Résultat conservé — libérez de la place puis ajoutez le calque</source>
+        <translation>Result retained — free up space, then add the layer</translation>
+    </message>
+    <message>
+        <source>Résultat IA ajouté sur un nouveau calque</source>
+        <translation>AI result added on a new layer</translation>
+    </message>
+    <message>
+        <source>%1 variante(s) créée(s). %2</source>
+        <translation>%1 variant(s) created. %2</translation>
+    </message>
+    <message>
+        <source>Demande annulée — %1 variante(s) conservée(s)</source>
+        <translation>Request canceled — %1 variant(s) retained</translation>
+    </message>
+    <message>
+        <source>Variante %1/%2 — %3</source>
+        <translation>Variant %1/%2 — %3</translation>
+    </message>
+    <message>
+        <source>%1 variantes IA ajoutées sur des calques séparés</source>
+        <translation>%1 AI variants added on separate layers</translation>
+    </message>
+    <message>
+        <source>Envoi au fournisseur…</source>
+        <translation>Sending to provider…</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>L’IA a renvoyé une image trop grande ou illisible.</source>
+        <translation>The AI returned an oversized or unreadable image.</translation>
+    </message>
+    <message>
+        <source>Impossible de lire l’image renvoyée par l’IA.</source>
+        <translation>Unable to read the image returned by the AI.</translation>
+    </message>
+    <message>
+        <source>Mémoire insuffisante pour préparer le calque IA.</source>
+        <translation>Not enough memory to prepare the AI layer.</translation>
+    </message>
+    <message>
+        <source>Impossible de préparer le masque du calque IA.</source>
+        <translation>Unable to prepare the AI layer mask.</translation>
+    </message>
+</context>
+<context>
+    <name>AiImageDialog</name>
+    <message>
+        <source>Créer un calque avec l’IA</source>
+        <translation>Create an AI layer</translation>
+    </message>
+    <message>
+        <source>Fournisseur</source>
+        <translation>Provider</translation>
+    </message>
+    <message>
+        <source>Configurer…</source>
+        <translation>Configure…</translation>
+    </message>
+    <message>
+        <source>Composition visible complète</source>
+        <translation>Entire visible composite</translation>
+    </message>
+    <message>
+        <source>Sélection uniquement</source>
+        <translation>Selection only</translation>
+    </message>
+    <message>
+        <source>Envoi à %1 · grand côté limité à %2 px. Le résultat sera ajusté à la zone source, sur un nouveau calque.</source>
+        <translation>Sending to %1 · longest edge limited to %2 px. The result will fit the source area on a new layer.</translation>
+    </message>
+    <message>
+        <source>Prompt libre</source>
+        <translation>Custom prompt</translation>
+    </message>
+    <message>
+        <source>Décrivez le résultat souhaité et les éléments à préserver…</source>
+        <translation>Describe the desired result and what to preserve…</translation>
+    </message>
+    <message>
+        <source>Nom pour enregistrer ce prompt</source>
+        <translation>Name to save this prompt</translation>
+    </message>
+    <message>
+        <source>Enregistrer</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>Seul le bouton Générer envoie l’image et le prompt au fournisseur choisi. Le document original reste intact.</source>
+        <translation>Only Generate sends the image and prompt to the selected provider. The original document stays intact.</translation>
+    </message>
+    <message>
+        <source>Annuler</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Générer</source>
+        <translation>Generate</translation>
+    </message>
+    <message>
+        <source>Variantes</source>
+        <translation>Variants</translation>
+    </message>
+    <message>
+        <source>Une génération par variante, depuis la même source.</source>
+        <translation>One generation per variant, using the same source.</translation>
+    </message>
+    <message>
+        <source>Créer avec l’IA</source>
+        <translation>Create with AI</translation>
+    </message>
+    <message>
+        <source>Choisissez un fournisseur et décrivez la modification souhaitée.</source>
+        <translation>Choose a provider and describe the desired change.</translation>
+    </message>
+    <message>
+        <source>Fournisseurs</source>
+        <translation>Providers</translation>
+    </message>
+    <message>
+        <source>Gérer les fournisseurs…</source>
+        <translation>Manage providers…</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>Source</translation>
+    </message>
+    <message>
+        <source>Le résultat sera replacé dans la sélection, avec son masque.</source>
+        <translation>The result will be placed back in the selection, with its mask.</translation>
+    </message>
+    <message>
+        <source>Le résultat sera ajouté au-dessus de l’image, sur un nouveau calque.</source>
+        <translation>The result will be added above the image on a new layer.</translation>
+    </message>
+    <message>
+        <source>Prompt</source>
+        <translation>Prompt</translation>
+    </message>
+    <message>
+        <source>%1 génération(s) · grand côté limité à %2 px</source>
+        <translation>%1 generation(s) · longest edge limited to %2 px</translation>
+    </message>
+</context>
+<context>
+    <name>AiPreferences</name>
+    <message>
+        <source>Intelligence artificielle</source>
+        <translation>Artificial intelligence</translation>
+    </message>
+    <message>
+        <source>Fournisseurs</source>
+        <translation>Providers</translation>
+    </message>
+    <message>
+        <source>Prompts</source>
+        <translation>Prompts</translation>
+    </message>
+    <message>
+        <source>Ajouter</source>
+        <translation>Add</translation>
+    </message>
+    <message>
+        <source>Supprimer</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Nom de cette configuration</source>
+        <translation>Configuration name</translation>
+    </message>
+    <message>
+        <source>API d’images compatible OpenAI</source>
+        <translation>OpenAI-compatible image API</translation>
+    </message>
+    <message>
+        <source>Adresse du serveur</source>
+        <translation>Server address</translation>
+    </message>
+    <message>
+        <source>Checkpoint installé dans ComfyUI</source>
+        <translation>Checkpoint installed in ComfyUI</translation>
+    </message>
+    <message>
+        <source>Modèle</source>
+        <translation>Model</translation>
+    </message>
+    <message>
+        <source>Clé API pour cette session</source>
+        <translation>API key for this session</translation>
+    </message>
+    <message>
+        <source>Une clé est disponible ; laisser vide pour la conserver</source>
+        <translation>A key is available; leave blank to keep it</translation>
+    </message>
+    <message>
+        <source>Facultative pour un serveur local sans authentification</source>
+        <translation>Optional for a local server without authentication</translation>
+    </message>
+    <message>
+        <source>Les clés saisies restent en mémoire jusqu’à la fermeture. Elles ne sont pas enregistrées dans les réglages ou les projets.</source>
+        <translation>Entered keys stay in memory until exit. They are not saved in settings or projects.</translation>
+    </message>
+    <message>
+        <source>Ou variable d’environnement : OPENAI_API_KEY, FAL_KEY…</source>
+        <translation>Or environment variable: OPENAI_API_KEY, FAL_KEY…</translation>
+    </message>
+    <message>
+        <source>Grand côté envoyé</source>
+        <translation>Upload longest edge</translation>
+    </message>
+    <message>
+        <source>Options avancées</source>
+        <translation>Advanced options</translation>
+    </message>
+    <message>
+        <source>Paramètres du modèle (JSON)</source>
+        <translation>Model parameters (JSON)</translation>
+    </message>
+    <message>
+        <source>Champ image fal.ai</source>
+        <translation>fal.ai image field</translation>
+    </message>
+    <message>
+        <source>Liste</source>
+        <translation>List</translation>
+    </message>
+    <message>
+        <source>Workflow ComfyUI au format API</source>
+        <translation>ComfyUI workflow in API format</translation>
+    </message>
+    <message>
+        <source>Charger un workflow…</source>
+        <translation>Load workflow…</translation>
+    </message>
+    <message>
+        <source>Workflow par défaut</source>
+        <translation>Default workflow</translation>
+    </message>
+    <message>
+        <source>Effacer la clé saisie</source>
+        <translation>Clear entered key</translation>
+    </message>
+    <message>
+        <source>Enregistrer le fournisseur</source>
+        <translation>Save provider</translation>
+    </message>
+    <message>
+        <source>Nom du prompt</source>
+        <translation>Prompt name</translation>
+    </message>
+    <message>
+        <source>Décrivez les modifications à effectuer et ce qu’il faut conserver.</source>
+        <translation>Describe the changes to make and what to preserve.</translation>
+    </message>
+    <message>
+        <source>Enregistrer le prompt</source>
+        <translation>Save prompt</translation>
+    </message>
+    <message>
+        <source>Workflow ComfyUI</source>
+        <translation>ComfyUI workflow</translation>
+    </message>
+    <message>
+        <source>Fournisseur créé. Complétez sa configuration puis enregistrez.</source>
+        <translation>Provider created. Complete its settings, then save.</translation>
+    </message>
+    <message>
+        <source>Configuration enregistrée.</source>
+        <translation>Configuration saved.</translation>
+    </message>
+    <message>
+        <source>Configuration et clé API enregistrées.</source>
+        <translation>Configuration and API key saved.</translation>
+    </message>
+    <message>
+        <source>Configuration du fournisseur</source>
+        <translation>Provider configuration</translation>
+    </message>
+    <message>
+        <source>Ajoutez un fournisseur avec le bouton +</source>
+        <translation>Add a provider using the + button</translation>
+    </message>
+    <message>
+        <source>Nom</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>Clé API</source>
+        <translation>API key</translation>
+    </message>
+    <message>
+        <source>Clé disponible · saisir pour la remplacer</source>
+        <translation>Key available · enter a replacement</translation>
+    </message>
+    <message>
+        <source>Coller la clé API ici</source>
+        <translation>Paste the API key here</translation>
+    </message>
+    <message>
+        <source>Clé enregistrée dans le trousseau sécurisé.</source>
+        <translation>Key saved in the secure credential store.</translation>
+    </message>
+    <message>
+        <source>Clé fournie par la variable d’environnement.</source>
+        <translation>Key supplied by the environment variable.</translation>
+    </message>
+    <message>
+        <source>Facultative pour un serveur local sans authentification.</source>
+        <translation>Optional for a local server without authentication.</translation>
+    </message>
+    <message>
+        <source>La clé sera conservée dans le trousseau sécurisé du système.</source>
+        <translation>The key will be kept in the system's secure credential store.</translation>
+    </message>
+    <message>
+        <source>Taille maximale d’envoi</source>
+        <translation>Maximum upload size</translation>
+    </message>
+    <message>
+        <source>Masquer les options avancées</source>
+        <translation>Hide advanced options</translation>
+    </message>
+    <message>
+        <source>Options avancées…</source>
+        <translation>Advanced options…</translation>
+    </message>
+    <message>
+        <source>Variable d’environnement (facultative)</source>
+        <translation>Environment variable (optional)</translation>
+    </message>
+    <message>
+        <source>Charger…</source>
+        <translation>Load…</translation>
+    </message>
+    <message>
+        <source>Supprimer la clé enregistrée</source>
+        <translation>Delete saved key</translation>
+    </message>
+    <message>
+        <source>Accès au trousseau…</source>
+        <translation>Accessing credential store…</translation>
+    </message>
+    <message>
+        <source>Enregistrer</source>
+        <translation>Save</translation>
+    </message>
+    <message>
+        <source>Bibliothèque</source>
+        <translation>Library</translation>
+    </message>
+    <message>
+        <source>API compatible OpenAI</source>
+        <translation>OpenAI-compatible API</translation>
+    </message>
+</context>
+<context>
+    <name>AiProviderList</name>
+    <message>
+        <source>ComfyUI · Local</source>
+        <translation>ComfyUI · Local</translation>
+    </message>
+    <message>
+        <source>Clé enregistrée</source>
+        <translation>Key saved</translation>
+    </message>
+    <message>
+        <source>Clé via environnement</source>
+        <translation>Key from environment</translation>
+    </message>
+    <message>
+        <source>Serveur compatible</source>
+        <translation>Compatible server</translation>
+    </message>
+    <message>
+        <source>Clé à renseigner</source>
+        <translation>API key needed</translation>
+    </message>
+</context>
+<context>
+    <name>AiProgressPanel</name>
+    <message>
+        <source>IA</source>
+        <translation>AI</translation>
+    </message>
+    <message>
+        <source>Création IA en cours</source>
+        <translation>AI generation in progress</translation>
+    </message>
+    <message>
+        <source>Résultat IA prêt à ajouter</source>
+        <translation>AI result ready to add</translation>
+    </message>
+    <message>
+        <source>La génération IA s’est arrêtée</source>
+        <translation>AI generation stopped</translation>
+    </message>
+    <message>
+        <source>Création IA terminée</source>
+        <translation>AI generation complete</translation>
+    </message>
+    <message>
+        <source>Génération IA interrompue</source>
+        <translation>AI generation interrupted</translation>
+    </message>
+    <message>
+        <source>Écoulé %1:%2</source>
+        <translation>Elapsed %1:%2</translation>
+    </message>
+    <message>
+        <source>%1 / %2 variante(s) créée(s)</source>
+        <translation>%1 / %2 variant(s) created</translation>
+    </message>
+    <message>
+        <source>Ajouter le résultat</source>
+        <translation>Add result</translation>
+    </message>
+    <message>
+        <source>Annuler</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Fermer</source>
+        <translation>Close</translation>
+    </message>
+</context>
+  <context>
+    <name>Main</name>
+    <message><source>Fournisseur : %1</source><translation>Provider: %1</translation></message>
+    <message><source>Modèle : %1</source><translation>Model: %1</translation></message>
+    <message><source>Variante %1/%2</source><translation>Variant %1/%2</translation></message>
+    <message><source>Créé le : %1</source><translation>Created: %1</translation></message>
+    <message><source>Prompt : %1</source><translation>Prompt: %1</translation></message>
+    <message><source>IA · %1 · Variante %2/%3</source><translation>AI · %1 · Variant %2/%3</translation></message>
   </context>
 </TS>

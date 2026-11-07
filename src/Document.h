@@ -37,6 +37,12 @@ namespace PhotoCrap::Clipboard
 struct Pixels;
 }
 
+namespace PhotoCrap::Ai
+{
+struct Input;
+struct Result;
+} // namespace PhotoCrap::Ai
+
 class Document : public QObject
 {
     Q_OBJECT
@@ -1123,6 +1129,12 @@ public:
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE void requestOpenFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
+    bool             aiInsertionBusy() const;
+    QFuture<PhotoCrap::Ai::Input> prepareAiInput(bool _selection, int _maxEdge,
+                                                 std::shared_ptr<std::atomic_bool> _cancel);
+    bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
+                        const QVariantMap &_metadata, QString &_error);
+
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool isRawFile(const QUrl &_url) const;
     Q_INVOKABLE QString rawFilePatterns() const;

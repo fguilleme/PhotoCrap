@@ -9,6 +9,7 @@
 #include "ShortcutManager.h"
 #include "ToolInput.h"
 #include "WorkspaceSettings.h"
+#include "ai/AiImageController.h"
 #include "controls/ValueScrubber.h"
 #include "render/CanvasFonts.h"
 #include "render/CurvesGeometry.h"
@@ -33,6 +34,7 @@
 #include <QSurfaceFormat>
 #include <QTimer>
 #ifdef PHOTOCRAP_TESTING
+#include "../tests/AiImageSmoke.h"
 #include "../tests/BrushCursorSmoke.h"
 #include "../tests/BrushTipPreviewSmoke.h"
 #include "../tests/CanvasRenderSmoke.h"
@@ -227,6 +229,8 @@ int main(int argc, char *argv[])
     Document           document;
     ShortcutManager    shortcutManager(nullptr, !smoke);
     WorkspaceSettings  workspaceSettings(nullptr, !smoke);
+    AiSettings         aiSettings(nullptr, !smoke);
+    AiImageController  aiImages(&document, &aiSettings);
     const auto         configureScratch = [&] {
         document.configureScratchCache(
             workspaceSettings.scratchDirectory(),
@@ -252,6 +256,8 @@ int main(int argc, char *argv[])
     engine.addImageProvider("layers", new ThumbnailProvider(&document));
     engine.addImageProvider("recent", new RecentThumbnailProvider);
     engine.rootContext()->setContextProperty("editor", &document);
+    engine.rootContext()->setContextProperty("aiSettings", &aiSettings);
+    engine.rootContext()->setContextProperty("aiImages", &aiImages);
     QObject::connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, &document,
                      &Document::clipboardChanged);
     engine.rootContext()->setContextProperty("languages", &languageManager);
@@ -382,6 +388,11 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--slice-overlay-test")) {
                 passed = window && runSliceOverlaySmoke(window);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--ai-image-test")) {
+                passed = window && runAiImageSmoke(window, document, aiSettings, aiImages);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

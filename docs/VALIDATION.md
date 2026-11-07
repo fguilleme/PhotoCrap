@@ -1,5 +1,130 @@
 # Validation
 
+## Préparation de v0.18.0 — 8 novembre 2026
+
+Le build de la version 0.18.0 et les **61 tests CTest non interactifs** passent
+sur macOS/Qt 6.12 (105,19 s), après les modifications finales de progression,
+d’identification des calques et d’insertion unique. Les parcours IA natifs
+Cocoa/Metal ont aussi passé les contrôles ciblés précédents. L’utilisateur confirme
+ses essais réels OpenAI et fal.ai ; ComfyUI reste à tester avec son serveur.
+La validation des paquets Qt 6.8.3 sur les trois plateformes suit le workflow du tag.
+
+## Identification des calques IA — 8 novembre 2026
+
+Le build, `ai_images`, `ai_ui` et le parcours IA natif Cocoa/Metal passent.
+
+Les tests vérifient le fournisseur, le modèle et le numéro/total dans le nom du
+calque (y compris **1/1**), ainsi que la conservation exacte du nom et des
+métadonnées après sauvegarde/rechargement. Le scénario d’interface contrôle le
+texte détaillé : fournisseur, modèle, numéro/total, date et prompt littéral.
+
+## Insertion unique des variantes IA — 8 novembre 2026
+
+Le build, `ai_images`, `ai_ui` et le parcours IA natif Cocoa/Metal passent.
+Aucun fournisseur réel n’a été sollicité.
+
+Un test injecte volontairement deux notifications de fin pour chaque réponse du
+serveur simulé. Un lancement simple ajoute un seul calque et une seule étape
+d’annulation ; un second lancement demandant deux variantes ajoute exactement deux
+calques et effectue exactement deux requêtes. Un double appel à Générer pendant
+le lancement et une nouvelle tentative d’ajout après sa fin ne créent rien de plus.
+
+L’insertion répétée du même couple lancement/variante est aussi vérifiée en 8 et
+16 bits, sans nouvel historique. Deux variantes distinctes aux pixels identiques
+restent autorisées. Ce scénario couvre une double livraison ; il ne prouve pas
+que celle-ci explique les deux calques observés par l’utilisateur.
+
+## Progression IA visible — 8 novembre 2026
+
+Le build passe, ainsi que les tests ciblés `ai_images`, `ai_ui`, `qml_smoke` et le
+parcours IA natif Cocoa/Metal. Le scénario d’interface contrôle l’encadré visible,
+le texte d’étape sans troncature, le fournisseur/modèle, le temps écoulé et les
+actions Annuler/Ajouter le résultat. Il vérifie aussi le maintien de la
+notification après arrêt et sa fermeture explicite.
+
+Une réponse HTTP simulée retardée vérifie que le compteur de secondes avance
+pendant l’attente, se fige à la fin et conserve les informations du lancement.
+Les variantes terminées sont comptées à leur insertion ; la barre d’attente est
+indéterminée. Aucun appel à un fournisseur réel n’a été effectué. La suite complète
+de 61 tests avait passé avant cette modification ; seuls les contrôles ciblés
+ci-dessus ont été rejoués pour la progression.
+
+## Stockage compact des calques IA — 7 novembre 2026
+
+Le build complet, les **61 tests CTest non interactifs** et le contrôle IA natif
+Cocoa/Metal passent après ce changement.
+
+Le test de reproduction comporte trois sorties IA PNG de 512×128, placées dans
+un document 4096×1024 en 16 bits. L’ancien encodage des trois rasters agrandis
+représente **97 998 060 octets** de PNG/Base64 ; le projet avec leurs sources
+originales occupe **834 094 octets** (fond uniforme inclus). Les trois sorties
+simulées de l’IA totalisent 591 519 octets. Ce test synthétique mesure le coût
+des calques IA ; la taille d’une vraie photo de fond s’ajoute au projet.
+
+Les aller-retour 8/16 bits comparent exactement les pixels natifs, le composite
+et le masque progressif après rechargement. La modification du masque conserve
+le stockage compact ; la peinture/remplissage des pixels revient à un PNG natif,
+et Annuler restaure l’éligibilité compacte. Un rectangle invalide est refusé sans
+remplacer le document ouvert. Le format v13 est utilisé seulement lorsqu’une
+source IA compacte est réellement écrite ; les autres projets conservent leur
+version minimale habituelle. Les projets antérieurs restent lisibles.
+
+## Calques IA et fournisseurs — 7 novembre 2026
+
+Le build Qt 6.12/Apple Silicon et les **61 tests CTest non interactifs** passent
+(trois scénarios macOS dédiés exclus), ainsi que le parcours ciblé natif
+`--smoke-test --ai-image-test` en Cocoa/Metal. Le catalogue de traduction anglais
+compile sans erreur et le diff passe le contrôle des espaces.
+
+`ai_images` utilise exclusivement un serveur HTTP simulé sur 127.0.0.1. Il vérifie
+l’envoi multipart OpenAI avec masque, la file fal.ai et ses téléchargements sans
+transfert de clé, les uploads/workflows/historiques ComfyUI, les erreurs et
+redirections, ainsi que l’annulation limitée à la tâche propre au client. Aucun
+endpoint réel ni appel payant n’a été utilisé.
+
+Les cas document couvrent sélection elliptique progressive, position et masque
+conservés, précision de travail 8/16 bits, mise à l’échelle par bandes identique à
+une passe après décodage du PNG, Annuler/Rétablir, document devenu obsolète,
+modification concurrente du calque source et résultat qui attend la fin du trait.
+Atteindre 512 calques conserve le résultat pour une nouvelle tentative d’insertion
+sans seconde requête. Les configurations/prompts persistent ; une abstraction de trousseau injectée
+vérifie la relecture des clés au redémarrage et leur absence du fichier de réglages,
+ainsi que la suppression et le changement d’adresse du fournisseur. Les tests
+réguliers utilisent un trousseau simulé, pas celui de l’utilisateur.
+
+Les variantes sont contrôlées avec une sélection progressive : même image source
+pour trois requêtes successives, calques numérotés et indépendants, masque identique,
+seule la dernière variante visible et trois étapes Annuler restaurant les états
+précédents. Une erreur à la deuxième génération et une annulation après le premier
+résultat conservent celui-ci et arrêtent la suite.
+
+`ai_ui` et le contrôle natif vérifient le choix par défaut de la sélection, les
+fournisseurs/prompts, la sauvegarde d’un profil et le champ de clé masqué. Entrée
+ajoute une ligne au prompt sans déclencher de génération. Les protocoles réels,
+les modèles accessibles aux comptes et un workflow ComfyUI installé restent à
+valider avec les configurations de l’utilisateur ; Windows/Linux n’ont pas encore
+été exécutés pour cette modification. La limite du smoke test Cocoa général
+signalée ci-dessous reste distincte de ce parcours ciblé.
+[Guide de configuration](AI_IMAGE_EDITING.md).
+
+Le contrôle natif du trousseau passe aussi sur macOS : une entrée factice unique
+est créée, relue, supprimée puis vérifiée absente, sans accès aux identifiants
+existants. Commande opt-in :
+
+```sh
+QT_QPA_PLATFORM=cocoa PHOTOCRAP_TEST_NATIVE_KEYCHAIN=1 ./build/photocrap_ai_tests nativeCredentialStoreRoundTrip
+```
+
+Ce contrôle utilise Cocoa : le backend macOS de QtKeychain termine ses opérations
+sur la file principale Apple, que le backend hors écran ne dessert pas. Une entrée
+factice laissée par le premier essai hors écran a été supprimée. Le scénario
+`ai_ui` vérifie désormais la création immédiate d’un profil visible dans la liste,
+le préremplissage réel de l’URL, les erreurs affichées au-dessus du bouton fixe,
+l’enregistrement de la clé via le trousseau simulé et le retour à la génération
+avec le bon fournisseur. La présentation a aussi été inspectée à l’écran dans une
+copie isolée du build, pour éviter les anciennes instances encore ouvertes.
+
+
 ## Fusions de calques — 7 novembre 2026
 
 Le build complet Qt 6.12/Apple Silicon passe, ainsi que les **59 tests CTest non

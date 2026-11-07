@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cstring>
 
-// Read the JSON string as a sequential PNG stream. Each consumer starts at
+// Read the JSON string as a sequential image stream. Each consumer starts at
 // the same file span, so hashing and decoding never retain a full payload.
 class ProjectPayloadDevice final : public QIODevice
 {

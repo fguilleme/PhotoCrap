@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "ai/AiImageTypes.h"
 #include "shapes/ShapeLayer.h"
 #include "storage/ScratchImageCache.h"
 
@@ -23,6 +24,8 @@ QHash<qint64, qint64> layerBlocks(const Layer &layer)
     auto blocks = layer.image.storageBlocks();
     blocks.insert(layer.mask.storageBlocks());
     blocks.insert(layer.source.storageBlocks());
+    if (layer.aiSource)
+        blocks.insert(layer.aiSource->memoryKey, layer.aiSource->encoded.size());
     return blocks;
 }
 

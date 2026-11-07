@@ -21,6 +21,8 @@ Tab et Maj+Tab masquent temporairement les panneaux, y compris flottants, sans c
 
 La Gomme magique est maintenant disponible dans le groupe E : Maj+E parcourt les variantes, le clic droit permet de la choisir directement. Sa combinaison suit celle du groupe Gomme personnalisable ; son entrée descriptive n’enregistre pas un second raccourci E.
 
+L’action PhotoCrap **Créer un calque avec l’IA** est disponible dans Réglages, sans raccourci par défaut ; elle ouvre le choix du fournisseur, de la source et du prompt. Le catalogue courant contient **303 entrées : 135 commandes personnalisables, 58 gestes et 110 NYI**.
+
 ## Commandes ajoutées
 
 | Action | Combinaison par défaut | Contexte |

@@ -4,6 +4,29 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.18.0 — 8 novembre 2026
+
+- Créer des calques depuis la composition ou une sélection avec OpenAI GPT Image,
+  fal.ai, ComfyUI ou une API d’édition compatible. Conserver plusieurs fournisseurs,
+  les clés dans le trousseau système et une bibliothèque de prompts. Générer jusqu’à
+  huit variantes depuis la même source, avec suivi visible et annulation.
+- Identifier chaque calque IA par fournisseur, modèle et numéro/total ; conserver
+  le prompt et la date dans le projet. Empêcher la double insertion d’une variante.
+  OpenAI et fal.ai ont été essayés dans l’application ; ComfyUI reste à valider
+  avec un serveur et un workflow réels. [Guide IA](docs/AI_IMAGE_EDITING.md)
+- Stocker les sources IA intactes à leur résolution d’origine dans les projets
+  v13, pour éviter les PNG 16 bits agrandis inutilement. Conserver les masques et
+  revenir au raster natif après retouche des pixels. Les anciens calques IA sans
+  source originale conservent leur stockage existant.
+- Ajouter les dégradés dynamiques éditables sur le canevas, avec poignées, points
+  de couleur et aperçu GPU 8/16 bits ; compléter les options du Pot de peinture.
+- Étendre les outils d’édition aux masques et permettre de régler les valeurs
+  numériques en glissant leur libellé.
+- Couper, copier et coller les sélections en 8/16 bits ; ajouter les fusions de
+  calques/groupes/calques visibles, copies fusionnées et aplatissement.
+- Réutiliser les ressources des piles GPU : textures uniformes, réductions,
+  signatures de calques, paramètres tonals et cibles de filtres/masques.
+
 ## v0.17.2
 
 - Vérifier les quatre empreintes raster qui varient entre runners x86-64 à

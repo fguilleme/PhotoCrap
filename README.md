@@ -4,9 +4,8 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Le code source correspond à **v0.17.2**. Il inclut
-le correctif de composition 16 bits et les ajustements de tests qui suivent
-la tentative de publication de v0.17.
+Le code source correspond à **v0.18.0** : calques IA multifournisseurs,
+dégradés dynamiques, presse-papiers de sélection et fusions de calques.
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Télécharger
@@ -17,6 +16,21 @@ fichiers `.sha256`. Les paquets embarquent Qt. GitHub les publie après la
 validation des builds, tests et contrôles de déploiement des trois plateformes.
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+## Nouveautés de v0.18.0
+
+- **Calques IA** depuis l’image ou la sélection, avec OpenAI, fal.ai, ComfyUI et
+  API compatible, profils persistants, trousseau sécurisé, prompts réutilisables
+  et 1–8 variantes. Suivi visible, résultats annulables et informations par calque.
+  OpenAI et fal.ai ont été testés dans l’application ; ComfyUI reste à essayer
+  avec un serveur réel. [Guide IA](docs/AI_IMAGE_EDITING.md).
+- **Sources IA compactes dans les projets v13** : conserver la sortie d’origine
+  tant que les pixels sont intacts, puis sauvegarder les retouches en raster natif.
+- **Dégradés dynamiques** avec poignées et points de couleur sur le canevas,
+  aperçu GPU 8/16 bits, options du Pot de peinture et édition des masques.
+- **Presse-papiers et fusions** : sélections coupées/collées sur un nouveau calque,
+  collages spéciaux, fusion de groupes/calques visibles, copies et aplatissement.
+- **Réutilisation des ressources GPU** entre tuiles, niveaux de zoom et rendus.
 
 ## Nouveautés de v0.15
 
@@ -61,7 +75,7 @@ Quelques mesures locales, dont les conditions sont décrites dans la [validation
 
 Ces empreintes de plans et mesures isolées ne représentent pas la mémoire totale de l’application. Les limites restent **32 Mpx, 512 calques et 2 Gio de réservation logique de plans** ; le `.pcr` v9 lit aussi les versions 1–8 et conserve sa limite de fichier de 256 Mio. Les essais Metal et les contrôles locaux Qt 6.8/6.12 sont documentés ; les validations physiques Vulkan/Direct3D et les mesures de VRAM du pilote restent ouvertes.
 
-Les projets avec formes vectorielles utilisent `.pcr` v11 ; ceux contenant un tracé nommé vide utilisent v10, et les autres restent en v9. Le lecteur accepte les versions 1 à 11.
+Les projets utilisent le format minimal nécessaire : v9 pour les calques et textes ordinaires, v10 pour les tracés nommés vides, v11 pour les formes, v12 pour les dégradés dynamiques et v13 pour les sources IA compactes. Le lecteur accepte les versions 1 à 13.
 
 Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et replis GPU](docs/GPU_RENDERING.md) et le [plan des cinq chantiers](docs/OPTIMIZATION_PLAN.md).
 
@@ -93,7 +107,8 @@ Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et repli
 - Redimensionnement, rotation à 90°, symétries, zoom, rotation de l’affichage, déplacement du canevas, règles et aperçu de navigation.
 - Panneaux **Histogramme, Navigateur, Couleur, Calques, Couches, Historique et Informations** : déplacement, regroupement en onglets, colonnes, repli, redimensionnement, fenêtres flottantes et organisation persistante. **Affichage → Panneaux** contrôle leur visibilité. Couches affiche RVB ou un canal en niveaux de gris sans modifier le document.
 - Historique annuler/rétablir avec suivi de l’état enregistré. Protection à l’ouverture, à la création et à la fermeture d’un document modifié.
-- Fenêtre **Réglages** avec sections **Raccourcis clavier**, **Interface** et **Barre d’outils**. Les raccourcis sont modifiables, validés et persistants ; l’interface française ou anglaise peut être appliquée à chaud et le choix est conservé.
+- **Créer avec l’IA…** : composition visible ou sélection envoyée à GPT Image, fal.ai, ComfyUI ou une API d’images compatible OpenAI ; résultat ajouté sur un calque annulable, avec masque de sélection ; source IA conservée à sa taille d’origine dans les projets v13 tant que ses pixels sont intacts. Plusieurs fournisseurs et prompts dans **Réglages → IA**, clés conservées dans le trousseau sécurisé ou variables d’environnement, 1–8 variantes sur des calques distincts, génération asynchrone. [Configuration et limites](docs/AI_IMAGE_EDITING.md).
+- Fenêtre **Réglages** avec sections **Raccourcis clavier**, **Interface**, **Barre d’outils**, **Cache de travail** et **IA**. Les raccourcis sont modifiables, validés et persistants ; l’interface française ou anglaise peut être appliquée à chaud et le choix est conservé.
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.
 - Une liste persistante des dix fichiers récemment ouverts ou enregistrés est disponible dans **Fichier → Ouvrir les fichiers récents** ; les fichiers disparus sont retirés automatiquement.
@@ -221,7 +236,7 @@ Un bouton représente un groupe d’outils. Son **clic droit** affiche les varia
 
 `[` / `]` règlent la taille du pinceau, `Maj+[` / `Maj+]` sa dureté, `D` rétablit noir/blanc et `X` échange les couleurs. `Ctrl/⌘ + 0` adapte l’image ; `Ctrl/⌘ + 1` affiche 100 %. `Ctrl/⌘ + molette` zoome sous le pointeur, la molette défile verticalement, `Maj + molette` horizontalement et `Espace + glisser` déplace la toile. Annuler/Rétablir conserve le zoom de navigation.
 
-Le catalogue contient **298 entrées, dont 119 NYI**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
+Le catalogue contient **303 entrées, dont 110 NYI**, avec recherche par action, touche ou contexte et filtres **Disponibles**, **NYI** et **Gestes contextuels**. Les fonctions manquantes restent des indications désactivées ; elles ne capturent aucune touche. Les gestes à la souris sont consultables sans devenir des raccourcis globaux. L’[inventaire détaillé](docs/SHORTCUTS.md) sert aussi de liste des fonctionnalités à venir.
 
 Les raccourcis et la barre d’outils se personnalisent dans **Réglages** : **menu PhotoCrap → Préférences…** ou **⌘,** sur macOS, **Édition → Réglages…** sur les autres plateformes. Les raccourcis sont suspendus pendant une saisie ou une boîte de dialogue modale ; une combinaison vide désactive une commande, les doublons sont refusés et les personnalisations sont conservées entre les lancements.
 
@@ -260,6 +275,7 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 | `src/selection/*`, `qml/Selection*.qml`, `qml/ColorSelection*.qml` | Géométrie et couverture des sélections, prélèvement par couleur, dialogues et aperçus |
 | `src/tools/*` | Contrôleur de gestes, paramètres et implémentations d’outils séparées par famille |
 | `src/CanvasItem.*` | Affichage Qt Quick, damier, contours de sélection et curseurs natifs |
+| `src/ai/*`, `src/DocumentAi.cpp`, `qml/Ai*.qml` | Fournisseurs IA, prompts persistants, requêtes asynchrones et insertion de résultats sur un calque |
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Démarrage, exposition QML, langues, fichiers récents, raccourcis et espace de travail persistant |
 | `qml/Main.qml`, `qml/*Editor.qml`, `qml/*Options.qml` | Fenêtre, menus, dialogues, éditeurs de réglage et barres d’options spécialisées |
 | `qml/DockablePanel.qml`, `qml/InformationPanel.qml` | Conteneur commun des panneaux et affichage des mesures |
@@ -269,7 +285,7 @@ Le recadrage supprime les pixels hors cadre, récupérables par Annuler. La cons
 
 Les calques sont stockés du bas vers le haut en `QImage::Format_ARGB32_Premultiplied` (8 bits par canal) ou `QImage::Format_RGBA64_Premultiplied` (16 bits par canal). Les masques restent en 8 bits ; les proxies écran peuvent être réduits en 8 bits sans changer les pixels de travail. Le composite et les rendus de séparation de fréquences sont mis en cache. Pendant un trait, seules les régions touchées sont recomposées ; le flou des fréquences n’est donc pas recalculé lorsqu’un masque change. Les instantanés d’historique utilisent le partage implicite de QImage ; un geste continu devient une seule opération. La limite est de 40 opérations et environ 256 Mio d’images supplémentaires retenues par rapport au document courant, avec au moins une annulation conservée même si elle dépasse ce budget.
 
-Le `.pcr` est un document JSON versionné. Sa version 9 conserve le texte éditable et ses formats mixtes, les tracés Bézier, la profondeur des couleurs, les pixels, les masques, paires de séparation de fréquences, réglages et propriétés des calques ; elle conserve aussi les groupes et l’écrêtage et reste compatible en lecture avec les versions 1 à 8. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
+Le `.pcr` est un document JSON versionné, lisible des versions 1 à 13. Le lecteur actuel utilise la version minimale nécessaire : v9 pour le texte éditable, v10 pour les tracés vides, v11 pour les formes, v12 pour les dégradés dynamiques et v13 pour les sources IA compactes. Cette dernière conserve l’image du fournisseur et son placement tant que les pixels du calque sont intacts ; les pixels sont reconstruits à l’ouverture à la profondeur du document. Un calque retouché est enregistré en raster natif. Les pixels, masques, paires de séparation de fréquences, réglages, groupes et écrêtages sont conservés. Les calques vides et les masques uniformes sont stockés sous forme compacte dans cette version et ne sont développés qu’à la première modification locale. L’historique, la sélection et les repères d’échantillonnage ne sont pas enregistrés dans le projet ; l’organisation des panneaux est conservée séparément dans les réglages de l’application. La lecture valide tous les calques avant de remplacer le document ouvert. La taille maximale du fichier est de 256 Mio ; le document est limité à 32 mégapixels, 512 calques et 2 Gio de données non compressées de calques. Le budget compte séparément les pixels couleur, les sources de séparation de fréquences et les masques 8 bits ; un réglage ne réserve que son masque et un dossier ne réserve aucune image. Les images non uniformes partagées sont réservées séparément pour chaque calque afin de permettre leur modification et leur rechargement. Les calques vides et masques uniformes ne réservent pas de plan complet ; peindre dessus vérifie le budget avant de développer leurs pixels. Le cache de fréquences utilise une éviction LRU bornée à 128 Mio, et ses miniatures sont calculées à leur taille d’affichage. Ces limites ne représentent pas la consommation mémoire totale : composition, filtres, historique et sérialisation utilisent aussi de la mémoire.
 
 Depuis v0.15, une première étape du cache disque de travail conserve les gros rendus de fréquences entre les workers. **Réglages → Cache de travail** permet de choisir le dossier, le budget (4 Gio par défaut, 0 pour désactiver) et de vider le cache. Les plans éditables et leurs versions d’historique partagent désormais des tuiles déchargeables sur disque ; le détail et les limites figurent dans l’[audit calques/mémoire](docs/LAYER_MEMORY.md).
 
@@ -391,7 +407,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 Sous Linux, utiliser `./build/PhotoCrap`. Les tests natifs macOS utilisent le backend Cocoa, séparément du smoke test hors écran. Le statut des workflows vérifiés est détaillé dans [Télécharger](#télécharger) ; les essais et fonctions restant à compléter sont suivis dans la [roadmap](ROADMAP.md).
 
-Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; anciens textes rasterisés non récupérables comme texte ; texte sur tracé, déformations et typographie Adobe avancée encore NYI ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels généraux sur les calques de pixels, objets dynamiques, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet ou IA. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
+Limites connues : un seul document à la fois ; composition raster sur CPU avec flou natif accéléré sur macOS ; certains chemins d’édition restent synchrones et peuvent ralentir les très grandes images ; anciens textes rasterisés non récupérables comme texte ; texte sur tracé, déformations et typographie Adobe avancée encore NYI ; pas de PSD/PSB, CMJN, HDR, 32 bits, masques vectoriels généraux sur les calques de pixels, objets dynamiques, réparation générative, textures et dynamiques de brosse, pression/inclinaison du stylet. Les algorithmes de réglage sont des implémentations sRGB simplifiées et ne reproduisent pas exactement les résultats colorimétriques de Photoshop. Le remplissage compare les couleurs exactement, sans tolérance. Les filtres directs modifient les pixels ; l’historique permet de les annuler. Le navigateur est un aperçu, sans rectangle de navigation interactif. L’espace sRGB est normalisé à l’import, sans chaîne d’épreuvage écran/impression.
 
 ## Références techniques
 

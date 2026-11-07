@@ -22,6 +22,9 @@ jobs:
           version: '6.8.3'
           modules: 'qtimageformats qtshadertools'
           cache: true
+      - name: Install Linux credential store dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
       - name: Build

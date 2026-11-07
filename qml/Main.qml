@@ -72,6 +72,18 @@ ApplicationWindow {
     readonly property bool repositioningGesture: drawingArea.pressed
         && (window.cropToolActive || window.sliceToolActive || window.closedShapeToolActive
             || editor.tool === "line" || editor.tool === "gradient" || window.selectionToolActive || window.penToolActive)
+    function aiLayerDescription(ai) {
+        if (!ai || !ai.provider) return ""
+        const lines = [qsTr("Fournisseur : %1").arg(ai.provider)]
+        if (ai.model) lines.push(qsTr("Modèle : %1").arg(ai.model))
+        lines.push(qsTr("Variante %1/%2").arg(ai.variant || 1).arg(ai.variantCount || 1))
+        if (ai.date) {
+            const date = new Date(ai.date)
+            lines.push(qsTr("Créé le : %1").arg(isNaN(date.getTime()) ? ai.date : date.toLocaleString(Qt.locale(), Locale.ShortFormat)))
+        }
+        if (ai.prompt) lines.push(qsTr("Prompt : %1").arg(ai.prompt))
+        return lines.join("\n")
+    }
     function toolBindings() {
         const result = []
         for (let i = 0; i < toolLayout.length; ++i) {
@@ -248,8 +260,9 @@ ApplicationWindow {
     property string pendingLayerPreviewKey: ""
     property var pendingLayerPreviewValue
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
+    property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
-    property bool modalOpen: flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -1239,6 +1252,7 @@ ApplicationWindow {
     Action { id: stampVisibleAction; objectName: "stampVisibleAction"; text: qsTr("Créer un calque des visibles fusionnés"); shortcut: (shortcuts.revision, shortcuts.sequence("stampVisible")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.stampVisible; onTriggered: editor.mergeLayers("stampVisible") }
     Action { id: mergeClippingAction; text: qsTr("Fusionner le masque d’écrêtage"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeClipping")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.clipping; onTriggered: editor.mergeLayers("clipping") }
     Action { id: flattenAction; objectName: "flattenAction"; text: qsTr("Aplatir l’image"); shortcut: (shortcuts.revision, shortcuts.sequence("flattenImage")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.flatten; onTriggered: window.requestFlatten() }
+    Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
     Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
     Instantiator {
         model: (window.toolbarRevision, window.toolLayout)
@@ -1365,6 +1379,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Effacer la liste des fichiers récents"); enabled: recentFiles.entries.length>0; onTriggered: recentFiles.clear() }
             }
             DarkMenuItem { action: importAction }
+            DarkMenuItem { action: aiAction }
             MenuSeparator {}
             DarkMenuItem { action: saveAction }
             DarkMenuItem { action: saveAsAction }
@@ -1412,6 +1427,7 @@ ApplicationWindow {
             DarkMenuItem { action: addAction }
             DarkMenuItem { action: duplicateAction }
             DarkMenuItem { action: layerViaCutAction }
+            DarkMenuItem { action: aiAction }
             DarkMenu {
                 title: qsTr("Nouveau calque de réglage")
                 DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
@@ -3322,6 +3338,7 @@ ApplicationWindow {
                             id: layerDelegate
                             objectName: "layerDelegate"
                             required property var modelData
+                            readonly property var aiInfo: modelData.parameters._ai || ({})
                             width: layerList.width; height: 64; radius: 5
                             color: modelData.layerIndex===editor.activeLayer ? "#35443e" : modelData.selected ? "#303b48" : "#292f38"
                             border.width: modelData.selected ? 2 : 1
@@ -3498,12 +3515,32 @@ ApplicationWindow {
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
-                                    Label { text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11 }
+                                    Label {
+                                        text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11
+                                        HoverHandler { id: layerNameHover }
+                                        ToolTip {
+                                            id: aiLayerTip
+                                            objectName: "aiLayerToolTip"
+                                            visible: layerNameHover.hovered
+                                            delay: 500
+                                            width: Math.min(560, window.width - 60)
+                                            text: modelData.name + (layerDelegate.aiInfo.provider ? "\n\n" + window.aiLayerDescription(layerDelegate.aiInfo) : "")
+                                            contentItem: Text {
+                                                text: aiLayerTip.text
+                                                textFormat: Text.PlainText
+                                                wrapMode: Text.WordWrap
+                                                color: "#dbe1e8"
+                                                font.pixelSize: 12
+                                            }
+                                        }
+                                    }
                                     Label {
                                         text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
-                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind==="shape"?qsTr("Forme vectorielle"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
+                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):layerDelegate.aiInfo.provider?qsTr("IA · %1 · Variante %2/%3").arg(layerDelegate.aiInfo.provider).arg(layerDelegate.aiInfo.variant || 1).arg(layerDelegate.aiInfo.variantCount || 1):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind==="shape"?qsTr("Forme vectorielle"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
                                         color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
                                         font.pixelSize: 9
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
                                     }
                                 }
                             }
@@ -4033,6 +4070,23 @@ ApplicationWindow {
             changingBlackWhiteTint = false
             changingPhotoFilterColor = false
         }
+    }
+    AiImageDialog {
+        id: aiDialog
+        document: editor; settings: aiSettings; controller: aiImages
+        onSettingsRequested: { window.aiReturnToGeneration = true; window.preferencesPage = 4; window.openPreferences(); aiPreferences.selectProvider(aiDialog.selectedProvider.id) }
+    }
+    AiProgressPanel {
+        controller: aiImages
+        parent: workspace
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top; anchors.topMargin: 20
+        width: Math.min(620, parent.width - 32)
+        z: 500
+    }
+    Connections {
+        target: aiImages
+        function onChanged() { if(!aiImages.busy) { window.status = aiImages.error || aiImages.status; statusTimer.restart() } }
     }
     Dialog {
         id: flattenDialog; objectName: "flattenDialog"; title: qsTr("Supprimer les calques masqués ?"); anchors.centerIn: parent; modal: true; width: 430
@@ -4729,8 +4783,9 @@ ApplicationWindow {
         title: qsTr("Réglages","application preferences")
         anchors.centerIn: parent
         modal: true
-        width: Math.min(820, window.width - 80)
-        height: Math.min(680, window.height - 80)
+        width: Math.min(window.preferencesPage===4 ? 1040 : 820, window.width - 60)
+        height: Math.min(window.preferencesPage===4 ? 720 : 680, window.height - 60)
+        onClosed: { if(window.aiReturnToGeneration) { window.aiReturnToGeneration=false; aiDialog.open() } }
         closePolicy: Popup.CloseOnEscape
 
         contentItem: RowLayout {
@@ -4783,10 +4838,15 @@ ApplicationWindow {
                         Accessible.name: qsTr("Cache de travail")
                         onClicked: window.preferencesPage=3
                     }
+                    ItemDelegate {
+                        Layout.fillWidth: true; highlighted: window.preferencesPage===4
+                        text: qsTr("IA"); Accessible.name: qsTr("Intelligence artificielle")
+                        onClicked: window.preferencesPage=4
+                    }
                     Item { Layout.fillHeight: true }
                     Label {
                         Layout.fillWidth: true
-                        text: qsTr("Les réglages sont enregistrés automatiquement.")
+                        text: window.preferencesPage===4 ? qsTr("Enregistrez les fournisseurs et prompts avec leur bouton Enregistrer.") : qsTr("Les réglages sont enregistrés automatiquement.")
                         color: "#71808e"
                         font.pixelSize: 10
                         wrapMode: Text.WordWrap
@@ -5090,13 +5150,17 @@ ApplicationWindow {
                     document: editor
                     settings: workspaceSettings
                 }
+                AiPreferences { id: aiPreferences; settings: aiSettings; onProviderSaved: function(id) { aiDialog.chooseProvider(id) } }
             }
         }
 
-        footer: DialogButtonBox {
+        footer: Item {
+            implicitHeight: 52
+            RowLayout {
+                anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 8
             DialogActionButton {
                 text: qsTr("Valeurs par défaut")
-                DialogButtonBox.buttonRole: DialogButtonBox.ResetRole
+                visible: window.preferencesPage !== 4
                 onClicked: {
                     if (window.preferencesPage === 0) shortcuts.resetDefaults()
                     else if (window.preferencesPage === 2) window.resetToolLayout()
@@ -5110,9 +5174,9 @@ ApplicationWindow {
             }
             DialogActionButton {
                 text: qsTr("Fermer")
-                defaultButton: true
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                defaultButton: window.preferencesPage !== 4
                 onClicked: preferencesDialog.close()
+            }
             }
         }
     }

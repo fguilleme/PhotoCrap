@@ -5,6 +5,11 @@
 #include <QUuid>
 #include <QVariantMap>
 
+namespace PhotoCrap::Ai
+{
+struct ImageSource;
+}
+
 struct Layer {
     Layer() = default;
     Layer(const QString &_layerName, const QImage &_layerImage, bool _layerVisible = true,
@@ -30,4 +35,5 @@ struct Layer {
     QString     groupId;
     bool        groupCollapsed = false;
     PixelPlane  source;
+    std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
 };

@@ -4,9 +4,8 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.17.2**. It includes
-the 16-bit compositing fix and the test updates following the v0.17 release
-attempt. [Release notes](CHANGELOG.md) ·
+This source tree is **v0.18.0**, adding AI result layers, editable gradients,
+selection clipboard operations, and layer merging. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download
@@ -17,6 +16,22 @@ files. The packages bundle Qt. GitHub publishes them after builds, tests,
 and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+## New in v0.18.0
+
+- **AI layers** from the visible image or selection, using OpenAI, fal.ai,
+  ComfyUI or a compatible API, with saved profiles, system credential storage,
+  reusable prompts and 1–8 variants. Visible progress, undoable results and
+  provider/model/variant details per layer. OpenAI and fal.ai have been tested
+  in the application; ComfyUI still needs a real-server trial.
+  [AI guide](docs/AI_IMAGE_EDITING.md) (French).
+- **Compact AI sources in v13 projects** retain the original provider image until
+  its pixels are edited, then preserve edits in the native raster format.
+- **Editable gradients** with on-canvas handles and color stops, 8/16-bit GPU
+  previews, Paint Bucket options and layer-mask editing.
+- **Clipboard and merging**: cut/paste selections to new layers, special paste
+  modes, group/visible-layer merges, stamped copies and flattening.
+- **GPU resource reuse** across tiles, zoom levels and renders.
 
 ## New in v0.15
 
@@ -59,7 +74,7 @@ Selected local measurements, with conditions documented in [validation](docs/VAL
 | Cold 101² read, radius-12 feathered mask, 24 MP/16-bit | 297 → 0.45 ms, identical pixels |
 | Isolated encoder for twelve 1 MP planes | Peak RSS 324 → 74 MiB at 8-bit; 692 → 122 MiB at 16-bit |
 
-These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; `.pcr` v9 also reads versions 1–8 and retains its 256 MiB file limit. Projects containing editable vector shapes use `.pcr` v11; empty named paths use v10 and other projects stay in v9. The reader supports versions 1–11. Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.
+These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; `.pcr` v9 also reads versions 1–8 and retains its 256 MiB file limit. Projects use the minimum required format: v9 for ordinary layers/text, v10 for empty named paths, v11 for vector shapes, v12 for editable gradients, and v13 for compact AI sources. The reader supports versions 1–13. Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.
 
 See the [layer and memory guide](docs/LAYER_MEMORY.md), [GPU formats and fallbacks](docs/GPU_RENDERING.md), and [five-part optimization plan](docs/OPTIMIZATION_PLAN.md) (French).
 
@@ -177,6 +192,10 @@ ctest --preset release
 4. To crop, draw a region and click **Crop**. Adjustments and brush strokes honor the selection; deselect it to affect the whole image.
 5. Save as `.pcr` to preserve layers, then export a flattened image for sharing.
 
+### AI image editing
+
+**File / Layer → Create with AI…** sends the visible composite or selection to GPT Image, fal.ai, ComfyUI, or an OpenAI-compatible image editing API. Generate 1–8 sequential variants from the same source, each on an undoable layer with the original selection mask. Only the latest variant is visible initially. Unedited AI layers keep the original provider image in v13 projects instead of saving an enlarged 16-bit raster; pixel edits use native raster storage. Older raster-only AI layers retain their existing representation. **Settings → AI** stores multiple provider profiles and reusable prompts; API keys are kept in the system credential store or supplied by environment variables. [Setup and limitations](docs/AI_IMAGE_EDITING.md) (French). OpenAI and fal.ai have been tested in the application; ComfyUI still needs a real-server/workflow trial.
+
 ### Tools and shortcuts
 
 Each toolbar button represents a group. **Right-click** reveals its variants; the icon and shortcut recall the last chosen tool. Currently wired default keys are:
@@ -206,7 +225,7 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 
-The catalog contains **298 entries, including 121 NYI**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
+The catalog contains **303 entries, including 110 NYI**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
 
 Customize shortcuts and the toolbar in **Settings**: **PhotoCrap → Preferences…** or **⌘,** on macOS, **Edit → Settings…** on other platforms. Shortcuts are suspended during text entry or modal dialogs. Empty combinations disable commands, duplicates are rejected, and customizations persist between launches.
 
@@ -252,6 +271,7 @@ Cropping removes pixels outside the frame; Undo recovers them. Nondestructive re
 | `src/selection/*`, `qml/Selection*.qml`, `qml/ColorSelection*.qml` | Selection geometry and coverage, color sampling, dialogs, and previews |
 | `src/tools/*` | Gesture controller, settings, and tool implementations split by family |
 | `src/CanvasItem.*` | Qt Quick rendering, checkerboard, selection contours, and native cursors |
+| `src/ai/*`, `src/DocumentAi.cpp`, `qml/Ai*.qml` | AI providers, persistent prompts, asynchronous requests and result layers |
 | `src/main.cpp`, `src/ShortcutManager.*`, `src/LanguageManager.*`, `src/RecentFilesManager.*`, `src/WorkspaceSettings.*` | Startup, QML exposure, languages, recent files, shortcuts, and persistent workspace settings |
 | `qml/Main.qml`, `qml/*Editor.qml`, `qml/*Options.qml` | Window, menus, dialogs, adjustment editors, and specialized tool option bars |
 | `qml/DockablePanel.qml`, `qml/InformationPanel.qml` | Shared panel container and measurement display |
@@ -392,7 +412,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 
 On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) for verified workflow status and the [roadmap](ROADMAP.md) for remaining validation and features.
 
-Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, general vector masks on pixel layers, smart objects, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt, or AI. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
+Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, general vector masks on pixel layers, smart objects, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
 
 ## Technical references
 

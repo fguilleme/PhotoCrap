@@ -1,11 +1,21 @@
 # Roadmap PhotoCrap
 
-État au **6 novembre 2026**. **v0.17.2** regroupe les changements de **v0.17**
-et les correctifs de composition et de tests préparés après son passage en CI.
+État au **8 novembre 2026**. **v0.18.0** ajoute les calques IA, les dégradés
+dynamiques, le presse-papiers de sélection et les fusions, avec les optimisations
+GPU préparées depuis v0.17.2.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
+
+## Livraison de v0.18.0
+
+- [x] Fournisseurs et prompts IA persistants, trousseau natif et 1–8 variantes.
+- [x] Suivi visible, insertion unique et détails fournisseur/modèle/variante par calque.
+- [x] Sources IA compactes dans les projets v13, avec repli natif après retouche.
+- [x] Essais réels OpenAI et fal.ai confirmés par l’utilisateur.
+- [ ] Essai ComfyUI avec serveur et workflow réels (protocole simulé déjà testé).
+- [ ] Publication et validation des paquets v0.18.0 sur les trois plateformes.
 
 ## Correctifs de publication de v0.17.2
 
@@ -136,8 +146,8 @@ mesures de VRAM du pilote restent à réaliser sur les machines adaptées.
 | Élément | État du code | Source |
 |---|---|---|
 | Barre d’outils | 71 outils recensés : **56 disponibles, 15 NYI** | Catalogue de `qml/Main.qml` |
-| Raccourcis et gestes | **302 entrées** : 134 commandes personnalisables, 58 gestes contextuels, 110 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
-| Projets | Format `.pcr` **v9** avec texte éditable, lecture des versions 1 à 8 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
+| Raccourcis et gestes | **303 entrées** : 135 commandes personnalisables, 58 gestes contextuels, 110 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
+| Projets | Format `.pcr` jusqu’à **v13** (sources IA compactes), texte éditable et lecture des versions antérieures ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
 | Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
 
 En développement après v0.16 : accueil redimensionnable avec grille de fichiers
@@ -156,6 +166,8 @@ Les sections « Disponible » et « Ajouts » ci-dessous constituent l’histori
 - [x] Barre d’outils configurable : ordre des groupes et des outils, visibilité, variantes par clic droit, icône du dernier outil choisi et entrées futures désactivées avec mention NYI.
 - [x] Réglages spécialisés : Lumière, Couleur, Niveaux, Courbes et pipettes, Balance des couleurs, Noir et blanc avec presets/Auto/Teinte, Filtre photo, Mélangeur de couches, Style colorimétrique (LUT), Transfert de dégradé, Correction sélective, Isohélie et Seuil.
 - [x] Prévisualisation des réglages sur proxies, caches d’images et de masques, remplacement des demandes intermédiaires par la dernière, puis rendu complet en arrière-plan qui actualise le cache écran. Séparation de fréquences dynamique, puis préparation asynchrone de calques de pixels retouchables en 8/16 bits, avec annulation, masques conservés et retour au rayon depuis les sources enregistrées dans le projet.
+- [x] Stockage des sorties IA à leur résolution d’origine dans les projets v13 : reconstruction locale 8/16 bits, masque indépendant, invalidation à la retouche des pixels et retour au raster natif sans perte des modifications. [Mesure de taille](docs/VALIDATION.md#stockage-compact-des-calques-ia--7-novembre-2026).
+- [x] Création de calques IA : composition ou sélection, profils GPT Image/fal.ai/ComfyUI/API d’images compatible OpenAI, bibliothèque de prompts et 1–8 variantes par lancement ; clés persistantes dans le trousseau natif, liste de fournisseurs et sauvegarde explicite ; suivi asynchrone visible, masque original, insertion unique 8/16 bits annulable et résultat conservé si le stockage est saturé. Protocoles validés par serveurs simulés ; essais réels OpenAI/fal.ai confirmés par l’utilisateur, ComfyUI restant à tester. [Guide](docs/AI_IMAGE_EDITING.md).
 - [x] Fusions de calques : vers le bas, sélection, groupe, écrêtage, visibles, copies fusionnées des sélectionnés/visibles et aplatissement opaque. Masques/réglages rasterisés, sources cachées conservées pour Fusionner visibles, précision native 8/16 bits, worker annulable, sortie tuilée et raccourcis configurables. [Comportements et différences Adobe](docs/LAYER_MERGE.md).
 - [x] Presse-papiers de sélection : Couper/Copier actifs, Copier avec fusion, nouveau calque au collage, sur place, dans/hors sélection avec masque éditable, calque par copie/couper et masque raster actif. Formes réelles, contours progressifs et pixels natifs 8/16 bits, calculs différés et historique ; [cas couverts et différences Adobe](docs/CLIPBOARD.md).
 - [ ] Presse-papiers complet de calques et tracés : préserver texte éditable, formes, groupes, effets et masques associés entre documents ; gestion des profils couleur multiples.

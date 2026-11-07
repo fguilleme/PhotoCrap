@@ -1,7 +1,7 @@
 #include "Document.h"
-#include "tools/GradientRaster.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "ai/AiImageTypes.h"
 #include "shapes/ShapeLayer.h"
 #include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectPng.h"
@@ -10,6 +10,7 @@
 #include "storage/StreamingImageWriter.h"
 #include "storage/WebpExport.h"
 #include "text/TextLayer.h"
+#include "tools/GradientRaster.h"
 
 #include <QBuffer>
 #include <QCache>
@@ -516,6 +517,25 @@ bool Document::saveProject(const QUrl &_url)
         Base64WriteDevice encoder(output);
         return encode(encoder) && operationStep(completed, total);
     };
+    const auto compactAi = [&](const Layer &_layer) {
+        return _layer.kind == "pixel" && _layer.aiSource &&
+               _layer.aiSource->matches(_layer.image, m_size, m_channelBits);
+    };
+    const auto originalAi = [&](const PhotoCrap::Ai::ImageSource &_source) {
+        if (!operationStep(completed++, total))
+            return false;
+        Base64WriteDevice encoder(output);
+        const auto &      bytes = _source.encoded;
+        for (qsizetype offset = 0; offset < bytes.size(); offset += 64 * 1024) {
+            if (!operationStep(completed, total))
+                return false;
+            const auto count = qMin(qsizetype(64 * 1024), bytes.size() - offset);
+            if (encoder.write(bytes.constData() + offset, count) != count)
+                return false;
+        }
+        return encoder.finish() && operationStep(completed++, total);
+    };
+    const bool originalAiImages = std::any_of(m_layers.cbegin(), m_layers.cend(), compactAi);
     // Empty named paths need the new reader; keep ordinary documents readable
     // by v9 applications, whose path decoder requires at least one anchor.
     const bool  emptyPaths = std::any_of(m_penPaths.cbegin(), m_penPaths.cend(),
@@ -525,10 +545,11 @@ bool Document::saveProject(const QUrl &_url)
     const bool gradients = std::any_of(m_layers.cbegin(), m_layers.cend(),
                                       [](const Layer &layer) { return layer.adjustmentType == "gradientFill"; });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", gradients ? 12
-                                 : shapes       ? 11
-                                 : emptyPaths ? 10
-                                              : 9},
+                     {"version", originalAiImages ? 13
+                                 : gradients      ? 12
+                                 : shapes         ? 11
+                                 : emptyPaths     ? 10
+                                                  : 9},
                      {"width", width()},
                      {"height", height()},
                      {"activeLayer", m_active}};
@@ -558,23 +579,32 @@ bool Document::saveProject(const QUrl &_url)
         if (!first && !write(","))
             return saveError();
         first = false;
-        const QJsonObject metadata{{"name", layer.name},
-                                   {"visible", layer.visible},
-                                   {"locked", layer.locked},
-                                   {"opacity", layer.opacity},
-                                   {"blend", layer.blend},
-                                   {"kind", layer.kind},
-                                   {"adjustmentType", layer.adjustmentType},
-                                   {"parameters", QJsonObject::fromVariantMap(layer.parameters)},
-                                   {"compactPixels", ImageUtils::compact(layer.image)},
-                                   {"compactMask", ImageUtils::compact(layer.mask)},
-                                   {"maskEnabled", layer.maskEnabled},
-                                   {"clippingMask", layer.clippingMask},
-                                   {"groupId", layer.groupId},
-                                   {"groupCollapsed", layer.groupCollapsed}};
+        QJsonObject metadata{{"name", layer.name},
+                             {"visible", layer.visible},
+                             {"locked", layer.locked},
+                             {"opacity", layer.opacity},
+                             {"blend", layer.blend},
+                             {"kind", layer.kind},
+                             {"adjustmentType", layer.adjustmentType},
+                             {"parameters", QJsonObject::fromVariantMap(layer.parameters)},
+                             {"compactPixels", ImageUtils::compact(layer.image)},
+                             {"compactMask", ImageUtils::compact(layer.mask)},
+                             {"maskEnabled", layer.maskEnabled},
+                             {"clippingMask", layer.clippingMask},
+                             {"groupId", layer.groupId},
+                             {"groupCollapsed", layer.groupCollapsed}};
+        const bool  useOriginal = compactAi(layer);
+        if (useOriginal) {
+            const auto bounds    = layer.aiSource->bounds;
+            metadata["aiRaster"] = QJsonObject{{"version", 1},
+                                               {"x", bounds.x()},
+                                               {"y", bounds.y()},
+                                               {"width", bounds.width()},
+                                               {"height", bounds.height()}};
+        }
         if (!prefix(metadata) || !write(",\"png\":\""))
             return saveError();
-        if (!image(layer.image))
+        if (!(useOriginal ? originalAi(*layer.aiSource) : image(layer.image)))
             return saveError(true);
         if (!write("\",\"mask\":\""))
             return saveError();
@@ -613,7 +643,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 12)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 13)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -712,8 +742,44 @@ bool Document::loadProject(const QString &_path)
             kind != "frequencyLow" && kind != "frequencyHigh" &&
             !(version >= 9 && kind == "text") && !(version >= 11 && kind == "shape"))
             return fail(tr("Type de calque inconnu."));
-        auto image =
-            decode(entry.payload("png"), format, version >= 7 && object["compactPixels"].toBool());
+        PixelPlane                                        image;
+        std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
+        if (object.contains("aiRaster")) {
+            const auto raster = object.value("aiRaster").toObject();
+            const int  x = raster["x"].toInt(-1), y = raster["y"].toInt(-1),
+                      extentX = raster["width"].toInt(-1), extentY = raster["height"].toInt(-1);
+            const auto payload = entry.payload("png");
+            if (version < 13 || kind != "pixel" || raster["version"].toInt(-1) != 1 ||
+                object["compactPixels"].toBool() || x < 0 || y < 0 || x >= w || y >= h ||
+                extentX <= 0 || extentY <= 0 || extentX > w - x || extentY > h - y ||
+                payload.size <= 0 || payload.size > (100LL * 1024 * 1024 + 2) / 3 * 4)
+                return fail(tr("Source de calque IA invalide."));
+            if (!operationStep(++completed, total))
+                return false;
+            ProjectPayloadDevice buffer(file, payload,
+                                        [&] { return operationStep(completed, total); });
+            const auto           bytes = buffer.read(100LL * 1024 * 1024 + 1);
+            if (buffer.failed() || bytes.isEmpty() || bytes.size() > 100LL * 1024 * 1024 ||
+                !buffer.atEnd())
+                return fail(tr("Source de calque IA invalide."));
+            PhotoCrap::Ai::Input input;
+            input.canvas = {w, h};
+            input.bounds = QRect(x, y, extentX, extentY);
+            const auto cancel =
+                m_backgroundCancel ? m_backgroundCancel : std::make_shared<std::atomic_bool>(false);
+            const auto prepared = PhotoCrap::Ai::prepareResult(input, bytes, bits, cancel);
+            if (!prepared.error.isEmpty() || prepared.image.isNull() ||
+                !operationStep(completed, total))
+                return fail(prepared.error.isEmpty() ? tr("Source de calque IA invalide.")
+                                                     : prepared.error);
+            image    = prepared.image;
+            aiSource = prepared.original;
+            if (!prepareNativePlane(image, format, budget))
+                return fail(tr("Allocation des pixels impossible."));
+        } else {
+            image = decode(entry.payload("png"), format,
+                           version >= 7 && object["compactPixels"].toBool());
+        }
         auto mask   = decode(entry.payload("mask"), QImage::Format_Grayscale8,
                              version >= 7 && object["compactMask"].toBool());
         auto source = decode(entry.payload("source"), format);
@@ -740,6 +806,7 @@ bool Document::loadProject(const QString &_path)
         Layer layer{object["name"].toString().left(256), QImage{}, object["visible"].toBool(true),
                     object["locked"].toBool(),           opacity,  blend};
         layer.image          = image;
+        layer.aiSource       = std::move(aiSource);
         layer.kind           = kind;
         layer.adjustmentType = object["adjustmentType"].toString();
         layer.parameters     = object["parameters"].toObject().toVariantMap();

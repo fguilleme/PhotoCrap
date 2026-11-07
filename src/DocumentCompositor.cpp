@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "tools/GradientRaster.h"
 #include "ImageAlpha.h"
 #include "ImageUtils.h"
 #include "render/LayerVisibility.h"
@@ -222,7 +223,12 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             continue;
         }
         QImage rendered;
-        if (layer.kind == QStringLiteral("adjustment")) {
+        if (layer.adjustmentType == "gradientFill") {
+            PhotoCrap::Tools::GradientRaster gradient;
+            if (PhotoCrap::Tools::GradientRaster::decode(
+                    layer.parameters.value("gradient").toMap(), m_size, gradient))
+                rendered = gradient.image(_region, m_channelBits == 16);
+        } else if (layer.kind == QStringLiteral("adjustment")) {
             static const QStringList scalableFilters{
                 QStringLiteral("gaussianBlur"), QStringLiteral("motionBlur"),
                 QStringLiteral("boxBlur"),      QStringLiteral("unsharpMask"),

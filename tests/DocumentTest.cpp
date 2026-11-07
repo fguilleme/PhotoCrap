@@ -8233,6 +8233,97 @@ private slots:
         d.endStroke();
         QCOMPARE(d.layers().size(), 1);
     }
+    void gradientOptionsControlRasterAndLayerCreation()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(128, 96, true, bits));
+            d.setTool("gradient");
+            QVERIFY(d.setProperty("gradientPreset", 2));
+            QVERIFY(d.setProperty("gradientMethod", 1));
+            QVERIFY(d.setProperty("gradientShape", 1));
+            const auto drag = [&] {
+                d.beginStroke(40.5, 40.5);
+                QVERIFY(d.gradientDragging());
+                d.continueStroke(80.5, 40.5);
+                QCOMPARE(d.gradientEnd(), QPointF(80.5, 40.5));
+                d.endStroke();
+                QVERIFY(!d.gradientDragging());
+            };
+            drag();
+            auto image = d.layerImage(0);
+            QCOMPARE(image.depth(), bits * 4);
+            QCOMPARE(image.pixelColor(40, 40), QColor(Qt::black));
+            QCOMPARE(image.pixelColor(80, 40), QColor(Qt::white));
+            QVERIFY(qAbs(image.pixelColor(60, 40).red() - 188) <= 1);
+            d.undo();
+
+            QVERIFY(d.setProperty("gradientMethod", 2));
+            drag();
+            image = d.layerImage(0);
+            QVERIFY(qAbs(image.pixelColor(60, 40).red() - 99) <= 1);
+            d.undo();
+
+            QVERIFY(d.setProperty("gradientMethod", 0));
+            QVERIFY(d.setProperty("gradientShape", 2));
+            drag();
+            image = d.layerImage(0);
+            QVERIFY(qAbs(image.pixelColor(40, 20).red() - 64) <= 1);
+            d.undo();
+
+            QVERIFY(d.setProperty("gradientShape", 3));
+            drag();
+            image = d.layerImage(0);
+            QCOMPARE(image.pixelColor(20, 40), image.pixelColor(60, 40));
+            QVERIFY(qAbs(image.pixelColor(60, 40).red() - 128) <= 1);
+            d.undo();
+
+            QVERIFY(d.setProperty("gradientShape", 4));
+            drag();
+            QCOMPARE(d.layerImage(0).pixelColor(60, 60), QColor(Qt::white));
+            d.undo();
+
+            QVERIFY(d.setProperty("gradientShape", 1));
+            QVERIFY(d.setProperty("gradientMethod", 2));
+            QVERIFY(d.setProperty("gradientNewLayer", true));
+            QVERIFY(d.setProperty("gradientReverse", true));
+            QVERIFY(d.setProperty("gradientDither", true));
+            drag();
+            QCOMPARE(d.layers().size(), 2);
+            QVERIFY(d.dynamicGradientActive());
+            image = d.composite();
+            QCOMPARE(image.pixelColor(40, 40), QColor(Qt::white));
+            QCOMPARE(image.pixelColor(80, 40), QColor(Qt::black));
+            QCOMPARE(d.layerImage(0).pixelColor(40, 40).alpha(), 0);
+            QCOMPARE(d.dynamicGradientStops().size(), 2);
+            d.addGradientStop(.5);
+            QCOMPARE(d.dynamicGradientStops().size(), 3);
+            d.setGradientStopColor(1, Qt::red);
+            QCOMPARE(d.composite().pixelColor(60, 40).rgba(), QColor(Qt::red).rgba());
+            QVERIFY(d.beginGradientHandle(-1));
+            d.updateGradientHandle(100.5, 40.5);
+            d.endStroke();
+            QCOMPARE(d.gradientEnd(), QPointF(100.5, 40.5));
+            QVERIFY(d.beginGradientHandle(1));
+            d.updateGradientHandle(55.5, 40.5);
+            d.cancelStroke();
+            QCOMPARE(d.dynamicGradientStops()[1].toMap().value("position").toDouble(), .5);
+
+            QTemporaryDir directory;
+            const auto url = QUrl::fromLocalFile(directory.filePath("gradient.pcr"));
+            QVERIFY(d.saveProject(url));
+            Document reopened;
+            QVERIFY(reopened.openFile(url));
+            reopened.setTool("gradient");
+            QVERIFY(reopened.dynamicGradientActive());
+            QCOMPARE(reopened.gradientEnd(), d.gradientEnd());
+            QCOMPARE(reopened.dynamicGradientStops(), d.dynamicGradientStops());
+            QCOMPARE(reopened.composite(), d.composite());
+            for (int i = 0; i < 4; ++i)
+                d.undo();
+            QCOMPARE(d.layers().size(), 1);
+        }
+    }
     void creatingLayerFinalizesPreviousPropertiesSession()
     {
         Document d;

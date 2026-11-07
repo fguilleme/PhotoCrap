@@ -136,7 +136,8 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
     m_previewRenderActive.store(true);
     ++m_previewRequestGeneration;
     emit gpuStackChanged();
-    if (_draft && m_previewingLayer && m_gpuStackDisplayActive) {
+    if (_draft && (m_previewingLayer || m_gradientGesture != NoGradientGesture) &&
+        m_gpuStackDisplayActive) {
         if (!m_gpuStackAuxTimer.isActive())
             m_gpuStackAuxTimer.start();
     } else {

@@ -1,4 +1,5 @@
 #pragma once
+#include <QBrush>
 #include "ImageHistogram.h"
 #include "Layer.h"
 #include "RawImageReader.h"
@@ -54,6 +55,18 @@ class Document : public QObject
     Q_PROPERTY(
         int displayChannel READ displayChannel WRITE setDisplayChannel NOTIFY displayChannelChanged)
     Q_PROPERTY(int maskOnlyLayer READ maskOnlyLayer NOTIFY displayChannelChanged)
+    Q_PROPERTY(int gradientPreset MEMBER m_gradientPreset NOTIFY settingsChanged)
+    Q_PROPERTY(int gradientShape MEMBER m_gradientShape NOTIFY settingsChanged)
+    Q_PROPERTY(int gradientMethod MEMBER m_gradientMethod NOTIFY settingsChanged)
+    Q_PROPERTY(bool gradientReverse MEMBER m_gradientReverse NOTIFY settingsChanged)
+    Q_PROPERTY(bool gradientDither MEMBER m_gradientDither NOTIFY settingsChanged)
+    Q_PROPERTY(bool gradientNewLayer MEMBER m_gradientNewLayer NOTIFY settingsChanged)
+    Q_PROPERTY(bool gradientDragging READ gradientDragging NOTIFY gradientGuideChanged)
+    Q_PROPERTY(QPointF gradientStart READ gradientStart NOTIFY gradientGuideChanged)
+    Q_PROPERTY(QPointF gradientEnd READ gradientEnd NOTIFY gradientGuideChanged)
+    Q_PROPERTY(bool dynamicGradientActive READ dynamicGradientActive NOTIFY gradientGuideChanged)
+    Q_PROPERTY(QVariantList dynamicGradientStops READ dynamicGradientStops NOTIFY gradientGuideChanged)
+    Q_PROPERTY(QVariantList gradientPreview READ gradientPreview NOTIFY settingsChanged)
     Q_PROPERTY(QString tool READ tool WRITE setTool NOTIFY settingsChanged)
     Q_PROPERTY(QVariantList penPaths READ penPaths NOTIFY penPathsChanged)
     Q_PROPERTY(QString penMode READ penMode WRITE setPenMode NOTIFY penOptionsChanged)
@@ -479,6 +492,17 @@ public:
     {
         return m_shapeStrokeColor.isValid() ? m_shapeStrokeColor : m_color;
     }
+    bool gradientDragging() const;
+    bool dynamicGradientActive() const;
+    QPointF gradientStart() const;
+    QPointF gradientEnd() const;
+    QVariantList dynamicGradientStops() const;
+    Q_INVOKABLE bool beginGradientHandle(int _handle);
+    Q_INVOKABLE void updateGradientHandle(qreal _x, qreal _y);
+    Q_INVOKABLE void addGradientStop(qreal _position);
+    Q_INVOKABLE void removeGradientStop(int _index);
+    Q_INVOKABLE void setGradientStopColor(int _index, const QColor &_color);
+    QVariantList gradientPreview() const;
     bool shapeNewLayer() const
     {
         return m_shapeNewLayer;
@@ -1288,6 +1312,7 @@ signals:
     void thumbnailsChanged();
     void displayChannelChanged();
     void settingsChanged();
+    void gradientGuideChanged();
     void selectionChanged();
     void selectionDisplayChanged();
     void selectionOperationChanged();
@@ -1403,6 +1428,16 @@ private:
     QString          m_name          = QStringLiteral("Sans titre");
     QUrl             m_projectUrl;
     QString          m_tool = QStringLiteral("brush");
+    QGradientStops gradientStops(int preset) const;
+    bool activeGradientLayer() const;
+    void beginDynamicGradient(const QPointF &_point);
+    void finishDynamicGradient(bool _cancel);
+    void applyGradientParameters(const QVariantMap &_parameters);
+    enum { NoGradientGesture = -4, CreateGradient = -3, GradientStartHandle = -2, GradientEndHandle = -1 };
+    int m_gradientGesture = NoGradientGesture;
+    bool m_gradientGestureChanged = false;
+    int m_gradientPreset = 0, m_gradientShape = 0, m_gradientMethod = 0;
+    bool m_gradientReverse = false, m_gradientDither = false, m_gradientNewLayer = false;
     QColor           m_color{Qt::black}, m_secondary{Qt::white};
     qreal            m_brushSize = 24, m_brushOpacity = 1, m_brushHardness = 1, m_brushFlow = 1;
     qreal      m_brushSpacing = .25, m_brushAngle = 0, m_brushRoundness = 1, m_brushSmoothing = .1;

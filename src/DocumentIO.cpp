@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "tools/GradientRaster.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "shapes/ShapeLayer.h"
@@ -521,8 +522,11 @@ bool Document::saveProject(const QUrl &_url)
                                          [](const PenPath &path) { return path.points.isEmpty(); });
     const bool  shapes     = std::any_of(m_layers.cbegin(), m_layers.cend(),
                                          [](const Layer &layer) { return layer.kind == "shape"; });
+    const bool gradients = std::any_of(m_layers.cbegin(), m_layers.cend(),
+                                      [](const Layer &layer) { return layer.adjustmentType == "gradientFill"; });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", shapes       ? 11
+                     {"version", gradients ? 12
+                                 : shapes       ? 11
                                  : emptyPaths ? 10
                                               : 9},
                      {"width", width()},
@@ -609,7 +613,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 11)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 12)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -743,6 +747,13 @@ bool Document::loadProject(const QString &_path)
             return fail(tr("Calque de texte invalide."));
         if (kind == "shape" && !PhotoCrap::Shape::normalize(layer.parameters))
             return fail(tr("Calque de forme invalide."));
+        if (layer.adjustmentType == "gradientFill") {
+            PhotoCrap::Tools::GradientRaster gradient;
+            if (version < 12 || kind != "adjustment" ||
+                !PhotoCrap::Tools::GradientRaster::decode(
+                    layer.parameters.value("gradient").toMap(), QSize(w, h), gradient))
+                return fail(tr("Calque de dégradé invalide."));
+        }
         layer.mask           = mask;
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
         layer.clippingMask   = object["clippingMask"].toBool(false);

@@ -177,6 +177,38 @@ vec4 mosaicSource(vec4 base)
         samplePixel.y = size.y - 1 - samplePixel.y;
     return texelFetch(backdropTexture, samplePixel, 0);
 }
+vec4 gradientSource()
+{
+    ivec2 point = documentPixel();
+    vec2 delta = vec2(point) + 0.5 - ubuf.parameters[0].xy;
+    vec2 axis = ubuf.parameters[0].zw;
+    float along = dot(delta, axis);
+    float across = dot(delta, vec2(axis.y, -axis.x));
+    int shape = int(ubuf.parameters[1].x);
+    float t = along;
+    if (shape == 1) t = length(vec2(along, across));
+    else if (shape == 2) {
+        float angle = along == 0.0
+            ? (across == 0.0 ? 0.0 : sign(across) * 1.57079632679)
+            : atan(across, along);
+        t = fract(angle * 0.15915494309);
+    } else if (shape == 3) t = abs(along);
+    else if (shape == 4) t = abs(along) + abs(across);
+    float index = clamp(t, 0.0, 1.0) * 4096.0;
+    int low = min(4095, int(index));
+    int high = low + 1;
+    vec4 a = texelFetch(blendTexture, ivec2(low % 256, low / 256), 0);
+    vec4 b = texelFetch(blendTexture, ivec2(high % 256, high / 256), 0);
+    vec4 value = mix(a, b, index - float(low)) * ubuf.values.z;
+    float offset = 0.0;
+    if (ubuf.parameters[1].y > 0.5 && index > 0.0 && index < 4096.0) {
+        uint hash = (uint(point.x) * 73856093u) ^ (uint(point.y) * 19349663u);
+        hash = (hash ^ (hash >> 16)) * 0x7feb352du;
+        offset = float((hash ^ (hash >> 15)) & 65535u) / 65536.0 - 0.5;
+    }
+    float alpha = floor(value.a + 0.5);
+    return vec4(clamp(floor(value.rgb + offset + 0.5), 0.0, alpha), alpha) / ubuf.values.z;
+}
 int noiseDelta(inout uint hash, int amplitude)
 {
     hash ^= hash << 13;
@@ -328,7 +360,9 @@ void main()
         return;
     }
     vec4 source;
-    if ((ubuf.modes.z & 4) != 0 && ubuf.toneModes.x == 13) {
+    if ((ubuf.modes.z & 4) != 0 && ubuf.toneModes.x == 14) {
+        source = gradientSource();
+    } else if ((ubuf.modes.z & 4) != 0 && ubuf.toneModes.x == 13) {
         source = mosaicSource(base);
     } else if ((ubuf.modes.z & 4) != 0) {
         vec3 straight = base.a > 0.0 ? base.rgb/base.a : vec3(0.0);

@@ -141,6 +141,8 @@ Document::Document(QObject *_parent) : QObject(_parent)
         if (m_previewingLayer && gpuTonePreviewActive())
             requestPreviewRender(true, false, false);
     });
+    connect(this, &Document::layersChanged, this, &Document::gradientGuideChanged);
+    connect(this, &Document::settingsChanged, this, &Document::gradientGuideChanged);
     connect(&m_previewRenderWatcher, &QFutureWatcher<PreviewRenderResult>::finished, this, [this] {
         const auto   output = m_previewRenderWatcher.result();
         const QImage result = output.image;

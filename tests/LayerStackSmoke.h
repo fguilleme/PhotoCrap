@@ -920,6 +920,47 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                      "disabling clipping restores color-only targets"))
             return false;
     }
+    if (hardware) {
+        for (int bits : {8, 16}) {
+            canvas.setSize({128, 96});
+            if (!document.newDocument(128, 96, true, bits))
+                return false;
+            document.setTool("gradient");
+            document.setProperty("gradientNewLayer", true);
+            document.setProperty("gradientPreset", 3);
+            document.setProperty("gradientShape", 2);
+            document.setProperty("gradientMethod", 2);
+            document.setProperty("gradientDither", true);
+            document.beginStroke(50, 45);
+            document.continueStroke(100, 60);
+            document.endStroke();
+            frame();
+            frame();
+            const auto uploads = canvas.stackTextureUploads();
+            const auto passes = canvas.stackPasses();
+            if (!require(document.beginGradientHandle(-1), "activate a retained gradient handle"))
+                return false;
+            document.updateGradientHandle(85, 22);
+            frame();
+            const auto rendered = frame();
+            if (!require(canvas.gpuStackActive() && canvas.stackPasses() > passes &&
+                             canvas.stackTextureUploads() == uploads,
+                         "an angular gradient redraws on GPU without reuploading its palette"))
+                return false;
+            document.endStroke();
+            const auto expected = document.composite();
+            const double ratio = double(rendered.width()) / window->width();
+            for (const auto &pixel : {QPoint(22, 30), QPoint(87, 71), QPoint(102, 18)}) {
+                const auto sample = canvas.mapToScene(QPointF(pixel) + QPointF(.5, .5)) * ratio;
+                const auto a = rendered.pixelColor(qFloor(sample.x()), qFloor(sample.y()));
+                const auto b = expected.pixelColor(pixel);
+                if (!require(qAbs(a.red() - b.red()) <= 2 && qAbs(a.green() - b.green()) <= 2 &&
+                                 qAbs(a.blue() - b.blue()) <= 2,
+                             "the angular gradient matches the CPU reference in both depths"))
+                    return false;
+            }
+        }
+    }
     qInfo() << "Layer stack checks passed; hardware:" << hardware;
     return true;
 }

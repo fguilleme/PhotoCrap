@@ -82,6 +82,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/SelectionMove.h
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
+    src/tools/GradientTool.cpp
     src/tools/ToolLayerCreation.cpp
     src/tools/TextTool.cpp
     src/text/TextLayer.cpp
@@ -397,6 +398,7 @@ qt_add_library(photocrap_core STATIC
     src/tools/SelectionMove.h
     src/tools/MagicEraserTool.cpp
     src/tools/ShapeTools.cpp
+    src/tools/GradientTool.cpp
     src/tools/ToolLayerCreation.cpp
     src/tools/TextTool.cpp
     src/text/TextLayer.cpp
@@ -584,6 +586,8 @@ qt_add_qml_module(PhotoCrap
         qml/PathThumbnail.qml
         qml/PenOptions.qml
         qml/SelectionOptions.qml
+        qml/GradientOptions.qml
+        qml/GradientGuide.qml
         qml/ColorSelectionPreview.qml
         qml/ColorSelectionDialog.qml
         qml/SelectionMenu.qml

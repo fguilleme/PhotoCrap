@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "tools/GradientRaster.h"
 #include "ImageSampling.h"
 #include "ImageUtils.h"
 #include "filters/BlendMath.h"
@@ -47,10 +48,11 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         // Unsupported operations use the authoritative CPU compositor. No
         // partially composed result may be presented as the complete stack.
         const bool solid = layer.kind == "adjustment" && layer.adjustmentType == "solidColor";
+        const bool gradient = layer.kind == "adjustment" && layer.adjustmentType == "gradientFill";
         const bool noise = layer.kind == "adjustment" && layer.adjustmentType == "noise";
         const bool mosaic = layer.kind == "adjustment" && layer.adjustmentType == "mosaic";
         const bool tonal =
-            noise || mosaic ||
+            noise || mosaic || gradient ||
             (layer.kind == "adjustment" &&
              PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
              (layer.adjustmentType != "selectiveColor" ||
@@ -96,7 +98,30 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
             }
         }
         StackLayer entry;
-        if (noise) {
+        if (gradient) {
+            using PhotoCrap::Filters::ToneMappingMode;
+            PhotoCrap::Tools::GradientRaster raster;
+            const auto parameters = layer.parameters.value("gradient").toMap();
+            if (!PhotoCrap::Tools::GradientRaster::decode(parameters, m_size, raster))
+                return {};
+            QByteArray key;
+            QDataStream stream(&key, QIODevice::WriteOnly);
+            stream << QStringLiteral("gradient-fill") << raster.method << parameters.value("stops");
+            const auto cached = m_gpuChannelTables.object(key);
+            auto palette = cached ? *cached : raster.palette();
+            if (palette.isNull())
+                return {};
+            if (!cached)
+                m_gpuChannelTables.insert(key, new QImage(palette), int(palette.sizeInBytes()));
+            const auto axis = raster.end - raster.start;
+            const auto length = qMax(1.e-12, QPointF::dotProduct(axis, axis));
+            entry.tonal = true;
+            entry.tone.mode = ToneMappingMode::StackGradient;
+            entry.tone.color = QVector4D(raster.start.x(), raster.start.y(),
+                                         axis.x() / length, axis.y() / length);
+            entry.tone.families0 = QVector4D(raster.shape, raster.dither, 0, 0);
+            entry.blendTable = palette;
+        } else if (noise) {
             using namespace PhotoCrap::Filters;
             // Existing projects use the CPU build's argument evaluation order
             // for RGB. Read that order once from the actual native filter.

@@ -32,7 +32,8 @@ enum class ToneMappingMode : qint32 {
     Vibrance               = 10,
     HueSaturation          = 11,
     StackNoise             = 12,
-    StackMosaic            = 13
+    StackMosaic            = 13,
+    StackGradient          = 14
 };
 struct ToneMappingSettings {
     ToneMappingMode          mode = ToneMappingMode::Channels;

@@ -114,6 +114,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
                          m_tool == "remove" || m_tool == "patch" || m_tool == "contentAwareMove")
                             ? QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.))
                             : QPointF(_x, _y);
+    if (m_tool == "gradient" && m_gradientNewLayer && !m_editingMask) {
+        beginDynamicGradient(m_anchor);
+        return;
+    }
     if (m_tool == "slice" || m_tool == "sliceSelect") {
         beginSliceGesture(_x, _y);
         return;
@@ -237,6 +241,8 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_textMoveParameters = m_layers[m_active].parameters;
     m_drawing       = true;
     m_strokeChanged = false;
+    if (m_tool == "gradient")
+        emit gradientGuideChanged();
     if (m_tool == "redEye") {
         m_redEyeRegion = {};
         emit redEyeRegionChanged();
@@ -324,6 +330,11 @@ void Document::continueStroke(qreal _x, qreal _y)
         updateCropGesture(_x, _y);
         return;
     }
+    if (m_gradientGesture != NoGradientGesture) {
+        const auto point = constrainedToolPoint(QPointF(_x, _y), true);
+        updateGradientHandle(point.x(), point.y());
+        return;
+    }
     if (!m_drawing || !std::isfinite(_x) || !std::isfinite(_y))
         return;
     QPointF point(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.));
@@ -396,9 +407,15 @@ void Document::continueStroke(qreal _x, qreal _y)
     else
         m_drawing = false;
     m_last = point;
+    if (m_tool == "gradient")
+        emit gradientGuideChanged();
 }
 void Document::endStroke()
 {
+    if (m_gradientGesture != NoGradientGesture) {
+        finishDynamicGradient(false);
+        return;
+    }
     if (m_textGesture) {
         m_textGesture = false;
         emit textGeometryChanged();
@@ -451,6 +468,8 @@ void Document::endStroke()
         emit redEyeRegionChanged();
     }
     m_drawing = false;
+    if (m_tool == "gradient")
+        emit gradientGuideChanged();
     if (m_tool == "quickSelection") {
         finishQuickSelection();
         return;
@@ -536,6 +555,10 @@ void Document::endStroke()
 }
 void Document::cancelStroke()
 {
+    if (m_gradientGesture != NoGradientGesture) {
+        finishDynamicGradient(true);
+        return;
+    }
     if (m_textEditing) {
         finishTextEdit(true);
         return;
@@ -575,6 +598,8 @@ void Document::cancelStroke()
         emit redEyeRegionChanged();
     }
     m_drawing = false;
+    if (m_tool == "gradient")
+        emit gradientGuideChanged();
     if (m_tool == "quickSelection") {
         cancelQuickSelection();
         return;

@@ -266,6 +266,83 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     QMetaObject::invokeMethod(autoLayerCheck, "toggled");
 
     _document.newDocument(160, 120, true);
+    _document.setTool("gradient");
+    QTest::qWait(60);
+    auto *gradient = _window->findChild<QQuickItem *>("gradientOptions");
+    auto *guide = _window->findChild<QQuickItem *>("gradientGuide");
+    if (!require(gradient && gradient->isVisible() && guide && !guide->isVisible() &&
+                     gradient->findChild<QObject *>("gradientPreset") &&
+                     gradient->findChild<QObject *>("gradientMethod"),
+                 "the gradient tool exposes its presets and interpolation method"))
+        return false;
+    const auto start = area->mapToScene(QPointF(20, 30)).toPoint();
+    const auto end = area->mapToScene(QPointF(100, 30)).toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(_window, end, 20);
+    if (!require(guide->isVisible() && _document.gradientDragging(),
+                 "a real gradient drag shows the direction guide"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
+    if (!require(guide->isVisible() && !_document.gradientDragging() &&
+                     _document.dynamicGradientActive() && _document.layers().size() == 2,
+                 "releasing the dynamic gradient retains the editable handles"))
+        return false;
+    auto *endHandle = guide->findChild<QQuickItem *>("gradientEndHandle");
+    if (!require(endHandle && endHandle->isVisible(), "the gradient has an end handle"))
+        return false;
+    const auto handlePoint = endHandle->mapToScene(QPointF(endHandle->width() / 2,
+                                                         endHandle->height() / 2)).toPoint();
+    QTest::mouseMove(_window, handlePoint, 20);
+    QTest::qWait(80);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::SizeAllCursor,
+                 "hovering a gradient handle changes the shared system cursor"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, handlePoint);
+    QTest::mouseMove(_window, handlePoint + QPoint(24, 14), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, handlePoint + QPoint(24, 14));
+    if (!require(_document.gradientEnd().x() >= 120 && _document.gradientEnd().y() >= 40 &&
+                     _document.layers().size() == 2,
+                 "dragging a retained handle changes the same layer"))
+        return false;
+
+    _document.addGradientStop(.5);
+    QTest::qWait(40);
+    QQuickItem *colorStop = nullptr;
+    QList<QQuickItem *> gradientItems{guide};
+    while (!colorStop && !gradientItems.isEmpty()) {
+        auto *item = gradientItems.takeLast();
+        gradientItems.append(item->childItems());
+        if (item->objectName() == "gradientColorStop_1")
+            colorStop = item;
+    }
+    if (!require(_document.dynamicGradientStops().size() == 3 && colorStop,
+                 "the intermediate gradient color control exists"))
+        return false;
+    const auto colorPoint = colorStop->mapToScene(QPointF(colorStop->width() / 2,
+                                                         colorStop->height() / 2)).toPoint();
+    QTest::mouseMove(_window, colorPoint, 20);
+    QTest::qWait(80);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::PointingHandCursor,
+                 "hovering a gradient color uses the pointing hand"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, colorPoint);
+    QTest::mouseMove(_window, colorPoint + QPoint(4, 2), 20);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::ClosedHandCursor,
+                 "dragging a gradient color keeps the grabbing cursor"))
+        return false;
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, colorPoint + QPoint(4, 2));
+    QTest::mouseMove(_window, area->mapToScene(QPointF(8, 105)).toPoint(), 20);
+    QTest::qWait(80);
+    if (!require(QGuiApplication::overrideCursor() &&
+                     QGuiApplication::overrideCursor()->shape() == Qt::CrossCursor &&
+                     !guide->property("pointerActive").toBool(),
+                 "leaving the gradient controls restores the drawing cursor"))
+        return false;
+
+    _document.newDocument(160, 120, true);
     _document.addAdjustmentLayer("brightnessContrast");
     _document.setTool("rectangle");
     auto *properties = _window->findChild<QObject *>("layerPropertiesDialog");

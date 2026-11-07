@@ -45,6 +45,7 @@ ApplicationWindow {
     property bool saveInFlight: false
     property bool importing: false
     property bool changingSecondary: false
+    property int gradientStopToEdit: -1
     property bool changingShapeFill: false
     property bool changingShapeStroke: false
     property bool changingSolidColor: false
@@ -182,6 +183,7 @@ ApplicationWindow {
                                              : window.temporaryMoveActive ? Qt.SizeAllCursor
                                              : (window.spacePressed && !window.repositioningGesture) || editor.tool === "hand"
                                              ? Qt.OpenHandCursor
+                                             : gradientGuideControl.pointerActive ? gradientGuideControl.pointerCursor
                                              : (editor.tool === "patch" || editor.tool === "contentAwareMove") && (editor.patchDragging || drawingArea.patchInsideSelection)
                                                ? Qt.SizeAllCursor
                                              : window.sliceToolActive
@@ -205,7 +207,7 @@ ApplicationWindow {
                                             || editor.tool === "eraser" || editor.tool === "remove" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "healing" || editor.tool === "colorReplacement" || editor.tool === "mixerBrush" || retouchToolActive || stampToolActive
     readonly property bool opacityToolActive: editor.tool === "brush" || editor.tool === "pencil"
                                               || editor.tool === "eraser" || editor.tool === "magicEraser" || editor.tool === "fill"
-                                              || editor.tool === "gradient" || editor.tool === "text" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || stampToolActive
+                                              || editor.tool === "text" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || stampToolActive
     property bool layerContextMenuVisible: layerContextMenu.visible
     property bool maskContextMenuVisible: maskContextMenu.visible
     property real parameterSliderWidth: 0
@@ -1141,6 +1143,9 @@ ApplicationWindow {
     onDockGroupActiveChanged: scheduleWorkspaceSave()
     onDockPanelVisibilityChanged: scheduleWorkspaceSave()
     Component.onCompleted: {
+        editor.gradientNewLayer = true
+        editor.gradientMethod = 2
+        editor.gradientDither = true
         sampleDocumentSession=editor.documentSession
         refreshToolLayout()
         restoreWorkspaceLayout()
@@ -1642,6 +1647,24 @@ ApplicationWindow {
                 }
                 Rectangle { Layout.leftMargin: 10; width: 1; height: 28; color: "#3a414a" }
                 Label { visible: window.width>=1250; text: window.toolName; color: "#c8d0d9"; Layout.preferredWidth: 152 }
+                ScrollView {
+                    visible: editor.tool === "gradient"
+                    Layout.fillWidth: visible
+                    Layout.minimumWidth: 0
+                    Layout.preferredHeight: 40
+                    contentWidth: gradientOptions.implicitWidth
+                    contentHeight: 38
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+                    GradientOptions {
+                        id: gradientOptions
+                        objectName: "gradientOptions"
+                        width: implicitWidth
+                        height: 34
+                        document: editor
+                        onEditCommitted: workspace.forceActiveFocus()
+                    }
+                }
                 RowLayout {
                     visible: window.smartSelectionToolActive
                     spacing: 1
@@ -2032,7 +2055,7 @@ ApplicationWindow {
                     implicitHeight: 32
                     onClicked: fitCanvas()
                 }
-                Item { Layout.fillWidth: true }
+                Item { visible: editor.tool !== "gradient"; Layout.fillWidth: true }
                 IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
                 IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
                 Button {
@@ -2377,6 +2400,20 @@ ApplicationWindow {
                                 onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                             }
+                            GradientGuide {
+                                id: gradientGuideControl
+                                objectName: "gradientGuide"
+                                anchors.fill: parent
+                                z: 3
+                                document: editor
+                                zoom: window.zoom
+                                onColorRequested: function(index, value) {
+                                    editor.endStroke()
+                                    window.gradientStopToEdit = index
+                                    colorDialog.selectedColor = value
+                                    colorDialog.open()
+                                }
+                            }
                             SliceOverlay {
                                 id: sliceOverlay
                                 objectName: "sliceOverlay"
@@ -2488,13 +2525,15 @@ ApplicationWindow {
                                 function syncSystemCursor() {
                                     const calibration=curvePickerArea.enabled && curvePickerArea.containsMouse
                                     const measuring=measureToolArea.enabled && measureToolArea.containsMouse
-                                    const tool=calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
+                                    const gradientControl=gradientGuideControl.pointerActive
+                                    const tool=gradientControl ? "gradientControl"
+                                              : calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
                                               : measuring && editor.tool==="colorSampler" && measureToolArea.deleteHovered ? "colorSamplerDelete"
                                               : window.temporaryPickerActive ? "picker"
                                               : window.penToolActive ? editor.penCursorAt(pointerX/zoom,pointerY/zoom,7/zoom,window.primaryPressed,window.stampSourcePicking) : editor.tool
                                     imageCanvas.setSystemCursor(calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
-                                                                (containsMouse || canvasTextEditor.pointerInside || calibration || measuring) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
-                                                                tool, editor.selectionMode, window.stampSourcePicking, editor.tool!=="text" && toolInput.precise)
+                                                                (containsMouse || canvasTextEditor.pointerInside || calibration || measuring || gradientControl) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
+                                                                tool, editor.selectionMode, window.stampSourcePicking, !gradientControl && editor.tool!=="text" && toolInput.precise)
                                 }
                                 function refreshSystemCursor() {
                                     syncSystemCursor()
@@ -2658,6 +2697,11 @@ ApplicationWindow {
                                 function onColorPickerModeChanged() { drawingArea.refreshSystemCursor() }
                                 function onStampSourcePickingChanged() { drawingArea.syncSystemCursor() }
                                 function onPrimaryPressedChanged() { drawingArea.refreshSystemCursor() }
+                            }
+                            Connections {
+                                target: gradientGuideControl
+                                function onPointerActiveChanged() { drawingArea.refreshSystemCursor() }
+                                function onPointerCursorChanged() { drawingArea.refreshSystemCursor() }
                             }
                             Connections {
                                 target: canvasTextEditor
@@ -3884,7 +3928,10 @@ ApplicationWindow {
         objectName: "colorDialog"
         title: qsTr("Choisir une couleur")
         onAccepted: {
-            if (fillingPixelsColor) {
+            if (window.gradientStopToEdit >= 0) {
+                editor.setGradientStopColor(window.gradientStopToEdit, selectedColor)
+                window.gradientStopToEdit = -1
+            } else if (fillingPixelsColor) {
                 editor.fillSelectedWithColor(selectedColor)
                 fillingPixelsColor = false
             } else if (fillingMaskColor) {
@@ -3918,6 +3965,7 @@ ApplicationWindow {
                 editor.color=selectedColor
         }
         onRejected: {
+            window.gradientStopToEdit = -1
             fillingPixelsColor = false
             fillingMaskColor = false
             changingShapeFill = false

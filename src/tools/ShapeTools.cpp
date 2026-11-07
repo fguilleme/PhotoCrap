@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "GradientRaster.h"
 #include "ImageUtils.h"
 #include "SelectionMove.h"
 #include "shapes/ShapeLayer.h"
@@ -128,7 +129,10 @@ void Document::renderShape(const QPointF &_to)
     }
     const bool geometric = m_tool != "move" && m_tool != "gradient";
     const bool regional  = geometric || (m_tool == "gradient" && hasSelection());
-    const auto draw      = [&](QPainter &_painter) {
+    const PhotoCrap::Tools::GradientRaster gradient{
+        m_anchor, _to, m_tool == "gradient" ? gradientStops(m_gradientPreset) : QGradientStops{},
+        m_gradientShape, m_gradientMethod, m_gradientDither, {}};
+    const auto draw = [&](QPainter &_painter, const QRect &area) {
         _painter.setRenderHint(QPainter::Antialiasing);
         if (hasSelection())
             _painter.setClipRegion(m_selectionRegion);
@@ -170,11 +174,12 @@ void Document::renderShape(const QPointF &_to)
             }
             _painter.drawLine(from, to);
         } else if (m_tool == "gradient") {
-            QLinearGradient gradient(m_anchor, _to);
-            gradient.setColorAt(0, m_color);
-            gradient.setColorAt(1, m_secondary);
-            _painter.fillRect(QRect(QPoint{}, m_size), gradient);
+            const QRect target = m_gradientShape == 0 && m_gradientMethod == 0 && !m_gradientDither
+                                     ? QRect(QPoint{}, m_size)
+                                     : area;
+            return gradient.paint(_painter, target, m_channelBits == 16);
         }
+        return true;
     };
     if (m_tool == "gradient" && !hasSelection() && !m_strokePlaneBase.isNull()) {
         // Preserve global gradient coordinates, while bounding native scratch
@@ -192,9 +197,9 @@ void Document::renderShape(const QPointF &_to)
             }
             QPainter painter(&image);
             painter.translate(0, -top);
-            draw(painter);
+            const bool rendered = draw(painter, bounds);
             painter.end();
-            if (!next.writeRegion(bounds.topLeft(), image, m_size)) {
+            if (!rendered || !next.writeRegion(bounds.topLeft(), image, m_size)) {
                 cancelStroke();
                 fail(tr("Mémoire insuffisante pour dessiner la forme."));
                 return;
@@ -235,8 +240,13 @@ void Document::renderShape(const QPointF &_to)
                 }
                 QPainter painter(&image);
                 painter.translate(-bounds.topLeft());
-                draw(painter);
+                const bool rendered = draw(painter, bounds);
                 painter.end();
+                if (!rendered) {
+                    cancelStroke();
+                    fail(tr("Mémoire insuffisante pour dessiner le dégradé."));
+                    return;
+                }
                 SelectionCoverage::blend(image, before,
                                          m_selectionMask.isNull() ? QImage{}
                                                                   : m_selectionMask.copy(bounds),
@@ -265,8 +275,13 @@ void Document::renderShape(const QPointF &_to)
         m_layers[m_active].image = result;
     } else {
         QPainter painter(&m_layers[m_active].image.edit());
-        draw(painter);
+        const bool rendered = draw(painter, QRect(QPoint{}, m_size));
         painter.end();
+        if (!rendered) {
+            cancelStroke();
+            fail(tr("Mémoire insuffisante pour dessiner le dégradé."));
+            return;
+        }
         SelectionCoverage::blend(m_layers[m_active].image.edit(), sourceImage, m_selectionMask,
                                  QRect(QPoint{}, m_size));
     }

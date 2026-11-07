@@ -100,8 +100,23 @@ Références : [dessiner à la Plume](https://helpx.adobe.com/photoshop/desktop/
 - Avec **Ajout/Suppression auto**, cliquer un segment ajoute un point par subdivision Bézier sans modifier sa forme ; cliquer un point existant le supprime. Pendant la construction, le premier point sert à fermer et le dernier à supprimer la poignée sortante pour continuer en ligne droite. Retour arrière/Suppr retire les points sélectionnés. Échap pendant un glisser annule ce geste.
 - **A** active la Sélection de tracé (flèche noire), pour déplacer tout un contour. La Sélection directe (flèche blanche, variante du même groupe) sélectionne les points ou segments, par clic ou cadre ; Option/Alt-clic choisit le contour entier. Un clic vide ou Échap hors construction désélectionne. Les glissers de reprise règlent désormais la poignée sortante ; Option/Alt sur le dernier point conserve sa poignée entrante. [Détails et écarts restants](PEN_TOOL.md).
 - **Aperçu** active l’élastique du prochain segment. Le curseur indique création, fermeture, reprise, ajout, suppression, conversion ou déplacement ; Verr. Maj donne la croix de précision.
-- Le panneau **Tracés**, disponible depuis Affichage et le bouton **Tracés…**, remplace la liste de la barre supérieure. Il affiche des vignettes et permet de choisir, créer, renommer, dupliquer, réordonner et supprimer les tracés. Il partage par défaut les onglets de Calques/Couches et conserve les capacités de disposition et de fenêtre flottante. Les tracés restent indépendants des calques et sont conservés en `.pcr` v9, ou v10 si un tracé nommé est encore vide ; les formes utilisent v11 et le lecteur accepte les versions 1 à 11.
+- Le panneau **Tracés**, disponible depuis Affichage et le bouton **Tracés…**, remplace la liste de la barre supérieure. Il affiche des vignettes et permet de choisir, créer, renommer, dupliquer, réordonner et supprimer les tracés. Il partage par défaut les onglets de Calques/Couches et conserve les capacités de disposition et de fenêtre flottante. Les tracés restent indépendants des calques et sont conservés en `.pcr` v9, ou v10 si un tracé nommé est encore vide ; les formes utilisent v11 et le lecteur accepte les versions 1 à 12.
 - **Sélection** ou Commande/Ctrl + Retour transforme le tracé en sélection et désactive son affichage : seules les fourmis de sélection restent visibles. Le tracé est conservé ; le choisir à nouveau dans le panneau Tracés réaffiche ses points et poignées. Maj ajoute, Option/Alt soustrait et Maj + Option/Alt intersecte avec le raccourci. Le remplissage ferme implicitement un tracé ouvert. **Remplir** utilise le premier plan et l’opacité de peinture ; **Contour** utilise les réglages actuels du pinceau. Ces deux opérations écrivent dans le calque de pixels ou le masque actif, respectent une sélection existante et conservent les pixels 8/16 bits.
 - Un geste d’édition devient une étape d’annulation et ne recalcule pas la composition de l’image. Le rendu de l’overlay est limité au viewport. Les limites sont de 128 tracés, 4 096 points par tracé et 32 768 points au total.
 
 Les modes disponibles sont **Tracé** et **Forme**. Le mode **Forme** crée désormais un calque éditable avec fond/contour et un masque vectoriel propre au calque. Les masques vectoriels sur les autres calques, opérations booléennes entre sous-tracés, tracés composés, tracé de travail temporaire, simulation de pression lors du contour et conversion en sélection à contour progressif/anticrénelage fractionnaire restent NYI. Le tracé n’est pas un calque de pixels : il faut le remplir, tracer son contour ou le convertir en sélection pour agir sur l’image.
+
+
+### Dégradé dynamique
+
+Le premier glisser crée un calque de remplissage avec les paramètres du dégradé.
+Les deux poignées restent visibles quand ce calque est sélectionné avec l’outil
+Dégradé. Glisser une poignée modifie la direction ou la longueur. Cliquer sur
+la ligne ajoute une couleur. Glisser un point intermédiaire change sa position,
+un double-clic ouvre sa couleur et un clic droit supprime ce point. Chaque geste
+peut être annulé. La sélection de départ devient un masque de fusion.
+
+Les projets qui contiennent un dégradé dynamique utilisent le format **v12**.
+Le moteur GPU calcule les cinq formes en 8 et 16 bits et conserve la palette
+lors des changements de géométrie. Le moteur CPU conserve le rendu de référence
+pour les exports et les compositions de secours.

@@ -1,5 +1,23 @@
 # Validation
 
+## Presse-papiers de sélection — 7 novembre 2026
+
+Le build complet Qt 6.12 sur Apple Silicon et les **58 tests CTest non interactifs**
+passent. Le nouveau test `clipboard` vérifie les rectangles, ellipses et lassos
+8/16 bits, contours progressifs, îlots et inversion, alpha et pixels extérieurs,
+Annuler/Rétablir, Copier/Copier avec fusion, calque verrouillé ou vide, collage
+entre documents et changement de profondeur, position d’origine, masques
+Dans/Hors et masque actif, calque par copie/couper et absence de modification du
+presse-papiers dans ce dernier cas. Un aller-retour PNG privé simule une seconde
+instance. Les calculs forcés sur worker couvrent Coller immédiatement après
+Couper/Copier, annulation et presse-papiers externe devenu plus récent.
+
+`tool_layers` passe aussi dans une fenêtre Cocoa avec Metal : ellipse dessinée
+par événements souris, Cmd-X/Cmd-V, deux annulations puis nouvelle coupe/collage
+rapide asynchrone. Les tests macOS dédiés au curseur, à la Plume et aux préférences
+ne font pas partie du total de 58. Les nouveaux changements ne sont pas encore
+validés sur les runners Windows/Linux. [Comportements et limites](CLIPBOARD.md).
+
 ## Publication de v0.17.2 — 6 novembre 2026
 
 Le workflow du tag `v0.17.2` a validé les builds, tests et paquets sur macOS 15,

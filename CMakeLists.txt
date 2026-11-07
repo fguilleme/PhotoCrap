@@ -51,6 +51,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
+    src/DocumentClipboard.cpp
+    src/editing/ImageClipboard.cpp src/editing/ImageClipboard.h
     src/DocumentOperations.cpp
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
@@ -373,6 +375,8 @@ qt_add_library(photocrap_core STATIC
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
+    src/DocumentClipboard.cpp
+    src/editing/ImageClipboard.cpp src/editing/ImageClipboard.h
     src/DocumentOperations.cpp
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
@@ -842,6 +846,11 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_marquee_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME marquee COMMAND photocrap_marquee_tests)
     set_tests_properties(marquee PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    qt_add_executable(photocrap_clipboard_tests tests/ClipboardTest.cpp)
+    target_link_libraries(photocrap_clipboard_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME clipboard COMMAND photocrap_clipboard_tests)
+    set_tests_properties(clipboard PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
     qt_add_executable(photocrap_selection_tests tests/SelectionTest.cpp)
     target_link_libraries(photocrap_selection_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME selection COMMAND photocrap_selection_tests)

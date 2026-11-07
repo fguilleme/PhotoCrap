@@ -32,6 +32,14 @@ Sources : [dilater et contracter](https://helpx.adobe.com/photoshop/desktop/make
 
 Les commandes Modifier ouvrent une boîte de paramètres, puis calculent **en arrière-plan**. Annuler ou Échap pendant le calcul abandonne le résultat. Une nouvelle sélection, une édition ou un autre document invalide les travaux obsolètes. Le traitement porte sur la zone sélectionnée et le voisinage nécessaire, sans recalculer les couleurs de l’image. Les sélections et leur déplacement sont annulables ; ces états ne rendent pas un projet sauvegardé « modifié ». Leur stockage supplémentaire entre dans le budget de l’historique.
 
+## Presse-papiers et nouveaux calques
+
+Cmd/Ctrl+X coupe la forme réelle de la sélection ; Cmd/Ctrl+V crée un nouveau
+calque avec sa transparence. Cmd/Ctrl+C lit le calque actif, Cmd/Ctrl+Maj+C le
+composite visible. Collage sur place, dans/hors sélection avec masque éditable,
+calque par copie/couper, précision native 8/16 bits et cas particuliers sont
+expliqués dans le [guide du presse-papiers](CLIPBOARD.md).
+
 ## Plage de couleurs et contour progressif
 
 Dans **Sélection → Plage de couleurs**, cliquer sur l’aperçu ou directement sur le canevas prélève une couleur à sa résolution native, sans fermer le dialogue. Maj ajoute, Option/Alt retire ; les trois boutons proposent aussi ces modes. Jusqu’à 64 échantillons peuvent être retenus. La tolérance va de 0 à 200. Le mode localisé limite l’influence autour des échantillons ; Portée est exprimée en pourcentage de la diagonale. Le masque montre les pixels sélectionnés en blanc, les exclusions en noir et les couvertures partielles en gris. Les familles Rouge/Jaune/Vert/Cyan/Bleu/Magenta et Hautes lumières/Tons moyens/Ombres sont proposées comme points de départ. OK remplace la sélection en une étape ; Annuler conserve l’ancienne sélection et l’historique. Une absence de correspondance conserve la sélection précédente et affiche un message.

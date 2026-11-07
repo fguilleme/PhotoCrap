@@ -136,7 +136,7 @@ mesures de VRAM du pilote restent à réaliser sur les machines adaptées.
 | Élément | État du code | Source |
 |---|---|---|
 | Barre d’outils | 71 outils recensés : **56 disponibles, 15 NYI** | Catalogue de `qml/Main.qml` |
-| Raccourcis et gestes | **298 entrées** : 123 commandes personnalisables, 56 gestes contextuels, 119 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
+| Raccourcis et gestes | **299 entrées** : 128 commandes personnalisables, 58 gestes contextuels, 113 NYI | `src/ShortcutManager.cpp`, `src/ShortcutCatalog.h` |
 | Projets | Format `.pcr` **v9** avec texte éditable, lecture des versions 1 à 8 ; sélections et historique temporaires | `src/DocumentIO.cpp`, [guide Sélections](docs/SELECTIONS.md) |
 | Précision | Pixels RVB 8/16 bits, masques et couvertures de sélection 8 bits | [Précision et limites](README.md#raw-et-précision-des-couleurs) |
 
@@ -156,6 +156,8 @@ Les sections « Disponible » et « Ajouts » ci-dessous constituent l’histori
 - [x] Barre d’outils configurable : ordre des groupes et des outils, visibilité, variantes par clic droit, icône du dernier outil choisi et entrées futures désactivées avec mention NYI.
 - [x] Réglages spécialisés : Lumière, Couleur, Niveaux, Courbes et pipettes, Balance des couleurs, Noir et blanc avec presets/Auto/Teinte, Filtre photo, Mélangeur de couches, Style colorimétrique (LUT), Transfert de dégradé, Correction sélective, Isohélie et Seuil.
 - [x] Prévisualisation des réglages sur proxies, caches d’images et de masques, remplacement des demandes intermédiaires par la dernière, puis rendu complet en arrière-plan qui actualise le cache écran. Séparation de fréquences dynamique, puis préparation asynchrone de calques de pixels retouchables en 8/16 bits, avec annulation, masques conservés et retour au rayon depuis les sources enregistrées dans le projet.
+- [x] Presse-papiers de sélection : Couper/Copier actifs, Copier avec fusion, nouveau calque au collage, sur place, dans/hors sélection avec masque éditable, calque par copie/couper et masque raster actif. Formes réelles, contours progressifs et pixels natifs 8/16 bits, calculs différés et historique ; [cas couverts et différences Adobe](docs/CLIPBOARD.md).
+- [ ] Presse-papiers complet de calques et tracés : préserver texte éditable, formes, groupes, effets et masques associés entre documents ; gestion des profils couleur multiples.
 - [x] Sélections rectangulaire, elliptique, rangée/colonne unique, lasso, lasso polygonal, sélection rapide et baguette magique ; combinaisons de sélection et contours animés.
 - [x] Peinture : pinceau, crayon, gomme, remplacement de couleur, pinceau mélangeur, tampon de duplication et tampon de motif. Taille, dureté, opacité, débit, espacement, forme de pointe et lissage.
 - [x] Retouche locale : flou, netteté, doigt, densité −/+, éponge, œil rouge, correcteur, correcteur localisé, pièce, déplacement basé sur le contenu et suppression. Calculs limités aux zones touchées et à leur voisinage lorsque le traitement le permet.

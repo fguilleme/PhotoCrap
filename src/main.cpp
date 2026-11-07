@@ -9,12 +9,13 @@
 #include "ShortcutManager.h"
 #include "ToolInput.h"
 #include "WorkspaceSettings.h"
+#include "controls/ValueScrubber.h"
 #include "render/CanvasFonts.h"
 #include "render/CurvesGeometry.h"
 #include "render/HistogramGeometry.h"
 #include "render/PenBandGeometry.h"
 #include "text/TextEditorController.h"
-#include "controls/ValueScrubber.h"
+#include <QClipboard>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -251,6 +252,8 @@ int main(int argc, char *argv[])
     engine.addImageProvider("layers", new ThumbnailProvider(&document));
     engine.addImageProvider("recent", new RecentThumbnailProvider);
     engine.rootContext()->setContextProperty("editor", &document);
+    QObject::connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, &document,
+                     &Document::clipboardChanged);
     engine.rootContext()->setContextProperty("languages", &languageManager);
     engine.rootContext()->setContextProperty("recentFiles", &recentFilesManager);
     engine.rootContext()->setContextProperty("showWelcomeAtStartup",

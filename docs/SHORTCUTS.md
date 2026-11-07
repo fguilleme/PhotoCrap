@@ -11,7 +11,9 @@ Dans Réglages → Raccourcis clavier, toutes les entrées sont consultables et 
 
 Les notations Ctrl et Alt des champs de configuration correspondent à Commande et Option sur macOS ; les indications de combinaisons simples utilisent l’affichage natif. Les flèches, Espace, Maj et Alt pendant un geste restent des modificateurs contextuels.
 
-Particularités PhotoCrap conservées : Cmd/Ctrl+C copie l’image visible, Cmd/Ctrl+J duplique le calque complet et Cmd/Ctrl+Maj+N crée directement le calque. Les variantes Photoshop qui copient/coupent les pixels du calque ou de la sélection sont donc recensées séparément en NYI. Maj+Retour arrière et Maj+F5 ouvrent un sélecteur de couleur pour remplir les pixels ou le masque ; le dialogue de remplissage complet de Photoshop reste NYI. Les réglages directs Courbes/Niveaux/Noir et blanc sont NYI pour leurs raccourcis : leurs panneaux existent comme calques de réglage, ce qui est une autre opération.
+Cmd/Ctrl+C copie désormais les pixels du calque actif ; Cmd/Ctrl+Maj+C copie le composite visible. Cmd/Ctrl+X coupe la sélection et Cmd/Ctrl+V la colle dans un nouveau calque. Cmd/Ctrl+J copie la sélection sur un calque à sa place d’origine, ou duplique le calque complet en l’absence de sélection. Cmd/Ctrl+Maj+J déplace la sélection sur un nouveau calque. Les collages sur place, dans et hors sélection sont disponibles dans Édition → Collage spécial. [Guide du presse-papiers et limites](CLIPBOARD.md).
+
+Particularités PhotoCrap conservées : Cmd/Ctrl+Maj+N crée directement le calque. Maj+Retour arrière et Maj+F5 ouvrent un sélecteur de couleur pour remplir les pixels ou le masque ; le dialogue de remplissage complet de Photoshop reste NYI. Les réglages directs Courbes/Niveaux/Noir et blanc sont NYI pour leurs raccourcis : leurs panneaux existent comme calques de réglage, ce qui est une autre opération.
 
 Les modes de fusion s’appliquent au pinceau, crayon, gomme, tampons et formes d’historique, ou au calque avec Déplacement/Main/Zoom/sélection. Éponge et Densité prennent la priorité sur leurs combinaisons partagées pour régler saturation et plage tonale. Les limites actuelles des outils en 16 bits restent applicables.
 
@@ -24,6 +26,12 @@ La Gomme magique est maintenant disponible dans le groupe E : Maj+E parcourt les
 | Action | Combinaison par défaut | Contexte |
 | --- | --- | --- |
 | Configurer les raccourcis | Ctrl+Alt+Shift+K | Document |
+| Couper la sélection | Ctrl+X | Pixels ou masque raster actif |
+| Coller sur place | Ctrl+Shift+V | Document ou masque actif |
+| Coller dans la sélection | Ctrl+Alt+Shift+V | Nouveau calque avec masque |
+| Coller hors de la sélection | Aucun par défaut | Nouveau calque avec masque inversé |
+| Nouveau calque par copie de sélection | Ctrl+J | Sélection active ; sinon duplication du calque |
+| Nouveau calque par couper | Ctrl+Shift+J | Sélection sur calque de pixels |
 | Copier avec fusion | Ctrl+Shift+C | Document |
 | Intervertir la sélection | Ctrl+Shift+I | Document |
 | Resélectionner | Ctrl+Shift+D | Document |
@@ -155,10 +163,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 
 | Fonction manquante | Référence clavier ou souris | Contexte |
 | --- | --- | --- |
-| Couper les pixels du calque | Ctrl+X | Document |
-| Copier les pixels du calque | Ctrl+C | Document |
-| Coller sur place | Ctrl+Shift+V | Document |
-| Coller dans la sélection | Ctrl+Alt+Shift+V | Document |
 | Atténuer la dernière opération | Ctrl+Shift+F | Document |
 | Transformation manuelle | Ctrl+T | Document |
 | Répéter la transformation | Ctrl+Shift+T | Document |
@@ -173,8 +177,6 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Créer un calque des visibles fusionnés | Ctrl+Alt+Shift+E | Document |
 | Placer le calque tout en haut | Ctrl+Shift+] | Document |
 | Placer le calque tout en bas | Ctrl+Shift+[ | Document |
-| Nouveau calque par copie de sélection | Ctrl+J | Document |
-| Nouveau calque par couper | Ctrl+Shift+J | Document |
 | Verrouiller les pixels transparents | / | Document |
 | Taille de la zone de travail | Ctrl+Alt+C | Document |
 | Niveaux (réglage direct) | Ctrl+L | Document |

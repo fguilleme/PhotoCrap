@@ -1044,7 +1044,7 @@ ApplicationWindow {
     function setInterfaceLanguage(code) { languages.language=code }
     property bool panelsTemporarilyHidden: false
     property bool toolsTemporarilyHidden: false
-    readonly property var additionalShortcutIds: ["keyboardSettings", "copyMerged", "newLayerNoDialog", "preferencesAdobe", "invertSelectionF7", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
+    readonly property var additionalShortcutIds: ["keyboardSettings", "newLayerNoDialog", "preferencesAdobe", "invertSelectionF7", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
     function openFillColor() {
         fillingMaskColor = editor.editingMask
         fillingPixelsColor = !editor.editingMask
@@ -1076,7 +1076,7 @@ ApplicationWindow {
     function activateShortcut(id) {
         if (id === "keyboardSettings") { preferencesPage = 0; openPreferences() }
         else if (id === "preferencesAdobe") openPreferences()
-        else if (id === "copyMerged") editor.copy()
+        else if (id === "copyMerged") editor.copyMerged()
         else if (id === "newLayerNoDialog") editor.addLayer()
         else if (id === "invertSelection" || id === "invertSelectionF7") editor.invertSelection()
         else if (id === "reselect") editor.reselect()
@@ -1216,13 +1216,19 @@ ApplicationWindow {
     Action { id: importAction; text: qsTr("Importer comme calque…"); shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
     Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy || editor.selectionBusy); onTriggered: editor.undo() }
     Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy); onTriggered: editor.redo() }
-    Action { id: copyAction; text: qsTr("Copier l’image visible"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.copy() }
-    Action { id: pasteAction; text: qsTr("Coller comme calque"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.paste() }
+    Action { id: cutAction; objectName: "cutAction"; text: qsTr("Couper"); shortcut: (shortcuts.revision, shortcuts.sequence("cut")); enabled: !window.editingText && !window.modalOpen && !editor.pixelEditBusy && editor.hasSelection && !activeInfo.locked && (activeInfo.kind === "pixel" || editor.editingMask); onTriggered: editor.cut() }
+    Action { id: copyAction; objectName: "copyAction"; text: qsTr("Copier"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen && !editor.pixelEditBusy && editor.width > 0; onTriggered: editor.copy() }
+    Action { id: copyMergedAction; text: qsTr("Copier avec fusion"); shortcut: (shortcuts.revision, shortcuts.sequence("copyMerged")); enabled: copyAction.enabled; onTriggered: editor.copyMerged() }
+    Action { id: pasteAction; objectName: "pasteAction"; text: qsTr("Coller"); shortcut: (shortcuts.revision, shortcuts.sequence("paste")); enabled: !window.editingText && (!window.modalOpen || editor.clipboardTransferPending) && (!editor.pixelEditBusy || editor.clipboardTransferPending) && (editor.canPaste || editor.clipboardTransferPending) && editor.width > 0; onTriggered: editor.paste() }
+    Action { id: pastePlaceAction; text: qsTr("Coller sur place"); shortcut: (shortcuts.revision, shortcuts.sequence("pasteInPlace")); enabled: pasteAction.enabled; onTriggered: editor.pasteSpecial("place") }
+    Action { id: pasteInsideAction; text: qsTr("Coller dans la sélection"); shortcut: (shortcuts.revision, shortcuts.sequence("pasteInto")); enabled: copyAction.enabled && editor.canPaste && editor.hasSelection; onTriggered: editor.pasteSpecial("inside") }
+    Action { id: pasteOutsideAction; text: qsTr("Coller hors de la sélection"); shortcut: (shortcuts.revision, shortcuts.sequence("pasteOutside")); enabled: pasteInsideAction.enabled; onTriggered: editor.pasteSpecial("outside") }
+    Action { id: layerViaCutAction; text: qsTr("Nouveau calque par couper"); shortcut: (shortcuts.revision, shortcuts.sequence("layerViaCut")); enabled: cutAction.enabled && !editor.editingMask; onTriggered: editor.layerViaSelection(true) }
     Action { id: selectAction; text: qsTr("Tout sélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("selectAll")); enabled: !window.editingText && !window.modalOpen; onTriggered: editor.selectAll() }
     Action { id: deselectAction; text: qsTr("Désélectionner"); shortcut: (shortcuts.revision, shortcuts.sequence("deselect")); enabled: (editor.hasSelection || editor.polygonLassoActive) && !window.editingText && !window.modalOpen; onTriggered: editor.deselect() }
     Action { id: deleteAction; text: qsTr("Effacer les pixels"); shortcut: (shortcuts.revision, shortcuts.sequence("clear")); enabled: !window.editingText && !window.modalOpen; onTriggered: { if(window.penToolActive)editor.deletePenPoints();else if(window.sliceToolActive) editor.deleteActiveSlice(); else editor.clearSelected() } }
     Action { id: addAction; text: qsTr("Nouveau calque"); shortcut: (shortcuts.revision, shortcuts.sequence("newLayer")); enabled: !window.modalOpen; onTriggered: editor.addLayer() }
-    Action { id: duplicateAction; text: qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen; onTriggered: editor.duplicateLayer() }
+    Action { id: duplicateAction; text: editor.hasSelection && !editor.editingMask ? qsTr("Nouveau calque par copie de sélection") : qsTr("Dupliquer le calque"); shortcut: (shortcuts.revision, shortcuts.sequence("duplicateLayer")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { if(editor.hasSelection && !editor.editingMask)editor.layerViaSelection(false);else editor.duplicateLayer() } }
     Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
     Instantiator {
         model: (window.toolbarRevision, window.toolLayout)
@@ -1362,8 +1368,16 @@ ApplicationWindow {
             DarkMenuItem { action: undoAction }
             DarkMenuItem { action: redoAction }
             MenuSeparator {}
+            DarkMenuItem { action: cutAction }
             DarkMenuItem { action: copyAction }
+            DarkMenuItem { action: copyMergedAction }
             DarkMenuItem { action: pasteAction }
+            DarkMenu {
+                title: qsTr("Collage spécial")
+                DarkMenuItem { action: pastePlaceAction }
+                DarkMenuItem { action: pasteInsideAction }
+                DarkMenuItem { action: pasteOutsideAction }
+            }
             DarkMenuItem { action: deleteAction }
             MenuSeparator {}
             DarkMenuItem { action: preferencesAction }
@@ -1387,6 +1401,7 @@ ApplicationWindow {
             title: qsTr("Calque")
             DarkMenuItem { action: addAction }
             DarkMenuItem { action: duplicateAction }
+            DarkMenuItem { action: layerViaCutAction }
             DarkMenu {
                 title: qsTr("Nouveau calque de réglage")
                 DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
@@ -4008,8 +4023,20 @@ ApplicationWindow {
             anchors.fill: parent; spacing: 16
             Label { text: qsTr("Une page blanche pour votre prochaine idée."); color: "#a5b2c0" }
             ComboBox {
-                Layout.fillWidth: true; model: [qsTr("Personnalisé"),qsTr("Écran · 1920 × 1080"),qsTr("Carré · 1080 × 1080"),qsTr("Portrait · 1080 × 1350"),qsTr("A4 · 2480 × 3508")]
+                objectName: "newDocumentPreset"; Layout.fillWidth: true; model: {
+                    const presets = [qsTr("Personnalisé"),qsTr("Écran · 1920 × 1080"),qsTr("Carré · 1080 × 1080"),qsTr("Portrait · 1080 × 1350"),qsTr("A4 · 2480 × 3508")]
+                    if (editor.canPaste) presets.push(qsTr("Presse-papiers"))
+                    return presets
+                }
                 onActivated: {
+                    if (currentIndex === 5) {
+                        const info = editor.clipboardInfo()
+                        if (info.width > 0 && info.height > 0) {
+                            newWidth.value = info.width; newHeight.value = info.height
+                            newDepth.currentIndex = info.bits === 16 ? 1 : 0
+                        }
+                        return
+                    }
                     const sizes=[[1280,800],[1920,1080],[1080,1080],[1080,1350],[2480,3508]]
                     newWidth.value=sizes[currentIndex][0]; newHeight.value=sizes[currentIndex][1]
                 }

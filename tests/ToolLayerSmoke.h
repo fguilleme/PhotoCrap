@@ -1,4 +1,5 @@
 #pragma once
+#include "ClipboardSmoke.h"
 #include "Document.h"
 #include "ValueScrubberSmoke.h"
 #include "WorkspaceSettings.h"
@@ -25,7 +26,7 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     auto *area = _window->findChild<QQuickItem *>("drawingArea");
     if (!require(area, "the drawing area exists"))
         return false;
-    if (!runValueScrubberSmoke(_window, _document))
+    if (!runClipboardSmoke(_window, _document) || !runValueScrubberSmoke(_window, _document))
         return false;
     // Creating content on an adjustment must select a new layer through real tool input.
     _document.newDocument(160, 120, true);

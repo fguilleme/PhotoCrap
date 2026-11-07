@@ -3,8 +3,6 @@
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
-#include <QClipboard>
-#include <QGuiApplication>
 #include <QPainter>
 #include <QTransform>
 
@@ -215,40 +213,6 @@ void Document::fillMaskWithColor(const QColor &_color)
         painter.fillRect(QRect(QPoint{}, m_size), QColor::fromRgb(value, value, value));
         painter.end();
         blendSelectionEdit(*target, before);
-    });
-}
-void Document::copy()
-{
-    endStroke();
-    if (hasSelection()) {
-        QImage   selection = ImageUtils::blank(m_selection.size(), workingFormat());
-        QPainter painter(&selection);
-        painter.setClipRegion(m_selectionRegion.translated(-m_selection.topLeft()));
-        painter.drawImage(QPoint{}, compositeRegion(m_selection));
-        painter.end();
-        SelectionCoverage::attenuate(selection, m_selectionMask, m_selection.topLeft());
-        QGuiApplication::clipboard()->setImage(selection);
-    } else
-        QGuiApplication::clipboard()->setImage(composite());
-    emit statusMessage(tr("Copie de l’image visible dans le presse-papiers"));
-}
-void Document::paste()
-{
-    auto source = QGuiApplication::clipboard()->image();
-    if (source.isNull())
-        return;
-    if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
-        !validLayerStorage(width(), height(), 1))
-        return;
-    if (source.colorSpace().isValid())
-        source.convertToColorSpace(QColorSpace::SRgb);
-    edit(tr("Coller"), [&] {
-        auto     image = ImageUtils::blank(m_size, workingFormat());
-        QPainter p(&image);
-        p.drawImage((width() - source.width()) / 2, (height() - source.height()) / 2, source);
-        p.end();
-        m_layers.insert(++m_active, {tr("Image collée"), image});
-        selectOnly(m_active);
     });
 }
 void Document::cropToSelection()

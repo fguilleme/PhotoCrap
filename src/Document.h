@@ -32,6 +32,10 @@
 #include <memory>
 
 class ScratchImageCache;
+namespace PhotoCrap::Clipboard
+{
+struct Pixels;
+}
 
 class Document : public QObject
 {
@@ -235,6 +239,9 @@ class Document : public QObject
         qreal shapeStarRatio READ shapeStarRatio WRITE setShapeStarRatio NOTIFY settingsChanged)
     Q_PROPERTY(QRect selection READ selection NOTIFY selectionChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
+    Q_PROPERTY(bool canPaste READ canPaste NOTIFY clipboardChanged)
+    Q_PROPERTY(QSize clipboardImageSize READ clipboardImageSize NOTIFY clipboardChanged)
+    Q_PROPERTY(bool clipboardTransferPending READ clipboardTransferPending NOTIFY clipboardChanged)
     Q_PROPERTY(bool canReselect READ canReselect NOTIFY selectionChanged)
     Q_PROPERTY(bool selectionEdgesVisible READ selectionEdgesVisible WRITE setSelectionEdgesVisible
                    NOTIFY selectionDisplayChanged)
@@ -1236,7 +1243,18 @@ public:
     Q_INVOKABLE void         fillSelectedWithColor(const QColor &_color);
     Q_INVOKABLE void         fillMaskWithColor(const QColor &_color);
     Q_INVOKABLE void         copy();
+    Q_INVOKABLE void         copyMerged();
+    Q_INVOKABLE void         cut();
     Q_INVOKABLE void         paste();
+    Q_INVOKABLE void         pasteSpecial(const QString &_mode);
+    Q_INVOKABLE void         layerViaSelection(bool _cut = false);
+    bool                     canPaste() const;
+    QSize                    clipboardImageSize() const;
+    Q_INVOKABLE QVariantMap  clipboardInfo() const;
+    bool                     clipboardTransferPending() const
+    {
+        return m_clipboardTransferPending;
+    }
     Q_INVOKABLE void         cropToSelection();
     QVariantList             slices() const;
     quint64                  sliceDescriptionRevision() const;
@@ -1294,6 +1312,7 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void clipboardChanged();
     void operationChanged();
     void gpuStackChanged();
     void penPathsChanged();
@@ -1333,6 +1352,21 @@ signals:
     void statusMessage(const QString &_message);
 
 private:
+    PhotoCrap::Clipboard::Pixels clipboardPixels(bool _merged);
+    void                         copyPixels(bool _merged);
+    void                         discardClipboardSelection();
+    bool                         eraseClipboardSelection();
+    bool applyClipboardPixels(const PhotoCrap::Clipboard::Pixels &_pixels, const QString &_mode);
+    void pastePreparedPixels(const PhotoCrap::Clipboard::Pixels &_pixels, const QString &_mode);
+    void beginClipboardTransfer(std::shared_ptr<PhotoCrap::Clipboard::Pixels> _pixels,
+                                bool                                          _mutating);
+    void finishClipboardTransfer();
+    bool m_clipboardTransferPending = false, m_clipboardTransferPublished = false,
+         m_clipboardTransferMutating   = false;
+    quint64 m_clipboardTransferSession = 0, m_clipboardTransferState = 0;
+    QString m_queuedClipboardPaste;
+    std::shared_ptr<PhotoCrap::Clipboard::Pixels> m_clipboardTransferPixels;
+    QMetaObject::Connection                       m_clipboardFinishConnection;
     struct BackgroundOperation;
     std::shared_ptr<BackgroundOperation> m_backgroundOperation;
     qint64                               m_backgroundEditThreshold = 4LL * 1024 * 1024;

@@ -829,6 +829,19 @@
         <source>Redimensionner la forme</source>
         <translation>Resize shape</translation>
     </message>
+    <message><source>Attendez la fin du calcul avant de copier ou couper.</source><translation>Wait for the current operation before copying or cutting.</translation></message>
+    <message><source>Ce calque ne contient pas de pixels à copier.</source><translation>This layer contains no pixels to copy.</translation></message>
+    <message><source>La zone sélectionnée est vide.</source><translation>The selected area is empty.</translation></message>
+    <message><source>Mémoire insuffisante pour copier la sélection.</source><translation>Not enough memory to copy the selection.</translation></message>
+    <message><source>Sélectionnez une zone de pixels à couper.</source><translation>Select an area of pixels to cut.</translation></message>
+    <message><source>Mémoire insuffisante pour couper la sélection.</source><translation>Not enough memory to cut the selection.</translation></message>
+    <message><source>Mémoire insuffisante pour coller l’image.</source><translation>Not enough memory to paste the image.</translation></message>
+    <message><source>Mémoire insuffisante pour créer le masque du collage.</source><translation>Not enough memory to create the paste mask.</translation></message>
+    <message><source>Couper</source><translation>Cut</translation></message>
+    <message><source>Copier</source><translation>Copy</translation></message>
+    <message><source>Copier avec fusion</source><translation>Copy Merged</translation></message>
+    <message><source>Nouveau calque par couper</source><translation>Layer via Cut</translation></message>
+    <message><source>Nouveau calque par copie de sélection</source><translation>Layer via Copy</translation></message>
 </context>
   <context>
     <name>LanguageManager</name>
@@ -2675,6 +2688,16 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Forme vectorielle</source>
         <translation>Vector shape</translation>
     </message>
+    <message><source>Copier</source><translation>Copy</translation></message>
+    <message><source>Couper</source><translation>Cut</translation></message>
+    <message><source>Copier avec fusion</source><translation>Copy Merged</translation></message>
+    <message><source>Coller sur place</source><translation>Paste in Place</translation></message>
+    <message><source>Coller dans la sélection</source><translation>Paste Into</translation></message>
+    <message><source>Coller hors de la sélection</source><translation>Paste Outside</translation></message>
+    <message><source>Collage spécial</source><translation>Paste Special</translation></message>
+    <message><source>Nouveau calque par couper</source><translation>Layer via Cut</translation></message>
+    <message><source>Nouveau calque par copie de sélection</source><translation>Layer via Copy</translation></message>
+    <message><source>Presse-papiers</source><translation>Clipboard</translation></message>
 </context>
   <context>
     <name>DockablePanel</name>
@@ -4316,6 +4339,7 @@ Independent software, not affiliated with Adobe.</translation>
         <source>PhotoCrap : sélecteur de couleur, pixels ou masque</source>
         <translation>PhotoCrap: color picker, pixels or mask</translation>
     </message>
+    <message><source>Coller hors de la sélection</source><translation>Paste Outside</translation></message>
 </context>
 <context><name>MixerBrushOptions</name>
 <message><source>Personnalisé</source><translation>Custom</translation></message>

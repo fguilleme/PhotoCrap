@@ -2731,7 +2731,8 @@ private slots:
                         QVERIFY(
                             !d.selectionBusy()); // Changing the source cancels queued feathering.
                         const int history = d.historyIndex();
-                        d.copy();
+                        d.copyMerged();
+                        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
                         const QImage image = QGuiApplication::clipboard()->image();
                         QVERIFY(!image.isNull());
                         QCOMPARE(image.format(), d.workingFormat());
@@ -2743,7 +2744,8 @@ private slots:
                         if (effect != "noise")
                             QCOMPARE(cache.cacheKey(), key);
                         d.deselect();
-                        d.copy();
+                        d.copyMerged();
+                        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
                         QCOMPARE(QGuiApplication::clipboard()->image(), d.composite());
                     }
         QCOMPARE(
@@ -2790,7 +2792,8 @@ private slots:
                     d.setLayerVisible(0, false);
                     d.setLayerVisible(0, true);
                     const int history = d.historyIndex();
-                    d.copy();
+                    d.copyMerged();
+                    QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
                     QCOMPARE(QGuiApplication::clipboard()->image(), expected);
                     QCOMPARE(d.historyIndex(), history);
                 }

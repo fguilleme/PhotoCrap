@@ -33,16 +33,14 @@ void Document::beginPatch(const QPointF &_point)
 {
     if (!editable())
         return;
-    if (m_editingMask) {
-        fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
-        return;
-    }
     if (!selectionContains(_point.x(), _point.y())) {
         beginLasso(_point.x(), _point.y());
         return;
     }
     m_beforeStroke        = snapshot(tr("Pièce"));
-    m_patchSource         = m_layers[m_active].image;
+    m_patchSource         = toolPlane();
+    if (m_editingMask && !m_patchSource.convertTo(QImage::Format_ARGB32_Premultiplied))
+        return;
     m_patchOffset         = {};
     m_patchDragging       = true;
     m_drawing             = true;
@@ -207,7 +205,7 @@ void Document::startPatchRepair()
                 const PatchResult result = watcher->result();
                 watcher->deleteLater();
                 if (cancel->load() || generation != m_patchGeneration || m_stateId != before.id ||
-                    m_active != before.active)
+                    m_active != before.active || m_editingMask != before.editingMask)
                     return;
                 m_patchBusy = false;
                 m_patchCancel.reset();
@@ -221,8 +219,7 @@ void Document::startPatchRepair()
                             tr("Impossible de calculer la réparation de cette zone."));
                     return;
                 }
-                if (!m_layers[m_active].image.writeRegion(result.dirty.topLeft(), result.image,
-                                                          m_size)) {
+                if (!writeToolRegion(result.dirty.topLeft(), result.image)) {
                     clearPatch();
                     emit settingsChanged();
                     emit historyChanged();

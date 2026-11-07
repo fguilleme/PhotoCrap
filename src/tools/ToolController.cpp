@@ -93,7 +93,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     }
     if (m_magicEraserBusy)
         return;
-    if (m_tool == "magicEraser") {
+    if (m_tool == "magicEraser" && !m_editingMask) {
         applyMagicEraser(QPoint(int(std::floor(_x)), int(std::floor(_y))));
         return;
     }
@@ -206,13 +206,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         return;
     if (!newLayer && !editable(true, m_tool == "move"))
         return;
-    if (!newLayer && m_editingMask && m_tool != "brush" && m_tool != "pencil" &&
-        m_tool != "eraser" && m_tool != "fill" && m_tool != "cloneStamp" &&
-        m_tool != "patternStamp" && m_tool != "smudge" && m_tool != "mixerBrush") {
-        fail(tr("Utilisez le pinceau, la gomme ou le remplissage pour modifier un masque."));
-        return;
-    }
-    if (m_moveCopy && !hasSelection() &&
+    if (m_moveCopy && !m_editingMask && !hasSelection() &&
         (!validSize(width(), height(), int(m_layers.size()) + 1) ||
          !validLayerStorage(width(), height(), 1, !m_layers[m_active].mask.isNull())))
         return;
@@ -226,17 +220,16 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     } else
         m_beforeStroke = snapshot(toolLabel(m_tool));
     if ((isShapeStrokeTool(m_tool) && m_tool != "move" &&
-         (m_tool != "gradient" || hasSelection() ||
-          m_layers[m_active].image.devicePixelRatio() == 1.)) ||
+         (m_tool != "gradient" || hasSelection() || toolPlane().devicePixelRatio() == 1.)) ||
         (m_tool == "move" &&
-         (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape" ||
-          hasSelection() ||
-          PhotoCrap::Tools::canMoveLayerTiled(m_layers[m_active].image, m_size)))) {
-        m_strokePlaneBase = m_layers[m_active].image;
+         ((!m_editingMask &&
+           (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape")) ||
+          hasSelection() || PhotoCrap::Tools::canMoveLayerTiled(toolPlane(), m_size)))) {
+        m_strokePlaneBase = toolPlane();
         m_strokeBounds    = {};
     } else if (isShapeStrokeTool(m_tool) || m_tool == "text")
-        m_strokeBase = m_layers[m_active].image;
-    if (m_tool == "move" &&
+        m_strokeBase = toolPlane();
+    if (m_tool == "move" && !m_editingMask &&
         (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape"))
         m_textMoveParameters = m_layers[m_active].parameters;
     m_drawing       = true;
@@ -291,7 +284,12 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_strokeCoverageFailed = false;
         if (m_tool != "smudge" && m_tool != "mixerBrush" && m_tool != "healing" &&
             m_tool != "spotHealing") {
-            m_tiledStrokeCoverage  = TiledImage(m_size, workingFormat(), Qt::transparent);
+            const bool legacyMask =
+                m_editingMask && (m_tool == "colorReplacement" || m_tool == "historyBrush" ||
+                                  m_tool == "artHistoryBrush");
+            m_tiledStrokeCoverage = TiledImage(
+                m_size, legacyMask ? QImage::Format_ARGB32_Premultiplied : workingFormat(),
+                Qt::transparent);
             m_strokeCoverageFailed = m_tiledStrokeCoverage.isNull();
         }
         if (m_tool == "spotHealing")
@@ -306,7 +304,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         paintSegment(m_anchor, m_anchor);
         if (m_strokeConnect && m_anchor != requestedEnd)
             continueStroke(requestedEnd.x(), requestedEnd.y());
-    } else if (m_tool == "fill") {
+    } else if (m_tool == "fill" || m_tool == "magicEraser") {
         floodFill(QPoint(int(_x), int(_y)));
         endStroke();
     }
@@ -502,8 +500,9 @@ void Document::endStroke()
         return;
     }
     if (m_strokeChanged) {
-        if (m_tool == "move" && hasSelection() && m_layers[m_active].kind != "text" &&
-            m_layers[m_active].kind != "shape") {
+        if (m_tool == "move" && hasSelection() &&
+            (m_editingMask ||
+             (m_layers[m_active].kind != "text" && m_layers[m_active].kind != "shape"))) {
             const QPoint offset = (m_last - m_anchor).toPoint();
             m_selection = m_selection.translated(offset).intersected(QRect(QPoint{}, m_size));
             m_selectionRegion =
@@ -633,6 +632,25 @@ void Document::cancelStroke()
     m_smudgePickup = {};
     m_smudgeMask   = {};
     m_smudgeCompositeSource.reset();
+}
+PixelPlane &Document::toolPlane()
+{
+    return m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+}
+const PixelPlane &Document::toolPlane() const
+{
+    return m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
+}
+bool Document::writeToolRegion(const QPoint &_origin, const QImage &_pixels)
+{
+    return toolPlane().writeRegion(_origin, _pixels.convertToFormat(toolPlane().format()), m_size);
+}
+bool Document::replaceToolPlane(PixelPlane _plane)
+{
+    if (!_plane.convertTo(toolPlane().format()))
+        return false;
+    toolPlane() = std::move(_plane);
+    return true;
 }
 QImage *Document::paintTarget()
 {

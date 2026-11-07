@@ -12,6 +12,9 @@ void Document::renderRetouchStroke()
                                : m_toolAlternate && m_tool == "blur"    ? "sharpen"
                                : m_toolAlternate && m_tool == "sharpen" ? "blur"
                                                                         : m_tool;
+    // A grayscale mask has no saturation to increase or decrease.
+    if (m_editingMask && effectTool == "sponge")
+        return;
     QRect         region     = m_strokeBounds.toAlignedRect().intersected(QRect(QPoint{}, m_size));
     if (hasSelection())
         region = region.intersected(m_selection);
@@ -23,7 +26,8 @@ void Document::renderRetouchStroke()
     QRect sampleRegion = region;
     if (effectTool == "blur" || effectTool == "sharpen")
         sampleRegion = region.adjusted(-4, -4, 4, 4).intersected(QRect(QPoint{}, m_size));
-    const QImage coveragePatch = m_tiledStrokeCoverage.region(region);
+    const QImage coveragePatch =
+        m_tiledStrokeCoverage.region(region).convertToFormat(workingFormat());
     if (coveragePatch.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -113,8 +117,7 @@ void Document::renderRetouchStroke()
                                  mixedChannel(blue, effectBlue, amount), P::alpha(pixel));
             }
         }
-        if (!m_layers[m_active].image.writeRegion(region.topLeft(),
-                                                  output.convertToFormat(P::premultiplied), m_size))
+        if (!writeToolRegion(region.topLeft(), output.convertToFormat(P::premultiplied)))
             m_strokeCoverageFailed = true;
     };
     if (m_channelBits == 16)

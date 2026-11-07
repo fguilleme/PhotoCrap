@@ -3,6 +3,8 @@
 
 bool Document::toolNeedsNewLayer() const
 {
+    if (m_editingMask)
+        return false;
     if (m_tool == "text")
         return true;
     if (m_tool == "rectangle" || m_tool == "ellipse" || m_tool == "triangle" ||

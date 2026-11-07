@@ -10,8 +10,9 @@ RowLayout {
 
     ComboBox {
         objectName: "gradientApplyMode"
-        model: [qsTr("Dégradé classique"), qsTr("Dégradé dynamique")]
-        currentIndex: root.document.gradientNewLayer ? 1 : 0
+        model: root.document.editingMask ? [qsTr("Masque de fusion")] : [qsTr("Dégradé classique"), qsTr("Dégradé dynamique")]
+        currentIndex: root.document.editingMask ? 0 : root.document.gradientNewLayer ? 1 : 0
+        enabled: !root.document.editingMask
         implicitWidth: 164
         onActivated: {
             root.document.gradientNewLayer = currentIndex === 1

@@ -101,7 +101,9 @@ void Document::commitPenEdit(const Snapshot &_before, const QString &_label)
     const bool wasShape = _before.activePenPath >= 0 &&
                           _before.activePenPath < _before.penPaths.size() &&
                           !_before.penPaths[_before.activePenPath].shapeLayerId.isEmpty();
-    if (m_penShapeGesture || wasShape || penShapeLayerIndex() >= 0) {
+    if (m_penShapeGesture || wasShape || penShapeLayerIndex() >= 0 ||
+        (m_editingMask && m_penMode == "shape" && m_activePenPath >= 0 &&
+         !m_penPaths[m_activePenPath].points.isEmpty())) {
         if (!updatePenShapeLayer()) {
             restore(_before);
             return;
@@ -124,10 +126,12 @@ void Document::commitPenEdit(const Snapshot &_before, const QString &_label)
 void Document::setActivePenPath(int _index)
 {
     endPenGesture();
+    if (_index != m_activePenPath)
+        m_maskPenBase = {};
     m_penDrawing    = false;
     m_activePenPath = _index >= 0 && _index < m_penPaths.size() ? _index : -1;
     m_selectedPenPoints.clear();
-    if (m_activePenPath >= 0) {
+    if (!m_editingMask && m_activePenPath >= 0) {
         m_penMode = m_penPaths[m_activePenPath].shapeLayerId.isEmpty() ? "path" : "shape";
         emit penOptionsChanged();
     }
@@ -743,6 +747,8 @@ void Document::fillPenPath()
     if (bounds.isEmpty() || path.isEmpty())
         return;
     const auto   before   = snapshot({});
+    if (m_editingMask)
+        m_maskPenBase = {};
     PixelPlane  &target   = m_editingMask ? m_layers[m_active].mask : m_layers[m_active].image;
     const QImage original = target.region(bounds);
     QImage       output   = original.copy();
@@ -775,6 +781,8 @@ void Document::strokePenPath()
     finishPenPath();
     if (m_activePenPath < 0 || !editable())
         return;
+    if (m_editingMask)
+        m_maskPenBase = {};
     const auto  polygons = m_penPaths[m_activePenPath].painterPath().toSubpathPolygons();
     const qreal margin   = m_brushSize / 2 + 3;
     QRectF      bounds   = QRectF(QPointF{}, m_size);

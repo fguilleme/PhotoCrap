@@ -169,7 +169,7 @@ void Document::cancelRemoval()
 }
 void Document::beginRemove(const QPointF &_point, bool _alternate)
 {
-    if (!editable() || m_editingMask)
+    if (!editable())
         return;
     // New marks invalidate the old result, retaining every unapplied mark. This
     // avoids losing a stroke when another stroke starts while the worker runs.
@@ -232,12 +232,13 @@ void Document::applyRemoval()
         finishRemove();
         m_removeAfterEachStroke = automatic;
     }
-    if (m_removeRegion.isEmpty() || m_removeBusy || !editable() || m_editingMask)
+    if (m_removeRegion.isEmpty() || m_removeBusy || !editable())
         return;
     const Snapshot       before     = snapshot(tr("Suppression"));
-    const QImage         source     = m_layers[m_active].image;
+    const PixelPlane     source     = toolPlane();
     const QImage         coverage   = before.selectionMask;
-    const QVector<Layer> layers     = m_removeSampleAllLayers ? m_layers : QVector<Layer>{};
+    const QVector<Layer> layers =
+        m_removeSampleAllLayers && !m_editingMask ? m_layers : QVector<Layer>{};
     const QSize          size       = m_size;
     const QRegion        region     = m_removeRegion;
     const quint64        generation = ++m_removeGeneration;
@@ -252,7 +253,7 @@ void Document::applyRemoval()
                 const RemovalResult result = watcher->result();
                 watcher->deleteLater();
                 if (cancel->load() || generation != m_removeGeneration || m_stateId != before.id ||
-                    m_active != before.active)
+                    m_active != before.active || m_editingMask != before.editingMask)
                     return;
                 m_removeBusy = false;
                 m_removeCancel.reset();
@@ -270,7 +271,8 @@ void Document::applyRemoval()
                 }
                 // The worker already expanded compact layers and owns the
                 // finished pixels; paintTarget() would expand again on the GUI.
-                m_layers[m_active].image = result.image;
+                if (!replaceToolPlane(PixelPlane(result.image)))
+                    return;
                 m_dirtyRegion            = m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Suppression"), false, false);
                 ++m_thumbnailRevision;
@@ -279,15 +281,21 @@ void Document::applyRemoval()
             });
     // Document, QML and UI state stay on the GUI thread. The worker sees only
     // immutable images/regions and a cancellation token.
-    watcher->setFuture(QtConcurrent::run([source, layers, size, region, coverage, cancel] {
+    watcher->setFuture(QtConcurrent::run([source, layers, size, region, coverage, cancel,
+                                          mask = m_editingMask] {
         if (cancel->load())
             return RemovalResult{};
-        const QImage target = ImageUtils::expandedPlane(source, size);
+        const QImage target =
+            ImageUtils::expandedPlane(source, size)
+                .convertToFormat(mask ? QImage::Format_ARGB32_Premultiplied : source.format());
         if (target.isNull() || cancel->load())
             return RemovalResult{};
         const QImage sample =
             layers.isEmpty() ? target : renderPreviewSnapshot(layers, size, size, false);
         const QImage fill = ContentFill::reconstruct(sample, region, region, 4, cancel);
-        return finishRemoval(target, fill, region, coverage, cancel);
+        auto         result = finishRemoval(target, fill, region, coverage, cancel);
+        if (mask && !result.image.isNull())
+            result.image = result.image.convertToFormat(QImage::Format_Grayscale8);
+        return result;
     }));
 }

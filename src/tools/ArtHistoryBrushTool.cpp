@@ -139,7 +139,7 @@ void Document::renderArtHistoryStroke()
     QImage      base =
         m_strokePlaneBase.region(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     QImage paint   = m_tiledStrokeCoverage.region(work);
-    QImage current = m_layers[m_active].image.region(work);
+    QImage current = toolPlane().region(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (base.isNull() || paint.isNull() || current.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -190,7 +190,7 @@ void Document::renderArtHistoryStroke()
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.drawImage(0, 0, output);
     painter.end();
-    if (!m_layers[m_active].image.writeRegion(work.topLeft(), current, m_size)) {
+    if (!writeToolRegion(work.topLeft(), current)) {
         m_strokeCoverageFailed = true;
         return;
     }

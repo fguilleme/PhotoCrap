@@ -11,7 +11,8 @@ bool canMoveLayerTiled(const PixelPlane &_source, const QSize &_size)
     if (_source.isNull() || _size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
         qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
         (_source.format() != QImage::Format_ARGB32_Premultiplied &&
-         _source.format() != QImage::Format_RGBA64_Premultiplied))
+         _source.format() != QImage::Format_RGBA64_Premultiplied &&
+         _source.format() != QImage::Format_Grayscale8))
         return false;
     const QImage first = _source.tileImage(0, 0);
     if (first.isNull() || first.devicePixelRatio() != 1.)
@@ -95,11 +96,13 @@ SelectionMoveResult moveSelection(const PixelPlane &_source, const QSize &_size,
     if (_source.isNull() || _bounds.isEmpty() || !canvas.contains(_bounds) ||
         (_source.size() != QSize(1, 1) && _source.size() != _size))
         return result;
-    const auto format = _source.format();
+    const auto format = _source.format() == QImage::Format_Grayscale8
+                            ? QImage::Format_ARGB32_Premultiplied
+                            : _source.format();
     if (format != QImage::Format_ARGB32_Premultiplied &&
         format != QImage::Format_RGBA64_Premultiplied)
         return result;
-    QImage source   = _source.region(_bounds);
+    QImage source   = _source.region(_bounds).convertToFormat(format);
     QImage selected = ImageUtils::blank(_bounds.size(), format);
     if (source.isNull() || selected.isNull())
         return result;
@@ -127,20 +130,21 @@ SelectionMoveResult moveSelection(const PixelPlane &_source, const QSize &_size,
             painter.drawImage(QPoint{}, removal);
         }
         painter.end();
-        if (!next.writeRegion(_bounds.topLeft(), source, _size))
+        if (!next.writeRegion(_bounds.topLeft(), source.convertToFormat(_source.format()), _size))
             return result;
         result.region = _bounds;
     }
     const QPoint destination       = _bounds.topLeft() + _offset;
     const QRect  destinationBounds = QRect(destination, _bounds.size()).intersected(canvas);
     if (!destinationBounds.isEmpty()) {
-        QImage image = next.region(destinationBounds);
+        QImage image = next.region(destinationBounds).convertToFormat(format);
         if (image.isNull())
             return result;
         QPainter painter(&image);
         painter.drawImage(destination - destinationBounds.topLeft(), selected);
         painter.end();
-        if (!next.writeRegion(destinationBounds.topLeft(), image, _size))
+        if (!next.writeRegion(destinationBounds.topLeft(), image.convertToFormat(_source.format()),
+                              _size))
             return result;
         result.region = result.region.united(destinationBounds);
     }

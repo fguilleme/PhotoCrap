@@ -21,6 +21,7 @@ Rectangle {
         }
         CheckBox {
             objectName: "removeAllLayers"
+            enabled: !root.document.editingMask
             text: qsTr("Tous les calques")
             checked: root.document.removeSampleAllLayers
             onToggled: root.document.removeSampleAllLayers = checked

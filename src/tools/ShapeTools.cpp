@@ -36,7 +36,7 @@ void Document::renderShape(const QPointF &_to)
         m_strokeChanged = false;
         return;
     }
-    if (m_tool == "move" &&
+    if (m_tool == "move" && !m_editingMask &&
         (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape")) {
         if (m_moveCopy && !m_moveDuplicatedLayer && _to != m_anchor) {
             auto layer      = m_layers[m_active];
@@ -83,8 +83,8 @@ void Document::renderShape(const QPointF &_to)
             syncPenShapePath();
         return;
     }
-    if (m_tool == "move" && m_moveCopy && !hasSelection() && !m_moveDuplicatedLayer &&
-        _to != m_anchor) {
+    if (m_tool == "move" && !m_editingMask && m_moveCopy && !hasSelection() &&
+        !m_moveDuplicatedLayer && _to != m_anchor) {
         auto layer = m_layers[m_active];
         layer.name += tr(" — copie");
         layer.historyId = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -101,7 +101,7 @@ void Document::renderShape(const QPointF &_to)
             fail(tr("Mémoire insuffisante pour déplacer le calque."));
             return;
         }
-        m_layers[m_active].image = result.image;
+        toolPlane()    = result.image;
         m_dirtyRegion  = m_dirtyRegion.united(m_strokeBounds.toAlignedRect().united(result.region));
         m_strokeBounds = result.region;
         m_strokeChanged =
@@ -118,7 +118,7 @@ void Document::renderShape(const QPointF &_to)
             fail(tr("Mémoire insuffisante pour déplacer la sélection."));
             return;
         }
-        m_layers[m_active].image = result.image;
+        toolPlane()    = result.image;
         m_dirtyRegion  = m_dirtyRegion.united(m_strokeBounds.toAlignedRect().united(result.region));
         m_strokeBounds = result.region;
         // The selection itself moves even when its pixels are transparent or
@@ -205,8 +205,8 @@ void Document::renderShape(const QPointF &_to)
                 return;
             }
         }
-        m_layers[m_active].image = std::move(next);
-        m_strokeChanged = m_layers[m_active].image.cacheKey() != m_strokePlaneBase.cacheKey();
+        toolPlane()     = std::move(next);
+        m_strokeChanged = toolPlane().cacheKey() != m_strokePlaneBase.cacheKey();
         m_dirtyRegion   = m_dirtyRegion.united(QRect(QPoint{}, m_size));
         changed(false);
         return;
@@ -258,23 +258,23 @@ void Document::renderShape(const QPointF &_to)
                 }
             }
         }
-        m_layers[m_active].image = std::move(next);
+        toolPlane()              = std::move(next);
         m_strokeBounds           = bounds;
-        m_strokeChanged = m_layers[m_active].image.cacheKey() != m_strokePlaneBase.cacheKey();
+        m_strokeChanged          = toolPlane().cacheKey() != m_strokePlaneBase.cacheKey();
         m_dirtyRegion   = m_dirtyRegion.united(previous.united(bounds));
         changed(false);
         return;
     }
     const QImage sourceImage = ImageUtils::expandedPlane(m_strokeBase, m_size);
-    m_layers[m_active].image = sourceImage;
+    toolPlane()              = sourceImage;
     if (m_tool == "move") {
         QImage   result = m_moveCopy ? sourceImage : ImageUtils::blank(m_size, workingFormat());
         QPainter painter(&result);
         painter.drawImage((_to - m_anchor).toPoint(), sourceImage);
         painter.end();
-        m_layers[m_active].image = result;
+        toolPlane() = result;
     } else {
-        QPainter painter(&m_layers[m_active].image.edit());
+        QPainter   painter(&toolPlane().edit());
         const bool rendered = draw(painter, QRect(QPoint{}, m_size));
         painter.end();
         if (!rendered) {
@@ -282,7 +282,7 @@ void Document::renderShape(const QPointF &_to)
             fail(tr("Mémoire insuffisante pour dessiner le dégradé."));
             return;
         }
-        SelectionCoverage::blend(m_layers[m_active].image.edit(), sourceImage, m_selectionMask,
+        SelectionCoverage::blend(toolPlane().edit(), sourceImage, m_selectionMask,
                                  QRect(QPoint{}, m_size));
     }
     m_strokeChanged      = true;

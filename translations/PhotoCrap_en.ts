@@ -5235,4 +5235,12 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Tous les calques</source><translation>All Layers</translation></message>
     <message><source>Détecter les couleurs sur les calques visibles et remplir le calque actif</source><translation>Sample colors from visible layers and fill the active layer</translation></message>
   </context>
+  <context>
+    <name>GradientOptions</name>
+    <message><source>Masque de fusion</source><translation>Layer Mask</translation></message>
+  </context>
+  <context>
+    <name>HealingBrushOptions</name>
+    <message><source>Masque de fusion</source><translation>Layer Mask</translation></message>
+  </context>
 </TS>

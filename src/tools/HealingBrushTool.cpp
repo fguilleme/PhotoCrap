@@ -205,8 +205,8 @@ bool Document::prepareHealingSample(PixelPlane &_sample, std::unique_ptr<Documen
 {
     _sample = {};
     _composite.reset();
-    if (_sampleMode == 0)
-        _sample = m_layers[m_active].image;
+    if (m_editingMask || _sampleMode == 0)
+        _sample = toolPlane();
     else {
         auto layers = m_layers;
         for (int i = 0; i < layers.size(); ++i)
@@ -277,7 +277,8 @@ void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample,
                                   hasSelection() && _selectionBoundary, _diffusion, m_brushAngle,
                                   m_brushRoundness);
     const QPoint offset = region.topLeft() - dab.topLeft();
-    QImage       healed = ImageUtils::blank(region.size(), workingFormat());
+    QImage       healed = ImageUtils::blank(
+        region.size(), m_editingMask ? QImage::Format_ARGB32_Premultiplied : workingFormat());
     if (healed.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -301,7 +302,7 @@ void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample,
                             P::blue(colour) + correction[2], P::alpha(colour)));
             }
         }
-        QImage output = m_layers[m_active].image.region(region).convertToFormat(
+        QImage output = toolPlane().region(region).convertToFormat(
             ImageUtils::PixelAccess<Pixel>::premultiplied);
         static constexpr int modes[]{0, 0, 3, 8, 2, 7, 25, 26};
         const QImage effect = _mode == 1 ? healed : blendImages(output, healed, modes[_mode], 1.);
@@ -338,14 +339,14 @@ void Document::applyHealingDab(const QPointF &_point, const PixelPlane &_sample,
         if (modified.isEmpty())
             return;
         const QRect dirty = modified.translated(region.topLeft());
-        if (!m_layers[m_active].image.writeRegion(dirty.topLeft(), output.copy(modified), m_size)) {
+        if (!writeToolRegion(dirty.topLeft(), output.copy(modified))) {
             m_strokeCoverageFailed = true;
             return;
         }
         m_strokeBounds = m_strokeBounds.isEmpty() ? QRectF(dirty) : m_strokeBounds.united(dirty);
         m_dirtyRegion  = m_dirtyRegion.isEmpty() ? dirty : m_dirtyRegion.united(dirty);
     };
-    if (m_channelBits == 16)
+    if (ImageUtils::is16Bit(healed))
         render.template operator()<QRgba64>();
     else
         render.template operator()<QRgb>();

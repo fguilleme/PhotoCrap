@@ -102,7 +102,7 @@ void Document::setReplacementAntialias(bool _value)
 
 void Document::colorReplacementDab(const QPointF &_point)
 {
-    if (m_strokePlaneBase.isNull() || m_editingMask)
+    if (m_strokePlaneBase.isNull())
         return;
     const QPoint center(qFloor(_point.x()), qFloor(_point.y()));
     if (!QRect(QPoint{}, m_size).contains(center))
@@ -128,7 +128,7 @@ void Document::colorReplacementDab(const QPointF &_point)
     const QImage base = m_strokePlaneBase.region(region).convertToFormat(QImage::Format_ARGB32);
     QImage       tip  = ImageUtils::blank(region.size());
     QImage       coveragePatch = m_tiledStrokeCoverage.region(region);
-    QImage       output        = m_layers[m_active].image.region(region);
+    QImage output = toolPlane().region(region).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (base.isNull() || tip.isNull() || coveragePatch.isNull() || output.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -246,7 +246,7 @@ void Document::colorReplacementDab(const QPointF &_point)
     }
     if (touched.isEmpty())
         return;
-    if (!m_layers[m_active].image.writeRegion(region.topLeft(), output, m_size)) {
+    if (!writeToolRegion(region.topLeft(), output)) {
         m_strokeCoverageFailed = true;
         return;
     }

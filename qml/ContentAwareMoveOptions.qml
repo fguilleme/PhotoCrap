@@ -39,6 +39,7 @@ Rectangle {
         }
         CheckBox {
             objectName: "contentMoveAllLayers"
+            enabled: !root.document.editingMask
             text: qsTr("Tous les calques")
             checked: root.document.contentMoveSampleAllLayers
             onToggled: root.document.contentMoveSampleAllLayers = checked

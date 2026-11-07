@@ -1720,6 +1720,11 @@ private:
     void        beginTextEdit(int _index, bool _fromCanvas);
     void        updateTextGesture(qreal _x, qreal _y);
     bool        renderTextEdit();
+    bool               m_textMaskEdit = false;
+    QVariantMap        m_maskTextParameters;
+    QRect              m_maskTextBounds;
+    QVariantMap &      textParameters();
+    const QVariantMap &textParameters() const;
 
     Snapshot          m_beforeLayerPreview;
     QImage            m_beforeLayerPreviewComposite;
@@ -1795,6 +1800,15 @@ private:
     void    renderShape(const QPointF &_to);
     void    floodFill(QPoint _point);
     QImage *paintTarget();
+    PixelPlane &      toolPlane();
+    const PixelPlane &toolPlane() const;
+    bool              writeToolRegion(const QPoint &_origin, const QImage &_pixels);
+    bool              replaceToolPlane(PixelPlane _plane);
+    PixelPlane        m_maskPenBase;
+    QString           m_maskPenLayerId;
+    int               m_maskPenPathIndex = -1;
+    QRect             m_maskPenBounds;
+    bool              renderMaskPenShape(const QVariantMap &_style);
     QImage  readImage(const QString &_path);
     bool    loadProject(const QString &_path);
     void    adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project);

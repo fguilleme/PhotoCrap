@@ -156,9 +156,10 @@ void Document::applyMagicWand(const QPoint &_point)
 {
     if (!QRect(QPoint{}, m_size).contains(_point))
         return;
-    const bool       composed   = m_selectionSampleAllLayers || m_active < 0 ||
-                                  m_active >= m_layers.size() || m_layers[m_active].kind != "pixel";
-    const PixelPlane source     = composed ? PixelPlane{} : m_layers[m_active].image;
+    const bool composed =
+        m_active < 0 || m_active >= m_layers.size() ||
+        (!m_editingMask && (m_selectionSampleAllLayers || m_layers[m_active].kind != "pixel"));
+    const PixelPlane source     = composed ? PixelPlane{} : toolPlane();
     const int        tolerance  = m_selectionTolerance;
     const bool       contiguous = m_selectionContiguous;
     const bool       uniform =
@@ -284,11 +285,12 @@ void Document::continueQuickSelection(const QPointF &_point)
     const QRect  limit = QRect(seed.x() - reach, seed.y() - reach, reach * 2 + 1, reach * 2 + 1)
                              .intersected(documentRect);
     QImage       source;
-    if (m_selectionSampleAllLayers || m_active < 0 || m_active >= m_layers.size() ||
-        m_layers[m_active].kind != QStringLiteral("pixel"))
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        (!m_editingMask &&
+         (m_selectionSampleAllLayers || m_layers[m_active].kind != QStringLiteral("pixel"))))
         source = compositeRegion(limit);
     else {
-        const auto &plane = m_layers[m_active].image;
+        const auto &plane = toolPlane();
         source = ImageUtils::compact(plane) ? ImageUtils::expandedPlane(plane, limit.size())
                                             : plane.region(limit);
     }

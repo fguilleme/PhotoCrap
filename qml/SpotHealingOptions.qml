@@ -22,6 +22,7 @@ Rectangle {
         Label { text: qsTr("Correspondance de proximité"); color: "#c4cdd5" }
         CheckBox {
             objectName: "spotHealingSampleAllLayers"
+            enabled: !root.document.editingMask
             text: qsTr("Tous les calques")
             checked: root.document.spotHealingSampleAllLayers
             onToggled: root.document.spotHealingSampleAllLayers = checked

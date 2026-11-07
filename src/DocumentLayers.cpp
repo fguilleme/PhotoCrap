@@ -415,7 +415,16 @@ void Document::setEditingMask(bool _enabled)
     if (m_editingMask == _enabled)
         return;
     endStroke();
+    cancelOperation();
+    cancelMagicErase();
+    invalidatePatch(true);
+    invalidateContentMove(true);
+    cancelRemoval();
+    m_maskPenBase = {};
     m_editingMask = _enabled;
+    syncPenShapePath();
+    emit gradientGuideChanged();
+    emit textGeometryChanged();
     emit layersChanged();
 }
 void Document::createDemo()

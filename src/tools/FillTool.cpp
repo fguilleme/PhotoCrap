@@ -23,7 +23,8 @@ void Document::floodFill(QPoint _point)
         fail(tr("Mémoire insuffisante pour le remplissage."));
         return;
     }
-    solid.fill(m_editingMask ? maskColor(m_color) : m_color);
+    const bool magic = m_tool == "magicEraser";
+    solid.fill(m_editingMask ? maskColor(magic ? m_secondary : m_color) : m_color);
     PhotoCrap::Tools::FloodFillOptions options;
     options.size          = m_size;
     options.selection     = hasSelection() ? m_selectionRegion : QRegion{};
@@ -31,10 +32,10 @@ void Document::floodFill(QPoint _point)
     options.replacement   = solid.pixelColor(0, 0);
     options.opacity       = m_brushOpacity;
     options.overlayFormat = workingFormat();
-    options.tolerance     = qBound(0, m_fillTolerance, 255);
-    options.contiguous    = m_fillContiguous;
-    options.antialias     = m_fillAntialias;
-    if (m_fillUsePattern) {
+    options.tolerance     = qBound(0, magic ? m_magicEraserTolerance : m_fillTolerance, 255);
+    options.contiguous    = magic ? m_magicEraserContiguous : m_fillContiguous;
+    options.antialias     = magic ? m_magicEraserAntialias : m_fillAntialias;
+    if (!magic && m_fillUsePattern) {
         options.pattern = stampPatternImage(m_fillPattern);
         if (options.pattern.isNull()) {
             fail(tr("Choisissez un motif disponible pour le remplissage."));
@@ -43,7 +44,7 @@ void Document::floodFill(QPoint _point)
         if (m_editingMask)
             options.pattern = options.pattern.convertToFormat(QImage::Format_Grayscale8);
     }
-    if (m_fillBlend != 0) {
+    if (!magic && m_fillBlend != 0) {
         options.compose = [mode = qBound(0, m_fillBlend, 26), opacity = options.opacity](
                               const QImage &base, const QImage &overlay, const QPoint &origin) {
             return blendImages(base, overlay, mode, opacity, origin);

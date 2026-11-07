@@ -29,15 +29,16 @@ Rectangle {
         }
         ComboBox {
             objectName: "healingSampleMode"
-            model: [qsTr("Calque actif"), qsTr("Actif et inférieurs"), qsTr("Tous les calques")]
-            currentIndex: root.document.healingSampleMode
+            model: root.document.editingMask ? [qsTr("Masque de fusion")] : [qsTr("Calque actif"), qsTr("Actif et inférieurs"), qsTr("Tous les calques")]
+            enabled: !root.document.editingMask
+            currentIndex: root.document.editingMask ? 0 : root.document.healingSampleMode
             implicitWidth: 165; implicitHeight: 30
             onActivated: root.document.healingSampleMode = currentIndex
         }
         CheckBox {
             objectName: "healingIgnoreAdjustments"
             text: qsTr("Ignorer les réglages")
-            enabled: root.document.healingSampleMode !== 0
+            enabled: !root.document.editingMask && root.document.healingSampleMode !== 0
             checked: root.document.healingIgnoreAdjustments
             onToggled: root.document.healingIgnoreAdjustments = checked
         }

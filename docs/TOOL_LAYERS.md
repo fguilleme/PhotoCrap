@@ -8,7 +8,7 @@
 | Rectangle, Ellipse, Triangle, Polygone, Étoile, Ligne — Nouveau calque | Nouveau calque transparent par geste, sélectionné automatiquement. C’est le mode par défaut. |
 | Les mêmes formes — Pixels sur calque actif | Dessin dans le calque de pixels sélectionné ; les erreurs de cible et les verrouillages restent applicables. |
 | Pinceau/Crayon sur contenu non peignable, préférence activée | Nouveau calque de pixels au premier geste ; les gestes suivants peignent ce calque. |
-| Pinceau/Crayon sur un masque sélectionné | Peinture du masque, sans création de calque. |
+| Outil de peinture, retouche, dégradé, forme ou texte sur un masque sélectionné | Le masque est prioritaire, sans création de calque. Les couleurs sont converties en niveaux de gris. |
 | Dégradé raster classique, Pot de peinture, gomme et retouches | Cible actuelle et restrictions propres à l’outil ; aucun contournement général par création de calque. |
 | Plume en mode Forme | Nouveau calque vectoriel au premier point, fond et contour modifiables ; les points restent éditables après le dessin, projets v11. |
 | Plume en mode Tracé, sélections, recadrage et mesures | Aucun nouveau calque pour définir leurs repères. |
@@ -17,6 +17,21 @@ La préférence Pinceau/Crayon est activée par défaut et se trouve dans **Rég
 Outils**. Elle est conservée entre lancements. Un calque de pixels verrouillé
 reste protégé ; cette option cible les types non peignables, sans convertir ni
 rasteriser le contenu existant.
+
+Le masque sélectionné reste la cible même si les formes sont réglées sur
+« Nouveau calque » ou si le dégradé est en mode dynamique. La barre indique alors
+« Masque de fusion ». Le dégradé et les formes y produisent des pixels, sans
+modifier le contenu ou les paramètres du calque porteur. Le texte est éditable
+pendant sa saisie (déplacement et mise en forme inclus), puis déposé dans le masque
+à la validation ; Annuler restaure le masque initial. Les tracés de Plume restent
+disponibles et leur remplissage, contour ou mode Forme peuvent peindre le masque.
+La gomme, y compris magique, y utilise le gris de la couleur d’arrière-plan.
+Les outils fondés sur une source lisent le masque, même si « Tous les calques »
+était activé pour la retouche couleur. Œil rouge et Éponge n’ont pas d’effet couleur
+sur ces valeurs grises. Les verrouillages, sélections et contours progressifs
+restent applicables. Changer de cible annule une réparation encore en calcul.
+
+Référence : [éditer un masque de fusion, Adobe](https://helpx.adobe.com/photoshop/using/editing-layer-masks.html).
 
 Le calque indépendant est inséré au-dessus du calque actif, ou à l’intérieur du
 groupe sélectionné, déplié pour montrer ce nouveau contenu. Un groupe masqué ou verrouillé reste intact : le nouveau
@@ -40,13 +55,14 @@ est conservée ; les calques de texte éditable nécessitent le projet v9.
 - [Créer un calque avec Pinceau/Crayon](https://helpx.adobe.com/ca/photoshop/desktop/apply-painting-techniques/fill-objects-selections-layers/create-a-new-layer-when-brushing.html) : la préférence Adobe crée un calque de pixels lorsqu’on peint sur un contenu non peignable, par exemple un objet dynamique ou un réglage. PhotoCrap applique cette règle aux types qu’il prend en charge ; les objets dynamiques restent absents.
 - [Création et groupes](https://helpx.adobe.com/photoshop/desktop/create-manage-layers/create-layer-compositions/create-layers-and-layer-groups.html) : les nouveaux calques se placent au-dessus de la sélection ou dans le groupe sélectionné. Le placement hors d’un groupe protégé/masqué décrit ci-dessus est la règle explicite de PhotoCrap.
 
-Les masques vectoriels de forme, les opérations
-booléennes et le dégradé non destructif avec poignées restent des étapes distinctes.
+Les masques vectoriels généraux et les opérations booléennes restent des étapes
+distinctes. Un dégradé sur un masque est raster ; ses poignées ne restent pas
+éditables après validation, contrairement au calque de remplissage Dégradé.
 
 ## Vérifications
 
 Les tests du document couvrent chaque forme et le texte en 8/16 bits au-dessus
-d’un réglage avec masque sélectionné, les pixels d’origine préservés, Annuler /
+d’un réglage, ainsi que les outils ciblant son masque sélectionné, les pixels d’origine préservés, Annuler /
 Rétablir, l’abandon et le clic simple, le mode Pixels, les groupes, la capacité,
 la préférence persistante et Pinceau/Crayon sur masque ou réglage. Le smoke test
 QML passe par les événements souris réels de la fenêtre Qt, le choix du mode de

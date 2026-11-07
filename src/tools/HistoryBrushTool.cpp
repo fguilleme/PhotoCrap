@@ -19,12 +19,13 @@ int Document::historyBrushSourceIndex() const
 
 bool Document::historyBrushSourceAvailable() const
 {
-    if (m_editingMask || m_historyBrushSource.size != m_size || m_active < 0 ||
-        m_active >= m_layers.size() || m_layers[m_active].kind != "pixel")
+    if (m_historyBrushSource.size != m_size || m_active < 0 || m_active >= m_layers.size() ||
+        (!m_editingMask && m_layers[m_active].kind != "pixel"))
         return false;
     const QString id = m_layers[m_active].historyId;
     for (const Layer &layer : m_historyBrushSource.layers)
-        if (layer.historyId == id && layer.kind == "pixel" && !layer.image.isNull())
+        if (layer.historyId == id &&
+            (m_editingMask ? !layer.mask.isNull() : layer.kind == "pixel" && !layer.image.isNull()))
             return true;
     return false;
 }
@@ -61,7 +62,7 @@ bool Document::prepareHistoryBrushStroke()
         if (layer.historyId == id) {
             // Immutable for the gesture, including restoration from a future
             // state after Undo. Layer identity survives reordering and renaming.
-            m_historyStrokeSource = layer.image;
+            m_historyStrokeSource = m_editingMask ? layer.mask : layer.image;
             return true;
         }
     return false;
@@ -85,7 +86,7 @@ void Document::renderHistoryBrushStroke()
     QImage sample =
         m_historyStrokeSource.region(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     const QImage coverage = m_tiledStrokeCoverage.region(work);
-    QImage       current  = m_layers[m_active].image.region(work);
+    QImage current = toolPlane().region(work).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (output.isNull() || sample.isNull() || coverage.isNull() || current.isNull()) {
         m_strokeCoverageFailed = true;
         return;
@@ -131,7 +132,7 @@ void Document::renderHistoryBrushStroke()
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.drawImage(0, 0, output);
     painter.end();
-    if (!m_layers[m_active].image.writeRegion(work.topLeft(), current, m_size)) {
+    if (!writeToolRegion(work.topLeft(), current)) {
         m_strokeCoverageFailed = true;
         return;
     }

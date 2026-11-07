@@ -1730,6 +1730,7 @@ ApplicationWindow {
                 }
                 CheckBox {
                     objectName: "selectionSampleAllLayers"
+                    enabled: !editor.editingMask
                     visible: window.smartSelectionToolActive
                     text: qsTr("Tous les calques")
                     checked: editor.selectionSampleAllLayers
@@ -1764,6 +1765,7 @@ ApplicationWindow {
                 }
                 CheckBox {
                     objectName: "magicEraserSampleAllLayers"
+                    enabled: !editor.editingMask
                     visible: editor.tool === "magicEraser"; text: qsTr("Tous les calques")
                     checked: editor.magicEraserSampleAllLayers
                     onToggled: editor.magicEraserSampleAllLayers = checked
@@ -1788,8 +1790,9 @@ ApplicationWindow {
                 ComboBox {
                     objectName: "cloneSampleMode"
                     visible: editor.tool === "cloneStamp"
-                    model: [qsTr("Calque actif"), qsTr("Actif et inférieurs"), qsTr("Tous les calques")]
-                    currentIndex: editor.cloneSampleMode
+                    model: editor.editingMask ? [qsTr("Masque de fusion")] : [qsTr("Calque actif"), qsTr("Actif et inférieurs"), qsTr("Tous les calques")]
+                    enabled: !editor.editingMask
+                    currentIndex: editor.editingMask ? 0 : editor.cloneSampleMode
                     implicitWidth: 165; implicitHeight: 30
                     onActivated: editor.cloneSampleMode = currentIndex
                 }
@@ -1941,8 +1944,9 @@ ApplicationWindow {
                     objectName: "shapeLayerMode"
                     visible: window.shapeToolActive
                     implicitWidth: 165; implicitHeight: 30
-                    model: [qsTr("Nouveau calque"), qsTr("Pixels sur calque actif")]
-                    currentIndex: editor.shapeNewLayer ? 0 : 1
+                    model: editor.editingMask ? [qsTr("Masque de fusion")] : [qsTr("Nouveau calque"), qsTr("Pixels sur calque actif")]
+                    currentIndex: editor.editingMask ? 0 : editor.shapeNewLayer ? 0 : 1
+                    enabled: !editor.editingMask
                     onActivated: editor.shapeNewLayer = currentIndex === 0
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Créer une forme sur son propre calque ou dessiner dans les pixels du calque actif")

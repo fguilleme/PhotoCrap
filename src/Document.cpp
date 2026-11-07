@@ -625,6 +625,8 @@ void Document::commit(const Snapshot &_before, const QString &_label, bool _inva
 void Document::edit(const QString &_label, const std::function<void()> &_operation)
 {
     endStroke();
+    if (m_editingMask)
+        m_maskPenBase = {};
     auto before = snapshot(_label);
     _operation();
     if (m_backgroundWorker && m_backgroundCancel && m_backgroundCancel->load())
@@ -735,6 +737,9 @@ void Document::resetHistory(bool _clean)
     selectOnly(m_active);
     m_drawing     = false;
     m_textEditing = m_textGesture = false;
+    m_textMaskEdit                = false;
+    m_maskTextParameters.clear();
+    m_maskPenBase                 = {};
     m_beforeText                  = {};
     emit textEditingChanged();
     m_editingMask           = false;

@@ -141,7 +141,7 @@ void Document::beginContentMove(const QPointF &_point)
     beginPatch(_point);
     if (m_patchDragging) {
         m_beforeStroke.label = tr("Déplacement basé sur le contenu");
-        if (m_contentMoveSampleAllLayers)
+        if (m_contentMoveSampleAllLayers && !m_editingMask)
             m_regionPreviewSource = displayComposite();
     }
 }
@@ -161,7 +161,8 @@ void Document::finishContentMove(bool _cancel)
     }
     const Snapshot       before        = m_beforeStroke;
     const PixelPlane     plane         = m_patchSource;
-    const QVector<Layer> sampledLayers = m_contentMoveSampleAllLayers ? m_layers : QVector<Layer>{};
+    const QVector<Layer> sampledLayers =
+        m_contentMoveSampleAllLayers && !m_editingMask ? m_layers : QVector<Layer>{};
     const QSize          documentSize  = m_size;
     const QImage         coverage      = before.selectionMask;
     const QRegion        original = before.selectionRegion, destination = m_patchTarget;
@@ -182,7 +183,8 @@ void Document::finishContentMove(bool _cancel)
                 const MoveResult result = watcher->result();
                 watcher->deleteLater();
                 if (cancel->load() || generation != m_contentMoveGeneration ||
-                    m_stateId != before.id || m_active != before.active)
+                    m_stateId != before.id || m_active != before.active ||
+                    m_editingMask != before.editingMask)
                     return;
                 m_contentMoveBusy = false;
                 m_contentMoveCancel.reset();
@@ -196,7 +198,8 @@ void Document::finishContentMove(bool _cancel)
                             tr("Pas assez de pixels voisins pour reconstruire cette zone."));
                     return;
                 }
-                m_layers[m_active].image = result.plane;
+                if (!replaceToolPlane(result.plane))
+                    return;
                 m_dirtyRegion =
                     m_dirtyRegion.isEmpty() ? result.dirty : m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Déplacement basé sur le contenu"), false, false);
@@ -209,7 +212,7 @@ void Document::finishContentMove(bool _cancel)
     // Only value types cross the worker boundary: no QML objects or Document access.
     watcher->setFuture(
         QtConcurrent::run([plane, sampledLayers, documentSize, original, destination, offset, mode,
-                           structure, color, coverage, cancel] {
+                           structure, color, coverage, cancel, mask = m_editingMask] {
             const QImage sample =
                 sampledLayers.isEmpty()
                     ? plane.region(QRect(QPoint{}, documentSize))
@@ -226,7 +229,11 @@ void Document::finishContentMove(bool _cancel)
             const QImage moved =
                 RegionHealing::blend(sample, sample, destination, -offset, 8 - structure,
                                      color / 10., false, (7 - structure) / 2, cancel);
-            return assembleMove(plane, documentSize, original, destination, fill, moved, mode,
-                                coverage, offset, cancel);
+            auto result = assembleMove(plane, documentSize, original, destination, fill, moved,
+                                       mode, coverage, offset, cancel);
+            if (mask && !result.plane.isNull() &&
+                !result.plane.convertTo(QImage::Format_Grayscale8))
+                return MoveResult{};
+            return result;
         }));
 }

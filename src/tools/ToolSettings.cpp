@@ -83,6 +83,9 @@ void Document::setTool(const QString &_value)
     }
     if (m_tool != _value)
         cancelMagicErase();
+    if (_value != "pen" && _value != "addAnchor" && _value != "deleteAnchor" &&
+        _value != "convertPoint" && _value != "pathSelection" && _value != "directSelection")
+        m_maskPenBase = {};
     m_tool = _value;
     if (m_tool == "mixerBrush" && m_mixerPaint.isNull())
         loadMixerBrush();
@@ -274,7 +277,7 @@ void Document::setText(const QString &_value)
     m_text = _value.left(100000);
     if (m_textEditing) {
         PhotoCrap::Text::Document document;
-        PhotoCrap::Text::configure(document, m_layers[m_active].parameters);
+        PhotoCrap::Text::configure(document, textParameters());
         document.setPlainText(m_text);
         updateTextHtml(document.toHtml());
         emit textEditRequested();

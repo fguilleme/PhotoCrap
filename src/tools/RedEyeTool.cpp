@@ -53,9 +53,9 @@ void Document::setRedEyeDarken(qreal _value)
 
 void Document::correctRedEye()
 {
-    if (m_active < 0 || m_active >= m_layers.size() || m_editingMask)
+    if (m_active < 0 || m_active >= m_layers.size())
         return;
-    PixelPlane &target = m_layers[m_active].image;
+    PixelPlane &target = toolPlane();
     const QRect documentRect(QPoint{}, m_size);
     const bool  dragged = m_redEyeRegion.width() >= 3 && m_redEyeRegion.height() >= 3;
     if (!dragged && !QRectF(documentRect).contains(m_anchor))
@@ -166,7 +166,7 @@ void Document::correctRedEye()
         if (modified.isEmpty())
             return;
         const QRect dirty = modified.translated(region.topLeft());
-        if (!target.writeRegion(dirty.topLeft(), patch.copy(modified), m_size)) {
+        if (!writeToolRegion(dirty.topLeft(), patch.copy(modified))) {
             fail(tr("Mémoire insuffisante pour la couverture du trait."));
             return;
         }

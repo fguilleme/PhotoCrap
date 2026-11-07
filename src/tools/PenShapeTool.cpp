@@ -1,10 +1,61 @@
 #include "Document.h"
 #include "shapes/ShapeLayer.h"
+#include <QPainter>
 #include <QScopedValueRollback>
 #include <cmath>
 
+bool Document::renderMaskPenShape(const QVariantMap &_style)
+{
+    if (!m_editingMask || m_activePenPath < 0 || m_activePenPath >= m_penPaths.size() ||
+        !editable())
+        return false;
+    if (m_maskPenBase.isNull() || m_maskPenLayerId != m_layers[m_active].historyId ||
+        m_maskPenPathIndex != m_activePenPath) {
+        m_maskPenBase      = toolPlane();
+        m_maskPenLayerId   = m_layers[m_active].historyId;
+        m_maskPenPathIndex = m_activePenPath;
+        m_maskPenBounds    = {};
+    }
+    auto parameters = _style;
+    PhotoCrap::Shape::setPath(parameters, m_penPaths[m_activePenPath]);
+    const auto image =
+        PhotoCrap::Shape::renderPlane(parameters, m_size, QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+        return fail(tr("Mémoire insuffisante pour rendre la forme."));
+    auto next   = m_maskPenBase;
+    auto bounds = PhotoCrap::Shape::bounds(parameters, m_size);
+    if (hasSelection())
+        bounds = bounds.intersected(m_selectionRegion.boundingRect());
+    if (!bounds.isEmpty()) {
+        const auto before =
+            next.region(bounds).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        auto       output = before.copy();
+        const auto pixels = image.region(bounds);
+        if (output.isNull() || pixels.isNull())
+            return false;
+        QPainter painter(&output);
+        if (hasSelection())
+            painter.setClipRegion(m_selectionRegion.translated(-bounds.topLeft()));
+        painter.setOpacity(m_brushOpacity);
+        painter.drawImage(0, 0, pixels);
+        painter.end();
+        SelectionCoverage::blend(output, before,
+                                 m_selectionMask.isNull() ? QImage{} : m_selectionMask.copy(bounds),
+                                 output.rect());
+        if (!next.writeRegion(bounds.topLeft(), output.convertToFormat(next.format()), m_size))
+            return false;
+    }
+    toolPlane() = std::move(next);
+    m_dirtyRegion |= bounds.united(m_maskPenBounds);
+    m_maskPenBounds = bounds;
+    changed(false);
+    return true;
+}
+
 int Document::penShapeLayerIndex() const
 {
+    if (m_editingMask)
+        return -1;
     if (m_activePenPath < 0 || m_activePenPath >= m_penPaths.size())
         return -1;
     const auto id = m_penPaths[m_activePenPath].shapeLayerId;
@@ -73,7 +124,14 @@ void Document::setPenShapeStyle(const QString &_key, const QVariant &_value)
         return;
     for (auto it = style.begin(); it != style.end(); ++it)
         it.value() = probe.value(it.key());
-    if (m_penMode == "shape" && m_active >= 0 && m_layers[m_active].kind == "shape") {
+    if (m_penMode == "shape" && m_editingMask && m_activePenPath >= 0 &&
+        !m_penPaths[m_activePenPath].points.isEmpty()) {
+        const auto before = snapshot({});
+        if (!renderMaskPenShape(style))
+            return;
+        commit(before, tr("Modifier le style de la forme"), false);
+    } else if (m_penMode == "shape" && !m_editingMask && m_active >= 0 &&
+               m_layers[m_active].kind == "shape") {
         if (!penShapeEditable(m_active)) {
             emit penOptionsChanged();
             return;
@@ -110,6 +168,14 @@ bool Document::penPathToShape()
         m_penPaths[m_activePenPath].points.size() < 2)
         return false;
     const auto source = m_penPaths[m_activePenPath];
+    if (m_editingMask) {
+        const auto before = snapshot({});
+        m_maskPenBase     = {};
+        if (!renderMaskPenShape(penShapeStyle()))
+            return false;
+        commit(before, tr("Créer une forme depuis le tracé"), false);
+        return true;
+    }
     if (m_penPaths.size() >= PenGeometry::MaxPaths)
         return fail(tr("Limite de tracés atteinte."));
     auto parameters = penShapeStyle();
@@ -167,6 +233,10 @@ void Document::resizePenShape(qreal _width, qreal _height)
 }
 bool Document::startPenShapeLayer()
 {
+    if (m_editingMask) {
+        m_penShapeGesture = true;
+        return renderMaskPenShape(penShapeStyle());
+    }
     const auto style = penShapeStyle();
     if (!startToolLayer(tr("Forme %1").arg(m_layers.size())))
         return false;
@@ -186,6 +256,8 @@ bool Document::startPenShapeLayer()
 }
 bool Document::updatePenShapeLayer()
 {
+    if (m_editingMask && m_penMode == "shape")
+        return renderMaskPenShape(penShapeStyle());
     const int index = penShapeLayerIndex();
     if (index < 0)
         return true;
@@ -252,7 +324,7 @@ void Document::syncPenShapePath(bool _activate)
         if (m_activePenPath == index)
             m_penMode = "shape";
     }
-    if (m_activePenPath >= 0 && m_activePenPath < m_penPaths.size())
+    if (!m_editingMask && m_activePenPath >= 0 && m_activePenPath < m_penPaths.size())
         m_penMode = m_penPaths[m_activePenPath].shapeLayerId.isEmpty() ? "path" : "shape";
     if (changed)
         emit penPathsChanged();

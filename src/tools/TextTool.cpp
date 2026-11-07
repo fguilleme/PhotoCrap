@@ -1,14 +1,24 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "text/TextLayer.h"
+#include <QPainter>
 #include <QTextCursor>
 #include <cmath>
 
+QVariantMap &Document::textParameters()
+{
+    return m_textMaskEdit ? m_maskTextParameters : m_layers[m_active].parameters;
+}
+const QVariantMap &Document::textParameters() const
+{
+    return m_textMaskEdit ? m_maskTextParameters : m_layers[m_active].parameters;
+}
 QVariantMap Document::textEditState() const
 {
-    if (m_active < 0 || m_active >= m_layers.size() || m_layers[m_active].kind != "text")
+    if (m_active < 0 || m_active >= m_layers.size() ||
+        (!m_textMaskEdit && m_layers[m_active].kind != "text"))
         return {};
-    auto       state    = m_layers[m_active].parameters;
+    auto       state    = textParameters();
     const auto bounds   = PhotoCrap::Text::size(state);
     state["viewWidth"]  = bounds.width();
     state["viewHeight"] = bounds.height();
@@ -17,9 +27,44 @@ QVariantMap Document::textEditState() const
 bool Document::renderTextEdit()
 {
     auto &layer = m_layers[m_active];
-    auto  image = PhotoCrap::Text::renderPlane(layer.parameters, m_size, workingFormat());
+    auto  image = PhotoCrap::Text::renderPlane(textParameters(), m_size,
+                                              m_textMaskEdit ? QImage::Format_ARGB32_Premultiplied
+                                                              : workingFormat());
     if (image.isNull())
         return fail(tr("Mémoire insuffisante pour rendre le texte."));
+    if (m_textMaskEdit) {
+        auto next   = m_beforeText.layers[m_active].mask;
+        auto bounds = PhotoCrap::Text::bounds(textParameters(), m_size);
+        if (hasSelection())
+            bounds = bounds.intersected(m_selectionRegion.boundingRect());
+        if (!bounds.isEmpty()) {
+            const auto before =
+                next.region(bounds).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            auto       output = before.copy();
+            const auto text   = image.region(bounds);
+            if (output.isNull() || text.isNull())
+                return fail(tr("Mémoire insuffisante pour rendre le texte."));
+            QPainter painter(&output);
+            if (hasSelection())
+                painter.setClipRegion(m_selectionRegion.translated(-bounds.topLeft()));
+            painter.setOpacity(m_brushOpacity);
+            painter.drawImage(0, 0, text);
+            painter.end();
+            SelectionCoverage::blend(
+                output, before, m_selectionMask.isNull() ? QImage{} : m_selectionMask.copy(bounds),
+                output.rect());
+            if (!next.writeRegion(bounds.topLeft(), output.convertToFormat(next.format()), m_size))
+                return fail(tr("Mémoire insuffisante pour rendre le texte."));
+        }
+        layer.mask = std::move(next);
+        m_dirtyRegion |= m_maskTextBounds.united(bounds);
+        m_maskTextBounds = bounds;
+        m_text           = PhotoCrap::Text::plainText(textParameters());
+        changed(false);
+        emit textGeometryChanged();
+        emit settingsChanged();
+        return true;
+    }
     layer.image = std::move(image);
     m_text      = PhotoCrap::Text::plainText(layer.parameters);
     if (!m_text.trimmed().isEmpty() && layer.parameters.value("autoName", true).toBool())
@@ -33,6 +78,25 @@ void Document::beginTextGesture(qreal _x, qreal _y, bool _forceNew)
 {
     if (_x < 0 || _y < 0 || _x >= width() || _y >= height())
         return;
+    if (m_editingMask) {
+        if (!editable())
+            return;
+        finishLayerPreview();
+        acceptLayerPropertiesSession();
+        cancelOperation();
+        m_beforeText         = snapshot(tr("Texte"));
+        m_textMaskEdit       = true;
+        m_maskTextBounds     = {};
+        m_maskTextParameters = PhotoCrap::Text::create(_x, _y, m_textSize, m_color);
+        PhotoCrap::Text::normalize(m_maskTextParameters);
+        m_textEditing = m_textGesture = true;
+        m_textNewLayer                = false;
+        m_textAnchor                  = {_x, _y};
+        m_text.clear();
+        emit textEditingChanged();
+        emit textGeometryChanged();
+        return;
+    }
     if (!_forceNew)
         for (int i = int(m_layers.size()) - 1; i >= 0; --i) {
             const auto &layer = m_layers[i];
@@ -73,14 +137,15 @@ void Document::beginTextGesture(qreal _x, qreal _y, bool _forceNew)
 }
 void Document::updateTextGesture(qreal _x, qreal _y)
 {
-    if (!m_textGesture || !m_textNewLayer || !std::isfinite(_x) || !std::isfinite(_y))
+    if (!m_textGesture || (!m_textNewLayer && !m_textMaskEdit) || !std::isfinite(_x) ||
+        !std::isfinite(_y))
         return;
     const QRectF rect =
         QRectF(m_textAnchor, QPointF(qBound(-32768., _x, 32768.), qBound(-32768., _y, 32768.)))
             .normalized();
     if (rect.width() < 4 || rect.height() < 4)
         return;
-    auto &p        = m_layers[m_active].parameters;
+    auto &p        = textParameters();
     p["paragraph"] = true;
     p["width"]     = qMin(32768., rect.width());
     p["height"]    = qMin(32768., rect.height());
@@ -132,7 +197,7 @@ void Document::updateTextContent(const QString &_html, const QVariantMap &_forma
 {
     if (!m_textEditing || m_textGesture)
         return;
-    auto parameters      = m_layers[m_active].parameters;
+    auto parameters      = textParameters();
     parameters["html"]   = _html;
     parameters["runs"]   = _formatting.value("runs");
     parameters["blocks"] = _formatting.value("blocks");
@@ -140,20 +205,20 @@ void Document::updateTextContent(const QString &_html, const QVariantMap &_forma
         fail(tr("Texte invalide ou trop volumineux."));
         return;
     }
-    if (parameters == m_layers[m_active].parameters)
+    if (parameters == textParameters())
         return;
-    const auto before = m_layers[m_active];
-    m_dirtyRegion     = m_dirtyRegion.united(PhotoCrap::Text::bounds(before.parameters, m_size))
-                            .united(PhotoCrap::Text::bounds(parameters, m_size));
-    m_layers[m_active].parameters = parameters;
+    const auto before = textParameters();
+    m_dirtyRegion     = m_dirtyRegion.united(PhotoCrap::Text::bounds(before, m_size))
+                        .united(PhotoCrap::Text::bounds(parameters, m_size));
+    textParameters() = parameters;
     if (!renderTextEdit())
-        m_layers[m_active] = before;
+        textParameters() = before;
 }
 void Document::setTextBox(bool _paragraph, qreal _width, qreal _height)
 {
     if (!m_textEditing)
         return;
-    auto p         = m_layers[m_active].parameters;
+    auto p         = textParameters();
     p["paragraph"] = _paragraph;
     p["width"]     = _width;
     p["height"]    = _height;
@@ -161,10 +226,9 @@ void Document::setTextBox(bool _paragraph, qreal _width, qreal _height)
         fail(tr("Dimensions du bloc de texte invalides."));
         return;
     }
-    m_dirtyRegion =
-        m_dirtyRegion.united(PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size))
-            .united(PhotoCrap::Text::bounds(p, m_size));
-    m_layers[m_active].parameters = p;
+    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(textParameters(), m_size))
+                        .united(PhotoCrap::Text::bounds(p, m_size));
+    textParameters() = p;
     renderTextEdit();
 }
 void Document::moveTextBy(qreal _dx, qreal _dy)
@@ -172,16 +236,16 @@ void Document::moveTextBy(qreal _dx, qreal _dy)
     if (!m_textEditing || m_textGesture || !std::isfinite(_dx) || !std::isfinite(_dy) ||
         qAbs(_dx) > 32768 || qAbs(_dy) > 32768 || (_dx == 0 && _dy == 0))
         return;
-    const auto before     = m_layers[m_active];
-    auto       parameters = before.parameters;
+    const auto before     = textParameters();
+    auto       parameters = before;
     PhotoCrap::Text::transform(parameters, QTransform::fromTranslate(_dx, _dy));
     if (!PhotoCrap::Text::normalize(parameters))
         return;
-    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(before.parameters, m_size))
+    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(before, m_size))
                         .united(PhotoCrap::Text::bounds(parameters, m_size));
-    m_layers[m_active].parameters = parameters;
+    textParameters() = parameters;
     if (!renderTextEdit())
-        m_layers[m_active] = before;
+        textParameters() = before;
 }
 void Document::finishTextEdit(bool _cancel)
 {
@@ -190,12 +254,17 @@ void Document::finishTextEdit(bool _cancel)
     m_textGesture      = false;
     const auto  before = m_beforeText;
     const auto &layer  = m_layers[m_active];
-    const bool  empty  = PhotoCrap::Text::plainText(layer.parameters).trimmed().isEmpty();
+    const bool  empty  = PhotoCrap::Text::plainText(textParameters()).trimmed().isEmpty();
     const bool  changedText =
-        m_textNewLayer || layer.parameters != before.layers[m_active].parameters;
+        m_textMaskEdit ? layer.mask.cacheKey() != before.layers[m_active].mask.cacheKey()
+                        : m_textNewLayer || layer.parameters != before.layers[m_active].parameters;
     m_textEditing = false;
     m_beforeText  = {};
-    if (_cancel || (m_textNewLayer && empty))
+    const bool maskEdit = m_textMaskEdit;
+    m_textMaskEdit      = false;
+    m_maskTextParameters.clear();
+    m_maskTextBounds = {};
+    if (_cancel || ((m_textNewLayer || maskEdit) && empty))
         restore(before);
     else if (changedText)
         commit(before, tr("Texte"));
@@ -221,19 +290,18 @@ void Document::updateTextFormatting(const QVariantMap &_formatting)
 {
     if (!m_textEditing || m_textGesture)
         return;
-    auto p      = m_layers[m_active].parameters;
+    auto p      = textParameters();
     p["runs"]   = _formatting.value("runs");
     p["blocks"] = _formatting.value("blocks");
     if (!PhotoCrap::Text::normalize(p)) {
         fail(tr("Mise en forme du texte invalide."));
         return;
     }
-    if (p == m_layers[m_active].parameters)
+    if (p == textParameters())
         return;
-    m_dirtyRegion =
-        m_dirtyRegion.united(PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size))
-            .united(PhotoCrap::Text::bounds(p, m_size));
-    m_layers[m_active].parameters = p;
+    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(textParameters(), m_size))
+                        .united(PhotoCrap::Text::bounds(p, m_size));
+    textParameters() = p;
     renderTextEdit();
 }
 

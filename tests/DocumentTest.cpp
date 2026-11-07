@@ -2305,7 +2305,7 @@ private slots:
         const QImage mask = d.maskImage(d.activeLayer());
         QSignalSpy   errors(&d, &Document::errorOccurred);
         d.beginStroke(2, 4);
-        QCOMPARE(errors.size(), 1); // Raster masks have no transparency to erase.
+        QCOMPARE(errors.size(), 0); // Erasing a white mask with the white background is a no-op.
         QCOMPARE(d.maskImage(d.activeLayer()), mask);
         QVERIFY(!d.magicEraserBusy());
     }
@@ -3714,7 +3714,7 @@ private slots:
         QVERIFY(!d.removeHasPending());
     }
 
-    void removalSamplesVisibleLayersIntoEmptyLayerAndRejectsMasksLocks()
+    void removalSamplesVisibleLayersIntoEmptyLayerAndRespectsMasksLocks()
     {
         QTemporaryDir dir;
         QImage        image(180, 120, QImage::Format_ARGB32_Premultiplied);
@@ -3759,7 +3759,7 @@ private slots:
         const QImage mask = d.maskImage(active);
         d.beginStroke(60, 60);
         d.endStroke();
-        QVERIFY(!d.removeBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.removeBusy(), 5000);
         QVERIFY(!d.removeHasPending());
         QCOMPARE(d.maskImage(active), mask);
     }
@@ -4125,12 +4125,16 @@ private slots:
         d.setLayerLocked(0, false);
         d.addLayerMask();
         d.setEditingMask(true);
-        const QImage mask        = d.maskImage(0);
+        const QImage mask = d.maskImage(0), maskPixels = d.layerImage(0);
         const int    maskHistory = d.historyIndex();
         d.beginStroke(52, 52);
         d.continueStroke(112, 52);
         d.endStroke();
-        QVERIFY(!d.contentMoveBusy());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.contentMoveBusy(), 5000);
+        QVERIFY(d.maskImage(0) != mask);
+        QCOMPARE(d.layerImage(0), maskPixels);
+        QCOMPARE(d.historyIndex(), maskHistory + 1);
+        d.undo();
         QCOMPARE(d.maskImage(0), mask);
         QCOMPARE(d.historyIndex(), maskHistory);
         d.setContentMoveMode(9);
@@ -8149,7 +8153,7 @@ private slots:
         Document d;
         QVERIFY(d.newDocument(96, 80, true, bits));
         d.addAdjustmentLayer("brightnessContrast");
-        d.setEditingMask(true);
+        d.setEditingMask(false);
         d.toggleMaskOnlyView(d.activeLayer());
         const auto base = d.layerImage(0), mask = d.maskImage(1);
         const auto history = d.historyIndex();
@@ -8188,11 +8192,275 @@ private slots:
         d.undo();
         QCOMPARE(d.layers().size(), 2);
         QCOMPARE(d.activeLayer(), 1);
-        QVERIFY(d.editingMask());
+        QVERIFY(!d.editingMask());
         QCOMPARE(d.historyIndex(), history);
         d.redo();
         QCOMPARE(d.layers().size(), 3);
         QCOMPARE(d.layerImage(2), output);
+    }
+    void toolsPreferTheSelectedMask_data()
+    {
+        QTest::addColumn<QString>("tool");
+        QTest::addColumn<int>("bits");
+        for (const auto tool : {"brush",
+                                "pencil",
+                                "eraser",
+                                "fill",
+                                "gradient",
+                                "rectangle",
+                                "ellipse",
+                                "triangle",
+                                "polygon",
+                                "star",
+                                "line",
+                                "text",
+                                "cloneStamp",
+                                "patternStamp",
+                                "blur",
+                                "sharpen",
+                                "dodge",
+                                "burn",
+                                "smudge",
+                                "mixerBrush",
+                                "healing",
+                                "spotHealing",
+                                "historyBrush",
+                                "artHistoryBrush",
+                                "colorReplacement",
+                                "magicEraser",
+                                "move"})
+            for (int bits : {8, 16})
+                QTest::newRow(qPrintable(QString("%1-%2").arg(tool).arg(bits)))
+                    << QString(tool) << bits;
+    }
+    void toolsPreferTheSelectedMask()
+    {
+        QFETCH(QString, tool);
+        QFETCH(int, bits);
+        Document d;
+        QVERIFY(d.newDocument(160, 120, false, bits));
+        d.addAdjustmentLayer("brightnessContrast");
+        d.setEditingMask(true);
+        d.setTool("pencil");
+        d.setBrushSize(28);
+        d.setColor(QColor(64, 64, 64));
+        d.beginStroke(24, 60);
+        d.endStroke();
+        d.setHistoryBrushSource(d.historyIndex());
+        d.setColor(Qt::white);
+        d.beginStroke(24, 60);
+        d.endStroke();
+        d.setColor(QColor(128, 128, 128));
+        d.setBrushSize(6);
+        d.beginStroke(80, 60);
+        d.endStroke();
+        const auto before = d.maskImage(1), pixels = d.layerImage(0), adjustment = d.layerImage(1);
+        const auto parameters = d.layers().first().toMap().value("parameters");
+        const auto history    = d.historyIndex();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setBrushSize(18);
+        d.setColor(Qt::black);
+        d.setSecondaryColor(Qt::black);
+        d.setShapeFillColor(Qt::black);
+        d.setShapeStrokeColor(Qt::black);
+        d.setCloneSource(130, 60);
+        d.setHealingSource(130, 60);
+        d.setHealingMode(1);
+        d.setProperty("gradientNewLayer", true);
+        d.setProperty("gradientPreset", 2);
+        d.setShapeNewLayer(true);
+        d.setProperty("replacementMode", 3); // Luminosity has a meaningful grayscale effect.
+        d.setTool(tool);
+        d.beginStroke(tool == "historyBrush" || tool == "artHistoryBrush" ? 24 : 80, 60);
+        d.continueStroke(115, 90);
+        d.endStroke();
+        if (tool == "text") {
+            QVERIFY(d.textEditing());
+            d.setText("Mask");
+            d.moveTextBy(-50, -20);
+            d.finishTextEdit();
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.pixelEditBusy(), 10000);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(d.layers().size(), 2);
+        QCOMPARE(d.activeLayer(), 1);
+        QVERIFY(d.editingMask());
+        QCOMPARE(d.layerImage(0), pixels);
+        QCOMPARE(d.layerImage(1), adjustment);
+        QCOMPARE(d.layers().first().toMap().value("parameters"), parameters);
+        const auto after = d.maskImage(1);
+        QCOMPARE(after.format(), QImage::Format_Grayscale8);
+        QVERIFY2(after != before, qPrintable(tool));
+        QCOMPARE(d.historyIndex(), history + 1);
+        d.undo();
+        QCOMPARE(d.maskImage(1), before);
+        d.redo();
+        QCOMPARE(d.maskImage(1), after);
+    }
+    void maskRepairsAndPenShapesPreserveLayerContent_data()
+    {
+        QTest::addColumn<QString>("tool");
+        for (const auto tool : {"remove", "patch", "contentAwareMove", "pen"})
+            QTest::newRow(tool) << QString(tool);
+    }
+    void maskRepairsAndPenShapesPreserveLayerContent()
+    {
+        QFETCH(QString, tool);
+        Document d;
+        QVERIFY(d.newDocument(128, 96, false, 16));
+        d.addLayerMask();
+        d.setTool("pencil");
+        d.setBrushSize(6);
+        d.setColor(Qt::black);
+        d.beginStroke(64, 48);
+        d.endStroke();
+        if (tool == "patch" || tool == "contentAwareMove") {
+            d.setTool("select");
+            d.beginStroke(60, 44);
+            d.continueStroke(68, 52);
+            d.endStroke();
+        }
+        const auto before = d.maskImage(0), pixels = d.layerImage(0);
+        const auto history = d.historyIndex();
+        QSignalSpy errors(&d, &Document::errorOccurred);
+        d.setTool(tool);
+        if (tool == "pen") {
+            d.setPenMode("shape");
+            d.beginStroke(20, 20);
+            d.endStroke();
+            d.beginStroke(80, 20);
+            d.endStroke();
+            d.beginStroke(80, 80);
+            d.endStroke();
+            d.closePenPath();
+        } else {
+            d.setBrushSize(12);
+            d.setContentMoveMode(1);
+            d.beginStroke(64, 48);
+            d.continueStroke(tool == "remove" ? 65 : 100, 48);
+            d.endStroke();
+            if (tool == "remove")
+                d.applyRemoval();
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!d.pixelEditBusy(), 10000);
+        QCOMPARE(errors.size(), 0);
+        QCOMPARE(d.layers().size(), 1);
+        QVERIFY(d.editingMask());
+        QCOMPARE(d.layerImage(0), pixels);
+        const auto after = d.maskImage(0);
+        QVERIFY2(after != before, qPrintable(tool));
+        QVERIFY(d.historyIndex() > history);
+        const auto steps = d.historyIndex() - history;
+        for (int i = 0; i < steps; ++i)
+            d.undo();
+        QCOMPARE(d.maskImage(0), before);
+        for (int i = 0; i < steps; ++i)
+            d.redo();
+        QCOMPARE(d.maskImage(0), after);
+    }
+    void maskPenKeepsOtherEditsAndAllowsDeletingThePath()
+    {
+        Document d;
+        QVERIFY(d.newDocument(100, 100, false));
+        d.addLayerMask();
+        d.setColor(Qt::black);
+        d.setTool("pen");
+        d.setPenMode("shape");
+        d.beginStroke(20, 20);
+        d.endStroke();
+        d.beginStroke(70, 20);
+        d.endStroke();
+        d.beginStroke(70, 70);
+        d.endStroke();
+        d.closePenPath();
+        d.fillMaskWithColor(QColor(128, 128, 128));
+        d.beginPenGesture(20, 20, 6, true);
+        d.updatePenGesture(10, 10);
+        d.endPenGesture();
+        QCOMPARE(d.maskImage(0).pixelColor(0, 99), QColor(128, 128, 128));
+        const auto mask = d.maskImage(0);
+        d.deletePenPath();
+        QCOMPARE(d.activePenPath(), -1);
+        QCOMPARE(d.maskImage(0), mask);
+    }
+    void switchingAwayFromAMaskCancelsPendingRepairs()
+    {
+        for (const auto tool : {"remove", "patch", "contentAwareMove"}) {
+            Document d;
+            QVERIFY(d.newDocument(128, 96, false));
+            d.addLayerMask();
+            d.setTool("pencil");
+            d.setColor(Qt::black);
+            d.setBrushSize(6);
+            d.beginStroke(64, 48);
+            d.endStroke();
+            d.setTool("select");
+            d.beginStroke(60, 44);
+            d.continueStroke(68, 52);
+            d.endStroke();
+            const auto mask = d.maskImage(0), pixels = d.layerImage(0);
+            const auto history = d.historyIndex();
+            d.setTool(tool);
+            d.beginStroke(64, 48);
+            d.continueStroke(100, 48);
+            d.endStroke();
+            if (QString(tool) == "remove")
+                d.applyRemoval();
+            QVERIFY(d.pixelEditBusy());
+            d.setEditingMask(false);
+            QTest::qWait(30);
+            QVERIFY(!d.pixelEditBusy());
+            QCOMPARE(d.maskImage(0), mask);
+            QCOMPARE(d.layerImage(0), pixels);
+            QCOMPARE(d.historyIndex(), history);
+        }
+    }
+    void colorOnlyToolsLeaveGrayMasksUnchanged()
+    {
+        for (const auto tool : {"redEye", "sponge"}) {
+            Document d;
+            QVERIFY(d.newDocument(64, 64, false, 16));
+            d.addLayerMask();
+            d.fillMaskWithColor(QColor(128, 128, 128));
+            const auto mask = d.maskImage(0), pixels = d.layerImage(0);
+            d.setTool(tool);
+            d.setSpongeSaturate(true);
+            d.beginStroke(20, 20);
+            d.continueStroke(40, 40);
+            d.endStroke();
+            QCOMPARE(d.maskImage(0), mask);
+            QCOMPARE(d.layerImage(0), pixels);
+        }
+    }
+    void maskGradientPreservesSelectionOpacityAndCancellation()
+    {
+        Document d;
+        QVERIFY(d.newDocument(100, 80, false, 16));
+        d.addLayerMask();
+        d.setTool("select");
+        d.beginStroke(10, 10);
+        d.continueStroke(80, 60);
+        d.endStroke();
+        d.modifySelection("feather", 3);
+        d.setTool("gradient");
+        d.setProperty("gradientNewLayer", true);
+        d.setProperty("gradientPreset", 2);
+        d.setBrushOpacity(.5);
+        const auto before = d.maskImage(0), pixels = d.layerImage(0);
+        d.beginStroke(20, 30);
+        d.continueStroke(70, 30);
+        QVERIFY(d.maskImage(0) != before);
+        d.cancelStroke();
+        QCOMPARE(d.maskImage(0), before);
+        d.beginStroke(20, 30);
+        d.continueStroke(70, 30);
+        d.endStroke();
+        const auto after = d.maskImage(0);
+        QCOMPARE(after.pixelColor(0, 0), before.pixelColor(0, 0));
+        QVERIFY(qAbs(after.pixelColor(20, 30).red() - 128) <= 2);
+        QCOMPARE(d.layerImage(0), pixels);
+        d.undo();
+        QCOMPARE(d.maskImage(0), before);
     }
     void shapeLayerCancellationAndPixelMode()
     {

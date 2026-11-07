@@ -283,6 +283,45 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     contiguous->setProperty("checked", true);
     QMetaObject::invokeMethod(contiguous, "toggled");
 
+    _document.newDocument(160, 120, false, 16);
+    _document.addLayerMask();
+    _document.setTool("gradient");
+    _document.setProperty("gradientPreset", 2);
+    _document.setBrushOpacity(1.);
+    _window->setProperty("zoom", 1.0);
+    QTest::qWait(60);
+    const auto maskBefore = _document.maskImage(0), maskPixels = _document.layerImage(0);
+    auto *     maskMode = _window->findChild<QQuickItem *>("gradientApplyMode");
+    if (!require(maskMode && !maskMode->isEnabled(),
+                 "a selected mask overrides gradient layer creation"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier,
+                      area->mapToScene(QPointF(20, 30)).toPoint());
+    QTest::mouseMove(_window, area->mapToScene(QPointF(100, 30)).toPoint(), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier,
+                        area->mapToScene(QPointF(100, 30)).toPoint());
+    if (!require(_document.layers().size() == 1 && _document.editingMask() &&
+                     _document.maskImage(0) != maskBefore && _document.layerImage(0) == maskPixels,
+                 "a real gradient drag paints only the selected mask"))
+        return false;
+    _document.undo();
+    _document.setColor(Qt::black);
+    _document.setTool("text");
+    QTest::qWait(40);
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                      area->mapToScene(QPointF(20, 20)).toPoint());
+    QTest::qWait(80);
+    for (const auto c : QStringLiteral("mask"))
+        QTest::keyClick(_window, Qt::Key(c.toUpper().unicode()));
+    if (!require(_document.textEditing() && _document.text() == "mask" &&
+                     _document.layers().size() == 1 && _document.maskImage(0) != maskBefore,
+                 "canvas typing paints text into the mask without a text layer"))
+        return false;
+    _document.finishTextEdit(true);
+    if (!require(_document.maskImage(0) == maskBefore && _document.layerImage(0) == maskPixels,
+                 "cancelling text restores the original mask"))
+        return false;
+
     _document.newDocument(160, 120, true);
     _document.setTool("gradient");
     QTest::qWait(60);

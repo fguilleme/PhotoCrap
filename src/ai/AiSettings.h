@@ -2,6 +2,7 @@
 #include "AiCredentialStore.h"
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
@@ -50,6 +51,7 @@ public:
     Q_INVOKABLE QString     keySource(const QString &_id) const;
     Q_INVOKABLE bool        hasKey(const QString &_id) const;
     QString                 key(const QString &_id) const;
+    void resolveKey(const QString &_id, QObject *_receiver, AiCredentialStore::Callback _finished);
     static bool             validEndpoint(const QUrl &_url);
     static QString          defaultWorkflow();
 signals:
@@ -58,13 +60,16 @@ signals:
 
 private:
     void                               notifyChanged();
-    void                               loadKey(const QString &_id);
+    void                               storedKeyHint(const QString &_account, bool _stored);
     void                               eraseCredential(const QString &_account);
     QString                            credentialAccount(const QString &_id) const;
     bool                               reject(const QString &_error);
     void                               persist();
     QVariantList                       m_providers, m_prompts;
     QHash<QString, QString>            m_keys;
+    QSet<QString>                      m_resolvedAccounts, m_storedAccounts;
+    QHash<QString, quint64>            m_keyVersions;
+    QHash<QString, QList<AiCredentialStore::Callback>> m_keyRequests;
     QString                            m_error;
     bool                               m_persist;
     std::shared_ptr<AiCredentialStore> m_credentials;

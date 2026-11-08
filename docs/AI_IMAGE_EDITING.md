@@ -26,11 +26,23 @@ PhotoCrap n’installe ni modèle ni serveur local.
 
 La clé API saisie puis enregistrée est conservée par **QtKeychain** dans le
 trousseau macOS, le gestionnaire d’identifiants Windows ou le service de secrets
-Linux (GNOME Keyring/libsecret ou KWallet). Elle est retrouvée au lancement suivant,
-sans apparaître dans les champs, les réglages en clair ou les projets. L’interface
-indique **Clé enregistrée** ; laisser le champ vide conserve la clé existante.
+Linux (GNOME Keyring/libsecret ou KWallet). Elle est retrouvée lors du premier
+clic sur **Générer** pour ce fournisseur, puis réutilisée en mémoire pendant la
+session, sans apparaître dans les champs, les réglages en clair ou les projets.
+Le démarrage de PhotoCrap et l’ouverture des réglages ne sollicitent pas le trousseau.
+L’interface peut indiquer **Clé enregistrée** à partir d’un indicateur non secret ;
+les anciens profils sont vérifiés au premier lancement de génération. Laisser
+le champ vide conserve la clé existante.
 Les variables d’environnement (`OPENAI_API_KEY`, `FAL_KEY` par défaut) restent
 une alternative, visible dans le statut du fournisseur.
+
+Sur macOS, les builds actuelles sont signées ad hoc : leur identité est liée
+au hash du binaire et change après recompilation. Le système peut donc redemander
+une autorisation au premier usage d’une clé avec une nouvelle build. Une identité
+de signature stable reste nécessaire pour conserver la confiance entre versions.
+Voir le [guide Apple sur les exigences de signature](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/RequirementLang/RequirementLang.html).
+Le correctif n’élargit pas les permissions du trousseau et n’effectue aucun
+nouvel essai automatique après un refus.
 
 La suppression du fournisseur ou la modification de son adresse/protocole supprime
 sa clé enregistrée. Les identifiants sont liés à l’UUID du profil et à son endpoint.

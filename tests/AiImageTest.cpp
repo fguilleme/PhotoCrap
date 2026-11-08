@@ -21,6 +21,30 @@
 
 namespace
 {
+class CountingCredentials final : public AiCredentialStore
+{
+public:
+    QHash<QString, QString> values;
+    QString                 failure;
+    int                     reads = 0;
+    void                    read(const QString &id, QObject *receiver, Callback finished) override
+    {
+        ++reads;
+        const auto value = values.value(id), error = failure;
+        QTimer::singleShot(30, receiver, [=] { finished(value, error); });
+    }
+    void write(const QString &id, const QString &value, QObject *receiver,
+               Callback finished) override
+    {
+        values[id] = value;
+        QTimer::singleShot(0, receiver, [=] { finished({}, {}); });
+    }
+    void remove(const QString &id, QObject *receiver, Callback finished) override
+    {
+        values.remove(id);
+        QTimer::singleShot(0, receiver, [=] { finished({}, {}); });
+    }
+};
 QByteArray png(const QColor &_color = Qt::green)
 {
     QImage image(32, 24, QImage::Format_ARGB32_Premultiplied);
@@ -219,6 +243,13 @@ private slots:
         }
         {
             AiSettings reopened(nullptr, true, credentials);
+            QVERIFY(reopened.key(id).isEmpty());
+            bool resolved = false;
+            reopened.resolveKey(id, this, [&](const QString &, const QString &error) {
+                QVERIFY(error.isEmpty());
+                resolved = true;
+            });
+            QTRY_VERIFY(resolved);
             QTRY_VERIFY(!reopened.credentialsBusy());
             QCOMPARE(reopened.key(id), QString("persistent-test-secret"));
             auto profile   = reopened.provider(id);
@@ -236,6 +267,114 @@ private slots:
         AiSettings removed(nullptr, true, credentials);
         QTRY_VERIFY(!removed.credentialsBusy());
         QVERIFY(!removed.hasKey(id));
+    }
+    void credentialsAreLazyCoalescedAndScopedToOneProvider()
+    {
+        QSettings().clear();
+        const auto credentials = std::make_shared<CountingCredentials>();
+        QString    id;
+        {
+            AiSettings settings(nullptr, true, credentials);
+            id = settings.saveProvider(settings.newProvider("compatible"));
+            settings.saveKey(id, "lazy-test-secret");
+            QTRY_VERIFY(!settings.credentialsBusy());
+        }
+        QCOMPARE(credentials->reads, 0);
+        // Profiles created by older versions have no non-secret saved-key hint.
+        QSettings().remove("ai/credentialAccounts");
+        AiSettings settings(nullptr, true, credentials);
+        QVERIFY(!settings.credentialsBusy());
+        QVERIFY(settings.key(id).isEmpty());
+        QCOMPARE(settings.keySource(id), QString("unloaded"));
+        for (const auto &entry : settings.providers()) {
+            const auto providerId = entry.toMap()["id"].toString();
+            settings.hasKey(providerId);
+            settings.keySource(providerId);
+        }
+        QTest::qWait(50);
+        QCOMPARE(credentials->reads, 0);
+        int        finished = 0;
+        const auto callback = [&](const QString &value, const QString &error) {
+            QCOMPARE(value, QString("lazy-test-secret"));
+            QVERIFY(error.isEmpty());
+            ++finished;
+        };
+        settings.resolveKey(id, this, callback);
+        settings.resolveKey(id, this, callback);
+        QCOMPARE(credentials->reads, 1);
+        QTRY_COMPARE(finished, 2);
+        settings.resolveKey(id, this, callback);
+        QCOMPARE(finished, 3);
+        QCOMPARE(credentials->reads, 1);
+
+        AiSettings changed(nullptr, true, credentials);
+        bool       completed = false;
+        changed.resolveKey(id, this, [&](const QString &value, const QString &error) {
+            QVERIFY(value.isEmpty());
+            QVERIFY(!error.isEmpty());
+            completed = true;
+        });
+        auto profile   = changed.provider(id);
+        profile["url"] = "http://127.0.0.1:9191/v1";
+        QVERIFY(!changed.saveProvider(profile).isEmpty());
+        QTRY_VERIFY(completed);
+        QVERIFY(changed.key(id).isEmpty());
+    }
+    void deniedCredentialReadsDoNotRetryInTheBackground()
+    {
+        const auto credentials = std::make_shared<CountingCredentials>();
+        credentials->failure   = "Access denied";
+        AiSettings settings(nullptr, false, credentials);
+        const auto id       = settings.saveProvider(settings.newProvider("compatible"));
+        bool       finished = false;
+        settings.resolveKey(id, this, [&](const QString &value, const QString &error) {
+            QVERIFY(value.isEmpty());
+            QCOMPARE(error, QString("Access denied"));
+            finished = true;
+        });
+        QTRY_VERIFY(finished);
+        QVERIFY(!settings.error().isEmpty());
+        settings.providers();
+        settings.hasKey(id);
+        settings.keySource(id);
+        QTest::qWait(60);
+        QCOMPARE(credentials->reads, 1);
+        QVERIFY(!settings.credentialsBusy());
+    }
+    void cancellingWhileResolvingAKeyNeverStartsAnImageRequest()
+    {
+        QSettings().clear();
+        Server server;
+        QVERIFY(server.isListening());
+        const auto credentials = std::make_shared<CountingCredentials>();
+        QString    id;
+        {
+            AiSettings saved(nullptr, true, credentials);
+            id = saved.saveProvider(provider(saved, server));
+            saved.saveKey(id, "deferred-dummy-key");
+            QTRY_VERIFY(!saved.credentialsBusy());
+        }
+        AiSettings settings(nullptr, true, credentials);
+        Document   document;
+        fixture(document);
+        AiImageController controller(&document, &settings);
+        QSignalSpy        added(&controller, &AiImageController::layerAdded);
+        server.handler = [](const Request &) {
+            return Response{
+                200, json({{"data", QJsonArray{QJsonObject{
+                                        {"b64_json", QString::fromLatin1(png().toBase64())}}}}})};
+        };
+        QCOMPARE(credentials->reads, 0);
+        QVERIFY(controller.generate(id, "Edit", false));
+        QVERIFY(controller.busy());
+        controller.cancel();
+        QTRY_VERIFY(!settings.credentialsBusy());
+        QVERIFY(server.requests.isEmpty());
+        QCOMPARE(document.layers().size(), 1);
+        QVERIFY(controller.generate(id, "Edit", false));
+        QTRY_COMPARE_WITH_TIMEOUT(added.size(), 1, 5000);
+        QCOMPARE(credentials->reads, 1);
+        QCOMPARE(server.requests.size(), 1);
     }
     void nativeCredentialStoreRoundTrip()
     {

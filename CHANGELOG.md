@@ -6,6 +6,10 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## Non publié
 
+- Ne plus lire les clés IA au démarrage ou à l’ouverture des réglages : lecture
+  du seul fournisseur choisi au lancement d’une génération, requêtes simultanées
+  regroupées et clé réutilisée pendant la session. Aucun nouvel essai automatique
+  après refus d’accès au trousseau ; annulation et changements de profil respectés.
 - Nouveau conteneur de projets binaire v14 : tuiles natives compressées sans perte
   avec Zstandard, index CBOR, fonds uniformes et données identiques dédupliquées.
   Plus de PNG/Base64 pour les pixels édités ; sources IA originales conservées

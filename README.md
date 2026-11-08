@@ -19,6 +19,9 @@ validation des builds, tests et contrôles de déploiement des trois plateformes
 
 ## Ajouts après v0.18.2 — non publiés
 
+- **Accès IA au trousseau différé** : aucun accès au trousseau au démarrage ou dans
+  les réglages ; seul le fournisseur choisi est consulté au lancement de la
+  génération, puis sa clé est réutilisée pendant la session.
 - **Projets binaires v14** : tuiles natives compressées sans perte avec Zstandard,
   aplats compacts, données identiques dédupliquées, pixels 8/16 bits exacts et
   fichiers jusqu’à 8 Gio. Lecture des anciens JSON/PNG/Base64 conservée ; les

@@ -247,7 +247,7 @@ ColumnLayout {
                             echoMode: TextInput.Password
                             placeholderText: {
                                 const revision = panel.settings.revision;
-                                return panel.settings.hasKey(panel.providerId) ? qsTr("Clé disponible · saisir pour la remplacer") : qsTr("Coller la clé API ici");
+                                return panel.settings.hasKey(panel.providerId) ? qsTr("Clé disponible · saisir pour la remplacer") : panel.settings.keySource(panel.providerId) === "unloaded" ? qsTr("Saisir une clé pour l’ajouter ou la remplacer") : qsTr("Coller la clé API ici");
                             }
                         }
                         Label {
@@ -258,7 +258,7 @@ ColumnLayout {
                             text: {
                                 const revision = panel.settings.revision;
                                 const source = panel.settings.keySource(panel.providerId);
-                                return source === "stored" ? qsTr("Clé enregistrée dans le trousseau sécurisé.") : source === "environment" ? qsTr("Clé fournie par la variable d’environnement.") : panel.providerKind === "comfy" || panel.providerKind === "compatible" ? qsTr("Facultative pour un serveur local sans authentification.") : qsTr("La clé sera conservée dans le trousseau sécurisé du système.");
+                                return source === "stored" ? qsTr("Clé enregistrée dans le trousseau sécurisé.") : source === "environment" ? qsTr("Clé fournie par la variable d’environnement.") : source === "unloaded" ? qsTr("Une clé déjà enregistrée sera chargée uniquement à la génération.") : panel.providerKind === "comfy" || panel.providerKind === "compatible" ? qsTr("Facultative pour un serveur local sans authentification.") : qsTr("La clé sera conservée dans le trousseau sécurisé du système.");
                             }
                         }
                         RowLayout {

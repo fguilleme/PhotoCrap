@@ -1,5 +1,26 @@
 # Validation
 
+## Accès différé aux clés IA — après v0.18.2, non publié
+
+Le build et les tests ciblés `ai_images`, `ai_ui` et `qml_smoke` passent. Le
+backend de trousseau injecté compte ses lectures : aucune à la construction
+des réglages persistants, après la restauration des profils ou via les getters
+utilisés par l’interface. La première demande explicite lit une seule clé ;
+deux demandes simultanées partagent cette lecture, puis le cache de session
+évite de la répéter. Les anciens profils sans indicateur de clé sont couverts.
+
+Les tests vérifient le refus d’accès sans nouvelle tentative automatique, le
+rejet d’un résultat devenu caduc après changement d’endpoint et l’annulation
+pendant la lecture : aucune requête d’image ni insertion de calque. Une demande
+suivante utilise le cache et ajoute son résultat une fois. Les clés persistées
+restent absentes du fichier de réglages et des projets.
+
+Tous ces contrôles utilisent un trousseau fictif et des serveurs HTTP locaux :
+aucune clé ni autorisation du trousseau utilisateur n’a été consultée. La build
+macOS conserve une exigence de signature fondée sur son `cdhash`, vérifiée avec
+`codesign -d -r-` : les autorisations peuvent donc être redemandées lors de
+l’usage d’une clé après recompilation. Les ACL du trousseau sont inchangées.
+
 ## Conteneur binaire v14 — après v0.18.2, non publié
 
 Le build et les **65 tests CTest non interactifs** passent sur macOS/Qt 6.12

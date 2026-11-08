@@ -71,6 +71,7 @@ private:
     void                  stop(const QString &_error = {});
     void                  received(const QByteArray &_bytes, const QString &_error);
     void                  prepareResult();
+    void                                   prepareInput(bool _selection, quint64 _generation);
     QPointer<Document>    m_document;
     AiSettings *          m_settings;
     AiImageJob            m_job;

@@ -10,6 +10,9 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Après v0.18.2 — non publié
 
+- [x] Trousseau IA lu uniquement à la demande de génération pour le fournisseur
+  choisi, sans lectures au démarrage ni en ouvrant les réglages ; regroupement
+  des accès et cache de session, sans relance automatique après refus.
 - [x] Conteneur `.pcr` binaire v14 : tuiles Zstandard sans perte en 8/16 bits,
   fonds implicites, déduplication de plans/blocs, index CBOR, aperçu Quick Look
   indépendant et écriture atomique. Limite de fichier 8 Gio ; anciens JSON

@@ -5462,6 +5462,10 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Impossible de supprimer la clé du trousseau : %1</source>
         <translation>Unable to delete the key from the credential store: %1</translation>
     </message>
+    <message>
+        <source>Le fournisseur IA a changé.</source>
+        <translation>The AI provider has changed.</translation>
+    </message>
 </context>
 <context>
     <name>AiImageJob</name>
@@ -5635,6 +5639,14 @@ Independent software, not affiliated with Adobe.</translation>
     <message>
         <source>Envoi au fournisseur…</source>
         <translation>Sending to provider…</translation>
+    </message>
+    <message>
+        <source>Accès à la clé du fournisseur…</source>
+        <translation>Accessing the provider key…</translation>
+    </message>
+    <message>
+        <source>Impossible d’accéder au trousseau : %1</source>
+        <translation>Cannot access the system credential store: %1</translation>
     </message>
 </context>
 <context>
@@ -5964,6 +5976,14 @@ Independent software, not affiliated with Adobe.</translation>
     <message>
         <source>API compatible OpenAI</source>
         <translation>OpenAI-compatible API</translation>
+    </message>
+    <message>
+        <source>Saisir une clé pour l’ajouter ou la remplacer</source>
+        <translation>Enter a key to add or replace it</translation>
+    </message>
+    <message>
+        <source>Une clé déjà enregistrée sera chargée uniquement à la génération.</source>
+        <translation>Any saved key will only be loaded when generating.</translation>
     </message>
 </context>
 <context>

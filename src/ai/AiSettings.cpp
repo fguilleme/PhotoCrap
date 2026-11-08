@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QUuid>
@@ -32,6 +33,8 @@ AiSettings::AiSettings(QObject *_parent, bool _persist,
     if (_persist) {
         m_providers = QSettings().value("ai/providers").toList();
         m_prompts   = QSettings().value("ai/prompts").toList();
+        const auto accounts = QSettings().value("ai/credentialAccounts").toStringList();
+        m_storedAccounts    = QSet<QString>(accounts.begin(), accounts.end());
     }
     if (!_persist || !QSettings().contains("ai/providers")) {
         for (const QString kind : {"openai", "fal", "comfy"}) {
@@ -57,9 +60,6 @@ AiSettings::AiSettings(QObject *_parent, bool _persist,
             tr("Restaure cette photo : corrige les rayures, les taches et le bruit sans inventer "
                "de nouveaux détails ni modifier les traits des personnes."));
     }
-    if (_persist)
-        for (const auto &entry : m_providers)
-            loadKey(entry.toMap().value("id").toString());
 }
 void AiSettings::notifyChanged()
 {
@@ -176,6 +176,7 @@ QString AiSettings::saveProvider(QVariantMap _provider)
                                 previous.value("kind") != clean.value("kind"))) {
         eraseCredential(credentialAccount(clean["id"].toString()));
         m_keys.remove(clean["id"].toString());
+        ++m_keyVersions[clean["id"].toString()];
     }
     store(m_providers, clean);
     persist();
@@ -186,6 +187,7 @@ bool AiSettings::removeProvider(const QString &_id)
     for (int i = 0; i < m_providers.size(); ++i)
         if (m_providers[i].toMap().value("id") == _id) {
             eraseCredential(credentialAccount(_id));
+            ++m_keyVersions[_id];
             m_providers.removeAt(i);
             m_keys.remove(_id);
             persist();
@@ -229,6 +231,7 @@ QString AiSettings::readWorkflow(const QUrl &_url)
 }
 void AiSettings::setSessionKey(const QString &_id, const QString &_key)
 {
+    ++m_keyVersions[_id];
     if (_key.trimmed().isEmpty())
         m_keys.remove(_id);
     else
@@ -243,20 +246,69 @@ QString AiSettings::credentialAccount(const QString &_id) const
            QString::fromLatin1(
                QCryptographicHash::hash(scope.toUtf8(), QCryptographicHash::Sha256).toHex());
 }
-void AiSettings::loadKey(const QString &_id)
+void AiSettings::storedKeyHint(const QString &_account, bool _stored)
 {
+    if (_stored)
+        m_storedAccounts.insert(_account);
+    else
+        m_storedAccounts.remove(_account);
+    if (m_persist)
+        QSettings().setValue("ai/credentialAccounts", m_storedAccounts.values());
+}
+void AiSettings::resolveKey(const QString &_id, QObject *_receiver,
+                            AiCredentialStore::Callback _finished)
+{
+    const auto complete = [receiver = QPointer<QObject>(_receiver),
+                           finished = std::move(_finished)](const QString &value,
+                                                            const QString &error) {
+        if (receiver)
+            finished(value, error);
+    };
+    if (provider(_id).isEmpty()) {
+        complete({}, tr("Le fournisseur IA a changé."));
+        return;
+    }
     const auto account = credentialAccount(_id);
+    const auto cached  = key(_id);
+    if (!cached.isEmpty() || m_resolvedAccounts.contains(account)) {
+        complete(cached, {});
+        return;
+    }
+    auto &requests = m_keyRequests[account];
+    requests.append(complete);
+    if (requests.size() > 1)
+        return;
+    const auto version = m_keyVersions.value(_id);
     ++m_credentialJobs;
+    m_error.clear();
+    notifyChanged();
     m_credentials->read(
-        account, this, [this, _id, account](const QString &value, const QString &error) {
+        account, this, [this, _id, account, version](const QString &value, const QString &error) {
             --m_credentialJobs;
-            if (!provider(_id).isEmpty() && account == credentialAccount(_id)) {
-                if (error.isEmpty() && !value.isEmpty())
-                    m_keys[_id] = value;
+            const auto requests = m_keyRequests.take(account);
+            const bool current  = !provider(_id).isEmpty() && account == credentialAccount(_id) &&
+                                 version == m_keyVersions.value(_id);
+            if (current) {
+                if (error.isEmpty()) {
+                    if (value.isEmpty())
+                        m_keys.remove(_id);
+                    else
+                        m_keys[_id] = value;
+                    m_resolvedAccounts.insert(account);
+                    storedKeyHint(account, !value.isEmpty());
+                }
                 if (!error.isEmpty())
                     m_error = tr("Impossible d’accéder au trousseau : %1").arg(error);
             }
+            const auto resolved = current ? key(_id) : QString{};
             notifyChanged();
+            for (const auto &request : requests) {
+                const bool unchanged = current && !provider(_id).isEmpty() &&
+                                       account == credentialAccount(_id) &&
+                                       version == m_keyVersions.value(_id);
+                request(unchanged ? resolved : QString{},
+                        unchanged ? error : tr("Le fournisseur IA a changé."));
+            }
         });
 }
 void AiSettings::saveKey(const QString &_id, const QString &_key)
@@ -266,15 +318,21 @@ void AiSettings::saveKey(const QString &_id, const QString &_key)
         return;
     }
     const auto account = credentialAccount(_id), secret = _key.trimmed();
+    const auto version = ++m_keyVersions[_id];
     ++m_credentialJobs;
     m_error.clear();
     notifyChanged();
     m_credentials->write(
-        account, secret, this, [this, _id, account, secret](const QString &, const QString &error) {
+        account, secret, this,
+        [this, _id, account, secret, version](const QString &, const QString &error) {
             --m_credentialJobs;
-            const bool current = !provider(_id).isEmpty() && account == credentialAccount(_id);
-            if (current && error.isEmpty())
+            const bool current = !provider(_id).isEmpty() && account == credentialAccount(_id) &&
+                                 version == m_keyVersions.value(_id);
+            if (current && error.isEmpty()) {
                 m_keys[_id] = secret;
+                m_resolvedAccounts.insert(account);
+                storedKeyHint(account, true);
+            }
             if (!error.isEmpty())
                 m_error = tr("La clé n’a pas été enregistrée dans le trousseau : %1").arg(error);
             notifyChanged();
@@ -284,10 +342,12 @@ void AiSettings::saveKey(const QString &_id, const QString &_key)
 void AiSettings::eraseCredential(const QString &_account)
 {
     ++m_credentialJobs;
-    m_credentials->remove(_account, this, [this](const QString &, const QString &error) {
+    m_credentials->remove(_account, this, [this, _account](const QString &, const QString &error) {
         --m_credentialJobs;
         if (!error.isEmpty())
             m_error = tr("Impossible de supprimer la clé du trousseau : %1").arg(error);
+        else
+            storedKeyHint(_account, false);
         notifyChanged();
     });
 }
@@ -296,6 +356,8 @@ void AiSettings::removeKey(const QString &_id)
     if (provider(_id).isEmpty() || credentialsBusy())
         return;
     m_keys.remove(_id);
+    ++m_keyVersions[_id];
+    m_resolvedAccounts.insert(credentialAccount(_id));
     eraseCredential(credentialAccount(_id));
     notifyChanged();
 }
@@ -303,7 +365,13 @@ QString AiSettings::keySource(const QString &_id) const
 {
     if (m_keys.contains(_id))
         return "stored";
-    return hasKey(_id) ? "environment" : QString{};
+    if (!key(_id).isEmpty())
+        return "environment";
+    const auto account = credentialAccount(_id);
+    if (m_storedAccounts.contains(account))
+        return "stored";
+    return !provider(_id).isEmpty() && !m_resolvedAccounts.contains(account) ? "unloaded"
+                                                                             : QString{};
 }
 QString AiSettings::key(const QString &_id) const
 {
@@ -314,7 +382,7 @@ QString AiSettings::key(const QString &_id) const
 }
 bool AiSettings::hasKey(const QString &_id) const
 {
-    return !key(_id).isEmpty();
+    return !key(_id).isEmpty() || m_storedAccounts.contains(credentialAccount(_id));
 }
 QString AiSettings::defaultWorkflow()
 {

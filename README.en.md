@@ -19,6 +19,9 @@ and deployment checks pass on all three platforms.
 
 ## Additions after v0.18.2 — unreleased
 
+- **On-demand AI credentials**: no credential-store reads at startup or in preferences.
+  Only the chosen provider's key is retrieved when generating, then reused
+  during the session.
 - **Binary v14 projects**: lossless Zstandard-compressed native tiles, compact
   uniform planes, deduplicated data, exact 8/16-bit samples and files up to 8 GiB.
   Legacy JSON/PNG/Base64 projects remain readable; new saves require this

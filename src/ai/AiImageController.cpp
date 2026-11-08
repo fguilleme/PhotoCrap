@@ -90,13 +90,6 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
         emit changed();
         return false;
     }
-    const auto key = m_settings->key(_providerId);
-    if ((provider.value("kind") == "openai" || provider.value("kind") == "fal") && key.isEmpty()) {
-        m_error = tr(
-            "Ajoutez une clé API dans Réglages → IA, ou définissez sa variable d’environnement.");
-        emit changed();
-        return false;
-    }
     if (provider.value("model").toString().trimmed().isEmpty()) {
         m_error = tr("Indiquez un modèle dans les réglages du fournisseur IA.");
         emit changed();
@@ -110,15 +103,49 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
     m_variantCount = _variants;
     m_completed    = 0;
     m_batchId      = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    m_key          = key;
+    m_key.clear();
     m_error.clear();
     m_busy                = true;
-    m_status              = tr("Préparation de l’image…");
+    m_status              = tr("Accès à la clé du fournisseur…");
     m_provider            = provider;
     m_prompt              = prompt;
     m_cancel              = std::make_shared<std::atomic_bool>(false);
     const auto generation = ++m_generation;
-    emit       changed();
+    m_input               = {};
+    m_input.session       = m_document->documentSession();
+    emit changed();
+    if (!m_busy || generation != m_generation)
+        return true;
+    m_settings->resolveKey(
+        _providerId, this,
+        [this, generation, selection = _selection](const QString &key, const QString &error) {
+            if (!m_busy || generation != m_generation)
+                return;
+            if (!error.isEmpty()) {
+                stop(tr("Impossible d’accéder au trousseau : %1").arg(error));
+                return;
+            }
+            if ((m_provider.value("kind") == "openai" || m_provider.value("kind") == "fal") &&
+                key.isEmpty()) {
+                stop(tr("Ajoutez une clé API dans Réglages → IA, ou définissez sa variable "
+                        "d’environnement."));
+                return;
+            }
+            if (!m_document || m_input.session != m_document->documentSession()) {
+                stop(tr("Le document a changé pendant la préparation IA."));
+                return;
+            }
+            m_key = key;
+            prepareInput(selection, generation);
+        });
+    return true;
+}
+void AiImageController::prepareInput(bool _selection, quint64 generation)
+{
+    m_status = tr("Préparation de l’image…");
+    emit changed();
+    if (!m_busy || generation != m_generation)
+        return;
     auto *     watcher = new QFutureWatcher<PhotoCrap::Ai::Input>(this);
     connect(watcher, &QFutureWatcher<PhotoCrap::Ai::Input>::finished, this,
             [this, watcher, generation] {
@@ -142,9 +169,8 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
                 }
                 startVariant();
             });
-    watcher->setFuture(
-        m_document->prepareAiInput(_selection, provider.value("maxEdge", 1536).toInt(), m_cancel));
-    return true;
+    watcher->setFuture(m_document->prepareAiInput(
+        _selection, m_provider.value("maxEdge", 1536).toInt(), m_cancel));
 }
 QString AiImageController::variantStatus(const QString &_status) const
 {

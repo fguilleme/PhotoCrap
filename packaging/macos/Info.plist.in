@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleName</key><string>PhotoCrap</string>
+<key>CFBundleIdentifier</key><string>${MACOSX_BUNDLE_GUI_IDENTIFIER}</string>
+<key>CFBundleExecutable</key><string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+<key>CFBundleVersion</key><string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
+<key>CFBundleShortVersionString</key><string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
+<key>CFBundleIconFile</key><string>PhotoCrap.icns</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleAllowMixedLocalizations</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+<key>CFBundleDocumentTypes</key><array><dict>
+  <key>CFBundleTypeName</key><string>PhotoCrap Project</string>
+  <key>CFBundleTypeRole</key><string>Editor</string>
+  <key>LSHandlerRank</key><string>Owner</string>
+  <key>LSItemContentTypes</key><array><string>org.photocrap.project</string></array>
+  <key>CFBundleTypeIconFile</key><string>PhotoCrap.icns</string>
+</dict></array>
+<key>UTExportedTypeDeclarations</key><array><dict>
+  <key>UTTypeIdentifier</key><string>org.photocrap.project</string>
+  <key>UTTypeDescription</key><string>PhotoCrap Project</string>
+  <key>UTTypeConformsTo</key><array><string>public.data</string><string>public.content</string></array>
+  <key>UTTypeTagSpecification</key><dict>
+    <key>public.filename-extension</key><array><string>pcr</string></array>
+    <key>public.mime-type</key><string>application/x-photocrap</string>
+  </dict>
+</dict></array>
+</dict></plist>

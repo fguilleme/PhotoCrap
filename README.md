@@ -17,6 +17,15 @@ validation des builds, tests et contrôles de déploiement des trois plateformes
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
+## Ajouts après v0.18.2 — non publiés
+
+- **Quick Look sur macOS** : aperçu des `.pcr` avec Espace et miniatures Finder,
+  sans lancer l’éditeur. Les nouveaux enregistrements intègrent une composition
+  réduite, lue avant les données de calques. Les anciens projets montrent une
+  image source de repli ; les réenregistrer ajoute l’aperçu de la composition.
+  Les mêmes aperçus accélèrent la grille des fichiers récents.
+  [Installation et limites](docs/MACOS_QUICK_LOOK.md).
+
 ## Nouveautés de v0.18.0
 
 - **Calques IA** depuis l’image ou la sélection, avec OpenAI, fal.ai, ComfyUI et

@@ -15,6 +15,7 @@
 #include "render/CurvesGeometry.h"
 #include "render/HistogramGeometry.h"
 #include "render/PenBandGeometry.h"
+#include "storage/ProjectPreview.h"
 #include "text/TextEditorController.h"
 #include <QClipboard>
 #include <QCryptographicHash>
@@ -125,12 +126,16 @@ class RecentThumbnailProvider : public QQuickImageProvider
         if (!cacheRoot.isEmpty() && image.load(cacheFile, "PNG"))
             return image;
 
+        image = PhotoCrap::Preview::read(_path, _bounds);
         // A separate document belongs entirely to the image provider's worker thread.
         // This also supports older projects that do not contain an embedded preview.
-        Document document;
-        if (!document.openFile(QUrl::fromLocalFile(_path)))
-            return {};
-        image = document.composite().scaled(_bounds, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        if (image.isNull()) {
+            Document document;
+            if (!document.openFile(QUrl::fromLocalFile(_path)))
+                return {};
+            image =
+                document.composite().scaled(_bounds, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
         const QFileInfo after(_path);
         if (!image.isNull() && !cacheRoot.isEmpty() && after.size() == info.size() &&
             after.lastModified() == info.lastModified() && QDir().mkpath(cache.path())) {
@@ -282,6 +287,11 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty())
         return 1;
     app.setMainWindow(qobject_cast<QWindow *>(engine.rootObjects().first()));
+    app.setFileOpenHandler([window =
+                                QPointer<QObject>(engine.rootObjects().first())](const QUrl &url) {
+        if (window)
+            QMetaObject::invokeMethod(window, "openNativeDocument", Q_ARG(QVariant, QVariant(url)));
+    });
     if (args.contains("--demo") || smoke)
         document.createDemo();
     else if (args.size() > 1 && !args[1].startsWith("--")) {

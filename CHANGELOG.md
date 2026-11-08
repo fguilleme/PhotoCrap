@@ -4,6 +4,14 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## Non publié
+
+- Aperçus Quick Look et miniatures Finder pour les projets `.pcr` sur macOS,
+  via des extensions natives indépendantes de Qt. Aperçu compact de composition
+  intégré aux nouvelles sauvegardes et réutilisé par les fichiers récents.
+- Repli identifié sur une image source pour les anciens projets ; ouverture
+  des documents depuis le Finder et le bouton Quick Look de macOS.
+
 ## v0.18.2 — 8 novembre 2026
 
 Cette version reprend les fonctions et correctifs de v0.18.0/v0.18.1 ci-dessous.

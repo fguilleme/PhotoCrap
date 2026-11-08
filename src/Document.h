@@ -1895,6 +1895,7 @@ private:
     static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                         const QSize &_targetSize, bool _draft,
                                         std::shared_ptr<ScratchImageCache> _scratch = {});
+    QImage                    projectPreview() const;
 
     mutable PhotoCrap::Tools::SliceDescriptionCache m_sliceDescriptions;
 };

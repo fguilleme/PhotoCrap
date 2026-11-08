@@ -57,6 +57,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/DocumentProjectPreview.cpp
+    src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
+    src/storage/ProjectPreviewScan.h
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
     src/storage/ProjectReadIndex.h
@@ -390,6 +393,9 @@ qt_add_library(photocrap_core STATIC
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/DocumentProjectPreview.cpp
+    src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
+    src/storage/ProjectPreviewScan.h
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
     src/storage/ProjectReadIndex.h
@@ -705,6 +711,7 @@ set_target_properties(PhotoCrap PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
     MACOSX_BUNDLE_ICON_FILE "PhotoCrap.icns"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
 )
 if(MSVC)
     target_compile_options(photocrap_core PRIVATE /W4 /utf-8)
@@ -868,6 +875,15 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_marquee_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME marquee COMMAND photocrap_marquee_tests)
     set_tests_properties(marquee PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    qt_add_executable(photocrap_file_open_tests tests/ApplicationFileOpenTest.cpp)
+    target_include_directories(photocrap_file_open_tests PRIVATE src)
+    target_link_libraries(photocrap_file_open_tests PRIVATE Qt6::Gui Qt6::Test)
+    add_test(NAME application_file_open COMMAND photocrap_file_open_tests)
+    set_tests_properties(application_file_open PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 15)
+    qt_add_executable(photocrap_project_preview_tests tests/ProjectPreviewTest.cpp)
+    target_link_libraries(photocrap_project_preview_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME project_preview COMMAND photocrap_project_preview_tests)
+    set_tests_properties(project_preview PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     qt_add_executable(photocrap_ai_tests tests/AiImageTest.cpp)
     target_link_libraries(photocrap_ai_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
     add_test(NAME ai_images COMMAND photocrap_ai_tests)
@@ -986,6 +1002,7 @@ if(BUILD_TESTING)
     endif()
 endif()
 
+include(cmake/MacQuickLook.cmake)
 include(GNUInstallDirs)
 install(TARGETS PhotoCrap BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 qt_generate_deploy_qml_app_script(TARGET PhotoCrap OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
@@ -1002,7 +1019,7 @@ if(APPLE)
     install(CODE [=[
         set(photocrap_app "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/PhotoCrap.app")
         execute_process(
-            COMMAND /usr/bin/codesign --force --deep --sign - "${photocrap_app}"
+            COMMAND /usr/bin/codesign --force --deep --preserve-metadata=entitlements --sign - "${photocrap_app}"
             RESULT_VARIABLE photocrap_codesign_result
             ERROR_VARIABLE photocrap_codesign_error
         )

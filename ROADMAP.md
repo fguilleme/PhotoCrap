@@ -8,6 +8,14 @@ GPU préparées depuis v0.17.2.
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
+## Après v0.18.2 — non publié
+
+- [x] Aperçus Quick Look et miniatures Finder `.pcr` via deux extensions macOS
+  natives, intégrées au paquet et sans Qt. Aperçu JPEG borné au début des
+  nouveaux enregistrements, repli sur une image source des anciens projets,
+  lecture réutilisée par les fichiers récents et ouverture Finder prise en charge.
+  [Guide](docs/MACOS_QUICK_LOOK.md).
+
 ## Livraison de v0.18.2
 
 - [x] Fournisseurs et prompts IA persistants, trousseau natif et 1–8 variantes.
@@ -19,7 +27,8 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   Plume et premier affichage de l’aperçu du pinceau, sans retirer les assertions.
 - [x] Attendre le rendu complet avant les comparaisons de bruit, mosaïque et
   filtres spatiaux, sans élargir leurs tolérances de pixels.
-- [ ] Publication et validation des paquets v0.18.2 sur les trois plateformes.
+- [x] Publication et validation des paquets v0.18.2 sur les trois plateformes.
+  [Workflow](https://github.com/fguilleme/PhotoCrap/actions/runs/42430277582).
 
 ## Correctifs de publication de v0.17.2
 

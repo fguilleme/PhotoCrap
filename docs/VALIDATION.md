@@ -1,5 +1,41 @@
 # Validation
 
+## Quick Look macOS — après v0.18.2, non publié
+
+Les **64 tests CTest non interactifs** passent sur macOS/Qt 6.12 (99,18 s ;
+les trois contrôles natifs souris/Plume/préférences sont exclus de cette passe).
+Les nouveaux tests couvrent l’aperçu de composition en 8/16 bits, la conservation
+des données natives, les ouvertures Finder mises en attente au démarrage,
+les limites du lecteur et le repli sur les anciens PNG.
+
+Le lecteur natif extrait une miniature de 80×60 depuis un fichier de test creux
+de **200 Mio**, en lisant au plus **16 Kio**. L’enregistrement d’un document
+uniforme 24 Mpx/16 bits avec 64 calques vides supplémentaires produit ici
+341 351 octets, aperçu inclus ; ce contrôle ne mesure pas une pile de photos
+denses et ne représente pas la taille d’un projet réel quelconque.
+
+Un ancien projet local d’environ 92 Mio, sans aperçu intégré, fournit une image
+source réduite à 854×1280 : **0,60 s**, pic RSS **62 881 792 octets** (environ
+60 Mio), avec 35 831 808 octets parcourus jusqu’à la première image raster.
+Mesure isolée via `/usr/bin/time -l`, cache disque non contrôlé ; ce repli ne
+recompose pas les réglages et les autres calques.
+
+Les deux extensions de la build ont été enregistrées auprès de macOS. Une
+requête réelle `QLThumbnailGenerator`, refusant une simple icône de fichier,
+obtient une miniature **256×192**. Un hôte AppKit de test affiche aussi le
+document dans le panneau natif Quick Look, avec une zone d’aperçu image et le
+bouton **Ouvrir avec PhotoCrap**. L’outil système `qlmanage -p -o` a planté côté
+hôte dans ExtensionFoundation ; le contrôle AppKit natif a donc servi à valider
+l’aperçu. Aucun document utilisateur n’a été réenregistré pour ces contrôles.
+
+Le binaire des extensions ne lie que les frameworks Apple et les bibliothèques
+système C++ ; aucune bibliothèque Qt. La signature ad hoc du bundle construit
+est valide et les extensions conservent le sandbox avec lecture des fichiers
+sélectionnés. L’installation autonome dans un dossier temporaire passe aussi
+`VerifyDeployment.cmake` : les deux extensions sont présentes, la signature
+complète est valide et leurs entitlements sandbox sont conservés après
+déploiement Qt. [Fonctionnement et limites](MACOS_QUICK_LOOK.md).
+
 ## Captures après rendu complet pour v0.18.2 — 8 novembre 2026
 
 Le [run v0.18.1](https://github.com/fguilleme/PhotoCrap/actions/runs/42428235039)

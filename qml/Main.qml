@@ -44,6 +44,7 @@ ApplicationWindow {
     property bool resumeAfterSave: false
     property bool saveInFlight: false
     property bool importing: false
+    property bool nativeDocumentOpening: false
     property bool changingSecondary: false
     property int gradientStopToEdit: -1
     property bool changingShapeFill: false
@@ -980,6 +981,11 @@ ApplicationWindow {
         pendingRecentFile=url
         guard("recent")
     }
+    function openNativeDocument(url) {
+        nativeDocumentOpening = true
+        welcomeDialog.close()
+        guardRecent(url)
+    }
     function openRecentFile(url) {
         if(editor.isRawFile(url)) editor.openRawFile(url)
         else editor.requestOpenFile(url)
@@ -1171,7 +1177,7 @@ ApplicationWindow {
         refreshToolLayout()
         restoreWorkspaceLayout()
         Qt.callLater(fitCanvas)
-        if (showWelcomeAtStartup) Qt.callLater(function() { recentFiles.refresh(); welcomeDialog.open() })
+        if (showWelcomeAtStartup) Qt.callLater(function() { if (!nativeDocumentOpening) { recentFiles.refresh(); welcomeDialog.open() } })
     }
     Connections {
         target: workspaceSettings

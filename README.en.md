@@ -17,6 +17,15 @@ and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
+## Additions after v0.18.2 — unreleased
+
+- **macOS Quick Look**: Space-bar previews and Finder thumbnails for `.pcr`
+  projects without launching the editor. Newly saved projects embed a small
+  composite before their layer data. Older projects show a source-image
+  fallback; saving them again adds the composite preview. The recent-files
+  grid also uses these embedded previews.
+  [Installation and limitations](docs/MACOS_QUICK_LOOK.md) (French).
+
 ## New in v0.18.0
 
 - **AI layers** from the visible image or selection, using OpenAI, fal.ai,

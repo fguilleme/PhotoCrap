@@ -5,6 +5,7 @@
 #include "shapes/ShapeLayer.h"
 #include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectPng.h"
+#include "storage/ProjectPreview.h"
 #include "storage/ProjectReadIndex.h"
 #include "storage/ProjectWriteDevice.h"
 #include "storage/StreamingImageWriter.h"
@@ -570,7 +571,21 @@ bool Document::saveProject(const QUrl &_url)
         slices.append(QJsonObject{
             {"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}});
     root["slices"] = slices;
-    if (!prefix(root) || !write(",\"layers\":["))
+    const auto preview = PhotoCrap::Preview::encode(projectPreview(), m_size, m_channelBits);
+    if (!preview.isEmpty()) {
+        // Keep the preview before paths and pixel payloads: Finder reads a prefix.
+        if (!write("{\"format\":\"PhotoCrap\",\"preview\":") ||
+            !write(QJsonDocument(preview).toJson(QJsonDocument::Compact)) || !write(","))
+            return saveError();
+        root.remove("format");
+        auto metadata = QJsonDocument(root).toJson(QJsonDocument::Compact);
+        metadata.remove(0, 1);
+        metadata.chop(1);
+        if (!write(metadata))
+            return saveError();
+    } else if (!prefix(root))
+        return saveError();
+    if (!write(",\"layers\":["))
         return saveError();
     bool first = true;
     for (const auto &layer : m_layers) {

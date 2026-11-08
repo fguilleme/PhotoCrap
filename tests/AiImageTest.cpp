@@ -591,7 +591,12 @@ private slots:
             << originalBytes << "bytes";
         QVERIFY2(stored < legacy.bytes / 5,
                  "AI originals should be far smaller than enlarged native rasters");
-        QVERIFY(stored < originalBytes * 4 / 3 + 64 * 1024);
+        QFile project(url.toLocalFile());
+        QVERIFY(project.open(QIODevice::ReadOnly));
+        const auto metadata     = QJsonDocument::fromJson(project.readAll()).object();
+        const auto previewBytes = metadata["preview"].toObject()["image"].toString().size();
+        QVERIFY(previewBytes <= 512 * 1024 * 4 / 3 + 4);
+        QVERIFY(stored < originalBytes * 4 / 3 + 64 * 1024 + previewBytes);
         Document reopened;
         QVERIFY(reopened.openFile(url));
         QCOMPARE(reopened.layers().size(), 4);

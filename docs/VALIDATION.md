@@ -1,5 +1,13 @@
 # Validation
 
+## Barre d’outils compacte — après v0.18.2, non publié
+
+Le build et `qml_smoke` passent après retrait du bandeau de marque. Le parcours
+`--smoke-test --marquee-test --screenshot` passe aussi ; la capture à 1480×940
+confirme que les réglages de sélection commencent directement sous les menus,
+sans la ligne de 64 px. Annuler/Rétablir/Exporter sont dans la barre du document.
+Les autres réglages génériques utilisent une ligne de 44 px.
+
 ## Accès différé aux clés IA — après v0.18.2, non publié
 
 Le build et les tests ciblés `ai_images`, `ai_ui` et `qml_smoke` passent. Le

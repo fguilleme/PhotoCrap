@@ -1690,20 +1690,14 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 64; color: "#242a32"
+            id: toolOptionsBar
+            visible: (window.paintToolActive && editor.tool !== "mixerBrush")
+                     || window.opacityToolActive || window.smartSelectionToolActive
+                     || window.shapeToolActive || editor.tool === "gradient"
+                     || editor.tool === "rotateView" || editor.tool === "zoomTool"
+            Layout.fillWidth: true; Layout.preferredHeight: 44; color: "#242a32"
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 14
-                Rectangle {
-                    width: 33; height: 33; radius: 9; color: "#bfefce"
-                    Text { anchors.centerIn: parent; text: qsTr("P"); color: "#1d342b"; font.bold: true; font.pixelSize: 24 }
-                }
-                Column {
-                    spacing: 3
-                    Label { text: qsTr("PhotoCrap"); font.pixelSize: 16; font.bold: true; color: "#f0f3f6" }
-                    Label { text: qsTr("L’ATELIER NUMÉRIQUE"); font.pixelSize: 8; font.letterSpacing: 2; color: "#87929e" }
-                }
-                Rectangle { Layout.leftMargin: 10; width: 1; height: 28; color: "#3a414a" }
-                Label { visible: window.width>=1250; text: window.toolName; color: "#c8d0d9"; Layout.preferredWidth: 152 }
+                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
                 ScrollView {
                     visible: editor.tool === "gradient"
                     Layout.fillWidth: visible
@@ -2136,17 +2130,9 @@ ApplicationWindow {
                     onClicked: fitCanvas()
                 }
                 Item { visible: editor.tool !== "gradient" && editor.tool !== "fill"; Layout.fillWidth: true }
-                IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
-                IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
-                Button {
-                    text: qsTr("Exporter ↗"); implicitWidth: 116; implicitHeight: 32
-                    background: Rectangle { color: parent.down ? "#94caa4" : "#beeccb"; radius: 5 }
-                    contentItem: Text { text: parent.text; color: "#203b2c"; font.pixelSize: 12; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                    onClicked: exportDialog.open()
-                }
             }
         }
-        Rectangle { Layout.fillWidth: true; height: 1; color: "#10141a" }
+        Rectangle { visible: toolOptionsBar.visible; Layout.fillWidth: true; height: 1; color: "#10141a" }
         SelectionOptions {
             objectName: "selectionOptions"
             Layout.fillWidth: true
@@ -2305,6 +2291,14 @@ ApplicationWindow {
                         Label { text: qsTr("@ ") + Math.round(zoom*100) + " %"; color: "#73808e" }
                         Item { Layout.fillWidth: true }
                         Label { objectName: "documentDepthLabel"; text: qsTr("RVB") + " / " + editor.channelBits; color: "#73808e"; font.pixelSize: 10 }
+                        IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
+                        IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
+                        Button {
+                            text: qsTr("Exporter ↗"); implicitWidth: 116; implicitHeight: 32
+                            background: Rectangle { color: parent.down ? "#94caa4" : "#beeccb"; radius: 5 }
+                            contentItem: Text { text: parent.text; color: "#203b2c"; font.pixelSize: 12; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                            onClicked: exportDialog.open()
+                        }
                         IconButton { glyph: "+"; hint: qsTr("Nouveau document"); implicitWidth: 27; onClicked: guard("new") }
                     }
                 }

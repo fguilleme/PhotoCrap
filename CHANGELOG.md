@@ -6,6 +6,9 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## Non publié
 
+- Retirer le bandeau de marque et le nom d’outil au-dessus des réglages ; masquer
+  la barre générique lorsqu’elle est vide et compacter les autres outils à 44 px.
+  Annuler, Rétablir et Exporter restent accessibles dans la barre du document.
 - Ne plus lire les clés IA au démarrage ou à l’ouverture des réglages : lecture
   du seul fournisseur choisi au lancement d’une génération, requêtes simultanées
   regroupées et clé réutilisée pendant la session. Aucun nouvel essai automatique

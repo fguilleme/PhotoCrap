@@ -1,5 +1,6 @@
 #pragma once
 #include "CanvasItem.h"
+#include "PreviewRenderWait.h"
 #include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -105,6 +106,9 @@ inline bool runSpatialRenderSmoke(QQuickWindow *window)
         // Compute the native reference after committing the gesture, so it is
         // independent of the CPU's intentionally reduced drag-preview path.
         const QImage     reference = document.composite();
+        if (!require(waitForCommittedPreview(document),
+                     "the committed spatial preview reaches its native reference"))
+            return false;
         const auto       origin    = canvas.position();
         const auto       restore   = qScopeGuard([&] { canvas.setPosition(origin); });
         QVector<QPointF> views{origin};

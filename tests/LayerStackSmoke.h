@@ -1,5 +1,6 @@
 #pragma once
 #include "CanvasItem.h"
+#include "PreviewRenderWait.h"
 #include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -709,6 +710,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                 document.beginLayerPreview();
                 document.previewLayerParameter("amount", amount);
                 document.finishLayerPreview("Noise amount");
+                if (!require(waitForCommittedPreview(document),
+                             "the committed noise preview reaches its native reference"))
+                    return false;
                 const auto stack = document.gpuLayerStack();
                 if (!require(stack.valid && stack.layers.last().tonal &&
                                  stack.layers.last().toneTable.isNull(),
@@ -758,6 +762,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             document.beginLayerPreview();
             document.previewLayerParameter("cellSize", cell);
             document.finishLayerPreview("Mosaic cell size");
+            if (!require(waitForCommittedPreview(document),
+                         "the committed mosaic preview reaches its native reference"))
+                return false;
             if (cell == 17) {
                 document.addLayerMask();
                 document.fillMaskWithColor(QColor(173, 173, 173));

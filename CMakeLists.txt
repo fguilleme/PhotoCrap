@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCrap VERSION 0.18.1 LANGUAGES CXX)
+project(PhotoCrap VERSION 0.18.2 LANGUAGES CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()
@@ -270,6 +270,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/PatchMeshTest.cpp
     tests/ToneRenderSmoke.h
     tests/LayerStackSmoke.h
+    tests/PreviewRenderWait.h
     tests/SpatialRenderSmoke.h
     tests/PresetPreviewSmoke.h
     tests/GpuTonePreviewTest.cpp

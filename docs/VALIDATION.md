@@ -1,5 +1,22 @@
 # Validation
 
+## Captures après rendu complet pour v0.18.2 — 8 novembre 2026
+
+Le [run v0.18.1](https://github.com/fguilleme/PhotoCrap/actions/runs/42428235039)
+a validé le paquet Linux et les contrôles d’interface corrigés de macOS. Les
+comparaisons Bruit et Flou directionnel ont cependant capturé l’aperçu précédent
+pendant le rendu complet, encore en arrière-plan après validation du geste.
+
+Les références de Bruit, Mosaïque et des filtres spatiaux attendent désormais
+que `displayComposite()` rejoigne le composite natif courant avant la capture.
+L’attente est bornée à cinq secondes ; les comparaisons de pixels et leurs
+tolérances restent inchangées. Les tests de latence de l’aperçu pendant le geste
+ne passent pas par cette attente du rendu final.
+
+`stack_render` et `spatial_render` passent chacun trois fois en mode logiciel
+(117,85 s au total), puis passent aussi en Cocoa/Metal dans leurs parcours dédiés.
+Le build complet de la version 0.18.2 passe après ces vérifications.
+
 ## Correctifs de validation de v0.18.1 — 8 novembre 2026
 
 Le build 0.18.1 et les tests ciblés `ai_images`, `tool_layers` et `qml_smoke`

@@ -4,7 +4,18 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.18.1 — 8 novembre 2026
+## v0.18.2 — 8 novembre 2026
+
+Cette version reprend les fonctions et correctifs de v0.18.0/v0.18.1 ci-dessous.
+Les comparaisons des rendus de bruit, mosaïque et filtres spatiaux attendent
+désormais la fin réelle du rendu complet asynchrone, au lieu de capturer
+un ancien aperçu après un délai fixe. Les tolérances de comparaison sont inchangées.
+
+## v0.18.1 — 8 novembre 2026, publication ignorée
+
+Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/42428235039)
+a validé les tests et le paquet Linux. Deux captures de rendu ont encore échoué
+sur macOS avant l’arrivée de l’image complète ; la publication a été bloquée.
 
 Cette version reprend toutes les nouveautés de v0.18.0 ci-dessous.
 

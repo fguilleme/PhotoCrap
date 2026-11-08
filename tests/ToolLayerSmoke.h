@@ -373,12 +373,19 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     auto *endHandle = guide->findChild<QQuickItem *>("gradientEndHandle");
     if (!require(endHandle && endHandle->isVisible(), "the gradient has an end handle"))
         return false;
+    // The handle becomes enabled beneath the release position. Qt 6.8 may
+    // suppress a synthetic move to that same position; leave and re-enter it
+    // as a real hover gesture instead of relying on a frame's delivery timing.
+    QTest::mouseMove(_window, area->mapToScene(QPointF(8, 105)).toPoint(), 20);
     const auto handlePoint = endHandle->mapToScene(QPointF(endHandle->width() / 2,
                                                          endHandle->height() / 2)).toPoint();
     QTest::mouseMove(_window, handlePoint, 20);
-    QTest::qWait(80);
-    if (!require(QGuiApplication::overrideCursor() &&
-                     QGuiApplication::overrideCursor()->shape() == Qt::SizeAllCursor,
+    if (!require(QTest::qWaitFor(
+                     [] {
+                         return QGuiApplication::overrideCursor() &&
+                                QGuiApplication::overrideCursor()->shape() == Qt::SizeAllCursor;
+                     },
+                     3000),
                  "hovering a gradient handle changes the shared system cursor"))
         return false;
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, handlePoint);

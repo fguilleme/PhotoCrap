@@ -1986,15 +1986,26 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      !shapeRadius->property("visible").toBool(),
                  "line exposes its stroke controls without rectangle-only controls"))
         return false;
+    QSignalSpy brushOpened(brushSettings, SIGNAL(opened()));
     QMetaObject::invokeMethod(brushSettings, "open");
-    QTest::qWait(100);
-    if (!require(brushSettings->property("visible").toBool(), "brush settings dialog opens"))
+    if (!require(QTest::qWaitFor([&] { return !brushOpened.isEmpty(); }, 3000) &&
+                     brushSettings->property("visible").toBool(),
+                 "brush settings dialog opens"))
         return false;
     auto *tipPreview = _window->findChild<QObject *>("brushTipPreview");
     if (!require(tipPreview && tipPreview->property("visible").toBool(),
                  "brush settings shows the standalone tip preview"))
         return false;
     QSignalSpy tipPaints(tipPreview, SIGNAL(painted()));
+    // Start counting only after the popup transition and an actual raster
+    // paint. A delayed initial Canvas paint is unrelated to brush smoothing.
+    if (!tipPreview->property("gpuPreview").toBool()) {
+        QMetaObject::invokeMethod(tipPreview, "requestPaint");
+        if (!require(QTest::qWaitFor([&] { return !tipPaints.isEmpty(); }, 3000),
+                     "brush preview finishes its initial raster paint"))
+            return false;
+    }
+    tipPaints.clear();
     // Document exposes a shared notification for all tool settings. Unrelated
     // changes must not invalidate this illustration's raster or uniforms.
     const qreal initialSmoothing = _document.brushSmoothing();

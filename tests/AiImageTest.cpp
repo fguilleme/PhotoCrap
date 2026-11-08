@@ -30,6 +30,17 @@ QByteArray png(const QColor &_color = Qt::green)
     image.save(&buffer, "PNG");
     return bytes;
 }
+QImage scaledAiReference(const QByteArray &_bytes, const QSize &_canvas, const QRect &_bounds,
+                         int _bits)
+{
+    auto     expected = ImageUtils::blank(_canvas, _bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                               : QImage::Format_ARGB32_Premultiplied);
+    QPainter painter(&expected);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawImage(_bounds, QImage::fromData(_bytes, "PNG"));
+    painter.end();
+    return expected;
+}
 struct Request {
     QByteArray method, target, headers, body;
 };
@@ -321,7 +332,7 @@ private slots:
             QCOMPARE(d.maskImage(1), coverage);
             QVERIFY(!d.hasSelection());
             QCOMPARE(d.historyIndex(), history + 1);
-            QCOMPARE(d.layerImage(1).pixelColor(source.bounds.center()), QColor(Qt::green));
+            QCOMPARE(d.layerImage(1), scaledAiReference(png(), source.canvas, source.bounds, bits));
             QCOMPARE(d.layerImage(1).pixelColor(0, 0).alpha(), 0);
             QCOMPARE(d.layerImage(1).format(), d.workingFormat());
             d.undo();
@@ -771,7 +782,9 @@ private slots:
         QVERIFY(controller.error().isEmpty());
         QCOMPARE(d.layers().size(), 2);
         QCOMPARE(d.layerImage(0).pixelColor(0, 0), QColor(Qt::blue));
-        QCOMPARE(d.layerImage(1).pixelColor(0, 0), QColor(Qt::green));
+        const QSize canvas(d.width(), d.height());
+        QCOMPARE(d.layerImage(1),
+                 scaledAiReference(bytes, canvas, QRect(QPoint{}, canvas), d.channelBits()));
         QCOMPARE(d.historyIndex(), history + 1);
         QVERIFY(d.layers().first().toMap().value("parameters").toMap().contains("_ai"));
         d.undo();
@@ -839,6 +852,7 @@ private slots:
         d.modifySelection("feather", 2);
         QTRY_VERIFY(!d.selectionBusy());
         const auto          mask     = d.selectionMask();
+        const auto          bounds   = d.selection();
         const auto          original = d.layerImage(0);
         int                 history  = d.historyIndex();
         const QList<QColor> colors{Qt::green, Qt::blue, Qt::yellow};
@@ -875,7 +889,8 @@ private slots:
         QCOMPARE(d.layerImage(0), original);
         QString batch;
         for (int i = 1; i <= 3; ++i) {
-            QCOMPARE(d.layerImage(i).pixelColor(50, 45), colors[i - 1]);
+            QCOMPARE(d.layerImage(i), scaledAiReference(png(colors[i - 1]), original.size(), bounds,
+                                                        d.channelBits()));
             QCOMPARE(d.maskImage(i), mask);
             bool found = false;
             for (const auto &row : d.layers()) {

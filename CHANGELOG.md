@@ -4,7 +4,24 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.18.0 — 8 novembre 2026
+## v0.18.1 — 8 novembre 2026
+
+Cette version reprend toutes les nouveautés de v0.18.0 ci-dessous.
+
+- Attendre la fin de l’ouverture du panneau Pinceau et son dessin initial avant
+  de vérifier qu’un changement de lissage ne provoque pas de nouveau dessin.
+- Produire un vrai geste de sortie/entrée sur une poignée de dégradé, puis
+  attendre le curseur prévu, au lieu d’un déplacement synthétique à la même place.
+- Attendre le dessin des poignées de la Plume avant de contrôler leur moteur de rendu.
+- Comparer les sorties IA mises à l’échelle à une image de référence Qt native
+  complète, en conservant des comparaisons exactes en 8 et 16 bits sur chaque architecture.
+
+## v0.18.0 — 8 novembre 2026, publication ignorée
+
+Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/42426564928)
+a bloqué la publication après deux échecs de synchronisation des contrôles
+d’interface sur macOS/Qt 6.8.3 et trois références de couleur IA trop strictes
+vis-à-vis des arrondis natifs sous Linux. Les tests IA du runner macOS ont passé.
 
 - Créer des calques depuis la composition ou une sélection avec OpenAI GPT Image,
   fal.ai, ComfyUI ou une API d’édition compatible. Conserver plusieurs fournisseurs,

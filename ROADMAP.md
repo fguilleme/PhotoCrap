@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État au **8 novembre 2026**. **v0.18.0** ajoute les calques IA, les dégradés
+État au **8 novembre 2026**. **v0.18.1** ajoute les calques IA, les dégradés
 dynamiques, le presse-papiers de sélection et les fusions, avec les optimisations
 GPU préparées depuis v0.17.2.
 [Notes de version](CHANGELOG.md) ·
@@ -8,14 +8,16 @@ GPU préparées depuis v0.17.2.
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-## Livraison de v0.18.0
+## Livraison de v0.18.1
 
 - [x] Fournisseurs et prompts IA persistants, trousseau natif et 1–8 variantes.
 - [x] Suivi visible, insertion unique et détails fournisseur/modèle/variante par calque.
 - [x] Sources IA compactes dans les projets v13, avec repli natif après retouche.
 - [x] Essais réels OpenAI et fal.ai confirmés par l’utilisateur.
 - [ ] Essai ComfyUI avec serveur et workflow réels (protocole simulé déjà testé).
-- [ ] Publication et validation des paquets v0.18.0 sur les trois plateformes.
+- [x] Synchroniser les contrôles de survol du dégradé, dessin des poignées de la
+  Plume et premier affichage de l’aperçu du pinceau, sans retirer les assertions.
+- [ ] Publication et validation des paquets v0.18.1 sur les trois plateformes.
 
 ## Correctifs de publication de v0.17.2
 

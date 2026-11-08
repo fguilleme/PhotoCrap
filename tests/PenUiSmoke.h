@@ -61,10 +61,13 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     QSignalSpy editedHandlePaints(handles, SIGNAL(painted()));
     QTest::mousePress(_window, Qt::LeftButton, Qt::ControlModifier, scene(130, 40));
     QTest::mouseMove(_window, scene(160, 50), 20);
-    QTest::qWait(40);
-    if (!require(handles->isVisible() &&
-                     (handles->property("gpuHandles").toBool() ? editedHandlePaints.isEmpty()
-                                                               : !editedHandlePaints.isEmpty()),
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return handles->isVisible() && (handles->property("gpuHandles").toBool()
+                                                             ? editedHandlePaints.isEmpty()
+                                                             : !editedHandlePaints.isEmpty());
+                     },
+                     3000),
                  "real anchor dragging updates handles with the expected GPU/software renderer"))
         return false;
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::ControlModifier, scene(160, 50));

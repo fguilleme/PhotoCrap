@@ -1,5 +1,25 @@
 # Validation
 
+## Correctifs de validation de v0.18.1 — 8 novembre 2026
+
+Le build 0.18.1 et les tests ciblés `ai_images`, `tool_layers` et `qml_smoke`
+passent localement (48,38 s). Les deux scénarios d’interface passent ensuite
+trois fois chacun avec `--repeat until-fail:3` (78,03 s), sans assertion retirée.
+
+Le [run v0.18.0](https://github.com/fguilleme/PhotoCrap/actions/runs/42426564928)
+a révélé deux contrôles d’interface macOS dépendant de délais fixes : survol de
+la poignée de dégradé et comptage du premier dessin du pinceau. Le scénario fait
+désormais sortir puis rentrer le pointeur, attend le curseur attendu, et attend
+la fin d’ouverture du dialogue et un dessin initial avant de mesurer l’absence
+de dessins supplémentaires. La Plume attend aussi le dessin de ses poignées.
+Les assertions de curseur et de non-redessin restent actives.
+
+Sur Linux, trois comparaisons de couleurs IA contre des valeurs théoriques
+échouaient avec Qt 6.8.3, malgré des valeurs hexadécimales 8 bits identiques.
+Les tests comparent maintenant l’image native entière à un rendu de référence
+QPainter en une passe, sans tolérance ni conversion en 8 bits. La comparaison
+du rendu par bandes et les sauvegardes/rechargements restent exacts.
+
 ## Préparation de v0.18.0 — 8 novembre 2026
 
 Le build de la version 0.18.0 et les **61 tests CTest non interactifs** passent

@@ -4,7 +4,7 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.18.0**, adding AI result layers, editable gradients,
+This source tree is **v0.18.1**, adding AI result layers, editable gradients,
 selection clipboard operations, and layer merging. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 

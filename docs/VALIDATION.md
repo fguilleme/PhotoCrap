@@ -1,6 +1,6 @@
 # Validation
 
-## Barre d’outils compacte — après v0.18.2, non publié
+## Barre d’outils compacte — v0.19.0
 
 Le build et `qml_smoke` passent après retrait du bandeau de marque. Le parcours
 `--smoke-test --marquee-test --screenshot` passe aussi ; la capture à 1480×940
@@ -8,7 +8,7 @@ confirme que les réglages de sélection commencent directement sous les menus,
 sans la ligne de 64 px. Annuler/Rétablir/Exporter sont dans la barre du document.
 Les autres réglages génériques utilisent une ligne de 44 px.
 
-## Accès différé aux clés IA — après v0.18.2, non publié
+## Accès différé aux clés IA — v0.19.0
 
 Le build et les tests ciblés `ai_images`, `ai_ui` et `qml_smoke` passent. Le
 backend de trousseau injecté compte ses lectures : aucune à la construction
@@ -29,7 +29,7 @@ macOS conserve une exigence de signature fondée sur son `cdhash`, vérifiée av
 `codesign -d -r-` : les autorisations peuvent donc être redemandées lors de
 l’usage d’une clé après recompilation. Les ACL du trousseau sont inchangées.
 
-## Conteneur binaire v14 — après v0.18.2, non publié
+## Conteneur binaire v14 — v0.19.0
 
 Le build et les **65 tests CTest non interactifs** passent sur macOS/Qt 6.12
 (98,91 s ; trois contrôles natifs souris/Plume/préférences exclus). Les tests

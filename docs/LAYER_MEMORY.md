@@ -1,6 +1,6 @@
 # Calques, mémoire et cache de travail disque
 
-## Projets binaires v14 — non publiés
+## Projets binaires v14 — depuis v0.19.0
 
 Les nouvelles sauvegardes remplacent le JSON/PNG/Base64 par des tuiles natives
 compressées sans perte avec Zstandard, un index CBOR et un aperçu séparé. Les

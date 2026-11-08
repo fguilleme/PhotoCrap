@@ -1,6 +1,6 @@
 # Format des projets `.pcr`
 
-## Conteneur binaire v14 — non publié
+## Conteneur binaire v14 — depuis v0.19.0
 
 Les nouvelles sauvegardes utilisent un conteneur binaire, sans chaînes Base64.
 Les anciens fichiers JSON v1–v13 restent lisibles ; les réenregistrer les convertit

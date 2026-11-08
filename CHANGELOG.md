@@ -4,7 +4,7 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## Non publié
+## v0.19.0 — 8 novembre 2026
 
 - Retirer le bandeau de marque et le nom d’outil au-dessus des réglages ; masquer
   la barre générique lorsqu’elle est vide et compacter les autres outils à 44 px.

@@ -1,14 +1,17 @@
 # Roadmap PhotoCrap
 
-État au **8 novembre 2026**. **v0.18.2** ajoute les calques IA, les dégradés
-dynamiques, le presse-papiers de sélection et les fusions, avec les optimisations
-GPU préparées depuis v0.17.2.
+État au **8 novembre 2026**. **v0.19.0** ajoute le format de projets binaire v14,
+Quick Look sur macOS, les accès au trousseau à la demande et la barre d’outils
+compacte. Les calques IA et les optimisations précédentes restent disponibles.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-## Après v0.18.2 — non publié
+## Livraison de v0.19.0
+
+- [x] Retirer le bandeau de marque et le nom d’outil ; garder les commandes
+  communes dans la barre du document et compacter les réglages.
 
 - [x] Trousseau IA lu uniquement à la demande de génération pour le fournisseur
   choisi, sans lectures au démarrage ni en ouvrant les réglages ; regroupement

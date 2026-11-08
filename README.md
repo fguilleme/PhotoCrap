@@ -4,8 +4,8 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Le code source correspond à **v0.18.2** : calques IA multifournisseurs,
-dégradés dynamiques, presse-papiers de sélection et fusions de calques.
+Le code source correspond à **v0.19.0** : projets binaires sans perte, Quick Look
+macOS, accès différé au trousseau et interface plus compacte.
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Télécharger
@@ -17,7 +17,10 @@ validation des builds, tests et contrôles de déploiement des trois plateformes
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
-## Ajouts après v0.18.2 — non publiés
+## Nouveautés de v0.19.0
+
+- **Interface compacte** : suppression du bandeau de marque et du nom d’outil,
+  commandes communes regroupées dans la barre du document.
 
 - **Accès IA au trousseau différé** : aucun accès au trousseau au démarrage ou dans
   les réglages ; seul le fournisseur choisi est consulté au lancement de la

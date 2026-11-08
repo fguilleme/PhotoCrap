@@ -4,8 +4,8 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.18.2**, adding AI result layers, editable gradients,
-selection clipboard operations, and layer merging. [Release notes](CHANGELOG.md) ·
+This source tree is **v0.19.0**, adding lossless binary projects, macOS Quick Look,
+on-demand credentials, and a more compact interface. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download
@@ -17,7 +17,10 @@ and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
-## Additions after v0.18.2 — unreleased
+## New in v0.19.0
+
+- **Compact interface**: remove the branding/tool-name banner and keep common
+  actions in the document bar.
 
 - **On-demand AI credentials**: no credential-store reads at startup or in preferences.
   Only the chosen provider's key is retrieved when generating, then reused

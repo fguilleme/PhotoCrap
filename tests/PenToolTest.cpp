@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ProjectFixture.h"
 #include "tools/PenPath.h"
 #include <QCryptographicHash>
 #include <QFile>
@@ -72,7 +73,7 @@ private slots:
         QVERIFY(d.saveProject(url));
         QFile saved(url.toLocalFile());
         QVERIFY(saved.open(QIODevice::ReadOnly));
-        const auto json = QJsonDocument::fromJson(saved.readAll()).object();
+        const auto json = legacyProjectFixture(saved);
         QCOMPARE(json["version"].toInt(), 10);
         Document loaded;
         QVERIFY(loaded.openFile(url));
@@ -533,7 +534,7 @@ private slots:
         QCOMPARE(position(loaded, 0, 1), QPointF(20, 70));
         QFile io(file.toLocalFile());
         QVERIFY(io.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(io.readAll()).object();
+        auto root = legacyProjectFixture(io);
         io.close();
         QCOMPARE(root["version"].toInt(), 9);
         auto paths        = root["penPaths"].toArray();

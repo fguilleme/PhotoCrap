@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "ProjectFixture.h"
 #include "ai/AiImageController.h"
 #include "ai/AiImageTypes.h"
 #include "ai/AiSettings.h"
@@ -464,7 +465,7 @@ private slots:
                 QFile file(url.toLocalFile());
                 if (!file.open(QIODevice::ReadOnly))
                     return QJsonObject{};
-                return QJsonDocument::fromJson(file.readAll()).object();
+                return legacyProjectFixture(file);
             };
             auto root = read();
             QCOMPARE(root["version"].toInt(), 13);
@@ -593,7 +594,7 @@ private slots:
                  "AI originals should be far smaller than enlarged native rasters");
         QFile project(url.toLocalFile());
         QVERIFY(project.open(QIODevice::ReadOnly));
-        const auto metadata     = QJsonDocument::fromJson(project.readAll()).object();
+        const auto metadata     = legacyProjectFixture(project);
         const auto previewBytes = metadata["preview"].toObject()["image"].toString().size();
         QVERIFY(previewBytes <= 512 * 1024 * 4 / 3 + 4);
         QVERIFY(stored < originalBytes * 4 / 3 + 64 * 1024 + previewBytes);

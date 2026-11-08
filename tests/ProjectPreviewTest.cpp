@@ -1,5 +1,6 @@
 #include "storage/ProjectPreview.h"
 #include "Document.h"
+#include "ProjectFixture.h"
 #include "storage/ProjectPreviewScan.h"
 #include <QFile>
 #include <QFileInfo>
@@ -77,7 +78,7 @@ private slots:
             QCOMPARE(restored.composite(), expectedImage);
             QFile file(path);
             QVERIFY(file.open(QIODevice::ReadOnly));
-            const auto root = QJsonDocument::fromJson(file.readAll()).object();
+            const auto root = legacyProjectFixture(file);
             QCOMPARE(root["version"].toInt(), 9);
             QCOMPARE(root["preview"].toObject()["channelBits"].toInt(), bits);
         }

@@ -10,6 +10,12 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 
 ## Après v0.18.2 — non publié
 
+- [x] Conteneur `.pcr` binaire v14 : tuiles Zstandard sans perte en 8/16 bits,
+  fonds implicites, déduplication de plans/blocs, index CBOR, aperçu Quick Look
+  indépendant et écriture atomique. Limite de fichier 8 Gio ; anciens JSON
+  v1–v13 lisibles, avec migration au prochain enregistrement.
+  [Spécification et limites](docs/PROJECT_FORMAT.md).
+
 - [x] Aperçus Quick Look et miniatures Finder `.pcr` via deux extensions macOS
   natives, intégrées au paquet et sans Qt. Aperçu JPEG borné au début des
   nouveaux enregistrements, repli sur une image source des anciens projets,

@@ -56,13 +56,23 @@ QImage read(const QString &path, const QSize &bounds)
     if (!input)
         return {};
     const auto entry = Scan(input).read();
-    if (entry.json.empty())
+    if (entry.json.empty() && !entry.binaryPreview)
         return {};
-    const auto object = QJsonDocument::fromJson(QByteArray::fromStdString(entry.json)).object();
-    if (object.value("version").toInt() != 1 || object.value("encoding") != "jpeg")
-        return {};
-    const auto bytes = QByteArray::fromBase64(object.value("image").toString().toLatin1(),
-                                              QByteArray::AbortOnBase64DecodingErrors);
+    QByteArray bytes;
+    if (entry.binaryPreview) {
+        input.clear();
+        input.seekg(std::streamoff(entry.offset));
+        bytes.resize(qsizetype(entry.length));
+        input.read(bytes.data(), std::streamsize(entry.length));
+        if (input.gcount() != std::streamsize(entry.length))
+            return {};
+    } else {
+        const auto object = QJsonDocument::fromJson(QByteArray::fromStdString(entry.json)).object();
+        if (object.value("version").toInt() != 1 || object.value("encoding") != "jpeg")
+            return {};
+        bytes = QByteArray::fromBase64(object.value("image").toString().toLatin1(),
+                                       QByteArray::AbortOnBase64DecodingErrors);
+    }
     if (bytes.isEmpty() || bytes.size() > 512 * 1024)
         return {};
     QBuffer buffer;

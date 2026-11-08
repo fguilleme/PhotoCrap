@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ProjectFixture.h"
 #include "shapes/ShapeLayer.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -239,7 +240,7 @@ private slots:
         QVERIFY(d.saveProject(url));
         QFile file(url.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        auto root = legacyProjectFixture(file);
         file.close();
         QCOMPARE(root["version"].toInt(), 11);
         QVERIFY(root["penPaths"].toArray().isEmpty());

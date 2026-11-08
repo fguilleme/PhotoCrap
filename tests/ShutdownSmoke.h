@@ -1,6 +1,7 @@
 #pragma once
 #include "Document.h"
 #include "WorkspaceSettings.h"
+#include "storage/ProjectReadIndex.h"
 #include <QEvent>
 #include <QFile>
 #include <QGuiApplication>
@@ -67,12 +68,10 @@ inline void startShutdownSmoke(QQuickWindow *_window, Document &_document,
                              QFile file(directory->filePath("shutdown.pcr"));
                              passed =
                                  passed && !_document.modified() && file.open(QIODevice::ReadOnly);
-                             if (passed)
-                                 passed = QJsonDocument::fromJson(file.readAll())
-                                              .object()
-                                              .value("layers")
-                                              .toArray()
-                                              .size() == 2;
+                             if (passed) {
+                                 ProjectReadIndex index;
+                                 passed = index.read(file) && index.layers.size() == 2;
+                             }
                          }
                          QCoreApplication::instance()->setProperty("shutdownChecksPassed", passed);
                          if (passed)

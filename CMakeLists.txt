@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
 include(cmake/RawDependencies.cmake)
 include(cmake/ProjectPng.cmake)
+include(cmake/ProjectZstd.cmake)
 include(cmake/JpegExport.cmake)
 include(cmake/WebpExport.cmake)
 
@@ -60,6 +61,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
+    src/storage/BinaryProject.cpp src/storage/BinaryProject.h src/storage/ProjectBinaryHeader.h
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
     src/storage/ProjectReadIndex.h
@@ -396,6 +398,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
+    src/storage/BinaryProject.cpp src/storage/BinaryProject.h src/storage/ProjectBinaryHeader.h
     src/storage/ProjectWriteDevice.cpp
     src/storage/ProjectWriteDevice.h
     src/storage/ProjectReadIndex.h
@@ -504,7 +507,7 @@ qt_add_library(photocrap_core STATIC
     src/filters/ThresholdFilter.h
 )
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Concurrent)
-target_link_libraries(photocrap_core PRIVATE qt6keychain photocrap_libraw photocrap_raw_zlib photocrap_png_codec
+target_link_libraries(photocrap_core PRIVATE qt6keychain photocrap_libraw photocrap_raw_zlib photocrap_png_codec photocrap_zstd
     photocrap_jpeg_codec webp)
 target_include_directories(photocrap_core PUBLIC src)
 if(APPLE AND PHOTOCRAP_ENABLE_ACCELERATE)
@@ -884,6 +887,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_project_preview_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME project_preview COMMAND photocrap_project_preview_tests)
     set_tests_properties(project_preview PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    qt_add_executable(photocrap_binary_project_tests tests/BinaryProjectTest.cpp)
+    target_link_libraries(photocrap_binary_project_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME binary_project COMMAND photocrap_binary_project_tests)
+    set_tests_properties(binary_project PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
     qt_add_executable(photocrap_ai_tests tests/AiImageTest.cpp)
     target_link_libraries(photocrap_ai_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
     add_test(NAME ai_images COMMAND photocrap_ai_tests)

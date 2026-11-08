@@ -25,13 +25,13 @@ la signature Developer ID et la notarisation restent à configurer.
 
 ## Gros projets et compatibilité
 
-Chaque nouvel enregistrement ajoute un aperçu JPEG de la composition avant
-les données de calques. Son grand côté est limité à **1 280 pixels**, son
-JPEG à **512 Kio**, soit environ **683 Kio** au maximum après encodage Base64.
+Chaque nouvel enregistrement binaire v14 ajoute un aperçu JPEG de la composition
+juste après l’en-tête, avant les données de calques. Son grand côté est limité à **1 280 pixels**, son
+JPEG à **512 Kio**. Il est stocké directement en binaire, sans Base64.
 La transparence apparaît sur un damier. Les pixels éditables, leur alpha et
 leur précision 8/16 bits restent enregistrés séparément, sans compression JPEG.
 
-Le Finder lit uniquement ce préfixe, avec un tampon de 16 Kio. Il ne charge
+Le Finder parcourt l’en-tête avec un tampon de 16 Kio, puis lit le JPEG borné. Il ne charge
 ni l’historique, ni les calques complets, ni leurs masques. Le décodeur borne
 les dimensions de l’image avant de produire une miniature. Les traitements
 d’un même processus d’extension sont sérialisés.
@@ -43,7 +43,7 @@ résolution peut diminuer pour contenir les plans réduits supplémentaires dans
 un budget de 64 Mio ; ce budget ne représente pas le RSS total de l’application.
 La page d’accueil utilise aussi cet aperçu avant son ancien repli de composition.
 
-Les anciens projets ne contiennent pas de composition intégrée. Les extensions
+Les anciens projets JSON sans champ `preview` ne contiennent pas de composition intégrée. Les extensions
 cherchent alors la première image raster, sans recomposer les calques. Quick
 Look l’indique dans le titre et sa miniature porte **PCR\***. Elle peut donc
 différer de l’image finale, notamment avec des réglages, masques ou sources IA
@@ -57,8 +57,9 @@ Base64 ; le parcours et le décodage Base64 ont chacun un délai de cinq seconde
 Ces bornes peuvent empêcher l’aperçu d’un ancien projet atypique ou très lent
 à lire. Aucun fichier utilisateur n’est modifié par les extensions.
 
-Le champ `preview` est facultatif : le numéro minimal du format reste **v9 à
-v13** selon le contenu du projet, et les anciens lecteurs ignorent cet aperçu.
+Les aperçus des anciens JSON v9–v13 restent reconnus. Les nouveaux projets
+utilisent le [conteneur binaire v14](PROJECT_FORMAT.md) ; les extensions n’ont
+pas besoin du codec Zstandard pour en extraire le JPEG.
 
 ## Développement et vérification
 

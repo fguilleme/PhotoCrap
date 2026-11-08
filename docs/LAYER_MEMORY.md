@@ -1,5 +1,16 @@
 # Calques, mémoire et cache de travail disque
 
+## Projets binaires v14 — non publiés
+
+Les nouvelles sauvegardes remplacent le JSON/PNG/Base64 par des tuiles natives
+compressées sans perte avec Zstandard, un index CBOR et un aperçu séparé. Les
+fonds implicites et les tuiles absentes restent compacts à la réouverture ; les
+plans et blocs identiques ne sont écrits qu’une fois. La taille maximale du
+conteneur passe à 8 Gio, sans relever les budgets de pixels ou de calques.
+Le lecteur des anciens JSON conserve sa limite de 256 Mio. Les sections datées
+ci-dessous décrivent aussi l’ancien chemin, toujours utilisé à leur ouverture.
+[Spécification du nouveau format](PROJECT_FORMAT.md).
+
 ## Export par bandes — 5 novembre 2026
 
 À partir de quatre millions de pixels, PNG et BMP lisent des bandes natives de

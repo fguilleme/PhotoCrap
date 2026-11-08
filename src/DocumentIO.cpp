@@ -429,112 +429,20 @@ bool Document::saveProject(const QUrl &_url)
         return fail(tr("Chemin de sauvegarde invalide."));
     if (!path.endsWith(".pcr", Qt::CaseInsensitive))
         path += ".pcr";
-    int                planes = 0;
-    QHash<qint64, int> references;
-    for (const auto &layer : m_layers)
-        for (const PixelPlane *plane : {&layer.image, &layer.mask, &layer.source})
-            if (!plane->isNull()) {
-                ++planes;
-                ++references[plane->cacheKey()];
-            }
-    // Only repeated immutable versions are worth retaining. Large payloads
-    // keep streaming without caching; neither cache nor recording can grow
-    // beyond this byte budget, independently of the document's native size.
-    constexpr int              payloadBudget = 8 * 1024 * 1024;
-    QCache<qint64, QByteArray> payloads(payloadBudget);
-    QSet<qint64>               uncachedPayloads;
-    const int                  total     = qMax(2, planes * 2 + 1);
-    int                        completed = 0;
+    const int total     = qMax(2, int(m_layers.size()) * 3 + 1);
+    int       completed = 0;
     if (!operationStep(0, total))
         return false;
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return fail(file.errorString());
-    LimitedWriteDevice output(file, MaxProjectBytes);
-    const auto         saveError = [&](bool _encoding = false) {
-        if (output.limitExceeded())
-            return fail(tr("Le projet dépasse 256 Mio. Réduisez ses dimensions ou ses calques."));
-        if (file.error() != QFileDevice::NoError)
-            return fail(file.errorString());
-        return fail(_encoding ? tr("Impossible d’encoder les données du calque.")
-                              : output.errorString());
-    };
-    const auto write = [&](const QByteArray &_bytes) {
-        return output.write(_bytes) == _bytes.size();
-    };
-    const auto prefix = [&](const QJsonObject &_object) {
-        auto bytes = QJsonDocument(_object).toJson(QJsonDocument::Compact);
-        bytes.chop(1); // Append streamed fields before the object's closing brace.
-        return write(bytes);
-    };
-    const auto image = [&](const PixelPlane &_plane) {
-        if (_plane.isNull())
-            return true;
-        if (!operationStep(completed++, total))
-            return false;
-        const auto key = _plane.cacheKey();
-        if (const auto payload = payloads.object(key)) {
-            if (!operationStep(completed++, total))
-                return false;
-            for (qsizetype offset = 0; offset < payload->size();) {
-                if (!operationStep(completed, total))
-                    return false;
-                const auto count = qMin(qsizetype(16 * 1024), payload->size() - offset);
-                if (output.write(payload->constData() + offset, count) != count)
-                    return false;
-                offset += count;
-            }
-            return operationStep(completed, total);
-        }
-        if (!operationStep(completed++, total))
-            return false;
-        const auto encode = [&](Base64WriteDevice &_encoder) {
-            const auto space = _plane.colorSpace();
-            const auto format = _plane.format();
-            const bool native = format == QImage::Format_Grayscale8 ||
-                                format == QImage::Format_ARGB32_Premultiplied ||
-                                format == QImage::Format_RGBA64_Premultiplied;
-            const bool largeNative =
-                native && qint64(_plane.width()) * _plane.height() >= 4LL * 1024 * 1024 &&
-                (!space.isValid() || space == QColorSpace(QColorSpace::SRgb));
-            const bool written =
-                largeNative ? PhotoCrap::Storage::writeProjectPng(
-                                  _encoder, _plane, [&] { return operationStep(completed, total); })
-                            : QImage(_plane).save(&_encoder, "PNG");
-            return written && _encoder.finish();
-        };
-        if (references.value(key) > 1 && !uncachedPayloads.contains(key)) {
-            RecordingWriteDevice recording(output, payloadBudget);
-            Base64WriteDevice    encoder(recording);
-            if (!encode(encoder))
-                return false;
-            if (recording.recordingComplete()) {
-                const auto bytes = recording.recording();
-                payloads.insert(key, new QByteArray(bytes), int(bytes.size()));
-            } else
-                uncachedPayloads.insert(key);
-            return operationStep(completed, total);
-        }
-        Base64WriteDevice encoder(output);
-        return encode(encoder) && operationStep(completed, total);
-    };
+    const auto preview      = PhotoCrap::Preview::encode(projectPreview(), m_size, m_channelBits);
+    const auto previewBytes = QByteArray::fromBase64(preview.value("image").toString().toLatin1());
+    PhotoCrap::Storage::BinaryProjectWriter archive(
+        file, previewBytes, [&] { return operationStep(completed, total); });
     const auto compactAi = [&](const Layer &_layer) {
         return _layer.kind == "pixel" && _layer.aiSource &&
                _layer.aiSource->matches(_layer.image, m_size, m_channelBits);
-    };
-    const auto originalAi = [&](const PhotoCrap::Ai::ImageSource &_source) {
-        if (!operationStep(completed++, total))
-            return false;
-        Base64WriteDevice encoder(output);
-        const auto &      bytes = _source.encoded;
-        for (qsizetype offset = 0; offset < bytes.size(); offset += 64 * 1024) {
-            if (!operationStep(completed, total))
-                return false;
-            const auto count = qMin(qsizetype(64 * 1024), bytes.size() - offset);
-            if (encoder.write(bytes.constData() + offset, count) != count)
-                return false;
-        }
-        return encoder.finish() && operationStep(completed++, total);
     };
     const bool originalAiImages = std::any_of(m_layers.cbegin(), m_layers.cend(), compactAi);
     // Empty named paths need the new reader; keep ordinary documents readable
@@ -571,29 +479,10 @@ bool Document::saveProject(const QUrl &_url)
         slices.append(QJsonObject{
             {"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}});
     root["slices"] = slices;
-    const auto preview = PhotoCrap::Preview::encode(projectPreview(), m_size, m_channelBits);
-    if (!preview.isEmpty()) {
-        // Keep the preview before paths and pixel payloads: Finder reads a prefix.
-        if (!write("{\"format\":\"PhotoCrap\",\"preview\":") ||
-            !write(QJsonDocument(preview).toJson(QJsonDocument::Compact)) || !write(","))
-            return saveError();
-        root.remove("format");
-        auto metadata = QJsonDocument(root).toJson(QJsonDocument::Compact);
-        metadata.remove(0, 1);
-        metadata.chop(1);
-        if (!write(metadata))
-            return saveError();
-    } else if (!prefix(root))
-        return saveError();
-    if (!write(",\"layers\":["))
-        return saveError();
-    bool first = true;
+    QJsonArray savedLayers;
     for (const auto &layer : m_layers) {
         if (!operationStep(completed, total))
             return false;
-        if (!first && !write(","))
-            return saveError();
-        first = false;
         QJsonObject metadata{{"name", layer.name},
                              {"visible", layer.visible},
                              {"locked", layer.locked},
@@ -602,14 +491,15 @@ bool Document::saveProject(const QUrl &_url)
                              {"kind", layer.kind},
                              {"adjustmentType", layer.adjustmentType},
                              {"parameters", QJsonObject::fromVariantMap(layer.parameters)},
-                             {"compactPixels", ImageUtils::compact(layer.image)},
-                             {"compactMask", ImageUtils::compact(layer.mask)},
+                             {"compactPixels", !layer.image.isNull() && layer.image.isUniform()},
+                             {"compactMask", !layer.mask.isNull() && layer.mask.isUniform()},
                              {"maskEnabled", layer.maskEnabled},
                              {"clippingMask", layer.clippingMask},
                              {"groupId", layer.groupId},
                              {"groupCollapsed", layer.groupCollapsed}};
         const bool  useOriginal = compactAi(layer);
         if (useOriginal) {
+            metadata["compactPixels"] = false;
             const auto bounds    = layer.aiSource->bounds;
             metadata["aiRaster"] = QJsonObject{{"version", 1},
                                                {"x", bounds.x()},
@@ -617,23 +507,24 @@ bool Document::saveProject(const QUrl &_url)
                                                {"width", bounds.width()},
                                                {"height", bounds.height()}};
         }
-        if (!prefix(metadata) || !write(",\"png\":\""))
-            return saveError();
-        if (!(useOriginal ? originalAi(*layer.aiSource) : image(layer.image)))
-            return saveError(true);
-        if (!write("\",\"mask\":\""))
-            return saveError();
-        if (!image(layer.mask))
-            return saveError(true);
-        if (!write("\",\"source\":\""))
-            return saveError();
-        if (!image(layer.source))
-            return saveError(true);
-        if (!write("\"}"))
-            return saveError();
+        const int pixels =
+            useOriginal ? archive.original(layer.aiSource->encoded) : archive.plane(layer.image);
+        ++completed;
+        const int mask = archive.plane(layer.mask);
+        ++completed;
+        const int source = archive.plane(layer.source);
+        ++completed;
+        if ((!layer.image.isNull() && pixels < 0) || (!layer.mask.isNull() && mask < 0) ||
+            (!layer.source.isNull() && source < 0))
+            return fail(tr("Impossible d’encoder les données du calque."));
+        metadata["png"]    = pixels;
+        metadata["mask"]   = mask;
+        metadata["source"] = source;
+        savedLayers.append(metadata);
     }
-    if (!write("]}"))
-        return saveError();
+    root["layers"] = savedLayers;
+    if (!archive.finish(root))
+        return fail(tr("Impossible d’écrire le projet binaire."));
     if (!operationStep(completed, total) || !beginOperationPublication())
         return false;
     operationStep(total, total);
@@ -649,8 +540,9 @@ bool Document::loadProject(const QString &_path)
     QFile file(_path);
     if (!file.open(QIODevice::ReadOnly))
         return fail(file.errorString());
-    if (file.size() > MaxProjectBytes)
-        return fail(tr("Projet trop volumineux (256 Mio maximum)."));
+    const bool binary = file.peek(8) == QByteArray(PhotoCrap::Storage::BinaryHeader::Magic, 8);
+    if (file.size() > (binary ? 8LL * 1024 * 1024 * 1024 : MaxProjectBytes))
+        return fail(tr("Projet trop volumineux."));
     ProjectReadIndex index;
     if (!index.read(file, [this] { return operationStep(0, 1); }))
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
@@ -706,6 +598,14 @@ bool Document::loadProject(const QString &_path)
                                  bool _compact = false) -> PixelPlane {
             if (!operationStep(++completed, total) || !_payload.size || !decodeError.isEmpty())
                 return {};
+            if (_payload.binary) {
+                const QSize expected = _compact ? QSize(1, 1) : QSize(w, h);
+                auto        plane    = index.archive.plane(_payload.plane, expected, _format);
+                if (plane.isNull() || !plane.freeze() ||
+                    !prepareNativePlane(plane, _format, budget))
+                    decodeError = tr("Plan binaire corrompu ou allocation impossible.");
+                return plane;
+            }
             ProjectPayloadDevice buffer(file, _payload,
                                         [&] { return operationStep(completed, total); });
             QCryptographicHash   hash(QCryptographicHash::Sha256);
@@ -771,11 +671,17 @@ bool Document::loadProject(const QString &_path)
                 return fail(tr("Source de calque IA invalide."));
             if (!operationStep(++completed, total))
                 return false;
-            ProjectPayloadDevice buffer(file, payload,
-                                        [&] { return operationStep(completed, total); });
-            const auto           bytes = buffer.read(100LL * 1024 * 1024 + 1);
-            if (buffer.failed() || bytes.isEmpty() || bytes.size() > 100LL * 1024 * 1024 ||
-                !buffer.atEnd())
+            QByteArray bytes;
+            if (payload.binary)
+                bytes = index.archive.original(payload.plane);
+            else {
+                ProjectPayloadDevice buffer(file, payload,
+                                            [&] { return operationStep(completed, total); });
+                bytes = buffer.read(100LL * 1024 * 1024 + 1);
+                if (buffer.failed() || !buffer.atEnd())
+                    return fail(tr("Source de calque IA invalide."));
+            }
+            if (bytes.isEmpty() || bytes.size() > 100LL * 1024 * 1024)
                 return fail(tr("Source de calque IA invalide."));
             PhotoCrap::Ai::Input input;
             input.canvas = {w, h};

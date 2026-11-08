@@ -1,4 +1,5 @@
 #pragma once
+#include "ProjectBinaryHeader.h"
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -11,6 +12,7 @@ struct Entry {
     std::string   json;
     std::uint64_t offset = 0, length = 0, bytesRead = 0;
     bool          escaped = false;
+    bool          binaryPreview = false;
 };
 
 // Qt-free, bounded prefix reader shared by the app and native Finder extensions.
@@ -24,6 +26,23 @@ public:
     Entry read(bool legacy = false)
     {
         Entry result;
+        if (peek() == 'P') {
+            std::array<char, 64> bytes{};
+            for (char &byte : bytes) {
+                const int c = next();
+                if (c < 0)
+                    return {};
+                byte = char(c);
+            }
+            PhotoCrap::Storage::BinaryHeader header;
+            if (!header.read(bytes.data()) || !header.preview)
+                return {};
+            result.offset        = 64;
+            result.length        = header.preview;
+            result.binaryPreview = true;
+            result.bytesRead     = m_read;
+            return result;
+        }
         if (peek() == 0xef) {
             if (next() != 0xef || next() != 0xbb || next() != 0xbf)
                 return {};

@@ -1,4 +1,5 @@
 #import "PCRPreviewReader.h"
+#include "storage/ProjectBinaryHeader.h"
 #import <ImageIO/ImageIO.h>
 #import <QuickLookThumbnailing/QuickLookThumbnailing.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -137,6 +138,24 @@ int main(int argc, const char **argv)
                       result.size.height == 60,
                   "read embedded preview");
             check(result.bytesRead <= 16384, "large project reads only its prefix");
+            PhotoCrap::Storage::BinaryHeader binary;
+            binary.preview = image.length;
+            binary.length  = 200ULL * 1024 * 1024;
+            binary.index   = binary.length - 1;
+            binary.packed = binary.unpacked = 1;
+            const auto     header           = binary.bytes();
+            NSMutableData *native           = [NSMutableData dataWithBytes:header.data()
+                                                          length:header.size()];
+            [native appendData:image];
+            check([native writeToURL:url atomically:YES], "write binary prefix");
+            fd = open(url.fileSystemRepresentation, O_WRONLY);
+            check(fd >= 0 && ftruncate(fd, binary.length) == 0, "make large binary project");
+            close(fd);
+            result = PCRReadPreview(url, 80, &error);
+            check(result && !result.sourceOnly && result.size.width == 80 &&
+                      result.size.height == 60,
+                  "read binary embedded preview without the image codec");
+            check(result.bytesRead <= 16384, "binary preview reads only its prefix");
             NSData *  png    = fixture(NO);
             NSString *base64 = [png base64EncodedStringWithOptions:0];
             for (NSString *payload in @[

@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ProjectFixture.h"
 #include "filters/BlackWhiteFilter.h"
 #include "filters/BrightnessContrastFilter.h"
 #include "filters/ChannelMixerFilter.h"
@@ -193,7 +194,7 @@ private slots:
         QVERIFY(seed.saveProject(url));
         QFile file(url.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        auto root = legacyProjectFixture(file);
         file.close();
         auto        layers = root.value("layers").toArray();
         auto        layer  = layers.last().toObject();

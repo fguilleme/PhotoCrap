@@ -1,6 +1,50 @@
 # Validation
 
-## Quick Look macOS — après v0.18.2, non publié
+## Conteneur binaire v14 — après v0.18.2, non publié
+
+Le build et les **65 tests CTest non interactifs** passent sur macOS/Qt 6.12
+(98,91 s ; trois contrôles natifs souris/Plume/préférences exclus). Les tests
+conservent la couverture des anciens JSON : les fixtures à modifier sont
+matérialisées dans l’ancien format, puis validées par le lecteur historique.
+Les tests dédiés du conteneur vérifient séparément ses données binaires.
+
+`binary_project` contrôle les échantillons prémultipliés exacts en 8/16 bits,
+les faibles alphas, les bords de tuiles, les fonds implicites, la déduplication
+des plans, les métriques d’image, les erreurs d’en-tête, les checksums, les
+fichiers tronqués, l’annulation et le maintien du document ouvert après échec.
+Un masque de 24 Mpx avec une petite retouche conserve sa couleur de fond et son
+nombre de tuiles à la réouverture. Les tests existants vérifient aussi le partage
+des versions et l’offload vers le cache disque, les 301 calques sur 24 Mpx/16 bits,
+les formes, le texte, les tracés, les dégradés, les fréquences et les calques IA.
+
+Comparaison locale en lecture seule d’un ancien projet de **3 670×5 496 pixels,
+8 bits, quatre calques** ; sortie écrite dans un dossier temporaire :
+
+| Mesure | Ancien JSON/PNG/Base64 | Binaire v14 |
+|---|---:|---:|
+| Taille | 96 806 859 octets | 67 260 432 octets |
+| Ouverture | 3 183 ms | 2 214 ms |
+| Enregistrement binaire | — | 1 728 ms |
+
+Soit environ **30,5 % de réduction** sur ce projet. Les images de calques,
+masques et le composite relus sont identiques. Ce n’est pas une moyenne de corpus :
+le cache disque n’est pas contrôlé et d’autres tests tournaient pendant cette
+dernière mesure. Une mesure précédente sans cette charge donnait 2 994 / 2 109 ms
+pour les deux ouvertures, et 1 666 ms pour la sauvegarde. Aucun fichier utilisateur
+n’a été remplacé. Les données aléatoires peuvent peu se compresser ; les projets
+avec copies ou fonds uniformes peuvent bénéficier davantage de la déduplication.
+
+Le service macOS `QLThumbnailGenerator` fournit une miniature **256×192** d’un
+vrai projet binaire 16 bits et de l’ancienne fixture JSON. Les extensions ont été
+réenregistrées et explicitement activées après reconstruction. Le lecteur natif
+vérifie aussi l’extraction du JPEG depuis un conteneur creux de 200 Mio, sans
+charger son index ni le codec des pixels.
+
+Le paquet autonome passe `VerifyDeployment.cmake`, avec les extensions Quick Look,
+leur sandbox et la signature conservés. Zstandard est lié statiquement et sa
+licence figure dans le paquet. [Spécification](PROJECT_FORMAT.md).
+
+## Quick Look macOS — préparation JSON, avant le conteneur v14
 
 Les **64 tests CTest non interactifs** passent sur macOS/Qt 6.12 (99,18 s ;
 les trois contrôles natifs souris/Plume/préférences sont exclus de cette passe).

@@ -6,6 +6,13 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## Non publié
 
+- Nouveau conteneur de projets binaire v14 : tuiles natives compressées sans perte
+  avec Zstandard, index CBOR, fonds uniformes et données identiques dédupliquées.
+  Plus de PNG/Base64 pour les pixels édités ; sources IA originales conservées
+  comme blocs binaires. Échantillons 8/16 bits exacts, sauvegarde atomique et
+  limite de fichier de 8 Gio. Lecture des anciens JSON v1–v13 conservée ; les
+  anciennes applications ne peuvent pas ouvrir les nouvelles sauvegardes.
+
 - Aperçus Quick Look et miniatures Finder pour les projets `.pcr` sur macOS,
   via des extensions natives indépendantes de Qt. Aperçu compact de composition
   intégré aux nouvelles sauvegardes et réutilisé par les fichiers récents.

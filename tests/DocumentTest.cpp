@@ -3,6 +3,7 @@
 #include "ImageAlpha.h"
 #include "ImagePixels.h"
 #include "ImageUtils.h"
+#include "ProjectFixture.h"
 #include "RawTestImage.h"
 #include "RecentFilesManager.h"
 #include "ShortcutManager.h"
@@ -1223,7 +1224,8 @@ private slots:
         QVERIFY(loaded.openFile(project));
         QCOMPARE(loaded.layers().size(), 301);
         QCOMPARE(loaded.channelBits(), 16);
-        QCOMPARE(loaded.memoryUsage()["compactPlanes"].toInt(), 450);
+        // The uniform full-size background is compacted on save as well.
+        QCOMPARE(loaded.memoryUsage()["compactPlanes"].toInt(), 451);
         QVERIFY(loaded.memoryUsage()["layerBytes"].toLongLong() < baseBytes + 16 * 1024);
         QCOMPARE(loaded.maskImage(1, QSize(12, 12)).pixelColor(5, 5), QColor(Qt::white));
         QCOMPARE(loaded.layerImage(1, QSize(12, 12)).pixelColor(5, 5).alpha(), 0);
@@ -1459,16 +1461,22 @@ private slots:
         QTemporaryDir dir;
         Document      d;
         QVERIFY(d.newDocument(32, 24));
+        d.setTool("pencil");
+        d.setColor(Qt::black);
+        d.setBrushSize(8);
+        d.beginStroke(5, 5);
+        d.endStroke();
         d.addLayer();
         d.addLayerMask();
         const auto path = QUrl::fromLocalFile(dir.filePath("compact.pcr"));
         QVERIFY(d.saveProject(path));
         QFile input(path.toLocalFile());
         QVERIFY(input.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(input.readAll()).object();
+        auto root = legacyProjectFixture(input);
         input.close();
         QCOMPARE(root["version"].toInt(), 9);
         auto layers    = root["layers"].toArray();
+        QVERIFY(!layers[0].toObject()["compactPixels"].toBool());
         auto compact   = layers[1].toObject();
         compact["png"] = layers[0].toObject()["png"]; // Full image with a compact flag.
         layers[1]      = compact;
@@ -7753,7 +7761,7 @@ private slots:
         QCOMPARE(d.width(), 32);
         QCOMPARE(d.selection(), QRect(8, 8, 8, 8));
     }
-    void repeatedProjectPayloadsMatchIndependentPngEncoding_data()
+    void repeatedProjectPlanesPreserveNativeSamples_data()
     {
         QTest::addColumn<int>("bits");
         QTest::addColumn<bool>("asynchronous");
@@ -7762,7 +7770,7 @@ private slots:
                 QTest::newRow(qPrintable(QString::number(bits) + (async ? "-async" : "-sync")))
                     << bits << async;
     }
-    void repeatedProjectPayloadsMatchIndependentPngEncoding()
+    void repeatedProjectPlanesPreserveNativeSamples()
     {
         QFETCH(int, bits);
         QFETCH(bool, asynchronous);
@@ -7799,29 +7807,34 @@ private slots:
             QVERIFY(d.saveProject(path));
         QFile file(path.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        const auto root = QJsonDocument::fromJson(file.readAll()).object();
-        QCOMPARE(root["version"].toInt(), 9);
-        const auto layers = root["layers"].toArray();
-        QCOMPARE(layers.size(), d.layers().size());
-        const auto encode = [](const QImage &_image) {
-            QByteArray bytes;
-            QBuffer    buffer(&bytes);
-            return buffer.open(QIODevice::WriteOnly) && _image.save(&buffer, "PNG")
-                       ? QString::fromLatin1(bytes.toBase64())
-                       : QString{};
-        };
-        for (int i = 0; i < layers.size(); ++i) {
-            const auto layer = layers[i].toObject();
-            if (!layer["png"].toString().isEmpty())
-                QCOMPARE(layer["png"].toString(),
-                         encode(d.layerImage(i, layer["compactPixels"].toBool() ? QSize(1, 1)
-                                                                                : QSize{})));
-            if (!layer["mask"].toString().isEmpty())
+        ProjectReadIndex index;
+        QVERIFY(index.read(file));
+        QVERIFY(index.binary);
+        QCOMPARE(index.layers.size(), d.layers().size());
+        const auto format =
+            bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
+        for (int i = 0; i < index.layers.size(); ++i) {
+            bool       valid = false;
+            const auto layer = index.layer(i, valid);
+            QVERIFY(valid);
+            for (const QString &field :
+                 {QStringLiteral("png"), QStringLiteral("mask"), QStringLiteral("source")}) {
+                const auto payload = layer.payload(field);
+                if (!payload.size)
+                    continue;
+                const bool compact =
+                    field == "png" ? layer.metadata["compactPixels"].toBool()
+                                   : field == "mask" && layer.metadata["compactMask"].toBool();
+                const QSize size = compact ? QSize(1, 1) : QSize(d.width(), d.height());
+                const auto  expected =
+                    field == "png"    ? d.layerImage(i, compact ? QSize(1, 1) : QSize{})
+                        : field == "mask" ? d.maskImage(i, compact ? QSize(1, 1) : QSize{})
+                                          : source;
                 QCOMPARE(
-                    layer["mask"].toString(),
-                    encode(d.maskImage(i, layer["compactMask"].toBool() ? QSize(1, 1) : QSize{})));
-            if (!layer["source"].toString().isEmpty())
-                QCOMPARE(layer["source"].toString(), encode(source));
+                    QImage(index.archive.plane(
+                        payload.plane, size, field == "mask" ? QImage::Format_Grayscale8 : format)),
+                    expected);
+            }
         }
         Document loaded;
         QVERIFY(loaded.openFile(path));
@@ -7829,7 +7842,7 @@ private slots:
         QCOMPARE(loaded.composite(), composite);
         QVERIFY(!d.modified());
     }
-    void repeatedLargePayloadsStreamAfterTheCaptureLimit()
+    void largeRepeatedNativePlanesAreWrittenOnce()
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
@@ -7856,11 +7869,17 @@ private slots:
         QVERIFY(d.saveProject(project));
         QFile file(project.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        const auto layers  = QJsonDocument::fromJson(file.readAll()).object()["layers"].toArray();
-        const auto payload = layers[0].toObject()["png"].toString();
-        QVERIFY(payload.size() > 8 * 1024 * 1024);
-        QCOMPARE(layers[1].toObject()["png"].toString(), payload);
-        QCOMPARE(layers[2].toObject()["png"].toString(), payload);
+        ProjectReadIndex index;
+        QVERIFY(index.read(file));
+        QVERIFY(index.binary);
+        bool      valid   = false;
+        const int payload = index.layer(0, valid).payload("png").plane;
+        QVERIFY(valid);
+        for (int i = 1; i < 3; ++i) {
+            QCOMPARE(index.layer(i, valid).payload("png").plane, payload);
+            QVERIFY(valid);
+        }
+        QVERIFY(QFileInfo(project.toLocalFile()).size() < original.sizeInBytes() + 512 * 1024);
         Document loaded;
         QVERIFY(loaded.openFile(project));
         for (int i = 0; i < 3; ++i)
@@ -7892,7 +7911,7 @@ private slots:
         QCOMPARE(d.memoryUsage()["tileHeapBytes"], before);
         QFile file(url.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        const auto layers = QJsonDocument::fromJson(file.readAll()).object()["layers"].toArray();
+        const auto layers = legacyProjectFixture(file)["layers"].toArray();
         QCOMPARE(layers.size(), 10);
         const auto payload = layers[0].toObject()["png"].toString();
         QVERIFY(payload.size() < 8 * 1024 * 1024);
@@ -8058,9 +8077,8 @@ private slots:
             QVERIFY(d.saveProject(path));
             QFile file(path.toLocalFile());
             QVERIFY(file.open(QIODevice::ReadOnly));
-            QJsonParseError error;
-            const auto      root = QJsonDocument::fromJson(file.readAll(), &error).object();
-            QCOMPARE(error.error, QJsonParseError::NoError);
+            const auto root = legacyProjectFixture(file);
+            QVERIFY(!root.isEmpty());
             QCOMPARE(root["version"].toInt(), 9);
             QCOMPARE(root["channelBits"].toInt(), bits);
             const auto layers = root["layers"].toArray();
@@ -9436,7 +9454,7 @@ private slots:
             QVERIFY(original.saveProject(url));
             QFile file(url.toLocalFile());
             QVERIFY(file.open(QIODevice::ReadOnly));
-            const auto source = QJsonDocument::fromJson(file.readAll()).object();
+            const auto source = legacyProjectFixture(file);
             file.close();
             for (bool compact : {false, true})
                 for (int value : {0, 127, 255})
@@ -9824,7 +9842,7 @@ private slots:
                 QVERIFY(d.saveProject(url));
                 QFile file(url.toLocalFile());
                 QVERIFY(file.open(QIODevice::ReadOnly));
-                auto root = QJsonDocument::fromJson(file.readAll()).object();
+                auto root = legacyProjectFixture(file);
                 file.close();
                 QByteArray png;
                 QBuffer    buffer(&png);
@@ -9888,7 +9906,7 @@ private slots:
                 QVERIFY(initial.saveProject(QUrl::fromLocalFile(projectPath)));
                 QFile file(projectPath);
                 QVERIFY(file.open(QIODevice::ReadOnly));
-                auto root = QJsonDocument::fromJson(file.readAll()).object();
+                auto root = legacyProjectFixture(file);
                 file.close();
                 QByteArray encoded;
                 QBuffer    buffer(&encoded);
@@ -11205,7 +11223,7 @@ private slots:
         QVERIFY(d.saveProject(project));
         QFile file(project.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        auto root = legacyProjectFixture(file);
         file.close();
         auto layer           = root["layers"].toArray()[0].toObject();
         layer["mask"]        = layer["png"]; // Exact same encoded PNG, different output formats.
@@ -11317,7 +11335,7 @@ private slots:
         QVERIFY(d.saveProject(project));
         QFile file(project.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        auto root = legacyProjectFixture(file);
         file.close();
         auto   layers = root["layers"].toArray();
         auto   layer  = layers[2].toObject();

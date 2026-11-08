@@ -182,8 +182,20 @@ PCRPreviewImage *PCRReadPreview(NSURL *url, NSUInteger maximumPixelSize, NSError
             return fail();
         const auto       entry  = PhotoCrap::Preview::Scan(input).read(true);
         CGImageSourceRef source = nullptr;
-        bool             legacy = entry.json.empty();
-        if (!legacy) {
+        bool             legacy = entry.json.empty() && !entry.binaryPreview;
+        if (entry.binaryPreview) {
+            input.clear();
+            input.seekg(std::streamoff(entry.offset));
+            std::string bytes(entry.length, '\0');
+            input.read(bytes.data(), std::streamsize(bytes.size()));
+            if (input.gcount() != std::streamsize(bytes.size()))
+                return fail();
+            NSData *data = [NSData dataWithBytes:bytes.data() length:bytes.size()];
+            source       = CGImageSourceCreateWithData(
+                (__bridge CFDataRef)data,
+                (__bridge CFDictionaryRef)
+                    @{(__bridge NSString *)kCGImageSourceShouldCache : @NO});
+        } else if (!legacy) {
             NSData *json   = [NSData dataWithBytes:entry.json.data() length:entry.json.size()];
             id      object = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
             if (![object isKindOfClass:NSDictionary.class] || ![object[@"version"] isEqual:@1] ||

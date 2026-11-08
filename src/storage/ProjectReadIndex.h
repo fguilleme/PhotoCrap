@@ -1,6 +1,8 @@
 #pragma once
+#include "BinaryProject.h"
 #include <QHash>
 #include <QIODevice>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -17,6 +19,8 @@ public:
     };
     struct Payload : Span {
         bool escaped = false;
+        int  plane   = -1;
+        bool binary  = false;
     };
     struct LayerEntry {
         QJsonObject             metadata;
@@ -29,6 +33,8 @@ public:
     QJsonObject   metadata;
     QVector<Span> layers;
     qint64        largestRead = 0;
+    bool                                    binary      = false;
+    PhotoCrap::Storage::BinaryProjectReader archive;
     bool          read(QIODevice &_device, const std::function<bool()> &_continue = {})
     {
         metadata = {};
@@ -43,6 +49,25 @@ public:
         failed = false;
         if (_device.isSequential() || !_device.isReadable())
             return false;
+        binary       = false;
+        binaryLayers = {};
+        if (!_device.seek(0))
+            return false;
+        if (_device.peek(8) == QByteArray(PhotoCrap::Storage::BinaryHeader::Magic, 8)) {
+            if (!archive.read(_device, _continue))
+                return false;
+            metadata = archive.metadata;
+            if (!metadata.value("layers").isArray())
+                return false;
+            binaryLayers = metadata.take("layers").toArray();
+            if (binaryLayers.isEmpty() || binaryLayers.size() > 512)
+                return false;
+            for (int i = 0; i < binaryLayers.size(); ++i)
+                layers.append({i, 1});
+            binary      = true;
+            largestRead = 16384;
+            return true;
+        }
         if (peek() == char(0xef)) {
             if (next() != char(0xef) || next() != char(0xbb) || next() != char(0xbf))
                 return false;
@@ -98,6 +123,28 @@ public:
         _ok = false;
         if (_index < 0 || _index >= layers.size())
             return {};
+        if (binary) {
+            if (!binaryLayers[_index].isObject())
+                return {};
+            LayerEntry entry;
+            entry.metadata = binaryLayers[_index].toObject();
+            for (const QString &name :
+                 {QStringLiteral("png"), QStringLiteral("mask"), QStringLiteral("source")}) {
+                const auto value = entry.metadata.take(name);
+                if (!value.isDouble() || value.toDouble() != value.toInt(-2))
+                    return {};
+                const int id = value.toInt(-2);
+                if (id < -1 || id >= archive.planeCount())
+                    return {};
+                Payload payload;
+                payload.plane  = id;
+                payload.binary = true;
+                payload.size   = id < 0 ? 0 : 1;
+                entry.payloads.insert(name, payload);
+            }
+            _ok = true;
+            return entry;
+        }
         const auto span = layers[_index];
         position        = span.offset;
         LayerEntry entry;
@@ -135,6 +182,7 @@ public:
     }
 
 private:
+    QJsonArray            binaryLayers;
     QIODevice            *device = nullptr;
     std::function<bool()> keepGoing;
     qint64                position = 0, length = 0, bufferStart = -1;

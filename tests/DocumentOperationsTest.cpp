@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "ProjectFixture.h"
 #include "RawTestImage.h"
 #include <QBuffer>
 #include <QColorSpace>
@@ -297,7 +298,7 @@ private slots:
         QVERIFY(original.saveProject(url));
         QFile file(url.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        auto root = QJsonDocument::fromJson(file.readAll()).object();
+        auto root = legacyProjectFixture(file);
         file.close();
         auto       layers  = root["layers"].toArray();
         const auto setPair = [&](const QString &_id) {
@@ -1443,7 +1444,7 @@ private slots:
         QVERIFY(source.saveProject(target));
         QFile file(target.toLocalFile());
         QVERIFY(file.open(QIODevice::ReadOnly));
-        auto json = QJsonDocument::fromJson(file.readAll()).object();
+        auto json = legacyProjectFixture(file);
         file.close();
         if (badPlane) {
             auto layers               = json["layers"].toArray();

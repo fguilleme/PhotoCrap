@@ -19,6 +19,17 @@ Item {
                 return layer.kind === "pixel" || layer.editingMask
         return false
     }
+    readonly property bool maskTarget: {
+        for (const layer of document.layers)
+            if (layer.layerIndex === document.activeLayer)
+                return layer.editingMask
+        return false
+    }
+    readonly property bool canMakeShape: hasPoints && !activePath.vectorMask && activePath.points.length >= 2 && !maskTarget
+    function makeShape() {
+        if (document.penPathToShape()) editingRequested()
+        editCommitted()
+    }
     property bool creating: false
     function namePath(create) {
         creating = create
@@ -67,10 +78,20 @@ Item {
                         documentWidth: root.document.width
                         documentHeight: root.document.height
                     }
-                    Label {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: row.modelData.name + (row.modelData.vectorMask ? " — " + qsTr("Forme") : "")
-                        color: "#d6e0db"; elide: Text.ElideRight
+                        spacing: 2
+                        Label {
+                            Layout.fillWidth: true
+                            text: row.modelData.name
+                            color: "#d6e0db"; elide: Text.ElideRight
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: row.modelData.vectorMask ? qsTr("Forme · remplissage modifiable") : qsTr("Tracé seul · sans remplissage lié")
+                            color: "#aab7c5"; font.pixelSize: 10
+                            elide: Text.ElideRight
+                        }
                     }
                 }
                 MouseArea {
@@ -100,9 +121,25 @@ Item {
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#424b54" }
         RowLayout {
+            visible: root.hasPath && !root.activePath.vectorMask && !root.maskTarget
+            Layout.fillWidth: true
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Pour un remplissage qui suit les points :")
+                wrapMode: Text.WordWrap; color: "#aab7c5"; font.pixelSize: 10
+            }
+            Button {
+                objectName: "pathMakeShapeButton"
+                text: qsTr("Créer une forme")
+                implicitHeight: 28
+                enabled: root.canMakeShape
+                onClicked: root.makeShape()
+            }
+        }
+        RowLayout {
             Layout.fillWidth: true
             spacing: 0
-            IconButton { objectName: "pathFillButton"; glyph: "●"; hint: qsTr("Remplir le tracé avec le premier plan"); enabled: root.hasPoints && root.rasterTarget; implicitWidth: 32; onClicked: {root.document.fillPenPath();root.editCommitted()} }
+            IconButton { objectName: "pathFillButton"; glyph: "●"; hint: qsTr("Peindre le remplissage dans les pixels (sans lien avec le tracé)"); enabled: root.hasPoints && root.rasterTarget; implicitWidth: 32; onClicked: {root.document.fillPenPath();root.editCommitted()} }
             IconButton { glyph: "○"; hint: qsTr("Contour du tracé avec le pinceau"); enabled: root.hasPoints && root.rasterTarget; implicitWidth: 32; onClicked: {root.document.strokePenPath();root.editCommitted()} }
             IconButton { objectName: "pathSelectionPanelButton"; glyph: "◌"; hint: qsTr("Convertir en sélection (Maj : ajouter, Alt : soustraire)"); enabled: root.hasPoints; implicitWidth: 32; onClicked: {root.document.penPathToSelection(root.selectionMode(root.keyboardModifiers));root.editCommitted()} }
             Item { Layout.fillWidth: true }
@@ -120,8 +157,8 @@ Item {
         ContextMenuItem { text: qsTr("Descendre le tracé"); enabled: root.hasPath && root.document.activePenPath < list.count-1; onTriggered: root.document.movePenPath(root.document.activePenPath+1) }
         MenuSeparator {}
         ContextMenuItem { text: qsTr("Définir une sélection"); enabled: root.hasPoints; onTriggered: {root.document.penPathToSelection();root.editCommitted()} }
-        ContextMenuItem { text: qsTr("Créer une forme depuis le tracé"); enabled: root.hasPoints && !root.activePath.vectorMask && root.activePath.points.length >= 2; onTriggered: {if(root.document.penPathToShape())root.editingRequested();root.editCommitted()} }
-        ContextMenuItem { text: qsTr("Remplir le tracé"); enabled: root.hasPoints && root.rasterTarget; onTriggered: {root.document.fillPenPath();root.editCommitted()} }
+        ContextMenuItem { text: qsTr("Créer une forme depuis le tracé"); enabled: root.canMakeShape; onTriggered: root.makeShape() }
+        ContextMenuItem { text: qsTr("Peindre le remplissage dans les pixels…"); enabled: root.hasPoints && root.rasterTarget; onTriggered: {root.document.fillPenPath();root.editCommitted()} }
         ContextMenuItem { text: qsTr("Contour du tracé avec le pinceau"); enabled: root.hasPoints && root.rasterTarget; onTriggered: {root.document.strokePenPath();root.editCommitted()} }
         MenuSeparator {}
         ContextMenuItem { text: qsTr("Supprimer le tracé"); enabled: root.hasPath; onTriggered: {root.document.deletePenPath();root.editCommitted()} }

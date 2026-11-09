@@ -176,8 +176,6 @@ bool Document::penPathToShape()
         commit(before, tr("Créer une forme depuis le tracé"), false);
         return true;
     }
-    if (m_penPaths.size() >= PenGeometry::MaxPaths)
-        return fail(tr("Limite de tracés atteinte."));
     auto parameters = penShapeStyle();
     PhotoCrap::Shape::setPath(parameters, source);
     const auto image = PhotoCrap::Shape::renderPlane(parameters, m_size, workingFormat());
@@ -195,8 +193,9 @@ bool Document::penPathToShape()
     layer.name           = source.name;
     layer.parameters     = parameters;
     layer.image          = image;
-    // Keep the saved source intact; the new layer owns an independent,
-    // editable vector mask. Both are restored atomically by Undo.
+    // Convert the selected entry itself, so picking it again edits the painted
+    // shape instead of an indistinguishable, disconnected copy of its outline.
+    m_penPaths[m_activePenPath].shapeLayerId = layer.historyId;
     syncPenShapePath(true);
     commit(before, tr("Créer une forme depuis le tracé"));
     return true;

@@ -3998,7 +3998,7 @@ ApplicationWindow {
         ContextMenuItem {text:qsTr("Fermer le tracé");enabled:editor.activePenPath>=0;onTriggered:editor.closePenPath()}
         MenuSeparator {}
         ContextMenuItem {text:qsTr("Définir une sélection");enabled:editor.activePenPath>=0;onTriggered:editor.penPathToSelection()}
-        ContextMenuItem {text:qsTr("Remplir le tracé");enabled:editor.activePenPath>=0 && (activeInfo.kind === "pixel" || activeInfo.editingMask);onTriggered:editor.fillPenPath()}
+        ContextMenuItem {text:qsTr("Peindre le remplissage dans les pixels…");enabled:editor.activePenPath>=0 && (activeInfo.kind === "pixel" || activeInfo.editingMask);onTriggered:editor.fillPenPath()}
         ContextMenuItem {text:qsTr("Contour du tracé avec le pinceau");enabled:editor.activePenPath>=0 && (activeInfo.kind === "pixel" || activeInfo.editingMask);onTriggered:editor.strokePenPath()}
         MenuSeparator {}
         ContextMenuItem {text:qsTr("Supprimer les points sélectionnés");enabled:editor.activePenPath>=0;onTriggered:editor.deletePenPoints()}

@@ -6176,4 +6176,17 @@ Independent software, not affiliated with Adobe.</translation>
     <name>AiProviderList</name>
     <message><source>Clé partagée · %1</source><translation>Shared key · %1</translation></message>
   </context>
+  <context>
+    <name>PathsPanel</name>
+    <message><source>Forme · remplissage modifiable</source><translation>Shape · editable fill</translation></message>
+    <message><source>Tracé seul · sans remplissage lié</source><translation>Path only · no linked fill</translation></message>
+    <message><source>Pour un remplissage qui suit les points :</source><translation>For a fill that follows the points:</translation></message>
+    <message><source>Créer une forme</source><translation>Create a shape</translation></message>
+    <message><source>Peindre le remplissage dans les pixels (sans lien avec le tracé)</source><translation>Paint the fill into pixels (not linked to the path)</translation></message>
+    <message><source>Peindre le remplissage dans les pixels…</source><translation>Paint the fill into pixels…</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Peindre le remplissage dans les pixels…</source><translation>Paint the fill into pixels…</translation></message>
+  </context>
 </TS>

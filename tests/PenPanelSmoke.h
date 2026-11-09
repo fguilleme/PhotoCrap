@@ -22,12 +22,13 @@ inline bool runPenPanelEditingSmoke(QQuickWindow *_window, Document &_document)
     QMetaObject::invokeMethod(_window, "setDockPanelVisible", Q_ARG(QVariant, "paths"),
                               Q_ARG(QVariant, true));
     QMetaObject::invokeMethod(dock, "setPanelFloating", Q_ARG(QVariant, true));
-    for (bool shape : {false, true}) {
+    for (const QString creation : {"path", "shape", "converted"}) {
+        const bool shape = creation != "path";
         for (const QString &previousTool :
              {QStringLiteral("brush"), QStringLiteral("pen"), QStringLiteral("pathSelection")}) {
             _document.newDocument(300, 200, true, 16);
             _document.setTool("pen");
-            _document.setPenMode(shape ? "shape" : "path");
+            _document.setPenMode(creation == "shape" ? "shape" : "path");
             _document.beginPenGesture(30, 40, 2);
             _document.endPenGesture();
             _document.beginPenGesture(130, 40, 2);
@@ -36,7 +37,21 @@ inline bool runPenPanelEditingSmoke(QQuickWindow *_window, Document &_document)
             _document.beginPenGesture(130, 140, 2);
             _document.endPenGesture();
             _document.closePenPath();
-            const auto image = shape ? _document.layerImage(1) : QImage{};
+            if (creation == "converted") {
+                QTest::qWait(25);
+                auto *convert = _window->findChild<QQuickItem *>("pathMakeShapeButton");
+                if (!require(convert && convert->isVisible() && convert->isEnabled(),
+                             "an ordinary path offers an explicit editable-fill conversion"))
+                    return false;
+                QTest::mouseClick(
+                    convert->window(), Qt::LeftButton, Qt::NoModifier,
+                    convert->mapToScene(QPointF(convert->width() / 2, convert->height() / 2))
+                        .toPoint());
+                if (!require(_document.penPaths().size() == 1 && _document.penMode() == "shape",
+                             "panel conversion keeps a single editable shape entry"))
+                    return false;
+            }
+            auto image = shape ? _document.layerImage(1) : QImage{};
             _document.setTool(previousTool);
             _window->setProperty("zoom", 1.);
             QTest::qWait(25);
@@ -53,7 +68,7 @@ inline bool runPenPanelEditingSmoke(QQuickWindow *_window, Document &_document)
                            << dock->property("collapsed") << dock->property("temporarilyHidden");
                 return false;
             }
-            const auto panelHistory = _document.historyIndex();
+            auto panelHistory = _document.historyIndex();
             QTest::mouseClick(
                 row->window(), Qt::LeftButton, Qt::NoModifier,
                 row->mapToScene(QPointF(row->width() / 2, row->height() / 2)).toPoint());
@@ -64,6 +79,22 @@ inline bool runPenPanelEditingSmoke(QQuickWindow *_window, Document &_document)
             _window->requestActivate();
             area->forceActiveFocus();
             QTest::qWait(25);
+            if (shape) {
+                auto *options = _window->findChild<QObject *>("penOptions");
+                auto *fill    = _window->findChild<QQuickItem *>("penShapeFillColor");
+                auto *stroke  = _window->findChild<QQuickItem *>("penShapeStrokeColor");
+                if (!require(options && fill && stroke && fill->isVisible() && stroke->isVisible(),
+                             "selecting the shape exposes its fill and stroke colours"))
+                    return false;
+                options->setProperty("paintTarget", "fill");
+                if (!require(QMetaObject::invokeMethod(options, "setPaint",
+                                                       Q_ARG(QVariant, QVariant("#ff428fe8"))) &&
+                                 _document.layerImage(1).pixelColor(110, 80) == QColor("#428fe8"),
+                             "the selected path's fill controls recolour the painted shape"))
+                    return false;
+                image        = _document.layerImage(1);
+                panelHistory = _document.historyIndex();
+            }
             const auto point = [&](qreal _x, qreal _y) {
                 return area->mapToScene(QPointF(_x, _y)).toPoint();
             };
@@ -74,6 +105,9 @@ inline bool runPenPanelEditingSmoke(QQuickWindow *_window, Document &_document)
                 return false;
             QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, point(160, 70));
             QTest::mouseMove(_window, point(180, 90), 20);
+            if (!require(!shape || _document.layerImage(1) != image,
+                         "the fill changes during handle dragging, before release"))
+                return false;
             QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, point(180, 90));
             nodes           = _document.penPaths()[0].toMap()["points"].toList();
             const auto node = nodes[1].toMap();

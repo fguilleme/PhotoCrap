@@ -116,16 +116,10 @@ private slots:
         QVERIFY(d.penPathToShape());
         QCOMPARE(d.historyIndex(), history + 1);
         QCOMPARE(d.layers().size(), 2);
-        QCOMPARE(d.penPaths().size(), 2);
-        auto savedSource      = source;
-        auto unselectedPoints = savedSource["points"].toList();
-        for (auto &entry : unselectedPoints) {
-            auto point        = entry.toMap();
-            point["selected"] = false;
-            entry             = point;
-        }
-        savedSource["points"] = unselectedPoints;
-        QCOMPARE(d.penPaths()[0].toMap(), savedSource);
+        QCOMPARE(d.penPaths().size(), 1);
+        QCOMPARE(d.activePenPath(), 0);
+        QVERIFY(d.penPaths()[0].toMap()["vectorMask"].toBool());
+        QCOMPARE(d.penPaths()[0].toMap()["name"], source["name"]);
         auto path = PhotoCrap::Shape::path(layer(d, 1)["parameters"].toMap());
         QCOMPARE(path.points[1].outgoing, QPointF(180, 70));
         QVERIFY(path.closed);
@@ -133,14 +127,18 @@ private slots:
         QVERIFY(d.penShapeStyle()["strokeEnabled"].toBool());
         QVERIFY(d.layerImage(1).pixelColor(80, 140).blue() > 100);
         const auto converted = d.layerImage(1);
-        // Editing the new vector mask must not change the saved source.
+        // Selecting the same entry must edit the actual fill and its handles.
+        d.setActivePenPath(-1);
+        d.setActivePenPath(0);
+        QCOMPARE(d.penMode(), QString("shape"));
         d.beginPenGesture(150, 40, 2);
         d.endPenGesture();
         d.beginPenGesture(180, 70, 2);
         d.updatePenGesture(190, 80);
         d.endPenGesture();
         QVERIFY(d.layerImage(1) != converted);
-        QCOMPARE(d.penPaths()[0].toMap(), savedSource);
+        QCOMPARE(d.penPaths().size(), 1);
+        QVERIFY(d.penPaths()[0].toMap()["vectorMask"].toBool());
         d.undo();
         QCOMPARE(d.layerImage(1), converted);
         d.undo();
@@ -152,7 +150,8 @@ private slots:
         d.resizePenShape(180, 120);
         QVERIFY(qAbs(d.penShapeBounds().width() - 180) < 1e-6);
         QVERIFY(qAbs(d.penShapeBounds().height() - 120) < 1e-6);
-        QCOMPARE(d.penPaths()[0].toMap(), savedSource);
+        QCOMPARE(d.penPaths().size(), 1);
+        QVERIFY(d.penPaths()[0].toMap()["vectorMask"].toBool());
         d.undo();
         QCOMPARE(d.layerImage(1), converted);
         d.setPenShapeStyle("strokeEnabled", false);
@@ -168,7 +167,7 @@ private slots:
         Document loaded;
         QVERIFY(loaded.openFile(url));
         QCOMPARE(loaded.layerImage(1), painted);
-        QCOMPARE(loaded.penPaths().size(), 2);
+        QCOMPARE(loaded.penPaths().size(), 1);
         loaded.editPenShape();
         QVERIFY(loaded.penPaths()[loaded.activePenPath()].toMap()["vectorMask"].toBool());
     }

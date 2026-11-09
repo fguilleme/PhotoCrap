@@ -70,8 +70,10 @@ le contour peint reste ouvert jusqu'à sa fermeture explicite.
 
 En mode **Tracé**, la barre propose **Créer : Sélection… / Masque (NYI) /
 Forme**. **Forme** crée un calque vectoriel à partir du tracé sélectionné, en
-conservant les ancres, tangentes et la fermeture exacte. Le tracé source reste
-enregistré et indépendant dans Tracés. Une seule annulation retire la conversion ;
+conservant les ancres, tangentes et la fermeture exacte. L’entrée sélectionnée devient
+le contour de cette forme : il n’y a plus de copie homonyme indépendante dans Tracés.
+Pour conserver une référence séparée, dupliquer le tracé avant la conversion.
+Une seule annulation retrouve le tracé simple et retire le calque créé ;
 Rétablir la recrée. La liste des modes sert au prochain dessin et ne convertit pas
 implicitement ce qui existe déjà. La même conversion est proposée dans le menu
 du panneau Tracés.
@@ -128,12 +130,22 @@ dans les réglages.
 - Commande/Ctrl-clic sur une ligne charge sa sélection sans changer l’outil courant ; Maj ajoute, Option/Alt
   soustrait et les deux intersectent. Le bouton de sélection propose les mêmes
   combinaisons Maj et Option/Alt.
-- Les boutons inférieurs remplissent au premier plan, tracent avec les réglages du
+- Les entrées distinguent **Tracé seul · sans remplissage lié** et **Forme · remplissage modifiable**.
+  **Créer une forme** permet de convertir un tracé simple depuis le panneau. Sélectionner
+  la forme réaffiche Fond et Contour dans la barre ; les couleurs et les poignées
+  modifient son remplissage et son contour en direct, avec Annuler/Rétablir.
+- Les boutons inférieurs peignent dans les pixels au premier plan, tracent avec les réglages du
   pinceau, convertissent en sélection, créent un tracé vide ou suppriment le tracé.
 - Le menu propose également un nouveau tracé nommé, la duplication et les commandes
   Monter/Descendre. Toutes les modifications de la liste sont annulables.
 - Après conversion en sélection, seul le contour en fourmis reste affiché. Le tracé
   demeure dans le panneau et peut être choisi à nouveau.
+
+**Peindre le remplissage dans les pixels…** est une opération raster : elle ne crée
+aucun lien entre les pixels peints et le tracé. Les anciens remplissages réalisés
+ainsi restent des pixels ; déplacer le tracé ne les transforme pas rétroactivement
+en forme. Pour un remplissage qui suit les points et dont on peut changer la couleur,
+utiliser **Créer une forme**, ou dessiner directement en mode **Forme**.
 
 Les opérations de remplissage et de contour respectent le calque ou masque actif,
 sa sélection et la profondeur 8/16 bits. Les tracés ne sont pas des calques de

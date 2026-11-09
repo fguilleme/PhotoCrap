@@ -43,9 +43,9 @@ inline bool runPenStrokeVisibilitySmoke(QQuickWindow *_window, Document &_docume
     };
     const auto history = _document.historyIndex();
     click(makeShape);
-    if (!require(_document.penMode() == "shape" && _document.penPaths().size() == 2 &&
+    if (!require(_document.penMode() == "shape" && _document.penPaths().size() == 1 &&
                      _document.layers().size() == 2 && _document.historyIndex() == history + 1,
-                 "Make Shape creates an editable layer and preserves its source path"))
+                 "Make Shape converts the selected entry into the editable layer outline"))
         return false;
     _document.setColor(QColor("#ff209f"));
     QTest::qWait(50);

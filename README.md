@@ -4,8 +4,9 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Le code source correspond à **v0.20.0** : import d’images comme calques, ouverture
-par dépôt, upscales IA sans prompt et déplacement du canevas dès le premier geste.
+Le code source correspond à **v0.21.0** : documents multiples en onglets,
+upscales IA à résolution native dans un nouveau document, clés API partagées
+entre profils du même service et formes modifiables avec la Plume.
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Télécharger
@@ -17,7 +18,7 @@ validation des builds, tests et contrôles de déploiement des trois plateformes
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
-## En développement après v0.20.0
+## Nouveautés de v0.21.0
 
 - **Documents multiples en onglets** : fichiers ouverts et nouveaux documents
   indépendants, historique et sélection conservés, vue restaurée par onglet,
@@ -26,6 +27,15 @@ validation des builds, tests et contrôles de déploiement des trois plateformes
   sans changer la source. Cette destination est proposée par défaut pour Topaz
   et Real-ESRGAN ; le nouveau calque reste disponible.
   [Guide des documents](docs/DOCUMENTS.md).
+- **Clés API retrouvées entre profils du même service** : un profil d’upscale peut
+  reprendre la clé fal.ai d’un profil d’édition. La clé propre au profil reste
+  prioritaire sur l’environnement après redémarrage ; provenance et état de
+  sauvegarde sont affichés dans les réglages. OpenAI et fal.ai restent séparés.
+- **Plume simplifiée** : ajout/suppression de points dans l’outil Plume,
+  curseurs contextuels distincts et migration des anciennes configurations.
+  Conversion Tracé → Forme en une seule entrée modifiable ; le panneau distingue
+  les formes liées aux points du remplissage peint dans les pixels.
+  [Guide de la Plume](docs/PEN_TOOL.md).
 
 ## Nouveautés de v0.20.0
 

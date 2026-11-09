@@ -1,14 +1,15 @@
 # Roadmap PhotoCrap
 
-État au **9 novembre 2026**. **v0.20.0** ajoute les imports de calques par fichier
-ou dépôt, l’ouverture par dépôt, les upscales IA sans prompt et le panning par
-Espace dès le premier geste. Le format binaire v14 et Quick Look restent disponibles.
+État au **9 novembre 2026**. **v0.21.0** ajoute les documents multiples, les résultats
+IA à résolution native dans un nouvel onglet, la réutilisation des clés entre profils
+du même service et une Plume simplifiée avec formes modifiables. Le format binaire
+v14, Quick Look et les imports par dépôt restent disponibles.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-## Après v0.20.0 — documents multiples
+## Livraison de v0.21.0
 
 - [x] Onglets et documents indépendants : calques, masques, sélection, tracés,
   historique, zoom, défilement et rotation de vue ; raccourcis configurables.
@@ -18,6 +19,12 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
 - [x] Résultat IA dans un nouvel onglet à sa résolution native, masque redimensionné,
   source intacte ; contrôleur IA par document et résultats sans vol de focus.
   [Guide](docs/DOCUMENTS.md).
+- [x] Clés enregistrées réutilisables entre profils non ambigus du même service,
+  priorité au trousseau du profil après redémarrage, conservation sur adresse
+  équivalente, fusion des indicateurs et statut explicite dans les réglages.
+- [x] Plume sans outils d’ancrage redondants, curseurs distincts et migration
+  des anciennes configurations. Conversion en forme dans la même entrée,
+  couleurs et remplissage liés aux points ; remplissage raster clairement séparé.
 
 ## Livraison de v0.20.0
 
@@ -32,7 +39,7 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   saisie des champs et dialogues. Tests moteur/interface et transport des couleurs.
 - [ ] Comparer la qualité réelle de Real-ESRGAN sur les images de l’utilisateur ;
   aucun appel payant réalisé par les tests d’intégration.
-- [x] Résultat d’upscale dans un document distinct : réalisé dans le code après v0.20.0.
+- [x] Résultat d’upscale dans un document distinct : livré dans v0.21.0.
 
 ## Livraison de v0.19.0
 

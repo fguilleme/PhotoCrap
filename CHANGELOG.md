@@ -4,7 +4,7 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## À venir
+## v0.21.0 — 9 novembre 2026
 
 - Documents multiples en onglets : calques, masques, sélection, tracés et historique
   indépendants ; zoom, défilement et rotation restaurés, raccourcis configurables.
@@ -14,6 +14,20 @@ Un [résumé en anglais](README.en.md) est également disponible.
 - Destination IA « Nouveau document · résolution native », proposée par défaut
   pour les upscales ; résultat non rééchantillonné vers l’ancien canevas, masque
   redimensionné et source inchangée. Résultats en arrière-plan sans vol de focus.
+
+- Réutiliser une clé API enregistrée depuis un unique profil du même service et
+  du même endpoint, notamment de fal.ai édition vers upscale ; conserver les
+  clés OpenAI séparées et les clés propres au profil prioritaires. Corriger la
+  priorité du trousseau sur l’environnement après redémarrage, les adresses
+  équivalentes et les indicateurs de sauvegarde entre instances. Afficher la
+  provenance de la clé et distinguer une saisie encore non enregistrée.
+- Retirer les outils dédiés d’ajout/suppression d’ancres ; conserver ces actions
+  dans la Plume avec Ajout/Suppression auto et migrer les anciennes dispositions.
+  Distinguer l’astérisque de nouveau tracé des signes +/− de modification.
+- Convertir le tracé sélectionné en une seule entrée de forme modifiable, avec
+  couleurs et remplissage liés aux poignées, Annuler/Rétablir et projets 8/16 bits.
+  Distinguer les tracés simples des formes dans le panneau, proposer Créer une
+  forme et nommer explicitement le remplissage peint dans les pixels.
 
 ## v0.20.0 — 9 novembre 2026
 

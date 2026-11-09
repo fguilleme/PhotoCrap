@@ -4,8 +4,9 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.20.0**, adding image layer imports, file drops, promptless
-AI upscaling, and Space-drag navigation before the first canvas click. [Release notes](CHANGELOG.md) ·
+This source tree is **v0.21.0**, adding multiple document tabs, native-resolution
+AI results in a new document, credential reuse across same-service profiles,
+and clearer editable Pen shapes. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download
@@ -17,7 +18,7 @@ and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
-## In development after v0.20.0
+## New in v0.21.0
 
 - **Multiple document tabs** with independent layers, selections and history,
   restored views, and save/discard/cancel protection when closing tabs or quitting.
@@ -25,6 +26,15 @@ and deployment checks pass on all three platforms.
   preserving the source. This is the default destination for Topaz and Real-ESRGAN;
   adding a layer to the source document remains available.
   [Document guide](docs/DOCUMENTS.md) (French).
+- **API credentials reused across same-service profiles**: upscale profiles can
+  use a saved fal.ai editing-profile key. Explicit saved profile keys take
+  precedence over environment variables after restart; preferences show key
+  provenance and pending saves. OpenAI and fal.ai credentials remain separate.
+- **Simpler Pen tools** with contextual add/delete actions, distinct cursors,
+  and migration of older toolbar configurations. Converting a path to a shape
+  keeps a single editable entry, with linked fill/stroke colours and handles;
+  raster fills are identified separately.
+  [Pen guide](docs/PEN_TOOL.md) (French).
 
 ## New in v0.20.0
 

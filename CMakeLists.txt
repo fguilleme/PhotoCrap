@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(PhotoCrap VERSION 0.21.0 LANGUAGES CXX)
+project(PhotoCrap VERSION 0.21.1 LANGUAGES CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()
@@ -1008,6 +1008,10 @@ if(BUILD_TESTING)
     set_tests_properties(ai_ui PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME qml_smoke COMMAND PhotoCrap --smoke-test)
+    add_test(NAME pen_stroke COMMAND PhotoCrap --smoke-test --pen-stroke-test)
+    set_tests_properties(pen_stroke PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_SCALE_FACTOR=1"
+        TIMEOUT 30)
     add_test(NAME shutdown_discard COMMAND PhotoCrap --smoke-test --shutdown-test)
     add_test(NAME shutdown_save COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-save)
     add_test(NAME shutdown_clean COMMAND PhotoCrap --smoke-test --shutdown-test --shutdown-clean)

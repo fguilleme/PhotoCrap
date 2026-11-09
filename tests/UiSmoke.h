@@ -855,11 +855,34 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QTest::keyPress(_window, Qt::Key_Alt);
     if (!require(_window->property("temporaryPickerActive").toBool(),
-                 "Option temporarily activates the brush eyedropper"))
+                 "Option temporarily activates the brush eyedropper")) {
+        const auto input = _window->findChild<QObject *>("toolInput");
+        qWarning() << "Picker input state" << _document.tool()
+                   << _window->property("stampSourcePicking") << _window->property("primaryPressed")
+                   << (input ? input->property("modifiers") : QVariant{})
+                   << (input ? input->property("enabled") : QVariant{});
         return false;
+    }
     QTest::keyRelease(_window, Qt::Key_Alt);
     if (!require(!_window->property("temporaryPickerActive").toBool(),
                  "releasing Option restores the brush cursor"))
+        return false;
+    // A queued hover snapshot may predate the modifier key event. It must not
+    // reset the held-key state (notably when Cocoa updates the cursor).
+    QTest::keyPress(_window, Qt::Key_Alt);
+    const auto hoverPoint =
+        viewport->mapToScene(QPointF(viewport->width() / 2, viewport->height() / 2));
+    QMouseEvent staleHover(QEvent::MouseMove, hoverPoint,
+                           _window->mapToGlobal(hoverPoint.toPoint()), Qt::NoButton, Qt::NoButton,
+                           Qt::NoModifier);
+    QCoreApplication::sendEvent(_window, &staleHover);
+    QTest::qWait(20);
+    if (!require(_window->property("temporaryPickerActive").toBool(),
+                 "a stale hover cannot cancel the held Option eyedropper"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Alt);
+    if (!require(!_window->property("temporaryPickerActive").toBool(),
+                 "Option release restores the brush after a stale hover"))
         return false;
     QTest::keyPress(_window, Qt::Key_Meta);
     if (!require(!_window->property("temporaryMoveActive").toBool(),

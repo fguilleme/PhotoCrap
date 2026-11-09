@@ -4,9 +4,10 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.21.0**, adding multiple document tabs, native-resolution
+This source tree is **v0.21.1**, adding multiple document tabs, native-resolution
 AI results in a new document, credential reuse across same-service profiles,
-and clearer editable Pen shapes. [Release notes](CHANGELOG.md) ·
+and clearer editable Pen shapes. The patch stabilizes the Alt/Option eyedropper
+and thin painted outlines. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download

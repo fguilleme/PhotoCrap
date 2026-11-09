@@ -1,9 +1,10 @@
 # Roadmap PhotoCrap
 
-État au **9 novembre 2026**. **v0.21.0** ajoute les documents multiples, les résultats
+État au **9 novembre 2026**. **v0.21.1** comprend les documents multiples, les résultats
 IA à résolution native dans un nouvel onglet, la réutilisation des clés entre profils
 du même service et une Plume simplifiée avec formes modifiables. Le format binaire
 v14, Quick Look et les imports par dépôt restent disponibles.
+Le correctif stabilise la pipette Option/Alt et les contours fins sous le guide de la Plume.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 

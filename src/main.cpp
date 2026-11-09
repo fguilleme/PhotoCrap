@@ -334,6 +334,11 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            if (args.contains("--pen-stroke-test")) {
+                passed = window && runPenStrokeVisibilitySmoke(window, document);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--preset-preview-test")) {
                 passed = window && runPresetPreviewSmoke(window, document);
                 app.exit(passed && !qmlWarnings ? 0 : 3);

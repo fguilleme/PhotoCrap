@@ -62,8 +62,10 @@ ApplicationWindow {
     property bool fillingPixelsColor: false
     property bool spacePressed: false
     onSpacePressedChanged: editor.setToolModifiers(window.shiftPressed, window.stampSourcePicking, spacePressed)
-    property bool stampSourcePicking: false
-    property bool shiftPressed: false
+    // Hover events can carry an older modifier snapshot than the latest key
+    // event. Keep the held-key state authoritative until its actual release.
+    readonly property bool stampSourcePicking: Boolean(toolInput.modifiers & Qt.AltModifier)
+    readonly property bool shiftPressed: Boolean(toolInput.modifiers & Qt.ShiftModifier)
     property string springPreviousTool: ""
     property string springSelectedTool: ""
     property string gesturePreviousTool: ""
@@ -149,9 +151,7 @@ ApplicationWindow {
         onEnabledChanged: if (!enabled) window.spacePressed=false
         onSpaceChanged: function(pressed) { window.spacePressed = pressed }
         onModifiersChanged: {
-            window.stampSourcePicking = Boolean(modifiers & Qt.AltModifier)
-            window.shiftPressed = Boolean(modifiers & Qt.ShiftModifier)
-            editor.setToolModifiers(window.shiftPressed, window.stampSourcePicking, window.spacePressed)
+            editor.setToolModifiers(Boolean(modifiers & Qt.ShiftModifier), Boolean(modifiers & Qt.AltModifier), window.spacePressed)
             if (drawingArea.pressed) editor.continueStroke(drawingArea.pointerX/window.zoom,drawingArea.pointerY/window.zoom)
         }
         onShortcutPressed: function(group, tool, cycle) {
@@ -2487,9 +2487,6 @@ ApplicationWindow {
                             event.accepted = true
                             return
                         }
-                        if (event.key === Qt.Key_Alt && !event.isAutoRepeat) {
-                            window.stampSourcePicking = true
-                        }
                         if (editor.polygonLassoActive && !event.isAutoRepeat
                                 && (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete)) {
                             editor.removeLastPolygonLassoPoint()
@@ -2509,10 +2506,6 @@ ApplicationWindow {
                             event.accepted = true
                             return
                         }
-                    }
-                    Keys.onReleased: function(event) {
-                        if (event.key === Qt.Key_Alt && !event.isAutoRepeat)
-                            window.stampSourcePicking = false
                     }
                     Rectangle { anchors.fill: parent; color: "#171c22" }
                     // Rulers keep their visible ticks in the scene graph.
@@ -2842,8 +2835,7 @@ ApplicationWindow {
                                         return
                                     }
                                     updatePatchCursor()
-                                    window.stampSourcePicking = Boolean(mouse.modifiers & Qt.AltModifier)
-                                    editor.setToolModifiers(Boolean(mouse.modifiers & Qt.ShiftModifier),Boolean(mouse.modifiers & Qt.AltModifier),window.spacePressed)
+                                    editor.setToolModifiers(window.shiftPressed || Boolean(mouse.modifiers & Qt.ShiftModifier),window.stampSourcePicking || Boolean(mouse.modifiers & Qt.AltModifier),window.spacePressed)
                                     window.status = "X " + Math.round(mouse.x/zoom) + "   Y " + Math.round(mouse.y/zoom)
                                     if (window.temporaryPickerActive && window.pickerDragging) {
                                         editor.pickToolColor(Math.floor(mouse.x/zoom),Math.floor(mouse.y/zoom),false)
@@ -3012,7 +3004,6 @@ ApplicationWindow {
                                     const x=mouse.x/zoom,y=mouse.y/zoom
                                     pointer=Qt.point(mouse.x,mouse.y)
                                     window.updateInformationPointer(x, y)
-                                    window.stampSourcePicking=Boolean(mouse.modifiers&Qt.AltModifier)
                                     if(pressed && editor.tool==="ruler") {
                                         const dx=x-window.rulerStart.x,dy=y-window.rulerStart.y
                                         const angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4

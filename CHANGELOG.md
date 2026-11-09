@@ -4,6 +4,15 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.21.1 — 9 novembre 2026
+
+- Conserver la pipette temporaire tant qu’Option/Alt est maintenue, même lorsqu’un
+  ancien événement de survol arrive après la touche ; restaurer le pinceau au
+  relâchement et réinitialiser les modificateurs à l’ouverture d’un dialogue.
+- Atténuer le guide de la Plume sur les contours peints très fins à faible zoom,
+  sans modifier les pixels ni les poignées ; tester le trait pointillé séparément
+  sur le rendu logiciel en complément du parcours natif macOS.
+
 ## v0.21.0 — 9 novembre 2026
 
 - Documents multiples en onglets : calques, masques, sélection, tracés et historique

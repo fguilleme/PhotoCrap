@@ -13,6 +13,10 @@ Item {
     readonly property real guideWidth: !shapePath ? 1.5
         : document.penShapeStyle.strokeEnabled && paintedStrokeColor.a > 0
           ? Math.min(.75, Math.max(.2, document.penShapeStyle.strokeWidth*zoom*.3)) : .75
+    // Software renderers can rasterize a subpixel guide across the whole
+    // painted stroke. Fade only the guide; handles and real pixels stay intact.
+    readonly property real guideOpacity: shapePath && document.penShapeStyle.strokeEnabled
+        && paintedStrokeColor.a > 0 ? Math.min(1, document.penShapeStyle.strokeWidth*zoom/2) : 1
     signal painted()
     readonly property bool gpuBackend: GraphicsInfo.api === GraphicsInfo.Metal
         || GraphicsInfo.api === GraphicsInfo.Vulkan || GraphicsInfo.api === GraphicsInfo.OpenGL
@@ -120,6 +124,7 @@ Item {
         clip: true
         active: root.visible && root.curveVisible && root.gpuBackend && width>0 && height>0
         sourceComponent: PenCurve {
+            opacity: root.guideOpacity
             svg: root.curvePath
             shapeGuide: root.shapePath
             guideWidth: root.guideWidth
@@ -149,12 +154,14 @@ Item {
                 for (let i=1; i<root.points.length; ++i) segment(root.points[i-1],root.points[i])
                 if (root.activePath.closed) segment(root.points[root.points.length-1],root.points[0])
                 if (!root.shapePath) { c.strokeStyle="#1a2b3b"; c.lineWidth=3; c.stroke() }
+                c.globalAlpha=root.guideOpacity
                 c.strokeStyle="#73c5ff"; c.lineWidth=root.guideWidth; c.stroke()
             }
         }
     }
     onXChanged: if (visible) requestPaint()
     onGuideWidthChanged: if (visible) requestPaint()
+    onGuideOpacityChanged: if (visible) requestPaint()
     onYChanged: if (visible) requestPaint()
     onWidthChanged: if (visible) requestPaint()
     onHeightChanged: if (visible) requestPaint()

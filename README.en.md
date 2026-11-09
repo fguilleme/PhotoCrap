@@ -4,8 +4,8 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.19.0**, adding lossless binary projects, macOS Quick Look,
-on-demand credentials, and a more compact interface. [Release notes](CHANGELOG.md) ·
+This source tree is **v0.20.0**, adding image layer imports, file drops, promptless
+AI upscaling, and Space-drag navigation before the first canvas click. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download
@@ -16,6 +16,20 @@ files. The packages bundle Qt. GitHub publishes them after builds, tests,
 and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+## New in v0.20.0
+
+- **Import images as layers** using **+** or dropping files into the layer stack,
+  with insertion feedback, asynchronous loading and one undo step per batch.
+  Images are centered and retain native precision, including RAW inputs.
+- **Open files by dropping** them on the main canvas or welcome screen, or through
+  the operating system, with protection for unsaved edits.
+- **Promptless AI upscaling** with Topaz and Real-ESRGAN profiles, model/scale controls,
+  original AI layer pixels and preserved placement/masks. Document dimensions stay
+  unchanged. Protocol tests use mock servers; compare model fidelity on your own
+  images. [AI guide](docs/AI_IMAGE_EDITING.md) (French).
+- **Space-drag immediately after startup** with hand cursors and no initial brush
+  stroke required, while text fields and modal dialogs retain their input.
 
 ## New in v0.19.0
 

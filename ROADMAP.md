@@ -1,12 +1,27 @@
 # Roadmap PhotoCrap
 
-État au **9 novembre 2026**. **v0.19.0** ajoute le format de projets binaire v14,
-Quick Look sur macOS, les accès au trousseau à la demande et la barre d’outils
-compacte. Les calques IA et les optimisations précédentes restent disponibles.
+État au **9 novembre 2026**. **v0.20.0** ajoute les imports de calques par fichier
+ou dépôt, l’ouverture par dépôt, les upscales IA sans prompt et le panning par
+Espace dès le premier geste. Le format binaire v14 et Quick Look restent disponibles.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
+
+## Livraison de v0.20.0
+
+- [x] Importer des images comme calques via le menu et par dépôt dans la pile,
+  en 8/16 bits et RAW, sans bloquer l’interface ; lot atomique annulable.
+- [x] Ouvrir les images déposées dans la zone principale ou l’accueil et les
+  fichiers transmis par le système, en protégeant les modifications non enregistrées.
+- [x] Profils IA sans prompt, presets Topaz et Real-ESRGAN, source IA originale,
+  paramètres de modèle/facteur et conservation des masques, placement et historique.
+  Migration des anciens profils et détails d’erreurs HTTP sans données privées.
+- [x] Panning par Espace avant le premier clic, curseurs main et isolation de la
+  saisie des champs et dialogues. Tests moteur/interface et transport des couleurs.
+- [ ] Comparer la qualité réelle de Real-ESRGAN sur les images de l’utilisateur ;
+  aucun appel payant réalisé par les tests d’intégration.
+- [ ] Ouvrir le résultat d’upscale dans un document distinct après le mode multidocument.
 
 ## Livraison de v0.19.0
 

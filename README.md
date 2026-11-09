@@ -4,8 +4,8 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Le code source correspond à **v0.19.0** : projets binaires sans perte, Quick Look
-macOS, accès différé au trousseau et interface plus compacte.
+Le code source correspond à **v0.20.0** : import d’images comme calques, ouverture
+par dépôt, upscales IA sans prompt et déplacement du canevas dès le premier geste.
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Télécharger
@@ -16,6 +16,20 @@ fichiers `.sha256`. Les paquets embarquent Qt. GitHub les publie après la
 validation des builds, tests et contrôles de déploiement des trois plateformes.
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+## Nouveautés de v0.20.0
+
+- **Import d’images comme calques** avec le menu **+** ou par dépôt dans la pile,
+  position d’insertion visible, chargement asynchrone et lot annulable en une étape.
+  Les images sont centrées et conservent leur précision native, RAW compris.
+- **Ouverture par dépôt** dans la zone principale ou l’accueil, et ouverture depuis
+  le système, avec protection des modifications non enregistrées.
+- **Upscales IA sans prompt** : profils Topaz et Real-ESRGAN, choix du modèle et du
+  facteur, reprise de l’image IA d’origine du calque, masque et placement conservés.
+  Le document garde ses dimensions. Les tests de protocole sont simulés ; comparer
+  la fidélité des modèles sur ses images. [Guide IA](docs/AI_IMAGE_EDITING.md).
+- **Espace + glisser dès le démarrage** : navigation avec curseur main sans premier
+  trait de pinceau nécessaire, saisie de texte et dialogues préservés.
 
 ## Nouveautés de v0.19.0
 

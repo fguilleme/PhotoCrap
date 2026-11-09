@@ -55,6 +55,7 @@ ApplicationWindow {
     property bool fillingMaskColor: false
     property bool fillingPixelsColor: false
     property bool spacePressed: false
+    onSpacePressedChanged: editor.setToolModifiers(window.shiftPressed, window.stampSourcePicking, spacePressed)
     property bool stampSourcePicking: false
     property bool shiftPressed: false
     property string springPreviousTool: ""
@@ -140,6 +141,7 @@ ApplicationWindow {
         enabled: window.active && !window.editingText && !window.modalOpen
         bindings: (shortcuts.revision, window.toolbarRevision, window.toolBindings())
         onEnabledChanged: if (!enabled) window.spacePressed=false
+        onSpaceChanged: function(pressed) { window.spacePressed = pressed }
         onModifiersChanged: {
             window.stampSourcePicking = Boolean(modifiers & Qt.AltModifier)
             window.shiftPressed = Boolean(modifiers & Qt.ShiftModifier)
@@ -2372,16 +2374,10 @@ ApplicationWindow {
                             event.accepted = true
                             return
                         }
-                        if(event.key===Qt.Key_Space && !event.isAutoRepeat && !window.editingText && !window.modalOpen) {
-                            window.spacePressed=true; editor.setToolModifiers(window.shiftPressed,window.stampSourcePicking,true); event.accepted=true
-                        }
                     }
                     Keys.onReleased: function(event) {
                         if (event.key === Qt.Key_Alt && !event.isAutoRepeat)
                             window.stampSourcePicking = false
-                        if(event.key===Qt.Key_Space && !event.isAutoRepeat) {
-                            window.spacePressed=false; editor.setToolModifiers(window.shiftPressed,window.stampSourcePicking,false); event.accepted=true
-                        }
                     }
                     Rectangle { anchors.fill: parent; color: "#171c22" }
                     // Rulers keep their visible ticks in the scene graph.

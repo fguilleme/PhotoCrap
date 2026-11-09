@@ -6,6 +6,11 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## À venir
 
+- Activer Espace + glisser pour déplacer le canevas dès le premier geste, même
+  quand le focus est resté hors du canevas après l’accueil. Afficher la main
+  ouverte/fermée et restaurer le pinceau au relâchement, sans modifier l’image ;
+  préserver Espace dans les champs de saisie et les dialogues.
+
 - Ajouter le preset fal.ai Real-ESRGAN : modèle photo x2plus, ×2, sans prompt,
   sortie PNG et restauration des visages désactivée ; choix du modèle et du
   facteur, source IA native, masque et placement conservés comme pour Topaz.

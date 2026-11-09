@@ -33,6 +33,7 @@ signals:
     void enabledChanged();
     void modifiersChanged();
     void preciseChanged();
+    void spaceChanged(bool _pressed);
     void shortcutPressed(QString _group, QString _tool, bool _cycle);
     void shortcutReleased(bool _springLoaded);
 

@@ -13,6 +13,8 @@
 #include <QFile>
 #include <QOperatingSystemVersion>
 #include <QPointingDevice>
+#include <QQmlComponent>
+#include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -44,6 +46,85 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     auto artboard = _window->findChild<QQuickItem *>("artboard");
     if (!require(viewport && artboard, "viewport and artboard exist"))
         return false;
+    // Before any canvas click or stroke, focus can still belong to the window
+    // content after startup/the welcome popup instead of the workspace.
+    const auto startupTool = _document.tool();
+    _document.setTool("brush");
+    const auto startupRevision = _document.revision();
+    const auto startupHistory  = _document.historyIndex();
+    const auto startupX        = viewport->property("contentX").toReal();
+    const auto startupY        = viewport->property("contentY").toReal();
+    const auto startupPan =
+        viewport->mapToScene(QPointF(viewport->width() / 2, viewport->height() / 2)).toPoint();
+    QTest::mouseMove(_window, startupPan);
+    _window->contentItem()->forceActiveFocus();
+    QTest::keyPress(_window, Qt::Key_Space);
+    if (!require(_window->property("spacePressed").toBool() &&
+                     panArea->property("enabled").toBool() &&
+                     panArea->property("cursorShape").toInt() == Qt::OpenHandCursor,
+                 "Space shows the pan hand before the first canvas click"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, startupPan);
+    if (!require(panArea->property("cursorShape").toInt() == Qt::ClosedHandCursor,
+                 "the first canvas drag uses the closed pan hand"))
+        return false;
+    QTest::mouseMove(_window, startupPan - QPoint(30, 20), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, startupPan - QPoint(30, 20));
+    QTest::keyRelease(_window, Qt::Key_Space);
+    QTest::qWait(20);
+    if (!require(viewport->property("contentX").toReal() > startupX &&
+                     viewport->property("contentY").toReal() > startupY &&
+                     !_window->property("spacePressed").toBool() &&
+                     !panArea->property("enabled").toBool() && _document.tool() == "brush" &&
+                     _document.revision() == startupRevision &&
+                     _document.historyIndex() == startupHistory,
+                 "the initial Space drag pans without painting and release restores the brush"))
+        return false;
+    auto *startupWelcome = _window->findChild<QObject *>("welcomeDialog");
+    if (!require(startupWelcome, "welcome popup exists"))
+        return false;
+    QTest::keyPress(_window, Qt::Key_Space);
+    QMetaObject::invokeMethod(startupWelcome, "open");
+    if (!require(QTest::qWaitFor([&] { return startupWelcome->property("opened").toBool(); }, 1000),
+                 "welcome popup opens"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Space);
+    QTest::keyClick(_window, Qt::Key_Space);
+    if (!require(!_window->property("spacePressed").toBool() &&
+                     !panArea->property("enabled").toBool(),
+                 "opening a modal popup cancels panning and Space does not reactivate it"))
+        return false;
+    QMetaObject::invokeMethod(startupWelcome, "close");
+    if (!require(
+            QTest::qWaitFor([&] { return !startupWelcome->property("visible").toBool(); }, 1000),
+            "welcome popup closes"))
+        return false;
+    _window->contentItem()->forceActiveFocus();
+    QTest::keyPress(_window, Qt::Key_Space);
+    if (!require(panArea->property("enabled").toBool(),
+                 "Space works again after closing the welcome popup"))
+        return false;
+    QTest::keyRelease(_window, Qt::Key_Space);
+    {
+        QQmlComponent field(qmlEngine(_window));
+        field.setData("import QtQuick\nTextInput { width: 200; height: 28; text: \"\" }", QUrl{});
+        QScopedPointer<QObject> object(field.create());
+        auto *                  text = qobject_cast<QQuickItem *>(object.data());
+        if (!require(text, "editable field fixture loads"))
+            return false;
+        text->setParentItem(_window->contentItem());
+        text->forceActiveFocus();
+        QTest::keyClick(_window, Qt::Key_Space);
+        if (!require(object->property("text").toString() == " " &&
+                         !_window->property("spacePressed").toBool() &&
+                         !panArea->property("enabled").toBool(),
+                     "Space remains text input while an editable field has focus"))
+            return false;
+    }
+    _window->contentItem()->forceActiveFocus();
+    viewport->setProperty("contentX", startupX);
+    viewport->setProperty("contentY", startupY);
+    _document.setTool(startupTool);
     QTemporaryDir rawDirectory;
     QFile         rawFile(rawDirectory.filePath(QString::fromUtf8("échantillon.DNG")));
     if (!require(rawFile.open(QIODevice::WriteOnly), "create a RAW fixture"))

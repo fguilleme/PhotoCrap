@@ -1,5 +1,22 @@
 # Validation
 
+## Panning par Espace dès le premier geste — 9 novembre 2026
+
+Build Qt 6.12 réussi. `brush_cursor` (4,96 s), `marquee_ui` (2,17 s) et
+`qml_smoke` (27,18 s au dernier passage) réussis.
+
+Le test commence avant tout clic ou trait sur le canevas, avec le focus sur le
+contenu de la fenêtre. Espace affiche la main ouverte ; glisser affiche la main
+fermée et déplace les deux axes sans changer les pixels, la révision ou
+l’historique. Le relâchement rétablit le pinceau. L’ouverture d’un dialogue modal
+annule le mode temporaire ; après fermeture de l’accueil, Espace fonctionne de
+nouveau. Un champ TextInput conserve la saisie d’Espace sans déclencher le panning.
+Le reste du smoke test couvre notamment le repositionnement d’une sélection
+avec Espace pendant le geste, sans détourner celui-ci vers le panning.
+
+La touche est maintenant traitée par le filtre clavier commun de la fenêtre,
+activé hors saisie et dialogues, plutôt que seulement par l’Item du canevas.
+
 ## Alternative Real-ESRGAN et transport des couleurs — 9 novembre 2026
 
 Build réussi ; suites `ai_images`, `ai_ui` et `qml_smoke` : 3/3 réussies

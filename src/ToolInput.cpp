@@ -58,6 +58,16 @@ bool ToolInput::eventFilter(QObject *_watched, QEvent *_event)
             modifiers &= ~flag;
         updateModifiers(modifiers);
     }
+    // Temporary canvas navigation must work before the canvas receives its
+    // first click, including when focus was restored to the window after a popup.
+    // QML disables this filter while editing text or using a modal dialog.
+    if (key->key() == Qt::Key_Space) {
+        if (type == QEvent::ShortcutOverride)
+            key->accept();
+        else if (!key->isAutoRepeat())
+            emit spaceChanged(type == QEvent::KeyPress);
+        return true;
+    }
     if (type == QEvent::KeyRelease && key->key() == m_pressedKey && !key->isAutoRepeat()) {
         m_pressedKey = 0;
         emit shortcutReleased(m_pressTimer.elapsed() >= 200);

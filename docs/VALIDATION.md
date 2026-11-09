@@ -1,5 +1,35 @@
 # Validation
 
+## Documents multiples et upscale natif — 9 novembre 2026
+
+Build local Qt 6.12 / macOS réussi. Suite hors écran complète : **69/69 tests
+réussis**, 181,12 s avec deux processus CTest. Les tests natifs macOS exclus par
+`-E '^macos_'` ne sont pas comptés dans ce résultat. Aucun appel IA payant n’a
+été effectué ; les réponses des fournisseurs restent simulées.
+
+Cas ajoutés ou adaptés :
+
+- documents 8/16 bits indépendants, pixels, sélection et historiques séparés,
+  zoom/défilement restaurés et identifiants de ressources distincts ;
+- affichage effectif de deux images colorées en changeant d’onglet, sans ancien
+  rendu en cache ; barre de onze onglets, onglet actif visible et navigation clavier ;
+- ouverture d’images et de projets dans un onglet distinct sans altérer les pixels
+  ni l’historique de la source ; fichier déjà ouvert activé, échec/annulation nettoyé ;
+- dépôts multiples, JPEG, PNG 16 bits, RAW, accueil, ouverture native et boîte
+  de fichiers ; import de calques conservé dans le document actif ;
+- revue successive de plusieurs documents modifiés à Quitter, annulation laissant
+  tous les onglets ouverts, fermeture d’un seul onglet et sauvegarde asynchrone ;
+- résultats d’upscale 64×48 conservés tels quels depuis une source IA 32×24 placée
+  dans un document 120×90, en 8/16 bits : pixels natifs, masque redimensionné,
+  profondeur, source compacte et état non enregistré ; source et historique intacts ;
+- résultat arrivé alors qu’un autre onglet est actif sans vol de focus ; fermeture
+  de la source annulant son contrôleur, sans nouveau document tardif ;
+- destination native proposée par défaut pour les presets d’upscale ; anciens
+  traitements et ajout sur calque toujours couverts.
+
+Le format `.pcr` reste inchangé : un document par fichier. Les contrôles distants
+Linux et Windows ne sont pas exécutés pour ces changements non poussés.
+
 ## Panning par Espace dès le premier geste — 9 novembre 2026
 
 Build Qt 6.12 réussi. `brush_cursor` (4,96 s), `marquee_ui` (2,17 s) et

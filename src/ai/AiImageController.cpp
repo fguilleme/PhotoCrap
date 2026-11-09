@@ -1,5 +1,6 @@
 #include "AiImageController.h"
 #include "Document.h"
+#include "DocumentManager.h"
 #include <QDateTime>
 #include <QFutureWatcher>
 #include <QJsonDocument>
@@ -50,6 +51,10 @@ AiImageController::~AiImageController()
         m_cancel->store(true);
     m_job.cancel();
 }
+void AiImageController::setDocumentManager(DocumentManager *manager)
+{
+    m_documents = manager;
+}
 void AiImageController::stop(const QString &_error)
 {
     m_awaitingResponse = false;
@@ -83,10 +88,16 @@ void AiImageController::cancel()
 }
 bool AiImageController::generate(const QString &_providerId, const QString &_prompt,
                                  bool _selection, int _variants, bool _original,
-                                 const QVariantMap &_options)
+                                 const QVariantMap &_options, bool newDocument)
 {
     if (m_busy || pendingResult() || !m_document)
         return false;
+    if (newDocument && !m_documents) {
+        m_error = tr("La création d’un nouveau document n’est pas disponible.");
+        emit changed();
+        return false;
+    }
+    m_newDocument       = newDocument;
     auto       provider = m_settings->provider(_providerId);
     const bool topaz    = provider.value("kind") == "fal" &&
                        provider.value("model") == "topaz/upscale/image/precision";
@@ -293,9 +304,10 @@ void AiImageController::prepareResult()
                 m_readyResult = std::make_shared<PhotoCrap::Ai::Result>(std::move(result));
                 tryInsertion();
             });
-    watcher->setFuture(QtConcurrent::run([input, bytes = m_resultBytes, bits, cancel] {
-        return PhotoCrap::Ai::prepareResult(input, bytes, bits, cancel);
-    }));
+    watcher->setFuture(
+        QtConcurrent::run([input, bytes = m_resultBytes, bits, cancel, nativeSize = m_newDocument] {
+            return PhotoCrap::Ai::prepareResult(input, bytes, bits, cancel, nativeSize);
+        }));
 }
 void AiImageController::tryInsertion()
 {
@@ -306,7 +318,7 @@ void AiImageController::tryInsertion()
         stop(tr("Le document a changé. Le résultat IA n’a pas été inséré."));
         return;
     }
-    if (m_document->aiInsertionBusy()) {
+    if (!m_newDocument && m_document->aiInsertionBusy()) {
         const auto text = variantStatus(tr("Résultat prêt — terminez l’édition en cours…"));
         if (m_status != text) {
             m_status = text;
@@ -327,6 +339,9 @@ void AiImageController::tryInsertion()
         {"prompt", m_prompt},
         {"inputSize", QVariantList{m_input.sentSize.width(), m_input.sentSize.height()}},
         {"originalSource", m_input.originalSource},
+        {"newDocument", m_newDocument},
+        {"sourceName", m_document->name()},
+        {"outputSize", QVariantList{m_readyResult->image.width(), m_readyResult->image.height()}},
         {"selection", m_input.selected},
         {"batch", m_batchId},
         {"variant", m_completed + 1},
@@ -341,7 +356,11 @@ void AiImageController::tryInsertion()
         metadata["upscaleModel"] =
             options.value("model").toString(topaz ? "Standard V2" : "RealESRGAN_x2plus");
     }
-    if (!m_document->insertAiResult(m_input, *m_readyResult, metadata, error)) {
+    const bool inserted =
+        m_newDocument ? m_documents && m_documents->addAiDocument(*m_readyResult, metadata, m_input,
+                                                                  error, m_document)
+                      : m_document->insertAiResult(m_input, *m_readyResult, metadata, error);
+    if (!inserted) {
         m_busy = false;
         m_clock.stop();
         m_elapsedSeconds = int(m_elapsed.elapsed() / 1000);
@@ -357,7 +376,8 @@ void AiImageController::tryInsertion()
         stop();
         m_status = m_completed > 1
                        ? tr("%1 variantes IA ajoutées sur des calques séparés").arg(m_completed)
-                       : tr("Résultat IA ajouté sur un nouveau calque");
+                   : m_newDocument ? tr("Résultat IA ouvert dans un nouveau document")
+                                   : tr("Résultat IA ajouté sur un nouveau calque");
         emit changed();
     } else {
         m_status = variantStatus(tr("Envoi au fournisseur…"));

@@ -44,6 +44,6 @@ struct Result {
 };
 using Cancel = std::shared_ptr<std::atomic_bool>;
 Result prepareResult(const Input &_input, const QByteArray &_bytes, int _bits,
-                     const Cancel &_cancel);
+                     const Cancel &_cancel, bool nativeSize = false);
 bool   validSize(const QSize &_size);
 } // namespace PhotoCrap::Ai

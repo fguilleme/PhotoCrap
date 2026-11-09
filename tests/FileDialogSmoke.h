@@ -122,8 +122,14 @@ inline bool runFileDialogSmoke(QQuickWindow *_window, Document &_document)
     if (!require(QMetaObject::invokeMethod(dialog, "accept"), "accept selected image"))
         return false;
     if (!require(QTest::qWaitFor(
-                     [&] { return _document.width() == 43 && _document.height() == 29; }, 3000),
-                 "Open still loads the selected image"))
+                     [&] {
+                         auto *active = qvariant_cast<Document *>(_window->property("editor"));
+                         return active && active != &_document && !active->operationBusy() &&
+                                active->width() == 43 && active->height() == 29;
+                     },
+                     3000),
+                 "Open loads the selected image in a separate document"))
         return false;
-    return require(_document.composite() != pixels, "selected file replaces document pixels");
+    return require(_document.composite() == pixels,
+                   "opening a file preserves the source document pixels");
 }

@@ -6124,4 +6124,46 @@ Independent software, not affiliated with Adobe.</translation>
     <name>AiImageDialog</name>
     <message><source>Modèle Real-ESRGAN</source><translation>Real-ESRGAN model</translation></message>
   </context>
+  <context>
+    <name>Main</name>
+    <message><source>Fermer le document</source><translation>Close document</translation></message>
+    <message><source>Le document « %1 » contient une demande IA en cours ou un résultat en attente. Le fermer annulera cette demande. Enregistrer les modifications ?</source><translation>Document “%1” has an AI request in progress or a pending result. Closing it will cancel this request. Save changes?</translation></message>
+  </context>
+  <context>
+    <name>AiImageDialog</name>
+    <message><source>Nouveau calque dans ce document</source><translation>New layer in this document</translation></message>
+    <message><source>Nouveau document · résolution native</source><translation>New document · native resolution</translation></message>
+    <message><source>Le résultat s’ouvre dans un nouvel onglet à sa résolution native. Le document source reste intact. La sortie doit rester sous 32 Mpx et 16 384 px par côté.</source><translation>The result opens in a new tab at native resolution. The source document stays unchanged. Output must stay below 32 MP and 16,384 px per side.</translation></message>
+  </context>
+  <context>
+    <name>Document</name>
+    <message><source>Le résultat IA ne peut pas devenir un document.</source><translation>The AI result cannot be opened as a document.</translation></message>
+    <message><source>Résultat IA — %1</source><translation>AI result — %1</translation></message>
+    <message><source>Upscale — %1</source><translation>Upscale — %1</translation></message>
+  </context>
+  <context>
+    <name>DocumentManager</name>
+    <message><source>Le fichier demandé est introuvable.</source><translation>The requested file cannot be found.</translation></message>
+  </context>
+  <context>
+    <name>AiImageController</name>
+    <message><source>La création d’un nouveau document n’est pas disponible.</source><translation>Creating a new document is unavailable.</translation></message>
+    <message><source>Résultat IA ouvert dans un nouveau document</source><translation>AI result opened in a new document</translation></message>
+  </context>
+  <context>
+    <name>ShortcutManager</name>
+    <message><source>Fermer le document</source><translation>Close document</translation></message>
+    <message><source>Document suivant</source><translation>Next document</translation></message>
+    <message><source>Document précédent</source><translation>Previous document</translation></message>
+  </context>
+  <context>
+    <name>AiImageDialog</name>
+    <message><source>Le résultat s’ouvre à sa résolution native dans un nouvel onglet. Le document source reste intact.</source><translation>The result opens at native resolution in a new tab. The source document stays unchanged.</translation></message>
+    <message><source>Envoi et résultat à la résolution native · nouvel onglet</source><translation>Native-resolution input and output · new tab</translation></message>
+  </context>
+  <context>
+    <name>Document</name>
+    <message><source>%1 — Upscale</source><translation>%1 — Upscale</translation></message>
+    <message><source>%1 — IA</source><translation>%1 — AI</translation></message>
+  </context>
 </TS>

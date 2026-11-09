@@ -17,6 +17,15 @@ and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
+## In development after v0.20.0
+
+- **Multiple document tabs** with independent layers, selections and history,
+  restored views, and save/discard/cancel protection when closing tabs or quitting.
+- **Upscale to a new document** at the provider’s native output resolution,
+  preserving the source. This is the default destination for Topaz and Real-ESRGAN;
+  adding a layer to the source document remains available.
+  [Document guide](docs/DOCUMENTS.md) (French).
+
 ## New in v0.20.0
 
 - **Import images as layers** using **+** or dropping files into the layer stack,
@@ -229,7 +238,7 @@ ctest --preset release
 
 ### AI image editing
 
-Promptless processing is available for fal.ai and ComfyUI profiles (required/optional/no prompt). Add **fal.ai · Topaz Upscale Precision** or **fal.ai · Real-ESRGAN** (x2plus, face restoration disabled) in AI settings, then choose its model and ×1–×4 factor in the request dialog. Upscale can send the active AI layer’s original small image instead of its already enlarged canvas representation. The output returns on a new layer with its mask and placement, at the current document size; separate output documents await multi-document support. Input can retain native resolution and PNG precision. Topaz integration is tested with simulated servers; automated tests do not assess the visual quality of either model.
+Promptless processing is available for fal.ai and ComfyUI profiles (required/optional/no prompt). Add **fal.ai · Topaz Upscale Precision** or **fal.ai · Real-ESRGAN** (x2plus, face restoration disabled) in AI settings, then choose its model and ×1–×4 factor in the request dialog. Upscale can send the active AI layer’s original small image instead of its already enlarged canvas representation. The output can open in a new native-size document without changing its source, or return on a new layer with its mask and placement. Input can retain native resolution and PNG precision. Topaz integration is tested with simulated servers; automated tests do not assess the visual quality of either model.
 
 **File / Layer → Create with AI…** sends the visible composite or selection to GPT Image, fal.ai, ComfyUI, or an OpenAI-compatible image editing API. Generate 1–8 sequential variants from the same source, each on an undoable layer with the original selection mask. Only the latest variant is visible initially. Unedited AI layers keep the original provider image in v13 projects instead of saving an enlarged 16-bit raster; pixel edits use native raster storage. Older raster-only AI layers retain their existing representation. **Settings → AI** stores multiple provider profiles and reusable prompts; API keys are kept in the system credential store or supplied by environment variables. [Setup and limitations](docs/AI_IMAGE_EDITING.md) (French). OpenAI and fal.ai have been tested in the application; ComfyUI still needs a real-server/workflow trial.
 

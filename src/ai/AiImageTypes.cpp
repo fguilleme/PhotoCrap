@@ -12,7 +12,7 @@ bool validSize(const QSize &_size)
            _size.height() <= 16384 && qint64(_size.width()) * _size.height() <= 32LL * 1024 * 1024;
 }
 Result prepareResult(const Input &_input, const QByteArray &_bytes, int _bits,
-                     const Cancel &_cancel)
+                     const Cancel &_cancel, bool nativeSize)
 {
     Result result;
     result.bits = _bits;
@@ -46,16 +46,25 @@ Result prepareResult(const Input &_input, const QByteArray &_bytes, int _bits,
         image.convertToColorSpace(QColorSpace::SRgb);
     if (_cancel->load())
         return result;
+    Input target = _input;
+    if (nativeSize) {
+        target.canvas = image.size();
+        target.bounds = QRect(QPoint{}, target.canvas);
+        if (target.selected)
+            target.coverage =
+                _input.coverage.copy(_input.bounds)
+                    .scaled(target.canvas, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    }
     const auto format =
         _bits == 16 ? QImage::Format_RGBA64_Premultiplied : QImage::Format_ARGB32_Premultiplied;
-    result.image = PixelPlane::uniform(_input.canvas, ImageUtils::blank({1, 1}, format));
+    result.image = PixelPlane::uniform(target.canvas, ImageUtils::blank({1, 1}, format));
     // Keep upscaling regional: an AI thumbnail must not require another full
     // native-resolution document buffer before becoming editable tiles.
-    for (int y = _input.bounds.top(); y <= _input.bounds.bottom(); y += TiledImage::TileSize) {
+    for (int y = target.bounds.top(); y <= target.bounds.bottom(); y += TiledImage::TileSize) {
         if (_cancel->load())
             return {};
-        const QRect part(_input.bounds.x(), y, _input.bounds.width(),
-                         qMin(TiledImage::TileSize, _input.bounds.bottom() - y + 1));
+        const QRect part(target.bounds.x(), y, target.bounds.width(),
+                         qMin(TiledImage::TileSize, target.bounds.bottom() - y + 1));
         auto        band = ImageUtils::blank(part.size(), format);
         if (band.isNull()) {
             result.error = QObject::tr("Mémoire insuffisante pour préparer le calque IA.");
@@ -64,9 +73,9 @@ Result prepareResult(const Input &_input, const QByteArray &_bytes, int _bits,
         QPainter painter(&band);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
         painter.translate(-part.topLeft());
-        painter.drawImage(_input.bounds, image);
+        painter.drawImage(target.bounds, image);
         painter.end();
-        if (!result.image.writeRegion(part.topLeft(), band, _input.canvas)) {
+        if (!result.image.writeRegion(part.topLeft(), band, target.canvas)) {
             result.error = QObject::tr("Mémoire insuffisante pour préparer le calque IA.");
             return result;
         }
@@ -76,15 +85,15 @@ Result prepareResult(const Input &_input, const QByteArray &_bytes, int _bits,
         return result;
     }
     if (_input.selected) {
-        result.mask = _input.coverage;
+        result.mask = target.coverage;
         if (!result.mask.freeze())
             result.error = QObject::tr("Impossible de préparer le masque du calque IA.");
     }
     if (result.error.isEmpty()) {
         auto original      = std::make_shared<ImageSource>();
         original->encoded  = _bytes;
-        original->canvas   = _input.canvas;
-        original->bounds   = _input.bounds;
+        original->canvas   = target.canvas;
+        original->bounds   = target.bounds;
         original->bits     = _bits;
         original->pixelKey = result.image.cacheKey();
         result.original    = std::move(original);

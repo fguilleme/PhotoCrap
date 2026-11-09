@@ -8,6 +8,17 @@ Espace dès le premier geste. Le format binaire v14 et Quick Look restent dispon
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
+## Après v0.20.0 — documents multiples
+
+- [x] Onglets et documents indépendants : calques, masques, sélection, tracés,
+  historique, zoom, défilement et rotation de vue ; raccourcis configurables.
+- [x] Ouvertures et créations sans remplacement, dépôt de plusieurs fichiers,
+  activation d’un fichier déjà ouvert et développement RAW par document.
+- [x] Fermeture d’un onglet et protection de tous les documents modifiés à Quitter.
+- [x] Résultat IA dans un nouvel onglet à sa résolution native, masque redimensionné,
+  source intacte ; contrôleur IA par document et résultats sans vol de focus.
+  [Guide](docs/DOCUMENTS.md).
+
 ## Livraison de v0.20.0
 
 - [x] Importer des images comme calques via le menu et par dépôt dans la pile,
@@ -21,7 +32,7 @@ La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fo
   saisie des champs et dialogues. Tests moteur/interface et transport des couleurs.
 - [ ] Comparer la qualité réelle de Real-ESRGAN sur les images de l’utilisateur ;
   aucun appel payant réalisé par les tests d’intégration.
-- [ ] Ouvrir le résultat d’upscale dans un document distinct après le mode multidocument.
+- [x] Résultat d’upscale dans un document distinct : réalisé dans le code après v0.20.0.
 
 ## Livraison de v0.19.0
 
@@ -210,8 +221,8 @@ Les sections « Disponible » et « Ajouts » ci-dessous constituent l’histori
 - [x] Prévisualisation des réglages sur proxies, caches d’images et de masques, remplacement des demandes intermédiaires par la dernière, puis rendu complet en arrière-plan qui actualise le cache écran. Séparation de fréquences dynamique, puis préparation asynchrone de calques de pixels retouchables en 8/16 bits, avec annulation, masques conservés et retour au rayon depuis les sources enregistrées dans le projet.
 - [x] Stockage des sorties IA à leur résolution d’origine dans les projets v13 : reconstruction locale 8/16 bits, masque indépendant, invalidation à la retouche des pixels et retour au raster natif sans perte des modifications. [Mesure de taille](docs/VALIDATION.md#stockage-compact-des-calques-ia--7-novembre-2026).
 - [x] Création de calques IA : composition ou sélection, profils GPT Image/fal.ai/ComfyUI/API d’images compatible OpenAI, bibliothèque de prompts et 1–8 variantes par lancement ; clés persistantes dans le trousseau natif, liste de fournisseurs et sauvegarde explicite ; suivi asynchrone visible, masque original, insertion unique 8/16 bits annulable et résultat conservé si le stockage est saturé. Protocoles validés par serveurs simulés ; essais réels OpenAI/fal.ai confirmés par l’utilisateur, ComfyUI restant à tester. [Guide](docs/AI_IMAGE_EDITING.md).
-- [x] Traitements IA sans prompt pour fal.ai/ComfyUI ; presets Topaz Upscale Precision et Real-ESRGAN x2plus, modèle et facteur ×1–×4, source IA d’origine du calque, envoi natif et limites vérifiées avant soumission. Résultat sur un calque aux dimensions du document ; dialogue et protocole validés par simulations, qualité des upscalers à comparer sur les images de l’utilisateur.
-- [ ] Résultat IA dans un nouveau document à sa résolution native, après mise en place du mode multidocument.
+- [x] Traitements IA sans prompt pour fal.ai/ComfyUI ; presets Topaz Upscale Precision et Real-ESRGAN x2plus, modèle et facteur ×1–×4, source IA d’origine du calque, envoi natif et limites vérifiées avant soumission. Résultat dans un nouveau document natif ou sur un calque aux dimensions de la source ; dialogue et protocole validés par simulations, qualité des upscalers à comparer sur les images de l’utilisateur.
+- [x] Résultat IA dans un nouveau document à sa résolution native, avec onglets indépendants.
 - [x] Fusions de calques : vers le bas, sélection, groupe, écrêtage, visibles, copies fusionnées des sélectionnés/visibles et aplatissement opaque. Masques/réglages rasterisés, sources cachées conservées pour Fusionner visibles, précision native 8/16 bits, worker annulable, sortie tuilée et raccourcis configurables. [Comportements et différences Adobe](docs/LAYER_MERGE.md).
 - [x] Presse-papiers de sélection : Couper/Copier actifs, Copier avec fusion, nouveau calque au collage, sur place, dans/hors sélection avec masque éditable, calque par copie/couper et masque raster actif. Formes réelles, contours progressifs et pixels natifs 8/16 bits, calculs différés et historique ; [cas couverts et différences Adobe](docs/CLIPBOARD.md).
 - [ ] Presse-papiers complet de calques et tracés : préserver texte éditable, formes, groupes, effets et masques associés entre documents ; gestion des profils couleur multiples.

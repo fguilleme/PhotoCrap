@@ -6,6 +6,15 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## À venir
 
+- Documents multiples en onglets : calques, masques, sélection, tracés et historique
+  indépendants ; zoom, défilement et rotation restaurés, raccourcis configurables.
+  Ouvrir, créer et déposer des fichiers conserve les documents déjà ouverts.
+- Fermeture d’un onglet et revue de tous les documents modifiés avant Quitter,
+  avec sauvegarde, abandon et annulation ; demandes IA attachées à leur source.
+- Destination IA « Nouveau document · résolution native », proposée par défaut
+  pour les upscales ; résultat non rééchantillonné vers l’ancien canevas, masque
+  redimensionné et source inchangée. Résultats en arrière-plan sans vol de focus.
+
 ## v0.20.0 — 9 novembre 2026
 
 - Activer Espace + glisser pour déplacer le canevas dès le premier geste, même

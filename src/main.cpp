@@ -3,6 +3,7 @@
 #include "CropShadeItem.h"
 #include "DashedGuideItem.h"
 #include "Document.h"
+#include "DocumentManager.h"
 #include "LanguageManager.h"
 #include "RawImageReader.h"
 #include "RecentFilesManager.h"
@@ -44,6 +45,7 @@
 #include "../tests/CurvesGraphSmoke.h"
 #include "../tests/DisplayPyramidSmoke.h"
 #include "../tests/DocumentDropSmoke.h"
+#include "../tests/DocumentsSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/HistogramRenderSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
@@ -71,13 +73,22 @@
 class ThumbnailProvider : public QQuickImageProvider
 {
 public:
-    explicit ThumbnailProvider(Document *_document)
-        : QQuickImageProvider(Image), m_document(_document)
+    explicit ThumbnailProvider(DocumentManager *documents)
+        : QQuickImageProvider(Image), m_documents(documents)
     {
     }
-    QImage requestImage(const QString &_id, QSize *_size, const QSize &_requested) override
+    QImage requestImage(const QString &key, QSize *_size, const QSize &_requested) override
     {
+        const auto _id        = key.section('/', 1);
+        auto *     m_document = m_documents->document(key.section('/', 0, 0));
         QImage image;
+        if (!m_document) {
+            image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+            if (_size)
+                *_size = image.size();
+            return image;
+        }
         if (_id.startsWith("colorSelection/")) {
             const QRect region(_id.section('/', 3, 3).toInt(), _id.section('/', 4, 4).toInt(),
                                _id.section('/', 5, 5).toInt(), _id.section('/', 6, 6).toInt());
@@ -104,7 +115,7 @@ public:
     }
 
 private:
-    Document *m_document;
+    DocumentManager *m_documents;
 };
 
 class RecentThumbnailProvider : public QQuickImageProvider
@@ -233,22 +244,43 @@ int main(int argc, char *argv[])
                                          "Provided by the application");
     LanguageManager    languageManager(nullptr, !smoke);
     RecentFilesManager recentFilesManager(nullptr, !smoke);
-    Document           document;
     ShortcutManager    shortcutManager(nullptr, !smoke);
     WorkspaceSettings  workspaceSettings(nullptr, !smoke);
     AiSettings         aiSettings(nullptr, !smoke);
-    AiImageController  aiImages(&document, &aiSettings);
-    const auto         configureScratch = [&] {
-        document.configureScratchCache(
+    DocumentManager    documents(&aiSettings);
+    Document &         document          = *documents.activeDocument();
+    AiImageController &aiImages          = *documents.activeAi();
+    const auto         configureDocument = [&](Document *doc) {
+        doc->configureScratchCache(
             workspaceSettings.scratchDirectory(),
             smoke ? 0 : qint64(workspaceSettings.scratchDiskGiB()) * 1024 * 1024 * 1024);
+        doc->configurePlaneRamMiB(workspaceSettings.planeRamMiB());
+        doc->setProperty("fillTolerance", 32);
+        doc->setProperty("fillAntialias", true);
+        doc->setProperty("gradientNewLayer", true);
+        doc->setProperty("gradientMethod", 2);
+        doc->setProperty("gradientDither", true);
+        QObject::connect(doc, &Document::fileOpened, &recentFilesManager, &RecentFilesManager::add);
+        QObject::connect(doc, &Document::rawFileOpened, &recentFilesManager,
+                         &RecentFilesManager::add);
+        QObject::connect(doc, &Document::projectSaved, &recentFilesManager,
+                         &RecentFilesManager::add);
     };
-    configureScratch();
-    document.configurePlaneRamMiB(workspaceSettings.planeRamMiB());
-    QObject::connect(&workspaceSettings, &WorkspaceSettings::planeRamChanged, &document,
-                     [&] { document.configurePlaneRamMiB(workspaceSettings.planeRamMiB()); });
-    QObject::connect(&workspaceSettings, &WorkspaceSettings::scratchCacheChanged, &document,
-                     configureScratch);
+    configureDocument(&document);
+    QObject::connect(&documents, &DocumentManager::documentAdded, &documents, configureDocument);
+    QObject::connect(&workspaceSettings, &WorkspaceSettings::planeRamChanged, &documents, [&] {
+        for (const auto &value : documents.documents())
+            documents.document(value.toMap().value("id").toString())
+                ->configurePlaneRamMiB(workspaceSettings.planeRamMiB());
+    });
+    QObject::connect(&workspaceSettings, &WorkspaceSettings::scratchCacheChanged, &documents, [&] {
+        for (const auto &value : documents.documents()) {
+            auto *doc = documents.document(value.toMap().value("id").toString());
+            doc->configureScratchCache(
+                workspaceSettings.scratchDirectory(),
+                smoke ? 0 : qint64(workspaceSettings.scratchDiskGiB()) * 1024 * 1024 * 1024);
+        }
+    });
     int                   qmlWarnings = 0;
     QQmlApplicationEngine engine;
 #if QT_VERSION < QT_VERSION_CHECK(6, 9, 0)
@@ -260,13 +292,14 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::warnings, &app,
         [&](const QList<QQmlError> &_waraings) { qmlWarnings += int(_waraings.size()); });
-    engine.addImageProvider("layers", new ThumbnailProvider(&document));
+    engine.addImageProvider("layers", new ThumbnailProvider(&documents));
     engine.addImageProvider("recent", new RecentThumbnailProvider);
-    engine.rootContext()->setContextProperty("editor", &document);
+    engine.rootContext()->setContextProperty("documents", &documents);
     engine.rootContext()->setContextProperty("aiSettings", &aiSettings);
-    engine.rootContext()->setContextProperty("aiImages", &aiImages);
-    QObject::connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, &document,
-                     &Document::clipboardChanged);
+    QObject::connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, &documents, [&] {
+        for (const auto &value : documents.documents())
+            emit documents.document(value.toMap().value("id").toString())->clipboardChanged();
+    });
     engine.rootContext()->setContextProperty("languages", &languageManager);
     engine.rootContext()->setContextProperty("recentFiles", &recentFilesManager);
     engine.rootContext()->setContextProperty("showWelcomeAtStartup",
@@ -274,10 +307,6 @@ int main(int argc, char *argv[])
                                                  (args.size() == 1 || args[1].startsWith("--")));
     engine.rootContext()->setContextProperty("shortcuts", &shortcutManager);
     engine.rootContext()->setContextProperty("workspaceSettings", &workspaceSettings);
-    QObject::connect(&document, &Document::rawFileOpened, &recentFilesManager,
-                     &RecentFilesManager::add);
-    QObject::connect(&document, &Document::fileOpened, &recentFilesManager,
-                     &RecentFilesManager::add);
     QObject::connect(&languageManager, &LanguageManager::languageChanged, &engine, [&] {
         engine.retranslate();
         emit shortcutManager.shortcutsChanged();
@@ -298,10 +327,7 @@ int main(int argc, char *argv[])
         document.createDemo();
     else if (args.size() > 1 && !args[1].startsWith("--")) {
         const QUrl url = QUrl::fromLocalFile(args[1]);
-        if (document.isRawFile(url))
-            document.openRawFile(url);
-        else
-            document.requestOpenFile(url);
+        documents.openFile(url);
     }
     if (smoke) {
         QTimer::singleShot(1200, &app, [&] {
@@ -334,7 +360,7 @@ int main(int argc, char *argv[])
                 return;
             }
             if (args.contains("--operation-test")) {
-                passed = window && runOperationSmoke(window, document);
+                passed = window && runOperationSmoke(window, document, documents);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }
@@ -408,8 +434,13 @@ int main(int argc, char *argv[])
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }
+            if (args.contains("--documents-test")) {
+                passed = window && runDocumentsSmoke(window, documents, aiSettings);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--document-drop-test")) {
-                passed = window && runDocumentDropSmoke(window, document);
+                passed = window && runDocumentDropSmoke(window, documents);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

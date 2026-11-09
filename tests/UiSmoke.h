@@ -1,6 +1,7 @@
 #pragma once
 #include "BrushSettingsSmoke.h"
 #include "Document.h"
+#include "DocumentManager.h"
 #include "LayerContextMenuSmoke.h"
 #include "MarqueeUiSmoke.h"
 #include "PenUiSmoke.h"
@@ -2136,7 +2137,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(qAbs(_document.brushSize() - originalBrushSize - 8) < .001,
                  "OK keeps the edited brush settings"))
         return false;
-    QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("new")));
+    QMetaObject::invokeMethod(_window, "guard", Q_ARG(QVariant, QVariant("closeDocument")));
     QTest::qWait(200);
     auto guard = _window->findChild<QObject *>("unsavedDialog");
     if (!require(guard && guard->property("visible").toBool(), "unsaved changes are guarded"))
@@ -2290,10 +2291,15 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     QMetaObject::invokeMethod(newCancel, "forceActiveFocus");
     QTest::keyClick(_window, Qt::Key_Return);
     QTest::qWait(100);
-    if (!require(!dialog->property("visible").toBool() && _document.width() == 1280 &&
-                     _document.height() == 800,
-                 "Return activates the default dialog button"))
+    auto *createdDocument = qvariant_cast<Document *>(_window->property("editor"));
+    if (!require(!dialog->property("visible").toBool() && createdDocument &&
+                     createdDocument != &_document && createdDocument->width() == 1280 &&
+                     createdDocument->height() == 800 && _document.width() == 300,
+                 "Return creates a separate document without replacing the existing canvas"))
         return false;
+    QMetaObject::invokeMethod(_window, "activateDocument",
+                              Q_ARG(QVariant, QVariant(_document.documentId())));
+    QTest::qWait(80);
     auto layerProperties = _window->findChild<QObject *>("layerPropertiesDialog");
     if (!require(layerProperties, "layer properties dialog exists"))
         return false;

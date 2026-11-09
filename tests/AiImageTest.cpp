@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "DocumentManager.h"
 #include "ImageUtils.h"
 #include "ProjectFixture.h"
 #include "ai/AiImageController.h"
@@ -1709,6 +1710,121 @@ private slots:
                 QVERIFY(qAbs(int(a.blue()) - int(b.blue())) <= tolerance);
                 QCOMPARE(b.alpha(), quint16(65535));
             }
+    }
+    void upscaleToNewDocument_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("background");
+        QTest::newRow("8-active") << 8 << false;
+        QTest::newRow("16-active") << 16 << false;
+        QTest::newRow("8-background") << 8 << true;
+        QTest::newRow("16-background") << 16 << true;
+    }
+    void upscaleToNewDocument()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, background);
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings      settings(nullptr, false);
+        DocumentManager manager(&settings);
+        auto *          source = manager.activeDocument();
+        fixture(*source, bits);
+        auto in     = input();
+        in.canvas   = {120, 90};
+        in.bounds   = {20, 10, 80, 60};
+        in.session  = source->documentSession();
+        in.selected = true;
+        in.coverage = QImage(in.canvas, QImage::Format_Grayscale8);
+        in.coverage.fill(128);
+        const auto cancel   = std::make_shared<std::atomic_bool>(false);
+        const auto original = PhotoCrap::Ai::prepareResult(in, png(), bits, cancel);
+        QString    error;
+        QVERIFY(source->insertAiResult(in, original, {{"provider", "Original"}}, error));
+        const auto before  = source->composite();
+        const auto history = source->historyIndex();
+        QImage     enlarged(64, 48, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+        enlarged.fill(QColor::fromRgba64(12345, 23456, 34567, 65535));
+        QByteArray bytes;
+        QBuffer    buffer(&bytes);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        QVERIFY(enlarged.save(&buffer, "PNG"));
+        server.handler = [&](const Request &) {
+            return Response{
+                200,
+                json({{"image", QJsonObject{{"url", "data:image/png;base64," +
+                                                        QString::fromLatin1(bytes.toBase64())}}}}),
+                "application/json",
+                {},
+                100};
+        };
+        auto profile   = settings.newProvider("falEsrgan");
+        profile["url"] = server.url();
+        const auto id  = settings.saveProvider(profile);
+        settings.setSessionKey(id, "mock-key");
+        auto *     controller = manager.activeAi();
+        QSignalSpy added(controller, &AiImageController::layerAdded);
+        QVERIFY(controller->generate(id, "", false, 1, true, {}, true));
+        Document *other = nullptr;
+        if (background) {
+            QVERIFY(manager.newDocument(24, 18, true, 8));
+            other = manager.activeDocument();
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!controller->busy(), 5000);
+        QVERIFY2(controller->error().isEmpty(), qPrintable(controller->error()));
+        QCOMPARE(added.size(), 1);
+        QCOMPARE(manager.count(), background ? 3 : 2);
+        auto *output = manager.document(manager.documents().last().toMap().value("id").toString());
+        QCOMPARE(QSize(output->width(), output->height()), QSize(64, 48));
+        QCOMPARE(output->channelBits(), bits);
+        QCOMPARE(output->layers().size(), 1);
+        QCOMPARE(output->layerImage(0).pixelColor(32, 24), enlarged.pixelColor(32, 24));
+        QCOMPARE(output->maskImage(0).size(), QSize(64, 48));
+        QCOMPARE(output->maskImage(0).constScanLine(24)[32], uchar(128));
+        QVERIFY(output->modified());
+        QVERIFY(output->projectUrl().isEmpty());
+        QCOMPARE(output->originalAiSource().value("width").toInt(), 64);
+        QCOMPARE(source->composite(), before);
+        QCOMPARE(source->historyIndex(), history);
+        QCOMPARE(source->width(), 120);
+        QCOMPARE(manager.activeDocument(), background ? other : output);
+    }
+    void closingAiSourceCancelsItsResultDocument()
+    {
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings      settings(nullptr, false);
+        DocumentManager manager(&settings);
+        auto *          source = manager.activeDocument();
+        fixture(*source);
+        source->addLayer();
+        auto profile   = settings.newProvider("falEsrgan");
+        profile["url"] = server.url();
+        const auto id  = settings.saveProvider(profile);
+        settings.setSessionKey(id, "mock-key");
+        const auto bytes = png();
+        server.handler   = [&](const Request &) {
+            return Response{
+                200,
+                json({{"image", QJsonObject{{"url", "data:image/png;base64," +
+                                                        QString::fromLatin1(bytes.toBase64())}}}}),
+                "application/json",
+                {},
+                300};
+        };
+        QPointer<AiImageController> controller = manager.activeAi();
+        QVERIFY(controller->generate(id, "", false, 1, false, {}, true));
+        QTRY_COMPARE_WITH_TIMEOUT(server.requests.size(), 1, 5000);
+        QVERIFY(manager.newDocument(20, 15, true, 8));
+        auto *other = manager.activeDocument();
+        QVERIFY(!manager.closeDocument(source->documentId()));
+        QVERIFY(manager.closeDocument(source->documentId(), true));
+        QTRY_VERIFY(controller.isNull());
+        QTest::qWait(400);
+        QCOMPARE(manager.count(), 1);
+        QCOMPARE(manager.activeDocument(), other);
+        QCOMPARE(other->width(), 20);
+        QVERIFY(!other->modified());
     }
     void providerValidationErrorsAreActionableAndPrivate_data()
     {

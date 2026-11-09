@@ -99,12 +99,13 @@ La réponse singulière `image.url` et la file asynchrone sont prises en charge.
 
 L’envoi natif ne réduit pas l’image et conserve sa profondeur PNG lorsqu’elle est
 16 bits. Pour les autres profils, la limite d’envoi configurée reste disponible.
-Le résultat est ajouté sur un calque aux **dimensions du document actuel**, avec
-le placement et le masque de la source IA (activation, densité et contour progressif conservés) ; les octets originaux du nouveau résultat
-restent conservés dans le projet. Le modèle, le facteur et les dimensions envoyées
-figurent dans l’information du calque. Le traitement reste annulable et respecte
-la précision de travail du document. La création d’un document séparé attend la
-prise en charge de plusieurs documents.
+La destination **Nouveau document · résolution native**, proposée par défaut
+pour l’upscale, conserve les dimensions renvoyées par le fournisseur dans un nouvel
+onglet. **Nouveau calque dans ce document** conserve le placement et les dimensions
+du canevas actuel, avec une étape d’annulation. Les deux destinations conservent
+le masque, les octets originaux du résultat et les informations de modèle/facteur.
+Le masque et son contour progressif sont remis à l’échelle pour le nouveau document,
+avec activation et densité conservées. [Documents multiples](DOCUMENTS.md).
 
 Les limites actuelles du lecteur IA restent 32 Mpx et 16 384 px par côté : une
 sortie Topaz prévue au-delà est refusée avant soumission. Réduire le facteur ou
@@ -122,8 +123,8 @@ le facteur restent modifiables dans **Créer avec l’IA…**. Les capacités co
 sont également reconnues si le chemin du modèle est saisi manuellement.
 
 Comme Topaz, ce profil sélectionne les pixels IA d’origine du calque lorsqu’ils
-sont disponibles. Le résultat revient sur un nouveau calque avec son placement
-et son masque, aux dimensions du document. Les limites locales de sortie et
+sont disponibles. La destination permet soit un nouveau calque avec son placement et son masque,
+soit un nouveau document à la résolution native de la sortie (proposé par défaut). Les limites locales de sortie et
 le facteur proposé ×1–×4 sont vérifiés avant envoi. La clé fal.ai se configure
 pour ce nouveau profil dans le trousseau ou via `FAL_KEY`.
 
@@ -293,3 +294,14 @@ Références officielles : [édition d’images OpenAI](https://developers.opena
 et [exemple officiel de soumission](https://github.com/Comfy-Org/ComfyUI/blob/master/script_examples/websockets_api_example.py).
 
 Stockage sécurisé : [QtKeychain officiel](https://github.com/frankosterfeld/qtkeychain), version 0.15.0 liée statiquement et vérifiée par SHA-256 ; licence BSD distribuée avec l’application.
+
+## Destination et documents multiples
+
+**Destination → Nouveau document · résolution native** conserve les dimensions
+renvoyées par le fournisseur et crée un onglet indépendant, non enregistré.
+L’historique et les pixels du document source restent inchangés. Le masque est
+redimensionné pour le nouveau canevas. Cette destination est proposée par défaut
+pour Topaz et Real-ESRGAN ; les autres profils proposent le nouveau calque.
+Chaque onglet conserve son contrôleur IA, y compris lorsqu’un autre document est
+actif. Un résultat terminé en arrière-plan n’interrompt pas l’édition de l’autre
+onglet. [Comportements de fermeture et limites](DOCUMENTS.md).

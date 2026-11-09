@@ -41,6 +41,7 @@ Dialog {
     function start() {
         refreshSource();
         refreshTopaz();
+        destination.currentIndex = upscaling ? 1 : 0;
         open();
     }
     function chooseProvider(id) {
@@ -115,7 +116,7 @@ Dialog {
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
                     color: "#899aa9"
-                    text: dialog.sourceKind === "original" ? qsTr("L’image IA est envoyée à sa résolution d’origine. Le résultat revient sur un nouveau calque, à sa place dans le document, avec son masque.") : dialog.sourceKind === "selection" ? qsTr("Le résultat sera replacé dans la sélection, avec son masque.") : qsTr("Le résultat sera ajouté au-dessus de l’image, sur un nouveau calque.")
+                    text: destination.currentIndex === 1 ? qsTr("Le résultat s’ouvre à sa résolution native dans un nouvel onglet. Le document source reste intact.") : dialog.sourceKind === "original" ? qsTr("L’image IA est envoyée à sa résolution d’origine. Le résultat revient sur un nouveau calque, à sa place dans le document, avec son masque.") : dialog.sourceKind === "selection" ? qsTr("Le résultat sera replacé dans la sélection, avec son masque.") : qsTr("Le résultat sera ajouté au-dessus de l’image, sur un nouveau calque.")
                 }
                 ColumnLayout {
                     visible: dialog.upscaling
@@ -143,8 +144,16 @@ Dialog {
                     }
                     Label {
                         Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#899aa9"; font.pixelSize: 11
-                        text: qsTr("Le document conserve ses dimensions ; l’agrandissement améliore l’image envoyée avant sa remise à l’échelle sur le calque. La sortie doit rester sous 32 Mpx et 16 384 px par côté.")
+                        text: destination.currentIndex === 1 ? qsTr("Le résultat s’ouvre dans un nouvel onglet à sa résolution native. Le document source reste intact. La sortie doit rester sous 32 Mpx et 16 384 px par côté.") : qsTr("Le document conserve ses dimensions ; l’agrandissement améliore l’image envoyée avant sa remise à l’échelle sur le calque. La sortie doit rester sous 32 Mpx et 16 384 px par côté.")
                     }
+                }
+                Label { text: qsTr("Destination"); color: "#aab6c3"; font.pixelSize: 12 }
+                Basic.ComboBox {
+                    id: destination
+                    objectName: "aiResultDestination"
+                    Layout.fillWidth: true
+                    model: [qsTr("Nouveau calque dans ce document"), qsTr("Nouveau document · résolution native")]
+                    palette.buttonText: "#e0e7ee"; palette.button: "#2d3641"
                 }
                 Label {
                     visible: dialog.promptMode !== "none"
@@ -245,7 +254,7 @@ Dialog {
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
                     color: "#899aa9"
-                    text: dialog.selectedProvider.nativeInput ? qsTr("Envoi à la résolution native · résultat sur un nouveau calque") : qsTr("%1 génération(s) · grand côté limité à %2 px").arg(variants.value).arg(dialog.selectedProvider.maxEdge || 1536)
+                    text: dialog.selectedProvider.nativeInput ? (destination.currentIndex === 1 ? qsTr("Envoi et résultat à la résolution native · nouvel onglet") : qsTr("Envoi à la résolution native · résultat sur un nouveau calque")) : qsTr("%1 génération(s) · grand côté limité à %2 px").arg(variants.value).arg(dialog.selectedProvider.maxEdge || 1536)
                 }
                 Item { visible: dialog.promptMode === "none"; Layout.fillHeight: true }
             }
@@ -283,7 +292,7 @@ Dialog {
                 enabled: !dialog.controller.busy && !dialog.controller.pendingResult && !dialog.settings.credentialsBusy && providers.count > 0 && (dialog.promptMode !== "required" || prompt.text.trim().length > 0)
                 onClicked: {
                     if (dialog.controller.generate(dialog.selectedProvider.id, dialog.promptMode === "none" ? "" : prompt.text, dialog.sourceKind === "selection", dialog.upscaling ? 1 : variants.value,
-                                                   dialog.sourceKind === "original", dialog.esrgan ? {model: topazModel.currentText, scale: upscaleFactor.value / 100} : dialog.topaz ? {model: topazModel.currentText, upscale_factor: upscaleFactor.value / 100} : {}))
+                                                   dialog.sourceKind === "original", dialog.esrgan ? {model: topazModel.currentText, scale: upscaleFactor.value / 100} : dialog.topaz ? {model: topazModel.currentText, upscale_factor: upscaleFactor.value / 100} : {}, destination.currentIndex === 1))
                         dialog.close();
                 }
             }

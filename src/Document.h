@@ -54,6 +54,7 @@ class Document : public QObject
     Q_PROPERTY(QVariantList layers READ layers NOTIFY layersChanged)
     Q_PROPERTY(int activeLayer READ activeLayer WRITE setActiveLayer NOTIFY layersChanged)
     Q_PROPERTY(quint64 documentSession READ documentSession NOTIFY documentChanged)
+    Q_PROPERTY(QString documentId READ documentId CONSTANT)
     Q_PROPERTY(bool rawLoading READ rawLoading NOTIFY rawLoadingChanged)
     Q_PROPERTY(
         bool frequencyRetouchBusy READ frequencyRetouchBusy NOTIFY frequencyRetouchBusyChanged)
@@ -1132,6 +1133,12 @@ public:
     bool             aiInsertionBusy() const;
     Q_PROPERTY(QVariantMap originalAiSource READ originalAiSource NOTIFY layersChanged)
     QVariantMap                   originalAiSource() const;
+    QString                       documentId() const
+    {
+        return m_documentId;
+    }
+    bool adoptAiDocument(const PhotoCrap::Ai::Result &result, const QVariantMap &metadata,
+                         const PhotoCrap::Ai::Input &source, QString &error);
     QFuture<PhotoCrap::Ai::Input> prepareAiInput(bool _selection, int _maxEdge,
                                                  std::shared_ptr<std::atomic_bool> _cancel,
                                                  bool _original        = false,
@@ -1590,6 +1597,7 @@ private:
     bool                      m_mixerLastEndValid = false;
 
     quint64 m_documentSession = 0;
+    const QString m_documentId      = QUuid::createUuid().toString(QUuid::WithoutBraces);
     struct PreparedRawResult {
         Snapshot                           state{};
         QString                            error;

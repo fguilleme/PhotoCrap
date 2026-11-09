@@ -5,6 +5,42 @@
 #include <QImageReader>
 #include <QtConcurrentRun>
 
+bool Document::adoptAiDocument(const PhotoCrap::Ai::Result &result, const QVariantMap &metadata,
+                               const PhotoCrap::Ai::Input &source, QString &error)
+{
+    const auto size = result.image.size();
+    if (!result.error.isEmpty() || result.image.isNull() ||
+        !validSize(size.width(), size.height()) || (result.bits != 8 && result.bits != 16) ||
+        (!result.mask.isNull() && result.mask.size() != size)) {
+        error = result.error.isEmpty() ? tr("Le résultat IA ne peut pas devenir un document.")
+                                       : result.error;
+        return false;
+    }
+    Layer layer;
+    layer.name              = tr("Résultat IA — %1").arg(metadata.value("provider").toString());
+    layer.image             = result.image;
+    layer.mask              = result.mask;
+    layer.aiSource          = result.original;
+    layer.parameters["_ai"] = metadata;
+    if (source.originalSource && source.selected) {
+        layer.maskEnabled                = source.maskEnabled;
+        layer.parameters["_maskDensity"] = source.maskDensity;
+        const qreal scale                = qMin(qreal(size.width()) / source.bounds.width(),
+                                 qreal(size.height()) / source.bounds.height());
+        layer.parameters["_maskFeather"] = source.maskFeather * scale;
+    }
+    m_size                = size;
+    m_channelBits         = result.bits;
+    m_layers              = {layer};
+    m_active              = 0;
+    const auto sourceName = metadata.value("sourceName", metadata.value("provider")).toString();
+    m_name       = metadata.contains("upscaleFactor") ? tr("%1 — Upscale").arg(sourceName)
+                                                      : tr("%1 — IA").arg(sourceName);
+    m_projectUrl = QUrl{};
+    resetHistory(false);
+    return true;
+}
+
 bool Document::aiInsertionBusy() const
 {
     return pixelEditBusy() || selectionBusy() || rawLoading() || cropBusy() || sliceBusy() ||

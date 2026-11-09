@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "DocumentManager.h"
 #include "RawTestImage.h"
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
@@ -11,7 +12,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-inline bool runDocumentDropSmoke(QQuickWindow *window, Document &document)
+inline bool runDocumentDropSmoke(QQuickWindow *window, DocumentManager &manager)
 {
     const auto require = [](bool ok, const char *message) {
         if (!ok)
@@ -52,7 +53,6 @@ inline bool runDocumentDropSmoke(QQuickWindow *window, Document &document)
         return false;
     camera.write(RawTestImage::dng());
     camera.close();
-    QSignalSpy opened(&document, &Document::fileOpened);
     const auto drop = [&](QQuickItem *target, const QList<QUrl> &files, bool expected) {
         const DragPoint position =
             target->mapToScene(QPointF(target->width() / 2, target->height() / 2)).toPoint();
@@ -74,81 +74,70 @@ inline bool runDocumentDropSmoke(QQuickWindow *window, Document &document)
         return require(event.isAccepted() && !target->property("validDrop").toBool(),
                        "drop is accepted as a copy and clears feedback");
     };
-    const auto click = [&](QQuickItem *button) {
-        QTest::qWait(40);
-        QTest::mouseClick(
-            button->window(), Qt::LeftButton, Qt::NoModifier,
-            button->mapToScene(QPointF(button->width() / 2, button->height() / 2)).toPoint());
-    };
-    document.newDocument(64, 48, true);
+    auto *original = manager.activeDocument();
+    original->newDocument(64, 48, true);
+    original->setBackgroundEditThreshold(-1);
+    original->setColor(Qt::red);
+    original->fillWithColor(true);
+    const auto before  = original->composite();
+    const int  history = original->historyIndex();
     QTest::qWait(60);
     if (!drop(area, {QUrl("https://example.invalid/image.png")}, false) ||
-        !drop(area, {QUrl::fromLocalFile(dir.path())}, false) || !drop(area, {png, jpeg}, false) ||
-        !drop(area, {png}, true))
+        !drop(area, {QUrl::fromLocalFile(dir.path())}, false) || !drop(area, {png}, true))
         return false;
-    if (!require(QTest::qWaitFor([&] { return opened.size() == 1 && !document.operationBusy(); },
-                                 5000) &&
-                     document.width() == 37 && document.height() == 23 &&
-                     document.layers().size() == 1,
-                 "canvas drop opens PNG as a document rather than importing a layer"))
+    auto *opened = manager.activeDocument();
+    if (!require(opened != original &&
+                     QTest::qWaitFor([&] { return !opened->operationBusy(); }, 5000) &&
+                     opened->width() == 37 && opened->height() == 23 && manager.count() == 2 &&
+                     !guard->property("visible").toBool() && original->composite() == before &&
+                     original->historyIndex() == history && original->modified(),
+                 "canvas drop opens a separate document and preserves unsaved source edits"))
         return false;
-    if (!require(document.layerImage(0).pixelColor(10, 10) ==
+    if (!require(opened->layerImage(0).pixelColor(10, 10) ==
                      QImage(png.toLocalFile()).convertToFormat(image.format()).pixelColor(10, 10),
                  "opened PNG preserves its decoded pixels"))
         return false;
-
-    document.newDocument(64, 48, true);
-    if (!require(QMetaObject::invokeMethod(window, "openNativeDocument",
-                                           Q_ARG(QVariant, QVariant(jpeg))) &&
-                     QTest::qWaitFor(
-                         [&] { return opened.size() == 2 && !document.operationBusy(); }, 5000) &&
-                     document.width() == 49 && document.height() == 31,
-                 "the native Open With route decodes JPEG"))
-        return false;
-
-    document.setBackgroundEditThreshold(-1);
-    document.setColor(Qt::red);
-    document.fillWithColor(true);
-    const auto before  = document.composite();
-    const int  history = document.historyIndex();
-    if (!drop(area, {native}, true) ||
-        !require(guard->property("visible").toBool() && !document.operationBusy() &&
-                     document.composite() == before,
-                 "unsaved changes are protected before opening"))
-        return false;
-    click(cancel);
-    if (!require(QTest::qWaitFor([&] { return !guard->property("visible").toBool(); }, 2000) &&
-                     document.composite() == before && document.historyIndex() == history,
-                 "cancel preserves pixels and history"))
+    QMetaObject::invokeMethod(window, "openNativeDocument", Q_ARG(QVariant, QVariant(jpeg)));
+    auto *photoDoc = manager.activeDocument();
+    if (!require(photoDoc != opened &&
+                     QTest::qWaitFor([&] { return !photoDoc->operationBusy(); }, 5000) &&
+                     photoDoc->width() == 49 && manager.count() == 3,
+                 "native Open With opens JPEG on another tab"))
         return false;
     if (!drop(area, {native}, true))
         return false;
-    click(discard);
-    if (!require(QTest::qWaitFor([&] { return opened.size() == 3 && !document.operationBusy(); },
-                                 5000) &&
-                     document.width() == 43 && document.height() == 29 &&
-                     document.channelBits() == 16,
-                 "discard and open loads native 16-bit PNG"))
+    auto *nativeDoc = manager.activeDocument();
+    if (!require(QTest::qWaitFor([&] { return !nativeDoc->operationBusy(); }, 5000) &&
+                     nativeDoc->width() == 43 && nativeDoc->channelBits() == 16,
+                 "dropped 16-bit PNG retains native precision"))
         return false;
-
-    document.newDocument(64, 48, true);
     QMetaObject::invokeMethod(welcome, "open");
     QTest::qWait(60);
     if (!drop(welcomeArea, {jpeg}, true) ||
-        !require(QTest::qWaitFor([&] { return opened.size() == 4 && !document.operationBusy(); },
-                                 5000) &&
-                     !welcome->property("visible").toBool() && document.width() == 49,
-                 "dropping onto Welcome closes it and opens the image"))
+        !require(!welcome->property("visible").toBool() && manager.activeDocument() == photoDoc &&
+                     manager.count() == 4,
+                 "Welcome drop selects an already open image without duplication"))
         return false;
-
-    document.newDocument(64, 48, true);
-    QSignalSpy rawOpened(&document, &Document::rawFileOpened);
-    if (!drop(area, {raw}, true) ||
-        !require(QTest::qWaitFor([&] { return rawOpened.size() == 1 && !document.rawLoading(); },
-                                 10000) &&
-                     document.channelBits() == 16 && document.width() == 128 &&
-                     document.height() == 96,
-                 "canvas drop develops RAW in the background"))
+    const auto extraA = QUrl::fromLocalFile(dir.filePath("ExtraA.png"));
+    const auto extraB = QUrl::fromLocalFile(dir.filePath("ExtraB.bmp"));
+    if (!require(image.save(extraA.toLocalFile()) && image.save(extraB.toLocalFile()),
+                 "create batch fixtures"))
         return false;
-    return true;
+    if (!drop(area, {extraA, extraB}, true))
+        return false;
+    if (!require(
+            QTest::qWaitFor(
+                [&] { return manager.count() == 6 && !manager.activeDocument()->operationBusy(); },
+                5000),
+            "a batch drop creates one document per image"))
+        return false;
+    if (!drop(area, {raw}, true))
+        return false;
+    auto *rawDoc = manager.activeDocument();
+    if (!require(QTest::qWaitFor([&] { return !rawDoc->rawLoading(); }, 10000) &&
+                     rawDoc->channelBits() == 16 && rawDoc->width() == 128 && manager.count() == 7,
+                 "RAW drop develops into its own 16-bit document"))
+        return false;
+    return require(original->composite() == before && original->historyIndex() == history,
+                   "all open routes preserve original pixels and history");
 }

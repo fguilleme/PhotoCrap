@@ -9,6 +9,12 @@ import PhotoCrap.Native 1.0
 
 ApplicationWindow {
     id: window
+    readonly property ImageDocument editor: documents.activeDocument
+    readonly property var aiImages: documents.activeAi
+    property var quitApprovedIds: []
+    property bool quittingDocuments: false
+    property var pendingNativeFiles: []
+    Binding { target: documents; property: "activationBlocked"; value: window.blockingModalOpen || window.saveInFlight || window.quittingDocuments }
     width: 1480
     height: 940
     minimumWidth: 1000
@@ -969,33 +975,80 @@ ApplicationWindow {
             window.openActiveLayerProperties()
         }
     }
+    function rememberDocumentView() {
+        documents.saveView({zoom: zoom, x: viewport.contentX, y: viewport.contentY, rotation: canvasRotation})
+    }
+    function activateDocument(id) {
+        if (window.blockingModalOpen || saveInFlight) return
+        documents.activate(id)
+        workspace.forceActiveFocus()
+    }
+    function closeDocument(id) {
+        if (window.blockingModalOpen || saveInFlight) return
+        documents.activate(id)
+        guard("closeDocument")
+    }
+    function continueQuit() {
+        quittingDocuments = true
+        const remaining = documents.documents.find(function(d) {
+            return (d.modified || d.aiBusy || d.pendingResult) && quitApprovedIds.indexOf(d.id) < 0
+        })
+        if (remaining) {
+            documents.activate(remaining.id)
+            pendingAction = "close"
+            unsavedDialog.open()
+        } else {
+            allowClose = true
+            Qt.callLater(function() { window.close() })
+        }
+    }
     function perform(action) {
         if (action === "new") newDialog.open()
         else if (action === "open") { importing = false; openDialog.open() }
-        else if (action === "demo") { editor.createDemo(); fitCanvas() }
+        else if (action === "demo") { documents.newDocument(1280,800,false,8); editor.createDemo(); fitCanvas() }
         else if (action === "recent") openRecentFile(pendingRecentFile)
-        else if (action === "close") { allowClose = true; close() }
+        else if (action === "closeDocument") documents.closeDocument(documents.activeId, true)
+        else if (action === "close") {
+            if (aiImages.busy || aiImages.pendingResult) aiImages.cancel()
+            quitApprovedIds = quitApprovedIds.concat([documents.activeId])
+            Qt.callLater(window.continueQuit)
+        }
     }
     function guard(action) {
+        if (editor.textEditing) canvasTextEditor.sync()
         editor.endStroke()
+        editor.finishTextEdit()
         pendingAction = action
-        if (saveInFlight) { resumeAfterSave=true; return }
-        if (editor.modified) unsavedDialog.open()
+        if (action === "close") {
+            if (saveInFlight) { quittingDocuments=true; resumeAfterSave=true; return }
+            continueQuit()
+        } else if (action === "closeDocument" &&
+                   (editor.modified || aiImages.busy || aiImages.pendingResult)) unsavedDialog.open()
         else perform(action)
     }
     function guardRecent(url) {
         pendingRecentFile=url
         guard("recent")
     }
+    Timer {
+        interval: 100; repeat: true
+        running: window.pendingNativeFiles.length > 0 && !window.blockingModalOpen && !window.saveInFlight
+        onTriggered: {
+            const files=window.pendingNativeFiles
+            window.pendingNativeFiles=files.slice(1)
+            window.openNativeDocument(files[0])
+        }
+    }
     function openNativeDocument(url) {
+        if (window.blockingModalOpen || window.saveInFlight) {
+            pendingNativeFiles = pendingNativeFiles.concat([url])
+            return
+        }
         nativeDocumentOpening = true
         welcomeDialog.close()
-        guardRecent(url)
+        openRecentFile(url)
     }
-    function openRecentFile(url) {
-        if(editor.isRawFile(url)) editor.openRawFile(url)
-        else editor.requestOpenFile(url)
-    }
+    function openRecentFile(url) { documents.openFile(url) }
     function compactRecentPath(path) {
         const limit=36
         if(path.length<=limit) return path
@@ -1158,14 +1211,39 @@ ApplicationWindow {
     onClosing: function(event) {
         editor.endStroke()
         saveWorkspaceLayout()
-        if (!allowClose && saveInFlight) {
-            event.accepted=false
-            pendingAction="close"
-            resumeAfterSave=true
-            return
+        if (!allowClose) {
+            event.accepted = false
+            guard("close")
+        } else Qt.callLater(Qt.quit)
+    }
+    Connections {
+        target: documents
+        function onActiveAboutToChange() {
+            if (editor.textEditing) canvasTextEditor.sync()
+            window.rememberDocumentView()
         }
-        if (!allowClose && editor.modified) { event.accepted = false; guard("close") }
-        else Qt.callLater(Qt.quit)
+        function onActiveChanged() {
+            window.spacePressed=false
+            window.rulerVisible=false
+            window.colorSamples=[]
+            window.informationPointerValid=false
+            window.frequencyPropertiesLayerCount=-1
+            window.sampleDocumentSession=editor.documentSession
+            const id=documents.activeId, view=documents.activeView
+            Qt.callLater(function() {
+                if(documents.activeId!==id)return
+                drawingArea.refreshSystemCursor()
+                if(view.zoom) {
+                    window.zoom=view.zoom; window.canvasRotation=view.rotation || 0
+                    Qt.callLater(function() {
+                        if(documents.activeId!==id)return
+                        viewport.contentX=window.clampScroll(view.x,viewport.contentWidth-viewport.width)
+                        viewport.contentY=window.clampScroll(view.y,viewport.contentHeight-viewport.height)
+                    })
+                } else { window.canvasRotation=0; window.fitCanvas() }
+            })
+        }
+        function onErrorOccurred(message) { errorLabel.text=message; errorDialog.open() }
     }
     onDockWidthChanged: scheduleWorkspaceSave()
     onDockPanelOrderChanged: scheduleWorkspaceSave()
@@ -1194,6 +1272,8 @@ ApplicationWindow {
         function onErrorOccurred(message) {
             window.resumeAfterSave=false
             window.saveInFlight=false
+            window.quittingDocuments=false
+            window.quitApprovedIds=[]
             errorLabel.text=message
             errorDialog.open()
         }
@@ -1210,6 +1290,8 @@ ApplicationWindow {
             if(window.saveInFlight && !editor.operationBusy) {
                 window.saveInFlight=false
                 window.resumeAfterSave=false
+                window.quittingDocuments=false
+                window.quitApprovedIds=[]
             }
         }
         function onStatusMessage(message) { window.status = message; statusTimer.restart() }
@@ -1237,6 +1319,9 @@ ApplicationWindow {
     Timer { id: layerPreviewTimer; interval: 16; onTriggered: window.flushLayerPreview() }
     Timer { id: workspaceSaveTimer; interval: 250; onTriggered: window.saveWorkspaceLayout() }
 
+    Action { id: closeDocumentAction; objectName: "closeDocumentAction"; text: qsTr("Fermer le document"); shortcut: (shortcuts.revision, shortcuts.sequence("closeDocument")); enabled: !window.modalOpen && !window.saveInFlight; onTriggered: window.closeDocument(documents.activeId) }
+    Shortcut { sequence: (shortcuts.revision, shortcuts.sequence("nextDocument")); enabled: !window.modalOpen && !window.saveInFlight; onActivated: { const list=documents.documents;const i=list.findIndex(function(d){return d.id===documents.activeId});window.activateDocument(list[(i+1)%list.length].id) } }
+    Shortcut { sequence: (shortcuts.revision, shortcuts.sequence("previousDocument")); enabled: !window.modalOpen && !window.saveInFlight; onActivated: { const list=documents.documents;const i=list.findIndex(function(d){return d.id===documents.activeId});window.activateDocument(list[(i+list.length-1)%list.length].id) } }
     Action { id: newAction; text: qsTr("Nouveau…"); shortcut: (shortcuts.revision, shortcuts.sequence("new")); enabled: !window.modalOpen; onTriggered: guard("new") }
     Action { id: openAction; text: qsTr("Ouvrir…"); shortcut: (shortcuts.revision, shortcuts.sequence("open")); enabled: !window.modalOpen; onTriggered: guard("open") }
     Action { id: saveAction; text: qsTr("Enregistrer le projet"); shortcut: (shortcuts.revision, shortcuts.sequence("save")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { resumeAfterSave=false; save(false) } }
@@ -1354,6 +1439,7 @@ ApplicationWindow {
             DarkMenuItem { text: qsTr("Accueil…"); enabled: !window.modalOpen; onTriggered: { recentFiles.refresh(); welcomeDialog.open() } }
             DarkMenuItem { action: newAction }
             DarkMenuItem { action: openAction }
+            DarkMenuItem { action: closeDocumentAction }
             DarkMenu {
                 id: recentFilesMenu
                 objectName: "recentFilesMenu"
@@ -2288,6 +2374,57 @@ ApplicationWindow {
             }
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
+                Flickable {
+                    id: documentTabs
+                    objectName: "documentTabs"
+                    function revealActive() {
+                        for(let i=0;i<documentTabRepeater.count;++i) {
+                            const tab=documentTabRepeater.itemAt(i)
+                            if(!tab || tab.modelData.id!==documents.activeId)continue
+                            if(tab.x<contentX)contentX=tab.x
+                            else if(tab.x+tab.width>contentX+width)contentX=tab.x+tab.width-width
+                            contentX=window.clampScroll(contentX,contentWidth-width)
+                        }
+                    }
+                    onWidthChanged: Qt.callLater(revealActive)
+                    onContentWidthChanged: Qt.callLater(revealActive)
+                    Connections {
+                        target: documents
+                        function onActiveChanged() { Qt.callLater(documentTabs.revealActive) }
+                    }
+                    ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+                    Layout.fillWidth: true; Layout.preferredHeight: 32
+                    contentWidth: tabsRow.width; contentHeight: height
+                    clip: true; boundsBehavior: Flickable.StopAtBounds
+                    Row {
+                        id: tabsRow; height: parent.height; spacing: 1
+                        Repeater {
+                            id: documentTabRepeater
+                            onCountChanged: Qt.callLater(documentTabs.revealActive)
+                            model: documents.documents
+                            delegate: Rectangle {
+                                required property var modelData
+                                objectName: "documentTab_"+modelData.id
+                                width: Math.min(250,Math.max(150,tabName.implicitWidth+55)); height: 32
+                                color: modelData.id===documents.activeId ? "#34423d" : "#252c34"
+                                MouseArea { anchors.fill: parent; onClicked: window.activateDocument(modelData.id) }
+                                RowLayout {
+                                    anchors.fill: parent; anchors.leftMargin: 10; spacing: 5
+                                    Label { id: tabName; text: (modelData.modified ? "● " : "")+modelData.name; color: "#dce2e8"; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                                    Label { visible: modelData.aiBusy || modelData.busy || modelData.pendingResult; text: modelData.pendingResult && !modelData.aiBusy ? "!" : "…"; color: "#c7e5b4" }
+                                    ToolButton {
+                                        objectName: "closeDocument_"+modelData.id
+                                        text: "×"; implicitWidth: 28; implicitHeight: 28
+                                        palette.buttonText: "#c9d3df"
+                                        enabled: !window.blockingModalOpen && !window.saveInFlight
+                                        onClicked: window.closeDocument(modelData.id)
+                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Fermer le document")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 Rectangle {
                     Layout.fillWidth: true; height: 42; color: "#1f242c"
                     RowLayout {
@@ -3047,7 +3184,8 @@ ApplicationWindow {
                         z: 30
                         document: editor
                         enabled: !window.blockingModalOpen
-                        onFileDropped: function(file) { window.openNativeDocument(file) }
+                        documentManager: documents
+                        onFilesDropped: function(files) { for (const file of files) window.openNativeDocument(file) }
                     }
                 }
                 Rectangle {
@@ -3191,7 +3329,7 @@ ApplicationWindow {
                             color: "#181e25"; radius: 5
                             Image {
                                 anchors.fill: parent; anchors.margins: 8
-                                source: "image://layers/composite/"+editor.revision
+                                source: "image://layers/"+editor.documentId+"/composite/"+editor.revision
                                 sourceSize.width: 240; sourceSize.height: 105
                                 fillMode: Image.PreserveAspectFit; cache: false
                             }
@@ -3451,7 +3589,7 @@ ApplicationWindow {
                                 }
                                 Rectangle {
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
-                                    Image { visible:modelData.kind!=="text"; anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Image { visible:modelData.kind!=="text"; anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+editor.documentId+"/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
                                     Label {anchors.centerIn:parent;visible:modelData.kind==="text";text:"T";font.family:"serif";font.bold:true;font.pixelSize:27;color:"#dbe6ef"}
                                     MouseArea {
                                         objectName: "layerThumbnailMouse"
@@ -3475,7 +3613,7 @@ ApplicationWindow {
                                     visible: modelData.hasMask
                                     width: visible?34:0; height: 36; color: "#182027"; radius: 3
                                     border.width: modelData.editingMask?2:1; border.color: modelData.editingMask?"#c5f2cf":"#69757f"
-                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasMask?"image://layers/mask/"+modelData.layerIndex+"/"+editor.thumbnailRevision:""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasMask?"image://layers/"+editor.documentId+"/mask/"+modelData.layerIndex+"/"+editor.thumbnailRevision:""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
                                     Label { anchors.centerIn: parent; visible: !modelData.maskEnabled; text: qsTr("×"); color: "#ef6b6b"; font.pixelSize: 34; font.bold: true }
                                     MouseArea {
                                         id: maskDrag
@@ -3522,7 +3660,7 @@ ApplicationWindow {
                                             Image {
                                                 anchors.fill: parent
                                                 anchors.margins: 2
-                                                source: "image://layers/mask/" + modelData.layerIndex +
+                                                source: "image://layers/"+editor.documentId+"/mask/" + modelData.layerIndex +
                                                         "/" + editor.thumbnailRevision
                                                 fillMode: Image.PreserveAspectFit
                                                 cache: false
@@ -3925,7 +4063,8 @@ ApplicationWindow {
                 anchors.fill: parent
                 document: editor
                 enabled: !window.blockingModalOpen
-                onFileDropped: function(file) { window.openNativeDocument(file) }
+                documentManager: documents
+                        onFilesDropped: function(files) { for (const file of files) window.openNativeDocument(file) }
             }
         }
         contentItem: ColumnLayout {
@@ -4019,14 +4158,15 @@ ApplicationWindow {
     }
     FileDialog {
         id: openDialog; objectName: "openDialog"; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
+        fileMode: window.importing ? FileDialog.OpenFile : FileDialog.OpenFiles
         nameFilters: [window.importing
             ? qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns())
             : qsTr("Images et projets (%1)").arg("*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
             qsTr("Fichiers RAW (%1)").arg(editor.rawFilePatterns()), qsTr("Tous les fichiers (*)")]
         onAccepted: {
-            if(editor.isRawFile(selectedFile)) editor.openRawFile(selectedFile, window.importing)
+            if(window.importing && editor.isRawFile(selectedFile)) editor.openRawFile(selectedFile, true)
             else if(window.importing) editor.requestImportLayer(selectedFile)
-            else editor.requestOpenFile(selectedFile)
+            else for (const file of selectedFiles) documents.openFile(file)
         }
     }
     Popup {
@@ -4053,7 +4193,7 @@ ApplicationWindow {
         id: saveDialog; objectName: "saveDialog"; title: qsTr("Enregistrer le projet avec ses calques"); fileMode: FileDialog.SaveFile
         nameFilters: [qsTr("Projet PhotoCrap (*.pcr)")]; defaultSuffix: "pcr"
         onAccepted: window.startProjectSave(selectedFile)
-        onRejected: window.resumeAfterSave=false
+        onRejected: { window.resumeAfterSave=false; window.quittingDocuments=false; window.quitApprovedIds=[] }
     }
     FileDialog {
         id: exportDialog; objectName: "exportDialog"; title: qsTr("Exporter l’image aplatie"); fileMode: FileDialog.SaveFile
@@ -4173,7 +4313,7 @@ ApplicationWindow {
             DialogActionButton { objectName: "newDialogCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: newDialog.reject() }
             DialogActionButton { objectName: "newDialogOkButton"; text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: newDialog.accept() }
         }
-        onAccepted: editor.newDocument(newWidth.value,newHeight.value,transparent.checked,newDepth.currentIndex === 1 ? 16 : 8)
+        onAccepted: documents.newDocument(newWidth.value,newHeight.value,transparent.checked,newDepth.currentIndex === 1 ? 16 : 8)
     }
     Dialog {
         id: resizeDialog; title: qsTr("Dimensions de l’image"); anchors.centerIn: parent; modal: true; width: 370
@@ -5225,9 +5365,9 @@ ApplicationWindow {
     Dialog {
         id: unsavedDialog; objectName: "unsavedDialog"; title: qsTr("Enregistrer vos modifications ?"); anchors.centerIn: parent; modal: true; width: 450
         closePolicy: Popup.NoAutoClose
-        Label { width: parent.width; text: qsTr("Le document « %1 » contient des modifications non enregistrées.").arg(editor.name); wrapMode: Text.WordWrap }
+        Label { width: parent.width; text: (aiImages.busy || aiImages.pendingResult) ? qsTr("Le document « %1 » contient une demande IA en cours ou un résultat en attente. Le fermer annulera cette demande. Enregistrer les modifications ?").arg(editor.name) : qsTr("Le document « %1 » contient des modifications non enregistrées.").arg(editor.name); wrapMode: Text.WordWrap }
         footer: DialogButtonBox {
-            DialogActionButton { objectName: "unsavedCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: unsavedDialog.close() }
+            DialogActionButton { objectName: "unsavedCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: { unsavedDialog.close(); window.quittingDocuments=false; window.quitApprovedIds=[] } }
             DialogActionButton { objectName: "unsavedDiscardButton"; text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }
             DialogActionButton { objectName: "unsavedSaveButton"; enabled: !editor.pixelEditBusy; text: qsTr("Enregistrer"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: { unsavedDialog.close(); window.resumeAfterSave=true; window.save(false) } }
         }

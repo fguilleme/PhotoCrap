@@ -17,6 +17,16 @@ validation des builds, tests et contrôles de déploiement des trois plateformes
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
 
+## En développement après v0.20.0
+
+- **Documents multiples en onglets** : fichiers ouverts et nouveaux documents
+  indépendants, historique et sélection conservés, vue restaurée par onglet,
+  fermeture et Quitter avec protection des modifications de tous les documents.
+- **Upscale dans un nouveau document**, à la résolution native du fournisseur,
+  sans changer la source. Cette destination est proposée par défaut pour Topaz
+  et Real-ESRGAN ; le nouveau calque reste disponible.
+  [Guide des documents](docs/DOCUMENTS.md).
+
 ## Nouveautés de v0.20.0
 
 - **Import d’images comme calques** avec le menu **+** ou par dépôt dans la pile,
@@ -144,7 +154,7 @@ Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et repli
 - Panneaux **Histogramme, Navigateur, Couleur, Calques, Couches, Historique et Informations** : déplacement, regroupement en onglets, colonnes, repli, redimensionnement, fenêtres flottantes et organisation persistante. **Affichage → Panneaux** contrôle leur visibilité. Couches affiche RVB ou un canal en niveaux de gris sans modifier le document.
 - Historique annuler/rétablir avec suivi de l’état enregistré. Protection à l’ouverture, à la création et à la fermeture d’un document modifié.
 - **Créer avec l’IA…** : composition visible ou sélection envoyée à GPT Image, fal.ai, ComfyUI ou une API d’images compatible OpenAI ; résultat ajouté sur un calque annulable, avec masque de sélection ; source IA conservée à sa taille d’origine dans les projets v13 tant que ses pixels sont intacts. Plusieurs fournisseurs et prompts dans **Réglages → IA**, clés conservées dans le trousseau sécurisé ou variables d’environnement, 1–8 variantes sur des calques distincts, génération asynchrone. [Configuration et limites](docs/AI_IMAGE_EDITING.md).
-- **Traitements IA sans prompt** : modes obligatoire/facultatif/sans prompt pour fal.ai et ComfyUI ; presets **Topaz Upscale Precision** et **Real-ESRGAN** (x2plus, restauration des visages désactivée), modèle et facteur ×1–×4 dans le dialogue. Après une génération, l’upscale peut reprendre les petits pixels IA d’origine du calque. Le résultat conserve le placement, le masque et les dimensions du document, avec annulation et source originale conservée ; le nouveau document attend le mode multidocument. [Configuration](docs/AI_IMAGE_EDITING.md#traitements-sans-prompt-et-upscale-topaz).
+- **Traitements IA sans prompt** : modes obligatoire/facultatif/sans prompt pour fal.ai et ComfyUI ; presets **Topaz Upscale Precision** et **Real-ESRGAN** (x2plus, restauration des visages désactivée), modèle et facteur ×1–×4 dans le dialogue. Après une génération, l’upscale peut reprendre les petits pixels IA d’origine du calque. Le résultat peut ouvrir un nouvel onglet à sa résolution native, sans modifier la source, ou revenir sur un calque avec placement, masque et annulation. [Configuration](docs/AI_IMAGE_EDITING.md#traitements-sans-prompt-et-upscale-topaz).
 - Fenêtre **Réglages** avec sections **Raccourcis clavier**, **Interface**, **Barre d’outils**, **Cache de travail** et **IA**. Les raccourcis sont modifiables, validés et persistants ; l’interface française ou anglaise peut être appliquée à chaud et le choix est conservé.
 - Enregistrement atomique des projets `.pcr` avec leurs calques. Export aplati PNG, JPEG, BMP et WebP si le module correspondant est installé. Le JPEG et le BMP compositent la transparence sur blanc.
 - Une composition de démonstration éditable : menu **Fichier → Ouvrir la composition de démonstration**, ou option `--demo`.

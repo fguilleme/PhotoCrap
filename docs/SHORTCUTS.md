@@ -289,3 +289,11 @@ Le catalogue recense aussi les entrées NYI Étendre, Généraliser, Zone de mis
 Depuis le calque de texte éditable, Cmd/Ctrl+A sélectionne le texte et Cmd/Ctrl+Entrée valide la session. Ces deux gestes sont désormais disponibles dans le catalogue (298 entrées, 119 NYI). Cmd/Ctrl+B, I et U mettent en forme les caractères ; Échap annule la session. Les raccourcis avancés de taille, interligne, approche et alignement restent NYI ; leurs réglages sont accessibles dans le panneau Caractère / Paragraphe. Voir [le guide texte](TEXT_TOOL.md).
 
 Les variantes de fusion, leurs cibles, l’annulation et les limites de rendu sont détaillées dans le [guide des fusions](LAYER_MERGE.md).
+
+## Documents multiples
+
+**Fermer le document**, **Document suivant** et **Document précédent** utilisent
+les séquences standard de la plateforme et sont modifiables dans les réglages.
+La fermeture protège les modifications du seul onglet visé ; Quitter vérifie tous
+les documents. La navigation conserve la vue de chaque document. L’ancien geste
+« Document suivant / précédent » n’est plus NYI. [Guide](DOCUMENTS.md).

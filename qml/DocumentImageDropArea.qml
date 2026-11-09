@@ -3,13 +3,13 @@ import QtQuick
 DropArea {
     id: root
     required property var document
+    required property var documentManager
     property bool validDrop: false
-    signal fileDropped(url file)
+    signal filesDropped(var files)
     keys: ["text/uri-list"]
 
     function accepts(drag) {
-        // There is one document slot: do not replace it repeatedly for a batch.
-        return drag.hasUrls && drag.urls.length === 1 && document.canImportLayerFiles(drag.urls)
+        return drag.hasUrls && documentManager.canOpenFiles(drag.urls)
     }
     onEntered: function(drag) {
         validDrop = accepts(drag)
@@ -20,7 +20,7 @@ DropArea {
         if (!validDrop || !accepts(drop)) return
         drop.accept(Qt.CopyAction)
         validDrop = false
-        fileDropped(drop.urls[0])
+        filesDropped(drop.urls)
     }
     Rectangle {
         objectName: "documentImageDropIndicator"

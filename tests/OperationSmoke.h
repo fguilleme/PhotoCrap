@@ -1,5 +1,6 @@
 #pragma once
 #include "Document.h"
+#include "DocumentManager.h"
 #include "RawTestImage.h"
 #ifdef Q_OS_MACOS
 #include "MacToolCursorTest.h"
@@ -17,7 +18,7 @@
 #include <qpa/qwindowsysteminterface.h>
 #endif
 
-inline bool runOperationSmoke(QQuickWindow *window, Document &document)
+inline bool runOperationSmoke(QQuickWindow *window, Document &document, DocumentManager &documents)
 {
     const auto require = [](bool ok, const char *message) {
         if (!ok)
@@ -145,32 +146,35 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      QMetaObject::invokeMethod(openDialog, "accepted"),
                  "the open picker dispatches a project asynchronously"))
         return false;
+    QPointer<Document> projectDocument(documents.activeDocument());
     QTest::qWait(50);
-    if (!require(document.operationBusy() && progress->isVisible() &&
+    if (!require(projectDocument && projectDocument != &document &&
+                     projectDocument->operationBusy() && progress->isVisible() &&
                      document.composite() == before && document.history() == history,
-                 "project opening leaves the current document visible"))
+                 "project decoding runs in a separate tab and preserves its source"))
         return false;
     QTest::keyClick(window, Qt::Key_Escape);
     QTest::qWait(50);
-    if (!require(!document.operationBusy() && document.composite() == before &&
-                     document.history() == history,
-                 "Escape cancels the queued project open"))
+    if (!require(projectDocument.isNull() && documents.activeDocument() == &document &&
+                     document.composite() == before && document.history() == history,
+                 "Escape closes a cancelled project tab without replacing the source"))
         return false;
     const auto image = QUrl::fromLocalFile(directory.filePath("image.png"));
     if (!require(source.exportImage(image) && openDialog->setProperty("selectedFile", image) &&
                      QMetaObject::invokeMethod(openDialog, "accepted"),
                  "the open picker dispatches an image asynchronously"))
         return false;
+    QPointer<Document> imageDocument(documents.activeDocument());
     QTest::qWait(50);
-    if (!require(document.operationBusy() && progress->isVisible() &&
-                     document.composite() == before,
-                 "image decoding leaves the old document visible"))
+    if (!require(imageDocument && imageDocument != &document && imageDocument->operationBusy() &&
+                     progress->isVisible() && document.composite() == before,
+                 "image decoding runs in a separate document"))
         return false;
     QTest::keyClick(window, Qt::Key_Escape);
     QTest::qWait(50);
-    if (!require(!document.operationBusy() && document.composite() == before &&
-                     document.history() == history,
-                 "Escape cancels the queued image open"))
+    if (!require(imageDocument.isNull() && documents.activeDocument() == &document &&
+                     document.composite() == before && document.history() == history,
+                 "Escape closes the cancelled image tab"))
         return false;
     window->setProperty("importing", true);
     if (!require(QMetaObject::invokeMethod(openDialog, "accepted"),
@@ -198,10 +202,11 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
                      QMetaObject::invokeMethod(openDialog, "accepted"),
                  "the RAW picker starts its prepared load"))
         return false;
+    QPointer<Document> rawDocument(documents.activeDocument());
     QTest::qWait(50);
     auto *rawPopup = window->findChild<QObject *>("rawLoadPopup");
-    if (!require(document.rawLoading() && rawPopup && rawPopup->property("visible").toBool() &&
-                     document.composite() == before,
+    if (!require(rawDocument && rawDocument != &document && rawDocument->rawLoading() && rawPopup &&
+                     rawPopup->property("visible").toBool() && document.composite() == before,
                  "RAW progress leaves the current canvas visible"))
         return false;
     QTest::keyClick(window, Qt::Key_Escape);
@@ -209,9 +214,12 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document)
     // Let the cancelled RAW task acknowledge its token and close the popup.
     release.release();
     pool->waitForDone();
-    if (!require(QTest::qWaitFor([&] { return !document.rawLoading(); }, 10000) &&
-                     document.composite() == before && document.history() == history,
-                 "Escape rejects the prepared RAW result"))
+    if (!require(
+            QTest::qWaitFor(
+                [&] { return rawDocument.isNull() && documents.activeDocument() == &document; },
+                10000) &&
+                document.composite() == before && document.history() == history,
+            "Escape rejects the prepared RAW result"))
         return false;
     // Expensive frequency sources wait for their worker before opening the
     // properties panel; cancellation must not open an unrelated layer panel.

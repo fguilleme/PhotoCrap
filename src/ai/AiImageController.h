@@ -4,6 +4,7 @@
 #include <QElapsedTimer>
 #include <QPointer>
 class Document;
+class DocumentManager;
 
 class AiImageController final : public QObject
 {
@@ -54,7 +55,8 @@ public:
     }
     Q_INVOKABLE bool generate(const QString &_providerId, const QString &_prompt, bool _selection,
                               int _variants = 1, bool _original = false,
-                              const QVariantMap &_options = {});
+                              const QVariantMap &_options = {}, bool newDocument = false);
+    void             setDocumentManager(DocumentManager *manager);
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void retryInsertion();
     bool             pendingResult() const
@@ -74,6 +76,7 @@ private:
     void                  prepareResult();
     void                  prepareInput(bool _selection, quint64 _generation, bool _original);
     QPointer<Document>    m_document;
+    QPointer<DocumentManager> m_documents;
     AiSettings *          m_settings;
     AiImageJob            m_job;
     PhotoCrap::Ai::Input  m_input;
@@ -88,6 +91,7 @@ private:
     int                                    m_elapsedSeconds = 0;
     int                                    m_variantCount = 1, m_completed = 0;
     bool                                   m_busy             = false;
+    bool                                   m_newDocument      = false;
     bool                                   m_awaitingResponse = false;
     quint64                                m_generation       = 0;
 };

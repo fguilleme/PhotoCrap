@@ -39,7 +39,7 @@ Rectangle {
         sourceSize.height: Math.min(4096,Math.max(1,Math.ceil(height*Screen.devicePixelRatio)))
         fillMode: Image.Stretch
         cache: false
-        source: "image://layers/colorSelection/"+(root.mask?"mask/":"image/")+root.document.colorSelectionRevision
+        source: "image://layers/"+root.document.documentId+"/colorSelection/"+(root.mask?"mask/":"image/")+root.document.colorSelectionRevision
                 +"/"+root.cropX+"/"+root.cropY+"/"+root.cropWidth+"/"+root.cropHeight
     }
     MouseArea {

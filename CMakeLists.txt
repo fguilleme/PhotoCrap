@@ -49,6 +49,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ImageHistogram.cpp
     src/ImageAlpha.cpp
     src/Document.cpp
+    src/DocumentManager.cpp src/DocumentManager.h
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
@@ -387,6 +388,7 @@ qt_add_library(photocrap_core STATIC
     src/ImageHistogram.cpp
     src/ImageAlpha.cpp
     src/Document.cpp
+    src/DocumentManager.cpp src/DocumentManager.h
     src/Layer.h
     src/render/LayerVisibility.h
     src/Document.h
@@ -898,6 +900,12 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_binary_project_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME binary_project COMMAND photocrap_binary_project_tests)
     set_tests_properties(binary_project PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
+    qt_add_executable(photocrap_documents_tests tests/DocumentManagerTest.cpp)
+    target_link_libraries(photocrap_documents_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME documents COMMAND photocrap_documents_tests)
+    set_tests_properties(documents PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    add_test(NAME documents_ui COMMAND PhotoCrap --smoke-test --documents-test)
+    set_tests_properties(documents_ui PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     qt_add_executable(photocrap_ai_tests tests/AiImageTest.cpp)
     target_link_libraries(photocrap_ai_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
     add_test(NAME ai_images COMMAND photocrap_ai_tests)

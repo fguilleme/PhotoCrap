@@ -77,8 +77,8 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
     if (!std::isfinite(_x) || !std::isfinite(_y))
         return;
     endStroke();
-    if (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
-        m_tool == "convertPoint" || m_tool == "pathSelection" || m_tool == "directSelection") {
+    if (m_tool == "pen" || m_tool == "convertPoint" || m_tool == "pathSelection" ||
+        m_tool == "directSelection") {
         beginPenGesture(_x, _y, 6, false, _alternate, _straight);
         return;
     }

@@ -334,10 +334,6 @@ QString Document::penCursorAt(qreal _x, qreal _y, qreal _tolerance, bool _direct
         return "penMove";
     if (_alternate || m_tool == "convertPoint")
         return "penConvert";
-    if (m_tool == "addAnchor")
-        return "penAdd";
-    if (m_tool == "deleteAnchor")
-        return "penDelete";
     if (hit.first >= 0) {
         if (hit.second > 0)
             return "penMove";
@@ -349,10 +345,10 @@ QString Document::penCursorAt(qreal _x, qreal _y, qreal _tolerance, bool _direct
         if (!path.closed && !m_penDrawing &&
             (hit.first == 0 || hit.first == path.points.size() - 1))
             return "penResume";
-        if (m_tool == "deleteAnchor" || (m_penAutoAddDelete && m_tool == "pen"))
+        if (m_penAutoAddDelete && m_tool == "pen")
             return "penDelete";
     }
-    if (m_activePenPath >= 0 && (m_penAutoAddDelete || m_tool == "addAnchor") &&
+    if (m_activePenPath >= 0 && m_penAutoAddDelete &&
         PenGeometry::nearestSegment(m_penPaths[m_activePenPath], QPointF(_x, _y), _tolerance)
                 .index >= 0)
         return "penAdd";
@@ -469,7 +465,7 @@ void Document::beginPenGesture(qreal _x, qreal _y, qreal _tolerance, bool _direc
             node.outgoing = node.position;
             node.smooth   = false;
             m_penGesture  = 9;
-        } else if (m_tool == "deleteAnchor" || (m_tool == "pen" && m_penAutoAddDelete)) {
+        } else if (m_tool == "pen" && m_penAutoAddDelete) {
             path.points.removeAt(m_penPoint);
             m_selectedPenPoints.clear();
             if (path.points.size() < 2)
@@ -498,8 +494,7 @@ void Document::beginPenGesture(qreal _x, qreal _y, qreal _tolerance, bool _direc
         }
     } else {
         bool inserted = false;
-        if (m_activePenPath >= 0 && !convert && m_tool != "deleteAnchor" &&
-            (m_tool == "addAnchor" || (m_tool == "pen" && m_penAutoAddDelete))) {
+        if (m_activePenPath >= 0 && !convert && m_tool == "pen" && m_penAutoAddDelete) {
             auto      &path    = m_penPaths[m_activePenPath];
             const auto segment = PenGeometry::nearestSegment(path, point, _tolerance);
             if (segment.index >= 0) {

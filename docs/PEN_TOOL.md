@@ -13,7 +13,15 @@ Références Adobe consultées les 3 et 4 novembre 2026 :
 
 ## Dessiner et corriger
 
-**P** active la Plume. Cliquer crée un angle ; glisser tire les poignées d'une
+**P** rappelle la variante mémorisée du groupe Plumes. Pour commencer un tracé,
+choisir **Plume** dans le menu ouvert par clic droit sur son icône ; **Maj+P**
+parcourt les variantes disponibles. Les outils dédiés d’ajout et de suppression
+de points ont été retirés du menu, des réglages de barre d’outils et des raccourcis.
+Avec **Ajout/Suppression auto** coché, la Plume ajoute un point lorsqu’on clique sur
+un segment et en supprime un lorsqu’on clique sur une ancre existante. Les anciennes
+dispositions qui mémorisaient ces outils reviennent automatiquement à la Plume.
+
+Avec **Plume**, cliquer crée un angle ; glisser tire les poignées d'une
 courbe. Maj contraint les angles à 45°. Espace pendant le glisser déplace le
 nouveau point. Cliquer le premier point ferme le tracé ; glisser sur ce point
 ferme avec une courbe. Retour termine un tracé ouvert. Échap termine d'abord la
@@ -46,6 +54,9 @@ tout le tracé. Un clic dans le vide désélectionne sans effacer.
 Chaque modification crée une seule étape d'historique ; sélectionner, changer
 de panneau ou afficher un contour ne modifie pas les pixels. Les curseurs de
 Plume indiquent création, ajout, suppression, fermeture, reprise et conversion.
+Un astérisque indique un nouveau tracé ; les signes **+** et **−**, sur un médaillon
+contrasté, indiquent respectivement l’ajout et la suppression d’un point. Ils ne
+partagent plus le même dessin que le curseur de création.
 Les deux flèches ont une pointe alignée avec leur point chaud. L'aperçu élastique
 reste optionnel, et le rendu GPU conserve ses caches au survol.
 

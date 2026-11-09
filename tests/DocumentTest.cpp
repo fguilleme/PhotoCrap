@@ -1976,6 +1976,38 @@ private slots:
             QCOMPARE(restored.toolLayout().first().toMap().value("id").toString(), QString("move"));
         }
     }
+    void retiredPenToolsFallBackToThePenInSavedLayouts()
+    {
+        for (const QString retired : {"addAnchor", "deleteAnchor"}) {
+            WorkspaceSettings settings(nullptr, false);
+            auto              layout = settings.toolLayout();
+            for (auto &entry : layout) {
+                auto group = entry.toMap();
+                if (group["id"] != "pen")
+                    continue;
+                group["active"] = retired;
+                group["tools"]  = QStringList{"deleteAnchor", "pen",         "addAnchor",
+                                             "convertPoint", "freeformPen", "curvaturePen"};
+                group["hidden"] = QStringList{"addAnchor", "deleteAnchor", "freeformPen"};
+                entry           = group;
+            }
+            settings.saveToolLayout(layout);
+            for (const auto &entry : settings.toolLayout()) {
+                const auto group = entry.toMap();
+                if (group["id"] != "pen")
+                    continue;
+                QCOMPARE(group["active"].toString(), QString("pen"));
+                QCOMPARE(group["tools"].toStringList(),
+                         QStringList({"pen", "convertPoint", "freeformPen", "curvaturePen"}));
+                QCOMPARE(group["hidden"].toStringList(), QStringList({"freeformPen"}));
+            }
+        }
+        ShortcutManager shortcuts(nullptr, false);
+        for (const auto &entry : shortcuts.entries()) {
+            const auto id = entry.toMap()["id"].toString();
+            QVERIFY(id != "toolVariant_addAnchor" && id != "toolVariant_deleteAnchor");
+        }
+    }
     void scratchSettingsAreBoundedAndPersistent()
     {
         QTemporaryDir root;

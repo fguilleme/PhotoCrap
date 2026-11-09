@@ -197,7 +197,7 @@ ApplicationWindow {
                                                  || editor.tool === "magicWand"
     readonly property bool sliceToolActive: editor.tool === "slice" || editor.tool === "sliceSelect"
     readonly property bool cropToolActive: editor.tool === "crop" || editor.tool === "perspectiveCrop"
-    readonly property bool penToolActive: ["pen","addAnchor","deleteAnchor","convertPoint","pathSelection","directSelection"].indexOf(editor.tool)>=0
+    readonly property bool penToolActive: ["pen","convertPoint","pathSelection","directSelection"].indexOf(editor.tool)>=0
     readonly property bool geometricSelectionToolActive: ["select","ellipticalSelect","singleRowSelect","singleColumnSelect","lasso","polygonalLasso"].indexOf(editor.tool)>=0
     readonly property bool smartSelectionToolActive: editor.tool === "quickSelection"
                                                      || editor.tool === "magicWand"
@@ -353,8 +353,6 @@ ApplicationWindow {
         {name:"pen", icon:"◇", label:qsTr("Plume"), implemented:true},
         {name:"freeformPen", icon:"♢", label:qsTr("Plume libre"), implemented:false},
         {name:"curvaturePen", icon:"♧", label:qsTr("Plume de courbure"), implemented:false},
-        {name:"addAnchor", icon:"+◇", label:qsTr("Ajout de point d’ancrage"), implemented:true},
-        {name:"deleteAnchor", icon:"−◇", label:qsTr("Suppression de point d’ancrage"), implemented:true},
         {name:"convertPoint", icon:"⌞", label:qsTr("Conversion de point"), implemented:true},
         {name:"text", icon:"T", label:qsTr("Texte horizontal éditable"), implemented:true},
         {name:"verticalText", icon:"↕T", label:qsTr("Texte vertical"), implemented:false},

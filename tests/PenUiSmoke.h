@@ -42,6 +42,7 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
                      QGuiApplication::overrideCursor()->shape() == Qt::BitmapCursor,
                  "Pen installs its nib cursor on the canvas"))
         return false;
+    const auto newPathCursor = QGuiApplication::overrideCursor()->pixmap().toImage();
     QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, scene(30, 40));
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, scene(130, 40));
     QTest::mouseMove(_window, scene(155, 75), 20);
@@ -57,6 +58,19 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     const auto points = _document.penPaths()[0].toMap()["points"].toList();
     if (!require(points.size() == 3 && points[1].toMap()["outX"].toReal() > 140,
                  "click-drag creates direction handles"))
+        return false;
+    QTest::mouseMove(_window, scene(80, 90));
+    QTest::qWait(20);
+    const auto addPointCursor = QGuiApplication::overrideCursor()->pixmap().toImage();
+    const auto addPointTip    = QGuiApplication::overrideCursor()->hotSpot();
+    QTest::mouseMove(_window, scene(30, 40));
+    QTest::qWait(20);
+    const auto deletePointCursor = QGuiApplication::overrideCursor()->pixmap().toImage();
+    if (!require(
+            newPathCursor != addPointCursor && newPathCursor != deletePointCursor &&
+                addPointCursor != deletePointCursor && addPointTip == QPoint(3, 29) &&
+                QGuiApplication::overrideCursor()->hotSpot() == QPoint(3, 29),
+            "new path, add anchor and delete anchor have distinct cursors with the same nib tip"))
         return false;
     QSignalSpy editedHandlePaints(handles, SIGNAL(painted()));
     QTest::mousePress(_window, Qt::LeftButton, Qt::ControlModifier, scene(130, 40));
@@ -132,7 +146,7 @@ inline bool runPenUiSmoke(QQuickWindow *_window, Document &_document)
     _window->setProperty("zoom", 1.);
     area->forceActiveFocus();
     QTest::keyClick(_window, Qt::Key_P, Qt::ShiftModifier);
-    if (!require(_document.tool() == "addAnchor", "Shift+P cycles only implemented Pen variants"))
+    if (!require(_document.tool() == "convertPoint", "Shift+P skips the retired add/delete tools"))
         return false;
     _document.setTool("pen");
     _document.newPenPath();

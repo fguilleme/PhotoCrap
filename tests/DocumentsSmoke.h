@@ -67,6 +67,27 @@ inline bool runDocumentsSmoke(QQuickWindow *window, DocumentManager &manager, Ai
                      2000),
                  "the canvas displays the second document pixels"))
         return false;
+    auto *drawingArea = window->findChild<QQuickItem *>("drawingArea");
+    if (!require(drawingArea, "drawing area exists in the new document"))
+        return false;
+    second->setTool("pen");
+    window->setProperty("zoom", 4.);
+    QTest::qWait(40);
+    const auto penClick = [&](qreal x, qreal y) {
+        const auto zoom = window->property("zoom").toReal();
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                          drawingArea->mapToScene(QPointF(x * zoom, y * zoom)).toPoint());
+    };
+    penClick(8, 8);
+    penClick(40, 8);
+    penClick(40, 36);
+    penClick(8, 8);
+    if (!require(second->penPaths().size() == 1 &&
+                     second->penPaths()[0].toMap()["closed"].toBool() &&
+                     second->penPaths()[0].toMap()["points"].toList().size() == 3 &&
+                     first->penPaths().isEmpty(),
+                 "Pen clicks create a closed path in the new tab rather than its neighbor"))
+        return false;
     QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
                       firstTab->mapToScene(QPointF(15, 16)).toPoint());
     QTest::qWait(100);

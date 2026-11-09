@@ -7,8 +7,6 @@
 void Document::setTool(const QString &_value)
 {
     static const QStringList tools{"pen",
-                                   "addAnchor",
-                                   "deleteAnchor",
                                    "convertPoint",
                                    "pathSelection",
                                    "directSelection",
@@ -64,9 +62,8 @@ void Document::setTool(const QString &_value)
                                    "ruler"};
     if (!tools.contains(_value))
         return;
-    if (m_tool != _value &&
-        (m_tool == "pen" || m_tool == "addAnchor" || m_tool == "deleteAnchor" ||
-         m_tool == "convertPoint" || m_tool == "pathSelection" || m_tool == "directSelection"))
+    if (m_tool != _value && (m_tool == "pen" || m_tool == "convertPoint" ||
+                             m_tool == "pathSelection" || m_tool == "directSelection"))
         finishPenPath();
     if (m_polygonLassoActive)
         cancelPolygonLasso();
@@ -83,8 +80,8 @@ void Document::setTool(const QString &_value)
     }
     if (m_tool != _value)
         cancelMagicErase();
-    if (_value != "pen" && _value != "addAnchor" && _value != "deleteAnchor" &&
-        _value != "convertPoint" && _value != "pathSelection" && _value != "directSelection")
+    if (_value != "pen" && _value != "convertPoint" && _value != "pathSelection" &&
+        _value != "directSelection")
         m_maskPenBase = {};
     m_tool = _value;
     if (m_tool == "mixerBrush" && m_mixerPaint.isNull())

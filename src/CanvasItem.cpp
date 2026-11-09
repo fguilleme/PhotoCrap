@@ -58,10 +58,23 @@ QCursor penCursor(const QString &_tool)
         p.drawLine(QPointF(3, 29), QPointF(16, 16));
         p.drawEllipse(QPointF(17, 15), 2, 2);
     }
+    if (_tool == "penAdd" || _tool == "penDelete") {
+        p.setPen(QPen(Qt::white, 1));
+        p.setBrush(QColor("#20262c"));
+        p.drawEllipse(QPointF(29, 28), 6, 6);
+    }
     for (const QPen pen : {QPen(Qt::black, 3.5), QPen(Qt::white, 1.5)}) {
         p.setPen(pen);
         p.setBrush(Qt::NoBrush);
-        if (_tool == "penAdd" || _tool == "penStart") {
+        if (_tool == "penStart") {
+            // Starting a new path must not look like the Add Anchor Point tool.
+            for (int i = 0; i < 3; ++i) {
+                const qreal   angle = i * M_PI / 3;
+                const QPointF offset(4 * qCos(angle), 4 * qSin(angle));
+                p.drawLine(QPointF(29, 28) - offset, QPointF(29, 28) + offset);
+            }
+        }
+        if (_tool == "penAdd") {
             p.drawLine(25, 28, 33, 28);
             p.drawLine(29, 24, 29, 32);
         }

@@ -2,7 +2,7 @@
 
 **Fichier → Créer avec l’IA…** et **Calques → Créer avec l’IA…** ouvrent le même
 éditeur. Choisir une configuration de fournisseur, la composition visible entière
-ou la sélection, puis un prompt enregistré ou un texte libre. **Générer** lance
+ou la sélection, puis un prompt enregistré ou un texte libre si le modèle le demande. **Générer** lance
 l’envoi ; ouvrir le dialogue ou changer de preset n’envoie rien.
 
 ## Fournisseurs et prompts
@@ -57,10 +57,86 @@ l’enregistrement, **Fermer** ramène à la génération, avec le profil sélec
 le prompt conservé. Aucun envoi n’a lieu pendant la configuration.
 
 Les options avancées acceptent un objet JSON pour les paramètres du modèle.
-Le prompt, l’image, le modèle et le nombre de résultats restent gérés par PhotoCrap.
+Les champs d’image et les champs de génération requis restent gérés par PhotoCrap ; les autres paramètres du modèle sont transmis depuis cet objet.
 Pour fal.ai, le nom du champ image et son caractère liste/valeur sont configurables
 pour adapter les modèles d’édition. Les options ne rendent pas interchangeables
 les schémas des différents modèles.
+
+## Traitements sans prompt et upscale Topaz
+
+Un profil fal.ai existant dont le modèle est `topaz/upscale/image/precision`
+est reconnu automatiquement, même s’il a été créé manuellement ou renommé.
+Ses champs sont corrigés à l’ouverture et à l’enregistrement : `image_url`
+singulier, mode sans prompt, retrait des anciens champs de génération et envoi
+natif pour les profils hérités. Son identifiant, son nom, son serveur et sa
+référence de clé sont conservés ; cette migration ne lit pas le trousseau.
+Les options Topaz personnalisées restent présentes. Une erreur HTTP structurée
+indique désormais le champ et le message de validation, sans recopier l’image
+ni révéler la clé API.
+
+Les profils fal.ai et ComfyUI proposent un mode **Obligatoire**, **Facultatif** ou
+**Sans prompt** dans les réglages. Les anciens profils restent en mode obligatoire.
+Sans prompt, le dialogue masque l’éditeur et les modèles de texte ; son bouton
+**Lancer le traitement** n’exige aucun texte. Pour fal.ai, le champ `prompt` est
+omis ; `num_images` n’est plus injecté pour ces traitements. Les profils OpenAI
+et compatibles conservent le prompt obligatoire de leur protocole d’édition.
+
+1. Dans **Réglages → IA → +**, choisir **fal.ai · Topaz Upscale Precision**.
+2. Renseigner la clé fal.ai dans le trousseau ou via `FAL_KEY`, puis enregistrer.
+3. Dans **Créer avec l’IA…**, sélectionner ce profil. Le modèle Topaz et le facteur
+   d’agrandissement (×1 à ×4, avec valeurs intermédiaires) se règlent dans le dialogue.
+4. Après une génération IA, sélectionner son calque : la source **Calque actif ·
+   image IA d’origine** est proposée et sélectionnée par défaut pour Topaz. Elle
+   envoie les pixels originaux du fournisseur à leur petite résolution, plutôt
+   que leur version déjà agrandie pour l’affichage. Après retouche des pixels,
+   cette source n’est plus proposée ; la composition ou la sélection restent disponibles.
+
+Le preset appelle `topaz/upscale/image/precision` avec `image_url` comme valeur
+unique, sans prompt ni champ `num_images`. Il utilise Standard V2, ×2 et PNG par
+défaut ; les options avancées permettent les paramètres supplémentaires du modèle.
+La réponse singulière `image.url` et la file asynchrone sont prises en charge.
+[Schéma officiel fal.ai](https://fal.ai/models/topaz/upscale/image/precision/api).
+
+L’envoi natif ne réduit pas l’image et conserve sa profondeur PNG lorsqu’elle est
+16 bits. Pour les autres profils, la limite d’envoi configurée reste disponible.
+Le résultat est ajouté sur un calque aux **dimensions du document actuel**, avec
+le placement et le masque de la source IA (activation, densité et contour progressif conservés) ; les octets originaux du nouveau résultat
+restent conservés dans le projet. Le modèle, le facteur et les dimensions envoyées
+figurent dans l’information du calque. Le traitement reste annulable et respecte
+la précision de travail du document. La création d’un document séparé attend la
+prise en charge de plusieurs documents.
+
+Les limites actuelles du lecteur IA restent 32 Mpx et 16 384 px par côté : une
+sortie Topaz prévue au-delà est refusée avant soumission. Réduire le facteur ou
+choisir l’image IA originale. Les limites d’encodage d’entrée (50 Mio pour l’image,
+4 Mio pour le masque) et de téléchargement (100 Mio) restent actives. Aucun appel
+réel Topaz n’a été effectué pendant les tests automatisés ; les échanges sont simulés.
+
+## Autre upscale : Real-ESRGAN
+
+**Réglages → IA → + → fal.ai · Real-ESRGAN** crée un profil distinct de Topaz.
+Il utilise `fal-ai/esrgan`, sans prompt, avec `RealESRGAN_x2plus`, `scale: 2`,
+`face: false` et une sortie PNG. La restauration des visages est désactivée par
+ce preset pour éviter une modification supplémentaire des traits. Le modèle et
+le facteur restent modifiables dans **Créer avec l’IA…**. Les capacités connues
+sont également reconnues si le chemin du modèle est saisi manuellement.
+
+Comme Topaz, ce profil sélectionne les pixels IA d’origine du calque lorsqu’ils
+sont disponibles. Le résultat revient sur un nouveau calque avec son placement
+et son masque, aux dimensions du document. Les limites locales de sortie et
+le facteur proposé ×1–×4 sont vérifiés avant envoi. La clé fal.ai se configure
+pour ce nouveau profil dans le trousseau ou via `FAL_KEY`.
+
+Ce choix est une alternative à comparer sur la même image, sans garantie de
+supériorité ou de fidélité colorimétrique : Real-ESRGAN peut aussi modifier les
+textures. Aucun appel réel à ce modèle n’a été effectué pour cette intégration.
+Les tests de transport vérifient séparément qu’une réponse PNG identique conserve
+les couleurs après conversion sRGB, en 8/16 bits, depuis sRGB ou Display P3 ; ils
+ne mesurent pas les changements introduits par le modèle distant.
+
+[Schéma officiel fal.ai](https://fal.ai/models/fal-ai/esrgan/api) : le facteur se
+nomme `scale` pour cet endpoint, contrairement à `upscale_factor` chez Topaz.
+La réponse contient une image unique (`image.url`).
 
 ## Serveur ComfyUI
 
@@ -91,7 +167,7 @@ convertit cet alpha en masque pour le workflow fourni.
 
 ## Variantes
 
-Le dialogue propose **1 à 8 variantes** par lancement. Elles utilisent toutes
+Le dialogue propose **1 à 8 variantes** par lancement, sauf les upscales Topaz et Real-ESRGAN, limités à une image. Elles utilisent toutes
 la même capture de l’image ou de la sélection et le même prompt, même si le
 document est retouché pendant l’attente. Une seule requête est active à la fois :
 chaque variante est une génération distincte chez le fournisseur. Avec le workflow
@@ -133,11 +209,14 @@ avec **Ajouter le résultat** et **Annuler**.
 
 ## Image source et résultat
 
-La source est la **composition visible** capturée au lancement. Pour une
+Par défaut, la source est la **composition visible** capturée au lancement. Pour une
 sélection, seul son rectangle englobant est envoyé, avec la forme de sélection
 et les pixels extérieurs transparents. Le grand côté est limité par configuration
-à 256–4096 px (1536 par défaut, 1024 pour ComfyUI). L’envoi utilise du PNG 8 bits,
-même depuis un document 16 bits. Le masque suit la convention alpha transparent
+à 256–4096 px (1536 par défaut, 1024 pour ComfyUI). Sans l’option native, l’envoi
+utilise du PNG 8 bits, même depuis un document 16 bits. L’option **Envoyer à la
+résolution native** contourne cette réduction et conserve le PNG 16 bits lorsque
+la source le permet ; elle est activée par défaut pour Topaz et Real-ESRGAN. La source IA originale
+du calque est également disponible lorsqu’elle est encore valide. Le masque suit la convention alpha transparent
 pour la zone à modifier ; le fournisseur peut interpréter ce masque différemment
 ou ne pas le prendre en charge.
 

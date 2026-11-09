@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
 #include <QBuffer>
+#include <QImageReader>
 #include <QtConcurrentRun>
 
 bool Document::aiInsertionBusy() const
@@ -12,8 +13,29 @@ bool Document::aiInsertionBusy() const
            m_polygonLassoActive;
 }
 
+QVariantMap Document::originalAiSource() const
+{
+    if (m_active < 0 || m_active >= m_layers.size())
+        return {};
+    const auto &layer = m_layers[m_active];
+    if (!layer.aiSource || !layer.aiSource->matches(layer.image, m_size, m_channelBits))
+        return {};
+    QBuffer bytes;
+    bytes.setData(layer.aiSource->encoded);
+    bytes.open(QIODevice::ReadOnly);
+    QImageReader reader(&bytes);
+    reader.setAutoTransform(true);
+    auto size = reader.size();
+    if (reader.transformation() & QImageIOHandler::TransformationRotate90)
+        size.transpose();
+    if (!PhotoCrap::Ai::validSize(size))
+        return {};
+    return {{"width", size.width()}, {"height", size.height()}};
+}
+
 QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _maxEdge,
-                                                       std::shared_ptr<std::atomic_bool> _cancel)
+                                                       std::shared_ptr<std::atomic_bool> _cancel,
+                                                       bool _original, bool _nativePrecision)
 {
     endStroke();
     finishTextEdit();
@@ -23,11 +45,28 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
     input.session  = m_documentSession;
     input.canvas   = m_size;
     input.selected = _selection;
+    input.originalSource = _original;
     input.bounds   = _selection
                          ? m_selectionRegion.boundingRect().intersected(QRect(QPoint{}, m_size))
                          : QRect(QPoint{}, m_size);
     if (m_active >= 0 && m_active < m_layers.size())
         input.layerId = m_layers[m_active].historyId;
+    QByteArray original;
+    PixelPlane originalMask;
+    if (_original) {
+        if (_selection || originalAiSource().isEmpty())
+            input.error = tr("L’image IA d’origine n’est plus disponible sur ce calque.");
+        else {
+            const auto &layer = m_layers[m_active];
+            original          = layer.aiSource->encoded;
+            originalMask      = layer.mask;
+            input.bounds      = layer.aiSource->bounds;
+            input.selected    = !originalMask.isNull();
+            input.maskEnabled = layer.maskEnabled;
+            input.maskDensity = layer.parameters.value("_maskDensity", 100.).toDouble();
+            input.maskFeather = layer.parameters.value("_maskFeather", 0.).toDouble();
+        }
+    }
     if (pixelEditBusy() || selectionBusy() || input.bounds.isEmpty() ||
         (_selection && !hasSelection()))
         input.error =
@@ -37,8 +76,8 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
     const auto region   = m_selectionRegion;
     const auto scratch  = m_scratchCache;
     const auto bits     = m_channelBits;
-    return QtConcurrent::run([input, layers, coverage, region, scratch, bits, _maxEdge,
-                              _cancel]() mutable {
+    return QtConcurrent::run([input, layers, coverage, region, scratch, bits, _maxEdge, _cancel,
+                              original, originalMask, _nativePrecision]() mutable {
         if (!input.error.isEmpty() || _cancel->load())
             return input;
         Document renderer;
@@ -49,21 +88,37 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
         renderer.m_channelBits        = bits;
         renderer.m_scratchCache       = scratch;
         renderer.m_backgroundCancel   = _cancel;
-        auto image                    = renderer.compositeRegion(input.bounds);
+        QImage image;
+        if (original.isEmpty())
+            image = renderer.compositeRegion(input.bounds);
+        else {
+            QBuffer bytes;
+            bytes.setData(original);
+            bytes.open(QIODevice::ReadOnly);
+            QImageReader reader(&bytes);
+            reader.setAutoTransform(true);
+            image = reader.read();
+            if (image.colorSpace().isValid())
+                image.convertToColorSpace(QColorSpace::SRgb);
+        }
         if (image.isNull()) {
             input.error = tr("Impossible de préparer l’image à envoyer.");
             return input;
         }
         if (input.selected) {
-            input.coverage =
-                coverage.isNull() ? SelectionCoverage::raster(region, input.canvas) : coverage;
+            input.coverage = !original.isEmpty()
+                                 ? originalMask.region(QRect(QPoint{}, input.canvas))
+                             : coverage.isNull() ? SelectionCoverage::raster(region, input.canvas)
+                                                 : coverage;
             if (input.coverage.isNull()) {
                 input.error = tr("Impossible de préparer la sélection à envoyer.");
                 return input;
             }
             // Clip the submitted image to the selected support, but apply the
             // fractional feather only once on the returned layer's mask.
-            auto support = input.coverage.copy(input.bounds);
+            auto support =
+                input.coverage.copy(input.bounds)
+                    .scaled(image.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             if (support.isNull()) {
                 input.error = tr("Impossible de préparer la sélection à envoyer.");
                 return input;
@@ -73,14 +128,16 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
                 for (int x = 0; x < support.width(); ++x)
                     row[x] = row[x] ? 255 : 0;
             }
-            SelectionCoverage::attenuate(image, support, {});
+            if (input.maskEnabled)
+                SelectionCoverage::attenuate(image, support, {});
         }
         if (_cancel->load())
             return input;
         if (qMax(image.width(), image.height()) > _maxEdge)
             image =
                 image.scaled({_maxEdge, _maxEdge}, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        image          = image.convertToFormat(QImage::Format_RGBA8888);
+        image          = image.convertToFormat(_nativePrecision ? ImageUtils::workingFormat(image)
+                                                                : QImage::Format_RGBA8888);
         input.sentSize = image.size();
         if (image.isNull()) {
             input.error = tr("Impossible de préparer l’image à envoyer.");
@@ -92,7 +149,7 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
             return input;
         }
         mask.fill(Qt::transparent);
-        if (input.selected) {
+        if (input.selected && input.maskEnabled) {
             const auto selected =
                 input.coverage.copy(input.bounds)
                     .scaled(input.sentSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -204,6 +261,11 @@ bool Document::insertAiResult(const PhotoCrap::Ai::Input & _input,
     layer.image             = _result.image;
     layer.aiSource          = _result.original;
     layer.mask              = _result.mask;
+    if (_input.originalSource && _input.selected) {
+        layer.maskEnabled                = _input.maskEnabled;
+        layer.parameters["_maskDensity"] = _input.maskDensity;
+        layer.parameters["_maskFeather"] = _input.maskFeather;
+    }
     layer.groupId           = groupId;
     layer.parameters["_ai"] = _metadata;
     m_layers.insert(insertion, std::move(layer));

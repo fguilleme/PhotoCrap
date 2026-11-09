@@ -15,6 +15,42 @@ QJsonObject      object(const QByteArray &_bytes)
 {
     return QJsonDocument::fromJson(_bytes).object();
 }
+QString errorDetail(const QJsonObject &data)
+{
+    QString detail = data.value("error").isObject()
+                         ? data.value("error").toObject().value("message").toString()
+                         : data.value("error").toString();
+    if (detail.isEmpty())
+        detail = data.value("message").toString();
+    if (detail.isEmpty())
+        detail = data.value("detail").toString();
+    if (detail.isEmpty() && data.value("detail").isObject())
+        detail = data.value("detail").toObject().value("message").toString();
+    if (detail.isEmpty()) {
+        QStringList messages;
+        for (const auto value : data.value("detail").toArray()) {
+            const auto item    = value.toObject();
+            const auto message = item.value("msg").toString();
+            if (message.isEmpty())
+                continue;
+            QStringList location;
+            for (const auto part : item.value("loc").toArray()) {
+                if (part.isString())
+                    location.append(part.toString());
+                else if (part.isDouble())
+                    location.append(QString::number(part.toInt()));
+            }
+            messages.append(location.isEmpty() ? message : location.join('.') + ": " + message);
+            if (messages.size() == 4)
+                break;
+        }
+        detail = messages.join('\n');
+    }
+    // Validation responses can echo the entire submitted image under "input".
+    // Never stringify that object; retain only field names and short messages.
+    detail.replace(QRegularExpression(R"(data:[^\s"'<>]+)"), "[image masquée]");
+    return detail.left(900);
+}
 QJsonValue substitute(const QJsonValue &_value, const QJsonObject &_values)
 {
     if (_value.isString()) {
@@ -161,10 +197,7 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
                 }
                 if (reply->error() != QNetworkReply::NoError || code >= 400) {
                     const auto data = object(*bytes);
-                    const auto detail =
-                        data.value("error").isObject()
-                            ? data.value("error").toObject().value("message").toString()
-                            : data.value("error").toString();
+                    const auto detail = errorDetail(data);
                     fail(tr("Erreur IA (%1) : %2")
                              .arg(code)
                              .arg(detail.isEmpty() ? reply->errorString() : detail));
@@ -196,9 +229,10 @@ void AiImageJob::multipart(const QUrl &_url, const QList<QPair<QByteArray, QByte
     request("POST", _url, body, "multipart/form-data; boundary=" + boundary, true,
             std::move(_handler));
 }
-void AiImageJob::start(const QVariantMap &_provider, const QString &_key, const QString &_prompt,
+void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, const QString &_prompt,
                        const PhotoCrap::Ai::Input &_input)
 {
+    const auto _provider = AiSettings::normalizedProvider(_rawProvider);
     cancel();
     m_jobId.clear();
     m_cancelUrl   = QUrl{};
@@ -206,7 +240,7 @@ void AiImageJob::start(const QVariantMap &_provider, const QString &_key, const 
     m_responseUrl = QUrl{};
     m_provider    = _provider;
     m_key         = _key;
-    m_prompt      = _prompt;
+    m_prompt      = _provider.value("promptMode") == "none" ? QString{} : _prompt;
     m_input       = _input;
     m_running     = true;
     ++m_generation;
@@ -232,7 +266,7 @@ void AiImageJob::start(const QVariantMap &_provider, const QString &_key, const 
                                                         .chopped(1)});
         }
         QList<QPair<QByteArray, QByteArray>> files{{"image", _input.image}};
-        if (_input.selected)
+        if (_input.selected && _input.maskEnabled)
             files.append({"mask", _input.mask});
         multipart(endpoint("images/edits"), fields, files,
                   [this](const QByteArray &_bytes) { parseImages(_bytes); });
@@ -240,15 +274,20 @@ void AiImageJob::start(const QVariantMap &_provider, const QString &_key, const 
         const auto image =
             QStringLiteral("data:image/png;base64,") + QString::fromLatin1(_input.image.toBase64());
         const auto field      = _provider.value("imageField", "image_urls").toString();
-        options["prompt"]     = _prompt;
-        options["num_images"] = 1;
+        const auto mode       = _provider.value("promptMode", "required").toString();
+        if (mode == "none" || (mode == "optional" && _prompt.trimmed().isEmpty()))
+            options.remove("prompt");
+        else
+            options["prompt"] = _prompt;
+        if (mode == "required")
+            options["num_images"] = 1;
         options[field]        = _provider.value("imageArray", true).toBool()
                                     ? QJsonValue(QJsonArray{image})
                                     : QJsonValue(image);
         json("POST", endpoint(_provider.value("model").toString()), options,
              [this](const QByteArray &_bytes) {
                  const auto data = object(_bytes);
-                 if (!data.value("images").toArray().isEmpty()) {
+                 if (!data.value("images").toArray().isEmpty() || data.value("image").isObject()) {
                      parseImages(_bytes);
                      return;
                  }
@@ -288,6 +327,8 @@ void AiImageJob::parseImages(const QByteArray &_bytes)
     auto       list = data.value("data").toArray();
     if (list.isEmpty())
         list = data.value("images").toArray();
+    if (list.isEmpty() && data.value("image").isObject())
+        list.append(data.value("image"));
     if (list.isEmpty()) {
         fail(tr("Le fournisseur n’a renvoyé aucune image."));
         return;

@@ -6,6 +6,22 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## À venir
 
+- Ajouter le preset fal.ai Real-ESRGAN : modèle photo x2plus, ×2, sans prompt,
+  sortie PNG et restauration des visages désactivée ; choix du modèle et du
+  facteur, source IA native, masque et placement conservés comme pour Topaz.
+
+- Réparer automatiquement les profils Topaz créés manuellement : image unique
+  via `image_url`, prompt supprimé et configuration héritée normalisée, sans
+  changer le nom ni la référence de clé. Afficher les détails de validation
+  HTTP 422 au lieu du seul message réseau, sans recopier l’image envoyée.
+
+- Traiter des images sans prompt avec des profils fal.ai/ComfyUI configurables ;
+  preset Topaz Upscale Precision, choix du modèle et du facteur d’agrandissement.
+  Reprendre la source IA originale du calque pour l’upscale, préserver son masque
+  et son placement ; conserver les dimensions du document et l’annulation.
+  Réponses fal.ai singulières prises en charge et limites de sortie vérifiées
+  avant envoi. La création d’un nouveau document attend le mode multidocument.
+
 - Ouvrir une image par dépôt sur la zone principale ou l’accueil, en conservant
   la protection des modifications non enregistrées. Déclarer les images pour
   « Ouvrir avec PhotoCrap » sur macOS et transmettre le fichier depuis le lanceur

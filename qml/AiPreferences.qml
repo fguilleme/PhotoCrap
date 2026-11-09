@@ -13,6 +13,9 @@ ColumnLayout {
     property string providerKind: "openai"
     property string promptId: ""
     property string notice: ""
+    readonly property bool topaz: providerKind === "fal" && modelName.text.trim() === "topaz/upscale/image/precision"
+    readonly property bool esrgan: providerKind === "fal" && modelName.text.trim() === "fal-ai/esrgan"
+    readonly property bool upscaling: topaz || esrgan
     spacing: 12
     function selectProvider(id) {
         const value = settings.providers.find(function (entry) {
@@ -31,6 +34,8 @@ ColumnLayout {
         workflow.text = value.workflow || "";
         imageField.text = value.imageField || "image_urls";
         imageArray.checked = value.imageArray !== false;
+        promptMode.currentIndex = Math.max(0, ["required", "optional", "none"].indexOf(value.promptMode || "required"));
+        nativeInput.checked = value.nativeInput === true;
         maxEdge.value = value.maxEdge || 1536;
         apiKey.text = "";
         notice = "";
@@ -61,7 +66,9 @@ ColumnLayout {
             options: options.text,
             workflow: workflow.text,
             imageField: imageField.text,
-            imageArray: imageArray.checked
+            imageArray: imageArray.checked,
+            promptMode: ["required", "optional", "none"][promptMode.currentIndex],
+            nativeInput: nativeInput.checked
         });
         if (!saved) {
             notice = "";
@@ -234,6 +241,14 @@ ColumnLayout {
                             id: modelName
                             objectName: "aiProviderModel"
                             Layout.fillWidth: true
+                            onEditingFinished: {
+                                if (panel.upscaling) {
+                                    promptMode.currentIndex = 2
+                                    imageField.text = "image_url"
+                                    imageArray.checked = false
+                                    nativeInput.checked = true
+                                }
+                            }
                         }
                         Label {
                             text: qsTr("Clé API")
@@ -263,6 +278,7 @@ ColumnLayout {
                         }
                         RowLayout {
                             Layout.fillWidth: true
+                            visible: !nativeInput.checked
                             Label {
                                 text: qsTr("Taille maximale d’envoi")
                                 color: "#aab6c3"
@@ -279,6 +295,28 @@ ColumnLayout {
                                 Layout.preferredWidth: 130
                                 implicitHeight: 32
                             }
+                        }
+                        Label {
+                            visible: panel.providerKind === "fal" || panel.providerKind === "comfy"
+                            text: qsTr("Prompt")
+                            color: "#aab6c3"
+                            font.pixelSize: 12
+                        }
+                        Basic.ComboBox {
+                            id: promptMode
+                            objectName: "aiProviderPromptMode"
+                            visible: panel.providerKind === "fal" || panel.providerKind === "comfy"
+                            enabled: !panel.upscaling
+                            Layout.fillWidth: true
+                            model: [qsTr("Obligatoire"), qsTr("Facultatif"), qsTr("Sans prompt")]
+                            palette.buttonText: "#e0e7ee"
+                            palette.button: "#2d3641"
+                        }
+                        Basic.CheckBox {
+                            id: nativeInput
+                            objectName: "aiProviderNativeInput"
+                            text: qsTr("Envoyer à la résolution native")
+                            palette.windowText: "#dce4ed"
                         }
                         AiActionButton {
                             text: advanced.visible ? qsTr("Masquer les options avancées") : qsTr("Options avancées…")
@@ -328,11 +366,13 @@ ColumnLayout {
                                 }
                                 AiTextField {
                                     id: imageField
+                                    enabled: !panel.upscaling
                                     Layout.fillWidth: true
                                     text: "image_urls"
                                 }
                                 Basic.CheckBox {
                                     id: imageArray
+                                    enabled: !panel.upscaling
                                     text: qsTr("Liste")
                                     checked: true
                                     palette.windowText: "#dce4ed"
@@ -536,6 +576,16 @@ ColumnLayout {
         DarkMenuItem {
             text: "fal.ai"
             onTriggered: panel.createProvider("fal")
+        }
+        DarkMenuItem {
+            objectName: "aiAddTopazProvider"
+            text: "fal.ai · Topaz Upscale Precision"
+            onTriggered: panel.createProvider("falTopaz")
+        }
+        DarkMenuItem {
+            objectName: "aiAddEsrganProvider"
+            text: "fal.ai · Real-ESRGAN"
+            onTriggered: panel.createProvider("falEsrgan")
         }
         DarkMenuItem {
             text: "ComfyUI · Local"

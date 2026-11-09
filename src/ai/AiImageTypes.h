@@ -15,7 +15,9 @@ struct Input {
     QImage     coverage;
     QString    layerId, error;
     quint64    session  = 0;
-    bool       selected = false;
+    bool       selected = false, originalSource = false;
+    bool       maskEnabled = true;
+    qreal      maskDensity = 100., maskFeather = 0.;
 };
 // Preserve the provider's original bytes instead of serializing their enlarged
 // raster. Immutable snapshots share this source; a pixel edit invalidates it.

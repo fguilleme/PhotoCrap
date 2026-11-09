@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État au **8 novembre 2026**. **v0.19.0** ajoute le format de projets binaire v14,
+État au **9 novembre 2026**. **v0.19.0** ajoute le format de projets binaire v14,
 Quick Look sur macOS, les accès au trousseau à la demande et la barre d’outils
 compacte. Les calques IA et les optimisations précédentes restent disponibles.
 [Notes de version](CHANGELOG.md) ·
@@ -195,6 +195,8 @@ Les sections « Disponible » et « Ajouts » ci-dessous constituent l’histori
 - [x] Prévisualisation des réglages sur proxies, caches d’images et de masques, remplacement des demandes intermédiaires par la dernière, puis rendu complet en arrière-plan qui actualise le cache écran. Séparation de fréquences dynamique, puis préparation asynchrone de calques de pixels retouchables en 8/16 bits, avec annulation, masques conservés et retour au rayon depuis les sources enregistrées dans le projet.
 - [x] Stockage des sorties IA à leur résolution d’origine dans les projets v13 : reconstruction locale 8/16 bits, masque indépendant, invalidation à la retouche des pixels et retour au raster natif sans perte des modifications. [Mesure de taille](docs/VALIDATION.md#stockage-compact-des-calques-ia--7-novembre-2026).
 - [x] Création de calques IA : composition ou sélection, profils GPT Image/fal.ai/ComfyUI/API d’images compatible OpenAI, bibliothèque de prompts et 1–8 variantes par lancement ; clés persistantes dans le trousseau natif, liste de fournisseurs et sauvegarde explicite ; suivi asynchrone visible, masque original, insertion unique 8/16 bits annulable et résultat conservé si le stockage est saturé. Protocoles validés par serveurs simulés ; essais réels OpenAI/fal.ai confirmés par l’utilisateur, ComfyUI restant à tester. [Guide](docs/AI_IMAGE_EDITING.md).
+- [x] Traitements IA sans prompt pour fal.ai/ComfyUI ; presets Topaz Upscale Precision et Real-ESRGAN x2plus, modèle et facteur ×1–×4, source IA d’origine du calque, envoi natif et limites vérifiées avant soumission. Résultat sur un calque aux dimensions du document ; dialogue et protocole validés par simulations, qualité des upscalers à comparer sur les images de l’utilisateur.
+- [ ] Résultat IA dans un nouveau document à sa résolution native, après mise en place du mode multidocument.
 - [x] Fusions de calques : vers le bas, sélection, groupe, écrêtage, visibles, copies fusionnées des sélectionnés/visibles et aplatissement opaque. Masques/réglages rasterisés, sources cachées conservées pour Fusionner visibles, précision native 8/16 bits, worker annulable, sortie tuilée et raccourcis configurables. [Comportements et différences Adobe](docs/LAYER_MERGE.md).
 - [x] Presse-papiers de sélection : Couper/Copier actifs, Copier avec fusion, nouveau calque au collage, sur place, dans/hors sélection avec masque éditable, calque par copie/couper et masque raster actif. Formes réelles, contours progressifs et pixels natifs 8/16 bits, calculs différés et historique ; [cas couverts et différences Adobe](docs/CLIPBOARD.md).
 - [ ] Presse-papiers complet de calques et tracés : préserver texte éditable, formes, groupes, effets et masques associés entre documents ; gestion des profils couleur multiples.

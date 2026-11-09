@@ -1,5 +1,80 @@
 # Validation
 
+## Alternative Real-ESRGAN et transport des couleurs — 9 novembre 2026
+
+Build réussi ; suites `ai_images`, `ai_ui` et `qml_smoke` : 3/3 réussies
+(48,11 s au total, macOS / Qt 6.12).
+
+Preset fal.ai conforme au [schéma officiel](https://fal.ai/models/fal-ai/esrgan/api) :
+`RealESRGAN_x2plus`, `scale: 2`, `face: false`, `output_format: png`, sans prompt
+ni `num_images`. Le protocole est testé avec réponse directe et file asynchrone.
+Le contrôleur vérifie le choix du modèle/facteur par lancement, l’envoi de la
+source IA originale et le retour sur un calque avec masque, placement et historique.
+Le smoke test QML sauvegarde le preset et vérifie les contrôles, le modèle x2plus,
+le facteur ×2 et la sélection automatique de la source IA originale.
+
+Une réponse PNG identique est simulée sur huit combinaisons : 8/16 bits,
+sRGB/Display P3, composition/source IA originale. Les canaux restent dans la
+tolérance de quantification après conversion sRGB. Ce contrôle isole le transport
+et le décodage ; il ne permet pas d’attribuer la dérive signalée à Topaz ni de
+prédire la fidélité d’un autre modèle. Aucun appel payant ni essai réel Real-ESRGAN
+n’a été effectué.
+
+## Réparation des profils Topaz hérités et détails HTTP 422 — 9 novembre 2026
+
+Le diagnostic sur une requête déjà terminée, relue sans resoumettre l’image,
+confirme le champ absent : `body.image_url: Field required`. Le profil personnalisé
+utilisait le champ liste `image_urls` et n’avait pas encore de mode sans prompt.
+
+Le chargement, l’enregistrement et l’envoi normalisent désormais les profils
+`topaz/upscale/image/precision`, indépendamment de leur nom. Identifiant, serveur
+et référence de clé restent identiques ; la migration n’effectue aucune lecture
+du trousseau. Les paramètres Topaz personnalisés sont conservés. Les champs
+hérités de génération sont retirés, et les capacités connues sont verrouillées
+dans le formulaire pour éviter de recréer cette configuration incompatible.
+
+Build réussi et suites `ai_images`, `ai_ui`, `qml_smoke` toutes vertes (47,72 s).
+Les tests couvrent la migration persistante sans accès aux secrets, les anciennes
+configurations transmises directement au client HTTP, les réponses singulières,
+et les erreurs de validation en tableau, chaîne ou message imbriqué. Les noms
+et messages des champs sont affichés ; les données d’image répliquées sous
+`input` et la clé API restent absentes du message d’erreur. Le parcours QML
+reproduit le profil « upscale » hérité et vérifie le mode sans prompt et l’envoi
+natif. Aucun nouveau traitement Topaz réel n’a été lancé pendant la correction.
+
+## IA sans prompt et source originale pour Topaz — 9 novembre 2026
+
+Build Qt 6.12 réussi. Les cinq suites `ai_images`, `ai_ui`, `qml_smoke`,
+`binary_project` et `document_operations` passent (56,55 s au total).
+Le protocole Topaz a été comparé au [schéma officiel fal.ai](https://fal.ai/models/topaz/upscale/image/precision/api).
+Aucun appel payant ni accès à une clé réelle n’a été effectué ; le test utilise
+les serveurs HTTP locaux et les stockages de clés simulés de la suite existante.
+
+Les nouveaux cas couvrent :
+
+- persistance des modes de prompt et de l’envoi natif ; ancien profil restant
+  obligatoire, refus du mode sans prompt sur le protocole OpenAI ;
+- soumission Topaz avec `image_url` singulier, sans `prompt` ni `num_images`,
+  modèle/facteur/PNG corrects, résultat direct ou en file sous `image.url`,
+  clé présente uniquement sur les requêtes authentifiées ;
+- prompt fal.ai facultatif omis à vide, conservé lorsqu’il est renseigné ;
+  workflow ComfyUI sans nœud de texte utilisateur ;
+- source IA 32×24 dans un document 120×90 envoyée en 32×24, sortie 64×48 gardée
+  comme nouvelle source originale, document et placement conservés en 16 bits ;
+  masque fractionnaire identique, annulation/rétablissement, source désactivée
+  après peinture ;
+- masque uniforme compact développé correctement, avec activation, densité et
+  contour progressif préservés ; envoi PNG 700×500 en 16 bits malgré une limite
+  ordinaire de 256 px, avec comparaison d’échantillons non multiples de 257 ;
+- sortie prévue hors budget refusée avant toute requête HTTP ;
+- interface : ajout du preset, prompt masqué et bouton actif sans texte, modèle
+  et facteur présents, source originale choisie par défaut ; prompt obligatoire
+  restant bloquant, mode facultatif acceptant une saisie vide.
+
+Le résultat reste un nouveau calque à la taille du document. L’ouverture d’un
+autre document est explicitement différée au mode multidocument ; la qualité
+et la compatibilité réelle de Topaz restent à essayer avec le compte utilisateur.
+
 ## Ouverture d’images par dépôt et depuis le système — 9 novembre 2026
 
 Build local Qt 6.12 et huit suites ciblées réussis : `document_drop_ui`,

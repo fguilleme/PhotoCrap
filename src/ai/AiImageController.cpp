@@ -2,8 +2,12 @@
 #include "Document.h"
 #include <QDateTime>
 #include <QFutureWatcher>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QUuid>
 #include <QtConcurrentRun>
+#include <QtMath>
+#include <cmath>
 
 AiImageController::AiImageController(Document *_document, AiSettings *_settings, QObject *_parent)
     : QObject(_parent), m_document(_document), m_settings(_settings), m_job(this)
@@ -78,15 +82,37 @@ void AiImageController::cancel()
     emit changed();
 }
 bool AiImageController::generate(const QString &_providerId, const QString &_prompt,
-                                 bool _selection, int _variants)
+                                 bool _selection, int _variants, bool _original,
+                                 const QVariantMap &_options)
 {
     if (m_busy || pendingResult() || !m_document)
         return false;
-    const auto provider = m_settings->provider(_providerId);
-    const auto prompt   = _prompt.trimmed();
+    auto       provider = m_settings->provider(_providerId);
+    const bool topaz    = provider.value("kind") == "fal" &&
+                       provider.value("model") == "topaz/upscale/image/precision";
+    const bool esrgan =
+        provider.value("kind") == "fal" && provider.value("model") == "fal-ai/esrgan";
+    if ((topaz || esrgan) && !_options.isEmpty()) {
+        auto options =
+            QJsonDocument::fromJson(provider.value("options", "{}").toString().toUtf8()).object();
+        for (const auto &key : {QStringLiteral("model"),
+                                topaz ? QStringLiteral("upscale_factor") : QStringLiteral("scale")})
+            if (_options.contains(key))
+                options[key] = QJsonValue::fromVariant(_options.value(key));
+        provider["options"] =
+            QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
+    }
+    const auto mode   = provider.value("promptMode", "required").toString();
+    const auto prompt = mode == "none" ? QString{} : _prompt.trimmed();
     if (provider.isEmpty() || !AiSettings::validEndpoint(QUrl(provider.value("url").toString())) ||
-        prompt.isEmpty() || prompt.size() > 32000 || _variants < 1 || _variants > 8) {
+        (mode == "required" && prompt.isEmpty()) || prompt.size() > 32000 || _variants < 1 ||
+        _variants > 8) {
         m_error = tr("Choisissez un fournisseur et saisissez un prompt valide.");
+        emit changed();
+        return false;
+    }
+    if ((topaz || esrgan) && _variants != 1) {
+        m_error = tr("L’upscale traite une seule image à la fois.");
         emit changed();
         return false;
     }
@@ -118,7 +144,8 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
         return true;
     m_settings->resolveKey(
         _providerId, this,
-        [this, generation, selection = _selection](const QString &key, const QString &error) {
+        [this, generation, selection = _selection, original = _original](const QString &key,
+                                                                         const QString &error) {
             if (!m_busy || generation != m_generation)
                 return;
             if (!error.isEmpty()) {
@@ -136,17 +163,17 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
                 return;
             }
             m_key = key;
-            prepareInput(selection, generation);
+            prepareInput(selection, generation, original);
         });
     return true;
 }
-void AiImageController::prepareInput(bool _selection, quint64 generation)
+void AiImageController::prepareInput(bool _selection, quint64 generation, bool _original)
 {
     m_status = tr("Préparation de l’image…");
     emit changed();
     if (!m_busy || generation != m_generation)
         return;
-    auto *     watcher = new QFutureWatcher<PhotoCrap::Ai::Input>(this);
+    auto *watcher = new QFutureWatcher<PhotoCrap::Ai::Input>(this);
     connect(watcher, &QFutureWatcher<PhotoCrap::Ai::Input>::finished, this,
             [this, watcher, generation] {
                 watcher->deleteLater();
@@ -170,7 +197,10 @@ void AiImageController::prepareInput(bool _selection, quint64 generation)
                 startVariant();
             });
     watcher->setFuture(m_document->prepareAiInput(
-        _selection, m_provider.value("maxEdge", 1536).toInt(), m_cancel));
+        _selection,
+        m_provider.value("nativeInput", false).toBool() ? 16384
+                                                        : m_provider.value("maxEdge", 1536).toInt(),
+        m_cancel, _original, m_provider.value("nativeInput", false).toBool()));
 }
 QString AiImageController::variantStatus(const QString &_status) const
 {
@@ -188,6 +218,37 @@ void AiImageController::startVariant()
         return;
     }
     m_awaitingResponse = true;
+    const bool topaz   = m_provider.value("model") == "topaz/upscale/image/precision";
+    const bool esrgan  = m_provider.value("model") == "fal-ai/esrgan";
+    if (m_provider.value("kind") == "fal" && (topaz || esrgan)) {
+        const auto options =
+            QJsonDocument::fromJson(m_provider.value("options", "{}").toString().toUtf8()).object();
+        const auto field  = topaz ? "upscale_factor" : "scale";
+        const auto factor = options.value(field).toDouble(2.);
+        const auto model =
+            options.value("model").toString(topaz ? "Standard V2" : "RealESRGAN_x2plus");
+        const QStringList models =
+            topaz ? QStringList{"Standard V2",
+                                "High Fidelity V3",
+                                "High Fidelity V2",
+                                "Low Resolution V2",
+                                "CGI",
+                                "Text Refine",
+                                "Faces"}
+                  : QStringList{"RealESRGAN_x2plus",          "RealESRGAN_x4plus",
+                                "RealESRGAN_x4_v3",           "RealESRGAN_x4_wdn_v3",
+                                "RealESRGAN_x4plus_anime_6B", "RealESRGAN_x4_anime_v3"};
+        if ((!options.value(field).isUndefined() && !options.value(field).isDouble()) ||
+            (!options.value("model").isUndefined() && !options.value("model").isString()) ||
+            !std::isfinite(factor) || factor < 1. || factor > 4. || !models.contains(model) ||
+            !PhotoCrap::Ai::validSize(QSize(qCeil(m_input.sentSize.width() * factor),
+                                            qCeil(m_input.sentSize.height() * factor)))) {
+            stop(tr(
+                "Réglages d’upscale invalides ou sortie au-delà de 32 Mpx / 16 384 px. Réduisez le "
+                "facteur ou utilisez l’image IA d’origine."));
+            return;
+        }
+    }
     m_job.start(m_provider, m_key, m_prompt, m_input);
 }
 void AiImageController::received(const QByteArray &_bytes, const QString &_error)
@@ -259,15 +320,27 @@ void AiImageController::tryInsertion()
         prepareResult();
         return;
     }
-    QString           error;
-    const QVariantMap metadata{{"provider", m_provider.value("name")},
-                               {"model", m_provider.value("model")},
-                               {"prompt", m_prompt},
-                               {"selection", m_input.selected},
-                               {"batch", m_batchId},
-                               {"variant", m_completed + 1},
-                               {"variantCount", m_variantCount},
-                               {"date", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}};
+    QString     error;
+    QVariantMap metadata{
+        {"provider", m_provider.value("name")},
+        {"model", m_provider.value("model")},
+        {"prompt", m_prompt},
+        {"inputSize", QVariantList{m_input.sentSize.width(), m_input.sentSize.height()}},
+        {"originalSource", m_input.originalSource},
+        {"selection", m_input.selected},
+        {"batch", m_batchId},
+        {"variant", m_completed + 1},
+        {"variantCount", m_variantCount},
+        {"date", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}};
+    const bool topaz = m_provider.value("model") == "topaz/upscale/image/precision";
+    if (m_provider.value("kind") == "fal" &&
+        (topaz || m_provider.value("model") == "fal-ai/esrgan")) {
+        const auto options =
+            QJsonDocument::fromJson(m_provider.value("options", "{}").toString().toUtf8()).object();
+        metadata["upscaleFactor"] = options.value(topaz ? "upscale_factor" : "scale").toDouble(2.);
+        metadata["upscaleModel"] =
+            options.value("model").toString(topaz ? "Standard V2" : "RealESRGAN_x2plus");
+    }
     if (!m_document->insertAiResult(m_input, *m_readyResult, metadata, error)) {
         m_busy = false;
         m_clock.stop();

@@ -53,7 +53,8 @@ public:
         return m_elapsedSeconds;
     }
     Q_INVOKABLE bool generate(const QString &_providerId, const QString &_prompt, bool _selection,
-                              int _variants = 1);
+                              int _variants = 1, bool _original = false,
+                              const QVariantMap &_options = {});
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void retryInsertion();
     bool             pendingResult() const
@@ -71,7 +72,7 @@ private:
     void                  stop(const QString &_error = {});
     void                  received(const QByteArray &_bytes, const QString &_error);
     void                  prepareResult();
-    void                                   prepareInput(bool _selection, quint64 _generation);
+    void                  prepareInput(bool _selection, quint64 _generation, bool _original);
     QPointer<Document>    m_document;
     AiSettings *          m_settings;
     AiImageJob            m_job;

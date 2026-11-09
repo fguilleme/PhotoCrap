@@ -2,6 +2,7 @@
 #include "AiProgressSmoke.h"
 #include "Document.h"
 #include "ai/AiImageController.h"
+#include <QBuffer>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QtTest>
@@ -125,5 +126,80 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
                 description.toString().contains("2026"),
             "layer information includes provider, model, variant count, date and literal prompt"))
         return false;
+    auto topaz         = _settings.newProvider("fal");
+    topaz["name"]      = "upscale";
+    topaz["model"]     = "topaz/upscale/image/precision";
+    topaz["maxEdge"]   = 4096;
+    const auto topazId = _settings.saveProvider(topaz);
+    if (!require(!topazId.isEmpty(), "Topaz preset can be added"))
+        return false;
+    QMetaObject::invokeMethod(panel, "selectProvider", Q_ARG(QVariant, QVariant(topazId)));
+    auto *mode        = _window->findChild<QObject *>("aiProviderPromptMode");
+    auto *nativeInput = _window->findChild<QObject *>("aiProviderNativeInput");
+    if (!require(mode && nativeInput && mode->property("currentIndex").toInt() == 2 &&
+                     nativeInput->property("checked").toBool(),
+                 "legacy Topaz profile loads without prompt and without reducing input"))
+        return false;
+    QImage small(32, 24, QImage::Format_RGB32);
+    small.fill(Qt::green);
+    QByteArray bytes;
+    QBuffer    buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    if (!require(small.save(&buffer, "PNG"), "create small AI source"))
+        return false;
+    PhotoCrap::Ai::Input input;
+    input.canvas  = QSize(_document.width(), _document.height());
+    input.bounds  = QRect(QPoint{}, input.canvas);
+    input.session = _document.documentSession();
+    const auto result =
+        PhotoCrap::Ai::prepareResult(input, bytes, 16, std::make_shared<std::atomic_bool>(false));
+    QString error;
+    if (!require(_document.insertAiResult(input, result, {{"provider", "AI source"}}, error),
+                 "create an AI layer for upscaling"))
+        return false;
+    prompt->setProperty("text", "");
+    QMetaObject::invokeMethod(dialog, "chooseProvider", Q_ARG(QVariant, QVariant(topazId)));
+    QMetaObject::invokeMethod(dialog, "start");
+    QTest::qWait(80);
+    auto *generate   = _window->findChild<QQuickItem *>("aiGenerateButton");
+    auto *topazModel = _window->findChild<QQuickItem *>("aiTopazModel");
+    auto *factor     = _window->findChild<QObject *>("aiUpscaleFactor");
+    if (!require(generate && generate->isEnabled() && !prompt->isVisible() && topazModel &&
+                     topazModel->isVisible() && factor &&
+                     factor->property("value").toInt() == 200 &&
+                     source->property("currentText").toString().contains("32"),
+                 "promptless upscale enables Run, shows model/factor and defaults to original AI "
+                 "pixels"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "chooseProvider",
+                              Q_ARG(QVariant, _settings.providers()[0].toMap().value("id")));
+    QTest::qWait(40);
+    if (!require(prompt->isVisible() && !generate->isEnabled(),
+                 "text editing providers still require a prompt"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "reject");
+    auto optional          = _settings.newProvider("fal");
+    optional["promptMode"] = "optional";
+    const auto optionalId  = _settings.saveProvider(optional);
+    QMetaObject::invokeMethod(dialog, "chooseProvider", Q_ARG(QVariant, QVariant(optionalId)));
+    QMetaObject::invokeMethod(dialog, "start");
+    QTest::qWait(40);
+    if (!require(prompt->isVisible() && generate->isEnabled(),
+                 "optional prompt profiles accept an empty prompt"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "reject");
+    const auto esrganId = _settings.saveProvider(_settings.newProvider("falEsrgan"));
+    if (!require(!esrganId.isEmpty(), "Real-ESRGAN preset can be saved"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "chooseProvider", Q_ARG(QVariant, QVariant(esrganId)));
+    QMetaObject::invokeMethod(dialog, "start");
+    QTest::qWait(80);
+    if (!require(!prompt->isVisible() && generate->isEnabled() && topazModel->isVisible() &&
+                     topazModel->property("currentText").toString() == "RealESRGAN_x2plus" &&
+                     factor->property("value").toInt() == 200 &&
+                     source->property("currentText").toString().contains("32"),
+                 "Real-ESRGAN defaults to x2 photo model and native AI source without prompt"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "reject");
     return runAiProgressSmoke(_window);
 }

@@ -43,6 +43,16 @@ AiSettings::AiSettings(QObject *_parent, bool _persist,
             m_providers.append(entry);
         }
     }
+    bool migrated = false;
+    for (auto &entry : m_providers) {
+        const auto value = normalizedProvider(entry.toMap());
+        if (value != entry.toMap()) {
+            entry    = value;
+            migrated = true;
+        }
+    }
+    if (_persist && migrated)
+        QSettings().setValue("ai/providers", m_providers);
     if (!_persist || !QSettings().contains("ai/prompts")) {
         const auto add = [&](const QString &_name, const QString &_text) {
             m_prompts.append(QVariantMap{{"id", id()}, {"name", _name}, {"text", _text}});
@@ -72,8 +82,59 @@ bool AiSettings::validEndpoint(const QUrl &_url)
            !_url.host().isEmpty() && _url.userInfo().isEmpty() && !_url.hasQuery() &&
            !_url.hasFragment();
 }
+QVariantMap AiSettings::normalizedProvider(QVariantMap p)
+{
+    const auto endpoint = p.value("model").toString().trimmed();
+    const bool topaz    = endpoint == "topaz/upscale/image/precision";
+    const bool esrgan   = endpoint == "fal-ai/esrgan";
+    if (p.value("kind") != "fal" || (!topaz && !esrgan))
+        return p;
+    const bool legacy = p.value("promptMode") != "none" || p.value("imageField") != "image_url" ||
+                        !p.contains("imageArray") || p.value("imageArray").toBool();
+    p["model"]      = endpoint;
+    p["promptMode"] = "none";
+    p["imageField"] = "image_url";
+    p["imageArray"] = false;
+    if (legacy || !p.contains("nativeInput"))
+        p["nativeInput"] = true;
+    const auto document = QJsonDocument::fromJson(p.value("options", "{}").toString().toUtf8());
+    if (document.isObject()) {
+        auto options = document.object();
+        options.remove("prompt");
+        options.remove("num_images");
+        options.remove("image_urls");
+        if (!options.contains("model"))
+            options["model"] = topaz ? "Standard V2" : "RealESRGAN_x2plus";
+        const auto factor = topaz ? "upscale_factor" : "scale";
+        if (!options.contains(factor))
+            options[factor] = 2;
+        if (esrgan && !options.contains("face"))
+            options["face"] = false;
+        if (!options.contains("output_format"))
+            options["output_format"] = "png";
+        p["options"] = QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
+    }
+    return p;
+}
 QVariantMap AiSettings::newProvider(const QString &_kind) const
 {
+    if (_kind == "falEsrgan") {
+        auto p     = newProvider("fal");
+        p["name"]  = "fal.ai · Real-ESRGAN";
+        p["model"] = "fal-ai/esrgan";
+        return normalizedProvider(p);
+    }
+    if (_kind == "falTopaz") {
+        auto p           = newProvider("fal");
+        p["name"]        = "fal.ai · Topaz Upscale Precision";
+        p["model"]       = "topaz/upscale/image/precision";
+        p["promptMode"]  = "none";
+        p["imageField"]  = "image_url";
+        p["imageArray"]  = false;
+        p["nativeInput"] = true;
+        p["options"]     = R"({"model":"Standard V2","upscale_factor":2,"output_format":"png"})";
+        return p;
+    }
     QVariantMap p{{"kind", _kind},   {"name", tr("Nouveau fournisseur")}, {"maxEdge", 1536},
                   {"options", "{}"}, {"imageField", "image_urls"},        {"imageArray", true}};
     if (_kind == "openai") {
@@ -106,7 +167,7 @@ QVariantMap AiSettings::provider(const QString &_id) const
 {
     for (const auto &value : m_providers)
         if (value.toMap().value("id").toString() == _id)
-            return value.toMap();
+            return normalizedProvider(value.toMap());
     return {};
 }
 bool AiSettings::reject(const QString &_error)
@@ -127,6 +188,7 @@ void AiSettings::persist()
 }
 QString AiSettings::saveProvider(QVariantMap _provider)
 {
+    _provider       = normalizedProvider(std::move(_provider));
     const auto kind = _provider.value("kind").toString();
     if (!QStringList{"openai", "fal", "comfy", "compatible"}.contains(kind) ||
         _provider.value("name").toString().trimmed().isEmpty() ||
@@ -138,6 +200,12 @@ QString AiSettings::saveProvider(QVariantMap _provider)
         QJsonDocument::fromJson(_provider.value("options", "{}").toString().toUtf8());
     if (!options.isObject()) {
         reject(tr("Les options avancées doivent être un objet JSON."));
+        return {};
+    }
+    const auto promptMode = _provider.value("promptMode", "required").toString();
+    if (!QStringList{"required", "optional", "none"}.contains(promptMode) ||
+        ((kind == "openai" || kind == "compatible") && promptMode != "required")) {
+        reject(tr("Le mode de prompt n’est pas compatible avec ce fournisseur."));
         return {};
     }
     if (kind == "fal" && !QRegularExpression("^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)+$")
@@ -160,6 +228,8 @@ QString AiSettings::saveProvider(QVariantMap _provider)
     for (const auto &field : {"id", "name", "kind", "url", "model", "keyEnv", "options", "workflow",
                               "imageField", "imageArray"})
         clean[field] = _provider.value(field);
+    clean["promptMode"]  = promptMode;
+    clean["nativeInput"] = _provider.value("nativeInput", false).toBool();
     clean["maxEdge"] = qBound(256, _provider.value("maxEdge", 1536).toInt(), 4096);
     if (clean["id"].toString().isEmpty())
         clean["id"] = id();

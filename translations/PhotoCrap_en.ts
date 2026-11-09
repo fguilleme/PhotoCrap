@@ -6080,4 +6080,48 @@ Independent software, not affiliated with Adobe.</translation>
     <name>DocumentImageDropArea</name>
     <message><source>Déposer pour ouvrir l’image</source><translation>Drop to open the image</translation></message>
   </context>
+  <context>
+    <name>AiPreferences</name>
+    <message><source>Prompt</source><translation>Prompt</translation></message>
+    <message><source>Obligatoire</source><translation>Required</translation></message>
+    <message><source>Facultatif</source><translation>Optional</translation></message>
+    <message><source>Sans prompt</source><translation>No prompt</translation></message>
+    <message><source>Envoyer à la résolution native</source><translation>Send at native resolution</translation></message>
+  </context>
+  <context>
+    <name>AiSettings</name>
+    <message><source>Le mode de prompt n’est pas compatible avec ce fournisseur.</source><translation>This provider does not support this prompt mode.</translation></message>
+  </context>
+  <context>
+    <name>Document</name>
+    <message><source>L’image IA d’origine n’est plus disponible sur ce calque.</source><translation>The original AI image is no longer available on this layer.</translation></message>
+  </context>
+  <context>
+    <name>AiImageController</name>
+    <message><source>L’upscale traite une seule image à la fois.</source><translation>Upscale processes one image at a time.</translation></message>
+    <message><source>Réglages d’upscale invalides ou sortie au-delà de 32 Mpx / 16 384 px. Réduisez le facteur ou utilisez l’image IA d’origine.</source><translation>Invalid upscale settings or output larger than 32 MP / 16,384 px. Reduce the factor or use the original AI image.</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Upscale : ×%1 · %2</source><translation>Upscale: ×%1 · %2</translation></message>
+    <message><source>Image envoyée : %1 × %2 px</source><translation>Submitted image: %1 × %2 px</translation></message>
+    <message><source>Source : image IA d’origine du calque</source><translation>Source: original AI layer image</translation></message>
+  </context>
+  <context>
+    <name>AiImageDialog</name>
+    <message><source>Calque actif · image IA d’origine (%1 × %2)</source><translation>Active layer · original AI image (%1 × %2)</translation></message>
+    <message><source>Choisissez l’image et les paramètres du traitement. Aucun prompt n’est nécessaire.</source><translation>Choose the image and processing settings. No prompt is needed.</translation></message>
+    <message><source>L’image IA est envoyée à sa résolution d’origine. Le résultat revient sur un nouveau calque, à sa place dans le document, avec son masque.</source><translation>The AI image is sent at its original resolution. The result returns on a new layer, in its original position with its mask.</translation></message>
+    <message><source>Modèle Topaz</source><translation>Topaz model</translation></message>
+    <message><source>Agrandissement</source><translation>Upscale factor</translation></message>
+    <message><source>Le document conserve ses dimensions ; l’agrandissement améliore l’image envoyée avant sa remise à l’échelle sur le calque. La sortie doit rester sous 32 Mpx et 16 384 px par côté.</source><translation>The document keeps its dimensions; upscale enhances the input image before fitting it to the layer. Output must stay below 32 MP and 16,384 px per side.</translation></message>
+    <message><source>Envoi à la résolution native · résultat sur un nouveau calque</source><translation>Native resolution input · result on a new layer</translation></message>
+    <message><source>Agrandir</source><translation>Upscale</translation></message>
+    <message><source>Lancer le traitement</source><translation>Run processing</translation></message>
+  </context>
+  <context><name>AiImageDialog</name><message><source>Prompt (facultatif)</source><translation>Prompt (optional)</translation></message></context>
+  <context>
+    <name>AiImageDialog</name>
+    <message><source>Modèle Real-ESRGAN</source><translation>Real-ESRGAN model</translation></message>
+  </context>
 </TS>

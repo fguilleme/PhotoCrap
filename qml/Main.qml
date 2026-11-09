@@ -77,6 +77,9 @@ ApplicationWindow {
         if (!ai || !ai.provider) return ""
         const lines = [qsTr("Fournisseur : %1").arg(ai.provider)]
         if (ai.model) lines.push(qsTr("Modèle : %1").arg(ai.model))
+        if (ai.upscaleFactor) lines.push(qsTr("Upscale : ×%1 · %2").arg(ai.upscaleFactor).arg(ai.upscaleModel || ""))
+        if (ai.inputSize && ai.inputSize.length === 2) lines.push(qsTr("Image envoyée : %1 × %2 px").arg(ai.inputSize[0]).arg(ai.inputSize[1]))
+        if (ai.originalSource) lines.push(qsTr("Source : image IA d’origine du calque"))
         lines.push(qsTr("Variante %1/%2").arg(ai.variant || 1).arg(ai.variantCount || 1))
         if (ai.date) {
             const date = new Date(ai.date)

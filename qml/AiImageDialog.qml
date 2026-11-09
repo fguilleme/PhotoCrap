@@ -11,6 +11,27 @@ Dialog {
     signal settingsRequested
     property string selectedPrompt: ""
     property var selectedProvider: providers.currentIndex >= 0 && providers.currentIndex < settings.providers.length ? settings.providers[providers.currentIndex] : ({})
+    readonly property string promptMode: selectedProvider.promptMode || "required"
+    readonly property bool topaz: selectedProvider.kind === "fal" && selectedProvider.model === "topaz/upscale/image/precision"
+    readonly property bool esrgan: selectedProvider.kind === "fal" && selectedProvider.model === "fal-ai/esrgan"
+    readonly property bool upscaling: topaz || esrgan
+    readonly property var originalSource: document.originalAiSource
+    readonly property var sources: [{name: qsTr("Composition visible complète"), kind: "full"}]
+        .concat(document.hasSelection ? [{name: qsTr("Sélection uniquement"), kind: "selection"}] : [])
+        .concat(originalSource.width ? [{name: qsTr("Calque actif · image IA d’origine (%1 × %2)").arg(originalSource.width).arg(originalSource.height), kind: "original"}] : [])
+    readonly property string sourceKind: source.currentIndex >= 0 && source.currentIndex < sources.length ? sources[source.currentIndex].kind : "full"
+    function refreshSource() {
+        source.currentIndex = upscaling && originalSource.width ? sources.findIndex(function(s) { return s.kind === "original" })
+                              : document.hasSelection ? 1 : 0
+    }
+    function refreshTopaz() {
+        let options = ({})
+        try { options = JSON.parse(selectedProvider.options || "{}") } catch(e) {}
+        topazModel.currentIndex = Math.max(0, topazModel.model.indexOf(options.model || (esrgan ? "RealESRGAN_x2plus" : "Standard V2")))
+        const factor = Number(options[esrgan ? "scale" : "upscale_factor"] || 2)
+        upscaleFactor.value = Number.isFinite(factor) && factor >= 1 && factor <= 4 ? Math.round(factor * 100) : 200
+    }
+    onSelectedProviderChanged: Qt.callLater(function() { refreshSource(); refreshTopaz() })
     objectName: "aiImageDialog"
     title: qsTr("Créer avec l’IA")
     modal: true
@@ -18,7 +39,8 @@ Dialog {
     height: Math.min(610, parent.height - 60)
     anchors.centerIn: parent
     function start() {
-        source.currentIndex = document.hasSelection ? 1 : 0;
+        refreshSource();
+        refreshTopaz();
         open();
     }
     function chooseProvider(id) {
@@ -28,7 +50,7 @@ Dialog {
         spacing: 14
         Label {
             Layout.fillWidth: true
-            text: qsTr("Choisissez un fournisseur et décrivez la modification souhaitée.")
+            text: dialog.promptMode === "none" ? qsTr("Choisissez l’image et les paramètres du traitement. Aucun prompt n’est nécessaire.") : qsTr("Choisissez un fournisseur et décrivez la modification souhaitée.")
             color: "#aab6c3"
             font.pixelSize: 13
             wrapMode: Text.WordWrap
@@ -86,22 +108,53 @@ Dialog {
                     palette.button: "#2d3641"
                     palette.text: "#e0e7ee"
                     palette.base: "#202730"
-                    model: dialog.document.hasSelection ? [qsTr("Composition visible complète"), qsTr("Sélection uniquement")] : [qsTr("Composition visible complète")]
+                    model: dialog.sources.map(function(s) { return s.name })
                 }
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
                     color: "#899aa9"
-                    text: source.currentIndex === 1 ? qsTr("Le résultat sera replacé dans la sélection, avec son masque.") : qsTr("Le résultat sera ajouté au-dessus de l’image, sur un nouveau calque.")
+                    text: dialog.sourceKind === "original" ? qsTr("L’image IA est envoyée à sa résolution d’origine. Le résultat revient sur un nouveau calque, à sa place dans le document, avec son masque.") : dialog.sourceKind === "selection" ? qsTr("Le résultat sera replacé dans la sélection, avec son masque.") : qsTr("Le résultat sera ajouté au-dessus de l’image, sur un nouveau calque.")
+                }
+                ColumnLayout {
+                    visible: dialog.upscaling
+                    Layout.fillWidth: true
+                    Label { text: dialog.esrgan ? qsTr("Modèle Real-ESRGAN") : qsTr("Modèle Topaz"); color: "#aab6c3"; font.pixelSize: 12 }
+                    Basic.ComboBox {
+                        id: topazModel
+                        objectName: "aiTopazModel"
+                        Layout.fillWidth: true
+                        model: dialog.esrgan ? ["RealESRGAN_x2plus", "RealESRGAN_x4plus", "RealESRGAN_x4_v3", "RealESRGAN_x4_wdn_v3", "RealESRGAN_x4plus_anime_6B", "RealESRGAN_x4_anime_v3"] : ["Standard V2", "High Fidelity V3", "High Fidelity V2", "Low Resolution V2", "CGI", "Text Refine", "Faces"]
+                        palette.buttonText: "#e0e7ee"; palette.button: "#2d3641"
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { text: qsTr("Agrandissement"); color: "#aab6c3"; Layout.fillWidth: true }
+                        DarkSpinBox {
+                            id: upscaleFactor
+                            objectName: "aiUpscaleFactor"
+                            from: 100; to: 400; value: 200; stepSize: 25
+                            suffix: "×"
+                            Layout.preferredWidth: 160
+                            textFromValue: function(value, locale) { return Number(value / 100).toLocaleString(locale, "f", 2) }
+                            valueFromText: function(text, locale) { return Math.round(Number.fromLocaleString(locale, text.trim()) * 100) }
+                        }
+                    }
+                    Label {
+                        Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#899aa9"; font.pixelSize: 11
+                        text: qsTr("Le document conserve ses dimensions ; l’agrandissement améliore l’image envoyée avant sa remise à l’échelle sur le calque. La sortie doit rester sous 32 Mpx et 16 384 px par côté.")
+                    }
                 }
                 Label {
-                    text: qsTr("Prompt")
+                    visible: dialog.promptMode !== "none"
+                    text: dialog.promptMode === "optional" ? qsTr("Prompt (facultatif)") : qsTr("Prompt")
                     color: "#aab6c3"
                     font.pixelSize: 12
                 }
                 Basic.ComboBox {
                     id: prompts
+                    visible: dialog.promptMode !== "none"
                     objectName: "aiGenerationPrompt"
                     Layout.fillWidth: true
                     implicitHeight: 32
@@ -122,6 +175,7 @@ Dialog {
                     }
                 }
                 ScrollView {
+                    visible: dialog.promptMode !== "none"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Basic.TextArea {
@@ -142,6 +196,7 @@ Dialog {
                     }
                 }
                 RowLayout {
+                    visible: dialog.promptMode !== "none"
                     Layout.fillWidth: true
                     AiTextField {
                         id: name
@@ -167,6 +222,7 @@ Dialog {
                     }
                 }
                 RowLayout {
+                    visible: !dialog.upscaling
                     Layout.fillWidth: true
                     Label {
                         text: qsTr("Variantes")
@@ -189,8 +245,9 @@ Dialog {
                     wrapMode: Text.WordWrap
                     font.pixelSize: 11
                     color: "#899aa9"
-                    text: qsTr("%1 génération(s) · grand côté limité à %2 px").arg(variants.value).arg(dialog.selectedProvider.maxEdge || 1536)
+                    text: dialog.selectedProvider.nativeInput ? qsTr("Envoi à la résolution native · résultat sur un nouveau calque") : qsTr("%1 génération(s) · grand côté limité à %2 px").arg(variants.value).arg(dialog.selectedProvider.maxEdge || 1536)
                 }
+                Item { visible: dialog.promptMode === "none"; Layout.fillHeight: true }
             }
         }
         Label {
@@ -222,10 +279,11 @@ Dialog {
             AiActionButton {
                 objectName: "aiGenerateButton"
                 primary: true
-                text: qsTr("Générer")
-                enabled: !dialog.controller.busy && !dialog.controller.pendingResult && !dialog.settings.credentialsBusy && providers.count > 0 && prompt.text.trim().length > 0
+                text: dialog.upscaling ? qsTr("Agrandir") : dialog.promptMode === "none" ? qsTr("Lancer le traitement") : qsTr("Générer")
+                enabled: !dialog.controller.busy && !dialog.controller.pendingResult && !dialog.settings.credentialsBusy && providers.count > 0 && (dialog.promptMode !== "required" || prompt.text.trim().length > 0)
                 onClicked: {
-                    if (dialog.controller.generate(dialog.selectedProvider.id, prompt.text, source.currentIndex === 1, variants.value))
+                    if (dialog.controller.generate(dialog.selectedProvider.id, dialog.promptMode === "none" ? "" : prompt.text, dialog.sourceKind === "selection", dialog.upscaling ? 1 : variants.value,
+                                                   dialog.sourceKind === "original", dialog.esrgan ? {model: topazModel.currentText, scale: upscaleFactor.value / 100} : dialog.topaz ? {model: topazModel.currentText, upscale_factor: upscaleFactor.value / 100} : {}))
                         dialog.close();
                 }
             }

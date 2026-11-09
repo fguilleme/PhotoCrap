@@ -53,6 +53,7 @@ public:
     QString                 key(const QString &_id) const;
     void resolveKey(const QString &_id, QObject *_receiver, AiCredentialStore::Callback _finished);
     static bool             validEndpoint(const QUrl &_url);
+    static QVariantMap      normalizedProvider(QVariantMap _provider);
     static QString          defaultWorkflow();
 signals:
     void changed();

@@ -11,6 +11,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTcpServer>
@@ -172,7 +173,7 @@ private slots:
     {
         QSettings().clear();
         const auto credentials = memoryAiCredentialStore();
-        QString    saved;
+        QString    saved, topazSaved;
         {
             AiSettings settings(nullptr, true, credentials);
             QCOMPARE(settings.providers().size(), 3);
@@ -182,6 +183,7 @@ private slots:
             p["apiKey"] = "should-not-save";
             saved       = settings.saveProvider(p);
             QVERIFY(!saved.isEmpty());
+            topazSaved = settings.saveProvider(settings.newProvider("falTopaz"));
             settings.setSessionKey(saved, "session-secret");
             QVERIFY(settings.hasKey(saved));
             QVERIFY(!settings
@@ -197,6 +199,8 @@ private slots:
             QVERIFY(!bytes.contains("should-not-save"));
         }
         AiSettings reopened(nullptr, true, credentials);
+        QCOMPARE(reopened.provider(topazSaved).value("promptMode").toString(), QString("none"));
+        QVERIFY(reopened.provider(topazSaved).value("nativeInput").toBool());
         QCOMPARE(reopened.provider(saved).value("model").toString(), QString("image-editor"));
         QVERIFY(!reopened.hasKey(saved));
         QCOMPARE(reopened.prompts().last().toMap().value("name").toString(), QString("Custom"));
@@ -1284,6 +1288,475 @@ private slots:
             QCOMPARE(added.count(), 0);
             QCOMPARE(d.layers().size(), 1);
         }
+    }
+    void promptlessProfilesKeepCapabilities()
+    {
+        AiSettings settings(nullptr, false);
+        const auto preset = settings.newProvider("falTopaz");
+        QCOMPARE(preset.value("kind").toString(), QString("fal"));
+        QCOMPARE(preset.value("model").toString(), QString("topaz/upscale/image/precision"));
+        QCOMPARE(preset.value("imageField").toString(), QString("image_url"));
+        QVERIFY(!preset.value("imageArray").toBool());
+        for (const auto mode : {"required", "optional", "none"}) {
+            auto p           = settings.newProvider("fal");
+            p["nativeInput"] = true;
+            p["promptMode"]  = mode;
+            const auto id    = settings.saveProvider(p);
+            QVERIFY(!id.isEmpty());
+            QCOMPARE(settings.provider(id).value("promptMode").toString(), QString(mode));
+            QVERIFY(settings.provider(id).value("nativeInput").toBool());
+        }
+        auto p          = settings.newProvider("openai");
+        p["promptMode"] = "none";
+        QVERIFY(settings.saveProvider(p).isEmpty());
+        p = settings.newProvider("fal");
+        p.remove("promptMode");
+        QCOMPARE(settings.provider(settings.saveProvider(p)).value("promptMode").toString(),
+                 QString("required"));
+    }
+    void promptlessFalSingularResult_data()
+    {
+        QTest::addColumn<bool>("queued");
+        QTest::addColumn<bool>("esrgan");
+        QTest::newRow("topaz-direct") << false << false;
+        QTest::newRow("topaz-queue") << true << false;
+        QTest::newRow("esrgan-direct") << false << true;
+        QTest::newRow("esrgan-queue") << true << true;
+    }
+    void promptlessFalSingularResult()
+    {
+        QFETCH(bool, queued);
+        QFETCH(bool, esrgan);
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        const auto bytes = png();
+        server.handler   = [&](const Request &r) {
+            if (r.method == "POST" && queued)
+                return Response{200, json({{"status_url", server.url("/status")},
+                                           {"response_url", server.url("/result")}})};
+            if (r.target == "/status")
+                return Response{200, "{\"status\":\"COMPLETED\"}"};
+            if (r.target == "/image")
+                return Response{200, bytes, "image/png"};
+            return Response{200, json({{"image", QJsonObject{{"url", server.url("/image")}}}})};
+        };
+        auto p     = settings.newProvider("fal");
+        p["model"] = esrgan ? "fal-ai/esrgan" : "topaz/upscale/image/precision";
+        p["options"] =
+            R"({"prompt":"stale","num_images":3,"image_urls":["stale"],"face_enhancement":false})";
+        p["url"] = server.url();
+        AiImageJob job;
+        QSignalSpy done(&job, &AiImageJob::finished);
+        job.start(p, "mock-fal-key", "Ignored stale prompt", input());
+        QTRY_COMPARE_WITH_TIMEOUT(done.size(), 1, 5000);
+        QVERIFY2(done[0][1].toString().isEmpty(), qPrintable(done[0][1].toString()));
+        QCOMPARE(done[0][0].toByteArray(), bytes);
+        const auto body = QJsonDocument::fromJson(server.requests[0].body).object();
+        QCOMPARE(server.requests[0].target, esrgan ? QByteArray("/fal-ai/esrgan")
+                                                   : QByteArray("/topaz/upscale/image/precision"));
+        QVERIFY(server.requests[0].headers.contains("Key mock-fal-key"));
+        QVERIFY(body.value("image_url").isString());
+        QVERIFY(!body.contains("image_urls") && !body.contains("prompt") &&
+                !body.contains("num_images"));
+        QCOMPARE(body.value("model").toString(),
+                 esrgan ? QString("RealESRGAN_x2plus") : QString("Standard V2"));
+        QCOMPARE(body.value(esrgan ? "scale" : "upscale_factor").toInt(), 2);
+        if (esrgan) {
+            QCOMPARE(body.value("face"), QJsonValue(false));
+            QVERIFY(!body.contains("upscale_factor"));
+        }
+        QCOMPARE(body.value("output_format").toString(), QString("png"));
+        QVERIFY(!server.requests.last().headers.toLower().contains("authorization:"));
+    }
+    void optionalFalPrompt()
+    {
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        const auto bytes = png();
+        server.handler   = [&](const Request &) {
+            return Response{
+                200,
+                json({{"image", QJsonObject{{"url", "data:image/png;base64," +
+                                                        QString::fromLatin1(bytes.toBase64())}}}})};
+        };
+        auto p          = provider(settings, server, "fal");
+        p["promptMode"] = "optional";
+        for (const QString prompt : {QString(), QString("Keep details")}) {
+            AiImageJob job;
+            QSignalSpy done(&job, &AiImageJob::finished);
+            job.start(p, "mock-key", prompt, input());
+            QTRY_COMPARE_WITH_TIMEOUT(done.size(), 1, 5000);
+            QVERIFY(done[0][1].toString().isEmpty());
+            const auto body = QJsonDocument::fromJson(server.requests.last().body).object();
+            QCOMPARE(body.contains("prompt"), !prompt.isEmpty());
+            if (!prompt.isEmpty())
+                QCOMPARE(body.value("prompt").toString(), prompt);
+        }
+    }
+    void upscaleOriginalPreservesPlacementMaskAndHistory_data()
+    {
+        QTest::addColumn<bool>("esrgan");
+        QTest::newRow("topaz") << false;
+        QTest::newRow("esrgan") << true;
+    }
+    void upscaleOriginalPreservesPlacementMaskAndHistory()
+    {
+        QFETCH(bool, esrgan);
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        auto       p  = settings.newProvider(esrgan ? "falEsrgan" : "falTopaz");
+        p["url"]      = server.url();
+        const auto id = settings.saveProvider(p);
+        settings.setSessionKey(id, "mock-key");
+        Document d;
+        fixture(d);
+        auto in     = input();
+        in.canvas   = {120, 90};
+        in.bounds   = {0, 0, 120, 90};
+        in.session  = d.documentSession();
+        in.selected = true;
+        in.coverage = QImage(in.canvas, QImage::Format_Grayscale8);
+        in.coverage.fill(128);
+        const auto initial =
+            PhotoCrap::Ai::prepareResult(in, png(), 16, std::make_shared<std::atomic_bool>(false));
+        QString error;
+        QVERIFY(d.insertAiResult(in, initial, {{"provider", "Small AI"}}, error));
+        QCOMPARE(d.originalAiSource().value("width").toInt(), 32);
+        const auto before  = d.composite();
+        const auto mask    = d.maskImage(1);
+        const int  history = d.historyIndex();
+        QImage     output(64, 48, QImage::Format_RGB32);
+        output.fill(Qt::green);
+        QByteArray bytes;
+        QBuffer    buffer(&bytes);
+        buffer.open(QIODevice::WriteOnly);
+        QVERIFY(output.save(&buffer, "PNG"));
+        server.handler = [&](const Request &) {
+            return Response{
+                200,
+                json({{"image", QJsonObject{{"url", "data:image/png;base64," +
+                                                        QString::fromLatin1(bytes.toBase64())}}}})};
+        };
+        AiImageController controller(&d, &settings);
+        QSignalSpy        added(&controller, &AiImageController::layerAdded);
+        QVERIFY(controller.generate(id, "", false, 1, true,
+                                    {{"model", esrgan ? "RealESRGAN_x4plus" : "High Fidelity V3"},
+                                     {esrgan ? "scale" : "upscale_factor", 2.}}));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(added.size(), 1);
+        QCOMPARE(server.requests.size(), 1);
+        const auto body = QJsonDocument::fromJson(server.requests[0].body).object();
+        const auto sent = QImage::fromData(
+            QByteArray::fromBase64(body.value("image_url").toString().section(',', 1).toLatin1()));
+        QCOMPARE(sent.size(), QSize(32, 24));
+        QCOMPARE(sent.pixelColor(16, 12).alpha(), 255);
+        QCOMPARE(body.value("model").toString(),
+                 esrgan ? QString("RealESRGAN_x4plus") : QString("High Fidelity V3"));
+        QCOMPARE(body.value(esrgan ? "scale" : "upscale_factor").toDouble(), 2.);
+        if (esrgan) {
+            QCOMPARE(body.value("face"), QJsonValue(false));
+            QVERIFY(!body.contains("upscale_factor") && !body.contains("prompt"));
+        }
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(QSize(d.width(), d.height()), QSize(120, 90));
+        QCOMPARE(d.channelBits(), 16);
+        QCOMPARE(d.maskImage(2), mask);
+        QCOMPARE(d.historyIndex(), history + 1);
+        const auto metadata =
+            d.layers()[0].toMap().value("parameters").toMap().value("_ai").toMap();
+        QVERIFY(metadata.value("prompt").toString().isEmpty());
+        QCOMPARE(metadata.value("inputSize").toList(), (QVariantList{32, 24}));
+        QCOMPARE(metadata.value("upscaleFactor").toDouble(), 2.);
+        QVERIFY(metadata.value("originalSource").toBool());
+        QCOMPARE(d.originalAiSource().value("width").toInt(), 64);
+        d.undo();
+        QCOMPARE(d.composite(), before);
+        QCOMPARE(d.originalAiSource().value("width").toInt(), 32);
+        d.redo();
+        QCOMPARE(d.originalAiSource().value("width").toInt(), 64);
+        d.setTool("pencil");
+        d.setColor(Qt::blue);
+        d.beginStroke(20, 20);
+        d.endStroke();
+        QVERIFY(d.originalAiSource().isEmpty());
+    }
+    void nativeInputRetainsResolutionAndDepth()
+    {
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        auto       p  = settings.newProvider("falTopaz");
+        p["url"]      = server.url();
+        p["maxEdge"]  = 256;
+        const auto id = settings.saveProvider(p);
+        settings.setSessionKey(id, "mock-key");
+        Document d;
+        d.newDocument(700, 500, false, 16);
+        d.setColor(QColor::fromRgba64(12345, 23456, 34567, 65535));
+        d.fillWithColor(true);
+        const auto bytes = png();
+        server.handler   = [&](const Request &) {
+            return Response{
+                200,
+                json({{"image", QJsonObject{{"url", "data:image/png;base64," +
+                                                        QString::fromLatin1(bytes.toBase64())}}}})};
+        };
+        AiImageController controller(&d, &settings);
+        QVERIFY(controller.generate(id, "", false));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        const auto body = QJsonDocument::fromJson(server.requests[0].body).object();
+        const auto sent = QImage::fromData(
+            QByteArray::fromBase64(body.value("image_url").toString().section(',', 1).toLatin1()));
+        QCOMPARE(sent.size(), QSize(700, 500));
+        QCOMPARE(sent.pixelColor(200, 100), d.layerImage(0).pixelColor(200, 100));
+        QVERIFY(sent.depth() > 32);
+    }
+    void oversizedUpscaleStopsBeforeSending()
+    {
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        auto       p  = settings.newProvider("falTopaz");
+        p["url"]      = server.url();
+        const auto id = settings.saveProvider(p);
+        settings.setSessionKey(id, "mock-key");
+        Document d;
+        d.newDocument(5000, 1, true);
+        AiImageController controller(&d, &settings);
+        QVERIFY(controller.generate(id, "", false, 1, false, {{"upscale_factor", 4.}}));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY(!controller.error().isEmpty());
+        QCOMPARE(server.requests.size(), 0);
+        QCOMPARE(d.layers().size(), 1);
+    }
+    void originalAiInputExpandsUniformMasks()
+    {
+        Document d;
+        fixture(d);
+        auto in    = input();
+        in.canvas  = {120, 90};
+        in.bounds  = {0, 0, 120, 90};
+        in.session = d.documentSession();
+        const auto result =
+            PhotoCrap::Ai::prepareResult(in, png(), 16, std::make_shared<std::atomic_bool>(false));
+        QString error;
+        QVERIFY(d.insertAiResult(in, result, {{"provider", "AI"}}, error));
+        d.addLayerMask(true);
+        d.beginLayerPreview();
+        d.previewLayerParameter("_maskDensity", 63.);
+        d.previewLayerParameter("_maskFeather", 2.);
+        d.finishLayerPreview("Mask");
+        d.setMaskEnabled(false);
+        auto future =
+            d.prepareAiInput(false, 16384, std::make_shared<std::atomic_bool>(false), true, true);
+        QTRY_VERIFY_WITH_TIMEOUT(future.isFinished(), 5000);
+        const auto prepared = future.result();
+        QVERIFY2(prepared.error.isEmpty(), qPrintable(prepared.error));
+        QCOMPARE(prepared.sentSize, QSize(32, 24));
+        QVERIFY(!prepared.maskEnabled);
+        QCOMPARE(prepared.maskDensity, 63.);
+        QCOMPARE(prepared.maskFeather, 2.);
+        QCOMPARE(prepared.coverage.size(), QSize(120, 90));
+        QCOMPARE(prepared.coverage.constScanLine(80)[100], uchar(255));
+        const auto enhanced = PhotoCrap::Ai::prepareResult(
+            prepared, png(), 16, std::make_shared<std::atomic_bool>(false));
+        QVERIFY(d.insertAiResult(prepared, enhanced, {{"provider", "Upscale"}}, error));
+        const auto layer = d.layers()[0].toMap();
+        QVERIFY(!layer.value("maskEnabled").toBool());
+        QCOMPARE(layer.value("parameters").toMap().value("_maskDensity").toDouble(), 63.);
+        QCOMPARE(layer.value("parameters").toMap().value("_maskFeather").toDouble(), 2.);
+    }
+    void comfyWorkflowCanRunWithoutUserPrompt()
+    {
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        auto       p    = provider(settings, server, "comfy");
+        p["promptMode"] = "none";
+        p["workflow"] =
+            R"({"1":{"class_type":"LoadImage","inputs":{"image":"{{image}}"}},"2":{"class_type":"SaveImage","inputs":{"images":["1",0]}}})";
+        const auto  bytes = png();
+        QJsonObject submitted;
+        server.handler = [&](const Request &r) {
+            if (r.target == "/upload/image")
+                return Response{200, "{\"name\":\"source.png\"}"};
+            if (r.target == "/prompt") {
+                submitted = QJsonDocument::fromJson(r.body).object().value("prompt").toObject();
+                return Response{200, "{\"prompt_id\":\"own-job\"}"};
+            }
+            if (r.target == "/history/own-job")
+                return Response{
+                    200,
+                    R"({"own-job":{"status":{"completed":true},"outputs":{"2":{"images":[{"filename":"result.png"}]}}}})"};
+            return Response{200, bytes, "image/png"};
+        };
+        AiImageJob job;
+        QSignalSpy done(&job, &AiImageJob::finished);
+        job.start(p, "", "", input());
+        QTRY_COMPARE_WITH_TIMEOUT(done.size(), 1, 5000);
+        QVERIFY2(done[0][1].toString().isEmpty(), qPrintable(done[0][1].toString()));
+        QCOMPARE(done[0][0].toByteArray(), bytes);
+        QCOMPARE(
+            submitted.value("1").toObject().value("inputs").toObject().value("image").toString(),
+            QString("source.png"));
+        QVERIFY(!QJsonDocument(submitted).toJson().contains("CLIPTextEncode"));
+    }
+    void legacyTopazProfileMigratesWithoutTouchingCredentials()
+    {
+        QSettings  prefs;
+        const bool hadProviders = prefs.contains("ai/providers");
+        const auto previous     = prefs.value("ai/providers");
+        const auto restore      = qScopeGuard([&] {
+            if (hadProviders)
+                QSettings().setValue("ai/providers", previous);
+            else
+                QSettings().remove("ai/providers");
+        });
+        AiSettings defaults(nullptr, false);
+        auto       legacy = defaults.newProvider("fal");
+        legacy["id"]      = "custom-upscale";
+        legacy["name"]    = "upscale";
+        legacy["model"]   = "topaz/upscale/image/precision";
+        legacy["maxEdge"] = 4096;
+        legacy.remove("promptMode");
+        legacy.remove("nativeInput");
+        prefs.setValue("ai/providers", QVariantList{legacy});
+        auto       credentials = std::make_shared<CountingCredentials>();
+        AiSettings loaded(nullptr, true, credentials);
+        const auto fixed = loaded.provider("custom-upscale");
+        QCOMPARE(credentials->reads, 0);
+        QCOMPARE(fixed.value("name"), legacy.value("name"));
+        QCOMPARE(fixed.value("url"), legacy.value("url"));
+        QCOMPARE(fixed.value("keyEnv"), legacy.value("keyEnv"));
+        QCOMPARE(fixed.value("id"), legacy.value("id"));
+        QCOMPARE(fixed.value("imageField").toString(), QString("image_url"));
+        QVERIFY(!fixed.value("imageArray").toBool());
+        QCOMPARE(fixed.value("promptMode").toString(), QString("none"));
+        QVERIFY(fixed.value("nativeInput").toBool());
+        const auto persisted = QSettings().value("ai/providers").toList()[0].toMap();
+        QCOMPARE(persisted, fixed);
+        QCOMPARE(loaded.providers()[0].toMap(), fixed);
+        auto custom           = fixed;
+        custom["nativeInput"] = false;
+        custom["options"]     = R"({"upscale_factor":3,"face_enhancement":false})";
+        QVERIFY(!loaded.saveProvider(custom).isEmpty());
+        QVERIFY(!loaded.provider("custom-upscale").value("nativeInput").toBool());
+        const auto options =
+            QJsonDocument::fromJson(
+                loaded.provider("custom-upscale").value("options").toString().toUtf8())
+                .object();
+        QCOMPARE(options.value("upscale_factor").toInt(), 3);
+        QVERIFY(!options.value("face_enhancement").toBool());
+        QCOMPARE(credentials->reads, 0);
+    }
+    void identityImagePreservesColors_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::addColumn<bool>("p3");
+        QTest::addColumn<bool>("original");
+        for (int bits : {8, 16})
+            for (bool p3 : {false, true})
+                for (bool original : {false, true})
+                    QTest::newRow(qPrintable(QString("%1-%2-%3").arg(bits).arg(p3).arg(original)))
+                        << bits << p3 << original;
+    }
+    void identityImagePreservesColors()
+    {
+        QFETCH(int, bits);
+        QFETCH(bool, p3);
+        QFETCH(bool, original);
+        const auto cancel = std::make_shared<std::atomic_bool>(false);
+        QImage     palette(32, 24, bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+        palette.setColorSpace(p3 ? QColorSpace::DisplayP3 : QColorSpace::SRgb);
+        for (int y = 0; y < palette.height(); ++y)
+            for (int x = 0; x < palette.width(); ++x)
+                palette.setPixelColor(x, y,
+                                      QColor::fromRgba64(ushort(1000 + x * 1700),
+                                                         ushort(5000 + y * 2100),
+                                                         ushort(60000 - x * 1200), 65535));
+        const auto expected = palette.convertedToColorSpace(QColorSpace::SRgb);
+        QByteArray bytes;
+        QBuffer    buffer(&bytes);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        QVERIFY(palette.save(&buffer, "PNG"));
+        Document d;
+        d.newDocument(32, 24, false, bits);
+        auto in            = input();
+        in.session         = d.documentSession();
+        const auto initial = PhotoCrap::Ai::prepareResult(in, bytes, bits, cancel);
+        QVERIFY2(initial.error.isEmpty(), qPrintable(initial.error));
+        QString error;
+        QVERIFY(d.insertAiResult(in, initial, {{"provider", "Identity"}}, error));
+        auto future = d.prepareAiInput(false, 16384, cancel, original, true);
+        QTRY_VERIFY_WITH_TIMEOUT(future.isFinished(), 5000);
+        const auto sent = future.result();
+        QVERIFY2(sent.error.isEmpty(), qPrintable(sent.error));
+        const auto echoed = PhotoCrap::Ai::prepareResult(sent, sent.image, bits, cancel);
+        QVERIFY2(echoed.error.isEmpty(), qPrintable(echoed.error));
+        const auto result = echoed.image.region(QRect(0, 0, 32, 24));
+        for (int y = 0; y < 24; ++y)
+            for (int x = 0; x < 32; ++x) {
+                const auto a         = expected.pixelColor(x, y).rgba64();
+                const auto b         = result.pixelColor(x, y).rgba64();
+                const int  tolerance = bits == 16 ? 2 : 257;
+                QVERIFY(qAbs(int(a.red()) - int(b.red())) <= tolerance);
+                QVERIFY(qAbs(int(a.green()) - int(b.green())) <= tolerance);
+                QVERIFY(qAbs(int(a.blue()) - int(b.blue())) <= tolerance);
+                QCOMPARE(b.alpha(), quint16(65535));
+            }
+    }
+    void providerValidationErrorsAreActionableAndPrivate_data()
+    {
+        QTest::addColumn<QByteArray>("body");
+        QTest::addColumn<QString>("expected");
+        QTest::addColumn<bool>("queued");
+        QTest::newRow("fal-queued-422")
+            << QByteArray(
+                   R"({"detail":[{"type":"missing","loc":["body","image_url"],"msg":"Field required","input":{"image_urls":["data:image/png;base64,PRIVATEIMAGE"],"secret":"secret-value"}},{"loc":["body","upscale_factor"],"msg":"Invalid secret-value"}]})")
+            << QString("body.image_url: Field required") << true;
+        QTest::newRow("detail-string")
+            << QByteArray(
+                   R"({"detail":"Invalid image data:image/png;base64,PRIVATEIMAGE secret-value"})")
+            << QString("Invalid image") << false;
+        QTest::newRow("message") << QByteArray(R"({"message":"Model unavailable"})")
+                                 << QString("Model unavailable") << false;
+        QTest::newRow("error-object")
+            << QByteArray(R"({"error":{"message":"Invalid secret-value"}})")
+            << QString("Invalid [clé masquée]") << false;
+    }
+    void providerValidationErrorsAreActionableAndPrivate()
+    {
+        QFETCH(QByteArray, body);
+        QFETCH(QString, expected);
+        QFETCH(bool, queued);
+        Server server;
+        QVERIFY(server.isListening());
+        AiSettings settings(nullptr, false);
+        server.handler = [&](const Request &r) {
+            if (queued && r.method == "POST")
+                return Response{200, json({{"status_url", server.url("/status")},
+                                           {"response_url", server.url("/result")}})};
+            if (queued && r.target == "/status")
+                return Response{200, "{\"status\":\"COMPLETED\"}"};
+            return Response{422, body};
+        };
+        AiImageJob job;
+        QSignalSpy finished(&job, &AiImageJob::finished);
+        auto       p = settings.newProvider("falTopaz");
+        p["url"]     = server.url();
+        job.start(p, "secret-value", "", input());
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 5000);
+        const auto error = finished[0][1].toString();
+        QVERIFY2(error.contains(expected), qPrintable(error));
+        QVERIFY(error.contains("422"));
+        QVERIFY(!error.contains("secret-value"));
+        QVERIFY(!error.contains("PRIVATEIMAGE"));
+        QCOMPARE(server.requests.size(), queued ? 3 : 1);
     }
 };
 QTEST_MAIN(AiImageTest)

@@ -4,6 +4,18 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## À venir
+
+- Ouvrir une image par dépôt sur la zone principale ou l’accueil, en conservant
+  la protection des modifications non enregistrées. Déclarer les images pour
+  « Ouvrir avec PhotoCrap » sur macOS et transmettre le fichier depuis le lanceur
+  Linux. Le dépôt dans la pile conserve son comportement d’import comme calque.
+
+- Importer une ou plusieurs images avec **+ → Importer une image…**, ou les
+  déposer entre les calques avec une ligne d’insertion et défilement aux bords.
+  Chargement asynchrone, RAW et précision 8/16 bits conservés ; lot atomique
+  annulable en une étape. Les images sont centrées sans changer le document.
+
 ## v0.19.0 — 8 novembre 2026
 
 - Retirer le bandeau de marque et le nom d’outil au-dessus des réglages ; masquer

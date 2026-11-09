@@ -6065,4 +6065,19 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Prompt : %1</source><translation>Prompt: %1</translation></message>
     <message><source>IA · %1 · Variante %2/%3</source><translation>AI · %1 · Variant %2/%3</translation></message>
   </context>
+  <context>
+    <name>Document</name>
+    <message><source>Choisissez des fichiers image locaux pris en charge.</source><translation>Choose supported local image files.</translation></message>
+    <message><source>La position d’insertion du calque n’est plus disponible.</source><translation>The layer insertion position is no longer available.</translation></message>
+    <message><source>Importer des images comme calques</source><translation>Import images as layers</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Importer une image…</source><translation>Import an image…</translation></message>
+    <message><source>Importer des images comme calques</source><translation>Import images as layers</translation></message>
+  </context>
+  <context>
+    <name>DocumentImageDropArea</name>
+    <message><source>Déposer pour ouvrir l’image</source><translation>Drop to open the image</translation></message>
+  </context>
 </TS>

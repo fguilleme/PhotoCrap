@@ -185,6 +185,8 @@ Les sections « Disponible » et « Ajouts » ci-dessous constituent l’histori
 
 - [x] Documents raster RVB sRGB 8 ou 16 bits par canal, ouverture/import RAW asynchrone via LibRaw et import d’images. Projets `.pcr` version 9 compatibles en lecture avec les versions 1–8 ; export aplati, avec précision 16 bits conservée en PNG.
 - [x] Calques de pixels, Couleur unie, réglages non destructifs, groupes, écrêtage et 27 modes de fusion avec aperçu au survol.
+- [x] Import d’images depuis le menu **+** des calques et par dépôt de fichiers dans la pile : position indiquée par une ligne, défilement aux bords, plusieurs images en une transaction asynchrone annulable, RAW et précision 8/16 bits.
+- [x] Dépôt d’une image sur le canevas ou l’accueil pour l’ouvrir comme document, avec protection des modifications non enregistrées ; types d’images déclarés pour « Ouvrir avec » sur macOS et argument de fichier transmis par le lanceur Linux.
 - [x] Masques raster : création, peinture, inversion, activation/désactivation, affichage isolé par Alt-clic et copie vers un autre calque par glisser. Alt-clic sur l’œil isole un calque puis restaure les visibilités.
 - [x] Panneaux Histogramme, Navigateur, Couleur, Calques, Couches, Historique et Informations : redimensionnement, repli, déplacement, regroupement en onglets, colonnes, flottants et organisation sauvegardée. Visibilité contrôlée depuis Affichage → Panneaux.
 - [x] Panneau Informations automatique pour les pipettes et la règle : lectures RVB, coordonnées, quatre échantillons, mesures et dimensions. Placement flottant ou ancré conservé.

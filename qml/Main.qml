@@ -263,7 +263,8 @@ ApplicationWindow {
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
-    property bool modalOpen: aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || welcomeDialog.opened || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool modalOpen: welcomeDialog.opened || blockingModalOpen
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -3041,6 +3042,14 @@ ApplicationWindow {
                             viewport.contentY=clampScroll(initialContentY-(mouse.y-pressY),viewport.contentHeight-viewport.height)
                         }
                     }
+                    DocumentImageDropArea {
+                        objectName: "documentImageDropArea"
+                        anchors.fill: viewport
+                        z: 30
+                        document: editor
+                        enabled: !window.blockingModalOpen
+                        onFileDropped: function(file) { window.openNativeDocument(file) }
+                    }
                 }
                 Rectangle {
                     Layout.fillWidth: true; height: editor.tool==="text" ? 54 : 40; color: "#20262e"
@@ -3334,6 +3343,15 @@ ApplicationWindow {
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
                         clip: true; spacing: 5; model: editor.layers
                         ScrollBar.vertical: ScrollBar {}
+                        LayerImageDropArea {
+                            objectName: "layerImageDropArea"
+                            parent: layerList
+                            anchors.fill: parent
+                            z: 20
+                            document: editor
+                            listView: layerList
+                            enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading
+                        }
                         delegate: Rectangle {
                             id: layerDelegate
                             objectName: "layerDelegate"
@@ -3801,7 +3819,14 @@ ApplicationWindow {
 
     DarkMenu {
         id: createLayerMenu
+        objectName: "createLayerMenu"
         DarkMenuItem { text: qsTr("Calque de pixels"); onTriggered: editor.addLayer() }
+        DarkMenuItem {
+            objectName: "importLayerMenuItem"
+            text: qsTr("Importer une image…")
+            enabled: !editor.pixelEditBusy && !editor.rawLoading
+            onTriggered: importLayerDialog.open()
+        }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
@@ -3894,7 +3919,16 @@ ApplicationWindow {
         height: Math.min(580, window.height - 80)
         modal: true
         closePolicy: Popup.CloseOnEscape
-        background: Rectangle { color: "#22272f"; radius: 8; border.color: "#48535f" }
+        background: Rectangle {
+            color: "#22272f"; radius: 8; border.color: "#48535f"
+            DocumentImageDropArea {
+                objectName: "welcomeImageDropArea"
+                anchors.fill: parent
+                document: editor
+                enabled: !window.blockingModalOpen
+                onFileDropped: function(file) { window.openNativeDocument(file) }
+            }
+        }
         contentItem: ColumnLayout {
             spacing: 14
             Label { text: qsTr("Fichiers récents"); color: "#f5f7f9"; font.pixelSize: 18; font.bold: true }
@@ -3974,6 +4008,15 @@ ApplicationWindow {
                 }
             }
         }
+    }
+    FileDialog {
+        id: importLayerDialog
+        objectName: "importLayerDialog"
+        title: qsTr("Importer des images comme calques")
+        fileMode: FileDialog.OpenFiles
+        nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
+                      qsTr("Tous les fichiers (*)")]
+        onAccepted: editor.requestImportLayers(selectedFiles)
     }
     FileDialog {
         id: openDialog; objectName: "openDialog"; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")

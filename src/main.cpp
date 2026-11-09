@@ -43,9 +43,11 @@
 #include "../tests/CropOverlaySmoke.h"
 #include "../tests/CurvesGraphSmoke.h"
 #include "../tests/DisplayPyramidSmoke.h"
+#include "../tests/DocumentDropSmoke.h"
 #include "../tests/FileDialogSmoke.h"
 #include "../tests/HistogramRenderSmoke.h"
 #include "../tests/LassoGuideSmoke.h"
+#include "../tests/LayerImportSmoke.h"
 #include "../tests/LayerStackSmoke.h"
 #include "../tests/LevelsGraphSmoke.h"
 #include "../tests/MeasurementOverlaySmoke.h"
@@ -206,7 +208,7 @@ int main(int argc, char *argv[])
     const auto args  = app.arguments();
     const bool smoke = args.contains("--smoke-test");
 #ifdef PHOTOCRAP_TESTING
-    if (args.contains("--file-dialog-test"))
+    if (args.contains("--file-dialog-test") || args.contains("--layer-import-test"))
         QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
 #endif
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
@@ -403,6 +405,16 @@ int main(int argc, char *argv[])
             }
             if (args.contains("--ai-image-test")) {
                 passed = window && runAiImageSmoke(window, document, aiSettings, aiImages);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--document-drop-test")) {
+                passed = window && runDocumentDropSmoke(window, document);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
+            if (args.contains("--layer-import-test")) {
+                passed = window && runLayerImportSmoke(window, document);
                 app.exit(passed && !qmlWarnings ? 0 : 3);
                 return;
             }

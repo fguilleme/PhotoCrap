@@ -67,7 +67,7 @@ bool Document::newDocument(int _w, int _h, bool _transparent, int _bits)
 QImage Document::readImage(const QString &_path)
 {
     if (RawImageReader::isRawFile(_path)) {
-        const auto result = RawImageReader::read(_path);
+        const auto result = RawImageReader::read(_path, m_backgroundCancel);
         if (result.image.isNull())
             fail(result.error);
         return result.image;

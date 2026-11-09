@@ -1,5 +1,46 @@
 # Validation
 
+## Ouverture d’images par dépôt et depuis le système — 9 novembre 2026
+
+Build local Qt 6.12 et huit suites ciblées réussis : `document_drop_ui`,
+`application_file_open`, `layer_import`, `layer_import_ui`, `document_operations`,
+`operation_progress`, `file_dialog_fallback` et `qml_smoke` (44,87 s).
+
+Le nouveau parcours envoie des événements de dépôt à la fenêtre, ouvre un PNG
+avec ses dimensions et pixels décodés, un JPEG via le point d’entrée natif,
+un PNG 16 bits après confirmation d’abandon, puis un DNG synthétique développé
+par LibRaw. Il vérifie le dépôt sur l’accueil et sa fermeture automatique,
+le refus des URL distantes/dossiers/dépôts multiples sur l’unique document,
+et l’annulation sans changement des pixels ni de l’historique. Le dépôt dans
+la pile reste couvert séparément comme import de calques.
+
+Le test des événements système couvre les `.pcr`, `.jpg` et `.png`, y compris
+la mise en attente avant installation du gestionnaire. Le `Info.plist` généré
+conserve le projet comme type propriétaire et déclare les images en rôle Editor
+avec rang Alternate. Le lanceur Linux reçoit `%f` ; AppRun transmet ses arguments.
+Les sélecteurs de fichiers, opérations asynchrones et le smoke test QML passent
+après ajout du sélecteur d’import à l’état modal partagé. L’actualisation du menu
+Finder « Ouvrir avec » après installation reste gérée par Launch Services ;
+le test local ne modifie aucune association par défaut de l’utilisateur.
+
+## Import d’images dans la pile de calques — 8 novembre 2026
+
+Build local Qt 6.12 réussi. Les six suites ciblées `layer_import`,
+`layer_import_ui`, `document_operations`, `operation_progress`,
+`file_dialog_fallback` et `qml_smoke` passent (43,14 s au total).
+
+Le moteur vérifie l’insertion en début/milieu/fin de pile, les pixels et la
+transparence en 8/16 bits, la promotion de profondeur, le centrage, les groupes,
+le développement d’un DNG synthétique et l’annulation/rétablissement. Un fichier
+corrompu après un fichier valide n’ajoute aucun calque et conserve l’historique ;
+une opération annulée avant son démarrage ne publie rien.
+
+Le parcours d’interface envoie de vrais événements de dépôt de fichiers à la
+fenêtre : insertion avant le premier calque, dépôt multiple, insertion après
+le dernier et disparition de la ligne au dépôt. Il vérifie que le nouveau
+composant ignore les glissements de masques, puis ouvre le sélecteur depuis
+le menu **+**, clique sur un fichier chargé et valide son ajout comme calque.
+
 ## Barre d’outils compacte — v0.19.0
 
 Le build et `qml_smoke` passent après retrait du bandeau de marque. Le parcours

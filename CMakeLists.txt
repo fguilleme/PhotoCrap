@@ -58,6 +58,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/DocumentLayerImport.cpp
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
@@ -275,6 +276,9 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/PatchMeshTest.cpp
     tests/ToneRenderSmoke.h
     tests/LayerStackSmoke.h
+    tests/LayerImportSmoke.h
+    tests/DocumentDropSmoke.h
+    tests/LayerImportTest.cpp
     tests/PreviewRenderWait.h
     tests/SpatialRenderSmoke.h
     tests/PresetPreviewSmoke.h
@@ -395,6 +399,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/DocumentLayerImport.cpp
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
@@ -671,6 +676,8 @@ qt_add_qml_module(PhotoCrap
         qml/TrashIcon.qml
         qml/ContextMenuItem.qml
         qml/LayerContextMenu.qml
+        qml/LayerImageDropArea.qml
+        qml/DocumentImageDropArea.qml
         qml/MaskContextMenu.qml
         qml/DarkMenu.qml
         qml/DarkMenuItem.qml
@@ -896,6 +903,15 @@ if(BUILD_TESTING)
     add_test(NAME ai_images COMMAND photocrap_ai_tests)
     set_tests_properties(ai_images PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+    qt_add_executable(photocrap_layer_import_tests tests/LayerImportTest.cpp)
+    target_link_libraries(photocrap_layer_import_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME layer_import COMMAND photocrap_layer_import_tests)
+    add_test(NAME layer_import_ui COMMAND PhotoCrap --smoke-test --layer-import-test)
+    add_test(NAME document_drop_ui COMMAND PhotoCrap --smoke-test --document-drop-test)
+    set_tests_properties(document_drop_ui PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 40)
+    set_tests_properties(layer_import layer_import_ui PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 40)
     qt_add_executable(photocrap_layer_merge_tests tests/LayerMergeTest.cpp)
     target_link_libraries(photocrap_layer_merge_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME layer_merge COMMAND photocrap_layer_merge_tests)

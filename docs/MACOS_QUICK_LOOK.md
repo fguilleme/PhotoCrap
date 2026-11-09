@@ -10,6 +10,14 @@ Le type de document `org.photocrap.project` permet aussi d’ouvrir le projet
 dans PhotoCrap depuis le Finder ou le bouton **Ouvrir** de Quick Look.
 L’application conserve sa vérification des modifications non enregistrées.
 
+PhotoCrap déclare aussi JPEG, PNG, TIFF, BMP, GIF, WebP et les types RAW dans
+**Ouvrir avec**. Ces images utilisent le lecteur normal de l’éditeur, pas les
+extensions Quick Look des projets. Leur déclaration utilise
+[`LSHandlerRank = Alternate`](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundledocumenttypes/lshandlerrank),
+ce qui indique une application secondaire ; aucune préférence d’ouverture par
+défaut n’est écrite par PhotoCrap. Installer/lancer la nouvelle application
+permet à macOS de prendre en compte ses types de documents.
+
 ## Utilisation
 
 Installer la nouvelle application dans Applications, puis la lancer une fois.

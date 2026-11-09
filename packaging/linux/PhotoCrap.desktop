@@ -2,9 +2,9 @@
 Type=Application
 Name=PhotoCrap
 Comment=Layer-based image editor
-Exec=PhotoCrap
+Exec=PhotoCrap %f
 Icon=PhotoCrap
 Categories=Graphics;RasterGraphics;Photography;
 Terminal=false
 StartupNotify=true
-MimeType=image/png;image/jpeg;image/webp;image/bmp;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/tiff;image/gif;

@@ -19,6 +19,19 @@
   <key>LSHandlerRank</key><string>Owner</string>
   <key>LSItemContentTypes</key><array><string>org.photocrap.project</string></array>
   <key>CFBundleTypeIconFile</key><string>PhotoCrap.icns</string>
+</dict><dict>
+  <key>CFBundleTypeName</key><string>Image</string>
+  <key>CFBundleTypeRole</key><string>Editor</string>
+  <key>LSHandlerRank</key><string>Alternate</string>
+  <key>LSItemContentTypes</key><array>
+    <string>public.jpeg</string>
+    <string>public.png</string>
+    <string>public.tiff</string>
+    <string>com.microsoft.bmp</string>
+    <string>com.compuserve.gif</string>
+    <string>org.webmproject.webp</string>
+    <string>public.camera-raw-image</string>
+  </array>
 </dict></array>
 <key>UTExportedTypeDeclarations</key><array><dict>
   <key>UTTypeIdentifier</key><string>org.photocrap.project</string>

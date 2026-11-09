@@ -1136,6 +1136,8 @@ public:
                         const QVariantMap &_metadata, QString &_error);
 
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
+    Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;
+    Q_INVOKABLE void    requestImportLayers(const QList<QUrl> &_urls, int _insertion = -1);
     Q_INVOKABLE bool isRawFile(const QUrl &_url) const;
     Q_INVOKABLE QString rawFilePatterns() const;
     Q_INVOKABLE bool    openRawFile(const QUrl &_url, bool _asLayer = false);

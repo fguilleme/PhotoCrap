@@ -34,7 +34,20 @@ L’interface peut indiquer **Clé enregistrée** à partir d’un indicateur no
 les anciens profils sont vérifiés au premier lancement de génération. Laisser
 le champ vide conserve la clé existante.
 Les variables d’environnement (`OPENAI_API_KEY`, `FAL_KEY` par défaut) restent
-une alternative, visible dans le statut du fournisseur.
+une alternative, visible dans le statut du fournisseur. Une clé enregistrée pour le profil
+est prioritaire sur sa variable d’environnement, y compris après un redémarrage.
+Le champ indique lorsqu’une nouvelle clé attend encore son enregistrement ; pendant
+la sauvegarde, le formulaire est verrouillé jusqu’au résultat du trousseau.
+
+Les profils **fal.ai** utilisant le même serveur peuvent réutiliser une clé déjà
+enregistrée : par exemple, Real-ESRGAN retrouve celle du profil FLUX. L’interface
+indique **Clé partagée** et le nom du profil source. Le même mécanisme existe entre
+profils OpenAI du même endpoint. Une clé propre au profil reste prioritaire, puis
+sa variable d’environnement. S’il existe plusieurs profils porteurs d’une clé pour
+le même service, renseigner explicitement celle du profil choisi pour éviter toute
+ambiguïté de compte. Aucun partage n’a lieu entre OpenAI et fal.ai, entre serveurs
+différents, ou pour les serveurs ComfyUI/API compatibles. La clé partagée reste liée
+au profil source ; supprimer sa clé la retire donc aussi aux profils qui la réutilisent.
 
 Sur macOS, les builds actuelles sont signées ad hoc : leur identité est liée
 au hash du binaire et change après recompilation. Le système peut donc redemander
@@ -45,7 +58,8 @@ Le correctif n’élargit pas les permissions du trousseau et n’effectue aucun
 nouvel essai automatique après un refus.
 
 La suppression du fournisseur ou la modification de son adresse/protocole supprime
-sa clé enregistrée. Les identifiants sont liés à l’UUID du profil et à son endpoint.
+sa clé enregistrée. Une modification purement équivalente de l’adresse (barre finale,
+majuscules de l’hôte ou port HTTPS 443) conserve la clé. Les identifiants sont liés à l’UUID du profil et à son endpoint.
 Les téléchargements d’images externes ne reçoivent pas la clé du fournisseur.
 **Options avancées → Supprimer la clé enregistrée** permet de l’effacer séparément.
 Si le trousseau est indisponible ou verrouillé, l’interface affiche l’erreur ; aucun
@@ -82,7 +96,8 @@ omis ; `num_images` n’est plus injecté pour ces traitements. Les profils Open
 et compatibles conservent le prompt obligatoire de leur protocole d’édition.
 
 1. Dans **Réglages → IA → +**, choisir **fal.ai · Topaz Upscale Precision**.
-2. Renseigner la clé fal.ai dans le trousseau ou via `FAL_KEY`, puis enregistrer.
+2. Utiliser la clé partagée d’un profil fal.ai existant, ou renseigner une clé propre
+   au profil dans le trousseau ou via `FAL_KEY`, puis enregistrer.
 3. Dans **Créer avec l’IA…**, sélectionner ce profil. Le modèle Topaz et le facteur
    d’agrandissement (×1 à ×4, avec valeurs intermédiaires) se règlent dans le dialogue.
 4. Après une génération IA, sélectionner son calque : la source **Calque actif ·
@@ -126,7 +141,8 @@ Comme Topaz, ce profil sélectionne les pixels IA d’origine du calque lorsqu�
 sont disponibles. La destination permet soit un nouveau calque avec son placement et son masque,
 soit un nouveau document à la résolution native de la sortie (proposé par défaut). Les limites locales de sortie et
 le facteur proposé ×1–×4 sont vérifiés avant envoi. La clé fal.ai se configure
-pour ce nouveau profil dans le trousseau ou via `FAL_KEY`.
+pour ce nouveau profil dans le trousseau ou via `FAL_KEY`, ou se retrouve depuis
+un unique profil fal.ai du même serveur portant déjà une clé.
 
 Ce choix est une alternative à comparer sur la même image, sans garantie de
 supériorité ou de fidélité colorimétrique : Real-ESRGAN peut aussi modifier les

@@ -57,7 +57,7 @@ ListView {
                     if (modelData.kind === "comfy")
                         return qsTr("ComfyUI · Local");
                     const source = list.settings.keySource(modelData.id);
-                    return source === "stored" ? qsTr("Clé enregistrée") : source === "environment" ? qsTr("Clé via environnement") : modelData.kind === "compatible" ? qsTr("Serveur compatible") : qsTr("Clé à renseigner");
+                    return source === "shared" ? qsTr("Clé partagée · %1").arg(list.settings.sharedKeyName(modelData.id)) : source === "stored" ? qsTr("Clé enregistrée") : source === "environment" ? qsTr("Clé via environnement") : modelData.kind === "compatible" ? qsTr("Serveur compatible") : qsTr("Clé à renseigner");
                 }
                 font.pixelSize: 11
                 color: "#a9b8b0"

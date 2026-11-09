@@ -6166,4 +6166,14 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>%1 — Upscale</source><translation>%1 — Upscale</translation></message>
     <message><source>%1 — IA</source><translation>%1 — AI</translation></message>
   </context>
+  <context>
+    <name>AiPreferences</name>
+    <message><source>Enregistrement de la clé…</source><translation>Saving API key…</translation></message>
+    <message><source>Clé saisie, pas encore enregistrée. Cliquez sur Enregistrer.</source><translation>Key entered, not saved yet. Click Save.</translation></message>
+    <message><source>Clé du même service : « %1 ».</source><translation>Key from the same service: “%1”.</translation></message>
+  </context>
+  <context>
+    <name>AiProviderList</name>
+    <message><source>Clé partagée · %1</source><translation>Shared key · %1</translation></message>
+  </context>
 </TS>

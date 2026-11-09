@@ -152,6 +152,7 @@ ColumnLayout {
                     }
                     AiActionButton {
                         objectName: "aiAddProvider"
+                        enabled: !panel.settings.credentialsBusy
                         text: "+"
                         implicitWidth: 32
                         onClicked: addMenu.popup()
@@ -159,6 +160,7 @@ ColumnLayout {
                 }
                 AiProviderList {
                     id: providerList
+                    enabled: !panel.settings.credentialsBusy
                     objectName: "aiProviderList"
                     settings: panel.settings
                     Layout.fillWidth: true
@@ -196,6 +198,7 @@ ColumnLayout {
                 }
                 ScrollView {
                     id: form
+                    enabled: !panel.settings.credentialsBusy
                     objectName: "aiProviderForm"
                     visible: panel.providerId.length > 0
                     Layout.fillWidth: true
@@ -266,6 +269,7 @@ ColumnLayout {
                             }
                         }
                         Label {
+                            objectName: "aiApiKeyStatus"
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             font.pixelSize: 11
@@ -273,6 +277,10 @@ ColumnLayout {
                             text: {
                                 const revision = panel.settings.revision;
                                 const source = panel.settings.keySource(panel.providerId);
+                                if (apiKey.text.trim().length)
+                                    return panel.settings.credentialsBusy ? qsTr("Enregistrement de la clé…") : qsTr("Clé saisie, pas encore enregistrée. Cliquez sur Enregistrer.");
+                                if (source === "shared")
+                                    return qsTr("Clé du même service : « %1 ».").arg(panel.settings.sharedKeyName(panel.providerId));
                                 return source === "stored" ? qsTr("Clé enregistrée dans le trousseau sécurisé.") : source === "environment" ? qsTr("Clé fournie par la variable d’environnement.") : source === "unloaded" ? qsTr("Une clé déjà enregistrée sera chargée uniquement à la génération.") : panel.providerKind === "comfy" || panel.providerKind === "compatible" ? qsTr("Facultative pour un serveur local sans authentification.") : qsTr("La clé sera conservée dans le trousseau sécurisé du système.");
                             }
                         }

@@ -201,5 +201,31 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
                  "Real-ESRGAN defaults to x2 photo model and native AI source without prompt"))
         return false;
     QMetaObject::invokeMethod(dialog, "reject");
+    auto sharedEdit      = _settings.newProvider("fal");
+    sharedEdit["name"]   = "Saved fal test profile";
+    sharedEdit["keyEnv"] = "";
+    const auto sharedId  = _settings.saveProvider(sharedEdit);
+    _settings.saveKey(sharedId, "shared-ui-dummy");
+    QTest::qWait(30);
+    auto sharedUpscale      = _settings.provider(esrganId);
+    sharedUpscale["keyEnv"] = "";
+    _settings.saveProvider(sharedUpscale);
+    QMetaObject::invokeMethod(dialog, "settingsRequested");
+    QMetaObject::invokeMethod(panel, "selectProvider", Q_ARG(QVariant, QVariant(esrganId)));
+    QTest::qWait(30);
+    auto *keyStatus = _window->findChild<QObject *>("aiApiKeyStatus");
+    if (!require(_settings.keySource(esrganId) == "shared" && keyStatus &&
+                     keyStatus->property("text").toString().contains("Saved fal test profile") &&
+                     key->property("text").toString().isEmpty(),
+                 "upscale displays the saved key source without exposing its secret"))
+        return false;
+    key->setProperty("text", "unsaved-ui-dummy");
+    if (!require(keyStatus->property("text").toString().contains("Enregistrer") ||
+                     keyStatus->property("text").toString().contains("Save"),
+                 "a typed key is marked as awaiting explicit saving"))
+        return false;
+    key->setProperty("text", "");
+    QMetaObject::invokeMethod(preferences, "close");
+    QMetaObject::invokeMethod(dialog, "reject");
     return runAiProgressSmoke(_window);
 }

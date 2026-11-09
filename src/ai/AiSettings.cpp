@@ -23,6 +23,17 @@ void store(QVariantList &_items, const QVariantMap &_item)
         }
     _items.append(_item);
 }
+QUrl canonicalEndpoint(const QVariant &_value)
+{
+    auto url = QUrl(_value.toString().trimmed())
+                   .adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash);
+    if (url.path() == "/")
+        url.setPath({});
+    if ((url.scheme() == "https" && url.port() == 443) ||
+        (url.scheme() == "http" && url.port() == 80))
+        url.setPort(-1);
+    return url;
+}
 } // namespace
 AiSettings::AiSettings(QObject *_parent, bool _persist,
                        std::shared_ptr<AiCredentialStore> _credentials)
@@ -183,6 +194,7 @@ void AiSettings::persist()
         QSettings settings;
         settings.setValue("ai/providers", m_providers);
         settings.setValue("ai/prompts", m_prompts);
+        settings.sync();
     }
     notifyChanged();
 }
@@ -242,6 +254,9 @@ QString AiSettings::saveProvider(QVariantMap _provider)
         return {};
     }
     const auto previous = provider(clean["id"].toString());
+    if (!previous.isEmpty() && previous.value("kind") == clean.value("kind") &&
+        canonicalEndpoint(previous.value("url")) == canonicalEndpoint(clean.value("url")))
+        clean["url"] = previous.value("url"); // Preserve existing keychain account identifiers.
     if (!previous.isEmpty() && (previous.value("url") != clean.value("url") ||
                                 previous.value("kind") != clean.value("kind"))) {
         eraseCredential(credentialAccount(clean["id"].toString()));
@@ -318,15 +333,51 @@ QString AiSettings::credentialAccount(const QString &_id) const
 }
 void AiSettings::storedKeyHint(const QString &_account, bool _stored)
 {
+    QSettings settings;
+    if (m_persist) {
+        settings.sync();
+        const auto accounts = settings.value("ai/credentialAccounts").toStringList();
+        m_storedAccounts    = QSet<QString>(accounts.begin(), accounts.end());
+    }
     if (_stored)
         m_storedAccounts.insert(_account);
     else
         m_storedAccounts.remove(_account);
-    if (m_persist)
-        QSettings().setValue("ai/credentialAccounts", m_storedAccounts.values());
+    if (m_persist) {
+        settings.setValue("ai/credentialAccounts", m_storedAccounts.values());
+        settings.sync();
+    }
 }
 void AiSettings::resolveKey(const QString &_id, QObject *_receiver,
                             AiCredentialStore::Callback _finished)
+{
+    const auto account  = credentialAccount(_id);
+    const auto version  = m_keyVersions.value(_id);
+    const auto complete = [this, _id, account, version, receiver = QPointer<QObject>(_receiver),
+                           finished = std::move(_finished)](const QString &value,
+                                                            const QString &error) {
+        if (!receiver)
+            return;
+        if (provider(_id).isEmpty() || credentialAccount(_id) != account ||
+            m_keyVersions.value(_id) != version)
+            finished({}, tr("Le fournisseur IA a changé."));
+        else
+            finished(value, error);
+    };
+    resolveOwnKey(_id, _receiver,
+                  [this, _id, receiver = QPointer<QObject>(_receiver),
+                   complete](const QString &value, const QString &error) {
+                      if (!receiver)
+                          return;
+                      const auto shared = sharedKeyProvider(_id);
+                      if (!value.isEmpty() || !error.isEmpty() || shared.isEmpty())
+                          complete(value, error);
+                      else
+                          resolveOwnKey(shared, receiver, complete);
+                  });
+}
+void AiSettings::resolveOwnKey(const QString &_id, QObject *_receiver,
+                               AiCredentialStore::Callback _finished)
 {
     const auto complete = [receiver = QPointer<QObject>(_receiver),
                            finished = std::move(_finished)](const QString &value,
@@ -339,8 +390,9 @@ void AiSettings::resolveKey(const QString &_id, QObject *_receiver,
         return;
     }
     const auto account = credentialAccount(_id);
-    const auto cached  = key(_id);
-    if (!cached.isEmpty() || m_resolvedAccounts.contains(account)) {
+    const auto cached  = ownKey(_id);
+    if (m_keys.contains(_id) || m_resolvedAccounts.contains(account) ||
+        (!cached.isEmpty() && !m_storedAccounts.contains(account))) {
         complete(cached, {});
         return;
     }
@@ -370,7 +422,7 @@ void AiSettings::resolveKey(const QString &_id, QObject *_receiver,
                 if (!error.isEmpty())
                     m_error = tr("Impossible d’accéder au trousseau : %1").arg(error);
             }
-            const auto resolved = current ? key(_id) : QString{};
+            const auto resolved = current && error.isEmpty() ? ownKey(_id) : QString{};
             notifyChanged();
             for (const auto &request : requests) {
                 const bool unchanged = current && !provider(_id).isEmpty() &&
@@ -435,15 +487,24 @@ QString AiSettings::keySource(const QString &_id) const
 {
     if (m_keys.contains(_id))
         return "stored";
-    if (!key(_id).isEmpty())
-        return "environment";
     const auto account = credentialAccount(_id);
     if (m_storedAccounts.contains(account))
         return "stored";
+    if (!ownKey(_id).isEmpty())
+        return "environment";
+    if (!sharedKeyProvider(_id).isEmpty())
+        return "shared";
     return !provider(_id).isEmpty() && !m_resolvedAccounts.contains(account) ? "unloaded"
                                                                              : QString{};
 }
 QString AiSettings::key(const QString &_id) const
+{
+    const auto own = ownKey(_id);
+    return !own.isEmpty() || m_storedAccounts.contains(credentialAccount(_id))
+               ? own
+               : m_keys.value(sharedKeyProvider(_id));
+}
+QString AiSettings::ownKey(const QString &_id) const
 {
     if (m_keys.contains(_id))
         return m_keys.value(_id);
@@ -452,7 +513,33 @@ QString AiSettings::key(const QString &_id) const
 }
 bool AiSettings::hasKey(const QString &_id) const
 {
-    return !key(_id).isEmpty() || m_storedAccounts.contains(credentialAccount(_id));
+    return !ownKey(_id).isEmpty() || m_storedAccounts.contains(credentialAccount(_id)) ||
+           !sharedKeyProvider(_id).isEmpty();
+}
+QString AiSettings::sharedKeyProvider(const QString &_id) const
+{
+    const auto current = provider(_id);
+    const auto kind    = current.value("kind").toString();
+    if (kind != "fal" && kind != "openai")
+        return {};
+    QString candidate;
+    for (const auto &entry : m_providers) {
+        const auto other   = entry.toMap();
+        const auto otherId = other.value("id").toString();
+        if (otherId == _id || other.value("kind") != kind ||
+            canonicalEndpoint(other.value("url")) != canonicalEndpoint(current.value("url")) ||
+            (!m_keys.contains(otherId) && !m_storedAccounts.contains(credentialAccount(otherId))))
+            continue;
+        // Multiple accounts on the same service require an explicit choice of key.
+        if (!candidate.isEmpty())
+            return {};
+        candidate = otherId;
+    }
+    return candidate;
+}
+QString AiSettings::sharedKeyName(const QString &_id) const
+{
+    return provider(sharedKeyProvider(_id)).value("name").toString();
 }
 QString AiSettings::defaultWorkflow()
 {

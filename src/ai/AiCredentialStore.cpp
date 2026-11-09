@@ -20,7 +20,9 @@ class NativeStore final : public AiCredentialStore
                 if constexpr (std::is_same_v<Job, QKeychain::ReadPasswordJob>)
                     if (!error)
                         data = _job->textData();
-                _finished(data, error == QKeychain::NoError || error == QKeychain::EntryNotFound
+                const bool missingAllowed = !std::is_same_v<Job, QKeychain::WritePasswordJob>;
+                _finished(data, error == QKeychain::NoError ||
+                                        (missingAllowed && error == QKeychain::EntryNotFound)
                                     ? QString{}
                                     : _job->errorString());
             });

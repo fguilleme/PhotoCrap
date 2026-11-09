@@ -49,6 +49,7 @@ public:
     Q_INVOKABLE void        saveKey(const QString &_id, const QString &_key);
     Q_INVOKABLE void        removeKey(const QString &_id);
     Q_INVOKABLE QString     keySource(const QString &_id) const;
+    Q_INVOKABLE QString     sharedKeyName(const QString &_id) const;
     Q_INVOKABLE bool        hasKey(const QString &_id) const;
     QString                 key(const QString &_id) const;
     void resolveKey(const QString &_id, QObject *_receiver, AiCredentialStore::Callback _finished);
@@ -60,6 +61,10 @@ signals:
     void keySaved(const QString &_id, bool _success);
 
 private:
+    QString                            ownKey(const QString &_id) const;
+    QString                            sharedKeyProvider(const QString &_id) const;
+    void                               resolveOwnKey(const QString &_id, QObject *_receiver,
+                                                     AiCredentialStore::Callback _finished);
     void                               notifyChanged();
     void                               storedKeyHint(const QString &_account, bool _stored);
     void                               eraseCredential(const QString &_account);

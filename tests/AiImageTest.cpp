@@ -27,7 +27,7 @@ class CountingCredentials final : public AiCredentialStore
 {
 public:
     QHash<QString, QString> values;
-    QString                 failure;
+    QString                 failure, writeFailure;
     int                     reads = 0;
     void                    read(const QString &id, QObject *receiver, Callback finished) override
     {
@@ -38,8 +38,10 @@ public:
     void write(const QString &id, const QString &value, QObject *receiver,
                Callback finished) override
     {
-        values[id] = value;
-        QTimer::singleShot(0, receiver, [=] { finished({}, {}); });
+        const auto error = writeFailure;
+        if (error.isEmpty())
+            values[id] = value;
+        QTimer::singleShot(0, receiver, [=] { finished({}, error); });
     }
     void remove(const QString &id, QObject *receiver, Callback finished) override
     {
@@ -272,6 +274,190 @@ private slots:
         AiSettings removed(nullptr, true, credentials);
         QTRY_VERIFY(!removed.credentialsBusy());
         QVERIFY(!removed.hasKey(id));
+    }
+    void savedKeysTakePriorityOverEnvironmentAfterRestart()
+    {
+        QSettings().clear();
+        const QByteArray variable("PHOTOCRAP_TEST_KEY_PRECEDENCE");
+        const auto       previous = qgetenv(variable.constData());
+        const bool       existed  = qEnvironmentVariableIsSet(variable.constData());
+        const auto       restore  = qScopeGuard([&] {
+            if (existed)
+                qputenv(variable.constData(), previous);
+            else
+                qunsetenv(variable.constData());
+        });
+        qputenv(variable.constData(), "environment-dummy");
+        const auto credentials = std::make_shared<CountingCredentials>();
+        QString    id;
+        {
+            AiSettings settings(nullptr, true, credentials);
+            auto       p = settings.newProvider("openai");
+            p["keyEnv"]  = QString::fromLatin1(variable);
+            id           = settings.saveProvider(p);
+            settings.saveKey(id, "saved-dummy");
+            QTRY_VERIFY(!settings.credentialsBusy());
+        }
+        AiSettings reopened(nullptr, true, credentials);
+        QCOMPARE(credentials->reads, 0);
+        QCOMPARE(reopened.keySource(id), QString("stored"));
+        bool done = false;
+        reopened.resolveKey(id, this, [&](const QString &value, const QString &error) {
+            QCOMPARE(value, QString("saved-dummy"));
+            QVERIFY(error.isEmpty());
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QCOMPARE(credentials->reads, 1);
+    }
+    void upscaleReusesOneSavedKeyFromTheSameService()
+    {
+        QSettings().clear();
+        const auto credentials = std::make_shared<CountingCredentials>();
+        QString    edit, upscale;
+        {
+            AiSettings saved(nullptr, true, credentials);
+            auto       p = saved.newProvider("fal");
+            p["keyEnv"]  = "";
+            edit         = saved.saveProvider(p);
+            saved.saveKey(edit, "fal-dummy");
+            QTRY_VERIFY(!saved.credentialsBusy());
+            p           = saved.newProvider("falEsrgan");
+            p["keyEnv"] = "";
+            p["url"]    = "https://queue.fal.run:443/";
+            upscale     = saved.saveProvider(p);
+        }
+        AiSettings reopened(nullptr, true, credentials);
+        QVERIFY(reopened.hasKey(upscale));
+        QCOMPARE(reopened.keySource(upscale), QString("shared"));
+        QCOMPARE(reopened.sharedKeyName(upscale), reopened.provider(edit)["name"].toString());
+        QCOMPARE(credentials->reads, 0);
+        bool done = false;
+        reopened.resolveKey(upscale, this, [&](const QString &value, const QString &error) {
+            QCOMPARE(value, QString("fal-dummy"));
+            QVERIFY(error.isEmpty());
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QCOMPARE(reopened.key(upscale), QString("fal-dummy"));
+        auto changed   = reopened.provider(upscale);
+        changed["url"] = "https://different.example";
+        QVERIFY(!reopened.saveProvider(changed).isEmpty());
+        QVERIFY(!reopened.hasKey(upscale));
+        changed["url"]        = "https://queue.fal.run";
+        changed["kind"]       = "openai";
+        changed["promptMode"] = "required";
+        QVERIFY(!reopened.saveProvider(changed).isEmpty());
+        QVERIFY(!reopened.hasKey(upscale));
+    }
+    void sharedKeysNeverOverrideAnExplicitKeyOrChooseBetweenAccounts()
+    {
+        AiSettings settings(nullptr, false);
+        auto       p     = settings.newProvider("fal");
+        p["keyEnv"]      = "";
+        const auto first = settings.saveProvider(p);
+        settings.setSessionKey(first, "first-dummy");
+        p                 = settings.newProvider("falEsrgan");
+        p["keyEnv"]       = "";
+        const auto target = settings.saveProvider(p);
+        QCOMPARE(settings.keySource(target), QString("shared"));
+        settings.saveKey(target, "explicit-dummy");
+        QTRY_VERIFY(!settings.credentialsBusy());
+        bool done = false;
+        settings.resolveKey(target, this, [&](const QString &value, const QString &error) {
+            QCOMPARE(value, QString("explicit-dummy"));
+            QVERIFY(error.isEmpty());
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        p                = settings.newProvider("fal");
+        p["keyEnv"]      = "";
+        const auto third = settings.saveProvider(p);
+        QVERIFY(!settings.hasKey(third));
+        QVERIFY(settings.sharedKeyName(third).isEmpty());
+    }
+    void cosmeticEndpointEditsPreserveSavedKeys()
+    {
+        AiSettings settings(nullptr, false);
+        auto       p        = settings.newProvider("fal");
+        p["keyEnv"]         = "";
+        const auto id       = settings.saveProvider(p);
+        const auto original = settings.provider(id)["url"];
+        settings.saveKey(id, "endpoint-dummy");
+        QTRY_VERIFY(!settings.credentialsBusy());
+        p        = settings.provider(id);
+        p["url"] = "https://QUEUE.FAL.RUN:443/";
+        QVERIFY(!settings.saveProvider(p).isEmpty());
+        QCOMPARE(settings.provider(id)["url"], original);
+        QCOMPARE(settings.key(id), QString("endpoint-dummy"));
+    }
+    void separateSettingsInstancesPreserveBothSavedKeyHints()
+    {
+        QSettings().clear();
+        const auto credentials = memoryAiCredentialStore();
+        AiSettings first(nullptr, true, credentials);
+        auto       p        = first.newProvider("compatible");
+        const auto firstId  = first.saveProvider(p);
+        const auto secondId = first.saveProvider(p);
+        AiSettings second(nullptr, true, credentials);
+        first.saveKey(firstId, "first-dummy");
+        QTRY_VERIFY(!first.credentialsBusy());
+        second.saveKey(secondId, "second-dummy");
+        QTRY_VERIFY(!second.credentialsBusy());
+        AiSettings reopened(nullptr, true, credentials);
+        QCOMPARE(reopened.keySource(firstId), QString("stored"));
+        QCOMPARE(reopened.keySource(secondId), QString("stored"));
+    }
+    void failedKeyWritesDoNotClaimTheKeyIsSaved()
+    {
+        const auto credentials    = std::make_shared<CountingCredentials>();
+        credentials->writeFailure = "Write denied";
+        AiSettings settings(nullptr, false, credentials);
+        auto       p  = settings.newProvider("fal");
+        p["keyEnv"]   = "";
+        const auto id = settings.saveProvider(p);
+        QSignalSpy saved(&settings, &AiSettings::keySaved);
+        settings.saveKey(id, "unsaved-dummy");
+        QTRY_COMPARE(saved.size(), 1);
+        QVERIFY(!saved.first()[1].toBool());
+        QVERIFY(!settings.hasKey(id));
+        QVERIFY(!settings.error().isEmpty());
+    }
+    void sharedUpscaleKeyReachesTheRequestButNotTheImageDownload()
+    {
+        QSettings().clear();
+        Server server;
+        QVERIFY(server.isListening());
+        const auto credentials = memoryAiCredentialStore();
+        QString    upscale;
+        {
+            AiSettings saved(nullptr, true, credentials);
+            auto       p    = provider(saved, server, "fal");
+            p["keyEnv"]     = "";
+            const auto edit = saved.saveProvider(p);
+            saved.saveKey(edit, "shared-fal-dummy");
+            QTRY_VERIFY(!saved.credentialsBusy());
+            p           = saved.newProvider("falEsrgan");
+            p["url"]    = server.url();
+            p["keyEnv"] = "";
+            upscale     = saved.saveProvider(p);
+        }
+        AiSettings settings(nullptr, true, credentials);
+        Document   document;
+        fixture(document);
+        AiImageController controller(&document, &settings);
+        QSignalSpy        added(&controller, &AiImageController::layerAdded);
+        server.handler = [&](const Request &request) {
+            if (request.method == "POST")
+                return Response{200, json({{"image", QJsonObject{{"url", server.url("/image")}}}})};
+            return Response{200, png(), "image/png"};
+        };
+        QVERIFY(controller.generate(upscale, "", false));
+        QTRY_COMPARE_WITH_TIMEOUT(added.size(), 1, 5000);
+        QCOMPARE(server.requests.size(), 2);
+        QVERIFY(server.requests.first().headers.contains("Key shared-fal-dummy"));
+        QVERIFY(!server.requests.last().headers.toLower().contains("authorization:"));
+        QVERIFY(controller.error().isEmpty());
     }
     void credentialsAreLazyCoalescedAndScopedToOneProvider()
     {

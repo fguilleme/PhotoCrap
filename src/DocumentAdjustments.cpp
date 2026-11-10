@@ -11,115 +11,30 @@
 
 void Document::addAdjustmentLayer(const QString &_type)
 {
-    const QMap<QString, QString> names{{"light", tr("Lumière")},
-                                       {"color", tr("Couleur")},
-                                       {"solidColor", tr("Couleur unie")},
-                                       {"brightnessContrast", tr("Luminosité / Contraste")},
-                                       {"levels", tr("Niveaux")},
-                                       {"curves", tr("Courbes")},
-                                       {"exposure", tr("Exposition")},
-                                       {"vibrance", tr("Vibrance")},
-                                       {"hueSaturation", tr("Teinte / Saturation")},
-                                       {"colorBalance", tr("Balance des couleurs")},
-                                       {"blackWhite", tr("Noir et blanc")},
-                                       {"photoFilter", tr("Filtre photo")},
-                                       {"channelMixer", tr("Mélangeur de couches")},
-                                       {"colorLookup", tr("Style colorimétrique (LUT)")},
-                                       {"invert", tr("Négatif")},
-                                       {"posterize", tr("Isohélie")},
-                                       {"threshold", tr("Seuil")},
-                                       {"gradientMap", tr("Courbe de transfert de dégradé")},
-                                       {"selectiveColor", tr("Correction sélective")},
-                                       {"gaussianBlur", tr("Flou gaussien")},
-                                       {"motionBlur", tr("Flou directionnel")},
-                                       {"boxBlur", tr("Flou de boîte")},
-                                       {"unsharpMask", tr("Netteté optimisée")},
-                                       {"highPass", tr("Passe-haut")},
-                                       {"mosaic", tr("Mosaïque")},
-                                       {"noise", tr("Ajout de bruit")}};
-    if (!names.contains(_type) || !validSize(width(), height(), int(m_layers.size()) + 1) ||
+    const auto name = adjustmentName(_type);
+    if (name.isEmpty() || !validSize(width(), height(), int(m_layers.size()) + 1) ||
         !validLayerStorage(width(), height(), 0, hasSelection() ? 1 : 0))
         return;
-    QVariantMap params;
-    if (_type == "solidColor")
-        params = {{"color", QStringLiteral("#000000")}};
-    else if (_type == "color")
-        params = {{"temperature", 0}, {"tint", 0}, {"vibrance", 0}, {"saturation", 0}};
-    else if (_type == "light")
-        params = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
-                  {"shadows", 0},   {"whites", 0},   {"blacks", 0}};
-    else if (_type == "brightnessContrast")
-        params = {{"brightness", 0}, {"contrast", 0}};
-    else if (_type == "levels")
-        params = {{"inputBlack", 0},
-                  {"inputWhite", 255},
-                  {"gamma", 1.},
-                  {"outputBlack", 0},
-                  {"outputWhite", 255}};
-    else if (_type == "curves")
-        params = {{"points", QVariantList{QVariantMap{{"x", 0}, {"y", 0}},
-                                          QVariantMap{{"x", 255}, {"y", 255}}}}};
-    else if (_type == "exposure")
-        params = {{"exposure", 0.}, {"offset", 0.}, {"gamma", 1.}};
-    else if (_type == "vibrance")
-        params = {{"vibrance", 0}, {"saturation", 0}};
-    else if (_type == "hueSaturation")
-        params = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
-    else if (_type == "colorBalance")
-        params = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
-    else if (_type == "selectiveColor")
-        params = PhotoCrap::Filters::defaultSelectiveColorParameters();
-    else if (_type == "blackWhite")
-        params = {{"reds", 40},           {"yellows", 60},
-                  {"greens", 40},         {"cyans", 60},
-                  {"blues", 20},          {"magentas", 80},
-                  {"tintEnabled", false}, {"tintColor", QStringLiteral("#d6aa78")}};
-    else if (_type == "photoFilter")
-        params = {{"preset", 0},
-                  {"color", QStringLiteral("#ec8a00")},
-                  {"useCustomColor", false},
-                  {"density", 25},
-                  {"preserveLuminosity", true}};
-    else if (_type == "channelMixer")
-        params = {{"redRed", 100},       {"redGreen", 0},      {"redBlue", 0},
-                  {"greenRed", 0},       {"greenGreen", 100},  {"greenBlue", 0},
-                  {"blueRed", 0},        {"blueGreen", 0},     {"blueBlue", 100},
-                  {"redConstant", 0},    {"greenConstant", 0}, {"blueConstant", 0},
-                  {"monochrome", false}, {"monoRed", 40},      {"monoGreen", 40},
-                  {"monoBlue", 20},      {"monoConstant", 0}};
-    else if (_type == "colorLookup")
-        params = {{"preset", 0}, {"strength", 100}, {"preserveLuminosity", false}};
-    else if (_type == "posterize")
-        params = {{"levels", 4}};
-    else if (_type == "threshold")
-        params = {{"level", 128}};
-    else if (_type == "gradientMap")
-        params = {{"shadowColor", "#101828"}, {"highlightColor", "#f5d9a8"}};
-    else if (_type == "gaussianBlur" || _type == "boxBlur")
-        params = {{"radius", 8.}};
-    else if (_type == "motionBlur")
-        params = {{"distance", 20.}, {"angle", 0.}};
-    else if (_type == "unsharpMask")
-        params = {{"amount", 100.}, {"radius", 2.}, {"threshold", 0}};
-    else if (_type == "highPass")
-        params = {{"radius", 4.}};
-    else if (_type == "mosaic")
-        params = {{"cellSize", 12}};
-    else if (_type == "noise")
-        params = {{"amount", 8.}};
+    QVariantMap params = adjustmentDefaults(_type);
     endStroke();
     const auto before = snapshot(tr("Nouveau calque de réglage"));
+    const bool fromSelection = hasSelection();
     {
         Layer layer;
-        layer.name           = names.value(_type);
+        layer.name           = name;
         layer.kind           = "adjustment";
         layer.adjustmentType = _type;
         layer.parameters     = params;
         layer.mask           = ImageUtils::uniformMask(hasSelection() ? 0 : 255);
         layer.parameters.insert("_maskDensity", 100.);
         layer.parameters.insert("_maskFeather", 0.);
-        if (hasSelection())
+        if (fromSelection) {
             layer.mask = selectionMask();
+            m_lastSelectionRegion  = m_selectionRegion;
+            m_lastSelectionMask    = m_selectionMask;
+            m_lastSelectionOutline = m_selectionOutline;
+            applySelectionCoverage({});
+        }
         m_layers.insert(++m_active, layer);
         m_editingMask = false;
         selectOnly(m_active);
@@ -130,6 +45,8 @@ void Document::addAdjustmentLayer(const QString &_type)
     // Present a screen-sized result first, then refine the document pixels in
     // the background. Adding a costly filter must never block the QML thread.
     requestPreviewRender(true, true);
+    if (fromSelection)
+        emit selectionChanged();
     emit imageChanged();
 }
 void Document::addFrequencySeparation(qreal _radius)
@@ -310,6 +227,10 @@ void Document::resetAdjustmentLayer()
     else if (type == QStringLiteral("noise"))
         parameters = {{"amount", 8.}};
 
+    for (auto it = m_layers[m_active].parameters.cbegin();
+         it != m_layers[m_active].parameters.cend(); ++it)
+        if (it.key().startsWith("_vector"))
+            parameters[it.key()] = it.value();
     parameters.insert(QStringLiteral("_maskDensity"),
                       m_layers[m_active].parameters.value(QStringLiteral("_maskDensity"), 100.));
     parameters.insert(QStringLiteral("_maskFeather"),
@@ -345,8 +266,21 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
                                        "contrast",  "saturation", "blur",  "sharpen"};
     if (!supported.contains(_filter) || !std::isfinite(_amount) || !editable())
         return;
-    if (m_editingMask || m_layers[m_active].kind != "pixel") {
-        fail(tr("Ce filtre destructif nécessite un calque de pixels."));
+    if (m_editingMask) {
+        const QString type       = _filter == "blur"      ? "gaussianBlur"
+                                   : _filter == "sharpen" ? "unsharpMask"
+                                   : _filter == "brightness" || _filter == "contrast"
+                                       ? "brightnessContrast"
+                                   : _filter == "saturation" ? "hueSaturation"
+                                   : _filter == "grayscale"  ? "blackWhite"
+                                   : _filter == "sepia"      ? "photoFilter"
+                                                             : "invert";
+        auto          parameters = adjustmentDefaults(type);
+        if (_filter == "blur")
+            parameters["radius"] = qBound(0.1, _amount, 100.);
+        else if (_filter == "brightness" || _filter == "contrast" || _filter == "saturation")
+            parameters[_filter] = qBound(-100., _amount, 100.);
+        applyAdjustment(type, parameters);
         return;
     }
     _amount = qBound(-100., _amount, 100.);
@@ -445,4 +379,107 @@ void Document::applyFilter(const QString &_filter, qreal _amount)
         else
             render.template operator()<QRgb>();
     });
+}
+
+QString Document::adjustmentName(const QString &_type) const
+{
+    const QMap<QString, QString> names{{"light", tr("Lumière")},
+                                       {"color", tr("Couleur")},
+                                       {"solidColor", tr("Couleur unie")},
+                                       {"brightnessContrast", tr("Luminosité / Contraste")},
+                                       {"levels", tr("Niveaux")},
+                                       {"curves", tr("Courbes")},
+                                       {"exposure", tr("Exposition")},
+                                       {"vibrance", tr("Vibrance")},
+                                       {"hueSaturation", tr("Teinte / Saturation")},
+                                       {"colorBalance", tr("Balance des couleurs")},
+                                       {"blackWhite", tr("Noir et blanc")},
+                                       {"photoFilter", tr("Filtre photo")},
+                                       {"channelMixer", tr("Mélangeur de couches")},
+                                       {"colorLookup", tr("Style colorimétrique (LUT)")},
+                                       {"invert", tr("Négatif")},
+                                       {"posterize", tr("Isohélie")},
+                                       {"threshold", tr("Seuil")},
+                                       {"gradientMap", tr("Courbe de transfert de dégradé")},
+                                       {"selectiveColor", tr("Correction sélective")},
+                                       {"gaussianBlur", tr("Flou gaussien")},
+                                       {"motionBlur", tr("Flou directionnel")},
+                                       {"boxBlur", tr("Flou de boîte")},
+                                       {"unsharpMask", tr("Netteté optimisée")},
+                                       {"highPass", tr("Passe-haut")},
+                                       {"mosaic", tr("Mosaïque")},
+                                       {"noise", tr("Ajout de bruit")}};
+    return names.value(_type);
+}
+
+QVariantMap Document::adjustmentDefaults(const QString &_type) const
+{
+    QVariantMap params;
+    if (_type == "solidColor")
+        params = {{"color", QStringLiteral("#000000")}};
+    else if (_type == "color")
+        params = {{"temperature", 0}, {"tint", 0}, {"vibrance", 0}, {"saturation", 0}};
+    else if (_type == "light")
+        params = {{"exposure", 0.}, {"contrast", 0}, {"highlights", 0},
+                  {"shadows", 0},   {"whites", 0},   {"blacks", 0}};
+    else if (_type == "brightnessContrast")
+        params = {{"brightness", 0}, {"contrast", 0}};
+    else if (_type == "levels")
+        params = {{"inputBlack", 0},
+                  {"inputWhite", 255},
+                  {"gamma", 1.},
+                  {"outputBlack", 0},
+                  {"outputWhite", 255}};
+    else if (_type == "curves")
+        params = {{"points", QVariantList{QVariantMap{{"x", 0}, {"y", 0}},
+                                          QVariantMap{{"x", 255}, {"y", 255}}}}};
+    else if (_type == "exposure")
+        params = {{"exposure", 0.}, {"offset", 0.}, {"gamma", 1.}};
+    else if (_type == "vibrance")
+        params = {{"vibrance", 0}, {"saturation", 0}};
+    else if (_type == "hueSaturation")
+        params = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
+    else if (_type == "colorBalance")
+        params = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
+    else if (_type == "selectiveColor")
+        params = PhotoCrap::Filters::defaultSelectiveColorParameters();
+    else if (_type == "blackWhite")
+        params = {{"reds", 40},           {"yellows", 60},
+                  {"greens", 40},         {"cyans", 60},
+                  {"blues", 20},          {"magentas", 80},
+                  {"tintEnabled", false}, {"tintColor", QStringLiteral("#d6aa78")}};
+    else if (_type == "photoFilter")
+        params = {{"preset", 0},
+                  {"color", QStringLiteral("#ec8a00")},
+                  {"useCustomColor", false},
+                  {"density", 25},
+                  {"preserveLuminosity", true}};
+    else if (_type == "channelMixer")
+        params = {{"redRed", 100},       {"redGreen", 0},      {"redBlue", 0},
+                  {"greenRed", 0},       {"greenGreen", 100},  {"greenBlue", 0},
+                  {"blueRed", 0},        {"blueGreen", 0},     {"blueBlue", 100},
+                  {"redConstant", 0},    {"greenConstant", 0}, {"blueConstant", 0},
+                  {"monochrome", false}, {"monoRed", 40},      {"monoGreen", 40},
+                  {"monoBlue", 20},      {"monoConstant", 0}};
+    else if (_type == "colorLookup")
+        params = {{"preset", 0}, {"strength", 100}, {"preserveLuminosity", false}};
+    else if (_type == "posterize")
+        params = {{"levels", 4}};
+    else if (_type == "threshold")
+        params = {{"level", 128}};
+    else if (_type == "gradientMap")
+        params = {{"shadowColor", "#101828"}, {"highlightColor", "#f5d9a8"}};
+    else if (_type == "gaussianBlur" || _type == "boxBlur")
+        params = {{"radius", 8.}};
+    else if (_type == "motionBlur")
+        params = {{"distance", 20.}, {"angle", 0.}};
+    else if (_type == "unsharpMask")
+        params = {{"amount", 100.}, {"radius", 2.}, {"threshold", 0}};
+    else if (_type == "highPass")
+        params = {{"radius", 4.}};
+    else if (_type == "mosaic")
+        params = {{"cellSize", 12}};
+    else if (_type == "noise")
+        params = {{"amount", 8.}};
+    return params;
 }

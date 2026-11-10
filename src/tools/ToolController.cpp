@@ -229,8 +229,7 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_strokeBounds    = {};
     } else if (isShapeStrokeTool(m_tool) || m_tool == "text")
         m_strokeBase = toolPlane();
-    if (m_tool == "move" && !m_editingMask &&
-        (m_layers[m_active].kind == "text" || m_layers[m_active].kind == "shape"))
+    if (m_tool == "move" && !m_editingMask)
         m_textMoveParameters = m_layers[m_active].parameters;
     m_drawing       = true;
     m_strokeChanged = false;

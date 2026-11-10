@@ -96,6 +96,10 @@ public:
                                                       _requested);
         } else if (_id.startsWith("composite"))
             image = m_document->displayComposite();
+        else if (_id.startsWith("vectorMask/"))
+            image =
+                m_document->vectorMaskImage(_id.section('/', 1, 1).toInt(),
+                                            _requested.isValid() ? _requested : QSize(180, 120));
         else if (_id.startsWith("mask/"))
             image = m_document->maskImage(_id.section('/', 1, 1).toInt(),
                                           _requested.isValid() ? _requested : QSize(180, 120));

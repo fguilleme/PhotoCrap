@@ -295,6 +295,7 @@ void Document::addLayerMask(bool _revealAll)
     }
     if (hasSelection() && !validLayerStorage(width(), height(), 0, 1))
         return;
+    const bool fromSelection = hasSelection();
     edit(tr("Ajouter un masque de fusion"), [&] {
         QImage mask = ImageUtils::uniformMask(hasSelection() ? (_revealAll ? 0 : 255)
                                                              : (_revealAll ? 255 : 0));
@@ -308,7 +309,15 @@ void Document::addLayerMask(bool _revealAll)
         m_layers[m_active].parameters.insert("_maskDensity", 100.);
         m_layers[m_active].parameters.insert("_maskFeather", 0.);
         m_editingMask = true;
+        if (fromSelection) {
+            m_lastSelectionRegion  = m_selectionRegion;
+            m_lastSelectionMask    = m_selectionMask;
+            m_lastSelectionOutline = m_selectionOutline;
+            applySelectionCoverage({});
+        }
     });
+    if (fromSelection)
+        emit selectionChanged();
 }
 void Document::copyLayerMask(int _sourceIndex, int _targetIndex)
 {

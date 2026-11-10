@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include <QPainter>
 #include <QScopedValueRollback>
@@ -184,8 +185,13 @@ bool Document::penPathToShape()
     finishLayerPreview(tr("Modifier les propriétés du calque"));
     acceptLayerPropertiesSession();
     const auto before = snapshot({});
-    if (!startToolLayer(tr("Forme %1").arg(m_layers.size())))
-        return false;
+    {
+        // Creating a layer emits layersChanged. Keep the source mask proxy until
+        // it has become the new shape, rather than letting that signal remove it.
+        QScopedValueRollback guard(m_syncingPenShape, true);
+        if (!startToolLayer(tr("Forme %1").arg(m_layers.size())))
+            return false;
+    }
     m_strokeCreatedLayer = false;
     m_beforeStroke       = {};
     auto &layer          = m_layers[m_active];
@@ -196,6 +202,7 @@ bool Document::penPathToShape()
     // Convert the selected entry itself, so picking it again edits the painted
     // shape instead of an indistinguishable, disconnected copy of its outline.
     m_penPaths[m_activePenPath].shapeLayerId = layer.historyId;
+    m_penPaths[m_activePenPath].maskLayerId.clear();
     syncPenShapePath(true);
     commit(before, tr("Créer une forme depuis le tracé"));
     return true;
@@ -255,6 +262,18 @@ bool Document::startPenShapeLayer()
 }
 bool Document::updatePenShapeLayer()
 {
+    if (editingVectorMask()) {
+        const int index = m_active;
+        if (!penShapeEditable(index))
+            return false;
+        PhotoCrap::Masks::setVectorPath(m_layers[index], m_penPaths[m_activePenPath], m_size);
+        m_fullCompositeDirty = true;
+        changed(false);
+        ++m_thumbnailRevision;
+        emit thumbnailsChanged();
+        requestPreviewRender(true);
+        return true;
+    }
     if (m_editingMask && m_penMode == "shape")
         return renderMaskPenShape(penShapeStyle());
     const int index = penShapeLayerIndex();
@@ -285,9 +304,14 @@ void Document::syncPenShapePath(bool _activate)
     const bool           shape   = m_active >= 0 && m_active < m_layers.size() &&
                                    m_layers[m_active].kind == "shape" && !m_editingMask;
     const auto           id      = shape ? m_layers[m_active].historyId : QString{};
+    const auto           maskId  = m_active >= 0 && m_active < m_layers.size() && !m_editingMask &&
+                                PhotoCrap::Masks::hasVector(m_layers[m_active])
+                                       ? m_layers[m_active].historyId
+                                       : QString{};
     bool                 changed = false;
     for (int i = int(m_penPaths.size()) - 1; i >= 0; --i)
-        if (!m_penPaths[i].shapeLayerId.isEmpty() && m_penPaths[i].shapeLayerId != id) {
+        if ((!m_penPaths[i].shapeLayerId.isEmpty() && m_penPaths[i].shapeLayerId != id) ||
+            (!m_penPaths[i].maskLayerId.isEmpty() && m_penPaths[i].maskLayerId != maskId)) {
             m_penPaths.removeAt(i);
             if (m_activePenPath == i) {
                 m_activePenPath = -1;
@@ -323,6 +347,23 @@ void Document::syncPenShapePath(bool _activate)
         if (m_activePenPath == index)
             m_penMode = "shape";
     }
+    if (!maskId.isEmpty()) {
+        auto path        = PhotoCrap::Masks::vectorPath(m_layers[m_active]);
+        path.maskLayerId = maskId;
+        path.name        = tr("%1 — Masque vectoriel").arg(m_layers[m_active].name);
+        int index        = -1;
+        for (int i = 0; i < m_penPaths.size(); ++i)
+            if (m_penPaths[i].maskLayerId == maskId)
+                index = i;
+        if (index < 0) {
+            m_penPaths.append(path);
+            index   = int(m_penPaths.size()) - 1;
+            changed = true;
+        } else if (m_penPaths[index] != path) {
+            m_penPaths[index] = path;
+            changed           = true;
+        }
+    }
     if (!m_editingMask && m_activePenPath >= 0 && m_activePenPath < m_penPaths.size())
         m_penMode = m_penPaths[m_activePenPath].shapeLayerId.isEmpty() ? "path" : "shape";
     if (changed)
@@ -348,6 +389,10 @@ void Document::rasterizeShapeLayer()
         const auto density = layer.parameters.value("_maskDensity", 100.);
         const auto feather = layer.parameters.value("_maskFeather", 0.);
         layer.kind         = "pixel";
-        layer.parameters   = {{"_maskDensity", density}, {"_maskFeather", feather}};
+        auto parameters    = QVariantMap{{"_maskDensity", density}, {"_maskFeather", feather}};
+        for (auto it = layer.parameters.cbegin(); it != layer.parameters.cend(); ++it)
+            if (it.key().startsWith("_vector"))
+                parameters[it.key()] = it.value();
+        layer.parameters = parameters;
     });
 }

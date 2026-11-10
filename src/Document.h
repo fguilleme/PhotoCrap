@@ -308,6 +308,8 @@ class Document : public QObject
     Q_PROPERTY(int artHistoryTolerance READ artHistoryTolerance WRITE setArtHistoryTolerance NOTIFY
                    settingsChanged)
     Q_PROPERTY(bool editingMask READ editingMask NOTIFY layersChanged)
+    Q_PROPERTY(bool editingVectorMask READ editingVectorMask NOTIFY layersChanged)
+    Q_PROPERTY(QVariantMap directAdjustmentInfo READ directAdjustmentInfo NOTIFY layersChanged)
 public:
     explicit Document(QObject *_parent = nullptr);
     ~Document() override;
@@ -1198,6 +1200,20 @@ public:
     Q_INVOKABLE void setLayerBlend(int _index, int _blend);
     Q_INVOKABLE void previewLayerBlend(int _index, int _blend);
     Q_INVOKABLE void setClippingMask(bool _enabled);
+    bool                    editingVectorMask() const;
+    Q_INVOKABLE void        addVectorMask();
+    Q_INVOKABLE void        editVectorMask();
+    Q_INVOKABLE void        removeVectorMask();
+    Q_INVOKABLE void        setVectorMaskEnabled(bool _enabled);
+    Q_INVOKABLE void        rasterizeVectorMask();
+    QImage                  vectorMaskImage(int _index, const QSize &_requested = {}) const;
+    Q_INVOKABLE QString     adjustmentName(const QString &_type) const;
+    Q_INVOKABLE QVariantMap adjustmentDefaults(const QString &_type) const;
+    QVariantMap             directAdjustmentInfo() const;
+    Q_INVOKABLE bool        beginDirectAdjustment(const QString &_type);
+    Q_INVOKABLE void        finishDirectAdjustment(bool _apply);
+    Q_INVOKABLE void        setDirectAdjustmentPreview(bool _enabled);
+    Q_INVOKABLE void        applyAdjustment(const QString &_type, const QVariantMap &_parameters);
     Q_INVOKABLE void addLayerMask(bool _revealAll = true);
     Q_INVOKABLE void copyLayerMask(int _sourceIndex, int _targetIndex);
     Q_INVOKABLE void removeLayerMask();
@@ -1897,6 +1913,8 @@ private:
     static QImage mosaicImage(const QImage &_source, int _cellSize, const QPoint &_origin,
                               const QSize &_documentSize);
     static QImage noiseImage(const QImage &_source, qreal _amount, const QPoint &_origin);
+    static QImage     directAdjustedImage(const QImage &_source, const Layer &_layer,
+                                          const QRect &_region);
     static QImage adjustedImage(const QImage &_source, const QString &_type,
                                 const QVariantMap &_parameters, const QPoint &_origin = {},
                                 const QSize &_documentSize = {});

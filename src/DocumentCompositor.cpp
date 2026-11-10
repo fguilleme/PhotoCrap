@@ -1,8 +1,9 @@
 #include "Document.h"
-#include "tools/GradientRaster.h"
 #include "ImageAlpha.h"
 #include "ImageUtils.h"
+#include "masks/VectorMask.h"
 #include "render/LayerVisibility.h"
+#include "tools/GradientRaster.h"
 
 #include <QColorSpace>
 #include <QPainter>
@@ -51,8 +52,16 @@ int effectMargin(const Layer &_layer)
         needsMask(_layer)
             ? qBound(0, qRound(_layer.parameters.value("_maskFeather").toDouble()), 100)
             : 0;
+    const int vectorMargin = PhotoCrap::Masks::vectorEnabled(_layer)
+                                 ? qCeil(_layer.parameters.value("_vectorFeather", 0.).toDouble())
+                                 : 0;
+    const int directMargin =
+        _layer.directType.isEmpty()
+            ? 0
+            : qCeil(_layer.directParameters.value("radius", 0.).toDouble() * 3 +
+                    _layer.directParameters.value("distance", 0.).toDouble());
     if (_layer.kind != QStringLiteral("adjustment"))
-        return maskMargin;
+        return maskMargin + vectorMargin + directMargin;
     const auto radius = [&] {
         return qBound(0, qCeil(_layer.parameters.value("radius").toDouble()), 100);
     };
@@ -69,7 +78,7 @@ int effectMargin(const Layer &_layer)
         const int cell = _layer.parameters.value("cellSize", 12).toInt();
         return maskMargin + (cell > 1 ? qMin(200, cell) + 2 : 0);
     }
-    return maskMargin;
+    return maskMargin + vectorMargin + directMargin;
 }
 
 QRect expanded(const QRect &_region, int _margin, const QRect &_bounds)
@@ -263,11 +272,25 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             rendered = ImageUtils::compact(layer.image)
                            ? ImageUtils::expandedPlane(layer.image, _region.size())
                            : layer.image.region(_region);
-        if (needsMask(layer)) {
+        if (!layer.directType.isEmpty() && !layer.directMask)
+            rendered = directAdjustedImage(rendered, layer, _region);
+        if (layer.maskEnabled && !layer.mask.isNull() && (needsMask(layer) || layer.directMask)) {
             const qreal density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
             const qreal feather = layer.parameters.value("_maskFeather", 0.).toDouble();
             QImage      maskRegion;
-            if (ImageUtils::compact(layer.mask))
+            if (!layer.directType.isEmpty() && layer.directMask) {
+                const int    radius = qBound(0, qRound(feather), 100);
+                const QRect  bounds = expanded(_region, radius, QRect(QPoint{}, m_size));
+                const QImage raw    = ImageUtils::compact(layer.mask)
+                                          ? ImageUtils::expandedPlane(layer.mask, bounds.size())
+                                          : layer.mask.region(bounds);
+                maskRegion          = directAdjustedImage(raw, layer, bounds);
+                if (radius > 0)
+                    maskRegion = blurImage(maskRegion, radius);
+                if (bounds != _region)
+                    maskRegion = maskRegion.copy(
+                        QRect(_region.topLeft() - bounds.topLeft(), _region.size()));
+            } else if (ImageUtils::compact(layer.mask))
                 maskRegion = QImage(layer.mask);
             else if (feather >= .5) {
                 const int    radius     = qBound(1, qRound(feather), 100);
@@ -280,6 +303,19 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             } else
                 maskRegion = layer.mask.region(_region);
             rendered = applyMask(rendered, maskRegion, density, 0);
+        }
+        if (PhotoCrap::Masks::vectorEnabled(layer)) {
+            const int radius =
+                qBound(0, qRound(layer.parameters.value("_vectorFeather", 0.).toDouble()), 100);
+            const QRect bounds   = expanded(_region, radius, QRect(QPoint{}, m_size));
+            auto        coverage = PhotoCrap::Masks::vectorCoverage(layer, m_size, bounds);
+            if (radius > 0)
+                coverage = blurImage(coverage, radius);
+            if (bounds != _region)
+                coverage =
+                    coverage.copy(QRect(_region.topLeft() - bounds.topLeft(), _region.size()));
+            rendered = applyMask(rendered, coverage,
+                                 layer.parameters.value("_vectorDensity", 100.).toDouble() / 100.);
         }
         if (layer.clippingMask) {
             if (clippingBase.isNull())
@@ -358,6 +394,11 @@ QImage Document::displayComposite() const
 {
     if (m_maskOnlyView && m_active >= 0 && m_active < m_layers.size() &&
         !m_layers[m_active].mask.isNull()) {
+        if (!m_layers[m_active].directType.isEmpty() && m_layers[m_active].directMask) {
+            QMutexLocker locker(&m_previewImageMutex);
+            if (!m_previewComposite.isNull())
+                return m_previewComposite;
+        }
         QImage mask = maskImage(m_active).convertToFormat(QImage::Format_RGB32);
         mask.setColorSpace(QColorSpace::SRgb);
         return mask;

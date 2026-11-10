@@ -1,6 +1,7 @@
 #pragma once
 #include "ImageUtils.h"
 #include "Layer.h"
+#include "masks/VectorMask.h"
 #include <QHash>
 #include <QVector>
 
@@ -16,16 +17,17 @@ inline bool uniformMaskValue(const PixelPlane &_mask, int _value)
 
 inline bool needsMask(const Layer &_layer)
 {
-    return _layer.maskEnabled && !_layer.mask.isNull() &&
-           _layer.parameters.value("_maskDensity", 100.).toDouble() > 0 &&
-           !uniformMaskValue(_layer.mask, 255);
+    return Masks::vectorEnabled(_layer) || (!_layer.directType.isEmpty() && _layer.directMask) ||
+           (_layer.maskEnabled && !_layer.mask.isNull() &&
+            _layer.parameters.value("_maskDensity", 100.).toDouble() > 0 &&
+            !uniformMaskValue(_layer.mask, 255));
 }
 
 inline bool contributes(const Layer &_layer)
 {
     if (!_layer.visible || _layer.opacity <= 0)
         return false;
-    if (_layer.maskEnabled && uniformMaskValue(_layer.mask, 0) &&
+    if (_layer.directType.isEmpty() && _layer.maskEnabled && uniformMaskValue(_layer.mask, 0) &&
         _layer.parameters.value("_maskDensity", 100.).toDouble() >= 100.)
         return false;
     // A tiled uniform background can have document dimensions without a single
@@ -48,7 +50,8 @@ inline bool reconstructsFrequencySource(const QVector<Layer> &_layers, qsizetype
         return false;
     const auto &high   = _layers[_index + 1];
     const auto  pairId = low.parameters.value("pairId").toString();
-    return !low.clippingMask && !high.clippingMask &&
+    return !Masks::vectorEnabled(low) && !Masks::vectorEnabled(high) && low.directType.isEmpty() &&
+           high.directType.isEmpty() && !low.clippingMask && !high.clippingMask &&
            (_index + 2 == _layers.size() || !_layers[_index + 2].clippingMask) && high.visible &&
            high.kind == QStringLiteral("frequencyHigh") && !pairId.isEmpty() &&
            high.parameters.value("pairId").toString() == pairId &&

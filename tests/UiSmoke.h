@@ -2332,14 +2332,72 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         return false;
     QMetaObject::invokeMethod(settingsLight, "triggered");
     QTest::qWait(120);
-    if (!require(_document.layers().size() == layersBeforeSettingsAction + 1 &&
-                     _document.layers().first().toMap().value("kind").toString() == "adjustment" &&
+    if (!require(_document.layers().size() == layersBeforeSettingsAction &&
+                     _document.directAdjustmentInfo().value("adjustmentType").toString() ==
+                         "light" &&
                      layerProperties->property("visible").toBool(),
-                 "Settings menu creates an adjustment layer and opens its properties"))
+                 "Settings menu previews a direct adjustment without creating a layer"))
         return false;
     layerProperties->setProperty("keepChanges", true);
     QMetaObject::invokeMethod(layerProperties, "accept");
+    QTest::qWait(80);
+    if (!require(_document.directAdjustmentInfo().isEmpty(), "Apply finishes the direct session"))
+        return false;
+    _document.addLayer();
+    _document.addLayerMask(true);
+    _document.setTool("brush");
+    _document.setBrushSize(35);
+    _document.setBrushHardness(1.);
+    _document.setColor(Qt::black);
+    _document.beginStroke(60, 60);
+    _document.endStroke();
+    const QImage originalMask   = _document.maskImage(_document.activeLayer());
+    const QImage originalPixels = _document.layerImage(_document.activeLayer());
+    auto         gaussian       = _window->findChild<QObject *>("directGaussianBlurMenuItem");
+    if (!require(gaussian, "Filter menu exposes a direct Gaussian blur"))
+        return false;
+    QMetaObject::invokeMethod(gaussian, "triggered");
+    QTest::qWait(80);
+    if (!require(layerProperties->property("visible").toBool() &&
+                     _document.directAdjustmentInfo().value("maskTarget").toBool(),
+                 "Gaussian blur opens for the selected mask"))
+        return false;
+    _document.previewLayerParameter("radius", 5.);
+    QMetaObject::invokeMethod(layerProperties, "reject");
+    QTest::qWait(80);
+    if (!require(_document.maskImage(_document.activeLayer()) == originalMask,
+                 "Cancel restores the native mask"))
+        return false;
+    _document.setTool("select");
+    _document.beginStroke(50, 50);
+    _document.continueStroke(70, 70);
+    _document.endStroke();
+    QMetaObject::invokeMethod(gaussian, "triggered");
+    QTest::qWait(80);
+    _document.previewLayerParameter("radius", 5.);
+    auto scope = _window->findChild<QQuickItem *>("directLimitSelectionCheck");
+    if (!require(scope && scope->isVisible() && scope->property("checked").toBool(),
+                 "An active selection has an explicit checked scope control"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                      scope->mapToScene(QPointF(12, scope->height() / 2)).toPoint());
+    QTest::qWait(80);
+    if (!require(!_document.directAdjustmentInfo()
+                      .value("parameters")
+                      .toMap()
+                      .value("_limitSelection")
+                      .toBool(),
+                 "Unchecking scope changes the preview and final mask target"))
+        return false;
+    layerProperties->setProperty("keepChanges", true);
+    QMetaObject::invokeMethod(layerProperties, "accept");
+    QTest::qWait(80);
+    if (!require(_document.maskImage(_document.activeLayer()) != originalMask &&
+                     _document.layerImage(_document.activeLayer()) == originalPixels,
+                 "Apply changes only the mask, not layer pixels"))
+        return false;
     _document.removeLayer();
+    _document.deselect();
     _document.addAdjustmentLayer("brightnessContrast");
     QMetaObject::invokeMethod(layerProperties, "open");
     QTest::qWait(150);

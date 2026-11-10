@@ -2,6 +2,7 @@
 #include "GradientRaster.h"
 #include "ImageUtils.h"
 #include "SelectionMove.h"
+#include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
@@ -59,6 +60,13 @@ void Document::renderShape(const QPointF &_to)
             }
         } else
             PhotoCrap::Text::transform(parameters, translation);
+        Layer transformed;
+        transformed.parameters = parameters;
+        if (!PhotoCrap::Masks::transformVector(transformed, translation, m_size)) {
+            cancelStroke();
+            return;
+        }
+        parameters = transformed.parameters;
         if (parameters == m_layers[m_active].parameters)
             return;
         auto image = parameters == m_textMoveParameters ? m_strokePlaneBase
@@ -100,6 +108,15 @@ void Document::renderShape(const QPointF &_to)
             cancelStroke();
             fail(tr("Mémoire insuffisante pour déplacer le calque."));
             return;
+        }
+        if (!m_editingMask && !m_textMoveParameters.isEmpty()) {
+            Layer transformed;
+            transformed.parameters = m_textMoveParameters;
+            PhotoCrap::Masks::transformVector(
+                transformed,
+                QTransform::fromTranslate(_to.x() - m_anchor.x(), _to.y() - m_anchor.y()), m_size);
+            m_layers[m_active].parameters = transformed.parameters;
+            syncPenShapePath();
         }
         toolPlane()    = result.image;
         m_dirtyRegion  = m_dirtyRegion.united(m_strokeBounds.toAlignedRect().united(result.region));

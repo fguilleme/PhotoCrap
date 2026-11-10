@@ -2,6 +2,7 @@
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
+#include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include "storage/ScratchImageCache.h"
 
@@ -295,6 +296,9 @@ bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMas
 }
 bool Document::editable(bool _materialize, bool _allowText)
 {
+    if (editingVectorMask())
+        return fail(tr("Modifiez les points du masque vectoriel avec la Plume ou la Sélection "
+                       "directe ; pixellisez-le pour peindre dessus."));
     if (m_active < 0 || m_active >= m_layers.size())
         return false;
     if (m_layers[m_active].locked)
@@ -812,6 +816,9 @@ QVariantList Document::layers() const
                                   {"adjustmentType", l.adjustmentType},
                                   {"parameters", l.parameters},
                                   {"hasMask", !l.mask.isNull()},
+                                  {"hasVectorMask", PhotoCrap::Masks::hasVector(l)},
+                                  {"vectorMaskEnabled", l.parameters.value("_vectorEnabled", true)},
+                                  {"editingVectorMask", i == m_active && editingVectorMask()},
                                   {"maskEnabled", l.maskEnabled},
                                   {"clippingMask", l.clippingMask},
                                   {"groupId", l.groupId},

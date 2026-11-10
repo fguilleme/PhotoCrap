@@ -99,3 +99,14 @@ restent exécutées en arrière-plan.
 [CBOR / RFC 8949](https://www.rfc-editor.org/rfc/rfc8949.html).
 Zstandard est embarqué statiquement avec sa licence BSD ; aucune installation
 de codec système n’est nécessaire.
+
+## Métadonnées des masques vectoriels
+
+Les projets contenant un masque vectoriel utilisent la version logique **14**
+dans l’enveloppe binaire existante. `parameters._vectorMask` contient un tracé
+validé et ses dimensions de référence ; `_vectorEnabled`, `_vectorDensity` et
+`_vectorFeather` conservent les propriétés du masque. Aucun bitmap vectoriel
+pleine image ni aperçu transitoire de réglage direct n’est enregistré.
+Les masques peints gardent leur bloc binaire distinct. Les anciens projets
+restent lisibles ; une ancienne application doit refuser cette nouvelle version
+plutôt qu’afficher un calque sans son masque.

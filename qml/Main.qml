@@ -277,7 +277,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool blockingModalOpen: aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
-    property bool modalOpen: welcomeDialog.opened || blockingModalOpen
+    property bool modalOpen: welcomeDialog.opened || blockingModalOpen || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -377,8 +377,13 @@ ApplicationWindow {
     property int toolbarRevision: 0
     property string toolMenuGroupId: ""
     property var activeInfo: {
+        const direct = editor.directAdjustmentInfo
         const list = editor.layers
-        for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) return list[i]
+        for (let i=0; i<list.length; ++i) if (list[i].layerIndex === editor.activeLayer) {
+            const info = direct.direct ? Object.assign({}, list[i], direct) : Object.assign({}, list[i])
+            if (info.editingVectorMask) info.editingMask = true
+            return info
+        }
         return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false, groupId:"", groupCollapsed:false, selected:false}
     }
     readonly property bool frequencyPrepared: isPreparedFrequency(activeInfo)
@@ -1066,6 +1071,9 @@ ApplicationWindow {
         adjustment = kind; adjustmentTitle = label; adjustmentSlider.value = initial
         adjustmentDialog.open()
     }
+    function openDirectAdjustment(type) {
+        if (editor.beginDirectAdjustment(type)) layerPropertiesDialog.open()
+    }
     function addAdjustmentLayer(type) {
         editor.addAdjustmentLayer(type)
         window.openActiveLayerProperties()
@@ -1095,8 +1103,11 @@ ApplicationWindow {
             editor.finishLayerPreview(qsTr("Modifier %1").arg(activeInfo.name))
         } else if(layerPreview.checked) queueLayerPreview(key,value)
     }
+    property var directPresetBefore: null
     function previewPresetParameters(values) {
         if (!layerPreview.checked) return
+        if (activeInfo.direct && directPresetBefore === null)
+            directPresetBefore = Object.assign({}, activeInfo.parameters)
         cancelLayerPreviewQueue()
         editor.beginLayerPreview()
         for (const key in values)
@@ -1104,6 +1115,14 @@ ApplicationWindow {
     }
     function cancelPresetPreview() {
         cancelLayerPreviewQueue()
+        if (activeInfo.direct) {
+            if (directPresetBefore !== null) {
+                const parameters = directPresetBefore
+                directPresetBefore = null
+                for (const key in parameters) editor.previewLayerParameter(key, parameters[key])
+            }
+            return
+        }
         editor.cancelLayerPreview()
     }
     function requestFlatten() {
@@ -1126,7 +1145,7 @@ ApplicationWindow {
     function setInterfaceLanguage(code) { languages.language=code }
     property bool panelsTemporarilyHidden: false
     property bool toolsTemporarilyHidden: false
-    readonly property var additionalShortcutIds: ["keyboardSettings", "newLayerNoDialog", "preferencesAdobe", "invertSelectionF7", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
+    readonly property var additionalShortcutIds: ["levelsDialog", "curvesDialog", "hueDialog", "colorBalanceDialog", "blackWhiteDialog", "keyboardSettings", "newLayerNoDialog", "preferencesAdobe", "invertSelectionF7", "groupLayers", "ungroupLayers", "clippingMask", "layerUp", "layerDown", "selectLayerUp", "selectLayerDown", "selectTopLayer", "selectBottomLayer", "resizeImage", "invertImage", "zoomIn", "zoomOut", "scrollUp", "scrollDown", "scrollUpFine", "scrollDownFine", "scrollLeftFine", "scrollRightFine", "scrollLeft", "scrollRight", "scrollTopLeft", "scrollBottomRight", "hidePanels", "hideAllPanels", "toggleColorPanel", "toggleLayersPanel", "toggleInfoPanel", "brushSettings", "channel0", "channel1", "channel2", "channel3", "fillDialogF5", "blendNext", "blendPrevious", "blend0", "blend1", "blend2", "blend3", "blend4", "blend5", "blend7", "blend8", "blend9", "blend10", "blend12", "blend13", "blend14", "blend15", "blend16", "blend17", "blend18", "blend19", "blend20", "blend23", "blend24", "blend25", "blend26"]
     function openFillColor() {
         fillingMaskColor = editor.editingMask
         fillingPixelsColor = !editor.editingMask
@@ -1158,6 +1177,11 @@ ApplicationWindow {
     function activateShortcut(id) {
         if (id === "keyboardSettings") { preferencesPage = 0; openPreferences() }
         else if (id === "preferencesAdobe") openPreferences()
+        else if (id === "levelsDialog") openDirectAdjustment("levels")
+        else if (id === "curvesDialog") openDirectAdjustment("curves")
+        else if (id === "hueDialog") openDirectAdjustment("hueSaturation")
+        else if (id === "colorBalanceDialog") openDirectAdjustment("colorBalance")
+        else if (id === "blackWhiteDialog") openDirectAdjustment("blackWhite")
         else if (id === "copyMerged") editor.copyMerged()
         else if (id === "newLayerNoDialog") editor.addLayer()
         else if (id === "invertSelection" || id === "invertSelectionF7") editor.invertSelection()
@@ -1269,6 +1293,11 @@ ApplicationWindow {
     }
     Connections {
         target: editor
+        function onLayersChanged() {
+            if (layerPropertiesDialog.opened && layerPropertiesDialog.directSession &&
+                    !editor.directAdjustmentInfo.direct)
+                layerPropertiesDialog.reject()
+        }
         function onErrorOccurred(message) {
             window.resumeAfterSave=false
             window.saveInFlight=false
@@ -1567,6 +1596,15 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Inverser le masque"); enabled: activeInfo.hasMask; onTriggered: editor.invertLayerMask() }
                 DarkMenuItem { text: qsTr("Supprimer le masque"); enabled: activeInfo.hasMask; onTriggered: editor.removeLayerMask() }
             }
+            DarkMenu {
+                title: qsTr("Masque vectoriel")
+                DarkMenuItem { text: qsTr("Créer depuis le tracé actif"); enabled: editor.activePenPath >= 0 && activeInfo.kind !== "group"; onTriggered: editor.addVectorMask() }
+                DarkMenuItem { text: qsTr("Modifier le tracé"); enabled: activeInfo.hasVectorMask === true; onTriggered: editor.editVectorMask() }
+                DarkMenuItem { text: qsTr("Propriétés…"); enabled: activeInfo.hasVectorMask === true; onTriggered: { editor.editVectorMask(); window.openActiveLayerProperties() } }
+                DarkMenuItem { text: activeInfo.vectorMaskEnabled ? qsTr("Désactiver le masque") : qsTr("Activer le masque"); enabled: activeInfo.hasVectorMask === true; onTriggered: editor.setVectorMaskEnabled(!activeInfo.vectorMaskEnabled) }
+                DarkMenuItem { text: qsTr("Pixelliser le masque"); enabled: activeInfo.hasVectorMask === true && !activeInfo.hasMask; onTriggered: editor.rasterizeVectorMask() }
+                DarkMenuItem { text: qsTr("Supprimer le masque"); enabled: activeInfo.hasVectorMask === true; onTriggered: editor.removeVectorMask() }
+            }
             DarkMenuItem { text: qsTr("Renommer…"); onTriggered: { layerName.text=activeInfo.name; renameDialog.open() } }
             DarkMenuItem { text: qsTr("Propriétés…"); enabled: window.canOpenLayerProperties(activeInfo); onTriggered: window.openActiveLayerProperties() }
             MenuSeparator {}
@@ -1588,22 +1626,35 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Réglages","image adjustments")
-            DarkMenuItem { objectName: "settingsLightMenuItem"; text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
-            DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
-            DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
-            DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
-            DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
+            DarkMenuItem { objectName: "settingsLightMenuItem"; text: qsTr("Lumière"); onTriggered: window.openDirectAdjustment("light") }
+            DarkMenuItem { text: qsTr("Niveaux"); onTriggered: window.openDirectAdjustment("levels") }
+            DarkMenuItem { text: qsTr("Courbes"); onTriggered: window.openDirectAdjustment("curves") }
+            DarkMenuItem { text: qsTr("Couleur"); onTriggered: window.openDirectAdjustment("color") }
+            DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: window.openDirectAdjustment("hueSaturation") }
+            DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: window.openDirectAdjustment("colorBalance") }
             MenuSeparator {}
-            DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
-            DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
-            DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }
-            DarkMenuItem { text: qsTr("Style colorimétrique (LUT)"); onTriggered: addAdjustmentLayer("colorLookup") }
+            DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: window.openDirectAdjustment("blackWhite") }
+            DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: window.openDirectAdjustment("photoFilter") }
+            DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: window.openDirectAdjustment("channelMixer") }
+            DarkMenuItem { text: qsTr("Style colorimétrique (LUT)"); onTriggered: window.openDirectAdjustment("colorLookup") }
             MenuSeparator {}
-            DarkMenuItem { text: qsTr("Négatif"); onTriggered: addAdjustmentLayer("invert") }
-            DarkMenuItem { text: qsTr("Isohélie"); onTriggered: addAdjustmentLayer("posterize") }
-            DarkMenuItem { text: qsTr("Seuil"); onTriggered: addAdjustmentLayer("threshold") }
-            DarkMenuItem { text: qsTr("Transfert de dégradé"); onTriggered: addAdjustmentLayer("gradientMap") }
-            DarkMenuItem { text: qsTr("Correction sélective"); onTriggered: addAdjustmentLayer("selectiveColor") }
+            DarkMenuItem { text: qsTr("Négatif"); onTriggered: window.openDirectAdjustment("invert") }
+            DarkMenuItem { text: qsTr("Isohélie"); onTriggered: window.openDirectAdjustment("posterize") }
+            DarkMenuItem { text: qsTr("Seuil"); onTriggered: window.openDirectAdjustment("threshold") }
+            DarkMenuItem { text: qsTr("Transfert de dégradé"); onTriggered: window.openDirectAdjustment("gradientMap") }
+            DarkMenuItem { text: qsTr("Correction sélective"); onTriggered: window.openDirectAdjustment("selectiveColor") }
+        }
+        DarkMenu {
+            title: qsTr("Filtre")
+            enabled: !editor.operationBusy && !editor.pixelEditBusy
+            DarkMenuItem { objectName: "directGaussianBlurMenuItem"; text: qsTr("Flou gaussien…"); onTriggered: window.openDirectAdjustment("gaussianBlur") }
+            DarkMenuItem { text: qsTr("Flou directionnel…"); onTriggered: window.openDirectAdjustment("motionBlur") }
+            DarkMenuItem { text: qsTr("Flou de boîte…"); onTriggered: window.openDirectAdjustment("boxBlur") }
+            MenuSeparator {}
+            DarkMenuItem { text: qsTr("Netteté optimisée…"); onTriggered: window.openDirectAdjustment("unsharpMask") }
+            DarkMenuItem { text: qsTr("Passe-haut…"); onTriggered: window.openDirectAdjustment("highPass") }
+            DarkMenuItem { text: qsTr("Mosaïque…"); onTriggered: window.openDirectAdjustment("mosaic") }
+            DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: window.openDirectAdjustment("noise") }
         }
         DarkMenu {
             title: qsTr("Affichage")
@@ -1657,6 +1708,15 @@ ApplicationWindow {
         }
     }
 
+    DarkMenu {
+        id: vectorMaskMenu
+        DarkMenuItem { text: qsTr("Propriétés du masque vectoriel…"); onTriggered: window.openActiveLayerProperties() }
+        DarkMenuItem { text: qsTr("Modifier le tracé"); onTriggered: editor.editVectorMask() }
+        DarkMenuItem { text: activeInfo.vectorMaskEnabled ? qsTr("Désactiver le masque vectoriel") : qsTr("Activer le masque vectoriel"); onTriggered: editor.setVectorMaskEnabled(!activeInfo.vectorMaskEnabled) }
+        DarkMenuItem { text: qsTr("Pixelliser le masque vectoriel"); enabled: !activeInfo.hasMask; onTriggered: editor.rasterizeVectorMask() }
+        MenuSeparator {}
+        DarkMenuItem { text: qsTr("Supprimer le masque vectoriel"); onTriggered: editor.removeVectorMask() }
+    }
     ColorSelectionDialog { id: colorSelectionDialog; document: editor }
     MouseArea {
         id: colorSelectionCanvasPicker
@@ -3600,6 +3660,27 @@ ApplicationWindow {
                                     }
                                 }
                                 Rectangle {
+                                    visible: modelData.hasVectorMask === true
+                                    width: visible ? 34 : 0; height: 36; color: "#182027"; radius: 3
+                                    border.width: modelData.editingVectorMask ? 2 : 1
+                                    border.color: modelData.editingVectorMask ? "#c5f2cf" : "#69757f"
+                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.hasVectorMask ? "image://layers/"+editor.documentId+"/vectorMask/"+modelData.layerIndex+"/"+editor.thumbnailRevision : ""; sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit; cache: false }
+                                    Label { anchors.centerIn: parent; visible: !modelData.vectorMaskEnabled; text: "×"; color: "#ef6b6b"; font.pixelSize: 28 }
+                                    MouseArea {
+                                        anchors.fill: parent; hoverEnabled: true
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        onClicked: function(mouse) {
+                                            editor.activeLayer = modelData.layerIndex
+                                            editor.editVectorMask()
+                                            if (mouse.button === Qt.RightButton) vectorMaskMenu.popup()
+                                            else if (mouse.modifiers & Qt.ShiftModifier) editor.setVectorMaskEnabled(!modelData.vectorMaskEnabled)
+                                        }
+                                        onDoubleClicked: window.openActiveLayerProperties()
+                                        ToolTip.visible: containsMouse
+                                        ToolTip.text: qsTr("Masque vectoriel · clic pour modifier le tracé ; double-clic pour ses propriétés")
+                                    }
+                                }
+                                Rectangle {
                                     id: maskThumbnail
                                     visible: modelData.hasMask
                                     width: visible?34:0; height: 36; color: "#182027"; radius: 3
@@ -4498,21 +4579,31 @@ ApplicationWindow {
         id: layerPropertiesDialog
         objectName: "layerPropertiesDialog"
         property bool keepChanges: false
+        property bool directSession: false
         title: qsTr("Propriétés · ") + activeInfo.name
         x: Math.max(20, window.width-width-310)
         y: 105
         width: 430
         height: Math.min(610, window.height-150)
-        modal: false
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        modal: activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length
+        closePolicy: activeInfo.direct ? Popup.CloseOnEscape : Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         onOpened: {
             keepChanges = false
-            editor.beginLayerPropertiesSession()
+            directPresetBefore = null
+            directSession = activeInfo.direct === true
+            layerPreview.checked = true
+            if (!activeInfo.direct) editor.beginLayerPropertiesSession()
         }
         onClosed: {
             window.curvePickerMode = ""
             window.colorPickerMode = ""
             window.cancelLayerPreviewQueue()
+            if (directSession) {
+                directSession = false
+                directPresetBefore = null
+                editor.finishDirectAdjustment(keepChanges)
+                return
+            }
             editor.cancelLayerPreview()
             if (keepChanges)
                 editor.acceptLayerPropertiesSession()
@@ -4524,14 +4615,29 @@ ApplicationWindow {
             spacing: 12
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
+                Label { text: activeInfo.direct ? qsTr("Appliquer directement") : activeInfo.editingVectorMask ? qsTr("Masque vectoriel") : activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
                 Item { Layout.fillWidth: true }
-                CheckBox { id: layerPreview; objectName: "layerPreviewCheck"; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true }
+                CheckBox { id: layerPreview; objectName: "layerPreviewCheck"; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true; onToggled: { if (activeInfo.direct) editor.setDirectAdjustmentPreview(checked) } }
             }
             Label {
                 Layout.fillWidth: true
-                text: activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : window.frequencyPrepared ? qsTr("Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
+                text: activeInfo.direct ? (activeInfo.maskTarget ? qsTr("Le réglage modifie le masque sélectionné. Les pixels couleur du calque restent intacts.") : qsTr("Le réglage modifie les pixels du calque actif, dans la sélection éventuelle. Annuler restaure l’état d’ouverture.")) : activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : window.frequencyPrepared ? qsTr("Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
                 color: "#91a0ad"; wrapMode: Text.WordWrap
+            }
+            CheckBox {
+                objectName: "directLimitSelectionCheck"
+                visible: activeInfo.direct === true && editor.hasSelection
+                text: qsTr("Limiter à la sélection")
+                checked: activeInfo.parameters._limitSelection !== false
+                onToggled: {
+                    if (activeInfo.direct) {
+                        const limited = checked
+                        window.flushLayerPreview()
+                        editor.previewLayerParameter("_limitSelection", limited)
+                    }
+                }
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Décochez pour adoucir le masque des deux côtés du contour de la sélection.")
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: "#3a444d" }
             ScrollView {
@@ -4543,8 +4649,8 @@ ApplicationWindow {
                     width: layerPropertiesScroll.availableWidth; spacing: 11
                     Repeater {
                         model: activeInfo.editingMask ? [
-                            {key:"_maskDensity",label:qsTr("Densité (%)"),from:0,to:100,step:1},
-                            {key:"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
+                            {key:activeInfo.editingVectorMask?"_vectorDensity":"_maskDensity",label:qsTr("Densité (%)"),from:0,to:100,step:1},
+                            {key:activeInfo.editingVectorMask?"_vectorFeather":"_maskFeather",label:qsTr("Contour progressif"),from:0,to:100,step:0.5}
                         ] : activeInfo.kind.indexOf("frequency")===0 ? [] : (activeInfo.adjustmentType==="curves" || activeInfo.adjustmentType==="levels" || activeInfo.adjustmentType==="light" || activeInfo.adjustmentType==="color" || activeInfo.adjustmentType==="colorBalance" || activeInfo.adjustmentType==="blackWhite" || activeInfo.adjustmentType==="photoFilter" || activeInfo.adjustmentType==="channelMixer" || activeInfo.adjustmentType==="colorLookup" || activeInfo.adjustmentType==="selectiveColor" || activeInfo.adjustmentType==="posterize" || activeInfo.adjustmentType==="threshold") ? []
                           : (window.adjustmentDefinitions[activeInfo.adjustmentType] || [])
                         delegate: ColumnLayout {
@@ -4680,6 +4786,7 @@ ApplicationWindow {
                         }
                         onPresetPreviewCancelled: window.cancelPresetPreview()
                         onPresetRequested: function(values) {
+                            window.directPresetBefore = null
                             window.cancelLayerPreviewQueue()
                             editor.beginLayerPreview()
                             const keys = ["reds","yellows","greens","cyans","blues","magentas"]
@@ -4724,6 +4831,7 @@ ApplicationWindow {
                         }
                         onPresetPreviewCancelled: window.cancelPresetPreview()
                         onPresetRequested: function(index,color) {
+                            window.directPresetBefore = null
                             window.cancelLayerPreviewQueue()
                             editor.beginLayerPreview()
                             editor.previewLayerParameter("preset", index)
@@ -4753,6 +4861,7 @@ ApplicationWindow {
                         onPresetPreviewed: function(values) { window.previewPresetParameters(values) }
                         onPresetPreviewCancelled: window.cancelPresetPreview()
                         onPresetRequested: function(values) {
+                            window.directPresetBefore = null
                             window.cancelLayerPreviewQueue()
                             editor.beginLayerPreview()
                             for (const key in values)
@@ -4857,12 +4966,18 @@ ApplicationWindow {
                         color: "#91a0ad"; wrapMode: Text.WordWrap
                     }
                     RowLayout {
-                        visible: activeInfo.editingMask
+                        visible: activeInfo.editingMask && !activeInfo.editingVectorMask
                         Layout.fillWidth: true
                         Button { text: qsTr("Inverser"); onClicked: editor.invertLayerMask() }
                         Button { text: activeInfo.maskEnabled?qsTr("Désactiver"):qsTr("Activer"); onClicked: editor.setMaskEnabled(!activeInfo.maskEnabled) }
                         Item { Layout.fillWidth: true }
                         Button { text: qsTr("Supprimer"); onClicked: { editor.removeLayerMask(); layerPropertiesDialog.close() } }
+                    }
+                    RowLayout {
+                        visible: activeInfo.editingVectorMask === true
+                        Layout.fillWidth: true
+                        Button { text: qsTr("Modifier le tracé"); onClicked: { layerPropertiesDialog.keepChanges = true; layerPropertiesDialog.accept(); editor.editVectorMask() } }
+                        Button { text: qsTr("Pixelliser…"); onClicked: { layerPropertiesDialog.keepChanges = true; layerPropertiesDialog.accept(); editor.rasterizeVectorMask() } }
                     }
                     Item { Layout.fillHeight: true }
                 }
@@ -4877,7 +4992,7 @@ ApplicationWindow {
                 spacing: 8
                 LayerPropertiesActions {
                     objectName: "layerPropertiesActions"
-                    visible: !activeInfo.editingMask && activeInfo.kind === "adjustment"
+                    visible: !activeInfo.direct && !activeInfo.editingMask && activeInfo.kind === "adjustment"
                     layerVisible: activeInfo.visible
                     clippingMask: activeInfo.clippingMask
                     canClip: activeInfo.clippingMask || editor.activeLayer > 0
@@ -4906,7 +5021,7 @@ ApplicationWindow {
                 }
                 DialogActionButton {
                     objectName: "layerPropertiesCloseButton"
-                    text: qsTr("Fermer")
+                    text: activeInfo.direct ? qsTr("Appliquer") : qsTr("Fermer")
                     defaultButton: !frequencyRadiusDialog.opened
                     onClicked: {
                         window.flushLayerPreview()

@@ -6,6 +6,17 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## À venir
 
+- La conversion d’une sélection en masque la désélectionne dans la même étape
+  d’historique, pour ne plus tronquer le flou au bord du masque. Une sélection
+  volontaire peut être conservée et sa portée contrôlée par « Limiter à la sélection ».
+
+- Réglages et filtres directement sur le calque de pixels ou son masque de fusion,
+  avec aperçu réduit, Annuler/Appliquer, sélection et historique. Le flou sur masque
+  conserve les pixels couleur du calque.
+- Masques vectoriels depuis la Plume, ancres et poignées éditables, vignette distincte,
+  densité et contour progressif modifiables, coexistence avec le masque peint,
+  transformations, historique et persistance. [Guide](docs/MASK_ADJUSTMENTS.md).
+
 - Fiabiliser les connexions Qwen entre générations et reprendre une lecture SSE
   interrompue sur le même identifiant, sans second envoi ni doublon de génération ;
   conserver l’annulation, les erreurs d’authentification et le délai global.

@@ -74,7 +74,8 @@ QVariantList Document::penPaths() const
         paths.append(QVariantMap{{"name", path.name},
                                  {"closed", path.closed},
                                  {"points", points},
-                                 {"vectorMask", !path.shapeLayerId.isEmpty()}});
+                                 {"vectorMask", !path.shapeLayerId.isEmpty()},
+                                 {"layerMask", !path.maskLayerId.isEmpty()}});
     }
     return paths;
 }
@@ -101,7 +102,7 @@ void Document::commitPenEdit(const Snapshot &_before, const QString &_label)
     const bool wasShape = _before.activePenPath >= 0 &&
                           _before.activePenPath < _before.penPaths.size() &&
                           !_before.penPaths[_before.activePenPath].shapeLayerId.isEmpty();
-    if (m_penShapeGesture || wasShape || penShapeLayerIndex() >= 0 ||
+    if (editingVectorMask() || m_penShapeGesture || wasShape || penShapeLayerIndex() >= 0 ||
         (m_editingMask && m_penMode == "shape" && m_activePenPath >= 0 &&
          !m_penPaths[m_activePenPath].points.isEmpty())) {
         if (!updatePenShapeLayer()) {
@@ -111,6 +112,8 @@ void Document::commitPenEdit(const Snapshot &_before, const QString &_label)
         commit(_before, _label, false);
         emit layersChanged();
         emit penPathsChanged();
+        if (editingVectorMask())
+            requestPreviewRender(true, true);
         return;
     }
     auto before    = _before;
@@ -136,6 +139,7 @@ void Document::setActivePenPath(int _index)
         emit penOptionsChanged();
     }
     emit penPathsChanged();
+    emit layersChanged();
 }
 void Document::newPenPath()
 {
@@ -172,6 +176,7 @@ void Document::duplicatePenPath()
     const auto before = snapshot({});
     auto       copy   = source;
     copy.shapeLayerId.clear();
+    copy.maskLayerId.clear();
     m_penMode = "path";
     emit penOptionsChanged();
     copy.name = tr("%1 copie").arg(source.name).left(256);
@@ -197,6 +202,8 @@ QRectF Document::penSelectionRect() const
 void Document::renamePenPath(const QString &_name)
 {
     endPenGesture();
+    if (editingVectorMask() && !penShapeEditable(m_active))
+        return;
     if (const int layer = penShapeLayerIndex(); layer >= 0 && !penShapeEditable(layer))
         return;
     const QString name = _name.trimmed().left(256);
@@ -210,6 +217,10 @@ void Document::renamePenPath(const QString &_name)
 }
 void Document::deletePenPath()
 {
+    if (editingVectorMask()) {
+        removeVectorMask();
+        return;
+    }
     endPenGesture();
     if (m_activePenPath < 0)
         return;
@@ -228,6 +239,8 @@ void Document::deletePenPath()
 void Document::deletePenPoints()
 {
     endPenGesture();
+    if (editingVectorMask() && !penShapeEditable(m_active))
+        return;
     if (const int layer = penShapeLayerIndex(); layer >= 0 && !penShapeEditable(layer))
         return;
     if (m_activePenPath < 0)
@@ -245,7 +258,7 @@ void Document::deletePenPoints()
             path.points.removeAt(i);
     if (path.points.size() < 2)
         path.closed = false;
-    if (path.points.isEmpty() && path.shapeLayerId.isEmpty()) {
+    if (path.points.isEmpty() && path.shapeLayerId.isEmpty() && path.maskLayerId.isEmpty()) {
         m_penPaths.removeAt(m_activePenPath);
         m_activePenPath = -1;
         m_penDrawing    = false;
@@ -258,6 +271,8 @@ void Document::deletePenPoints()
 void Document::nudgePenPoints(int _dx, int _dy)
 {
     endPenGesture();
+    if (editingVectorMask() && !penShapeEditable(m_active))
+        return;
     if (const int layer = penShapeLayerIndex(); layer >= 0 && !penShapeEditable(layer))
         return;
     if (m_activePenPath < 0 || m_selectedPenPoints.isEmpty())
@@ -292,6 +307,8 @@ void Document::finishPenPath()
 void Document::closePenPath()
 {
     endPenGesture();
+    if (editingVectorMask() && !penShapeEditable(m_active))
+        return;
     if (const int layer = penShapeLayerIndex(); layer >= 0 && !penShapeEditable(layer))
         return;
     if (m_activePenPath < 0 || m_penPaths[m_activePenPath].points.size() < 2)
@@ -391,6 +408,13 @@ void Document::beginPenGesture(qreal _x, qreal _y, qreal _tolerance, bool _direc
         }
     }
     const auto hit     = hitPenPoint(point, _tolerance);
+    if (editingVectorMask()) {
+        if (!penShapeEditable(m_active)) {
+            endPenGesture(true);
+            return;
+        }
+        m_penShapeGesture = true;
+    }
     const bool convert = _alternate || m_tool == "convertPoint";
     const auto segment =
         m_activePenPath >= 0
@@ -470,7 +494,8 @@ void Document::beginPenGesture(qreal _x, qreal _y, qreal _tolerance, bool _direc
             m_selectedPenPoints.clear();
             if (path.points.size() < 2)
                 path.closed = false;
-            if (path.points.isEmpty() && path.shapeLayerId.isEmpty()) {
+            if (path.points.isEmpty() && path.shapeLayerId.isEmpty() &&
+                path.maskLayerId.isEmpty()) {
                 m_penPaths.removeAt(m_activePenPath);
                 m_activePenPath = -1;
                 m_penDrawing    = false;

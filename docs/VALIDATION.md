@@ -2337,3 +2337,23 @@ Le bundle compilé ici est destiné à macOS arm64. Il n’est pas signé avec u
 Les huit cas PNG/JPEG/BMP/WebP en 8/16 bits de `asynchronousExportMatchesSynchronous`
 passent avec et sans projet enregistré, fichiers identiques, aucun signal de modification
 d’image et historique conservé. Les erreurs de chemin préservent aussi le document.
+
+## Réglages directs et masques vectoriels — 10 novembre 2026
+
+La suite `mask_adjustments` vérifie les filtres sur masque en documents 8/16 bits,
+l’absence de modification des pixels couleur, la sélection, Annuler/Rétablir,
+l’exécution différée et l’aperçu masque seul. Les contrôles vectoriels vérifient
+la coexistence des deux masques, le déplacement d’ancres, le contour progressif,
+le cycle sauvegarde/ouverture, la désactivation, le redimensionnement, la
+pixellisation et la conversion en forme indépendante. Le smoke test général
+ouvre Flou gaussien sur un masque, annule puis applique et compare les pixels
+natifs. Les régressions document, opérations asynchrones, fusion, Plume/formes,
+presets et interface restent dans les contrôles de cette étape.
+
+Le parcours sélection → masque vérifie désormais la désélection atomique, sa
+récupération (y compris douce), puis un gris strictement intermédiaire des deux
+côtés du bord après flou : révéler/masquer en documents 8 et 16 bits. Un test
+conserve volontairement la sélection pour reproduire la coupure, puis désactive
+la limitation et compare aperçu et résultat natif. Le smoke test clique réellement
+la case « Limiter à la sélection ». Les suites document, masques, formes/Plume et
+interface passent après ce correctif.

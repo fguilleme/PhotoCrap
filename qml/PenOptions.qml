@@ -85,8 +85,10 @@ Rectangle {
                 onClicked: { root.document.penPathToSelection(); root.editCommitted() }
             }
             Button {
-                visible: !root.shapeMode; text: qsTr("Masque (NYI)"); implicitHeight: 28; enabled: false
-                ToolTip.text: qsTr("Créer un masque vectoriel depuis le tracé — non implémenté")
+                objectName: "penMakeMaskButton"
+                visible: !root.shapeMode; text: qsTr("Masque"); implicitHeight: 28; enabled: root.hasPoints && root.activePath.points.length >= 2
+                onClicked: { root.document.addVectorMask(); root.editCommitted() }
+                ToolTip.text: qsTr("Créer un masque vectoriel modifiable sur le calque actif")
                 ToolTip.visible: hovered
             }
             Button {

@@ -1,11 +1,12 @@
 #include "Document.h"
-#include "tools/GradientRaster.h"
 #include "ImageSampling.h"
 #include "ImageUtils.h"
 #include "filters/BlendMath.h"
 #include "filters/NoiseMath.h"
 #include "filters/ToneMappingTable.h"
+#include "masks/VectorMask.h"
 #include "render/LayerVisibility.h"
+#include "tools/GradientRaster.h"
 #include <QDataStream>
 #include <algorithm>
 
@@ -25,6 +26,8 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     for (int index = LayerVisibility::opaqueCoverIndex(m_layers, m_size); index < m_layers.size();
          ++index) {
         const auto &layer = m_layers[index];
+        if (PhotoCrap::Masks::vectorEnabled(layer) || !layer.directType.isEmpty())
+            return {};
         if (layer.kind == "group" || !LayerVisibility::contributes(layer) ||
             (!layer.groupId.isEmpty() && !groups.value(layer.groupId, true))) {
             if (layer.kind == "group" || !layer.clippingMask)
@@ -370,6 +373,9 @@ void Document::setGpuToneNearestSampling(bool _nearest)
 
 bool Document::gpuToneEligible() const
 {
+    for (const auto &layer : m_layers)
+        if (PhotoCrap::Masks::vectorEnabled(layer) || !layer.directType.isEmpty())
+            return false;
     if (!m_gpuToneEnabled || m_displayChannel != 0 || m_maskOnlyView || m_active < 0 ||
         m_active != m_layers.size() - 1)
         return false;

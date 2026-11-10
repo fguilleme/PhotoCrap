@@ -34,6 +34,12 @@ struct Layer {
     bool        clippingMask = false;
     QString     groupId;
     bool        groupCollapsed = false;
+    // Runtime-only preview: never serialized as document parameters.
+    QString                                           directType;
+    QVariantMap                                       directParameters;
+    PixelPlane                                        directSelection;
+    bool                                              directMask    = false;
+    bool                                              directPreview = true;
     PixelPlane  source;
     std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
 };

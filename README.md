@@ -13,6 +13,10 @@ Le correctif stabilise la pipette Option/Alt et la visibilité des contours fins
 En préparation : **Qwen Edit 2.1 par Gradio v2**, avec HTTP Basic, 19 LoRA et
 paramètres de génération. [Configuration et état des essais](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
 
+En préparation également : **réglages directs sur les pixels ou le masque actif**,
+flous depuis le menu Filtre, et **masques vectoriels éditables** indépendants du
+masque peint. [Mode d’emploi et limites](docs/MASK_ADJUSTMENTS.md).
+
 ## Télécharger
 
 Chaque release fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**,

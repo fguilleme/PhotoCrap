@@ -484,7 +484,7 @@ Améliorations des outils déjà disponibles :
 - [x] Barre des sélections géométriques et lassos : modes de combinaison illustrés, contour progressif préalable, anticrénelage effectif, styles Normal/Rapport fixe/Taille fixe et permutation des dimensions. Couverture 8/16 bits, calcul asynchrone annulable et une seule étape par geste ; espace Sélectionner et masquer encore NYI.
 - [x] Première révision de la Plume depuis la documentation Adobe : reprise par glisser, poignée sortante indépendante au dernier point, flèches noire/blanche (A), sélection par cadre et déplacement de points/segments/tracés, curseurs distincts, désélection sans effacement. Panneau Tracés ancrable/flottant avec vignettes, renommage, duplication, ordre et actions de sélection/remplissage/contour ; projets avec tracés vides en v10. [Comportements et limites](docs/PEN_TOOL.md).
 - [x] Mode Forme de la Plume : calque créé au premier point, géométrie et styles conservés, fond/contour unis ou absents, épaisseur et tirets, réédition par les points ou les propriétés, déplacement, masques raster, duplication, Annuler et pixellisation explicite. Conversion explicite Tracé → Forme en place, sans doublon du tracé ; couleurs réaffichées à la sélection, remplissage lié aux poignées et distinction du remplissage raster dans le panneau. Choix Aucun/couleur, épaisseur décimale et dimensions liées. Caches natifs 8/16 bits par tuiles, affichage GPU et projets v11.
-- [ ] Compléter les tracés : composants multiples et jonctions, opérations booléennes, tracé de travail temporaire, multi-sélection de tracés, duplication par Alt-glisser et réordonnancement par glisser ; sélection → tracé et masques vectoriels sur les autres types de calques. Les dégradés/motifs et alignements avancés des contours de forme restent à faire. La découpe indépendante d’un segment et les options de conversion restent à faire.
+- [ ] Compléter les tracés : composants multiples et jonctions, opérations booléennes, tracé de travail temporaire, multi-sélection de tracés, duplication par Alt-glisser et réordonnancement par glisser ; sélection → tracé et composants multiples des masques vectoriels. Les dégradés/motifs et alignements avancés des contours de forme restent à faire. La découpe indépendante d’un segment et les options de conversion restent à faire.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
 - [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
 - [ ] Tolérance et options supplémentaires du remplissage contigu ; modes plus avancés de réparation et de pièce.
@@ -496,7 +496,7 @@ Améliorations des outils déjà disponibles :
 
 - [ ] Compléter les commandes NYI des calques : placement direct tout en haut/en bas, verrouillage des pixels transparents, étiquettes de couleur, pixellisation et options de fusion avancées.
 - [ ] Compléter les commandes NYI des masques : appliquer le masque, associer/dissocier, charger comme sélection et Sélectionner et masquer.
-- [ ] Masques vectoriels, effets de calque et objets dynamiques.
+- [ ] Compléter les masques vectoriels (dossiers, composants multiples), effets de calque et objets dynamiques.
 - [ ] Transformation libre, perspective interactive des calques et formes vectorielles.
 - [ ] Dégradé non destructif avec calque de remplissage et poignées ; l’outil actuel reste un dégradé raster classique.
 - [ ] Fidélité colorimétrique des réglages et jeux d’images de référence ; les traitements actuels sont des implémentations sRGB simplifiées.
@@ -506,13 +506,27 @@ Améliorations des outils déjà disponibles :
 - [ ] Porter les outils de réparation, Doigt, Pinceau mélangeur, Remplacement de couleur et formes d’historique en 16 bits.
 - [ ] Développement RAW réglable, corrections optiques et réduction du bruit ; validation sur des fichiers de boîtiers réels.
 
+### Réglages directs et masques vectoriels — en préparation
+
+- [x] Réglages directs via les éditeurs existants et menu Filtre, sur les pixels
+  ou le masque de fusion actif, aperçu réduit asynchrone, Annuler/Appliquer et
+  une étape d’historique ; sélection respectée et halo local des filtres spatiaux.
+- [x] Masque vectoriel depuis un tracé, vignette indépendante, édition des ancres
+  et poignées, densité/contour progressif, activation et pixellisation explicite ;
+  coexistence avec le masque peint, transformations et sauvegarde du contour.
+- [ ] Masques vectoriels à composants multiples et opérations booléennes,
+  masques de dossiers, dissociation du déplacement et affichage GPU analytique.
+- [ ] Commandes automatiques Tonalité/Contraste/Couleur et Désaturer dédiées.
+
+[Guide et limites](docs/MASK_ADJUSTMENTS.md).
+
 ## 6. Commandes d’édition et d’affichage encore NYI
 
 Ces manques sont déjà indiqués dans le catalogue des raccourcis, même lorsque leur panneau ou une commande voisine existe :
 
 - [ ] Couper/copier les pixels du calque actif, nouveau calque par copie/couper de sélection, Coller sur place et Coller dans la sélection. Aujourd’hui Copier utilise la composition visible, Coller crée un calque et Dupliquer copie le calque entier.
 - [ ] Taille de la zone de travail indépendante du redimensionnement de l’image ; rétablissement du fichier enregistré.
-- [ ] Réglages directs Niveaux, Courbes, Teinte/Saturation, Balance des couleurs et Noir et blanc, ainsi que Tonalité/Contraste/Couleur automatiques et Désaturer. Les panneaux de calques de réglage existants ne rendent pas ces commandes directes disponibles.
+- [x] Réglages directs Niveaux, Courbes, Couleur, Balance des couleurs et Noir et blanc. Les commandes automatiques dédiées et Désaturer restent à faire.
 - [ ] Répéter le dernier filtre et atténuer la dernière opération ; Fluidité et filtre de développement RAW.
 - [ ] Dialogue Remplir complet (motif, historique, contenu) ; le sélecteur de couleur et les remplissages premier/arrière-plan sont déjà disponibles.
 - [ ] Grille de travail, repères, magnétisme, Extras, modes d’écran et masquage de la barre supérieure des options. Les règles, Tab/Maj+Tab et l’affichage du contour de sélection existent déjà.

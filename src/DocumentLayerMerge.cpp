@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
+#include "masks/VectorMask.h"
 #include <QHash>
 #include <QPainter>
 #include <algorithm>
@@ -135,7 +136,8 @@ bool Document::planLayerMerge(const QString &_requested, LayerMergePlan &_plan,
     }
     if (!_plan.stamp && mode != "flatten" && _plan.removed.size() < 2 && bottom < m_layers.size() &&
         m_layers[bottom].kind == "pixel" && m_layers[bottom].opacity == 1 &&
-        m_layers[bottom].blend == 0 && m_layers[bottom].mask.isNull())
+        m_layers[bottom].blend == 0 && m_layers[bottom].mask.isNull() &&
+        !PhotoCrap::Masks::vectorEnabled(m_layers[bottom]))
         return false;
     _plan.insertion = qMax(0, top + 1);
     if (!allVisible && bottom < m_layers.size()) {

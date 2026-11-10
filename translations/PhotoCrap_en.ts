@@ -6189,4 +6189,55 @@ Independent software, not affiliated with Adobe.</translation>
     <name>Main</name>
     <message><source>Peindre le remplissage dans les pixels…</source><translation>Paint the fill into pixels…</translation></message>
   </context>
+  <context>
+    <name>Document</name>
+    <message><source>Utilisez le contour progressif pour adoucir le masque vectoriel, ou pixellisez-le avant d’appliquer un filtre.</source><translation>Use Feather to soften the vector mask, or rasterize it before applying a filter.</translation></message>
+    <message><source>Pixellisez le masque vectoriel pour appliquer un filtre direct.</source><translation>Rasterize the vector mask to apply a direct filter.</translation></message>
+    <message><source>Appliquer %1</source><translation>Apply %1</translation></message>
+    <message><source>Mémoire insuffisante pour appliquer le réglage.</source><translation>Not enough memory to apply the adjustment.</translation></message>
+    <message><source>Créer un masque vectoriel</source><translation>Create a vector mask</translation></message>
+    <message><source>Supprimer le masque vectoriel</source><translation>Delete vector mask</translation></message>
+    <message><source>Activer le masque vectoriel</source><translation>Enable vector mask</translation></message>
+    <message><source>Ce calque possède déjà un masque de fusion. Conservez les deux masques séparés ou supprimez le masque pixel avant de pixelliser le masque vectoriel.</source><translation>This layer already has a layer mask. Keep both masks separate, or delete the pixel mask before rasterizing the vector mask.</translation></message>
+    <message><source>Pixelliser le masque vectoriel</source><translation>Rasterize vector mask</translation></message>
+    <message><source>Modifiez les points du masque vectoriel avec la Plume ou la Sélection directe ; pixellisez-le pour peindre dessus.</source><translation>Edit vector mask points with the Pen or Direct Selection tool; rasterize the mask to paint on it.</translation></message>
+    <message><source>Masque vectoriel invalide.</source><translation>Invalid vector mask.</translation></message>
+    <message><source>%1 — Masque vectoriel</source><translation>%1 — Vector mask</translation></message>
+    <message><source>Lumière</source><translation>Light</translation></message>
+    <message><source>Couleur</source><translation>Color</translation></message>
+    <message><source>Couleur unie</source><translation>Solid Color</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Masque vectoriel</source><translation>Vector Mask</translation></message>
+    <message><source>Créer depuis le tracé actif</source><translation>Create from active path</translation></message>
+    <message><source>Modifier le tracé</source><translation>Edit path</translation></message>
+    <message><source>Pixelliser le masque</source><translation>Rasterize mask</translation></message>
+    <message><source>Filtre</source><translation>Filter</translation></message>
+    <message><source>Propriétés du masque vectoriel…</source><translation>Vector Mask Properties…</translation></message>
+    <message><source>Désactiver le masque vectoriel</source><translation>Disable vector mask</translation></message>
+    <message><source>Activer le masque vectoriel</source><translation>Enable vector mask</translation></message>
+    <message><source>Pixelliser le masque vectoriel</source><translation>Rasterize vector mask</translation></message>
+    <message><source>Supprimer le masque vectoriel</source><translation>Delete vector mask</translation></message>
+    <message><source>Masque vectoriel · clic pour modifier le tracé ; double-clic pour ses propriétés</source><translation>Vector mask · click to edit the path; double-click for properties</translation></message>
+    <message><source>Appliquer</source><translation>Apply</translation></message>
+    <message><source>Appliquer directement</source><translation>Apply directly</translation></message>
+    <message><source>Le réglage modifie le masque sélectionné. Les pixels couleur du calque restent intacts.</source><translation>The adjustment changes the selected mask. The layer’s color pixels remain untouched.</translation></message>
+    <message><source>Le réglage modifie les pixels du calque actif, dans la sélection éventuelle. Annuler restaure l’état d’ouverture.</source><translation>The adjustment changes the active layer’s pixels within the selection, if any. Cancel restores the opening state.</translation></message>
+    <message><source>Pixelliser…</source><translation>Rasterize…</translation></message>
+  </context>
+  <context>
+    <name>PathsPanel</name>
+    <message><source>Masque vectoriel · contour modifiable</source><translation>Vector mask · editable outline</translation></message>
+  </context>
+  <context>
+    <name>PenOptions</name>
+    <message><source>Masque</source><translation>Mask</translation></message>
+    <message><source>Créer un masque vectoriel modifiable sur le calque actif</source><translation>Create an editable vector mask on the active layer</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Limiter à la sélection</source><translation>Limit to selection</translation></message>
+    <message><source>Décochez pour adoucir le masque des deux côtés du contour de la sélection.</source><translation>Uncheck to soften the mask on both sides of the selection outline.</translation></message>
+  </context>
 </TS>

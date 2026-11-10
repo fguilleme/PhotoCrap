@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
@@ -323,6 +324,10 @@ void Document::applyCrop()
             _image = std::move(output);
         };
         for (auto &layer : layers) {
+            if (!PhotoCrap::Masks::transformVector(layer, transform, outputSize)) {
+                result.valid = false;
+                return result;
+            }
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, transform);
             if (layer.kind == "shape" &&

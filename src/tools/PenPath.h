@@ -18,6 +18,7 @@ struct PenPath {
     bool              closed = false;
     // Runtime proxy for the vector mask of the active shape layer.
     QString      shapeLayerId = {};
+    QString      maskLayerId  = {};
     QPainterPath painterPath() const;
     bool         operator==(const PenPath &) const = default;
 };

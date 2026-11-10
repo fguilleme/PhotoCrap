@@ -50,6 +50,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ImageAlpha.cpp
     src/Document.cpp
     src/DocumentManager.cpp src/DocumentManager.h
+    src/DocumentDirectAdjustments.cpp
+    src/DocumentVectorMasks.cpp
+    src/masks/VectorMask.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
@@ -392,6 +395,9 @@ qt_add_library(photocrap_core STATIC
     src/Layer.h
     src/render/LayerVisibility.h
     src/Document.h
+    src/DocumentDirectAdjustments.cpp
+    src/DocumentVectorMasks.cpp
+    src/masks/VectorMask.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
@@ -871,6 +877,10 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_tiled_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME tiled_image COMMAND photocrap_tiled_tests)
     set_tests_properties(tiled_image PROPERTIES TIMEOUT 30)
+    qt_add_executable(photocrap_mask_adjustments_tests tests/MaskAdjustmentsTest.cpp)
+    target_link_libraries(photocrap_mask_adjustments_tests PRIVATE photocrap_core Qt6::Test)
+    add_test(NAME mask_adjustments COMMAND photocrap_mask_adjustments_tests)
+    set_tests_properties(mask_adjustments PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
     qt_add_executable(photocrap_pen_shape_tests tests/PenShapeTest.cpp)
     target_link_libraries(photocrap_pen_shape_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME pen_shape COMMAND photocrap_pen_shape_tests)

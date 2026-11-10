@@ -282,7 +282,11 @@ void Document::rasterizeTextLayer()
         const auto maskDensity = layer.parameters.value("_maskDensity", 100.);
         const auto maskFeather = layer.parameters.value("_maskFeather", 0.);
         layer.kind             = "pixel";
-        layer.parameters       = {{"_maskDensity", maskDensity}, {"_maskFeather", maskFeather}};
+        auto parameters = QVariantMap{{"_maskDensity", maskDensity}, {"_maskFeather", maskFeather}};
+        for (auto it = layer.parameters.cbegin(); it != layer.parameters.cend(); ++it)
+            if (it.key().startsWith("_vector"))
+                parameters[it.key()] = it.value();
+        layer.parameters = parameters;
     });
 }
 

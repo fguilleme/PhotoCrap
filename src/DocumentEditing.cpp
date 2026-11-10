@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
@@ -10,12 +11,16 @@ namespace
 {
 bool validShapeTransform(const QVector<Layer> &_layers, const QTransform &_transform)
 {
-    for (const auto &layer : _layers)
+    for (const auto &layer : _layers) {
+        auto copy = layer;
+        if (!PhotoCrap::Masks::transformVector(copy, _transform, {1, 1}))
+            return false;
         if (layer.kind == "shape") {
             auto parameters = layer.parameters;
             if (!PhotoCrap::Shape::transform(parameters, _transform))
                 return false;
         }
+    }
     return true;
 }
 } // namespace
@@ -234,6 +239,7 @@ void Document::cropToSelection()
         for (auto &layer : m_layers) {
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
+            PhotoCrap::Masks::transformVector(layer, pathTransform, m_selection.size());
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(
                     layer.parameters,
@@ -286,6 +292,7 @@ void Document::resizeImage(int _w, int _h)
         for (auto &layer : m_layers) {
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
+            PhotoCrap::Masks::transformVector(layer, pathTransform, {_w, _h});
             if (layer.kind == "text") {
                 PhotoCrap::Text::transform(
                     layer.parameters,
@@ -355,6 +362,11 @@ void Document::transformImage(const QString &_operation)
         for (auto &layer : m_layers) {
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
+            PhotoCrap::Masks::transformVector(
+                layer, pathTransform,
+                (_operation == "rotateRight" || _operation == "rotateLeft")
+                    ? QSize(height(), width())
+                    : m_size);
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, pathTransform);
             if (layer.kind == "shape")

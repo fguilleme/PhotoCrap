@@ -20,6 +20,7 @@ Item {
         return false
     }
     readonly property bool maskTarget: {
+        if (document.editingVectorMask) return true
         for (const layer of document.layers)
             if (layer.layerIndex === document.activeLayer)
                 return layer.editingMask
@@ -32,6 +33,7 @@ Item {
     }
     property bool creating: false
     function namePath(create) {
+        if (!create && activePath.layerMask) return
         creating = create
         pathName.text = create ? "" : activePath.name
         rename.open()
@@ -88,7 +90,7 @@ Item {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: row.modelData.vectorMask ? qsTr("Forme · remplissage modifiable") : qsTr("Tracé seul · sans remplissage lié")
+                            text: row.modelData.layerMask ? qsTr("Masque vectoriel · contour modifiable") : row.modelData.vectorMask ? qsTr("Forme · remplissage modifiable") : qsTr("Tracé seul · sans remplissage lié")
                             color: "#aab7c5"; font.pixelSize: 10
                             elide: Text.ElideRight
                         }
@@ -151,7 +153,7 @@ Item {
     DarkMenu {
         id: menu
         ContextMenuItem { text: qsTr("Nouveau tracé…"); onTriggered: root.namePath(true) }
-        ContextMenuItem { text: qsTr("Renommer le tracé…"); enabled: root.hasPath; onTriggered: root.namePath(false) }
+        ContextMenuItem { text: qsTr("Renommer le tracé…"); enabled: root.hasPath && !root.activePath.layerMask; onTriggered: root.namePath(false) }
         ContextMenuItem { text: qsTr("Dupliquer le tracé"); enabled: root.hasPath; onTriggered: {root.document.duplicatePenPath();root.editCommitted()} }
         ContextMenuItem { text: qsTr("Monter le tracé"); enabled: root.document.activePenPath > 0; onTriggered: root.document.movePenPath(root.document.activePenPath-1) }
         ContextMenuItem { text: qsTr("Descendre le tracé"); enabled: root.hasPath && root.document.activePenPath < list.count-1; onTriggered: root.document.movePenPath(root.document.activePenPath+1) }

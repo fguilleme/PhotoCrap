@@ -1923,11 +1923,14 @@ private slots:
         QCOMPARE(document.layerImage(0).pixelColor(4, 4).rgba64(), chosen.rgba64());
         QCOMPARE(document.layerImage(0).pixelColor(0, 0).alpha(), 0);
         document.addLayerMask(true);
+        QVERIFY(!document.hasSelection());
+        document.reselect(); // Mask creation consumes its source selection.
         document.invertSelectedPixels();
         QCOMPARE(document.maskImage(0).pixelColor(4, 4).red(), 0);
         QCOMPARE(document.maskImage(0).pixelColor(0, 0).red(), 0);
         document.undo();
         QCOMPARE(document.maskImage(0).pixelColor(4, 4).red(), 255);
+        document.undo(); // Undo Reselect.
         document.undo(); // Remove the mask.
         document.undo();
         QCOMPARE(document.layerImage(0).pixelColor(4, 4).alpha(), 0);
@@ -4168,6 +4171,7 @@ private slots:
         d.setLayerLocked(0, false);
         d.addLayerMask();
         d.setEditingMask(true);
+        d.reselect(); // This test deliberately moves a selected part of the mask.
         const QImage mask = d.maskImage(0), maskPixels = d.layerImage(0);
         const int    maskHistory = d.historyIndex();
         d.beginStroke(52, 52);

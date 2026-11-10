@@ -2,6 +2,7 @@
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
+#include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectPng.h"
@@ -453,12 +454,15 @@ bool Document::saveProject(const QUrl &_url)
                                          [](const Layer &layer) { return layer.kind == "shape"; });
     const bool gradients = std::any_of(m_layers.cbegin(), m_layers.cend(),
                                       [](const Layer &layer) { return layer.adjustmentType == "gradientFill"; });
+    const bool  vectors =
+        std::any_of(m_layers.cbegin(), m_layers.cend(), PhotoCrap::Masks::hasVector);
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", originalAiImages ? 13
-                                 : gradients      ? 12
-                                 : shapes         ? 11
-                                 : emptyPaths     ? 10
-                                                  : 9},
+                     {"version", vectors            ? 14
+                                 : originalAiImages ? 13
+                                 : gradients        ? 12
+                                 : shapes           ? 11
+                                 : emptyPaths       ? 10
+                                                    : 9},
                      {"width", width()},
                      {"height", height()},
                      {"activeLayer", m_active}};
@@ -466,7 +470,7 @@ bool Document::saveProject(const QUrl &_url)
     QVector<PenPath> savedPaths;
     int              savedActivePath = -1;
     for (int i = 0; i < m_penPaths.size(); ++i) {
-        if (!m_penPaths[i].shapeLayerId.isEmpty())
+        if (!m_penPaths[i].shapeLayerId.isEmpty() || !m_penPaths[i].maskLayerId.isEmpty())
             continue;
         if (i == m_activePenPath)
             savedActivePath = int(savedPaths.size());
@@ -550,7 +554,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 13)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 14)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -731,6 +735,9 @@ bool Document::loadProject(const QString &_path)
         layer.kind           = kind;
         layer.adjustmentType = object["adjustmentType"].toString();
         layer.parameters     = object["parameters"].toObject().toVariantMap();
+        if ((PhotoCrap::Masks::hasVector(layer) && version < 14) ||
+            !PhotoCrap::Masks::validVector(layer))
+            return fail(tr("Masque vectoriel invalide."));
         if (kind == "text" && !PhotoCrap::Text::normalize(layer.parameters))
             return fail(tr("Calque de texte invalide."));
         if (kind == "shape" && !PhotoCrap::Shape::normalize(layer.parameters))

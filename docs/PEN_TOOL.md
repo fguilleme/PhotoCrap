@@ -68,7 +68,7 @@ conservé et modifiable ; les points, poignées et pixels d'affichage changent
 ensemble. Une forme ouverte se remplit en fermant implicitement son intérieur ;
 le contour peint reste ouvert jusqu'à sa fermeture explicite.
 
-En mode **Tracé**, la barre propose **Créer : Sélection… / Masque (NYI) /
+En mode **Tracé**, la barre propose **Créer : Sélection… / Masque /
 Forme**. **Forme** crée un calque vectoriel à partir du tracé sélectionné, en
 conservant les ancres, tangentes et la fermeture exacte. L’entrée sélectionnée devient
 le contour de cette forme : il n’y a plus de copie homonyme indépendante dans Tracés.
@@ -163,7 +163,7 @@ Cette étape ne reproduit pas tout l'espace vectoriel de Photoshop. Chaque entr�
 contient un seul contour ; les composants multiples, jonctions entre composants et
 opérations booléennes restent NYI. Les entrées sont conservées : le remplacement
 automatique d'un unique « Tracé de travail » temporaire de Photoshop n'est pas
-reproduit. Les masques vectoriels sur les autres types de calques, conversion sélection → tracé,
+reproduit. La conversion sélection → tracé,
 sélection simultanée de plusieurs entrées, duplication par Option/Alt-glisser,
 déplacement des lignes de la liste par glisser, découpe d'un segment sans retirer
 ses ancres, simulation de pression et options de contour progressif/anticrénelage
@@ -171,3 +171,11 @@ lors de la conversion restent à faire. Le contour progressif peut déjà être 
 à la sélection après conversion. Les plumes libre et de courbure restent NYI.
 
 Les remplissages de forme par dégradé/motif, les alignements de contour intérieur/extérieur et les opérations booléennes restent à faire ; la première version propose des couleurs unies et un contour centré.
+
+## Masquer un calque avec un tracé
+
+Le bouton **Créer : Masque** crée maintenant un masque vectoriel éditable sur le
+calque actif. Il est indépendant d’un éventuel masque de fusion peint. Cliquer
+sa vignette dans Calques ou son entrée dans Tracés permet de modifier ses points ;
+double-cliquer la vignette donne accès à Densité et Contour progressif.
+Voir le [guide des masques et réglages directs](MASK_ADJUSTMENTS.md).

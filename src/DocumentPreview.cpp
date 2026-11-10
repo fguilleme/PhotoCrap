@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 
 #include <QCache>
+#include <QColorSpace>
 #include <QJSValue>
 #include <QMutexLocker>
 #include <QScopedValueRollback>
@@ -69,6 +70,19 @@ void Document::previewLayerParameter(const QString &_key, const QVariant &_value
     const QVariant value = _value.metaType() == QMetaType::fromType<QJSValue>()
                                ? _value.value<QJSValue>().toVariant(QJSValue::ConvertJSObjects)
                                : _value;
+    if (!m_layers[m_active].directType.isEmpty()) {
+        if (m_layers[m_active].directParameters.value(_key) == value)
+            return;
+        m_layers[m_active].directParameters[_key] = value;
+        if (_key == "_limitSelection")
+            m_layers[m_active].directSelection =
+                value.toBool() && hasSelection() ? selectionMask() : QImage{};
+        m_layerPreviewChanged = true;
+        m_cacheDirty = m_fullCompositeDirty = true;
+        requestPreviewRender(true);
+        emit layersChanged();
+        return;
+    }
     if (m_layers[m_active].parameters.value(_key) == value)
         return;
     const QString pairId = m_layers[m_active].parameters.value("pairId").toString();
@@ -89,6 +103,8 @@ void Document::previewLayerParameter(const QString &_key, const QVariant &_value
 }
 void Document::finishLayerPreview(const QString &_label)
 {
+    if (!directAdjustmentInfo().isEmpty())
+        return;
     if (!m_previewingLayer)
         return;
     m_previewingLayer       = false;
@@ -252,6 +268,21 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     if (renderSize != _size) {
         const qreal scale = qreal(renderSize.width()) / qMax(1, _size.width());
         for (Layer &layer : _layers) {
+            if (!layer.directType.isEmpty())
+                layer.directParameters["_canvasSize"] = renderSize;
+            if (!layer.directSelection.isNull())
+                layer.directSelection =
+                    cachedScreenProxy(layer.directSelection, renderSize, QImage::Format_Grayscale8);
+            for (const auto &key : {"radius", "distance", "cellSize"})
+                if (layer.directParameters.contains(key))
+                    layer.directParameters[key] =
+                        layer.directParameters.value(key).toDouble() * scale;
+            if (layer.parameters.contains("_maskFeather"))
+                layer.parameters["_maskFeather"] =
+                    layer.parameters.value("_maskFeather").toDouble() * scale;
+            if (layer.parameters.contains("_vectorFeather"))
+                layer.parameters["_vectorFeather"] =
+                    layer.parameters.value("_vectorFeather").toDouble() * scale;
             if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     cachedScreenProxy(layer.image, renderSize, QImage::Format_ARGB32_Premultiplied);
@@ -278,6 +309,15 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     renderer.m_cacheDirty         = true;
     renderer.m_fullCompositeDirty = true;
     renderer.m_dirtyRegion        = {};
+    for (const auto &layer : renderer.m_layers)
+        if (!layer.directType.isEmpty() && layer.directMask &&
+            layer.directParameters.value("_maskOnlyView").toBool()) {
+            const auto mask      = ImageUtils::expandedPlane(layer.mask, renderSize);
+            auto       displayed = directAdjustedImage(mask, layer, QRect(QPoint{}, renderSize))
+                                 .convertToFormat(QImage::Format_RGB32);
+            displayed.setColorSpace(QColorSpace::SRgb);
+            return displayed;
+        }
     return renderer.composite();
 }
 void Document::cancelLayerPreview()
@@ -345,7 +385,9 @@ QColor Document::sampleCurvePoint(const QString &_mode, int _x, int _y)
     static const QSet<QString> modes{QStringLiteral("black"), QStringLiteral("gray"),
                                      QStringLiteral("white")};
     if (!modes.contains(_mode) || m_active < 0 || m_active >= m_layers.size() ||
-        m_layers[m_active].adjustmentType != QStringLiteral("curves") || m_size.isEmpty())
+        (m_layers[m_active].adjustmentType != QStringLiteral("curves") &&
+         m_layers[m_active].directType != QStringLiteral("curves")) ||
+        m_size.isEmpty())
         return {};
     const QColor sampled = sampleCompositeColor(_x, _y);
     if (!sampled.isValid())
@@ -371,11 +413,18 @@ QVariantList Document::autoBlackWhiteValues() const
     const QVariantList defaults{40, 60, 40, 60, 20, 80};
     if (m_active < 0 || m_active >= m_layers.size())
         return defaults;
-    QVector<Layer> layers    = m_layers;
-    layers[m_active].visible = false;
-    const QSize  target      = m_size.scaled(QSize(640, 640), Qt::KeepAspectRatio);
-    const QImage source      = renderPreviewSnapshot(std::move(layers), m_size, target, true)
-                                   .convertToFormat(QImage::Format_ARGB32);
+    const QSize target = m_size.scaled(QSize(640, 640), Qt::KeepAspectRatio);
+    QImage      source;
+    const auto &layer = m_layers[m_active];
+    if (!layer.directType.isEmpty())
+        source = ImageUtils::expandedPlane(layer.directMask ? layer.mask : layer.image, target)
+                     .convertToFormat(QImage::Format_ARGB32);
+    else {
+        QVector<Layer> layers    = m_layers;
+        layers[m_active].visible = false;
+        source                   = renderPreviewSnapshot(std::move(layers), m_size, target, true)
+                     .convertToFormat(QImage::Format_ARGB32);
+    }
     if (source.isNull())
         return defaults;
 

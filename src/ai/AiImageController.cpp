@@ -113,6 +113,25 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
         provider["options"] =
             QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
     }
+    if (provider.value("kind") == "gradio") {
+        auto options =
+            QJsonDocument::fromJson(provider.value("options", "{}").toString().toUtf8()).object();
+        for (const auto &key :
+             {"lora_adapter", "seed", "randomize_seed", "guidance_scale", "steps"})
+            if (_options.contains(key))
+                options[key] = QJsonValue::fromVariant(_options.value(key));
+        const auto error = AiSettings::gradioOptionsError(options.toVariantMap());
+        if (!error.isEmpty() || (provider.value("authMode", "basic") == "basic" &&
+                                 provider.value("username").toString().isEmpty())) {
+            m_error = error.isEmpty()
+                          ? tr("Renseignez l’utilisateur HTTP Basic dans Réglages → IA.")
+                          : error;
+            emit changed();
+            return false;
+        }
+        provider["options"] =
+            QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
+    }
     const auto mode   = provider.value("promptMode", "required").toString();
     const auto prompt = mode == "none" ? QString{} : _prompt.trimmed();
     if (provider.isEmpty() || !AiSettings::validEndpoint(QUrl(provider.value("url").toString())) ||
@@ -167,6 +186,11 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
                 key.isEmpty()) {
                 stop(tr("Ajoutez une clé API dans Réglages → IA, ou définissez sa variable "
                         "d’environnement."));
+                return;
+            }
+            if (m_provider.value("kind") == "gradio" &&
+                m_provider.value("authMode", "basic") == "basic" && key.isEmpty()) {
+                stop(tr("Ajoutez le mot de passe HTTP Basic dans Réglages → IA."));
                 return;
             }
             if (!m_document || m_input.session != m_document->documentSession()) {
@@ -355,6 +379,17 @@ void AiImageController::tryInsertion()
         metadata["upscaleFactor"] = options.value(topaz ? "upscale_factor" : "scale").toDouble(2.);
         metadata["upscaleModel"] =
             options.value("model").toString(topaz ? "Standard V2" : "RealESRGAN_x2plus");
+    }
+    if (m_provider.value("kind") == "gradio") {
+        const auto options =
+            QJsonDocument::fromJson(m_provider.value("options").toString().toUtf8()).object();
+        QVariantMap parameters;
+        for (const auto &key :
+             {"lora_adapter", "seed", "randomize_seed", "guidance_scale", "steps"})
+            parameters[key] = options.value(key).toVariant();
+        metadata["qwenParameters"] = parameters;
+        if (m_job.resultMetadata().contains("seed"))
+            metadata["seed"] = m_job.resultMetadata().value("seed");
     }
     const bool inserted =
         m_newDocument ? m_documents && m_documents->addAiDocument(*m_readyResult, metadata, m_input,

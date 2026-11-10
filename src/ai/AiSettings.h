@@ -55,6 +55,7 @@ public:
     void resolveKey(const QString &_id, QObject *_receiver, AiCredentialStore::Callback _finished);
     static bool             validEndpoint(const QUrl &_url);
     static QVariantMap      normalizedProvider(QVariantMap _provider);
+    static QString          gradioOptionsError(const QVariantMap &_options);
     static QString          defaultWorkflow();
 signals:
     void changed();

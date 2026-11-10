@@ -10,6 +10,9 @@ and clearer editable Pen shapes. The patch stabilizes the Alt/Option eyedropper
 and thin painted outlines. [Release notes](CHANGELOG.md) ·
 [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
+In preparation: **Qwen Edit 2.1 through Gradio v2**, with HTTP Basic, 19 LoRA
+adapters and generation controls. [Setup and test status](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2) (French).
+
 ## Download
 
 Each release provides a **macOS arm64 DMG**, a **Linux x86_64 AppImage**,

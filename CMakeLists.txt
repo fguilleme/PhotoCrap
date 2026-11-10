@@ -77,7 +77,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ai/AiImageTypes.cpp src/ai/AiImageTypes.h
     src/ai/AiSettings.cpp src/ai/AiSettings.h
     src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
-    src/ai/AiImageJob.cpp src/ai/AiImageJob.h
+    src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -422,7 +422,7 @@ qt_add_library(photocrap_core STATIC
     src/ai/AiImageTypes.cpp src/ai/AiImageTypes.h
     src/ai/AiSettings.cpp src/ai/AiSettings.h
     src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
-    src/ai/AiImageJob.cpp src/ai/AiImageJob.h
+    src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -616,6 +616,7 @@ qt_add_qml_module(PhotoCrap
         qml/AiTextField.qml
         qml/AiActionButton.qml
         qml/AiProviderList.qml
+        qml/QwenParameters.qml
         qml/AiPreferences.qml
         qml/AiImageDialog.qml
         qml/AiProgressPanel.qml
@@ -906,6 +907,10 @@ if(BUILD_TESTING)
     set_tests_properties(documents PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     add_test(NAME documents_ui COMMAND PhotoCrap --smoke-test --documents-test)
     set_tests_properties(documents_ui PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+    qt_add_executable(photocrap_gradio_tests tests/AiGradioTest.cpp)
+    target_link_libraries(photocrap_gradio_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
+    add_test(NAME ai_gradio COMMAND photocrap_gradio_tests)
+    set_tests_properties(ai_gradio PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
     qt_add_executable(photocrap_ai_tests tests/AiImageTest.cpp)
     target_link_libraries(photocrap_ai_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
     add_test(NAME ai_images COMMAND photocrap_ai_tests)

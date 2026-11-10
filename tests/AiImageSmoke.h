@@ -3,6 +3,7 @@
 #include "Document.h"
 #include "ai/AiImageController.h"
 #include <QBuffer>
+#include <QJSValue>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QtTest>
@@ -226,6 +227,79 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
         return false;
     key->setProperty("text", "");
     QMetaObject::invokeMethod(preferences, "close");
+    QMetaObject::invokeMethod(dialog, "reject");
+    QMetaObject::invokeMethod(dialog, "settingsRequested");
+    QMetaObject::invokeMethod(panel, "createProvider", Q_ARG(QVariant, QVariant("gradio")));
+    QTest::qWait(40);
+    const auto qwenId   = panel->property("providerId").toString();
+    auto *     qwen     = panel->findChild<QObject *>("aiQwenProviderParameters");
+    auto *     username = panel->findChild<QObject *>("aiGradioUsername");
+    auto *     qwenLora = qwen ? qwen->findChild<QObject *>("qwenLora") : nullptr;
+    if (!require(qwen && username && qwenLora && qwenLora->property("count").toInt() == 19,
+                 "Qwen preferences expose HTTP Basic and all nineteen LoRA adapters"))
+        return false;
+    auto adapters = qwen->property("adapters");
+    if (adapters.metaType().id() == qMetaTypeId<QJSValue>())
+        adapters = adapters.value<QJSValue>().toVariant();
+    const QStringList expectedAdapters{"Multiple-Angles",
+                                       "Photo-to-Anime",
+                                       "Anime-V2",
+                                       "Light-Migration",
+                                       "Upscaler",
+                                       "Style-Transfer",
+                                       "Manga-Tone",
+                                       "Anything2Real",
+                                       "Fal-Multiple-Angles",
+                                       "Polaroid-Photo",
+                                       "Unblur-Anything",
+                                       "Midnight-Noir-Eyes-Spotlight",
+                                       "Hyper-Realistic-Portrait",
+                                       "Ultra-Realistic-Portrait",
+                                       "Pixar-Inspired-3D",
+                                       "Noir-Comic-Book",
+                                       "Any-light",
+                                       "Studio-DeLight",
+                                       "Cinematic-FlatLog"};
+    if (!require(adapters.toStringList() == expectedAdapters,
+                 "LoRA names and capitalization match the supplied server list"))
+        return false;
+    address->setProperty("text", "http://127.0.0.1:7861");
+    username->setProperty("text", "qwen-ui-user");
+    key->setProperty("text", "qwen-ui-only-password");
+    qwenLora->setProperty("currentIndex", 4);
+    qwenLora->setProperty("editText", "Upscaler");
+    qwen->findChild<QObject *>("qwenRandomizeSeed")->setProperty("checked", false);
+    qwen->findChild<QObject *>("qwenSeed")->setProperty("text", "123");
+    qwen->findChild<QObject *>("qwenGuidance")->setProperty("value", 75);
+    qwen->findChild<QObject *>("qwenSteps")->setProperty("value", 8);
+    QMetaObject::invokeMethod(save, "clicked");
+    QTest::qWait(40);
+    const auto qwenProfile = _settings.provider(qwenId);
+    const auto qwenOptions =
+        QJsonDocument::fromJson(qwenProfile.value("options").toString().toUtf8()).object();
+    if (!require(qwenProfile.value("username") == "qwen-ui-user" &&
+                     qwenOptions.value("lora_adapter") == "Upscaler" &&
+                     qwenOptions.value("seed").toInt() == 123 &&
+                     qwenOptions.value("steps").toInt() == 8 &&
+                     qAbs(qwenOptions.value("guidance_scale").toDouble() - .75) < .001 &&
+                     _settings.hasKey(qwenId) && key->property("text").toString().isEmpty(),
+                 "Qwen saves LoRA and parameters separately from its masked secure password"))
+        return false;
+    QMetaObject::invokeMethod(preferences, "close");
+    QMetaObject::invokeMethod(dialog, "chooseProvider", Q_ARG(QVariant, QVariant(qwenId)));
+    QMetaObject::invokeMethod(dialog, "start");
+    prompt->setProperty("text", "Test Qwen parameters without a request");
+    QTest::qWait(60);
+    auto *generationQwen = dialog->findChild<QQuickItem *>("aiQwenParameters");
+    auto *generationLora =
+        generationQwen ? generationQwen->findChild<QObject *>("qwenLora") : nullptr;
+    if (!require(generationQwen && generationQwen->isVisible() && generationLora &&
+                     generationLora->property("editText") == "Upscaler" &&
+                     generationQwen->findChild<QObject *>("qwenSteps")->property("value").toInt() ==
+                         8 &&
+                     generate->isEnabled(),
+                 "generation restores the saved Qwen adapter and exposes editable parameters"))
+        return false;
     QMetaObject::invokeMethod(dialog, "reject");
     return runAiProgressSmoke(_window);
 }

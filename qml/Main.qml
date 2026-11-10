@@ -86,6 +86,8 @@ ApplicationWindow {
         if (!ai || !ai.provider) return ""
         const lines = [qsTr("Fournisseur : %1").arg(ai.provider)]
         if (ai.model) lines.push(qsTr("Modèle : %1").arg(ai.model))
+        if (ai.seed !== undefined) lines.push(qsTr("Graine : %1").arg(ai.seed))
+        if (ai.qwenParameters) lines.push(qsTr("LoRA : %1 · %2 étapes · guidance %3").arg(ai.qwenParameters.lora_adapter || "None").arg(ai.qwenParameters.steps).arg(ai.qwenParameters.guidance_scale))
         if (ai.upscaleFactor) lines.push(qsTr("Upscale : ×%1 · %2").arg(ai.upscaleFactor).arg(ai.upscaleModel || ""))
         if (ai.inputSize && ai.inputSize.length === 2) lines.push(qsTr("Image envoyée : %1 × %2 px").arg(ai.inputSize[0]).arg(ai.inputSize[1]))
         if (ai.originalSource) lines.push(qsTr("Source : image IA d’origine du calque"))

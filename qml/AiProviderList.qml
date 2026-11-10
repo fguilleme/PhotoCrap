@@ -54,6 +54,7 @@ ListView {
                 width: parent.width
                 text: {
                     const revision = list.settings.revision;
+                    if (modelData.kind === "gradio") return modelData.authMode === "none" ? qsTr("Qwen · sans authentification") : qsTr("HTTP Basic · %1").arg(modelData.username || qsTr("à configurer"));
                     if (modelData.kind === "comfy")
                         return qsTr("ComfyUI · Local");
                     const source = list.settings.keySource(modelData.id);

@@ -1,6 +1,6 @@
 # Roadmap PhotoCrap
 
-État au **9 novembre 2026**. **v0.21.1** comprend les documents multiples, les résultats
+État au **10 novembre 2026**. **v0.21.1** comprend les documents multiples, les résultats
 IA à résolution native dans un nouvel onglet, la réutilisation des clés entre profils
 du même service et une Plume simplifiée avec formes modifiables. Le format binaire
 v14, Quick Look et les imports par dépôt restent disponibles.
@@ -9,6 +9,15 @@ Le correctif stabilise la pipette Option/Alt et les contours fins sous le guide 
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
+
+## En préparation
+
+- [x] Qwen Edit 2.1 via Gradio v2 : HTTP Basic sécurisé, événements SSE, 19 LoRA,
+  paramètres de génération et résultat sur un calque ou dans un nouveau document.
+- [x] Première génération Qwen réelle confirmée dans l’application ; tests de
+  protocole et d’interface sur serveur simulé. [Guide IA](docs/AI_IMAGE_EDITING.md).
+- [ ] Reprendre les essais Qwen prolongés et sur grandes images après rétablissement
+  du serveur ; identifier la cause de son indisponibilité dans ses logs.
 
 ## Livraison de v0.21.0
 

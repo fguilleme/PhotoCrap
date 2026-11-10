@@ -7,6 +7,7 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QUuid>
+#include <cmath>
 
 namespace
 {
@@ -93,6 +94,27 @@ bool AiSettings::validEndpoint(const QUrl &_url)
            !_url.host().isEmpty() && _url.userInfo().isEmpty() && !_url.hasQuery() &&
            !_url.hasFragment();
 }
+QString AiSettings::gradioOptionsError(const QVariantMap &options)
+{
+    const double seed     = options.value("seed", 42).toDouble();
+    const double steps    = options.value("steps", 4).toDouble();
+    const double guidance = options.value("guidance_scale", 1.).toDouble();
+    const auto   numeric  = [&](const char *key) {
+        return !options.contains(key) || QJsonValue::fromVariant(options.value(key)).isDouble();
+    };
+    if (!numeric("seed") || !std::isfinite(seed) || seed < 0 || seed > 9007199254740991. ||
+        seed != std::floor(seed) || !numeric("steps") || !std::isfinite(steps) || steps < 1 ||
+        steps > 100 || steps != std::floor(steps) || !numeric("guidance_scale") ||
+        !std::isfinite(guidance) || guidance < 0 || guidance > 100 ||
+        (options.contains("randomize_seed") &&
+         options.value("randomize_seed").metaType().id() != QMetaType::Bool) ||
+        (options.contains("lora_adapter") &&
+         (options.value("lora_adapter").metaType().id() != QMetaType::QString ||
+          options.value("lora_adapter").toString().size() > 512)))
+        return tr("Paramètres Qwen invalides : graine entière positive, 1 à 100 étapes, guidance "
+                  "de 0 à 100 et aléatoire booléen.");
+    return {};
+}
 QVariantMap AiSettings::normalizedProvider(QVariantMap p)
 {
     const auto endpoint = p.value("model").toString().trimmed();
@@ -172,6 +194,16 @@ QVariantMap AiSettings::newProvider(const QString &_kind) const
         p["url"]   = "http://127.0.0.1:8000/v1";
         p["model"] = "";
     }
+    if (_kind == "gradio") {
+        p["name"]     = "Qwen Edit 2.1 · Gradio";
+        p["url"]      = "http://127.0.0.1:7861";
+        p["model"]    = "edit_image";
+        p["authMode"] = "basic";
+        p["username"] = "";
+        p["maxEdge"]  = 1536;
+        p["options"] =
+            R"({"lora_adapter":"Photo-to-Anime","seed":42,"randomize_seed":true,"guidance_scale":1.0,"steps":4})";
+    }
     return p;
 }
 QVariantMap AiSettings::provider(const QString &_id) const
@@ -202,7 +234,7 @@ QString AiSettings::saveProvider(QVariantMap _provider)
 {
     _provider       = normalizedProvider(std::move(_provider));
     const auto kind = _provider.value("kind").toString();
-    if (!QStringList{"openai", "fal", "comfy", "compatible"}.contains(kind) ||
+    if (!QStringList{"openai", "fal", "comfy", "compatible", "gradio"}.contains(kind) ||
         _provider.value("name").toString().trimmed().isEmpty() ||
         !validEndpoint(QUrl(_provider.value("url").toString()))) {
         reject(tr("Indiquez un nom, un type et une adresse HTTP(S) valides."));
@@ -237,6 +269,24 @@ QString AiSettings::saveProvider(QVariantMap _provider)
         }
     }
     QVariantMap clean;
+    if (kind == "gradio") {
+        const auto auth     = _provider.value("authMode", "basic").toString();
+        const auto username = _provider.value("username").toString().trimmed();
+        const auto problem  = gradioOptionsError(options.object().toVariantMap());
+        if (!QStringList{"basic", "none"}.contains(auth) || username.size() > 256 ||
+            username.contains(':') || username.contains('\r') || username.contains('\n') ||
+            !QRegularExpression("^[A-Za-z0-9_-]+$")
+                 .match(_provider.value("model").toString())
+                 .hasMatch() ||
+            !problem.isEmpty()) {
+            reject(problem.isEmpty()
+                       ? tr("Vérifiez le nom de l’API Gradio et l’utilisateur HTTP Basic.")
+                       : problem);
+            return {};
+        }
+        clean["authMode"] = auth;
+        clean["username"] = username;
+    }
     for (const auto &field : {"id", "name", "kind", "url", "model", "keyEnv", "options", "workflow",
                               "imageField", "imageArray"})
         clean[field] = _provider.value(field);
@@ -258,7 +308,9 @@ QString AiSettings::saveProvider(QVariantMap _provider)
         canonicalEndpoint(previous.value("url")) == canonicalEndpoint(clean.value("url")))
         clean["url"] = previous.value("url"); // Preserve existing keychain account identifiers.
     if (!previous.isEmpty() && (previous.value("url") != clean.value("url") ||
-                                previous.value("kind") != clean.value("kind"))) {
+                                previous.value("kind") != clean.value("kind") ||
+                                previous.value("username") != clean.value("username") ||
+                                previous.value("authMode") != clean.value("authMode"))) {
         eraseCredential(credentialAccount(clean["id"].toString()));
         m_keys.remove(clean["id"].toString());
         ++m_keyVersions[clean["id"].toString()];
@@ -317,16 +369,22 @@ QString AiSettings::readWorkflow(const QUrl &_url)
 void AiSettings::setSessionKey(const QString &_id, const QString &_key)
 {
     ++m_keyVersions[_id];
-    if (_key.trimmed().isEmpty())
+    const auto p = provider(_id);
+    const auto secret =
+        p.value("kind") == "gradio" && p.value("authMode") == "basic" ? _key : _key.trimmed();
+    if (secret.isEmpty())
         m_keys.remove(_id);
     else
-        m_keys[_id] = _key.trimmed();
+        m_keys[_id] = secret;
     notifyChanged();
 }
 QString AiSettings::credentialAccount(const QString &_id) const
 {
     const auto entry = provider(_id);
-    const auto scope = entry.value("kind").toString() + "|" + entry.value("url").toString();
+    auto       scope = entry.value("kind").toString() + "|" + entry.value("url").toString();
+    if (entry.value("kind") == "gradio")
+        scope +=
+            "|" + entry.value("authMode").toString() + "|" + entry.value("username").toString();
     return _id + ":" +
            QString::fromLatin1(
                QCryptographicHash::hash(scope.toUtf8(), QCryptographicHash::Sha256).toHex());
@@ -435,11 +493,14 @@ void AiSettings::resolveOwnKey(const QString &_id, QObject *_receiver,
 }
 void AiSettings::saveKey(const QString &_id, const QString &_key)
 {
-    if (provider(_id).isEmpty() || _key.trimmed().isEmpty()) {
+    const auto p = provider(_id);
+    const auto secret =
+        p.value("kind") == "gradio" && p.value("authMode") == "basic" ? _key : _key.trimmed();
+    if (p.isEmpty() || secret.isEmpty()) {
         reject(tr("Choisissez un fournisseur et saisissez une clé API."));
         return;
     }
-    const auto account = credentialAccount(_id), secret = _key.trimmed();
+    const auto account = credentialAccount(_id);
     const auto version = ++m_keyVersions[_id];
     ++m_credentialJobs;
     m_error.clear();

@@ -114,6 +114,10 @@ void AiImageJob::fail(const QString &_message)
     auto message = _message;
     if (!m_key.isEmpty())
         message.replace(m_key, "[clé masquée]");
+    const auto auth  = authorization();
+    const auto token = auth.mid(auth.indexOf(' ') + 1);
+    if (!token.isEmpty())
+        message.replace(QString::fromLatin1(token), "[identifiants masqués]");
     cancel();
     emit finished({}, message.left(1000));
 }
@@ -134,21 +138,32 @@ void AiImageJob::done(const QByteArray &_bytes)
 }
 void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByteArray &_body,
                          const QByteArray &_contentType, bool _auth, Handler _handler,
-                         int _redirects, bool _download)
+                         int _redirects, bool _download, Handler _chunks, Retry _retry)
 {
     if (!m_running)
         return;
     QNetworkRequest request(_url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::ManualRedirectPolicy);
-    request.setTransferTimeout(180000);
-    request.setRawHeader("Accept", "application/json, image/png, image/jpeg, image/webp");
+    request.setTransferTimeout(_chunks ? 0 : 180000);
+    if (m_provider.value("kind") == "gradio") {
+        // A completed/aborted SSE response must never poison the next upload's
+        // pooled socket. Qwen's local Gradio server uses HTTP/1.1.
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+        request.setAttribute(QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, 0);
+        request.setRawHeader("Connection", "close");
+        if (_chunks) {
+            request.setRawHeader("Cache-Control", "no-cache");
+            request.setRawHeader("Accept-Encoding", "identity");
+        }
+    }
+    request.setRawHeader("Accept", _chunks ? "text/event-stream"
+                                           : "application/json, image/png, image/jpeg, image/webp");
     if (!_contentType.isEmpty())
         request.setRawHeader("Content-Type", _contentType);
-    if (_auth && !m_key.isEmpty() && sameOrigin(_url))
-        request.setRawHeader("Authorization",
-                             (m_provider.value("kind") == "fal" ? "Key " : "Bearer ") +
-                                 m_key.toUtf8());
+    const auto auth = authorization();
+    if (_auth && !m_key.isEmpty() && sameOrigin(_url) && !auth.isEmpty())
+        request.setRawHeader("Authorization", auth);
     auto *reply           = m_network.sendCustomRequest(request, _method, _body);
     m_reply               = reply;
     const auto generation = m_generation;
@@ -159,23 +174,35 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
                         emit status(tr("En attente du résultat chez le fournisseur…"));
                 });
     auto bytes = std::make_shared<QByteArray>();
-    connect(reply, &QNetworkReply::readyRead, this, [this, reply, bytes, generation] {
-        if (generation != m_generation || !m_running)
-            return;
-        bytes->append(reply->readAll());
-        if (bytes->size() > MaxReply)
-            fail(tr("La réponse IA dépasse 100 Mio."));
-    });
+    auto received = std::make_shared<qint64>(0);
+    connect(reply, &QNetworkReply::readyRead, this,
+            [this, reply, bytes, received, generation, _chunks] {
+                if (generation != m_generation || !m_running)
+                    return;
+                const auto chunk = reply->readAll();
+                *received += chunk.size();
+                if (*received > MaxReply) {
+                    fail(tr("La réponse IA dépasse 100 Mio."));
+                    return;
+                }
+                const auto code =
+                    reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (_chunks && code >= 200 && code < 300)
+                    _chunks(chunk);
+                else
+                    bytes->append(chunk);
+            });
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, bytes, generation, _auth, _redirects, _download,
-             _handler = std::move(_handler)] {
+            [this, reply, bytes, received, generation, _auth, _redirects, _download, _chunks,
+             _retry, _handler = std::move(_handler)] {
                 reply->deleteLater();
                 if (generation != m_generation || !m_running)
                     return;
                 m_reply.clear();
-                bytes->append(reply->readAll());
+                const auto tail = reply->readAll();
+                *received += tail.size();
                 const int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-                if (bytes->size() > MaxReply) {
+                if (*received > MaxReply) {
                     fail(tr("La réponse IA dépasse 100 Mio."));
                     return;
                 }
@@ -195,14 +222,34 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
                             "réglages IA."));
                     return;
                 }
+                // A terminal event can accompany the last bytes of a closed
+                // socket. Consume it before deciding whether the stream failed.
+                if (_chunks && code >= 200 && code < 300 && !tail.isEmpty()) {
+                    _chunks(tail);
+                    if (generation != m_generation || !m_running)
+                        return;
+                }
                 if (reply->error() != QNetworkReply::NoError || code >= 400) {
+                    if (_retry && _retry(reply->error(), code))
+                        return;
+                    bytes->append(tail);
                     const auto data = object(*bytes);
                     const auto detail = errorDetail(data);
-                    fail(tr("Erreur IA (%1) : %2")
-                             .arg(code)
-                             .arg(detail.isEmpty() ? reply->errorString() : detail));
+                    const auto message = tr("Erreur IA (%1) : %2")
+                                             .arg(code)
+                                             .arg(detail.isEmpty() ? reply->errorString() : detail);
+                    fail(m_provider.value("kind") == "gradio" && code == 0
+                             ? (m_jobId.isEmpty()
+                                    ? tr("Envoi à Qwen non confirmé : %1. Aucun nouvel envoi "
+                                         "automatique.")
+                                          .arg(message)
+                                    : tr("Lecture du résultat Qwen interrompue (tâche %1) : %2")
+                                          .arg(m_jobId, message))
+                             : message);
                     return;
                 }
+                if (!_chunks)
+                    bytes->append(tail);
                 _handler(*bytes);
             });
 }
@@ -239,6 +286,7 @@ void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, con
     m_statusUrl   = QUrl{};
     m_responseUrl = QUrl{};
     m_provider    = _provider;
+    m_resultMetadata.clear();
     m_key         = _key;
     m_prompt      = _provider.value("promptMode") == "none" ? QString{} : _prompt;
     m_input       = _input;
@@ -301,7 +349,9 @@ void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, con
                  }
                  pollFal();
              });
-    } else if (kind == "comfy")
+    } else if (kind == "gradio")
+        startGradio();
+    else if (kind == "comfy")
         startComfy();
     else
         fail(tr("Ce type de fournisseur n’est pas pris en charge."));
@@ -474,7 +524,8 @@ void AiImageJob::cancel()
         m_reply->abort();
     m_reply.clear();
     // Target only this queued task. Never interrupt another ComfyUI execution.
-    if ((fal && acceptQueueUrl(cancelUrl)) || (!fal && !jobId.isEmpty())) {
+    if ((fal && acceptQueueUrl(cancelUrl)) ||
+        (m_provider.value("kind") == "comfy" && !jobId.isEmpty())) {
         QNetworkRequest request(fal ? cancelUrl : endpoint("queue"));
         request.setTransferTimeout(10000);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,

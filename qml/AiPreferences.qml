@@ -11,6 +11,7 @@ ColumnLayout {
     signal providerSaved(string providerId)
     property string providerId: ""
     property string providerKind: "openai"
+    readonly property bool basicAuth: providerKind === "gradio" && authMode.currentIndex === 0
     property string promptId: ""
     property string notice: ""
     readonly property bool topaz: providerKind === "fal" && modelName.text.trim() === "topaz/upscale/image/precision"
@@ -31,6 +32,9 @@ ColumnLayout {
         modelName.text = value.model || "";
         environmentName.text = value.keyEnv || "";
         options.text = value.options || "{}";
+        qwenParameters.load(options.text);
+        username.text = value.username || "";
+        authMode.currentIndex = value.authMode === "none" ? 1 : 0;
         workflow.text = value.workflow || "";
         imageField.text = value.imageField || "image_urls";
         imageArray.checked = value.imageArray !== false;
@@ -55,6 +59,7 @@ ColumnLayout {
         }
     }
     function saveProvider() {
+        if (providerKind === "gradio" && !qwenParameters.valid) { notice = qsTr("Vérifiez l’adaptateur LoRA et la graine."); return; }
         const saved = settings.saveProvider({
             id: providerId,
             name: providerName.text,
@@ -63,7 +68,9 @@ ColumnLayout {
             model: modelName.text.trim(),
             keyEnv: environmentName.text.trim(),
             maxEdge: maxEdge.value,
-            options: options.text,
+            options: providerKind === "gradio" ? JSON.stringify(qwenParameters.options(options.text)) : options.text,
+            username: username.text.trim(),
+            authMode: authMode.currentIndex === 1 ? "none" : "basic",
             workflow: workflow.text,
             imageField: imageField.text,
             imageArray: imageArray.checked,
@@ -75,7 +82,7 @@ ColumnLayout {
             return;
         }
         providerId = saved;
-        if (apiKey.text.trim().length)
+        if (panel.basicAuth ? apiKey.text.length : apiKey.text.trim().length)
             settings.saveKey(saved, apiKey.text);
         else {
             notice = qsTr("Configuration enregistrée.");
@@ -104,7 +111,7 @@ ColumnLayout {
         function onKeySaved(id, success) {
             if (id === panel.providerId && success) {
                 apiKey.text = "";
-                panel.notice = qsTr("Configuration et clé API enregistrées.");
+                panel.notice = qsTr("Configuration et identifiant secret enregistrés.");
                 panel.providerSaved(id);
             }
         }
@@ -220,7 +227,7 @@ ColumnLayout {
                             placeholderText: qsTr("Nom de cette configuration")
                         }
                         Label {
-                            text: panel.providerKind === "comfy" ? "ComfyUI · Local" : panel.providerKind === "fal" ? "fal.ai" : panel.providerKind === "openai" ? "OpenAI · GPT Image" : qsTr("API d’images compatible OpenAI")
+                            text: panel.providerKind === "gradio" ? "Qwen Image Edit · Gradio (JSON v2)" : panel.providerKind === "comfy" ? "ComfyUI · Local" : panel.providerKind === "fal" ? "fal.ai" : panel.providerKind === "openai" ? "OpenAI · GPT Image" : qsTr("API d’images compatible OpenAI")
                             color: "#899aa9"
                             font.pixelSize: 11
                         }
@@ -236,7 +243,7 @@ ColumnLayout {
                             placeholderText: "https://api.openai.com/v1"
                         }
                         Label {
-                            text: panel.providerKind === "comfy" ? qsTr("Checkpoint installé dans ComfyUI") : qsTr("Modèle")
+                            text: panel.providerKind === "gradio" ? qsTr("Nom de l’API") : panel.providerKind === "comfy" ? qsTr("Checkpoint installé dans ComfyUI") : qsTr("Modèle")
                             color: "#aab6c3"
                             font.pixelSize: 12
                         }
@@ -254,17 +261,47 @@ ColumnLayout {
                             }
                         }
                         Label {
-                            text: qsTr("Clé API")
+                            visible: panel.providerKind === "gradio"
+                            text: qsTr("Authentification")
+                            color: "#aab6c3"
+                        }
+                        Basic.ComboBox {
+                            id: authMode
+                            objectName: "aiGradioAuthMode"
+                            visible: panel.providerKind === "gradio"
+                            Layout.fillWidth: true
+                            model: [qsTr("HTTP Basic"), qsTr("Sans authentification")]
+                            palette.buttonText: "#e0e7ee"; palette.button: "#2d3641"
+                        }
+                        Label { visible: panel.basicAuth; text: qsTr("Utilisateur HTTP Basic"); color: "#aab6c3" }
+                        AiTextField {
+                            id: username
+                            objectName: "aiGradioUsername"
+                            visible: panel.basicAuth
+                            Layout.fillWidth: true
+                            maximumLength: 256
+                        }
+                        QwenParameters {
+                            id: qwenParameters
+                            objectName: "aiQwenProviderParameters"
+                            visible: panel.providerKind === "gradio"
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            visible: panel.providerKind !== "gradio" || panel.basicAuth
+                            text: panel.basicAuth ? qsTr("Mot de passe HTTP Basic") : qsTr("Clé API")
                             color: "#aab6c3"
                             font.pixelSize: 12
                         }
                         AiTextField {
                             id: apiKey
+                            visible: panel.providerKind !== "gradio" || panel.basicAuth
                             objectName: "aiApiKey"
                             Layout.fillWidth: true
                             echoMode: TextInput.Password
                             placeholderText: {
                                 const revision = panel.settings.revision;
+                                if (panel.basicAuth) return panel.settings.hasKey(panel.providerId) ? qsTr("Mot de passe disponible · saisir pour le remplacer") : qsTr("Mot de passe du serveur Qwen")
                                 return panel.settings.hasKey(panel.providerId) ? qsTr("Clé disponible · saisir pour la remplacer") : panel.settings.keySource(panel.providerId) === "unloaded" ? qsTr("Saisir une clé pour l’ajouter ou la remplacer") : qsTr("Coller la clé API ici");
                             }
                         }
@@ -277,6 +314,11 @@ ColumnLayout {
                             text: {
                                 const revision = panel.settings.revision;
                                 const source = panel.settings.keySource(panel.providerId);
+                                if (panel.providerKind === "gradio") {
+                                    if (!panel.basicAuth) return qsTr("Aucun identifiant n’est envoyé à ce serveur.");
+                                    if (apiKey.text.length) return qsTr("Mot de passe saisi, pas encore enregistré.");
+                                    return source === "stored" ? qsTr("Mot de passe enregistré dans le trousseau sécurisé.") : qsTr("Le mot de passe reste dans le trousseau, hors du JSON et des projets.");
+                                }
                                 if (apiKey.text.trim().length)
                                     return panel.settings.credentialsBusy ? qsTr("Enregistrement de la clé…") : qsTr("Clé saisie, pas encore enregistrée. Cliquez sur Enregistrer.");
                                 if (source === "shared")
@@ -346,12 +388,14 @@ ColumnLayout {
                                 placeholderText: "OPENAI_API_KEY, FAL_KEY…"
                             }
                             Label {
+                                visible: panel.providerKind !== "gradio"
                                 text: qsTr("Paramètres du modèle (JSON)")
                                 color: "#aab6c3"
                                 font.pixelSize: 12
                             }
                             Basic.TextArea {
                                 id: options
+                                visible: panel.providerKind !== "gradio"
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 76
                                 wrapMode: TextEdit.Wrap
@@ -594,6 +638,11 @@ ColumnLayout {
             objectName: "aiAddEsrganProvider"
             text: "fal.ai · Real-ESRGAN"
             onTriggered: panel.createProvider("falEsrgan")
+        }
+        DarkMenuItem {
+            objectName: "aiAddQwenProvider"
+            text: "Qwen Edit 2.1 · Gradio"
+            onTriggered: panel.createProvider("gradio")
         }
         DarkMenuItem {
             text: "ComfyUI · Local"

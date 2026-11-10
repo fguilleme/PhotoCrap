@@ -10,6 +10,9 @@ entre profils du même service et formes modifiables avec la Plume.
 Le correctif stabilise la pipette Option/Alt et la visibilité des contours fins.
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
+En préparation : **Qwen Edit 2.1 par Gradio v2**, avec HTTP Basic, 19 LoRA et
+paramètres de génération. [Configuration et état des essais](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
+
 ## Télécharger
 
 Chaque release fournit un **DMG macOS arm64**, une **AppImage Linux x86_64**,

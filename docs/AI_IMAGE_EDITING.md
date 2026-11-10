@@ -9,13 +9,14 @@ l’envoi ; ouvrir le dialogue ou changer de preset n’envoie rien.
 
 Dans **Réglages → IA**, deux onglets permettent d’enregistrer plusieurs
 configurations de fournisseurs et une bibliothèque de prompts réutilisables.
-La liste des fournisseurs reste visible à gauche. **+ → OpenAI / fal.ai / ComfyUI / API compatible** crée immédiatement un profil. Compléter sa configuration puis utiliser **Enregistrer**, toujours visible en bas à droite. Un message confirme la sauvegarde ou indique précisément l’erreur. On peut ainsi
+La liste des fournisseurs reste visible à gauche. **+ → OpenAI / fal.ai / Qwen Edit 2.1 · Gradio / ComfyUI / API compatible** crée immédiatement un profil. Compléter sa configuration puis utiliser **Enregistrer**, toujours visible en bas à droite. Un message confirme la sauvegarde ou indique précisément l’erreur. On peut ainsi
 conserver plusieurs modèles OpenAI, endpoints fal.ai ou serveurs locaux.
 
 | Type | Configuration | Protocole |
 | --- | --- | --- |
 | OpenAI · GPT Image | Adresse terminant par `/v1`, modèle accessible au compte, clé API | `POST /images/edits`, image PNG et masque multipart, résultat encodé ou URL |
 | fal.ai | Serveur de file, chemin du modèle d’édition | Envoi JSON puis suivi de la file et téléchargement du résultat |
+| Qwen Edit 2.1 · Gradio | Adresse du serveur, nom d’API, utilisateur et mot de passe HTTP Basic | JSON nommé v2 puis flux SSE, image base64 et graine réelle |
 | ComfyUI | Adresse du serveur, checkpoint installé, workflow au format API | Upload des images, soumission du workflow, suivi de son historique, récupération de l’image |
 | API compatible OpenAI | Serveur implémentant réellement l’édition d’images OpenAI | Même protocole multipart que GPT Image ; une API de chat seule ne suffit pas |
 
@@ -75,6 +76,87 @@ Les champs d’image et les champs de génération requis restent gérés par Ph
 Pour fal.ai, le nom du champ image et son caractère liste/valeur sont configurables
 pour adapter les modèles d’édition. Les options ne rendent pas interchangeables
 les schémas des différents modèles.
+
+## Qwen Edit 2.1 avec API Gradio v2
+
+**Réglages → IA → + → Qwen Edit 2.1 · Gradio** crée un profil. Remplacer l’adresse
+locale d’exemple par l’adresse de votre serveur, conserver **Nom de l’API :
+`edit_image`**, puis choisir **HTTP Basic** et saisir les mêmes identifiants que
+l’interface du serveur. Utiliser **Enregistrer** : le mot de passe passe dans le
+trousseau sécurisé, jamais dans le JSON de requête, les réglages en clair ou le
+projet. Un changement d’utilisateur ou de mode d’authentification retire le secret
+précédent ; il faut alors le saisir de nouveau. L’option sans authentification
+existe pour les serveurs qui n’en demandent pas.
+
+Le profil vise l’API **nommée v2** du serveur Qwen fourni, et non n’importe quelle
+application Gradio acceptant des paramètres positionnels `{"data":[...]}` :
+
+1. `POST /gradio_api/call/v2/edit_image` envoie les paramètres JSON nommés et reçoit
+   `event_id`.
+2. `GET /gradio_api/call/edit_image/{event_id}` lit les événements SSE. Les
+   heartbeats et résultats intermédiaires sont ignorés ; seul `complete` fournit
+   l’image finale. Une erreur ou une fermeture prématurée est affichée.
+
+Les appels Qwen utilisent des connexions HTTP/1.1 distinctes, sans réutiliser la
+connexion d’un ancien flux SSE. Le délai de transfert applicatif du flux SSE est
+désactivé ; le délai global reste de 15 minutes. Une coupure de lecture
+ou une indisponibilité temporaire déclenche au plus trois reprises du **même
+`event_id`**, sans renvoyer l’image ni créer une seconde tâche. La récupération
+dépend de la conservation de cette tâche par le serveur ; un refus
+d’authentification, une tâche perdue ou une erreur de génération ne sont pas
+relancés automatiquement. Une annulation empêche également les reprises différées.
+Si l’envoi initial échoue avant réception de l’identifiant, PhotoCrap indique
+que l’envoi n’est pas confirmé et ne le répète pas automatiquement.
+
+Les deux requêtes utilisent HTTP Basic lorsque ce mode est sélectionné. Exemple
+de corps construit automatiquement pour une image ou la sélection active :
+
+```json
+{
+  "images_b64_json": "[\"data:image/png;base64,...\"]",
+  "prompt": "Transforme cette photo en dessin animé",
+  "lora_adapter": "Photo-to-Anime",
+  "seed": 42,
+  "randomize_seed": false,
+  "guidance_scale": 1.0,
+  "steps": 4
+}
+```
+
+`images_b64_json` est une **chaîne JSON contenant une liste d’une image PNG**.
+PhotoCrap n’envoie pas les autres documents ouverts. Il décode le champ final
+`image` (data URI PNG/JPEG/WebP) et conserve la graine effectivement renvoyée dans
+les informations du résultat. Les sorties JSON Gradio enveloppées dans un tableau
+sont également acceptées. [Protocole SSE Gradio](https://gradio.app/4.44.1/guides/querying-gradio-apps-with-curl).
+
+Le profil enregistre LoRA, graine/aléatoire, guidance et étapes ; **Créer avec l’IA…**
+permet de les changer pour cette génération sans écraser les valeurs du profil.
+La liste LoRA reprend exactement ces noms du serveur :
+
+- Multiple-Angles, Photo-to-Anime, Anime-V2, Light-Migration, Upscaler ;
+- Style-Transfer, Manga-Tone, Anything2Real, Fal-Multiple-Angles, Polaroid-Photo ;
+- Unblur-Anything, Midnight-Noir-Eyes-Spotlight, Hyper-Realistic-Portrait ;
+- Ultra-Realistic-Portrait, Pixar-Inspired-3D, Noir-Comic-Book ;
+- Any-light, Studio-DeLight, Cinematic-FlatLog.
+
+Le champ reste éditable pour un futur adaptateur. **Photo-to-Anime**, guidance 1,
+4 étapes et graine aléatoire sont proposés au départ ; ces réglages doivent
+correspondre aux capacités et adaptateurs installés sur le serveur. La commande
+ne passe ni par l’interface Gradio ni par ComfyUI. Une sélection est envoyée à sa
+boîte englobante puis réappliquée comme masque local ; le serveur ne reçoit pas
+un masque d’inpainting distinct. Le résultat peut devenir un nouveau calque
+annulable ou un nouveau document à résolution native, avec conservation du masque
+et de la profondeur 8/16 bits de PhotoCrap. Cela ne crée pas des détails 16 bits
+supplémentaires si le PNG généré est en 8 bits.
+
+**Annuler** arrête l’attente et empêche toute insertion tardive ; cette API ne
+fournit pas ici de commande d’arrêt distant, le calcul peut continuer sur le
+serveur. Les tests utilisent un serveur simulé pour l’authentification, le JSON,
+les événements fragmentés, le résultat, les erreurs et l’annulation. Une réponse
+401 a été constatée sans identifiants sur le serveur local. Une première génération
+réelle a été confirmée dans PhotoCrap ; les essais prolongés restent à reprendre
+après rétablissement du serveur, devenu injoignable même sans envoi d’image.
+La cause de cette indisponibilité doit être vérifiée dans les logs du serveur.
 
 ## Traitements sans prompt et upscale Topaz
 

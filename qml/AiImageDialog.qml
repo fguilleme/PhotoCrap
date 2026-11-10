@@ -12,6 +12,7 @@ Dialog {
     property string selectedPrompt: ""
     property var selectedProvider: providers.currentIndex >= 0 && providers.currentIndex < settings.providers.length ? settings.providers[providers.currentIndex] : ({})
     readonly property string promptMode: selectedProvider.promptMode || "required"
+    readonly property bool qwen: selectedProvider.kind === "gradio"
     readonly property bool topaz: selectedProvider.kind === "fal" && selectedProvider.model === "topaz/upscale/image/precision"
     readonly property bool esrgan: selectedProvider.kind === "fal" && selectedProvider.model === "fal-ai/esrgan"
     readonly property bool upscaling: topaz || esrgan
@@ -25,6 +26,7 @@ Dialog {
                               : document.hasSelection ? 1 : 0
     }
     function refreshTopaz() {
+        qwenParameters.load(selectedProvider.options || "{}")
         let options = ({})
         try { options = JSON.parse(selectedProvider.options || "{}") } catch(e) {}
         topazModel.currentIndex = Math.max(0, topazModel.model.indexOf(options.model || (esrgan ? "RealESRGAN_x2plus" : "Standard V2")))
@@ -36,7 +38,7 @@ Dialog {
     title: qsTr("Créer avec l’IA")
     modal: true
     width: Math.min(850, parent.width - 60)
-    height: Math.min(610, parent.height - 60)
+    height: Math.min(dialog.qwen ? 760 : 610, parent.height - 60)
     anchors.centerIn: parent
     function start() {
         refreshSource();
@@ -146,6 +148,12 @@ Dialog {
                         Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#899aa9"; font.pixelSize: 11
                         text: destination.currentIndex === 1 ? qsTr("Le résultat s’ouvre dans un nouvel onglet à sa résolution native. Le document source reste intact. La sortie doit rester sous 32 Mpx et 16 384 px par côté.") : qsTr("Le document conserve ses dimensions ; l’agrandissement améliore l’image envoyée avant sa remise à l’échelle sur le calque. La sortie doit rester sous 32 Mpx et 16 384 px par côté.")
                     }
+                }
+                QwenParameters {
+                    id: qwenParameters
+                    objectName: "aiQwenParameters"
+                    visible: dialog.qwen
+                    Layout.fillWidth: true
                 }
                 Label { text: qsTr("Destination"); color: "#aab6c3"; font.pixelSize: 12 }
                 Basic.ComboBox {
@@ -289,10 +297,10 @@ Dialog {
                 objectName: "aiGenerateButton"
                 primary: true
                 text: dialog.upscaling ? qsTr("Agrandir") : dialog.promptMode === "none" ? qsTr("Lancer le traitement") : qsTr("Générer")
-                enabled: !dialog.controller.busy && !dialog.controller.pendingResult && !dialog.settings.credentialsBusy && providers.count > 0 && (dialog.promptMode !== "required" || prompt.text.trim().length > 0)
+                enabled: !dialog.controller.busy && !dialog.controller.pendingResult && !dialog.settings.credentialsBusy && providers.count > 0 && (!dialog.qwen || qwenParameters.valid) && (dialog.promptMode !== "required" || prompt.text.trim().length > 0)
                 onClicked: {
                     if (dialog.controller.generate(dialog.selectedProvider.id, dialog.promptMode === "none" ? "" : prompt.text, dialog.sourceKind === "selection", dialog.upscaling ? 1 : variants.value,
-                                                   dialog.sourceKind === "original", dialog.esrgan ? {model: topazModel.currentText, scale: upscaleFactor.value / 100} : dialog.topaz ? {model: topazModel.currentText, upscale_factor: upscaleFactor.value / 100} : {}, destination.currentIndex === 1))
+                                                   dialog.sourceKind === "original", dialog.esrgan ? {model: topazModel.currentText, scale: upscaleFactor.value / 100} : dialog.topaz ? {model: topazModel.currentText, upscale_factor: upscaleFactor.value / 100} : dialog.qwen ? qwenParameters.options(dialog.selectedProvider.options) : {}, destination.currentIndex === 1))
                         dialog.close();
                 }
             }

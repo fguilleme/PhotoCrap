@@ -4,6 +4,18 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## À venir
+
+- Fiabiliser les connexions Qwen entre générations et reprendre une lecture SSE
+  interrompue sur le même identifiant, sans second envoi ni doublon de génération ;
+  conserver l’annulation, les erreurs d’authentification et le délai global.
+
+- Fournisseur Qwen Edit 2.1 par API Gradio JSON v2 : image/sélection, flux SSE,
+  authentification HTTP Basic avec mot de passe dans le trousseau, résultat sur
+  calque ou nouveau document, sans ComfyUI. Liste des 19 adaptateurs LoRA,
+  graine/aléatoire, guidance et étapes modifiables par profil ou génération ;
+  graine réellement renvoyée et paramètres conservés dans les informations du calque.
+
 ## v0.21.1 — 9 novembre 2026
 
 - Conserver la pipette temporaire tant qu’Option/Alt est maintenue, même lorsqu’un

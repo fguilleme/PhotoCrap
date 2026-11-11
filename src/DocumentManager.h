@@ -1,6 +1,7 @@
 #pragma once
 #include "Document.h"
 #include "ai/AiImageController.h"
+#include "ai/MeshyController.h"
 #include <QPointer>
 
 // Documents and their asynchronous jobs keep their identity when tabs change.
@@ -9,6 +10,7 @@ class DocumentManager final : public QObject
     Q_OBJECT
     Q_PROPERTY(Document *activeDocument READ activeDocument NOTIFY activeChanged)
     Q_PROPERTY(AiImageController *activeAi READ activeAi NOTIFY activeChanged)
+    Q_PROPERTY(MeshyController *activeMeshy READ activeMeshy NOTIFY activeChanged)
     Q_PROPERTY(QVariantList documents READ documents NOTIFY documentsChanged)
     Q_PROPERTY(QString activeId READ activeId NOTIFY activeChanged)
     Q_PROPERTY(int count READ count NOTIFY documentsChanged)
@@ -16,8 +18,9 @@ class DocumentManager final : public QObject
     Q_PROPERTY(bool activationBlocked MEMBER m_activationBlocked)
 public:
     explicit DocumentManager(AiSettings *settings, QObject *parent = nullptr);
-    Document *         activeDocument() const;
+    Document          *activeDocument() const;
     AiImageController *activeAi() const;
+    MeshyController   *activeMeshy() const;
     QString            activeId() const;
     int                count() const
     {
@@ -25,7 +28,7 @@ public:
     }
     QVariantList     documents() const;
     QVariantMap      activeView() const;
-    Document *       document(const QString &id) const;
+    Document        *document(const QString &id) const;
     Q_INVOKABLE bool activate(const QString &id);
     Q_INVOKABLE bool newDocument(int width, int height, bool transparent, int bits = 8);
     Q_INVOKABLE bool openFile(const QUrl &url);
@@ -44,8 +47,9 @@ signals:
 
 private:
     struct Entry {
-        Document *         document = nullptr;
+        Document          *document = nullptr;
         AiImageController *ai       = nullptr;
+        MeshyController   *meshy    = nullptr;
         QUrl               openedUrl;
         QVariantMap        view;
         bool               placeholder = false;
@@ -56,7 +60,7 @@ private:
     int            indexOf(const QString &id) const;
     bool           reusablePlaceholder() const;
     void           finishOpening(Document *doc);
-    AiSettings *   m_settings;
+    AiSettings    *m_settings;
     QVector<Entry> m_entries;
     int            m_active            = 0;
     bool           m_activationBlocked = false;

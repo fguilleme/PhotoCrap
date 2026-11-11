@@ -208,6 +208,9 @@ QVariantMap AiSettings::newProvider(const QString &_kind) const
 }
 QVariantMap AiSettings::provider(const QString &_id) const
 {
+    if (_id == "meshy")
+        return {{"id", "meshy"}, {"kind", "meshy"}, {"name", "Meshy"},
+                {"url", "https://api.meshy.ai"}, {"keyEnv", "MESHY_API_KEY"}};
     for (const auto &value : m_providers)
         if (value.toMap().value("id").toString() == _id)
             return normalizedProvider(value.toMap());

@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "Model3DTestImage.h"
 #include "RawTestImage.h"
+#include "model3d/Model3D.h"
 #include <QFile>
 #include <QSemaphore>
 #include <QTemporaryDir>
@@ -11,6 +12,39 @@ class LayerImportTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void denseGLBRetainsAllTriangles()
+    {
+        namespace Model3D = PhotoCrap::Model3D;
+        const auto bytes  = Model3DTest::modelFixture(Model3DTest::Pose::Original, 200001);
+        QString    error;
+        const auto asset = Model3D::load(bytes, {}, &error);
+        QVERIFY2(asset, qPrintable(error));
+        QCOMPARE(Model3D::encoded(*asset), bytes);
+        QVERIFY(Model3D::storageBytes(*asset) >= bytes.size() + 200001 * 3 * 4);
+    }
+
+    void large3DRenderMatchesNativeCropAcrossBands()
+    {
+        namespace Model3D = PhotoCrap::Model3D;
+        const auto asset  = Model3D::load(Model3DTest::modelFixture());
+        QVERIFY(asset);
+        const QSize canvas(2800, 2200);
+        const QRect crop(700, 890, 1150, 600);
+        const auto  format = QImage::Format_RGBA64_Premultiplied;
+        QVariantMap params{
+            {"pose3d", Model3D::fittedPose(*asset, QRectF(QPointF{}, QSizeF(canvas)))},
+            {"light3d", Model3D::light()}};
+        const auto image = Model3D::render(*asset, params, canvas, format);
+        QVERIFY(!image.isNull());
+        QVERIFY(
+            Model3D::transformPlacement(params, QTransform::fromTranslate(-crop.x(), -crop.y())));
+        const auto reference = Model3D::render(*asset, params, crop.size(), format);
+        QVERIFY(!reference.isNull());
+        const auto native = reference.region(QRect(QPoint{}, crop.size()));
+        QVERIFY(native.pixelColor(20, 20).alpha() > 0);
+        QCOMPARE(image.region(crop), native);
+    }
+
     void skinnedModelUsesDefaultJointPose()
     {
         QTemporaryDir dir;

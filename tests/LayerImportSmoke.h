@@ -10,6 +10,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
+#include <QWheelEvent>
 #include <QtTest>
 
 inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
@@ -253,34 +254,70 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
                      !modelProperties->isVisible() && yawValue() == rotation,
                  "closing the sidebar preserves applied changes"))
         return false;
-    const auto centerX = [&] {
-        return document.layers()
-            .first()
-            .toMap()["parameters"]
-            .toMap()["pose3d"]
-            .toMap()["x"]
-            .toReal();
+    const auto pose = [&] {
+        return document.layers().first().toMap()["parameters"].toMap()["pose3d"].toMap();
     };
     QTest::keyClick(window, Qt::Key_V);
     if (!require(document.tool() == "move", "V selects the move tool"))
         return false;
-    const auto beforeMove  = document.displayComposite();
-    const auto moveHistory = document.historyIndex();
-    const auto oldX        = centerX();
-    const auto start       = sceneRect(drawingArea).center().toPoint();
-    const auto finish      = start + QPoint(10, 3);
+    const auto start         = sceneRect(drawingArea).center().toPoint();
+    const auto finish        = start + QPoint(10, 3);
+    const auto initialPose   = pose();
+    const auto beforeRotate  = document.displayComposite();
+    const int  rotateHistory = document.historyIndex();
     QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
     QTest::mouseMove(window, finish);
-    if (!require(QTest::qWaitFor([&] { return document.displayComposite() != beforeMove; }, 5000) &&
-                     centerX() == oldX && document.historyIndex() == moveHistory,
-                 "the 3D layer follows the canvas drag before committing"))
+    if (!require(
+            QTest::qWaitFor([&] { return document.displayComposite() != beforeRotate; }, 5000) &&
+                pose() == initialPose && document.historyIndex() == rotateHistory,
+            "left drag previews rotation before committing"))
         return false;
     QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, finish);
-    return require(
-        QTest::qWaitFor(
-            [&] { return !document.operationBusy() && document.historyIndex() == moveHistory + 1; },
-            5000) &&
-            qAbs(centerX() - oldX - 10. / window->property("zoom").toReal()) < .01 &&
-            yawValue() == rotation,
-        "the canvas drag updates the 3D pose in one undo step");
+    if (!require(QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
+                     document.historyIndex() == rotateHistory + 1 &&
+                     pose()["x"] == initialPose["x"] && pose()["yaw"] != initialPose["yaw"] &&
+                     pose()["pitch"] != initialPose["pitch"],
+                 "left drag rotates the model in one undo step"))
+        return false;
+
+    const auto rotatedPose = pose();
+    const auto zoom        = window->property("zoom").toReal();
+    QTest::mousePress(window, Qt::RightButton, Qt::NoModifier, start);
+    QTest::mouseMove(window, finish);
+    QTest::mouseRelease(window, Qt::RightButton, Qt::NoModifier, finish);
+    if (!require(QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
+                     document.historyIndex() == rotateHistory + 2 &&
+                     qAbs(pose()["x"].toReal() - rotatedPose["x"].toReal() - 10. / zoom) < .01 &&
+                     qAbs(pose()["y"].toReal() - rotatedPose["y"].toReal() - 3. / zoom) < .01 &&
+                     pose()["yaw"] == rotatedPose["yaw"],
+                 "right drag pans the model in document coordinates"))
+        return false;
+
+    for (int step = 0; step < 2; ++step) {
+        QWheelEvent wheel(start, window->mapToGlobal(start), QPoint(), QPoint(0, 120), Qt::NoButton,
+                          Qt::NoModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(window, &wheel);
+    }
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return document.historyIndex() == rotateHistory + 3 &&
+                                !document.operationBusy();
+                     },
+                     5000) &&
+                     qAbs(pose()["scale"].toReal() - rotatedPose["scale"].toReal() * 1.15 * 1.15) <
+                         .01 &&
+                     window->property("zoom").toReal() == zoom,
+                 "wheel scales the layer in one undo step and preserves canvas zoom"))
+        return false;
+
+    window->setProperty("zoom", 1.75);
+    const int beforeGenerated = document.layerCount();
+    if (!require(document.importModel3DData(model, "Generated model", QRectF(6, 4, 22, 18)) &&
+                     QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000),
+                 "a fitted model imports in the open document"))
+        return false;
+    QTest::qWait(60);
+    return require(document.layerCount() == beforeGenerated + 1 &&
+                       window->property("zoom").toReal() == 1.75,
+                   "adding a fitted model preserves the current canvas zoom");
 }

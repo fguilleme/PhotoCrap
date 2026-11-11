@@ -21,6 +21,35 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     _document.beginStroke(20, 20);
     _document.continueStroke(100, 90);
     _document.endStroke();
+    auto *meshyAction = _window->findChild<QObject *>("meshyAction");
+    auto *meshyDialog = _window->findChild<QObject *>("meshyDialog");
+    auto *meshySource = _window->findChild<QObject *>("meshySource");
+    auto *meshyKey    = _window->findChild<QQuickItem *>("meshyApiKey");
+    auto *meshyPrompt = _window->findChild<QQuickItem *>("meshyPrompt");
+    auto *meshySubmit = _window->findChild<QQuickItem *>("meshyGenerate");
+    if (!require(
+            meshyAction && meshyDialog && meshySource && meshyKey && meshyPrompt && meshySubmit &&
+                QMetaObject::invokeMethod(meshyAction, "triggered") &&
+                QTest::qWaitFor([&] { return meshyDialog->property("opened").toBool(); }, 2000) &&
+                meshySource->property("currentIndex").toInt() == 2 &&
+                meshyKey->property("echoMode").toInt() != 0,
+            "Meshy offers the current selection and masks the API key"))
+        return false;
+    meshySource->setProperty("currentIndex", 0);
+    meshyKey->setProperty("text", "ui-only-meshy-key");
+    meshyPrompt->setProperty("text", "First line");
+    meshyPrompt->forceActiveFocus();
+    QTest::keyClick(_window, Qt::Key_End, Qt::ControlModifier);
+    QTest::keyClick(_window, Qt::Key_Return);
+    if (!require(meshyDialog->property("opened").toBool() && meshySubmit->isEnabled() &&
+                     meshyPrompt->property("text").toString().contains('\n'),
+                 "Return in a Meshy description adds a line"))
+        return false;
+    QMetaObject::invokeMethod(meshyDialog, "reject");
+    if (!require(
+            QTest::qWaitFor([&] { return meshyKey->property("text").toString().isEmpty(); }, 2000),
+            "closing Meshy clears the typed key"))
+        return false;
     auto *action   = _window->findChild<QObject *>("aiImageAction");
     auto *dialog   = _window->findChild<QObject *>("aiImageDialog");
     auto *provider = _window->findChild<QObject *>("aiGenerationProvider");

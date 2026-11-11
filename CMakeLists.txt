@@ -85,6 +85,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
     src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
+    src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
     src/storage/ScratchImageCache.cpp
@@ -438,6 +439,7 @@ qt_add_library(photocrap_core STATIC
     src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
     src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
+    src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
     src/tools/BrushTool.cpp
@@ -640,6 +642,8 @@ qt_add_qml_module(PhotoCrap
         qml/AiPreferences.qml
         qml/AiImageDialog.qml
         qml/AiProgressPanel.qml
+        qml/MeshyDialog.qml
+        qml/MeshyProgress.qml
         qml/DialogActionButton.qml
         qml/DockablePanel.qml
         qml/IconButton.qml

@@ -32,6 +32,7 @@
 #include <memory>
 
 class ScratchImageCache;
+class QTemporaryFile;
 namespace PhotoCrap::Clipboard
 {
 struct Pixels;
@@ -443,6 +444,10 @@ public:
     int                      activeLayer() const
     {
         return m_active;
+    }
+    int layerCount() const
+    {
+        return int(m_layers.size());
     }
     int  selectedLayerCount() const;
     bool canGroupSelected() const;
@@ -1165,6 +1170,10 @@ public:
     Q_INVOKABLE void requestOpenFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
     Q_INVOKABLE bool importModel3D(const QUrl &_url);
+    bool             importModel3DData(const QByteArray &_bytes, const QString &_name,
+                                       const QRectF &_reference = {});
+    bool importDownloadedModel3D(std::shared_ptr<QTemporaryFile> _file, const QString &_name,
+                                 const QRectF &_reference);
     Q_INVOKABLE void previewModel3D(int _index, const QVariantMap &_pose,
                                     const QVariantMap &_light);
     Q_INVOKABLE void cancelModel3DPreview();
@@ -1834,6 +1843,11 @@ private:
     bool model3DMoveTarget() const;
     void previewModel3DMove(const QPointF &_position);
     void finishModel3DMove();
+    bool canImportModel3D();
+    using ModelLoader = std::function<std::shared_ptr<const PhotoCrap::Model3D::Asset>(
+        const std::function<bool()> &, QString *)>;
+    bool importModel3DWithLoader(ModelLoader _load, const QString &_name, const QRectF &_reference);
+    bool insertModel3D(const ModelLoader &_load, const QString &_name, const QRectF &_reference);
     void queueModel3DPreview(int _index, QVariantMap _parameters, bool _copy = false);
     bool applyModel3DParameters(int _index, const QVariantMap &_parameters, const QString &_label,
                                 bool _copy = false);

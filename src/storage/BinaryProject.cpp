@@ -208,7 +208,7 @@ int BinaryProjectWriter::block(const QByteArray &raw, int w, int h, int bpp)
 }
 int BinaryProjectWriter::original(const QByteArray &bytes)
 {
-    if (bytes.isEmpty() || bytes.size() > 100 * 1024 * 1024) {
+    if (bytes.isEmpty() || bytes.size() > MaxOriginalBytes) {
         m_ok = false;
         return -1;
     }
@@ -351,7 +351,7 @@ bool BinaryProjectReader::read(QIODevice &file, Continue progress)
             b[8].toByteArray().size() != 32)
             return false;
         if (bpp == 0) {
-            if (w || h || codec || predictor || size != count || size > 100 * 1024 * 1024)
+            if (w || h || codec || predictor || size != count || size > MaxOriginalBytes)
                 return false;
         } else if ((bpp != 1 && bpp != 4 && bpp != 8) || w < 1 || w > 256 || h < 1 || h > 256 ||
                    count != qint64(w) * h * bpp || (codec != 0 && codec != 1) ||

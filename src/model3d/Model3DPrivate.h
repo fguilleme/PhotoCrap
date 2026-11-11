@@ -31,6 +31,8 @@ struct Primitive {
 };
 
 struct Asset {
+    // The mapped file must outlive the QByteArray view.
+    std::shared_ptr<QTemporaryFile> backing;
     QByteArray         bytes;
     qsizetype          bytesInMemory = 0;
     QVector<Primitive> primitives;

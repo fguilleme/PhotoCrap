@@ -11,6 +11,8 @@ ApplicationWindow {
     id: window
     readonly property ImageDocument editor: documents.activeDocument
     readonly property var aiImages: documents.activeAi
+    readonly property var meshy: documents.activeMeshy
+    readonly property bool activeAiWork: aiImages.busy || aiImages.pendingResult || meshy.busy
     property var quitApprovedIds: []
     property bool quittingDocuments: false
     property var pendingNativeFiles: []
@@ -277,7 +279,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool model3dPropertiesShown: false
-    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -1020,6 +1022,7 @@ ApplicationWindow {
         else if (action === "closeDocument") documents.closeDocument(documents.activeId, true)
         else if (action === "close") {
             if (aiImages.busy || aiImages.pendingResult) aiImages.cancel()
+            if (meshy.busy) meshy.cancel()
             quitApprovedIds = quitApprovedIds.concat([documents.activeId])
             Qt.callLater(window.continueQuit)
         }
@@ -1033,7 +1036,7 @@ ApplicationWindow {
             if (saveInFlight) { quittingDocuments=true; resumeAfterSave=true; return }
             continueQuit()
         } else if (action === "closeDocument" &&
-                   (editor.modified || aiImages.busy || aiImages.pendingResult)) unsavedDialog.open()
+                   (editor.modified || window.activeAiWork)) unsavedDialog.open()
         else perform(action)
     }
     function guardRecent(url) {
@@ -1384,6 +1387,13 @@ ApplicationWindow {
     Action { id: stampVisibleAction; objectName: "stampVisibleAction"; text: qsTr("Créer un calque des visibles fusionnés"); shortcut: (shortcuts.revision, shortcuts.sequence("stampVisible")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.stampVisible; onTriggered: editor.mergeLayers("stampVisible") }
     Action { id: mergeClippingAction; text: qsTr("Fusionner le masque d’écrêtage"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeClipping")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.clipping; onTriggered: editor.mergeLayers("clipping") }
     Action { id: flattenAction; objectName: "flattenAction"; text: qsTr("Aplatir l’image"); shortcut: (shortcuts.revision, shortcuts.sequence("flattenImage")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.flatten; onTriggered: window.requestFlatten() }
+    Action {
+        id: meshyAction
+        objectName: "meshyAction"
+        text: qsTr("Générer un calque 3D avec Meshy…")
+        enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading && !editor.selectionBusy && !meshy.busy
+        onTriggered: meshyDialog.open()
+    }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
     readonly property bool transformEnabled: !editingText && !blockingModalOpen && (!modalOpen || editor.transformActive)
                                              && !editor.pixelEditBusy && editor.width > 0
@@ -1412,7 +1422,7 @@ ApplicationWindow {
         onActivated: {
             if(editor.transformActive){editor.cancelTransform();return}
             if(editor.operationBusy){editor.cancelOperation();return}
-            if (model3dPanel.cancelGesture()) return
+            if (model3dControls.cancelGesture() || model3dPanel.cancelGesture()) return
             if(editor.selectionBusy){editor.cancelSelectionOperation();return}
             if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else if(editor.penDrawing)editor.finishPenPath();else editor.setActivePenPath(-1);return}
             if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
@@ -1619,6 +1629,7 @@ ApplicationWindow {
                 enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
                 onTriggered: importModel3DDialog.open()
             }
+            DarkMenuItem { action: meshyAction }
             DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
             MenuSeparator {}
             DarkMenu {
@@ -2674,7 +2685,10 @@ ApplicationWindow {
                                 } else if(wheel.modifiers&Qt.ShiftModifier) {
                                     panCanvas(-(vertical!==0?vertical:horizontal),0)
                                 } else {
-                                    panCanvas(-horizontal,-vertical)
+                                    const point = artboard.mapFromItem(viewport, viewportPoint.x, viewportPoint.y)
+                                    const steps = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y / 120 : vertical / 40
+                                    if (steps === 0 || !model3dControls.contains(point) || !model3dControls.scaleBy(steps))
+                                        panCanvas(-horizontal,-vertical)
                                 }
                                 wheel.accepted=true
                             }
@@ -2844,13 +2858,17 @@ ApplicationWindow {
                                     const calibration=curvePickerArea.enabled && curvePickerArea.containsMouse
                                     const measuring=measureToolArea.enabled && measureToolArea.containsMouse
                                     const gradientControl=gradientGuideControl.pointerActive
-                                    const tool=gradientControl ? "gradientControl"
+                                    const controllingModel = model3dControls.enabled
+                                        && (model3dControls.containsMouse || model3dControls.pressed)
+                                    const tool=controllingModel ? "move"
+                                              : gradientControl ? "gradientControl"
                                               : calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
                                               : measuring && editor.tool==="colorSampler" && measureToolArea.deleteHovered ? "colorSamplerDelete"
                                               : window.temporaryPickerActive ? "picker"
                                               : window.penToolActive ? editor.penCursorAt(pointerX/zoom,pointerY/zoom,7/zoom,window.primaryPressed,window.stampSourcePicking) : editor.tool
-                                    imageCanvas.setSystemCursor(calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
-                                                                (containsMouse || canvasTextEditor.pointerInside || calibration || measuring || gradientControl) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
+                                    imageCanvas.setSystemCursor(controllingModel ? model3dControls.cursorShape
+                                                                : calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
+                                                                (controllingModel || containsMouse || canvasTextEditor.pointerInside || calibration || measuring || gradientControl) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
                                                                 tool, editor.selectionMode, window.stampSourcePicking, !gradientControl && editor.tool!=="text" && toolInput.precise)
                                 }
                                 function refreshSystemCursor() {
@@ -3002,6 +3020,116 @@ ApplicationWindow {
                                         editor.selectionMode = selectionModeBeforeGesture
                                         selectionModeBeforeGesture = -1
                                     }
+                                }
+                            }
+                            MouseArea {
+                                id: model3dControls
+                                objectName: "model3dCanvasControls"
+                                anchors.fill: parent
+                                z: 40
+                                enabled: window.activeInfo.kind === "model3d" && window.activeInfo.visible
+                                         && !window.activeInfo.locked && !window.activeInfo.editingMask
+                                         && !window.modalOpen && !window.spacePressed && !window.editingText
+                                         && (!window.activeInfo.groupId || !editor.layers.some(layer =>
+                                             layer.kind === "group" && layer.groupId === window.activeInfo.groupId
+                                             && (layer.locked || !layer.visible)))
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                hoverEnabled: enabled
+                                preventStealing: true
+                                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+                                readonly property string layerId: enabled
+                                    ? editor.layerIdentity(editor.activeLayer) : ""
+                                property var gesture: null
+                                onLayerIdChanged: cancelGesture()
+                                onEnabledChanged: {
+                                    if (!enabled) cancelGesture()
+                                    drawingArea.refreshSystemCursor()
+                                }
+                                onContainsMouseChanged: drawingArea.refreshSystemCursor()
+                                onPressedChanged: drawingArea.refreshSystemCursor()
+
+                                function startGesture(kind, x, y) {
+                                    if (!enabled || !layerId.length || editor.pixelEditBusy)
+                                        return false
+                                    const params = window.activeInfo.parameters
+                                    gesture = {kind: kind, document: editor, id: layerId, x: x, y: y,
+                                               initial: params.pose3d, light: params.light3d, pose: null}
+                                    return true
+                                }
+                                function preview(pose) {
+                                    gesture.pose = pose
+                                    editor.previewModel3D(editor.activeLayer, pose, gesture.light)
+                                }
+                                function finishGesture() {
+                                    const current = gesture
+                                    gesture = null
+                                    wheelCommit.stop()
+                                    if (current && current.pose && current.document === editor && current.id === layerId
+                                            && editor.editModel3D(editor.activeLayer, current.pose, current.light)
+                                            && editor.operationBusy)
+                                        return
+                                    if (current)
+                                        current.document.cancelModel3DPreview()
+                                }
+                                function cancelGesture() {
+                                    if (!gesture)
+                                        return false
+                                    const current = gesture
+                                    gesture = null
+                                    wheelCommit.stop()
+                                    current.document.cancelModel3DPreview()
+                                    return true
+                                }
+                                function scaleBy(steps) {
+                                    if (!enabled)
+                                        return false
+                                    if (pressed || (gesture && gesture.kind !== "scale"))
+                                        return true
+                                    if (!gesture && !startGesture("scale", 0, 0))
+                                        return true
+                                    const pose = Object.assign({}, gesture.pose || gesture.initial)
+                                    pose.scale = Math.max(1, Math.min(1000, pose.scale * Math.pow(1.15, steps)))
+                                    preview(pose)
+                                    wheelCommit.restart()
+                                    return true
+                                }
+                                Timer {
+                                    id: wheelCommit
+                                    interval: 180
+                                    onTriggered: model3dControls.finishGesture()
+                                }
+                                onPressed: function(mouse) {
+                                    if (gesture && gesture.kind === "scale")
+                                        finishGesture()
+                                    workspace.forceActiveFocus()
+                                    if (!gesture)
+                                        startGesture(mouse.button === Qt.RightButton ? "pan" : "rotate", mouse.x, mouse.y)
+                                }
+                                onPositionChanged: function(mouse) {
+                                    if (!pressed || !gesture || gesture.kind === "scale")
+                                        return
+                                    const dx = mouse.x - gesture.x, dy = mouse.y - gesture.y
+                                    if (!gesture.pose && dx === 0 && dy === 0)
+                                        return
+                                    const pose = Object.assign({}, gesture.initial)
+                                    if (gesture.kind === "pan") {
+                                        pose.x = Math.max(-1000000, Math.min(1000000, pose.x + dx / window.zoom))
+                                        pose.y = Math.max(-1000000, Math.min(1000000, pose.y + dy / window.zoom))
+                                    } else {
+                                        pose.yaw = ((pose.yaw + dx * 0.5 + 180) % 360 + 360) % 360 - 180
+                                        pose.pitch = Math.max(-180, Math.min(180, pose.pitch + dy * 0.5))
+                                    }
+                                    preview(pose)
+                                }
+                                onReleased: function(mouse) {
+                                    if (gesture && gesture.kind === (mouse.button === Qt.RightButton ? "pan" : "rotate"))
+                                        finishGesture()
+                                }
+                                onCanceled: cancelGesture()
+                                Connections {
+                                    target: documents
+                                    function onActiveAboutToChange() { model3dControls.cancelGesture() }
                                 }
                             }
                             Connections {
@@ -3206,7 +3334,7 @@ ApplicationWindow {
                         objectName: "zoomToolArea"
                         anchors.fill: viewport
                         z: 22
-                        enabled: (editor.tool === "zoomTool" || (window.spacePressed && (window.primaryPressed || window.stampSourcePicking))) && !window.repositioningGesture
+                        enabled: ((editor.tool === "zoomTool" && !model3dControls.enabled) || (window.spacePressed && (window.primaryPressed || window.stampSourcePicking))) && !window.repositioningGesture
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: Qt.CrossCursor
@@ -3237,7 +3365,7 @@ ApplicationWindow {
                         objectName: "rotateToolArea"
                         anchors.fill: viewport
                         z: 22
-                        enabled: editor.tool === "rotateView" && !window.spacePressed
+                        enabled: editor.tool === "rotateView" && !window.spacePressed && !model3dControls.enabled
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
@@ -3263,7 +3391,7 @@ ApplicationWindow {
                         objectName: "panArea"
                         anchors.fill: viewport
                         z: 21
-                        enabled: (window.spacePressed && !window.primaryPressed && !window.stampSourcePicking && !window.repositioningGesture) || editor.tool==="hand"
+                        enabled: (window.spacePressed && !window.primaryPressed && !window.stampSourcePicking && !window.repositioningGesture) || (editor.tool==="hand" && !model3dControls.enabled)
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: enabled && pressed ? Qt.ClosedHandCursor
@@ -4126,6 +4254,7 @@ ApplicationWindow {
             enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
             onTriggered: importModel3DDialog.open()
         }
+        DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
@@ -4429,10 +4558,26 @@ ApplicationWindow {
         onSettingsRequested: { window.aiReturnToGeneration = true; window.preferencesPage = 4; window.openPreferences(); aiPreferences.selectProvider(aiDialog.selectedProvider.id) }
     }
     AiProgressPanel {
+        id: aiProgress
         controller: aiImages
         parent: workspace
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top; anchors.topMargin: 20
+        width: Math.min(620, parent.width - 32)
+        z: 500
+    }
+    MeshyDialog {
+        id: meshyDialog
+        controller: window.meshy
+        settings: aiSettings
+        hasSelection: editor.hasSelection
+    }
+    MeshyProgress {
+        controller: window.meshy
+        parent: workspace
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: aiProgress.visible ? aiProgress.bottom : parent.top
+        anchors.topMargin: aiProgress.visible ? 8 : 20
         width: Math.min(620, parent.width - 32)
         z: 500
     }
@@ -5569,7 +5714,15 @@ ApplicationWindow {
     Dialog {
         id: unsavedDialog; objectName: "unsavedDialog"; title: qsTr("Enregistrer vos modifications ?"); anchors.centerIn: parent; modal: true; width: 450
         closePolicy: Popup.NoAutoClose
-        Label { width: parent.width; text: (aiImages.busy || aiImages.pendingResult) ? qsTr("Le document « %1 » contient une demande IA en cours ou un résultat en attente. Le fermer annulera cette demande. Enregistrer les modifications ?").arg(editor.name) : qsTr("Le document « %1 » contient des modifications non enregistrées.").arg(editor.name); wrapMode: Text.WordWrap }
+        Label {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: window.meshy.busy
+                  ? qsTr("Une génération Meshy est en cours pour « %1 ». Fermer le document arrête le suivi local. Enregistrer les modifications ?").arg(editor.name)
+                  : window.activeAiWork
+                    ? qsTr("Le document « %1 » contient une demande IA en cours ou un résultat en attente. Le fermer annulera cette demande. Enregistrer les modifications ?").arg(editor.name)
+                    : qsTr("Le document « %1 » contient des modifications non enregistrées.").arg(editor.name)
+        }
         footer: DialogButtonBox {
             DialogActionButton { objectName: "unsavedCancelButton"; text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: { unsavedDialog.close(); window.quittingDocuments=false; window.quitApprovedIds=[] } }
             DialogActionButton { objectName: "unsavedDiscardButton"; text: qsTr("Abandonner"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole; onClicked: { unsavedDialog.close(); window.perform(window.pendingAction) } }

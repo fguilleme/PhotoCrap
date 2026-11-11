@@ -22,9 +22,11 @@ DocumentManager::Entry DocumentManager::makeEntry(bool placeholder)
     entry.document = new Document(this);
     entry.ai       = new AiImageController(entry.document, m_settings, entry.document);
     entry.ai->setDocumentManager(this);
+    entry.meshy       = new MeshyController(entry.document, m_settings);
     entry.placeholder = placeholder;
     QQmlEngine::setObjectOwnership(entry.document, QQmlEngine::CppOwnership);
     QQmlEngine::setObjectOwnership(entry.ai, QQmlEngine::CppOwnership);
+    QQmlEngine::setObjectOwnership(entry.meshy, QQmlEngine::CppOwnership);
     const auto refresh = [this] { emit documentsChanged(); };
     connect(entry.document, &Document::documentChanged, this, [this, doc = entry.document] {
         for (auto &entry : m_entries)
@@ -50,6 +52,13 @@ DocumentManager::Entry DocumentManager::makeEntry(bool placeholder)
     connect(entry.document, &Document::operationChanged, this, loadingChanged);
     connect(entry.document, &Document::rawLoadingChanged, this, loadingChanged);
     connect(entry.ai, &AiImageController::changed, this, refresh);
+    connect(entry.meshy, &MeshyController::changed, this,
+            [refresh, meshy = entry.meshy, busy = false]() mutable {
+                if (busy != meshy->busy()) {
+                    busy = meshy->busy();
+                    refresh();
+                }
+            });
     const auto opened = [this, doc = entry.document](const QUrl &url) {
         for (auto &entry : m_entries)
             if (entry.document == doc) {
@@ -77,6 +86,10 @@ Document *DocumentManager::activeDocument() const
 AiImageController *DocumentManager::activeAi() const
 {
     return m_entries[m_active].ai;
+}
+MeshyController *DocumentManager::activeMeshy() const
+{
+    return m_entries[m_active].meshy;
 }
 QString DocumentManager::activeId() const
 {
@@ -107,7 +120,7 @@ QVariantList DocumentManager::documents() const
                         {"name", entry.document->name()},
                         {"modified", entry.document->modified()},
                         {"busy", entry.document->pixelEditBusy() || entry.document->rawLoading()},
-                        {"aiBusy", entry.ai->busy()},
+                        {"aiBusy", entry.ai->busy() || entry.meshy->busy()},
                         {"pendingResult", entry.ai->pendingResult()}});
     return list;
 }
@@ -133,7 +146,7 @@ bool DocumentManager::reusablePlaceholder() const
 {
     return m_entries[m_active].placeholder && !activeDocument()->modified() &&
            !activeDocument()->pixelEditBusy() && !activeDocument()->rawLoading() &&
-           !activeAi()->busy() && !activeAi()->pendingResult();
+           !activeAi()->busy() && !activeAi()->pendingResult() && !activeMeshy()->busy();
 }
 void DocumentManager::append(Entry entry, bool activate)
 {
@@ -217,7 +230,8 @@ bool DocumentManager::closeDocument(const QString &id, bool discard)
         return false;
     const auto entry     = m_entries[index];
     const bool wasActive = index == m_active;
-    if (!discard && (entry.document->modified() || entry.ai->busy() || entry.ai->pendingResult()))
+    if (!discard && (entry.document->modified() || entry.ai->busy() || entry.ai->pendingResult() ||
+                     entry.meshy->busy()))
         return false;
     // Never destroy a document while an atomic save is in progress.
     if (entry.document->operationBusy())
@@ -232,6 +246,7 @@ bool DocumentManager::closeDocument(const QString &id, bool discard)
     else if (index == m_active)
         m_active = qMin(index, int(m_entries.size()) - 1);
     entry.ai->cancel();
+    entry.meshy->cancel();
     emit documentsChanged();
     if (wasActive)
         emit activeChanged();

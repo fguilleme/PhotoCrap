@@ -18,7 +18,7 @@ inline void appendWord(QByteArray &_bytes, quint32 _value)
 
 enum class Pose { Original, Skinned, Deformed };
 
-inline QByteArray modelFixture(Pose _pose = Pose::Original)
+inline QByteArray modelFixture(Pose _pose = Pose::Original, int _faceCount = 1)
 {
     QByteArray  binary;
     const float thirdX = _pose == Pose::Deformed ? -.5f : -.75f;
@@ -80,6 +80,25 @@ inline QByteArray modelFixture(Pose _pose = Pose::Original)
             for (float v : {1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, translation,
                             0.f, 0.f, 1.f})
                 appendWord(binary, std::bit_cast<quint32>(v));
+    }
+    if (_faceCount > 1) {
+        auto mesh            = root["meshes"].toArray().first().toObject();
+        auto primitive       = mesh["primitives"].toArray().first().toObject();
+        auto accessors       = root["accessors"].toArray();
+        primitive["indices"] = accessors.size();
+        accessors.append(QJsonObject{{"bufferView", views.size()},
+                                     {"componentType", 5121},
+                                     {"count", _faceCount * 3},
+                                     {"type", "SCALAR"}});
+        mesh["primitives"] = QJsonArray{primitive};
+        root["meshes"]     = QJsonArray{mesh};
+        root["accessors"]  = accessors;
+        views.append(QJsonObject{
+            {"buffer", 0}, {"byteOffset", binary.size()}, {"byteLength", _faceCount * 3}});
+        for (int face = 0; face < _faceCount; ++face)
+            binary.append("\0\1\2", 3);
+        while (binary.size() % 4)
+            binary.append('\0');
     }
     root["bufferViews"] = views;
     root["buffers"]     = QJsonArray{QJsonObject{{"byteLength", binary.size()}}};

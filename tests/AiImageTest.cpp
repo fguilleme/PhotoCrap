@@ -1,10 +1,12 @@
 #include "Document.h"
 #include "DocumentManager.h"
 #include "ImageUtils.h"
+#include "Model3DTestImage.h"
 #include "ProjectFixture.h"
 #include "ai/AiImageController.h"
 #include "ai/AiImageTypes.h"
 #include "ai/AiSettings.h"
+#include "ai/MeshyController.h"
 #include "storage/ProjectPng.h"
 #include "storage/ProjectWriteDevice.h"
 #include <QBuffer>
@@ -172,6 +174,201 @@ private slots:
         QCoreApplication::setOrganizationName("PhotoCrapAiTest");
         QCoreApplication::setApplicationName("AiImageTest");
     }
+    void meshyTextStagesImportOneEditableLayer()
+    {
+        Server     server;
+        const auto asset = Model3DTest::modelFixture();
+        QVERIFY(!asset.isEmpty());
+        server.handler = [&server, asset](const Request &request) -> Response {
+            if (request.target == "/model.glb")
+                return {200, asset, "model/gltf-binary"};
+            if (request.method == "POST") {
+                const auto body = QJsonDocument::fromJson(request.body).object();
+                const auto task = body.value("mode") == "preview" ? "geometry" : "texture";
+                return {200, json({{"result", task}})};
+            }
+            if (request.target.endsWith("/geometry"))
+                return {200, json({{"status", "SUCCEEDED"}})};
+            return {200, json({{"status", "SUCCEEDED"},
+                               {"model_urls", QJsonObject{{"glb", server.url("/model.glb")}}}})};
+        };
+        AiSettings settings(nullptr, false, memoryAiCredentialStore());
+        Document   document;
+        QVERIFY(document.newDocument(128, 128, true, 16));
+        MeshyController controller(&document, &settings, QUrl(server.url()));
+        QVERIFY(controller.generate(0, "Une tasse", "test-meshy", true, true));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 12000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(server.requests.size(), 5);
+        QCOMPARE(server.requests[0].target, "/openapi/v2/text-to-3d");
+        QCOMPARE(server.requests[1].target, "/openapi/v2/text-to-3d/geometry");
+        QCOMPARE(server.requests[3].target, "/openapi/v2/text-to-3d/texture");
+        const auto preview = QJsonDocument::fromJson(server.requests[0].body).object();
+        const auto refine  = QJsonDocument::fromJson(server.requests[2].body).object();
+        QCOMPARE(preview.value("prompt").toString(), "Une tasse");
+        QCOMPARE(preview.value("geometry_resolution").toString(), "4k");
+        QCOMPARE(preview.value("should_remesh"), QJsonValue(false));
+        QVERIFY(!preview.contains("target_polycount"));
+        QVERIFY(!preview.contains("texture_resolution"));
+        QCOMPARE(refine.value("mode").toString(), "refine");
+        QCOMPARE(refine.value("texture_resolution").toString(), "4k");
+        QCOMPARE(refine.value("preview_task_id").toString(), "geometry");
+        for (const auto &request : server.requests.first(4))
+            QVERIFY(request.headers.toLower().contains("authorization: bearer test-meshy"));
+        QVERIFY(!server.requests.back().headers.toLower().contains("authorization:"));
+        QVERIFY(settings.hasKey("meshy"));
+        QCOMPARE(document.layerCount(), 2);
+        QCOMPARE(document.layers().first().toMap().value("kind").toString(), "model3d");
+        document.undo();
+        QCOMPARE(document.layerCount(), 1);
+    }
+
+    void meshyLargeGlbSurvivesProjectReopen()
+    {
+        Server server;
+        QVERIFY(server.isListening());
+        auto model = Model3DTest::modelFixture();
+        QVERIFY(model.size() > 20);
+        const auto          binHeader = 20 + qFromLittleEndian<quint32>(model.constData() + 12);
+        constexpr qsizetype modelSize = 101 * 1024 * 1024;
+        // Extend the BIN chunk so the test crosses the old download and archive limits.
+        model.resize(modelSize, '\0');
+        qToLittleEndian(quint32(modelSize), model.data() + 8);
+        qToLittleEndian(quint32(modelSize - binHeader - 8), model.data() + binHeader);
+        server.handler = [&server, &model](const Request &request) -> Response {
+            if (request.method == "POST")
+                return {200, json({{"result", "large-model"}})};
+            if (request.target == "/model.glb")
+                return {200, model, "model/gltf-binary"};
+            return {200, json({{"status", "SUCCEEDED"},
+                               {"model_urls", QJsonObject{{"glb", server.url("/model.glb")}}}})};
+        };
+
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto project = QUrl::fromLocalFile(dir.filePath("Meshy.pcr"));
+        QImage     rendered;
+        {
+            AiSettings settings(nullptr, false, memoryAiCredentialStore());
+            Document   document;
+            QVERIFY(document.newDocument(128, 128, true, 16));
+            MeshyController controller(&document, &settings, QUrl(server.url()));
+            QVERIFY(controller.generate(1, {}, "test-meshy", false));
+            QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 30000);
+            QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+            QCOMPARE(document.layerCount(), 2);
+            rendered = document.layerImage(1);
+            QVERIFY(document.saveProject(project));
+            QVERIFY(QFileInfo(project.toLocalFile()).size() > modelSize);
+        }
+        model.clear();
+
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.layerCount(), 2);
+        QCOMPARE(reopened.layers().first().toMap().value("kind").toString(), "model3d");
+        QCOMPARE(reopened.layerImage(1), rendered);
+    }
+
+    void meshyImageSendsPngAndRejectsForeignDownload()
+    {
+        Server server;
+        server.handler = [](const Request &request) -> Response {
+            if (request.method == "POST")
+                return {200, json({{"result", "image"}})};
+            return {200,
+                    json({{"status", "SUCCEEDED"},
+                          {"model_urls", QJsonObject{{"glb", "https://example.com/model.glb"}}}})};
+        };
+        AiSettings settings(nullptr, false, memoryAiCredentialStore());
+        Document   document;
+        fixture(document);
+        MeshyController controller(&document, &settings, QUrl(server.url()));
+        QVERIFY(controller.generate(1, {}, "test-meshy", false));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 10000);
+        QVERIFY(!controller.error().isEmpty());
+        QCOMPARE(server.requests.size(), 2);
+        QCOMPARE(server.requests[0].target, "/openapi/v1/image-to-3d");
+        QCOMPARE(server.requests[1].target, "/openapi/v1/image-to-3d/image");
+        const auto    body   = QJsonDocument::fromJson(server.requests[0].body).object();
+        const auto    uri    = body.value("image_url").toString();
+        const QString prefix = "data:image/png;base64,";
+        QVERIFY(uri.startsWith(prefix));
+        const auto image =
+            QImage::fromData(QByteArray::fromBase64(uri.sliced(prefix.size()).toLatin1()));
+        QCOMPARE(image.size(), QSize(120, 90));
+        QCOMPARE(image.pixelColor(10, 10), QColor(Qt::red));
+        QVERIFY(!body.contains("prompt"));
+        QCOMPARE(body.value("geometry_resolution").toString(), "standard");
+        QCOMPARE(body.value("should_remesh"), QJsonValue(false));
+        QVERIFY(!body.contains("target_polycount"));
+        QCOMPARE(body.value("texture_resolution").toString(), "4k");
+        QCOMPARE(document.layerCount(), 1);
+    }
+
+    void meshyFitsReferenceInDocumentPixels_data()
+    {
+        QTest::addColumn<bool>("selection");
+        QTest::newRow("downscaled upload") << false;
+        QTest::newRow("off-center selection") << true;
+    }
+
+    void meshyFitsReferenceInDocumentPixels()
+    {
+        QFETCH(bool, selection);
+        Server server;
+        QVERIFY(server.isListening());
+        const auto asset = Model3DTest::modelFixture();
+        server.handler   = [&server, asset](const Request &request) -> Response {
+            if (request.method == "POST")
+                return {200, json({{"result", "model"}})};
+            if (request.target == "/model.glb")
+                return {200, asset, "model/gltf-binary"};
+            return {200, json({{"status", "SUCCEEDED"},
+                               {"model_urls", QJsonObject{{"glb", server.url("/model.glb")}}}})};
+        };
+        AiSettings settings(nullptr, false, memoryAiCredentialStore());
+        Document   document;
+        QVERIFY(document.newDocument(2450, 1600, true, 8));
+        QRect expected(0, 0, 2450, 1600);
+        if (selection) {
+            document.setTool("ellipticalSelect");
+            document.beginStroke(1120, 90);
+            document.continueStroke(1500, 320);
+            document.endStroke();
+            QTRY_VERIFY(!document.selectionBusy());
+            expected = document.selectionRegion().boundingRect();
+            QVERIFY(expected.width() > 32 && expected.height() > 32);
+        }
+        MeshyController controller(&document, &settings, QUrl(server.url()));
+        QVERIFY(controller.generate(selection ? 2 : 1, {}, "test-meshy", false));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 15000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(document.layerCount(), 2);
+        const auto layer = document.layerImage(1);
+        QRect      covered;
+        for (int y = 0; y < layer.height(); ++y)
+            for (int x = 0; x < layer.width(); ++x)
+                if (qAlpha(layer.pixel(x, y)))
+                    covered |= QRect(x, y, 1, 1);
+        QVERIFY(!covered.isEmpty());
+        const auto body     = QJsonDocument::fromJson(server.requests.first().body).object();
+        const auto uri      = body.value("image_url").toString();
+        const QString prefix = "data:image/png;base64,";
+        QVERIFY(uri.startsWith(prefix));
+        const auto uploaded =
+            QImage::fromData(QByteArray::fromBase64(uri.sliced(prefix.size()).toLatin1()));
+        QCOMPARE(uploaded.width(), selection ? expected.width() : 2200);
+        if (selection) {
+            QVERIFY((covered.center() - expected.center()).manhattanLength() <= 3);
+            QVERIFY(qAbs(covered.height() - expected.width()) <= 2);
+            QVERIFY(qAbs(covered.width() - expected.width()) <= 2);
+        } else {
+            QCOMPARE(covered.height(), expected.height());
+            QVERIFY(covered.width() > 2000);
+        }
+    }
+
     void settingsPersistProvidersAndPromptsButNeverSessionKeys()
     {
         QSettings().clear();

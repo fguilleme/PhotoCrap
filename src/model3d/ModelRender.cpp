@@ -12,8 +12,7 @@ namespace PhotoCrap::Model3D
 {
 namespace
 {
-constexpr int    MaxRasterSide = 1600;
-constexpr qint64 MaxSamples    = 160'000'000;
+constexpr int MaxBandPixels = 1024 * 1024;
 
 bool number(QVariantMap &_map, const QString &_key, double _min, double _max)
 {
@@ -31,6 +30,37 @@ QTransform placement(const QVariantMap &_pose)
     return {basis[0].toDouble(), basis[1].toDouble(),         basis[2].toDouble(),
             basis[3].toDouble(), _pose.value("x").toDouble(), _pose.value("y").toDouble()};
 }
+
+constexpr float CameraDistance = 3.f;
+
+float inverseDepth(const QVector3D &_position)
+{
+    return 1.f / (CameraDistance - _position.z());
+}
+
+QPointF project(const QVector3D &_position, float _inverseDepth, float _scale = 1.f)
+{
+    const float perspective = CameraDistance * _inverseDepth * _scale;
+    return {_position.x() * perspective, -_position.y() * perspective};
+}
+
+struct Bounds {
+    QPointF minimum{std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+    QPointF maximum{-minimum.x(), -minimum.y()};
+
+    void add(const QPointF &_point)
+    {
+        minimum.setX(qMin(minimum.x(), _point.x()));
+        minimum.setY(qMin(minimum.y(), _point.y()));
+        maximum.setX(qMax(maximum.x(), _point.x()));
+        maximum.setY(qMax(maximum.y(), _point.y()));
+    }
+
+    QRectF rect() const
+    {
+        return {minimum, maximum};
+    }
+};
 
 float edge(const QPointF &_a, const QPointF &_b, const QPointF &_point)
 {
@@ -89,6 +119,28 @@ QVariantMap pose(const QSize &_canvas)
             {"yaw", 0.},
             {"roll", 0.},
             {"basis", QVariantList{unit, 0., 0., unit}}};
+}
+
+QVariantMap fittedPose(const Asset &_asset, const QRectF &_bounds, const Continue &_continue)
+{
+    Bounds bounds;
+    for (const auto &primitive : _asset.primitives) {
+        if (_continue && !_continue())
+            return {};
+        for (const auto &vertex : primitive.vertices)
+            bounds.add(project(vertex.position, inverseDepth(vertex.position)));
+    }
+    const auto projected = bounds.rect();
+    if (projected.isEmpty() || _bounds.isEmpty())
+        return {};
+    const double unit   = qMin(1'000'000., qMax(_bounds.width(), _bounds.height()) /
+                                               qMax(projected.width(), projected.height()));
+    const auto   center = _bounds.center() - projected.center() * unit;
+    auto         result = pose(_bounds.size().toSize());
+    result["x"]         = center.x();
+    result["y"]         = center.y();
+    result["basis"]     = QVariantList{unit, 0., 0., unit};
+    return result;
 }
 
 QVariantMap light()
@@ -170,63 +222,59 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
         l["intensity"].toFloat() / 100.f};
     // The common camera looks along -Z. Each layer is rendered into its own
     // transparent region and then participates in the document's 2D stack.
-    QPointF minimum(std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
-    QPointF maximum(-minimum.x(), -minimum.y());
+    Bounds                      bounds;
     QVector<QVector<Projected>> projected;
     projected.reserve(_asset.primitives.size());
     for (const auto &primitive : _asset.primitives) {
         QVector<Projected> vertices;
         vertices.reserve(primitive.vertices.size());
         for (const auto &vertex : primitive.vertices) {
-            const auto  position    = rotation.rotatedVector(vertex.position);
-            const float inverseZ    = 1.f / (3.f - position.z());
-            const float perspective = 3.f * inverseZ * scale;
-            const auto  pixel =
-                map.map(QPointF(position.x() * perspective, -position.y() * perspective));
-            minimum.setX(qMin(minimum.x(), pixel.x()));
-            minimum.setY(qMin(minimum.y(), pixel.y()));
-            maximum.setX(qMax(maximum.x(), pixel.x()));
-            maximum.setY(qMax(maximum.y(), pixel.y()));
+            const auto  position = rotation.rotatedVector(vertex.position);
+            const float inverseZ = inverseDepth(position);
+            const auto  pixel    = map.map(project(position, inverseZ, scale));
+            bounds.add(pixel);
             vertices.append(Projected{pixel, position, rotation.rotatedVector(vertex.normal),
                                       vertex.uv, vertex.color, inverseZ});
         }
         projected.append(std::move(vertices));
     }
-    const auto nativeBounds = QRectF(minimum, maximum)
+    const auto nativeBounds = bounds.rect()
                                   .adjusted(-1, -1, 1, 1)
                                   .intersected(QRectF(QPointF{}, QSizeF(_canvas)))
                                   .toAlignedRect();
     auto plane = PixelPlane::uniform(_canvas, ImageUtils::blank({1, 1}, _format));
     if (nativeBounds.isEmpty())
         return plane;
-    const double ratio =
-        qMin(1., double(MaxRasterSide) / qMax(nativeBounds.width(), nativeBounds.height()));
-    const QSize  target(qMax(1, qRound(nativeBounds.width() * ratio)),
-                       qMax(1, qRound(nativeBounds.height() * ratio)));
-    const double sx = double(target.width()) / nativeBounds.width();
-    const double sy = double(target.height()) / nativeBounds.height();
-    const QRect  area(QPoint{}, target);
-    auto         image = ImageUtils::blank(target, _format);
-    if (image.isNull())
-        return {};
-    QVector<float> depth(qsizetype(target.width()) * target.height(), 0.f);
-    qint64         samples = 0, triangles = 0;
-    const bool     mirrored = map.determinant() < 0.;
+    // Bin by rows. Each band uses document pixels and has a bounded color and depth buffer.
+    // Keep triangle order for equal-depth faces.
+    const int   width = nativeBounds.width(), height = nativeBounds.height();
+    const int   rowsPerBand = qMax(1, MaxBandPixels / width);
+    const QRect area(0, 0, width, height);
+    struct Triangle {
+        const Projected *a, *b, *c;
+        const Primitive *primitive;
+        QRect            region;
+        float            signedArea;
+        bool             front;
+    };
+    QVector<Triangle>     triangles;
+    QVector<QVector<int>> bands((height + rowsPerBand - 1) / rowsPerBand);
+    const bool            mirrored = map.determinant() < 0.;
+    qint64                samples = 0, visited = 0;
+    const qint64          sampleLimit = qMax(160'000'000LL, 16LL * width * height);
     for (qsizetype i = 0; i < _asset.primitives.size(); ++i) {
         const auto &primitive = _asset.primitives[i];
-        const auto &material  = primitive.material;
-        auto &      vertices  = projected[i];
+        auto       &vertices  = projected[i];
         for (auto &v : vertices)
-            v.pixel = {(v.pixel.x() - nativeBounds.x()) * sx,
-                       (v.pixel.y() - nativeBounds.y()) * sy};
+            v.pixel -= nativeBounds.topLeft();
         for (const auto &indices : primitive.triangles) {
-            if (++triangles % 128 == 0 && _continue && !_continue())
+            if (++visited % 128 == 0 && _continue && !_continue())
                 return {};
             const auto &a = vertices[indices[0]], &b = vertices[indices[1]],
                        &c          = vertices[indices[2]];
             const float signedArea = edge(a.pixel, b.pixel, c.pixel);
             const bool  front      = (signedArea < 0) != mirrored;
-            if (qAbs(signedArea) < 1e-7f || (!front && !material.doubleSided))
+            if (qAbs(signedArea) < 1e-7f || (!front && !primitive.material.doubleSided))
                 continue;
             const QRect region = QRectF(QPointF(std::min({a.pixel.x(), b.pixel.x(), c.pixel.x()}),
                                                 std::min({a.pixel.y(), b.pixel.y(), c.pixel.y()})),
@@ -234,20 +282,48 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                                                 std::max({a.pixel.y(), b.pixel.y(), c.pixel.y()})))
                                      .toAlignedRect()
                                      .intersected(area);
+            if (region.isEmpty())
+                continue;
             samples += qint64(region.width()) * region.height();
-            if (samples > MaxSamples)
+            if (samples > sampleLimit)
                 return {};
-            const auto flat =
+            for (int band = region.top() / rowsPerBand; band <= region.bottom() / rowsPerBand;
+                 ++band)
+                bands[band].append(int(triangles.size()));
+            triangles.append({&a, &b, &c, &primitive, region, signedArea, front});
+        }
+    }
+    for (qsizetype band = 0; band < bands.size(); ++band) {
+        if (_continue && !_continue())
+            return {};
+        if (bands[band].isEmpty())
+            continue;
+        const int   top  = int(band) * rowsPerBand;
+        const int   rows = qMin(rowsPerBand, height - top);
+        const QRect bandArea(0, top, width, rows);
+        auto        image = ImageUtils::blank(bandArea.size(), _format);
+        if (image.isNull())
+            return {};
+        QVector<float> depth(qsizetype(width) * rows, 0.f);
+        for (const int index : bands[band]) {
+            if (++visited % 128 == 0 && _continue && !_continue())
+                return {};
+            const auto &triangle = triangles[index];
+            const auto &a = *triangle.a, &b = *triangle.b, &c = *triangle.c;
+            const auto &primitive = *triangle.primitive;
+            const auto &material  = primitive.material;
+            const auto  region    = triangle.region.intersected(bandArea);
+            const auto  flat =
                 QVector3D::crossProduct(b.position - a.position, c.position - a.position)
                     .normalized();
             const bool textured = !material.texture.isNull();
             for (int y = region.top(); y <= region.bottom(); ++y) {
-                auto *pixels = image.scanLine(y);
-                auto *depths = depth.data() + y * target.width();
+                auto *pixels = image.scanLine(y - top);
+                auto *depths = depth.data() + qsizetype(y - top) * width;
                 for (int x = region.left(); x <= region.right(); ++x) {
                     const QPointF center(x + .5, y + .5);
-                    float         u = edge(b.pixel, c.pixel, center) / signedArea;
-                    float         v = edge(c.pixel, a.pixel, center) / signedArea;
+                    float         u = edge(b.pixel, c.pixel, center) / triangle.signedArea;
+                    float         v = edge(c.pixel, a.pixel, center) / triangle.signedArea;
                     float         w = 1.f - u - v;
                     if (u < -1e-6f || v < -1e-6f || w < -1e-6f)
                         continue;
@@ -280,8 +356,8 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                         qAlpha(texel) / 255.f * base.w() < material.alphaCutoff)
                         continue;
                     const auto smooth = u * a.normal + v * b.normal + w * c.normal;
-                    const auto normal =
-                        (smooth.isNull() ? flat : smooth.normalized()) * (front ? 1.f : -1.f);
+                    const auto normal = (smooth.isNull() ? flat : smooth.normalized()) *
+                                        (triangle.front ? 1.f : -1.f);
                     const float diffuse =
                         material.unlit
                             ? 0.f
@@ -289,11 +365,11 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                                   qMax(0.f, QVector3D::dotProduct(normal, lighting.direction));
                     const float ambient = material.unlit ? 1.f : lighting.ambient;
                     const float red     = sRgb(base.x() * linear(qRed(texel)) *
-                                           (ambient + diffuse * lighting.color.x()));
+                                               (ambient + diffuse * lighting.color.x()));
                     const float green   = sRgb(base.y() * linear(qGreen(texel)) *
-                                             (ambient + diffuse * lighting.color.y()));
+                                               (ambient + diffuse * lighting.color.y()));
                     const float blue    = sRgb(base.z() * linear(qBlue(texel)) *
-                                            (ambient + diffuse * lighting.color.z()));
+                                               (ambient + diffuse * lighting.color.z()));
                     if (deep)
                         reinterpret_cast<QRgba64 *>(pixels)[x] =
                             QRgba64::fromRgba64(qRound(65535.f * red), qRound(65535.f * green),
@@ -305,13 +381,9 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                 }
             }
         }
+        if (!plane.writeRegion(nativeBounds.topLeft() + QPoint(0, top), image, _canvas))
+            return {};
     }
-    if (_continue && !_continue())
-        return {};
-    if (image.size() != nativeBounds.size())
-        image = image.scaled(nativeBounds.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    if (image.isNull() || !plane.writeRegion(nativeBounds.topLeft(), image, _canvas))
-        return {};
-    return plane;
+    return _continue && !_continue() ? PixelPlane{} : plane;
 }
 } // namespace PhotoCrap::Model3D

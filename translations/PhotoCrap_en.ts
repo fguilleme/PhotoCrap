@@ -6319,7 +6319,7 @@ Independent software, not affiliated with Adobe.</translation>
     <name>Document</name>
     <message><source>Choisissez un fichier GLB local.</source><translation>Select a local GLB file.</translation></message>
     <message><source>Importer un modèle 3D</source><translation>Import 3D Model</translation></message>
-    <message><source>Impossible de lire le GLB (64 Mio maximum).</source><translation>Unable to read the GLB file (64 MiB maximum).</translation></message>
+    <message><source>Impossible de lire le GLB (%L1 Mio maximum).</source><translation>Unable to read the GLB file (%L1 MiB maximum).</translation></message>
     <message><source>Le GLB est invalide ou contient des données non prises en charge.</source><translation>The GLB is invalid or contains unsupported data.</translation></message>
     <message><source>La limite de mémoire des modèles 3D est atteinte.</source><translation>The 3D model memory limit has been reached.</translation></message>
     <message><source>Impossible de calculer le rendu du modèle 3D.</source><translation>Unable to render the 3D model.</translation></message>
@@ -6335,6 +6335,8 @@ Independent software, not affiliated with Adobe.</translation>
   <context>
     <name>Main</name>
     <message><source>Importer un modèle 3D…</source><translation>Import 3D Model…</translation></message>
+    <message><source>Générer un calque 3D avec Meshy…</source><translation>Generate a 3D Layer with Meshy…</translation></message>
+    <message><source>Une génération Meshy est en cours pour « %1 ». Fermer le document arrête le suivi local. Enregistrer les modifications ?</source><translation>Meshy is generating a model for “%1”. Closing the document stops local tracking. Save changes?</translation></message>
     <message><source>Importer un modèle 3D</source><translation>Import 3D Model</translation></message>
     <message><source>Modèles glTF binaires (*.glb)</source><translation>Binary glTF Models (*.glb)</translation></message>
     <message><source>Modèle 3D</source><translation>3D Model</translation></message>
@@ -6364,11 +6366,73 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>Model3D</name>
+    <message><source>Le modèle 3D dépasse la limite de mémoire.</source><translation>The 3D model exceeds the memory limit.</translation></message>
     <message><source>Le GLB doit contenir des triangles non compressés.</source><translation>The GLB must contain uncompressed triangles.</translation></message>
     <message><source>Un matériau ou une texture du GLB n’est pas pris en charge. Les textures de couleur doivent être intégrées en PNG ou JPEG, avec un maximum de 4 096 px par côté.</source><translation>The GLB uses an unsupported material or texture. Color textures must be embedded PNG or JPEG files, with at most 4,096 pixels per side.</translation></message>
     <message><source>Le GLB dépasse la limite de %L1 sommets ou %L2 triangles.</source><translation>The GLB exceeds the limit of %L1 vertices or %L2 triangles.</translation></message>
     <message><source>Le squelette du GLB contient des influences de sommet invalides.</source><translation>The GLB skeleton contains invalid vertex influences.</translation></message>
     <message><source>Le GLB exige l’extension %1, qui n’est pas prise en charge.</source><translation>The GLB requires the unsupported extension %1.</translation></message>
     <message><source>Le squelette ou ses matrices de liaison sont invalides.</source><translation>The skeleton or its bind matrices are invalid.</translation></message>
+  </context>
+  <context>
+    <name>MeshyController</name>
+    <message><source>Impossible de créer le fichier temporaire du modèle 3D.</source><translation>Unable to create the temporary 3D model file.</translation></message>
+    <message><source>Impossible d’écrire le modèle 3D sur le disque.</source><translation>Unable to write the 3D model to disk.</translation></message>
+    <message><source>Le GLB téléchargé dépasse %L1 Mio.</source><translation>The downloaded GLB exceeds %L1 MiB.</translation></message>
+    <message><source>Le délai d’attente du résultat Meshy est dépassé.</source><translation>Timed out waiting for the Meshy result.</translation></message>
+    <message><source>Calque 3D Meshy ajouté.</source><translation>Meshy 3D layer added.</translation></message>
+    <message><source>L’importation du modèle Meshy a été interrompue.</source><translation>The Meshy model import was interrupted.</translation></message>
+    <message><source>Meshy — %1</source><translation>Meshy — %1</translation></message>
+    <message><source>Préparation de la génération Meshy…</source><translation>Preparing Meshy generation…</translation></message>
+    <message><source>Saisissez une clé API Meshy valide.</source><translation>Enter a valid Meshy API key.</translation></message>
+    <message><source>Le document n’est plus disponible pour préparer l’image.</source><translation>The document is no longer available to prepare the image.</translation></message>
+    <message><source>Impossible de préparer l’image pour Meshy.</source><translation>Unable to prepare the image for Meshy.</translation></message>
+    <message><source>Meshy exige une image d’au moins 32 × 32 px et de 20 Mo maximum.</source><translation>Meshy requires an image at least 32 × 32 px and no larger than 20 MB.</translation></message>
+    <message><source>Meshy génère la géométrie…</source><translation>Meshy is generating geometry…</translation></message>
+    <message><source>Meshy génère la texture…</source><translation>Meshy is generating textures…</translation></message>
+    <message><source>Meshy génère le modèle à partir de l’image…</source><translation>Meshy is generating a model from the image…</translation></message>
+    <message><source>Meshy n’a pas renvoyé d’identifiant de tâche valide.</source><translation>Meshy returned an invalid task ID.</translation></message>
+    <message><source>Meshy a interrompu la génération.</source><translation>Meshy stopped generation.</translation></message>
+    <message><source>Meshy a renvoyé un état de tâche inconnu.</source><translation>Meshy returned an unknown task status.</translation></message>
+    <message><source>Meshy n’a pas fourni de lien GLB valide.</source><translation>Meshy returned an invalid GLB link.</translation></message>
+    <message><source>Téléchargement du modèle GLB…</source><translation>Downloading the GLB model…</translation></message>
+    <message><source>Le modèle GLB téléchargé est vide.</source><translation>The downloaded GLB model is empty.</translation></message>
+    <message><source>Le document source a changé.</source><translation>The source document has changed.</translation></message>
+    <message><source>En attente de la fin de l’édition…</source><translation>Waiting for editing to finish…</translation></message>
+    <message><source>Importation du calque 3D…</source><translation>Importing the 3D layer…</translation></message>
+    <message><source>Impossible d’importer le modèle Meshy.</source><translation>Unable to import the Meshy model.</translation></message>
+    <message><source>La réponse Meshy dépasse la taille maximale autorisée.</source><translation>The Meshy response exceeds the size limit.</translation></message>
+    <message><source>Meshy a refusé l’accès. Vérifiez la clé API.</source><translation>Meshy denied access. Check the API key.</translation></message>
+    <message><source>Le solde de crédits Meshy est insuffisant.</source><translation>The Meshy credit balance is too low.</translation></message>
+    <message><source>La limite de requêtes Meshy est atteinte.</source><translation>The Meshy request limit has been reached.</translation></message>
+    <message><source>La requête Meshy a échoué (HTTP %1).</source><translation>The Meshy request failed (HTTP %1).</translation></message>
+    <message><source>La connexion à Meshy a échoué.</source><translation>Unable to connect to Meshy.</translation></message>
+    <message><source>Suivi Meshy arrêté.</source><translation>Stopped tracking the Meshy job.</translation></message>
+  </context>
+  <context>
+    <name>MeshyDialog</name>
+    <message><source>Géométrie Ultra 4K (+5 crédits Meshy)</source><translation>Ultra 4K Geometry (+5 Meshy credits)</translation></message>
+    <message><source>Générer un calque 3D avec Meshy</source><translation>Generate a 3D Layer with Meshy</translation></message>
+    <message><source>Source</source><translation>Source</translation></message>
+    <message><source>Description</source><translation>Description</translation></message>
+    <message><source>Image du document</source><translation>Document Image</translation></message>
+    <message><source>Sélection</source><translation>Selection</translation></message>
+    <message><source>Décrivez l’objet à générer</source><translation>Describe the object to generate</translation></message>
+    <message><source>La description sera envoyée à Meshy pour générer puis texturer le modèle. Ces étapes utilisent des crédits Meshy.</source><translation>Meshy receives the description to generate and texture the model. These steps use Meshy credits.</translation></message>
+    <message><source>L’image choisie sera envoyée à Meshy pour générer et texturer le modèle. Cette opération utilise des crédits Meshy.</source><translation>Meshy receives the selected image to generate and texture the model. This uses Meshy credits.</translation></message>
+    <message><source>Clé API Meshy</source><translation>Meshy API Key</translation></message>
+    <message><source>Clé fournie par MESHY_API_KEY</source><translation>Key provided by MESHY_API_KEY</translation></message>
+    <message><source>Clé du trousseau · saisir pour la remplacer</source><translation>Key stored in keychain · type to replace</translation></message>
+    <message><source>Saisissez votre clé API</source><translation>Enter your API key</translation></message>
+    <message><source>Enregistrer la clé dans le trousseau</source><translation>Save the key in the keychain</translation></message>
+    <message><source>Annuler</source><translation>Cancel</translation></message>
+    <message><source>Générer</source><translation>Generate</translation></message>
+  </context>
+  <context>
+    <name>MeshyProgress</name>
+    <message><source>Meshy · Calque 3D</source><translation>Meshy · 3D Layer</translation></message>
+    <message><source>Arrêter le suivi</source><translation>Stop Tracking</translation></message>
+    <message><source>Fermer</source><translation>Close</translation></message>
+    <message><source>La génération peut continuer chez Meshy.</source><translation>Generation may continue on Meshy.</translation></message>
   </context>
 </TS>

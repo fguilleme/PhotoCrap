@@ -8,6 +8,7 @@
 
 namespace PhotoCrap::Storage
 {
+constexpr qint64 MaxOriginalBytes = 512LL * 1024 * 1024;
 using Continue = std::function<bool()>;
 class BinaryProjectWriter
 {

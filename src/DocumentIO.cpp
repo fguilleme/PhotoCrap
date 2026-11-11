@@ -5,6 +5,7 @@
 #include "masks/VectorMask.h"
 #include "model3d/Model3D.h"
 #include "shapes/ShapeLayer.h"
+#include "storage/BinaryProject.h"
 #include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectPng.h"
 #include "storage/ProjectPreview.h"
@@ -37,6 +38,7 @@
 
 namespace
 {
+static_assert(PhotoCrap::Model3D::MaxFileBytes <= PhotoCrap::Storage::MaxOriginalBytes);
 constexpr qint64 MaxProjectBytes = 256LL * 1024 * 1024;
 
 QString localPath(const QUrl &_url)

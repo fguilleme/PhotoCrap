@@ -9,6 +9,7 @@
 #include <QImageReader>
 #include <QMatrix4x4>
 #include <QSet>
+#include <QTemporaryFile>
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
@@ -18,7 +19,8 @@ namespace PhotoCrap::Model3D
 {
 namespace
 {
-constexpr qsizetype MaxVertices = 360000, MaxTriangles = 180000;
+constexpr qsizetype MaxVertices = 8'000'000, MaxTriangles = 8'000'000;
+constexpr qsizetype MaxDecodedBytes = 384 * 1024 * 1024;
 constexpr qsizetype MaxTexturePixels = 16 * 1024 * 1024;
 constexpr size_t    MaxParserBytes   = 32 * 1024 * 1024;
 
@@ -366,7 +368,7 @@ bool readPrimitive(const cgltf_primitive &_source, const QMatrix4x4 &_world, Pri
 }
 } // namespace
 
-std::shared_ptr<const Asset> load(QByteArray _bytes, const Continue &_continue, QString *_error)
+static std::shared_ptr<Asset> loadAsset(QByteArray _bytes, const Continue &_continue, QString *_error)
 {
     QString  detail;
     QString &error = _error ? *_error : detail;
@@ -476,6 +478,13 @@ std::shared_ptr<const Asset> load(QByteArray _bytes, const Continue &_continue, 
             if (!readPrimitive(mesh->primitives[i], world, primitive, joints, textures, vertices,
                                triangles, _continue, error))
                 return {};
+            const qsizetype bytes = vertices * qsizetype(sizeof(Vertex)) +
+                                    triangles * qsizetype(sizeof(std::array<quint32, 3>)) +
+                                    textures.decodedPixels * 4;
+            if (bytes > MaxDecodedBytes) {
+                error = QCoreApplication::translate("Model3D", "Le modèle 3D dépasse la limite de mémoire.");
+                return {};
+            }
             for (const auto &vertex : primitive.vertices)
                 for (int axis = 0; axis < 3; ++axis) {
                     minimum[axis] = qMin(minimum[axis], vertex.position[axis]);
@@ -494,6 +503,32 @@ std::shared_ptr<const Asset> load(QByteArray _bytes, const Continue &_continue, 
     asset->bytesInMemory = _bytes.size() + vertices * sizeof(Vertex) +
                            triangles * sizeof(std::array<quint32, 3>) + textures.decodedPixels * 4;
     asset->bytes = std::move(_bytes);
+    return asset;
+}
+
+std::shared_ptr<const Asset> load(QByteArray _bytes, const Continue &_continue, QString *_error)
+{
+    return loadAsset(std::move(_bytes), _continue, _error);
+}
+
+std::shared_ptr<const Asset> loadTemporary(const std::shared_ptr<QTemporaryFile> &_file,
+                                           const Continue &_continue, QString *_error)
+{
+    const auto size = _file->size();
+    if (size < 20 || size > MaxFileBytes)
+        return {};
+    auto *mapping = _file->map(0, size, QFileDevice::MapPrivateOption);
+    if (!mapping) {
+        if (_error)
+            *_error = _file->errorString();
+        return {};
+    }
+    auto asset = loadAsset(QByteArray::fromRawData(reinterpret_cast<const char *>(mapping), size),
+                           _continue, _error);
+    if (asset)
+        asset->backing = _file;
+    else
+        _file->unmap(mapping);
     return asset;
 }
 

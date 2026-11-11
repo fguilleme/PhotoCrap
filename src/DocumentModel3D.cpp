@@ -30,6 +30,56 @@ bool Document::importModel3D(const QUrl &_url)
 {
     if (!_url.isLocalFile() || !QFileInfo(_url.toLocalFile()).isFile())
         return fail(tr("Choisissez un fichier GLB local."));
+    const QFileInfo info(_url.toLocalFile());
+    return importModel3DWithLoader(
+        [path = info.absoluteFilePath()](const auto &keepGoing, QString *error) {
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly) || file.size() > Model3D::MaxFileBytes) {
+                *error = tr("Impossible de lire le GLB (%L1 Mio maximum).")
+                             .arg(Model3D::MaxFileBytes / (1024 * 1024));
+                return std::shared_ptr<const Model3D::Asset>{};
+            }
+            return Model3D::load(file.read(Model3D::MaxFileBytes + 1), keepGoing, error);
+        },
+        info.completeBaseName(), {});
+}
+
+bool Document::importModel3DData(const QByteArray &_bytes, const QString &_name,
+                                 const QRectF &_reference)
+{
+    return importModel3DWithLoader(
+        [_bytes](const auto &keepGoing, QString *error) {
+            return Model3D::load(_bytes, keepGoing, error);
+        },
+        _name, _reference);
+}
+
+bool Document::importDownloadedModel3D(std::shared_ptr<QTemporaryFile> _file, const QString &_name,
+                                       const QRectF &_reference)
+{
+    return importModel3DWithLoader(
+        [file = std::move(_file)](const auto &keepGoing, QString *error) {
+            return Model3D::loadTemporary(file, keepGoing, error);
+        },
+        _name, _reference);
+}
+
+bool Document::importModel3DWithLoader(ModelLoader _load, const QString &_name,
+                                       const QRectF &_reference)
+{
+    if (!canImportModel3D())
+        return false;
+    const auto label = tr("Importer un modèle 3D");
+    if (deferEdit(label, std::numeric_limits<qint64>::max(),
+                  [_load, _name, _reference](Document &worker) {
+                      worker.insertModel3D(_load, _name, _reference);
+                  }))
+        return true;
+    return insertModel3D(_load, _name, _reference);
+}
+
+bool Document::canImportModel3D()
+{
     if (rawLoading() || pixelEditBusy() || transformActive())
         return fail(tr("Terminez ou annulez l’opération en cours."));
     finishTextEdit();
@@ -38,17 +88,16 @@ bool Document::importModel3D(const QUrl &_url)
     if (!validSize(width(), height(), int(m_layers.size() + 1)) ||
         !validLayerStorage(width(), height(), 1))
         return false;
-    const auto label = tr("Importer un modèle 3D");
-    if (deferEdit(label, std::numeric_limits<qint64>::max(),
-                  [_url](Document &worker) { worker.importModel3D(_url); }))
-        return true;
+    return true;
+}
 
-    QFile file(_url.toLocalFile());
-    if (!file.open(QIODevice::ReadOnly) || file.size() > Model3D::MaxFileBytes)
-        return fail(tr("Impossible de lire le GLB (64 Mio maximum)."));
+bool Document::insertModel3D(const ModelLoader &_load, const QString &_name,
+                             const QRectF &_reference)
+{
+    const auto label     = tr("Importer un modèle 3D");
     const auto keepGoing = [this] { return operationStep(0, 1); };
     QString    error;
-    auto       asset = Model3D::load(file.read(Model3D::MaxFileBytes + 1), keepGoing, &error);
+    auto       asset = _load(keepGoing, &error);
     if (!asset)
         return keepGoing() ? fail(error.isEmpty() ? tr("Le GLB est invalide ou contient des "
                                                        "données non prises en charge.")
@@ -69,10 +118,13 @@ bool Document::importModel3D(const QUrl &_url)
         return fail(tr("La limite de mémoire des modèles 3D est atteinte."));
 
     Layer layer;
-    layer.name       = QFileInfo(file.fileName()).completeBaseName().left(256);
+    layer.name       = _name.left(256);
     layer.kind       = "model3d";
     layer.model3D    = std::move(asset);
-    layer.parameters = {{"pose3d", Model3D::pose(m_size)}, {"light3d", lighting}};
+    auto pose        = _reference.isEmpty() ? QVariantMap{}
+                                            : Model3D::fittedPose(*layer.model3D, _reference, keepGoing);
+    layer.parameters = {{"pose3d", pose.isEmpty() ? Model3D::pose(m_size) : std::move(pose)},
+                        {"light3d", lighting}};
     layer.image =
         Model3D::render(*layer.model3D, layer.parameters, m_size, workingFormat(), keepGoing);
     if (layer.image.isNull())

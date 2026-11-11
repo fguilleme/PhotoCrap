@@ -458,7 +458,8 @@ Plage de couleurs, Contour progressif, Frange, Lisser, Dilater, Contracter, Res�
 - [ ] Anticrénelage fractionnaire des outils, Mode Masque et chargement depuis un calque/masque/couche.
 - [ ] Tons chair/visages, hors gamut CMJN, réglages tonals détaillés, aperçus et préréglages Adobe complémentaires ; Étendre/Généraliser selon la tolérance de la Baguette magique.
 - [ ] Zone de mise au point, Sujet, Ciel et espace Sélectionner et masquer, avec validation des détails fins et calculs asynchrones.
-- [ ] Transformation du contour indépendante des pixels ; mémorisation/récupération dans des couches alpha persistantes.
+- [x] Transformation du contour indépendante des pixels.
+- [ ] Mémorisation/récupération dans des couches alpha persistantes.
 - [ ] Aucun calque actif, recherche et isolation par filtrage du panneau Calques.
 - [ ] Paramètres de contour progressif et d’anticrénelage lors de la conversion Plume → sélection ; le contour progressif peut déjà être appliqué après conversion.
 
@@ -486,7 +487,7 @@ Améliorations des outils déjà disponibles :
 - [x] Mode Forme de la Plume : calque créé au premier point, géométrie et styles conservés, fond/contour unis ou absents, épaisseur et tirets, réédition par les points ou les propriétés, déplacement, masques raster, duplication, Annuler et pixellisation explicite. Conversion explicite Tracé → Forme en place, sans doublon du tracé ; couleurs réaffichées à la sélection, remplissage lié aux poignées et distinction du remplissage raster dans le panneau. Choix Aucun/couleur, épaisseur décimale et dimensions liées. Caches natifs 8/16 bits par tuiles, affichage GPU et projets v11.
 - [ ] Compléter les tracés : composants multiples et jonctions, opérations booléennes, tracé de travail temporaire, multi-sélection de tracés, duplication par Alt-glisser et réordonnancement par glisser ; sélection → tracé et composants multiples des masques vectoriels. Les dégradés/motifs et alignements avancés des contours de forme restent à faire. La découpe indépendante d’un segment et les options de conversion restent à faire.
 - [ ] Conservation non destructive des pixels hors canevas, rotation/redressement du cadrage, résolution physique et presets personnalisés ; propriétés web/HTML et export des tranches automatiques.
-- [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris, les transformations et le sélecteur contextuel de pointes/motifs.
+- [ ] Compléter le déplacement multicalques, l’auto-sélection sous la souris et le sélecteur contextuel de pointes/motifs.
 - [ ] Tolérance et options supplémentaires du remplissage contigu ; modes plus avancés de réparation et de pièce.
 - [ ] Transformation au dépôt pour le déplacement basé sur le contenu ; meilleurs raccords sur les fonds complexes.
 - [ ] Pression/inclinaison du stylet, pointes texturées, dynamiques de brosse et bibliothèque de motifs/pointes.
@@ -497,7 +498,8 @@ Améliorations des outils déjà disponibles :
 - [ ] Compléter les commandes NYI des calques : placement direct tout en haut/en bas, verrouillage des pixels transparents, étiquettes de couleur, pixellisation et options de fusion avancées.
 - [ ] Compléter les commandes NYI des masques : appliquer le masque, associer/dissocier, charger comme sélection et Sélectionner et masquer.
 - [ ] Compléter les masques vectoriels (dossiers, composants multiples), effets de calque et objets dynamiques.
-- [ ] Transformation libre, perspective interactive des calques et formes vectorielles.
+- [x] Transformation manuelle des calques, tracés et masques ; distorsion, perspective et déformation avec subdivisions sur pixels 8/16 bits. [Guide](docs/TRANSFORM.md).
+- [ ] Déformation non affine des vecteurs éditables et conservation des pixels hors canevas.
 - [ ] Dégradé non destructif avec calque de remplissage et poignées ; l’outil actuel reste un dégradé raster classique.
 - [ ] Fidélité colorimétrique des réglages et jeux d’images de référence ; les traitements actuels sont des implémentations sRGB simplifiées.
 - [ ] Lectures supplémentaires dans Informations : espaces colorimétriques, opacité, avant/après et unités de mesure configurables.

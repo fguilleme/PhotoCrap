@@ -108,6 +108,59 @@ class DocumentOperationsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void transformPublicationAndCancellation()
+    {
+        Document d;
+        populate(d, 16);
+        const int  index    = d.activeLayer();
+        const auto original = d.layerImage(index);
+        const auto history  = d.historyIndex();
+        d.setBackgroundEditThreshold(0);
+        {
+            BlockPool blocked;
+            QVERIFY(d.beginTransform());
+            d.setTransformParameter("x", d.transformOptions()["x"].toReal() + 8.);
+            QVERIFY(d.applyTransform());
+            QVERIFY(d.operationBusy());
+            QCOMPARE(d.layerImage(index), original);
+            d.cancelOperation();
+            QVERIFY(!d.canRepeatTransform());
+        }
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(index), original);
+
+        QVERIFY(d.beginTransform());
+        d.setTransformParameter("x", d.transformOptions()["x"].toReal() + 8.);
+        QVERIFY(d.applyTransform());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layerImage(index).pixelColor(38, 10), original.pixelColor(30, 10));
+        QVERIFY(d.canRepeatTransform());
+        d.undo();
+        QCOMPARE(d.layerImage(index), original);
+    }
+    void transformSelectionInBackgroundKeepsProjectClean()
+    {
+        Document d;
+        QVERIFY(d.newDocument(120, 90, false));
+        QTemporaryDir folder;
+        QVERIFY(folder.isValid());
+        QVERIFY(d.saveProject(QUrl::fromLocalFile(folder.filePath("selection-transform.pcr"))));
+        QVERIFY(!d.modified());
+        d.selectAll();
+        const auto history = d.historyIndex();
+        d.setBackgroundEditThreshold(0);
+        QVERIFY(d.beginTransform("free", false, true));
+        d.setTransformParameter("x", d.transformOptions()["x"].toReal() + 20.);
+        QVERIFY(d.applyTransform());
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
+        QCOMPARE(d.selection(), QRect(20, 0, 100, 90));
+        QCOMPARE(d.historyIndex(), history + 1);
+        QVERIFY(!d.modified());
+        d.undo();
+        QCOMPARE(d.selection(), QRect(0, 0, 120, 90));
+        QVERIFY(!d.modified());
+    }
     void frequencySourcePreparationMatchesSynchronousWork_data()
     {
         QTest::addColumn<int>("bits");

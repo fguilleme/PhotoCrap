@@ -329,6 +329,7 @@ void CanvasItem::setDocument(Document *_document)
                 queueFrame(true, false);
         });
         connect(_document, &Document::documentChanged, this, [this] { queueFrame(true, true); });
+        connect(_document, &Document::transformChanged, this, [this] { queueFrame(false, true); });
         connect(_document, &Document::selectionChanged, this, [this] { queueFrame(false, true); });
         connect(_document, &Document::selectionDisplayChanged, this,
                 [this] { queueFrame(false, true); });

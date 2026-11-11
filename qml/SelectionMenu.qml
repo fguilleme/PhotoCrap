@@ -3,6 +3,7 @@ import QtQuick.Controls
 
 DarkMenu {
     id: root
+    signal transformRequested()
     required property var document
     required property var manager
     required property Action selectAllAction
@@ -97,7 +98,7 @@ DarkMenu {
     DarkMenuItem { text: qsTr("Étendre (NYI)"); enabled: false }
     DarkMenuItem { text: qsTr("Généraliser (NYI)"); enabled: false }
     MenuSeparator {}
-    DarkMenuItem { text: qsTr("Transformer la sélection (NYI)"); enabled: false }
+    DarkMenuItem { objectName: "transformSelectionMenuItem"; text: qsTr("Transformer la sélection"); enabled: root.canModify; onTriggered: root.transformRequested() }
     MenuSeparator {}
     DarkMenuItem { action: root.quickMaskAction }
     MenuSeparator {}

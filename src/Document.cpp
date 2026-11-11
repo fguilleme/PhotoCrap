@@ -207,6 +207,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
             m_previewRenderActive.store(m_gpuToneActive);
     });
     connect(this, &Document::selectionChanged, this, [this] {
+        cancelTransform();
         cancelOperation();
         cancelSelectionOperation();
         if (!m_selectionMask.isNull() && m_selectionMaskRegion != m_selectionRegion) {
@@ -224,6 +225,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, [this] {
+        cancelTransform();
         cancelOperation();
         cancelSelectionOperation();
         invalidatePatch();
@@ -232,6 +234,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
         cancelMagicErase();
     });
     connect(this, &Document::layersChanged, this, &Document::historyBrushSourceChanged);
+    connect(this, &Document::penPathsChanged, this, &Document::cancelTransform);
     connect(this, &Document::penPathsChanged, this, &Document::cancelOperation);
     connect(this, &Document::layersChanged, this, [this] { syncPenShapePath(); });
     connect(this, &Document::slicesChanged, this, &Document::cancelOperation);
@@ -649,6 +652,12 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    if (m_transform) {
+        m_transform.reset();
+        m_pendingTransform.reset();
+        m_beforeTransformPreview = {};
+        emit transformChanged();
+    }
     cancelOperation();
     m_gpuStackAuxTimer.stop();
     if (!m_preserveGpuTonePreview)
@@ -698,6 +707,11 @@ void Document::setPreviewSize(int _width, int _height)
 }
 void Document::resetHistory(bool _clean)
 {
+    cancelTransform();
+    if (m_lastTransform) {
+        m_lastTransform.reset();
+        emit transformChanged();
+    }
     cancelPlaneOffload();
     cancelSelectionOperation();
     m_selectionGestureRecorded = false;
@@ -899,6 +913,7 @@ QImage Document::maskImage(int _index, const QSize &_requested) const
 }
 void Document::setActiveLayer(int _index)
 {
+    cancelTransform();
     _index = finishTextForLayer(_index);
     if (_index < 0 || _index >= m_layers.size())
         return;

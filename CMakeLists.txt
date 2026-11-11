@@ -132,6 +132,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/tools/ToolSettings.cpp
     src/tools/EyedropperTools.cpp
     src/tools/CropTools.cpp
+    src/tools/LayerTransform.cpp
+    src/tools/TransformTool.cpp
     src/tools/SliceTools.cpp
     src/tools/SliceDescriptionCache.cpp
     src/filters/BlackWhiteFilter.cpp
@@ -472,6 +474,8 @@ qt_add_library(photocrap_core STATIC
     src/tools/ToolSettings.cpp
     src/tools/EyedropperTools.cpp
     src/tools/CropTools.cpp
+    src/tools/LayerTransform.cpp
+    src/tools/TransformTool.cpp
     src/tools/SliceTools.cpp
     src/tools/SliceDescriptionCache.cpp
     src/tools/SliceDescriptionCache.h
@@ -617,6 +621,9 @@ qt_add_qml_module(PhotoCrap
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES
         qml/Main.qml
+        qml/TransformMenu.qml
+        qml/TransformOptions.qml
+        qml/TransformOverlay.qml
         qml/ScrubLabel.qml
         qml/ScratchCachePreferences.qml
         qml/AiTextField.qml

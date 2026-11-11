@@ -5012,7 +5012,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Sélection</source><translation>Select</translation></message>
     <message><source>Sélectionner et masquer… (NYI)</source><translation>Select and Mask… (NYI)</translation></message>
     <message><source>Tous les calques</source><translation>All Layers</translation></message>
-    <message><source>Transformer la sélection (NYI)</source><translation>Transform Selection (NYI)</translation></message>
+    <message><source>Transformer la sélection</source><translation>Transform Selection</translation></message>
     <message><source>Zone de mise au point… (NYI)</source><translation>Focus Area… (NYI)</translation></message>
     <message><source>Étendre (NYI)</source><translation>Grow (NYI)</translation></message>
   </context>
@@ -6239,5 +6239,80 @@ Independent software, not affiliated with Adobe.</translation>
     <name>Main</name>
     <message><source>Limiter à la sélection</source><translation>Limit to selection</translation></message>
     <message><source>Décochez pour adoucir le masque des deux côtés du contour de la sélection.</source><translation>Uncheck to soften the mask on both sides of the selection outline.</translation></message>
+  </context>
+  <context><name>Main</name>
+    <message><source>Transformation manuelle</source><translation>Free Transform</translation></message>
+    <message><source>Répéter la transformation</source><translation>Transform Again</translation></message>
+  </context>
+  <context><name>TransformMenu</name>
+    <message><source>Transformation</source><translation>Transform</translation></message>
+    <message><source>Transformation manuelle</source><translation>Free Transform</translation></message>
+    <message><source>Échelle</source><translation>Scale</translation></message>
+    <message><source>Rotation</source><translation>Rotate</translation></message>
+    <message><source>Inclinaison</source><translation>Skew</translation></message>
+    <message><source>Distorsion</source><translation>Distort</translation></message>
+    <message><source>Perspective</source><translation>Perspective</translation></message>
+    <message><source>Déformation</source><translation>Warp</translation></message>
+    <message><source>Scinder horizontalement</source><translation>Split Warp Horizontally</translation></message>
+    <message><source>Scinder verticalement</source><translation>Split Warp Vertically</translation></message>
+    <message><source>Scinder en croix</source><translation>Split Warp Crosswise</translation></message>
+    <message><source>Supprimer la subdivision</source><translation>Remove Warp Split</translation></message>
+    <message><source>Convertir le point d’ancrage</source><translation>Convert Warp Anchor Point</translation></message>
+    <message><source>Afficher les repères</source><translation>Show Guides</translation></message>
+    <message><source>Rotation de 180°</source><translation>Rotate 180°</translation></message>
+    <message><source>Rotation de 90° à droite</source><translation>Rotate 90° Clockwise</translation></message>
+    <message><source>Rotation de 90° à gauche</source><translation>Rotate 90° Counterclockwise</translation></message>
+    <message><source>Symétrie horizontale</source><translation>Flip Horizontal</translation></message>
+    <message><source>Symétrie verticale</source><translation>Flip Vertical</translation></message>
+  </context>
+  <context><name>TransformOptions</name>
+    <message><source>Transformation manuelle</source><translation>Free Transform</translation></message>
+    <message><source>Échelle</source><translation>Scale</translation></message>
+    <message><source>Rotation</source><translation>Rotate</translation></message>
+    <message><source>Inclinaison</source><translation>Skew</translation></message>
+    <message><source>Distorsion</source><translation>Distort</translation></message>
+    <message><source>Perspective</source><translation>Perspective</translation></message>
+    <message><source>Déformation</source><translation>Warp</translation></message>
+    <message><source>Pivot</source><translation>Reference Point</translation></message>
+    <message><source>L</source><translation>W</translation></message>
+    <message><source>H</source><translation>H</translation></message>
+    <message><source>Conserver les proportions</source><translation>Maintain Aspect Ratio</translation></message>
+    <message><source>Personnalisée</source><translation>Custom</translation></message>
+    <message><source>Arc</source><translation>Arc</translation></message>
+    <message><source>Arc inférieur</source><translation>Arc Lower</translation></message>
+    <message><source>Arc supérieur</source><translation>Arc Upper</translation></message>
+    <message><source>Voûte</source><translation>Arch</translation></message>
+    <message><source>Renflement</source><translation>Bulge</translation></message>
+    <message><source>Drapeau</source><translation>Flag</translation></message>
+    <message><source>Onde</source><translation>Wave</translation></message>
+    <message><source>Grille par défaut</source><translation>Default Grid</translation></message>
+    <message><source>Personnalisée…</source><translation>Custom…</translation></message>
+    <message><source>Inflexion</source><translation>Bend</translation></message>
+    <message><source>Verticale</source><translation>Vertical</translation></message>
+    <message><source>Scinder</source><translation>Split</translation></message>
+    <message><source>Horizontalement</source><translation>Horizontally</translation></message>
+    <message><source>Verticalement</source><translation>Vertically</translation></message>
+    <message><source>En croix</source><translation>Crosswise</translation></message>
+    <message><source>Annuler la transformation (Échap)</source><translation>Cancel Transform (Esc)</translation></message>
+    <message><source>Appliquer la transformation (Entrée)</source><translation>Commit Transform (Enter)</translation></message>
+    <message><source>Grille de déformation</source><translation>Warp Grid</translation></message>
+    <message><source>Colonnes</source><translation>Columns</translation></message>
+    <message><source>Lignes</source><translation>Rows</translation></message>
+  </context>
+  <context><name>Document</name>
+    <message><source>La limite de tracés est atteinte.</source><translation>The path limit has been reached.</translation></message>
+    <message><source>Le masque ne peut pas être transformé en copie.</source><translation>A mask cannot be transformed as a copy.</translation></message>
+    <message><source>Convertissez la séparation de fréquences en pixels avant de la transformer.</source><translation>Convert the frequency separation to pixels before transforming it.</translation></message>
+    <message><source>Désélectionnez les pixels pour transformer un calque éditable.</source><translation>Deselect the pixels to transform an editable layer.</translation></message>
+    <message><source>Ce mode de transformation est réservé aux pixels et aux masques raster.</source><translation>This transform mode is available for pixels and raster masks.</translation></message>
+    <message><source>Aucun contenu à transformer.</source><translation>No content to transform.</translation></message>
+    <message><source>Impossible de préparer la sélection.</source><translation>Unable to prepare the selection.</translation></message>
+    <message><source>Validez la perspective avant de passer à la déformation.</source><translation>Commit the perspective transform before switching to Warp.</translation></message>
+    <message><source>Impossible de transformer le tracé.</source><translation>Unable to transform the path.</translation></message>
+    <message><source>Impossible de transformer les calques.</source><translation>Unable to transform the layers.</translation></message>
+    <message><source>Impossible de transformer la sélection.</source><translation>Unable to transform the selection.</translation></message>
+    <message><source>Transformer la sélection</source><translation>Transform Selection</translation></message>
+    <message><source>Transformation</source><translation>Transform</translation></message>
+    <message><source>%1 — copie</source><translation>%1 — copy</translation></message>
   </context>
 </TS>

@@ -27,6 +27,10 @@ bool validShapeTransform(const QVector<Layer> &_layers, const QTransform &_trans
 
 void Document::undo()
 {
+    if (transformActive()) {
+        cancelTransform();
+        return;
+    }
     if (operationBusy()) {
         cancelOperation();
         return;

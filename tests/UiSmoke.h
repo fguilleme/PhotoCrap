@@ -10,6 +10,7 @@
 #include "SelectionUiSmoke.h"
 #include "ShortcutManager.h"
 #include "ToolLayerSmoke.h"
+#include "TransformSmoke.h"
 #include "WorkspaceSettings.h"
 #include <QFile>
 #include <QOperatingSystemVersion>
@@ -2974,6 +2975,8 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!runLayerContextMenuSmoke(_window, _document))
         return false;
     if (!runBrushSettingsSmoke(_window, _document))
+        return false;
+    if (!runTransformSmoke(_window, _document))
         return false;
     if (!runPenUiSmoke(_window, _document))
         return false;

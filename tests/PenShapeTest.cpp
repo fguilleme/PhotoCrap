@@ -37,6 +37,31 @@ class PenShapeTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void transformPathAndRetainedShape()
+    {
+        Document d;
+        QVERIFY(d.newDocument(220, 180, true, 16));
+        d.setTool("pen");
+        click(d, 20, 20);
+        click(d, 100, 20);
+        click(d, 100, 100);
+        d.closePenPath();
+        QVERIFY(d.beginTransform("rotate"));
+        d.setTransformParameter("angle", 90.);
+        QVERIFY(d.applyTransform());
+        QCOMPARE(d.layers().size(), 1);
+        QVERIFY(d.penPathToShape());
+        const auto original = d.layerImage(d.activeLayer());
+        QVERIFY(d.beginTransform("scale"));
+        QVERIFY(!d.setTransformMode("warp"));
+        d.setTransformParameter("width", 50.);
+        QVERIFY(d.applyTransform());
+        QCOMPARE(layer(d, d.activeLayer())["kind"].toString(), QString("shape"));
+        QVERIFY(d.layerImage(d.activeLayer()) != original);
+        QVERIFY(d.penShapeStyle()["fillEnabled"].toBool());
+        d.undo();
+        QCOMPARE(d.layerImage(d.activeLayer()), original);
+    }
     void retainedShapeAndStyles_data()
     {
         QTest::addColumn<int>("bits");

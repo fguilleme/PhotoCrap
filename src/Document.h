@@ -43,9 +43,19 @@ struct Input;
 struct Result;
 } // namespace PhotoCrap::Ai
 
+namespace PhotoCrap::Transform
+{
+struct Job;
+struct Session;
+struct Mapping;
+} // namespace PhotoCrap::Transform
+
 class Document : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(bool transformActive READ transformActive NOTIFY transformChanged)
+    Q_PROPERTY(QVariantMap transformOptions READ transformOptions NOTIFY transformChanged)
+    Q_PROPERTY(bool canRepeatTransform READ canRepeatTransform NOTIFY transformChanged)
     Q_PROPERTY(int width READ width NOTIFY canvasSizeChanged)
     Q_PROPERTY(int height READ height NOTIFY canvasSizeChanged)
     Q_PROPERTY(QString name READ name NOTIFY documentChanged)
@@ -313,6 +323,27 @@ class Document : public QObject
 public:
     explicit Document(QObject *_parent = nullptr);
     ~Document() override;
+    bool transformActive() const
+    {
+        return bool(m_transform);
+    }
+    bool canRepeatTransform() const
+    {
+        return bool(m_lastTransform);
+    }
+    QVariantMap         transformOptions() const;
+    Q_INVOKABLE bool    beginTransform(const QString &_mode = QStringLiteral("free"),
+                                       bool _copy = false, bool _selectionOnly = false);
+    Q_INVOKABLE bool    setTransformMode(const QString &_mode);
+    Q_INVOKABLE QString transformHit(const QPointF &_point, qreal _tolerance) const;
+    Q_INVOKABLE void beginTransformGesture(const QPointF &_point, qreal _tolerance, int _modifiers);
+    Q_INVOKABLE void updateTransformGesture(const QPointF &_point, int _modifiers);
+    Q_INVOKABLE void endTransformGesture();
+    Q_INVOKABLE void setTransformParameter(const QString &_key, const QVariant &_value);
+    Q_INVOKABLE void transformCommand(const QString &_command);
+    Q_INVOKABLE void cancelTransform();
+    Q_INVOKABLE bool applyTransform();
+    Q_INVOKABLE bool repeatTransform(bool _copy = false);
     QString penMode() const
     {
         return m_penMode;
@@ -1356,6 +1387,7 @@ public:
     Q_INVOKABLE void applyFilter(const QString &_filter, qreal _amount = 0);
     Q_INVOKABLE void createDemo();
 signals:
+    void transformChanged();
     void clipboardChanged();
     void operationChanged();
     void gpuStackChanged();
@@ -1396,6 +1428,13 @@ signals:
     void statusMessage(const QString &_message);
 
 private:
+    std::shared_ptr<PhotoCrap::Transform::Session>   m_transform;
+    std::shared_ptr<PhotoCrap::Transform::Mapping>   m_lastTransform;
+    std::shared_ptr<const PhotoCrap::Transform::Job> m_pendingTransform;
+    QImage                                           m_beforeTransformPreview;
+    void                                             updateTransformPreview();
+    void                                             clearTransformPreview();
+    bool applyTransformJob(const PhotoCrap::Transform::Job &_job, const QString &_label);
     PhotoCrap::Clipboard::Pixels clipboardPixels(bool _merged);
     void                         copyPixels(bool _merged);
     void                         discardClipboardSelection();
@@ -1924,9 +1963,10 @@ private:
     void          startPendingPreviewRender();
     QImage        renderCompositeRect(const QRect &_region) const;
     std::unique_ptr<Document> nativeCompositeSource(QVector<Layer> _layers) const;
-    static QImage renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
-                                        const QSize &_targetSize, bool _draft,
-                                        std::shared_ptr<ScratchImageCache> _scratch = {});
+    static QImage
+    renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size, const QSize &_targetSize,
+                          bool _draft, std::shared_ptr<ScratchImageCache> _scratch = {},
+                          std::shared_ptr<const PhotoCrap::Transform::Job> _transform = {});
     QImage                    projectPreview() const;
 
     mutable PhotoCrap::Tools::SliceDescriptionCache m_sliceDescriptions;

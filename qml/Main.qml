@@ -148,8 +148,8 @@ ApplicationWindow {
         id: toolInput
         objectName: "toolInput"
         targetWindow: window
-        enabled: window.active && !window.editingText && !window.modalOpen
-        bindings: (shortcuts.revision, window.toolbarRevision, window.toolBindings())
+        enabled: window.active && !window.editingText && (!window.modalOpen || editor.transformActive)
+        bindings: (shortcuts.revision, window.toolbarRevision, editor.transformActive ? [] : window.toolBindings())
         onEnabledChanged: if (!enabled) window.spacePressed=false
         onSpaceChanged: function(pressed) { window.spacePressed = pressed }
         onModifiersChanged: {
@@ -277,7 +277,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool blockingModalOpen: aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
-    property bool modalOpen: welcomeDialog.opened || blockingModalOpen || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
+    property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
     property var blendModeNames: [qsTr("Normal"),qsTr("Fondu"),qsTr("Obscurcir"),qsTr("Produit"),qsTr("Densité couleur +"),qsTr("Densité linéaire +"),qsTr("Couleur plus foncée"),qsTr("Éclaircir"),qsTr("Écran"),qsTr("Densité couleur −"),qsTr("Densité linéaire − (Ajout)"),qsTr("Couleur plus claire"),qsTr("Incrustation"),qsTr("Lumière tamisée"),qsTr("Lumière crue"),qsTr("Lumière vive"),qsTr("Lumière linéaire"),qsTr("Lumière ponctuelle"),qsTr("Mélange maximal"),qsTr("Différence"),qsTr("Exclusion"),qsTr("Soustraction"),qsTr("Division"),qsTr("Teinte"),qsTr("Saturation"),qsTr("Couleur"),qsTr("Luminosité","blend mode")]
@@ -1243,6 +1243,7 @@ ApplicationWindow {
     Connections {
         target: documents
         function onActiveAboutToChange() {
+            editor.cancelTransform()
             if (editor.textEditing) canvasTextEditor.sync()
             window.rememberDocumentView()
         }
@@ -1357,7 +1358,7 @@ ApplicationWindow {
     Action { id: saveAsAction; text: qsTr("Enregistrer sous…"); shortcut: (shortcuts.revision, shortcuts.sequence("saveAs")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: { resumeAfterSave=false; save(true) } }
     Action { id: exportAction; text: qsTr("Exporter l’image…"); shortcut: (shortcuts.revision, shortcuts.sequence("export")); enabled: !window.modalOpen && !editor.pixelEditBusy; onTriggered: exportDialog.open() }
     Action { id: importAction; text: qsTr("Importer comme calque…"); shortcut: (shortcuts.revision, shortcuts.sequence("import")); enabled: !window.modalOpen; onTriggered: { importing=true; openDialog.open() } }
-    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy || editor.selectionBusy); onTriggered: editor.undo() }
+    Action { id: undoAction; text: qsTr("Annuler"); shortcut: (shortcuts.revision, shortcuts.sequence("undo")); enabled: (editor.transformActive || editor.canUndo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.transformActive || editor.operationBusy || editor.selectionBusy); onTriggered: editor.undo() }
     Action { id: redoAction; text: qsTr("Rétablir"); shortcut: (shortcuts.revision, shortcuts.sequence("redo")); enabled: (editor.canRedo || editor.selectionBusy || editor.pixelEditBusy) && (!window.modalOpen || editor.operationBusy); onTriggered: editor.redo() }
     Action { id: cutAction; objectName: "cutAction"; text: qsTr("Couper"); shortcut: (shortcuts.revision, shortcuts.sequence("cut")); enabled: !window.editingText && !window.modalOpen && !editor.pixelEditBusy && editor.hasSelection && !activeInfo.locked && (activeInfo.kind === "pixel" || editor.editingMask); onTriggered: editor.cut() }
     Action { id: copyAction; objectName: "copyAction"; text: qsTr("Copier"); shortcut: (shortcuts.revision, shortcuts.sequence("copy")); enabled: !window.editingText && !window.modalOpen && !editor.pixelEditBusy && editor.width > 0; onTriggered: editor.copy() }
@@ -1379,6 +1380,17 @@ ApplicationWindow {
     Action { id: mergeClippingAction; text: qsTr("Fusionner le masque d’écrêtage"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeClipping")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.clipping; onTriggered: editor.mergeLayers("clipping") }
     Action { id: flattenAction; objectName: "flattenAction"; text: qsTr("Aplatir l’image"); shortcut: (shortcuts.revision, shortcuts.sequence("flattenImage")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.flatten; onTriggered: window.requestFlatten() }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
+    readonly property bool transformEnabled: !editingText && !blockingModalOpen && (!modalOpen || editor.transformActive)
+                                             && !editor.pixelEditBusy && editor.width > 0
+    function startTransform(mode, copy, selectionOnly) {
+        if (editor.beginTransform(mode, copy === true, selectionOnly === true))
+            workspace.forceActiveFocus()
+    }
+    Action { id: freeTransformAction; objectName: "freeTransformAction"; text: qsTr("Transformation manuelle"); shortcut: (shortcuts.revision, shortcuts.sequence("freeTransform")); enabled: window.transformEnabled; onTriggered: window.startTransform("free") }
+    Action { id: transformAgainAction; objectName: "transformAgainAction"; text: qsTr("Répéter la transformation"); shortcut: (shortcuts.revision, shortcuts.sequence("transformAgain")); enabled: window.transformEnabled && editor.canRepeatTransform && !editor.transformActive; onTriggered: editor.repeatTransform(false) }
+    Shortcut { sequence: (shortcuts.revision, shortcuts.sequence("transformCopy")); enabled: window.transformEnabled && !editor.transformActive; onActivated: window.startTransform("free", true) }
+    Shortcut { sequence: (shortcuts.revision, shortcuts.sequence("transformAgainCopy")); enabled: transformAgainAction.enabled; onActivated: editor.repeatTransform(true) }
+    Shortcut { sequence: (shortcuts.revision, shortcuts.sequence("warp")); enabled: window.transformEnabled; onActivated: window.startTransform("warp") }
     Action { id: preferencesAction; objectName: "preferencesAction"; text: Qt.platform.os === "osx" ? "Preferences…" : qsTr("Réglages…"); shortcut: (shortcuts.revision, shortcuts.sequence("preferences")); enabled: !window.modalOpen; onTriggered: window.openPreferences() }
     Instantiator {
         model: (window.toolbarRevision, window.toolLayout)
@@ -1390,9 +1402,10 @@ ApplicationWindow {
         }
     }
     Shortcut {
-        enabled: !window.modalOpen || editor.operationBusy || editor.selectionBusy
+        enabled: !window.modalOpen || editor.transformActive || editor.operationBusy || editor.selectionBusy
         sequence: "Escape"
         onActivated: {
+            if(editor.transformActive){editor.cancelTransform();return}
             if(editor.operationBusy){editor.cancelOperation();return}
             if(editor.selectionBusy){editor.cancelSelectionOperation();return}
             if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else if(editor.penDrawing)editor.finishPenPath();else editor.setActivePenPath(-1);return}
@@ -1532,6 +1545,15 @@ ApplicationWindow {
             }
             DarkMenuItem { action: deleteAction }
             MenuSeparator {}
+            DarkMenuItem { action: freeTransformAction }
+            TransformMenu {
+                objectName: "layerTransformMenu"
+                document: editor
+                enabled: window.transformEnabled
+                againAction: transformAgainAction
+                startTransform: function(mode) { window.startTransform(mode) }
+            }
+            MenuSeparator {}
             DarkMenuItem { action: preferencesAction }
         }
         DarkMenu {
@@ -1621,6 +1643,7 @@ ApplicationWindow {
             document: editor; manager: shortcuts
             selectAllAction: selectAction; deselectAction: deselectAction
             interactionEnabled: !window.editingText && !window.modalOpen
+            onTransformRequested: window.startTransform("free", false, true)
             onColorRequested: colorSelectionDialog.start()
             onModifyRequested: function(operation) { selectionModifyDialog.edit(operation) }
         }
@@ -1841,12 +1864,19 @@ ApplicationWindow {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+        TransformOptions {
+            objectName: "transformOptions"
+            Layout.fillWidth: true
+            visible: editor.transformActive
+            document: editor
+            onEditCommitted: workspace.forceActiveFocus()
+        }
         Rectangle {
             id: toolOptionsBar
-            visible: (window.paintToolActive && editor.tool !== "mixerBrush")
+            visible: !editor.transformActive && ((window.paintToolActive && editor.tool !== "mixerBrush")
                      || window.opacityToolActive || window.smartSelectionToolActive
                      || window.shapeToolActive || editor.tool === "gradient"
-                     || editor.tool === "rotateView" || editor.tool === "zoomTool"
+                     || editor.tool === "rotateView" || editor.tool === "zoomTool")
             Layout.fillWidth: true; Layout.preferredHeight: 44; color: "#242a32"
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
@@ -2288,7 +2318,7 @@ ApplicationWindow {
         SelectionOptions {
             objectName: "selectionOptions"
             Layout.fillWidth: true
-            visible: window.geometricSelectionToolActive
+            visible: !editor.transformActive && window.geometricSelectionToolActive
             document: editor
             onEditCommitted: workspace.forceActiveFocus()
         }
@@ -2296,7 +2326,7 @@ ApplicationWindow {
             id:penOptionsControl
             objectName: "penOptions"
             Layout.fillWidth:true
-            visible:window.penToolActive
+            visible: !editor.transformActive && window.penToolActive
             document:editor
             onEditCommitted:workspace.forceActiveFocus()
             onPathsRequested: {window.setDockPanelVisible("paths",true);pathsDock.collapsed=false}
@@ -2304,7 +2334,7 @@ ApplicationWindow {
         SliceOptions {
             objectName: "sliceOptions"
             Layout.fillWidth: true
-            visible: window.sliceToolActive
+            visible: !editor.transformActive && window.sliceToolActive
             document: editor
             onExportRequested: sliceFolderDialog.open()
         }
@@ -2313,20 +2343,20 @@ ApplicationWindow {
             onEditCommitted: workspace.forceActiveFocus()
             objectName: "cropOptions"
             Layout.fillWidth: true
-            visible: window.cropToolActive
+            visible: !editor.transformActive && window.cropToolActive
             document: editor
         }
         RulerOptions {
             objectName:"rulerOptions"
             Layout.fillWidth:true
-            visible:editor.tool==="ruler"
+            visible: !editor.transformActive && editor.tool==="ruler"
             start:window.rulerStart;end:window.rulerEnd;hasMeasure:window.rulerVisible
             onClearMeasure:window.rulerVisible=false
         }
         EyedropperOptions {
             objectName: "eyedropperOptions"
             Layout.fillWidth: true
-            visible: window.eyedropperToolActive
+            visible: !editor.transformActive && window.eyedropperToolActive
             document: editor
             samples: window.colorSamples
             onClearSamples: window.colorSamples=[]
@@ -2334,58 +2364,58 @@ ApplicationWindow {
         HistoryBrushOptions {
             objectName: "historyBrushOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "historyBrush"
+            visible: !editor.transformActive && editor.tool === "historyBrush"
             document: editor
             blendModes: window.blendModeNames
         }
         ArtHistoryBrushOptions {
             objectName: "artHistoryBrushOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "artHistoryBrush"
+            visible: !editor.transformActive && editor.tool === "artHistoryBrush"
             document: editor
             blendModes: window.blendModeNames
         }
         RemoveOptions {
             objectName: "removeOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "remove"
+            visible: !editor.transformActive && editor.tool === "remove"
             document: editor
         }
         ContentAwareMoveOptions {
             objectName: "contentAwareMoveOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "contentAwareMove"
+            visible: !editor.transformActive && editor.tool === "contentAwareMove"
             document: editor
         }
         PatchOptions {
             objectName: "patchOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "patch"
+            visible: !editor.transformActive && editor.tool === "patch"
             document: editor
         }
         SpotHealingOptions {
             objectName: "spotHealingOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "spotHealing"
+            visible: !editor.transformActive && editor.tool === "spotHealing"
             document: editor
         }
         HealingBrushOptions {
             objectName: "healingBrushOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "healing"
+            visible: !editor.transformActive && editor.tool === "healing"
             document: editor
         }
         RedEyeOptions {
             objectName: "redEyeOptions"
             Layout.fillWidth: true
-            visible: editor.tool === "redEye"
+            visible: !editor.transformActive && editor.tool === "redEye"
             document: editor
         }
         MixerBrushOptions {
             objectName: "mixerBrushOptions"
             onBrushSettingsRequested: brushSettingsDialog.open()
             Layout.fillWidth: true
-            visible: editor.tool === "mixerBrush"
+            visible: !editor.transformActive && editor.tool === "mixerBrush"
             document: editor
             onColorRequested: {
                 changingSecondary = false
@@ -2510,6 +2540,19 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if (editor.transformActive) {
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                editor.applyTransform(); event.accepted = true; return
+                            }
+                            const axes = [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down]
+                            const direction = axes.indexOf(event.key)
+                            if (direction >= 0) {
+                                const step = event.modifiers & Qt.ShiftModifier ? 10 : 1
+                                const key = direction < 2 ? "x" : "y"
+                                editor.setTransformParameter(key, editor.transformOptions[key] + (direction % 2 ? step : -step))
+                                event.accepted = true; return
+                            }
+                        }
                         if(window.penToolActive && !window.editingText && !window.modalOpen) {
                             if(event.key===Qt.Key_Return || event.key===Qt.Key_Enter) {
                                 if(event.modifiers & Qt.ControlModifier)editor.penPathToSelection((event.modifiers & Qt.ShiftModifier)?((event.modifiers & Qt.AltModifier)?3:1):(event.modifiers & Qt.AltModifier)?2:0)
@@ -2738,7 +2781,7 @@ ApplicationWindow {
                                 id:penOverlay;objectName:"penOverlay"
                                 viewportItem:viewport
                                 document:editor;zoom:window.zoom
-                                visible:editor.activePenPath>=0
+                                visible:editor.activePenPath>=0 && !editor.transformActive
                                 z:3
                             }
                             Rectangle {
@@ -3229,12 +3272,23 @@ ApplicationWindow {
                             viewport.contentY=clampScroll(initialContentY-(mouse.y-pressY),viewport.contentHeight-viewport.height)
                         }
                     }
+                    TransformOverlay {
+                        anchors.fill: viewport
+                        z: 29
+                        document: editor
+                        artboard: artboard
+                        zoom: window.zoom
+                        angle: window.canvasRotation
+                        scroll: Qt.point(viewport.contentX, viewport.contentY)
+                        panning: window.spacePressed
+                        onFocusRequested: workspace.forceActiveFocus()
+                    }
                     DocumentImageDropArea {
                         objectName: "documentImageDropArea"
                         anchors.fill: viewport
                         z: 30
                         document: editor
-                        enabled: !window.blockingModalOpen
+                        enabled: !window.blockingModalOpen && !editor.transformActive
                         documentManager: documents
                         onFilesDropped: function(files) { for (const file of files) window.openNativeDocument(file) }
                     }

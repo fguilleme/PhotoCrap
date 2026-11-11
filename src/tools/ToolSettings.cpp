@@ -62,6 +62,8 @@ void Document::setTool(const QString &_value)
                                    "ruler"};
     if (!tools.contains(_value))
         return;
+    if (m_tool != _value)
+        cancelTransform();
     if (m_tool != _value && (m_tool == "pen" || m_tool == "convertPoint" ||
                              m_tool == "pathSelection" || m_tool == "directSelection"))
         finishPenPath();

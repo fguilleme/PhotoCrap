@@ -531,8 +531,8 @@ void CanvasItem::updatePolish()
             const bool  marquee   = shape >= 0 && shape <= 3;
             const bool  pathLasso = shape == 4 || (shape == 5 && !m_document->lassoPreviewActive());
             const bool  selection = (marquee || pathLasso || shape >= 6) &&
-                                    m_document->hasSelection() &&
-                                    m_document->selectionEdgesVisible();
+                                   !m_document->transformActive() && m_document->hasSelection() &&
+                                   m_document->selectionEdgesVisible();
             const qreal ratio     = window() ? window()->effectiveDevicePixelRatio() : 1.;
             const bool  hardware  = window() && QSGRendererInterface::isApiRhiBased(
                                                     window()->rendererInterface()->graphicsApi());

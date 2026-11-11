@@ -31,6 +31,7 @@
 #include "storage/ScratchImageCache.h"
 #include "tools/ColorFlood.h"
 #include "tools/FloodFill.h"
+#include "tools/LayerTransform.h"
 #include "tools/RegionHealing.h"
 #include "tools/SelectionMove.h"
 #include <QBitArray>
@@ -150,6 +151,139 @@ class DocumentTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void transformRetainsNativePixelsAndUndo_data()
+    {
+        QTest::addColumn<int>("bits");
+        QTest::newRow("8-bit") << 8;
+        QTest::newRow("16-bit") << 16;
+    }
+    void transformRetainsNativePixelsAndUndo()
+    {
+        QFETCH(int, bits);
+        Document   d;
+        const auto format = bits == 16 ? QImage::Format_RGBA64 : QImage::Format_ARGB32;
+        QImage     source(96, 72, format);
+        source.fill(Qt::transparent);
+        const QColor color = QColor::fromRgba64(31337, 10461, 24499, 65535);
+        for (int y = 18; y < 42; ++y)
+            for (int x = 12; x < 34; ++x)
+                source.setPixelColor(x, y, color);
+        QTemporaryDir files;
+        QVERIFY(files.isValid());
+        const auto path = files.filePath("transform.png");
+        QVERIFY(source.save(path));
+        QVERIFY(d.newDocument(96, 72, true, bits));
+        QVERIFY(d.importLayer(QUrl::fromLocalFile(path)));
+        const int  index    = d.activeLayer();
+        const auto old      = d.layerImage(index);
+        const auto history  = d.historyIndex();
+        const auto original = old.pixelColor(22, 30);
+        if (bits == 16)
+            QCOMPARE(original.rgba64().red(), quint16(31337));
+        QVERIFY(d.beginTransform());
+        const qreal x = d.transformOptions()["x"].toReal();
+        d.setTransformParameter("x", x + 12.);
+        QCOMPARE(d.layerImage(index), old);
+        d.cancelTransform();
+        QCOMPARE(d.historyIndex(), history);
+        QVERIFY(d.beginTransform());
+        d.setTransformParameter("x", x + 12.);
+        QVERIFY(d.applyTransform());
+        QCOMPARE(d.historyIndex(), history + 1);
+        QCOMPARE(d.layerImage(index).pixelColor(34, 30), original);
+        QCOMPARE(d.layerImage(index).pixelColor(14, 30).alpha(), 0);
+        QVERIFY(d.canRepeatTransform());
+        QVERIFY(d.repeatTransform(true));
+        QCOMPARE(d.layers().size(), 3);
+        QCOMPARE(d.layerImage(d.activeLayer()).pixelColor(46, 30), original);
+        d.undo();
+        QCOMPARE(d.layers().size(), 2);
+        d.undo();
+        QCOMPARE(d.layerImage(index), old);
+    }
+    void transformSelectionAndMask()
+    {
+        Document d;
+        QVERIFY(d.newDocument(120, 90, false));
+        d.setTool("ellipticalSelect");
+        d.beginStroke(18, 20);
+        d.continueStroke(64, 68);
+        d.endStroke();
+        QVERIFY(d.hasSelection());
+        const auto bounds = d.selection();
+        const auto image  = d.layerImage(d.activeLayer());
+        QVERIFY(d.beginTransform("free", false, true));
+        const qreal x = d.transformOptions()["x"].toReal();
+        d.setTransformParameter("x", x + 23.);
+        QVERIFY(d.applyTransform());
+        QCOMPARE(d.selection(), bounds.translated(23, 0));
+        QCOMPARE(d.layerImage(d.activeLayer()), image);
+        d.undo();
+        QCOMPARE(d.selection(), bounds);
+
+        d.deselect();
+        d.addLayerMask(false);
+        d.setEditingMask(true);
+        d.setTool("brush");
+        d.setBrushSize(18);
+        d.setBrushHardness(1.);
+        d.setColor(Qt::white);
+        d.beginStroke(42, 43);
+        d.endStroke();
+        const int index = d.activeLayer();
+        QVERIFY(d.maskImage(index).pixelColor(42, 43).red() > 240);
+        QVERIFY(d.beginTransform());
+        d.setTransformParameter("x", d.transformOptions()["x"].toReal() + 35.);
+        QVERIFY(d.applyTransform());
+        QCOMPARE(d.maskImage(index).pixelColor(42, 43).red(), 0);
+        QVERIFY(d.maskImage(index).pixelColor(77, 43).red() > 240);
+        QCOMPARE(d.layerImage(index), image);
+    }
+    void transformWarpHandlesAndProjectiveGeometry()
+    {
+        using namespace PhotoCrap::Transform;
+        Mapping mapping;
+        mapping.source = {0., 0., 100., 100.};
+        mapping.quad   = corners(mapping.source);
+        mapping.mesh.reset(1, 1);
+        QVERIFY(mapping.unchanged());
+        mapping.mesh.moveHandle(0, 1, {.33, -.4});
+        QVERIFY(!mapping.unchanged());
+        QVERIFY(mapping.mesh.sample(.4, 0.).y() < -.1);
+        const QPointF sample = mapping.mesh.sample(.4, 0.);
+        mapping.mesh.split({.5, .5}, true, true);
+        QCOMPARE(mapping.mesh.points.size(), 9);
+        QVERIFY(QLineF(mapping.mesh.sample(.4, 0.), sample).length() < .002);
+        mapping.mesh.remove(4);
+        QCOMPARE(mapping.mesh.points.size(), 4);
+
+        auto quad = dragQuad(mapping.quad, {0., 0.}, {25., 0.}, {50., 50.}, 0, "perspective", true,
+                             false, false);
+        QCOMPARE(quad[0], QPointF(25., 0.));
+        QCOMPARE(quad[1], QPointF(75., 0.));
+        QCOMPARE(quad[2], QPointF(100., 100.));
+        mapping.mesh = {};
+        mapping.quad = quad;
+        QTransform matrix;
+        QVERIFY(mapping.matrix(matrix));
+        QVERIFY(!matrix.isAffine());
+
+        const auto pixel = QRgba64::fromRgba64(31337, 10461, 24499, 65535);
+        QImage     native(100, 100, QImage::Format_RGBA64_Premultiplied);
+        native.fill(QColor::fromRgba64(pixel));
+        QVector<Layer> layers{Layer("Test", native)};
+        Job            warp;
+        warp.layers         = {0};
+        warp.mapping.source = QRectF(native.rect());
+        warp.mapping.quad   = corners(warp.mapping.source);
+        warp.mapping.mesh.reset(1, 1);
+        warp.mapping.mesh.moveHandle(0, 1, {.33, .75});
+        QVERIFY(applyLayers(layers, native.size(), native.size(), warp, false));
+        const auto warped = layers[0].image.region(native.rect());
+        QCOMPARE(warped.format(), native.format());
+        QCOMPARE(warped.pixelColor(52, 68).rgba64(), pixel);
+        QCOMPARE(warped.pixelColor(52, 5).alpha(), 0);
+    }
     void newDocumentsStartWithLogicalUniformPixels_data()
     {
         QTest::addColumn<int>("bits");

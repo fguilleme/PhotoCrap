@@ -1,5 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "masks/VectorMask.h"
+#include "tools/LayerTransform.h"
 
 #include <QCache>
 #include <QColorSpace>
@@ -143,6 +145,10 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
     m_pendingPreviewGpuBase =
         _draft && _allowGpu && m_previewingLayer && !m_gpuToneRejected && gpuToneEligible();
     m_pendingPreviewGpuAux     = _draft && !_allowGpu && gpuTonePreviewActive();
+    m_pendingTransform =
+        _draft && m_transform && m_transform->job.path < 0 && !m_transform->job.selectionOnly
+            ? std::make_shared<const PhotoCrap::Transform::Job>(m_transform->job)
+            : nullptr;
     m_pendingPreviewLayers     = m_layers;
     m_pendingPreviewSize       = m_size;
     m_pendingPreviewTargetSize = m_previewTargetSize;
@@ -179,6 +185,7 @@ void Document::startPendingPreviewRender()
     m_runningPreviewRefine     = refine;
     m_runningPreviewTargetSize = targetSize;
     const auto scratch         = m_scratchCache;
+    const auto transform       = std::exchange(m_pendingTransform, {});
     m_runningPreviewGpuBase    = m_pendingPreviewGpuBase;
     m_runningPreviewGpuAux     = m_pendingPreviewGpuAux;
     m_runningGpuToneEpoch      = m_gpuToneEpoch;
@@ -198,10 +205,11 @@ void Document::startPendingPreviewRender()
     const QImage cachedBase = gpuBase ? m_gpuToneBase : QImage{};
     m_previewRenderWatcher.setFuture(
         QtConcurrent::run([layers = std::move(layers), size, targetSize, draft, scratch, gpuBase,
-                           mask, feather, cachedBase]() mutable -> PreviewRenderResult {
-            QImage result = cachedBase.isNull() ? renderPreviewSnapshot(std::move(layers), size,
-                                                                        targetSize, draft, scratch)
-                                                : cachedBase;
+                           mask, feather, cachedBase, transform]() mutable -> PreviewRenderResult {
+            QImage result = cachedBase.isNull()
+                                ? renderPreviewSnapshot(std::move(layers), size, targetSize, draft,
+                                                        scratch, transform)
+                                : cachedBase;
             if (gpuBase) {
                 if (ImageUtils::is16Bit(result))
                     return {};
@@ -235,7 +243,8 @@ void Document::startPendingPreviewRender()
 
 QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                        const QSize &_targetSize, bool _draft,
-                                       std::shared_ptr<ScratchImageCache> _scratch)
+                                       std::shared_ptr<ScratchImageCache>               _scratch,
+                                       std::shared_ptr<const PhotoCrap::Transform::Job> _transform)
 {
     int                  channelBits = 8;
     QHash<QString, bool> groupVisibility;
@@ -247,6 +256,9 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     }
     for (Layer &layer : _layers) {
         if (layer.kind == QStringLiteral("group"))
+            continue;
+        if (_transform && _transform->maskView && !_transform->layers.isEmpty() &&
+            &layer == &_layers[_transform->layers.first()])
             continue;
         if (!layer.visible || layer.opacity <= 0 ||
             (!layer.groupId.isEmpty() && !groupVisibility.value(layer.groupId, true))) {
@@ -296,6 +308,26 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
                 if (layer.parameters.contains(key))
                     layer.parameters.insert(
                         key, qMax(1., layer.parameters.value(key).toDouble() * scale));
+        }
+    }
+    if (_transform) {
+        for (const int index : _transform->layers) {
+            auto &layer = _layers[index];
+            for (auto *plane : {&layer.image, &layer.mask})
+                if (ImageUtils::compact(*plane))
+                    *plane = PixelPlane::uniform(renderSize, plane->uniformPixel());
+        }
+        if (!PhotoCrap::Transform::applyLayers(_layers, renderSize, _size, *_transform, true))
+            return {};
+        if (_transform->maskView && !_transform->layers.isEmpty()) {
+            const auto &layer = _layers[_transform->layers.first()];
+            QImage      mask  = _transform->vectorMask
+                                    ? PhotoCrap::Masks::vectorCoverage(layer, renderSize,
+                                                                 QRect(QPoint{}, renderSize))
+                                    : ImageUtils::expandedPlane(layer.mask, renderSize);
+            mask              = mask.convertToFormat(QImage::Format_RGB32);
+            mask.setColorSpace(QColorSpace::SRgb);
+            return mask;
         }
     }
     Document renderer;

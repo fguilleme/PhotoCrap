@@ -4,6 +4,7 @@
 #include "masks/VectorMask.h"
 #include "render/LayerVisibility.h"
 #include "tools/GradientRaster.h"
+#include "tools/LayerTransform.h"
 
 #include <QColorSpace>
 #include <QPainter>
@@ -394,7 +395,8 @@ QImage Document::displayComposite() const
 {
     if (m_maskOnlyView && m_active >= 0 && m_active < m_layers.size() &&
         !m_layers[m_active].mask.isNull()) {
-        if (!m_layers[m_active].directType.isEmpty() && m_layers[m_active].directMask) {
+        if ((m_transform && m_transform->job.maskView) ||
+            (!m_layers[m_active].directType.isEmpty() && m_layers[m_active].directMask)) {
             QMutexLocker locker(&m_previewImageMutex);
             if (!m_previewComposite.isNull())
                 return m_previewComposite;

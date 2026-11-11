@@ -14,7 +14,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
 {
     using namespace PhotoCrap::Render;
     LayerStack stack;
-    if (m_displayChannel || m_maskOnlyView || m_size.isEmpty())
+    if (m_displayChannel || m_maskOnlyView || m_size.isEmpty() || transformActive())
         return stack;
     stack.size = m_size;
     stack.bits = m_channelBits;
@@ -373,6 +373,8 @@ void Document::setGpuToneNearestSampling(bool _nearest)
 
 bool Document::gpuToneEligible() const
 {
+    if (transformActive())
+        return false;
     for (const auto &layer : m_layers)
         if (PhotoCrap::Masks::vectorEnabled(layer) || !layer.directType.isEmpty())
             return false;

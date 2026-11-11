@@ -165,6 +165,20 @@ L’action PhotoCrap **Créer un calque avec l’IA** est disponible dans Régla
 | Sélectionner tout le texte | Ctrl + A | Texte |
 | Valider le texte | Ctrl + Entrée | Texte |
 
+## Transformation
+
+| Commande | Raccourci par défaut | Contexte |
+| --- | --- | --- |
+| Transformation manuelle | Ctrl+T | Document |
+| Répéter la transformation | Ctrl+Shift+T | Document |
+| Transformer une copie | Ctrl+Alt+T | Document |
+| Répéter avec une copie | Ctrl+Alt+Shift+T | Document |
+| Déformation | Aucun raccourci par défaut | Transformation manuelle |
+| Transformer la sélection | Aucun raccourci par défaut | Document |
+| Appliquer / abandonner | Entrée / Échap | Transformation manuelle |
+
+Voir le [guide de transformation](TRANSFORM.md) pour les modificateurs des poignées et la grille de déformation.
+
 ## Inventaire NYI
 
 Ces entrées constituent la liste de travail des fonctions manquantes, sans annoncer qu’elles sont implémentées.
@@ -172,14 +186,8 @@ Ces entrées constituent la liste de travail des fonctions manquantes, sans anno
 | Fonction manquante | Référence clavier ou souris | Contexte |
 | --- | --- | --- |
 | Atténuer la dernière opération | Ctrl+Shift+F | Document |
-| Transformation manuelle | Ctrl+T | Document |
-| Répéter la transformation | Ctrl+Shift+T | Document |
-| Transformer une copie | Ctrl+Alt+T | Document |
-| Répéter avec une copie | Ctrl+Alt+Shift+T | Document |
-| Déformation | Aucun raccourci par défaut | Transformation manuelle |
 | Sélectionner et masquer | Ctrl+Alt+R | Document |
 | Mode masque rapide | Q | Document |
-| Transformer la sélection | Aucun raccourci par défaut | Document |
 | Placer le calque tout en haut | Ctrl+Shift+] | Document |
 | Placer le calque tout en bas | Ctrl+Shift+[ | Document |
 | Verrouiller les pixels transparents | / | Document |
@@ -282,7 +290,7 @@ Le catalogue de v0.15 contient 298 entrées, dont 121 NYI. Les tracés de la Plu
 
 Frange, Lisser, Dilater, Contracter, Sélectionner les calques similaires et Afficher/masquer le contour de sélection sont configurables, sans combinaison imposée par défaut. Resélectionner (Commande/Ctrl+Maj+D) et Intervertir (Commande/Ctrl+Maj+I) passent par les actions du menu, même lorsqu’il est fermé.
 
-Le catalogue recense aussi les entrées NYI Étendre, Généraliser, Zone de mise au point, Sujet, Ciel, Mémoriser/Récupérer la sélection, Désélectionner les calques, Rechercher et Isoler les calques dans le panneau. Plage de couleurs est maintenant configurable (sans combinaison par défaut) ; Contour progressif utilise Maj+F6 et devient configurable. Sélectionner et masquer, Mode Masque et Transformer la sélection restent NYI. L’inventaire ne réserve pas les touches de ces fonctions manquantes. Voir [SELECTIONS.md](SELECTIONS.md) pour leurs options et les prérequis du moteur.
+Le catalogue recense aussi les entrées NYI Étendre, Généraliser, Zone de mise au point, Sujet, Ciel, Mémoriser/Récupérer la sélection, Désélectionner les calques, Rechercher et Isoler les calques dans le panneau. Plage de couleurs est maintenant configurable (sans combinaison par défaut) ; Contour progressif utilise Maj+F6 et devient configurable. Sélectionner et masquer et Mode Masque restent NYI. L’inventaire ne réserve pas les touches de ces fonctions manquantes. Voir [SELECTIONS.md](SELECTIONS.md) pour leurs options et les prérequis du moteur.
 
 ## Texte éditable
 

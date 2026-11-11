@@ -32,6 +32,10 @@ Dans **Réglages → Barre d’outils**, les options de cycle avec Maj et de ret
 
 Les commandes **Sélection → Modifier** offrent Contour progressif (Maj+F6), Frange, Lisser, Dilater et Contracter avec paramètres et calcul en arrière-plan ; Échap annule un calcul en cours. **Affichage → Afficher → Contour de la sélection** cache les fourmis sans supprimer la sélection. Une nouvelle sélection réaffiche le contour. **Sélection → Plage de couleurs** prélève dans l’aperçu ou sur le canevas, sans fermer le dialogue ; Maj ajoute et Option/Alt retire une couleur. Tolérance, portée localisée, zones contiguës et inversion actualisent l’aperçu du masque. Les deux aperçus partagent zoom et déplacement : molette, −/+, 100 %, Adapter et glisser. Le dialogue se déplace par son en-tête ; les raccourcis de zoom du canevas restent actifs et Échap annule. Les bords progressifs influencent réellement les opérations sur les pixels et les masques. Voir [l’inventaire Adobe, options et limites](SELECTIONS.md).
 
+## Transformation
+
+**Commande/Ctrl+T** ouvre la transformation manuelle. Voir les [gestes des poignées et le menu Transformation](TRANSFORM.md).
+
 ## Peinture et retouche
 
 Les champs numériques de la barre valident la valeur par **Retour** ou quand on
@@ -92,7 +96,7 @@ Référence : [remplir avec le Pot de peinture, Adobe](https://helpx.adobe.com/p
 
 ## Limites du modèle actuel
 
-PhotoCrap reste un éditeur raster : tracés Bézier conservés et calques de forme de la Plume, sans masques vectoriels généraux sur les autres types de calques ; absence de transformation libre, rotation/redressement du recadrage et données hors canevas. Le déplacement actuel concerne le calque de pixels actif ; le déplacement simultané des calques sélectionnés et l’auto-sélection sous la souris ne sont pas encore équivalents à Photoshop. La barre de motifs/pointes Adobe et son sélecteur contextuel ne sont pas reproduits : le clic droit ouvre notre dialogue de brosse. La disponibilité de Commande/Ctrl + Espace dépend aussi des raccourcis réservés par le système. Les outils NYI restent désactivés.
+PhotoCrap reste un éditeur raster : tracés Bézier conservés et calques de forme de la Plume, avec masques vectoriels éditables et transformation manuelle. Le recadrage ne stocke pas les données hors canevas. Le déplacement actuel concerne le calque de pixels actif ; le déplacement simultané des calques sélectionnés et l’auto-sélection sous la souris ne sont pas encore équivalents à Photoshop. La barre de motifs/pointes Adobe et son sélecteur contextuel ne sont pas reproduits : le clic droit ouvre notre dialogue de brosse. La disponibilité de Commande/Ctrl + Espace dépend aussi des raccourcis réservés par le système. Les outils NYI restent désactivés.
 
 ## Références Adobe
 

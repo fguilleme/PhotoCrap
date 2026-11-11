@@ -3,6 +3,7 @@
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
 #include "masks/VectorMask.h"
+#include "model3d/Model3D.h"
 #include "shapes/ShapeLayer.h"
 #include "storage/ProjectPayloadDevice.h"
 #include "storage/ProjectPng.h"
@@ -456,8 +457,11 @@ bool Document::saveProject(const QUrl &_url)
                                       [](const Layer &layer) { return layer.adjustmentType == "gradientFill"; });
     const bool  vectors =
         std::any_of(m_layers.cbegin(), m_layers.cend(), PhotoCrap::Masks::hasVector);
+    const bool  models = std::any_of(m_layers.cbegin(), m_layers.cend(),
+                                    [](const Layer &layer) { return bool(layer.model3D); });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", vectors            ? 14
+                     {"version", models             ? 15
+                                 : vectors          ? 14
                                  : originalAiImages ? 13
                                  : gradients        ? 12
                                  : shapes           ? 11
@@ -521,6 +525,12 @@ bool Document::saveProject(const QUrl &_url)
         if ((!layer.image.isNull() && pixels < 0) || (!layer.mask.isNull() && mask < 0) ||
             (!layer.source.isNull() && source < 0))
             return fail(tr("Impossible d’encoder les données du calque."));
+        if (layer.model3D) {
+            const int model = archive.original(PhotoCrap::Model3D::encoded(*layer.model3D));
+            if (model < 0)
+                return fail(tr("Impossible d’encoder le modèle 3D."));
+            metadata["model3d"] = model;
+        }
         metadata["png"]    = pixels;
         metadata["mask"]   = mask;
         metadata["source"] = source;
@@ -554,7 +564,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 14)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 15)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -585,6 +595,9 @@ bool Document::loadProject(const QString &_path)
     if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
     QVector<Layer>      layers;
+    QHash<int, std::shared_ptr<const PhotoCrap::Model3D::Asset>> models;
+    qsizetype                                                    modelBytes = 0;
+    QVariantMap                                                  sceneLight;
     PreparedPlaneBudget budget;
     // Duplicated layers and frequency bands can serialize identical PNGs.
     // Include the native target format: the same PNG used as colour and as a
@@ -659,7 +672,8 @@ bool Document::loadProject(const QString &_path)
             version == 1 ? QStringLiteral("pixel") : object["kind"].toString("pixel");
         if (kind != "pixel" && kind != "adjustment" && kind != "group" && kind != "frequency" &&
             kind != "frequencyLow" && kind != "frequencyHigh" &&
-            !(version >= 9 && kind == "text") && !(version >= 11 && kind == "shape"))
+            !(version >= 9 && kind == "text") && !(version >= 11 && kind == "shape") &&
+            !(version >= 15 && index.binary && kind == "model3d"))
             return fail(tr("Type de calque inconnu."));
         PixelPlane                                        image;
         std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
@@ -710,7 +724,8 @@ bool Document::loadProject(const QString &_path)
         auto source = decode(entry.payload("source"), format);
         if (!decodeError.isEmpty())
             return fail(decodeError);
-        if (((kind == "pixel" || kind == "text" || kind == "shape") && image.isNull()) ||
+        if (((kind == "pixel" || kind == "text" || kind == "shape" || kind == "model3d") &&
+             image.isNull()) ||
             (kind.startsWith("frequency") && source.isNull()) ||
             (entry.payload("mask").size > 0 && mask.isNull()))
             return fail(tr("Calque corrompu ou dimensions incohérentes."));
@@ -742,6 +757,31 @@ bool Document::loadProject(const QString &_path)
             return fail(tr("Calque de texte invalide."));
         if (kind == "shape" && !PhotoCrap::Shape::normalize(layer.parameters))
             return fail(tr("Calque de forme invalide."));
+        if (kind == "model3d") {
+            const auto id = object.value("model3d").toInt(-1);
+            if (id < 0 || !index.archive.isOriginal(id) ||
+                !PhotoCrap::Model3D::normalize(layer.parameters))
+                return fail(tr("Calque 3D invalide."));
+            const auto lighting = layer.parameters.value("light3d").toMap();
+            if (!sceneLight.isEmpty() && sceneLight != lighting)
+                return fail(tr("Éclairage des calques 3D incohérent."));
+            sceneLight = lighting;
+            if (!models.contains(id)) {
+                const auto keepGoing = [this, completed, total] {
+                    return operationStep(completed, total);
+                };
+                auto model = PhotoCrap::Model3D::load(index.archive.original(id), keepGoing);
+                if (!model)
+                    return fail(tr("Modèle 3D de projet invalide."));
+                modelBytes += PhotoCrap::Model3D::storageBytes(*model);
+                if (modelBytes > PhotoCrap::Model3D::MaxSceneBytes)
+                    return fail(tr("La limite de mémoire des modèles 3D est atteinte."));
+                models.insert(id, std::move(model));
+            }
+            layer.model3D = models.value(id);
+        } else if (object.contains("model3d")) {
+            return fail(tr("Calque 3D invalide."));
+        }
         if (layer.adjustmentType == "gradientFill") {
             PhotoCrap::Tools::GradientRaster gradient;
             if (version < 12 || kind != "adjustment" ||

@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
+#include "model3d/Model3D.h"
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
@@ -14,6 +15,8 @@ bool validShapeTransform(const QVector<Layer> &_layers, const QTransform &_trans
     for (const auto &layer : _layers) {
         auto copy = layer;
         if (!PhotoCrap::Masks::transformVector(copy, _transform, {1, 1}))
+            return false;
+        if (layer.model3D && !PhotoCrap::Model3D::transformPlacement(copy.parameters, _transform))
             return false;
         if (layer.kind == "shape") {
             auto parameters = layer.parameters;
@@ -244,6 +247,8 @@ void Document::cropToSelection()
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
             PhotoCrap::Masks::transformVector(layer, pathTransform, m_selection.size());
+            if (layer.model3D)
+                PhotoCrap::Model3D::transformPlacement(layer.parameters, pathTransform);
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(
                     layer.parameters,
@@ -297,6 +302,8 @@ void Document::resizeImage(int _w, int _h)
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
             PhotoCrap::Masks::transformVector(layer, pathTransform, {_w, _h});
+            if (layer.model3D)
+                PhotoCrap::Model3D::transformPlacement(layer.parameters, pathTransform);
             if (layer.kind == "text") {
                 PhotoCrap::Text::transform(
                     layer.parameters,
@@ -371,6 +378,8 @@ void Document::transformImage(const QString &_operation)
                 (_operation == "rotateRight" || _operation == "rotateLeft")
                     ? QSize(height(), width())
                     : m_size);
+            if (layer.model3D)
+                PhotoCrap::Model3D::transformPlacement(layer.parameters, pathTransform);
             if (layer.kind == "text")
                 PhotoCrap::Text::transform(layer.parameters, pathTransform);
             if (layer.kind == "shape")

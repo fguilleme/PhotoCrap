@@ -10,6 +10,11 @@ namespace PhotoCrap::Ai
 struct ImageSource;
 }
 
+namespace PhotoCrap::Model3D
+{
+struct Asset;
+}
+
 struct Layer {
     Layer() = default;
     Layer(const QString &_layerName, const QImage &_layerImage, bool _layerVisible = true,
@@ -42,4 +47,5 @@ struct Layer {
     bool                                              directPreview = true;
     PixelPlane  source;
     std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
+    std::shared_ptr<const PhotoCrap::Model3D::Asset>  model3D;
 };

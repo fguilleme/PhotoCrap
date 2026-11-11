@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
+#include "model3d/Model3D.h"
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
 
@@ -246,6 +247,12 @@ void Document::applyCrop()
     const QPolygonF target{QPointF(0, 0), QPointF(w, 0), QPointF(w, h), QPointF(0, h)};
     if (!QTransform::quadToQuad(points, target, transform))
         return;
+    if (!transform.isAffine() &&
+        std::any_of(m_layers.cbegin(), m_layers.cend(),
+                    [](const Layer &layer) { return bool(layer.model3D); })) {
+        fail(tr("Le recadrage en perspective des calques 3D n’est pas pris en charge."));
+        return;
+    }
     const QSize   outputSize(w, h);
     const QString label =
         m_tool == "perspectiveCrop" ? tr("Recadrer en perspective") : tr("Recadrer");
@@ -325,6 +332,11 @@ void Document::applyCrop()
         };
         for (auto &layer : layers) {
             if (!PhotoCrap::Masks::transformVector(layer, transform, outputSize)) {
+                result.valid = false;
+                return result;
+            }
+            if (layer.model3D &&
+                !PhotoCrap::Model3D::transformPlacement(layer.parameters, transform)) {
                 result.valid = false;
                 return result;
             }

@@ -63,6 +63,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
     src/DocumentLayerImport.cpp
+    src/DocumentModel3D.cpp
+    src/model3d/GlbImport.cpp
+    src/model3d/ModelRender.cpp
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
@@ -410,6 +413,9 @@ qt_add_library(photocrap_core STATIC
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
     src/DocumentLayerImport.cpp
+    src/DocumentModel3D.cpp
+    src/model3d/GlbImport.cpp
+    src/model3d/ModelRender.cpp
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
@@ -621,6 +627,7 @@ qt_add_qml_module(PhotoCrap
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES
         qml/Main.qml
+        qml/Model3DPanel.qml
         qml/TransformMenu.qml
         qml/TransformOptions.qml
         qml/TransformOverlay.qml
@@ -1069,6 +1076,14 @@ photocrap_install_png_license()
 photocrap_install_jpeg_license()
 photocrap_install_webp_license()
 photocrap_install_keychain_license()
+if(APPLE)
+    set(cgltf_license_dir "PhotoCrap.app/Contents/Resources/third-party/cgltf")
+elseif(WIN32)
+    set(cgltf_license_dir "third-party/cgltf")
+else()
+    set(cgltf_license_dir "${CMAKE_INSTALL_DATADIR}/PhotoCrap/third-party/cgltf")
+endif()
+install(FILES src/model3d/LICENSE.cgltf DESTINATION "${cgltf_license_dir}" RENAME LICENSE)
 if(APPLE)
     # Qt's deployment step adds frameworks, plugins and QML resources after
     # the executable has received its linker signature. Seal the completed

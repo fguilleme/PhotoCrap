@@ -3,6 +3,7 @@
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
 #include "masks/VectorMask.h"
+#include "model3d/Model3D.h"
 #include "shapes/ShapeLayer.h"
 #include "storage/ScratchImageCache.h"
 
@@ -147,6 +148,10 @@ Document::Document(QObject *_parent) : QObject(_parent)
     });
     connect(this, &Document::layersChanged, this, &Document::gradientGuideChanged);
     connect(this, &Document::settingsChanged, this, &Document::gradientGuideChanged);
+    connect(this, &Document::operationChanged, this, [this] {
+        if (!operationBusy() && !m_drawing)
+            cancelModel3DPreview();
+    });
     connect(&m_previewRenderWatcher, &QFutureWatcher<PreviewRenderResult>::finished, this, [this] {
         const auto   output = m_previewRenderWatcher.result();
         const QImage result = output.image;
@@ -161,7 +166,11 @@ Document::Document(QObject *_parent) : QObject(_parent)
         const bool current   = m_runningPreviewGeneration == m_previewRequestGeneration;
         const bool auxiliary = m_runningPreviewGpuAux && m_previewingLayer &&
                                gpuTonePreviewActive() && m_runningGpuToneEpoch == m_gpuToneEpoch;
-        if ((current || auxiliary) && !result.isNull()) {
+        // During a continuous 3D drag, publish each finished frame from that
+        // gesture while the latest value waits for the same worker.
+        const bool modelDraft = m_runningModel3DPreview && m_model3DPreview &&
+                                m_runningPreviewGeneration >= m_model3DPreview->firstGeneration;
+        if ((current || auxiliary || modelDraft) && !result.isNull()) {
             QImage screenResult = result;
             if (!m_runningPreviewDraft && m_runningPreviewTargetSize.isValid()) {
                 const QSize target = m_runningPreviewTargetSize.boundedTo(result.size());
@@ -440,7 +449,10 @@ void Document::trimHistory()
     selections.add(m_lastSelectionRegion);
     selections.add(m_selectionPath);
     const qint64 currentSelectionBytes = selections.bytes;
+    QSet<const PhotoCrap::Model3D::Asset *> modelAssets;
     for (const auto &layer : std::as_const(m_layers)) {
+        if (layer.model3D)
+            modelAssets.insert(layer.model3D.get());
         const auto blocks = layerBlocks(layer);
         for (auto it = blocks.cbegin(); it != blocks.cend(); ++it)
             seen.insert(it.key());
@@ -461,6 +473,10 @@ void Document::trimHistory()
                 bytes += mask->sizeInBytes();
             }
         for (const auto &layer : _state.layers) {
+            if (layer.model3D && !modelAssets.contains(layer.model3D.get())) {
+                modelAssets.insert(layer.model3D.get());
+                bytes += PhotoCrap::Model3D::storageBytes(*layer.model3D);
+            }
             const auto blocks = layerBlocks(layer);
             for (auto it = blocks.cbegin(); it != blocks.cend(); ++it)
                 if (!seen.contains(it.key())) {
@@ -671,6 +687,8 @@ void Document::changed(bool _metadata, bool _notifyImage)
         m_maskOnlyView = false;
     ++m_previewRequestGeneration;
     m_previewRenderPending = false;
+    m_model3DPreview.reset();
+    m_pendingModel3DPreview.reset();
     m_previewRenderActive.store(false);
     {
         QMutexLocker locker(&m_previewImageMutex);
@@ -842,6 +860,10 @@ QVariantList Document::layers() const
     }
     return result;
 }
+QString Document::layerIdentity(int _index) const
+{
+    return _index >= 0 && _index < m_layers.size() ? m_layers[_index].historyId : QString{};
+}
 QVariantList Document::histogram() const
 {
     return m_histograms.luminance(displayComposite());
@@ -919,6 +941,8 @@ void Document::setActiveLayer(int _index)
         return;
     endStroke();
     cancelLayerPreview();
+    if (m_active != _index || m_editingMask)
+        cancelModel3DPreview();
     if (m_active != _index)
         m_maskOnlyView = false;
     m_active      = _index;

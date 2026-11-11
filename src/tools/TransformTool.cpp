@@ -141,6 +141,9 @@ bool Document::beginTransform(const QString &_mode, bool _copy, bool _selectionO
             } else if (layer.kind == "text") {
                 layerBounds         = Text::bounds(layer.parameters, m_size);
                 job.allowProjective = job.allowWarp = false;
+            } else if (layer.model3D) {
+                layerBounds         = Transform::contentBounds(layer.image, m_size);
+                job.allowProjective = job.allowWarp = false;
             } else if (layer.kind == "pixel") {
                 layerBounds = job.selection.isNull() ? Transform::contentBounds(layer.image, m_size)
                                                      : QRectF(m_selection);

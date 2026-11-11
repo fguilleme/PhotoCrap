@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
+#include "model3d/Model3D.h"
 #include "tools/LayerTransform.h"
 
 #include <QCache>
@@ -149,6 +150,7 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
         _draft && m_transform && m_transform->job.path < 0 && !m_transform->job.selectionOnly
             ? std::make_shared<const PhotoCrap::Transform::Job>(m_transform->job)
             : nullptr;
+    m_pendingModel3DPreview    = _draft ? m_model3DPreview : nullptr;
     m_pendingPreviewLayers     = m_layers;
     m_pendingPreviewSize       = m_size;
     m_pendingPreviewTargetSize = m_previewTargetSize;
@@ -186,6 +188,8 @@ void Document::startPendingPreviewRender()
     m_runningPreviewTargetSize = targetSize;
     const auto scratch         = m_scratchCache;
     const auto transform       = std::exchange(m_pendingTransform, {});
+    const auto model           = std::exchange(m_pendingModel3DPreview, {});
+    m_runningModel3DPreview    = bool(model);
     m_runningPreviewGpuBase    = m_pendingPreviewGpuBase;
     m_runningPreviewGpuAux     = m_pendingPreviewGpuAux;
     m_runningGpuToneEpoch      = m_gpuToneEpoch;
@@ -203,12 +207,12 @@ void Document::startPendingPreviewRender()
     }
     // Mask feathering changes no pixels in the stack below the adjustment.
     const QImage cachedBase = gpuBase ? m_gpuToneBase : QImage{};
-    m_previewRenderWatcher.setFuture(
-        QtConcurrent::run([layers = std::move(layers), size, targetSize, draft, scratch, gpuBase,
-                           mask, feather, cachedBase, transform]() mutable -> PreviewRenderResult {
+    m_previewRenderWatcher.setFuture(QtConcurrent::run(
+        [layers = std::move(layers), size, targetSize, draft, scratch, gpuBase, mask, feather,
+         cachedBase, transform, model]() mutable -> PreviewRenderResult {
             QImage result = cachedBase.isNull()
                                 ? renderPreviewSnapshot(std::move(layers), size, targetSize, draft,
-                                                        scratch, transform)
+                                                        scratch, transform, model)
                                 : cachedBase;
             if (gpuBase) {
                 if (ImageUtils::is16Bit(result))
@@ -244,8 +248,20 @@ void Document::startPendingPreviewRender()
 QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,
                                        const QSize &_targetSize, bool _draft,
                                        std::shared_ptr<ScratchImageCache>               _scratch,
-                                       std::shared_ptr<const PhotoCrap::Transform::Job> _transform)
+                                       std::shared_ptr<const PhotoCrap::Transform::Job> _transform,
+                                       std::shared_ptr<const Model3DPreview>            _model)
 {
+    int modelIndex = -1;
+    if (_model) {
+        modelIndex = _model->layer;
+        if (modelIndex < 0 || modelIndex >= _layers.size() || !_layers.at(modelIndex).model3D)
+            return {};
+        if (_model->copy) {
+            const auto duplicate = _layers.at(modelIndex);
+            _layers.insert(++modelIndex, duplicate);
+        }
+        _layers[modelIndex].parameters = _model->parameters;
+    }
     int                  channelBits = 8;
     QHash<QString, bool> groupVisibility;
     for (const Layer &layer : std::as_const(_layers)) {
@@ -277,6 +293,14 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
         else if (qMax(_size.width(), _size.height()) > 960)
             renderSize.scale(960, 960, Qt::KeepAspectRatio);
     }
+    if (_model && qMax(renderSize.width(), renderSize.height()) > 512)
+        renderSize.scale(512, 512, Qt::KeepAspectRatio);
+    const auto bits         = renderSize == _size ? channelBits : 8;
+    const auto rendersModel = [&](const Layer &layer) {
+        return _model && layer.model3D && layer.visible &&
+               (&layer == &_layers.at(modelIndex) ||
+                layer.parameters.value("light3d") != _model->parameters.value("light3d"));
+    };
     if (renderSize != _size) {
         const qreal scale = qreal(renderSize.width()) / qMax(1, _size.width());
         for (Layer &layer : _layers) {
@@ -295,7 +319,7 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
             if (layer.parameters.contains("_vectorFeather"))
                 layer.parameters["_vectorFeather"] =
                     layer.parameters.value("_vectorFeather").toDouble() * scale;
-            if (!layer.image.isNull() && !ImageUtils::compact(layer.image))
+            if (!rendersModel(layer) && !layer.image.isNull() && !ImageUtils::compact(layer.image))
                 layer.image =
                     cachedScreenProxy(layer.image, renderSize, QImage::Format_ARGB32_Premultiplied);
             if (!layer.mask.isNull() && !ImageUtils::compact(layer.mask))
@@ -308,6 +332,24 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
                 if (layer.parameters.contains(key))
                     layer.parameters.insert(
                         key, qMax(1., layer.parameters.value(key).toDouble() * scale));
+        }
+    }
+    if (_model) {
+        const auto scale = QTransform::fromScale(qreal(renderSize.width()) / _size.width(),
+                                                 qreal(renderSize.height()) / _size.height());
+        for (auto &layer : _layers) {
+            if (!rendersModel(layer))
+                continue;
+            auto parameters       = layer.parameters;
+            parameters["light3d"] = _model->parameters.value("light3d");
+            if (!PhotoCrap::Model3D::transformPlacement(parameters, scale))
+                return {};
+            layer.image =
+                PhotoCrap::Model3D::render(*layer.model3D, parameters, renderSize,
+                                           bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                      : QImage::Format_ARGB32_Premultiplied);
+            if (layer.image.isNull())
+                return {};
         }
     }
     if (_transform) {
@@ -337,7 +379,7 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     renderer.m_size               = renderSize;
     // The full render retains document precision even when every pixel layer
     // is invisible; reduced screen proxies always use the display format.
-    renderer.m_channelBits        = renderSize == _size ? channelBits : 8;
+    renderer.m_channelBits        = bits;
     renderer.m_cacheDirty         = true;
     renderer.m_fullCompositeDirty = true;
     renderer.m_dirtyRegion        = {};

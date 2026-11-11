@@ -198,6 +198,20 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         emit selectionChanged();
         return;
     }
+    if (model3DMoveTarget()) {
+        if (rawLoading() || pixelEditBusy() || transformActive() || !penShapeEditable(m_active))
+            return;
+        if (m_moveCopy &&
+            (!validSize(width(), height(), int(m_layers.size()) + 1) ||
+             !validLayerStorage(width(), height(), 1, !m_layers[m_active].mask.isNull())))
+            return;
+        if (!m_moveCopy && ImageUtils::compact(m_layers[m_active].image) &&
+            !validLayerStorage(width(), height(), 1))
+            return;
+        cancelModel3DPreview();
+        m_drawing = true;
+        return;
+    }
     const bool newLayer = toolNeedsNewLayer();
     if (newLayer && (m_brushOpacity <= 0 || (m_tool == "text" && m_text.trimmed().isEmpty()) ||
                      ((m_tool == "line" || m_tool == "rectangle" || m_tool == "ellipse" ||
@@ -345,6 +359,10 @@ void Document::continueStroke(qreal _x, qreal _y)
         point = constrainedToolPoint(point, true);
     else if (isPaintStrokeTool(m_tool) && !m_strokeConnect)
         point = constrainedToolPoint(point, false);
+    if (model3DMoveTarget()) {
+        previewModel3DMove(point);
+        return;
+    }
     if (m_tool == "remove") {
         continueRemove(point);
     } else if (m_tool == "contentAwareMove") {
@@ -441,6 +459,11 @@ void Document::endStroke()
     }
     if (!m_drawing)
         return;
+    if (model3DMoveTarget()) {
+        m_drawing = false;
+        finishModel3DMove();
+        return;
+    }
     if (m_tool == "remove") {
         finishRemove();
         return;
@@ -583,6 +606,11 @@ void Document::cancelStroke()
     }
     if (!m_drawing)
         return;
+    if (model3DMoveTarget()) {
+        m_drawing = false;
+        cancelModel3DPreview();
+        return;
+    }
     if (m_tool == "contentAwareMove") {
         finishContentMove(true);
         return;

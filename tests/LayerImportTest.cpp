@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "Model3DTestImage.h"
 #include "RawTestImage.h"
 #include <QFile>
 #include <QSemaphore>
@@ -10,6 +11,143 @@ class LayerImportTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void skinnedModelUsesDefaultJointPose()
+    {
+        QTemporaryDir dir;
+        Document      document;
+        QVERIFY(document.newDocument(240, 160, true, 16));
+        using Model3DTest::Pose;
+        int layer = 0;
+        for (auto pose : {Pose::Skinned, Pose::Deformed, Pose::Original}) {
+            QFile glb(dir.filePath(QString::number(int(pose)) + ".glb"));
+            QVERIFY(glb.open(QIODevice::WriteOnly));
+            const auto fixture = Model3DTest::modelFixture(pose);
+            QVERIFY(!fixture.isEmpty());
+            QCOMPARE(glb.write(fixture), fixture.size());
+            glb.close();
+            QVERIFY(document.importModel3D(QUrl::fromLocalFile(glb.fileName())));
+            QTRY_VERIFY_WITH_TIMEOUT(!document.operationBusy(), 5000);
+            QCOMPARE(document.activeLayer(), ++layer);
+        }
+        QCOMPARE(document.layerImage(1), document.layerImage(2));
+        QVERIFY(document.layerImage(1) != document.layerImage(3));
+    }
+
+    void editable3DModelsShareLightingAndSurviveProjectReload()
+    {
+        QTemporaryDir dir;
+        const auto    path = dir.filePath("Objet.glb");
+        QFile         glb(path);
+        QVERIFY(glb.open(QIODevice::WriteOnly));
+        const auto fixture = Model3DTest::modelFixture();
+        QVERIFY(!fixture.isEmpty());
+        QCOMPARE(glb.write(fixture), fixture.size());
+        glb.close();
+
+        Document d;
+        QVERIFY(d.newDocument(240, 160, true, 16));
+        const auto url = QUrl::fromLocalFile(path);
+        QVERIFY(d.importModel3D(url));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 5000);
+        QCOMPARE(d.layers().size(), 2);
+        QCOMPARE(d.layers().first().toMap()["kind"].toString(), QString("model3d"));
+        const auto first = d.layerImage(1);
+        QCOMPARE(first.format(), QImage::Format_RGBA64_Premultiplied);
+        const auto sample = first.pixelColor(108, 88);
+        QCOMPARE(sample.alpha(), 255);
+        QVERIFY(sample.red() > sample.green() && sample.green() > sample.blue());
+        QVERIFY(sample.rgba64().red() % 257 || sample.rgba64().green() % 257 ||
+                sample.rgba64().blue() % 257);
+        QCOMPARE(first.pixelColor(0, 0).alpha(), 0);
+
+        QVERIFY(d.importModel3D(url));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 5000);
+        QCOMPARE(d.layers().size(), 3);
+        const auto info = d.layers().first().toMap()["parameters"].toMap();
+        auto       pose = info["pose3d"].toMap(), light = info["light3d"].toMap();
+        pose["x"]   = 177.;
+        pose["yaw"] = 42.;
+        QVERIFY(d.editModel3D(2, pose, light));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 5000);
+        const auto second = d.layerImage(2);
+        QVERIFY(second != first);
+        QCOMPARE(d.layerImage(1), first);
+        d.addLayerMask(true);
+        QVERIFY(!d.maskImage(2).isNull());
+        d.setEditingMask(false);
+        light["color"]         = "#4080ff";
+        light["ambient"]       = 12.;
+        const auto history     = d.historyIndex();
+        const auto beforeLight = d.displayComposite();
+        d.previewModel3D(2, pose, light);
+        QTRY_VERIFY_WITH_TIMEOUT(d.displayComposite() != beforeLight, 5000);
+        QCOMPARE(d.historyIndex(), history);
+        QCOMPARE(d.layerImage(1), first);
+        QCOMPARE(d.layerImage(2), second);
+        d.cancelModel3DPreview();
+        QTRY_COMPARE_WITH_TIMEOUT(d.displayComposite(), beforeLight, 5000);
+        QVERIFY(d.editModel3D(2, pose, light));
+        QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 5000);
+        QCOMPARE(d.historyIndex(), history + 1);
+        QVERIFY(d.layerImage(1) != first);
+        QVERIFY(d.layerImage(2) != second);
+        QVERIFY(!d.maskImage(2).isNull());
+        d.undo();
+        QCOMPARE(d.layerImage(1), first);
+        QCOMPARE(d.layerImage(2), second);
+        d.redo();
+
+        const auto project = QUrl::fromLocalFile(dir.filePath("Scene.pcr"));
+        QVERIFY(d.saveProject(project));
+        QVERIFY(glb.remove());
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.layers().size(), 3);
+        QCOMPARE(reopened.layerImage(2), d.layerImage(2));
+        QCOMPARE(reopened.layerImage(1), d.layerImage(1));
+        pose["yaw"] = -42.;
+        QVERIFY(reopened.editModel3D(2, pose, light));
+        QTRY_VERIFY_WITH_TIMEOUT(!reopened.operationBusy(), 5000);
+        QVERIFY(reopened.layerImage(2) != d.layerImage(2));
+        QCOMPARE(reopened.layerImage(1), d.layerImage(1));
+
+        // A model that has left the canvas must still be movable from its mesh.
+        reopened.setEditingMask(false);
+        reopened.setTool("move");
+        const auto visibleModel = reopened.layerImage(2);
+        const int  beforeMove   = reopened.historyIndex();
+        reopened.beginStroke(120, 80);
+        reopened.continueStroke(520, 80);
+        reopened.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!reopened.operationBusy(), 5000);
+        QCOMPARE(reopened.historyIndex(), beforeMove + 1);
+        QVERIFY(reopened.layerImage(2) != visibleModel);
+        reopened.beginStroke(120, 80);
+        reopened.continueStroke(-280, 80);
+        reopened.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!reopened.operationBusy(), 5000);
+        QCOMPARE(reopened.layerImage(2), visibleModel);
+        reopened.undo();
+        QVERIFY(reopened.layerImage(2) != visibleModel);
+        reopened.redo();
+        QCOMPARE(reopened.layerImage(2), visibleModel);
+        const int beforeCopy = reopened.historyIndex();
+        reopened.beginStroke(120, 80, true);
+        reopened.continueStroke(135, 85);
+        reopened.cancelStroke();
+        QCOMPARE(reopened.historyIndex(), beforeCopy);
+        QCOMPARE(reopened.layers().size(), 3);
+        reopened.beginStroke(120, 80, true);
+        reopened.continueStroke(135, 85);
+        reopened.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!reopened.operationBusy(), 5000);
+        QCOMPARE(reopened.historyIndex(), beforeCopy + 1);
+        QCOMPARE(reopened.activeLayer(), 3);
+        QCOMPARE(reopened.layers().size(), 4);
+        QCOMPARE(reopened.layerImage(2), visibleModel);
+        QVERIFY(reopened.layerImage(3) != visibleModel);
+    }
+
     void insertionAndNativeDepth_data()
     {
         QTest::addColumn<int>("bits");

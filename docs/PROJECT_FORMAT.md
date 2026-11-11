@@ -110,3 +110,26 @@ pleine image ni aperçu transitoire de réglage direct n’est enregistré.
 Les masques peints gardent leur bloc binaire distinct. Les anciens projets
 restent lisibles ; une ancienne application doit refuser cette nouvelle version
 plutôt qu’afficher un calque sans son masque.
+
+## Calques 3D
+
+Un projet qui contient un calque `model3d` utilise la version logique **15**
+dans le même conteneur binaire. Le champ `model3d` référence un bloc original
+qui contient le GLB complet. `parameters.pose3d` enregistre le placement,
+l’échelle et l’orientation. `parameters.light3d` contient l’éclairage commun,
+identique sur tous les calques 3D. Le rendu transparent est conservé comme
+plan de pixels pour la composition, avec le masque éventuel dans son bloc.
+
+Le prototype accepte les maillages triangulés avec couleurs et textures PNG/JPEG
+intégrées. Pour un modèle articulé, il calcule la pose par défaut du squelette
+à l’import et conserve les animations dans le GLB embarqué. Le calque affiche
+une pose fixe. Les GLB sont limités à 64 Mio chacun, et la mémoire
+des modèles à 256 Mio par document. Le cache des textures couleur est limité
+à 16 Mio de pixels par modèle et réduit les textures qui dépassent leur part.
+Le plafond est de 180 000 triangles par modèle. Le rendu CPU en arrière-plan
+est limité à 1 600 pixels sur son grand côté avant mise à l’échelle dans le
+document. L’éclairage est diffus, avec une
+composante ambiante et des matériaux non éclairés selon le GLB. Les matériaux
+semi-transparents sont découpés selon leur alpha. La superposition entre
+objets suit l’ordre des calques.
+[cgltf 1.15 (MIT)](https://github.com/jkuhlmann/cgltf/releases/tag/v1.15).

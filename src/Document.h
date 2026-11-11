@@ -437,6 +437,7 @@ public:
         return pixelEditBusy() || m_contentId != m_savedId;
     }
     QVariantList             layers() const;
+    Q_INVOKABLE QString      layerIdentity(int _index) const;
     Q_INVOKABLE QVariantList histogram() const;
     Q_INVOKABLE QVariantMap  colorHistogram() const;
     int                      activeLayer() const
@@ -1163,6 +1164,11 @@ public:
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE void requestOpenFile(const QUrl &_url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
+    Q_INVOKABLE bool importModel3D(const QUrl &_url);
+    Q_INVOKABLE void previewModel3D(int _index, const QVariantMap &_pose,
+                                    const QVariantMap &_light);
+    Q_INVOKABLE void cancelModel3DPreview();
+    Q_INVOKABLE bool editModel3D(int _index, const QVariantMap &_pose, const QVariantMap &_light);
     bool             aiInsertionBusy() const;
     Q_PROPERTY(QVariantMap originalAiSource READ originalAiSource NOTIFY layersChanged)
     QVariantMap                   originalAiSource() const;
@@ -1819,6 +1825,20 @@ private:
     QTimer                              m_gpuStackAuxTimer;
     bool                                m_gpuStackDisplayActive = false;
     QFutureWatcher<PreviewRenderResult> m_previewRenderWatcher;
+    struct Model3DPreview {
+        int         layer;
+        QVariantMap parameters;
+        quint64     firstGeneration;
+        bool        copy;
+    };
+    bool model3DMoveTarget() const;
+    void previewModel3DMove(const QPointF &_position);
+    void finishModel3DMove();
+    void queueModel3DPreview(int _index, QVariantMap _parameters, bool _copy = false);
+    bool applyModel3DParameters(int _index, const QVariantMap &_parameters, const QString &_label,
+                                bool _copy = false);
+    std::shared_ptr<const Model3DPreview> m_model3DPreview, m_pendingModel3DPreview;
+    bool                                  m_runningModel3DPreview = false;
     QVector<Layer>                      m_pendingPreviewLayers;
     QSize                               m_pendingPreviewSize;
     QSize                               m_pendingPreviewTargetSize;
@@ -1966,7 +1986,8 @@ private:
     static QImage
     renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size, const QSize &_targetSize,
                           bool _draft, std::shared_ptr<ScratchImageCache> _scratch = {},
-                          std::shared_ptr<const PhotoCrap::Transform::Job> _transform = {});
+                          std::shared_ptr<const PhotoCrap::Transform::Job> _transform = {},
+                          std::shared_ptr<const Model3DPreview>            _model     = {});
     QImage                    projectPreview() const;
 
     mutable PhotoCrap::Tools::SliceDescriptionCache m_sliceDescriptions;

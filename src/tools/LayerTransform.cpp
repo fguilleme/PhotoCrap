@@ -3,6 +3,7 @@
 #include "ImagePixels.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
+#include "model3d/Model3D.h"
 #include "selection/SelectionCoverage.h"
 #include "shapes/ShapeLayer.h"
 #include "text/TextLayer.h"
@@ -677,6 +678,9 @@ bool applyLayers(QVector<Layer> &_layers, const QSize &_size, const QSize &_nati
             _layers[index] = std::move(layer);
             continue;
         }
+        if (!_preview && wholeLayer && layer.model3D &&
+            !Model3D::transformPlacement(layer.parameters, transform))
+            return false;
         if (_job.mask) {
             if (!transformPlane(layer.mask, _size, mapping, selection, false))
                 return false;

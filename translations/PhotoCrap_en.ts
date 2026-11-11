@@ -6315,4 +6315,60 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Transformation</source><translation>Transform</translation></message>
     <message><source>%1 — copie</source><translation>%1 — copy</translation></message>
   </context>
+  <context>
+    <name>Document</name>
+    <message><source>Choisissez un fichier GLB local.</source><translation>Select a local GLB file.</translation></message>
+    <message><source>Importer un modèle 3D</source><translation>Import 3D Model</translation></message>
+    <message><source>Impossible de lire le GLB (64 Mio maximum).</source><translation>Unable to read the GLB file (64 MiB maximum).</translation></message>
+    <message><source>Le GLB est invalide ou contient des données non prises en charge.</source><translation>The GLB is invalid or contains unsupported data.</translation></message>
+    <message><source>La limite de mémoire des modèles 3D est atteinte.</source><translation>The 3D model memory limit has been reached.</translation></message>
+    <message><source>Impossible de calculer le rendu du modèle 3D.</source><translation>Unable to render the 3D model.</translation></message>
+    <message><source>Paramètres du calque 3D invalides.</source><translation>Invalid 3D layer settings.</translation></message>
+    <message><source>Modifier l’éclairage 3D</source><translation>Change 3D Lighting</translation></message>
+    <message><source>Modifier le calque 3D</source><translation>Edit 3D Layer</translation></message>
+    <message><source>Impossible d’encoder le modèle 3D.</source><translation>Unable to encode the 3D model.</translation></message>
+    <message><source>Calque 3D invalide.</source><translation>Invalid 3D layer.</translation></message>
+    <message><source>Éclairage des calques 3D incohérent.</source><translation>Inconsistent lighting across 3D layers.</translation></message>
+    <message><source>Modèle 3D de projet invalide.</source><translation>Invalid 3D model in the project.</translation></message>
+    <message><source>Le recadrage en perspective des calques 3D n’est pas pris en charge.</source><translation>Perspective crop is unavailable for 3D layers.</translation></message>
+  </context>
+  <context>
+    <name>Main</name>
+    <message><source>Importer un modèle 3D…</source><translation>Import 3D Model…</translation></message>
+    <message><source>Importer un modèle 3D</source><translation>Import 3D Model</translation></message>
+    <message><source>Modèles glTF binaires (*.glb)</source><translation>Binary glTF Models (*.glb)</translation></message>
+    <message><source>Modèle 3D</source><translation>3D Model</translation></message>
+  </context>
+  <context>
+    <name>Model3DPanel</name>
+    <message><source>Éclairage</source><translation>Lighting</translation></message>
+    <message><source>Couleur</source><translation>Color</translation></message>
+    <message><source>Fermer les propriétés 3D</source><translation>Close 3D Properties</translation></message>
+    <message><source>Calque 3D · %1</source><translation>3D Layer · %1</translation></message>
+    <message><source>Annuler</source><translation>Cancel</translation></message>
+    <message><source>Appliquer</source><translation>Apply</translation></message>
+    <message><source>Pose</source><translation>Pose</translation></message>
+    <message><source>Centre X (px)</source><translation>Center X (px)</translation></message>
+    <message><source>Centre Y (px)</source><translation>Center Y (px)</translation></message>
+    <message><source>Échelle (%)</source><translation>Scale (%)</translation></message>
+    <message><source>Rotation Y (°)</source><translation>Y Rotation (°)</translation></message>
+    <message><source>Rotation X (°)</source><translation>X Rotation (°)</translation></message>
+    <message><source>Rotation Z (°)</source><translation>Z Rotation (°)</translation></message>
+    <message><source>Éclairage commun</source><translation>Shared Lighting</translation></message>
+    <message><source>Azimut (°)</source><translation>Azimuth (°)</translation></message>
+    <message><source>Élévation (°)</source><translation>Elevation (°)</translation></message>
+    <message><source>Intensité (%)</source><translation>Intensity (%)</translation></message>
+    <message><source>Ambiante (%)</source><translation>Ambient Light (%)</translation></message>
+    <message><source>Couleur de la lumière</source><translation>Light Color</translation></message>
+    <message><source>Choisir la couleur de la lumière</source><translation>Choose Light Color</translation></message>
+  </context>
+  <context>
+    <name>Model3D</name>
+    <message><source>Le GLB doit contenir des triangles non compressés.</source><translation>The GLB must contain uncompressed triangles.</translation></message>
+    <message><source>Un matériau ou une texture du GLB n’est pas pris en charge. Les textures de couleur doivent être intégrées en PNG ou JPEG, avec un maximum de 4 096 px par côté.</source><translation>The GLB uses an unsupported material or texture. Color textures must be embedded PNG or JPEG files, with at most 4,096 pixels per side.</translation></message>
+    <message><source>Le GLB dépasse la limite de %L1 sommets ou %L2 triangles.</source><translation>The GLB exceeds the limit of %L1 vertices or %L2 triangles.</translation></message>
+    <message><source>Le squelette du GLB contient des influences de sommet invalides.</source><translation>The GLB skeleton contains invalid vertex influences.</translation></message>
+    <message><source>Le GLB exige l’extension %1, qui n’est pas prise en charge.</source><translation>The GLB requires the unsupported extension %1.</translation></message>
+    <message><source>Le squelette ou ses matrices de liaison sont invalides.</source><translation>The skeleton or its bind matrices are invalid.</translation></message>
+  </context>
 </TS>

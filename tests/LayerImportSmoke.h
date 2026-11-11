@@ -1,9 +1,11 @@
 #pragma once
 #include "Document.h"
+#include "Model3DTestImage.h"
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QMimeData>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -131,5 +133,154 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
                      document.layers().size() == 3 && document.historyIndex() == history + 1,
                  "picker imports the selected image with one undo step"))
         return false;
-    return true;
+    auto *modelMenu        = window->findChild<QObject *>("importModel3DMenuItem");
+    auto *modelPicker      = window->findChild<QObject *>("importModel3DDialog");
+    auto *modelProperties  = window->findChild<QQuickItem *>("model3dPanel");
+    auto *propertiesButton = window->findChild<QObject *>("layerPropertiesButton");
+    auto *closeModel       = window->findChild<QObject *>("model3dCloseButton");
+    auto *yaw              = window->findChild<QQuickItem *>("model3dYaw");
+    auto *lightTab         = window->findChild<QQuickItem *>("model3dLightingTab");
+    auto *intensity        = window->findChild<QQuickItem *>("model3dIntensity");
+    auto *canvasViewport   = window->findChild<QQuickItem *>("viewport");
+    auto *drawingArea      = window->findChild<QQuickItem *>("drawingArea");
+    if (!require(modelMenu && modelPicker && modelProperties && propertiesButton && closeModel &&
+                     yaw && lightTab && intensity && canvasViewport && drawingArea,
+                 "model picker and properties exist"))
+        return false;
+    const auto modelUrl = QUrl::fromLocalFile(dir.filePath("Model.glb"));
+    QFile      modelFile(modelUrl.toLocalFile());
+    const auto model = Model3DTest::modelFixture();
+    if (!require(!model.isEmpty() && modelFile.open(QIODevice::WriteOnly) &&
+                     modelFile.write(model) == model.size(),
+                 "create GLB fixture"))
+        return false;
+    modelFile.close();
+    if (!require(
+            QMetaObject::invokeMethod(modelMenu, "triggered") &&
+                QTest::qWaitFor([&] { return modelPicker->property("visible").toBool(); }, 2000),
+            "the add-layer menu opens the GLB picker"))
+        return false;
+    QMetaObject::invokeMethod(modelPicker, "reject");
+    if (!require(document.importModel3D(modelUrl) &&
+                     QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
+                     document.layers().first().toMap()["kind"].toString() == "model3d",
+                 "a GLB appears as an editable 3D layer"))
+        return false;
+    if (!require(propertiesButton->property("enabled").toBool() &&
+                     QMetaObject::invokeMethod(propertiesButton, "clicked") &&
+                     QTest::qWaitFor([&] { return modelProperties->isVisible(); }, 2000),
+                 "layer properties open the 3D controls"))
+        return false;
+    const auto sceneRect = [](QQuickItem *item) {
+        return item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
+    };
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return modelProperties->width() > 0 && modelProperties->height() > 0 &&
+                                !sceneRect(modelProperties).intersects(sceneRect(canvasViewport)) &&
+                                !window->property("modalOpen").toBool();
+                     },
+                     2000),
+                 "3D controls are beside the canvas and leave it interactive"))
+        return false;
+    const auto yawValue = [&] {
+        return document.layers()
+            .first()
+            .toMap()["parameters"]
+            .toMap()["pose3d"]
+            .toMap()["yaw"]
+            .toInt();
+    };
+    const auto sliderPoint = [&](QQuickItem *slider, double fraction) {
+        return slider->mapToScene({slider->width() * fraction, slider->height() / 2.}).toPoint();
+    };
+    const auto original   = document.displayComposite();
+    const auto beforePose = document.historyIndex();
+    // Let the file picker's closing transition release its pointer grab.
+    QTest::qWait(180);
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, sliderPoint(yaw, .5));
+    QTest::mouseMove(window, sliderPoint(yaw, .74));
+    if (!require(QTest::qWaitFor([&] { return document.displayComposite() != original; }, 5000) &&
+                     yawValue() == 0 && document.historyIndex() == beforePose,
+                 "dragging a rotation slider previews before committing"))
+        return false;
+    const auto firstPreview = document.displayComposite();
+    QTest::mouseMove(window, sliderPoint(yaw, .36));
+    if (!require(
+            QTest::qWaitFor([&] { return document.displayComposite() != firstPreview; }, 5000) &&
+                document.historyIndex() == beforePose,
+            "the preview follows subsequent movement during the same drag"))
+        return false;
+    const int rotation = yaw->property("value").toInt();
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, sliderPoint(yaw, .36));
+    if (!require(QTest::qWaitFor(
+                     [&] { return !document.operationBusy() && yawValue() == rotation; }, 5000) &&
+                     rotation != 0 && document.historyIndex() == beforePose + 1 &&
+                     modelProperties->isVisible(),
+                 "releasing commits the pose once and keeps the controls open"))
+        return false;
+    const int modelIndex = document.activeLayer();
+    document.setActiveLayer(modelIndex - 1);
+    if (!require(!modelProperties->isVisible(), "3D controls follow the active layer"))
+        return false;
+    document.setActiveLayer(modelIndex);
+    if (!require(modelProperties->isVisible() && yaw->property("value").toInt() == rotation,
+                 "returning to the model shows the applied pose"))
+        return false;
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                      sceneRect(lightTab).center().toPoint());
+    if (!require(intensity->isVisible(), "the lighting tab shows the common controls"))
+        return false;
+    const auto lit         = document.displayComposite();
+    const auto beforeLight = document.historyIndex();
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, sliderPoint(intensity, .4));
+    QTest::mouseMove(window, sliderPoint(intensity, .82));
+    if (!require(QTest::qWaitFor([&] { return document.displayComposite() != lit; }, 5000) &&
+                     document.historyIndex() == beforeLight,
+                 "lighting responds while dragging"))
+        return false;
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, sliderPoint(intensity, .82));
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !document.operationBusy() &&
+                                document.historyIndex() == beforeLight + 1;
+                     },
+                     5000) &&
+                     modelProperties->isVisible(),
+                 "releasing commits lighting once"))
+        return false;
+    if (!require(QMetaObject::invokeMethod(closeModel, "clicked") &&
+                     !modelProperties->isVisible() && yawValue() == rotation,
+                 "closing the sidebar preserves applied changes"))
+        return false;
+    const auto centerX = [&] {
+        return document.layers()
+            .first()
+            .toMap()["parameters"]
+            .toMap()["pose3d"]
+            .toMap()["x"]
+            .toReal();
+    };
+    QTest::keyClick(window, Qt::Key_V);
+    if (!require(document.tool() == "move", "V selects the move tool"))
+        return false;
+    const auto beforeMove  = document.displayComposite();
+    const auto moveHistory = document.historyIndex();
+    const auto oldX        = centerX();
+    const auto start       = sceneRect(drawingArea).center().toPoint();
+    const auto finish      = start + QPoint(10, 3);
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(window, finish);
+    if (!require(QTest::qWaitFor([&] { return document.displayComposite() != beforeMove; }, 5000) &&
+                     centerX() == oldX && document.historyIndex() == moveHistory,
+                 "the 3D layer follows the canvas drag before committing"))
+        return false;
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, finish);
+    return require(
+        QTest::qWaitFor(
+            [&] { return !document.operationBusy() && document.historyIndex() == moveHistory + 1; },
+            5000) &&
+            qAbs(centerX() - oldX - 10. / window->property("zoom").toReal()) < .01 &&
+            yawValue() == rotation,
+        "the canvas drag updates the 3D pose in one undo step");
 }

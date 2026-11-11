@@ -276,7 +276,8 @@ ApplicationWindow {
     property bool editingText: editor.textEditing || activeFocusItem !== null && typeof activeFocusItem.cursorPosition === "number"
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
-    property bool blockingModalOpen: aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool model3dPropertiesShown: false
+    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -421,7 +422,11 @@ ApplicationWindow {
         })
     }
     function openActiveLayerProperties() {
-        if(activeInfo.kind==="text" && !activeInfo.editingMask) {
+        if (activeInfo.kind === "model3d" && !activeInfo.editingMask) {
+            window.panelsTemporarilyHidden = false
+            window.model3dPropertiesShown = true
+            window.requestActivate()
+        } else if(activeInfo.kind==="text" && !activeInfo.editingMask) {
             if(!editor.textEditing)editor.editTextLayer(editor.activeLayer)
             if(editor.textEditing)textTypography.open()
         } else if(activeInfo.kind === "shape" && !activeInfo.editingMask) {
@@ -1407,6 +1412,7 @@ ApplicationWindow {
         onActivated: {
             if(editor.transformActive){editor.cancelTransform();return}
             if(editor.operationBusy){editor.cancelOperation();return}
+            if (model3dPanel.cancelGesture()) return
             if(editor.selectionBusy){editor.cancelSelectionOperation();return}
             if(window.penToolActive){if(drawingArea.pressed)editor.endPenGesture(true);else if(editor.penDrawing)editor.finishPenPath();else editor.setActivePenPath(-1);return}
             if (editor.magicEraserBusy) { editor.cancelMagicErase(); return }
@@ -1607,6 +1613,11 @@ ApplicationWindow {
                     DarkMenuItem { text: qsTr("Mosaïque…"); onTriggered: addAdjustmentLayer("mosaic") }
                     DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: addAdjustmentLayer("noise") }
                 }
+            }
+            DarkMenuItem {
+                text: qsTr("Importer un modèle 3D…")
+                enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
+                onTriggered: importModel3DDialog.open()
             }
             DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
             MenuSeparator {}
@@ -3344,9 +3355,28 @@ ApplicationWindow {
                     }
                 }
 
+                Model3DPanel {
+                    id: model3dPanel
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.leftMargin: 7
+                    anchors.right: parent.right
+                    height: visible ? Math.min(300, parent.height * 0.57) : 0
+                    visible: window.model3dPropertiesShown && hasModel
+                    document: editor
+                    layerInfo: window.activeInfo
+                    onCloseRequested: {
+                        window.model3dPropertiesShown = false
+                        workspace.forceActiveFocus()
+                    }
+                }
+
                 Flickable {
                     id: dockScroll
-                    anchors.fill: parent
+                    anchors.top: model3dPanel.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
                     anchors.leftMargin: 7
                     clip: true
                     contentWidth: width
@@ -3817,7 +3847,7 @@ ApplicationWindow {
                                     }
                                     Label {
                                         text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
-                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):layerDelegate.aiInfo.provider?qsTr("IA · %1 · Variante %2/%3").arg(layerDelegate.aiInfo.provider).arg(layerDelegate.aiInfo.variant || 1).arg(layerDelegate.aiInfo.variantCount || 1):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind==="shape"?qsTr("Forme vectorielle"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
+                                              (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):layerDelegate.aiInfo.provider?qsTr("IA · %1 · Variante %2/%3").arg(layerDelegate.aiInfo.provider).arg(layerDelegate.aiInfo.variant || 1).arg(layerDelegate.aiInfo.variantCount || 1):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind==="shape"?qsTr("Forme vectorielle"):modelData.kind==="model3d"?qsTr("Modèle 3D"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
                                         color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
                                         font.pixelSize: 9
                                         Layout.fillWidth: true
@@ -4090,6 +4120,12 @@ ApplicationWindow {
             enabled: !editor.pixelEditBusy && !editor.rawLoading
             onTriggered: importLayerDialog.open()
         }
+        DarkMenuItem {
+            objectName: "importModel3DMenuItem"
+            text: qsTr("Importer un modèle 3D…")
+            enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
+            onTriggered: importModel3DDialog.open()
+        }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
@@ -4272,6 +4308,14 @@ ApplicationWindow {
                 }
             }
         }
+    }
+    FileDialog {
+        id: importModel3DDialog
+        objectName: "importModel3DDialog"
+        title: qsTr("Importer un modèle 3D")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("Modèles glTF binaires (*.glb)")]
+        onAccepted: editor.importModel3D(selectedFile)
     }
     FileDialog {
         id: importLayerDialog

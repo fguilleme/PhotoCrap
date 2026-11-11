@@ -14,7 +14,8 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
 {
     using namespace PhotoCrap::Render;
     LayerStack stack;
-    if (m_displayChannel || m_maskOnlyView || m_size.isEmpty() || transformActive())
+    if (m_displayChannel || m_maskOnlyView || m_size.isEmpty() || transformActive() ||
+        m_model3DPreview)
         return stack;
     stack.size = m_size;
     stack.bits = m_channelBits;
@@ -71,7 +72,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
                                  ? spatialTypes.value(layer.adjustmentType, SpatialFilter::None)
                                  : SpatialFilter::None;
         if ((layer.kind != "pixel" && !solid && !tonal && layer.kind != "text" &&
-             layer.kind != "shape" && spatial == SpatialFilter::None) ||
+             layer.kind != "shape" && layer.kind != "model3d" && spatial == SpatialFilter::None) ||
             (!solid && !tonal && spatial == SpatialFilter::None && layer.image.isNull()))
             return {};
         // Discontinuous decisions must not amplify an approximate earlier pass.

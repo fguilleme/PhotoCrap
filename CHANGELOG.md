@@ -4,7 +4,12 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## À venir
+## v0.22.0 — 11 novembre 2026
+
+- Transformation manuelle (⌘T / Ctrl+T) avec poignées, pivot et champs numériques.
+  Échelle, rotation, inclinaison, distorsion, perspective et déformation par
+  grille. Transformation du contour seul, répétition avec ou sans copie et
+  aperçu avant validation en 8/16 bits. [Guide](docs/TRANSFORM.md).
 
 - La conversion d’une sélection en masque la désélectionne dans la même étape
   d’historique, pour ne plus tronquer le flou au bord du masque. Une sélection
@@ -18,8 +23,8 @@ Un [résumé en anglais](README.en.md) est également disponible.
   transformations, historique et persistance. [Guide](docs/MASK_ADJUSTMENTS.md).
 
 - Fiabiliser les connexions Qwen entre générations et reprendre une lecture SSE
-  interrompue sur le même identifiant, sans second envoi ni doublon de génération ;
-  conserver l’annulation, les erreurs d’authentification et le délai global.
+  interrompue sur le même identifiant. Une coupure pendant l’envoi est signalée
+  sans resoumettre automatiquement la génération, y compris sous Qt 6.8.
 
 - Fournisseur Qwen Edit 2.1 par API Gradio JSON v2 : image/sélection, flux SSE,
   authentification HTTP Basic avec mot de passe dans le trousseau, résultat sur

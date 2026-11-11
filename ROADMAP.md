@@ -1,17 +1,18 @@
 # Roadmap PhotoCrap
 
-État au **10 novembre 2026**. **v0.21.1** comprend les documents multiples, les résultats
-IA à résolution native dans un nouvel onglet, la réutilisation des clés entre profils
-du même service et une Plume simplifiée avec formes modifiables. Le format binaire
-v14, Quick Look et les imports par dépôt restent disponibles.
-Le correctif stabilise la pipette Option/Alt et les contours fins sous le guide de la Plume.
+État au **11 novembre 2026**. **v0.22.0** ajoute la transformation manuelle,
+les réglages directs sur les pixels et masques, les masques vectoriels
+éditables et le fournisseur Qwen Edit 2.1 via Gradio v2.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
 
-## En préparation
+## Livraison de v0.22.0
 
+- [x] Transformation manuelle des calques, tracés, masques et contours de sélection.
+  [Guide de la transformation](docs/TRANSFORM.md).
+- [x] Réglages directs et masques vectoriels éditables. [Guide des masques](docs/MASK_ADJUSTMENTS.md).
 - [x] Qwen Edit 2.1 via Gradio v2 : HTTP Basic sécurisé, événements SSE, 19 LoRA,
   paramètres de génération et résultat sur un calque ou dans un nouveau document.
 - [x] Première génération Qwen réelle confirmée dans l’application ; tests de

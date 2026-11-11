@@ -4,18 +4,12 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-Le code source correspond à **v0.21.1** : documents multiples en onglets,
-upscales IA à résolution native dans un nouveau document, clés API partagées
-entre profils du même service et formes modifiables avec la Plume.
-Le correctif stabilise la pipette Option/Alt et la visibilité des contours fins.
+La version **v0.22.0** ajoute la [transformation manuelle](docs/TRANSFORM.md) des
+calques, des masques et des sélections, les [réglages directs et masques
+vectoriels](docs/MASK_ADJUSTMENTS.md), et la prise en charge de
+[Qwen Edit 2.1 via Gradio v2](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
+
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
-
-En préparation : **Qwen Edit 2.1 par Gradio v2**, avec HTTP Basic, 19 LoRA et
-paramètres de génération. [Configuration et état des essais](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
-
-En préparation également : **réglages directs sur les pixels ou le masque actif**,
-flous depuis le menu Filtre, et **masques vectoriels éditables** indépendants du
-masque peint. [Mode d’emploi et limites](docs/MASK_ADJUSTMENTS.md).
 
 ## Télécharger
 

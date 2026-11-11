@@ -4,18 +4,12 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-This source tree is **v0.21.1**, adding multiple document tabs, native-resolution
-AI results in a new document, credential reuse across same-service profiles,
-and clearer editable Pen shapes. The patch stabilizes the Alt/Option eyedropper
-and thin painted outlines. [Release notes](CHANGELOG.md) ·
-[Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
+Version **v0.22.0** adds [Free Transform](docs/TRANSFORM.md) for layers, masks
+and selections, [direct adjustments and editable vector masks](docs/MASK_ADJUSTMENTS.md),
+and [Qwen Edit 2.1 through Gradio v2](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
+The feature guides are in French.
 
-In preparation: **Qwen Edit 2.1 through Gradio v2**, with HTTP Basic, 19 LoRA
-adapters and generation controls. [Setup and test status](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2) (French).
-
-Also in preparation: **direct adjustments on the active pixels or layer mask**,
-blur filters, and **editable vector masks** that coexist with painted masks.
-[Usage and current limits](docs/MASK_ADJUSTMENTS.md) (French).
+[Release notes](CHANGELOG.md) · [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
 ## Download
 

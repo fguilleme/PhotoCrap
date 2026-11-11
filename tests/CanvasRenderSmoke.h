@@ -231,6 +231,7 @@ inline bool runCanvasRenderSmoke(QQuickWindow *_window)
     if (!require(canvas.imageTextureUploads() > beforeReturn,
                  "offscreen textures are evicted and can be loaded again"))
         return false;
+    document.reselect();
     document.setSelectionEdgesVisible(true);
     canvas.setSize({2176 * 4, 640 * 4});
     frame();

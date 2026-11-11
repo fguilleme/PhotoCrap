@@ -743,6 +743,10 @@ private slots:
         d.undo();
         QCOMPARE(d.layerImage(0).pixelColor(30, 40).alpha(), 0);
         d.addLayerMask();
+        QVERIFY(!d.hasSelection());
+        QCOMPARE(d.maskImage(0), mask);
+        d.reselect();
+        QCOMPARE(d.selectionMask(), mask);
         d.fillMaskWithColor(Qt::black);
         const int expected = qRound(coverage * (1. - coverage / 255.));
         QVERIFY(qAbs(d.maskImage(0).constScanLine(40)[30] - expected) <= 1);

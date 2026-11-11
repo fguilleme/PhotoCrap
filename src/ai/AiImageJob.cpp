@@ -7,10 +7,48 @@
 #include <QRegularExpression>
 #include <QUrlQuery>
 #include <QUuid>
+#include <cstring>
 
 namespace
 {
 constexpr qint64 MaxReply = 100LL * 1024 * 1024;
+
+// Qt can rewind an ordinary upload and replay it after a socket closes.
+// A Gradio submission may already have created a generation on the server.
+class GradioUpload final : public QIODevice
+{
+public:
+    explicit GradioUpload(const QByteArray &_data) : m_data(_data)
+    {
+        open(ReadOnly);
+    }
+    qint64 size() const override
+    {
+        return m_data.size();
+    }
+    bool reset() override
+    {
+        return false;
+    }
+
+protected:
+    qint64 readData(char *_target, qint64 _limit) override
+    {
+        const qint64 count = qMin(_limit, size() - pos());
+        if (count <= 0)
+            return -1;
+        std::memcpy(_target, m_data.constData() + pos(), size_t(count));
+        return count;
+    }
+    qint64 writeData(const char *, qint64) override
+    {
+        return -1;
+    }
+
+private:
+    const QByteArray m_data;
+};
+
 QJsonObject      object(const QByteArray &_bytes)
 {
     return QJsonDocument::fromJson(_bytes).object();
@@ -164,7 +202,15 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
     const auto auth = authorization();
     if (_auth && !m_key.isEmpty() && sameOrigin(_url) && !auth.isEmpty())
         request.setRawHeader("Authorization", auth);
-    auto *reply           = m_network.sendCustomRequest(request, _method, _body);
+    QNetworkReply *reply;
+    if (_method == "POST" && m_provider.value("kind") == "gradio") {
+        auto *upload = new GradioUpload(_body);
+        request.setHeader(QNetworkRequest::ContentLengthHeader, _body.size());
+        reply = m_network.sendCustomRequest(request, _method, upload);
+        upload->setParent(reply);
+    } else {
+        reply = m_network.sendCustomRequest(request, _method, _body);
+    }
     m_reply               = reply;
     const auto generation = m_generation;
     if (_method == "POST" && _url.path().endsWith("/images/edits"))

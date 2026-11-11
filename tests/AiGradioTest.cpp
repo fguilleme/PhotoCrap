@@ -37,6 +37,16 @@ QString imageUri()
 struct Request {
     QByteArray method, path, headers, body;
     int        connection = 0;
+
+    QByteArray header(const QByteArray &_name) const
+    {
+        for (const auto &line : headers.split('\n')) {
+            const auto colon = line.indexOf(':');
+            if (colon > 0 && line.left(colon).compare(_name, Qt::CaseInsensitive) == 0)
+                return line.mid(colon + 1).trimmed();
+        }
+        return {};
+    }
 };
 struct Response {
     int               code = 200;
@@ -314,10 +324,10 @@ private slots:
         QCOMPARE(server.requests.size(), 2);
         QCOMPARE(server.requests[0].path, QByteArray("/mounted/gradio_api/call/v2/edit_image"));
         QCOMPARE(server.requests[1].path, QByteArray("/mounted/gradio_api/call/edit_image/job_42"));
-        const auto header = "Authorization: Basic " + QByteArray("photo-user: pw ").toBase64();
+        const auto authorization = "Basic " + QByteArray("photo-user: pw ").toBase64();
         for (const auto &r : server.requests)
-            QVERIFY(r.headers.contains(header));
-        QVERIFY(server.requests[1].headers.contains("Accept: text/event-stream"));
+            QCOMPARE(r.header("Authorization"), authorization);
+        QCOMPARE(server.requests[1].header("Accept"), QByteArray("text/event-stream"));
         const auto sent = QJsonDocument::fromJson(server.requests[0].body).object();
         QVERIFY(sent.value("images_b64_json").isString());
         QCOMPARE(QJsonDocument::fromJson(sent.value("images_b64_json").toString().toUtf8()).array(),

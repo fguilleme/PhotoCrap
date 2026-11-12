@@ -55,13 +55,20 @@ bool Document::importModel3DData(const QByteArray &_bytes, const QString &_name,
 }
 
 bool Document::importDownloadedModel3D(std::shared_ptr<QTemporaryFile> _file, const QString &_name,
-                                       const QRectF &_reference)
+                                       const QRectF &_reference, int _triangleTarget)
 {
     return importModel3DWithLoader(
-        [file = std::move(_file)](const auto &keepGoing, QString *error) {
-            return Model3D::loadTemporary(file, keepGoing, error);
+        [file = std::move(_file), _triangleTarget](const auto &keepGoing, QString *error) {
+            return Model3D::loadTemporary(file, keepGoing, error, _triangleTarget);
         },
         _name, _reference);
+}
+
+QVariantMap Document::model3DStatistics(int _index) const
+{
+    if (_index < 0 || _index >= m_layers.size() || !m_layers.at(_index).model3D)
+        return {};
+    return Model3D::statistics(*m_layers.at(_index).model3D);
 }
 
 bool Document::importModel3DWithLoader(ModelLoader _load, const QString &_name,
@@ -125,6 +132,8 @@ bool Document::insertModel3D(const ModelLoader &_load, const QString &_name,
                                             : Model3D::fittedPose(*layer.model3D, _reference, keepGoing);
     layer.parameters = {{"pose3d", pose.isEmpty() ? Model3D::pose(m_size) : std::move(pose)},
                         {"light3d", lighting}};
+    if (const int target = Model3D::triangleTarget(*layer.model3D); target > 0)
+        layer.parameters["triangleTarget"] = target;
     layer.image =
         Model3D::render(*layer.model3D, layer.parameters, m_size, workingFormat(), keepGoing);
     if (layer.image.isNull())

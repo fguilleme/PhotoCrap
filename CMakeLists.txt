@@ -15,6 +15,7 @@ include(cmake/ProjectPng.cmake)
 include(cmake/ProjectZstd.cmake)
 include(cmake/JpegExport.cmake)
 include(cmake/WebpExport.cmake)
+include(cmake/MeshOptimizer.cmake)
 
 set(PHOTOCRAP_CXX_SOURCES
     src/RawImageReader.cpp
@@ -533,8 +534,13 @@ qt_add_library(photocrap_core STATIC
 )
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Concurrent)
 target_link_libraries(photocrap_core PRIVATE qt6keychain photocrap_libraw photocrap_raw_zlib photocrap_png_codec photocrap_zstd
-    photocrap_jpeg_codec webp)
+    photocrap_jpeg_codec webp meshoptimizer)
 target_include_directories(photocrap_core PUBLIC src)
+if(APPLE)
+    target_sources(photocrap_core PRIVATE src/model3d/ModelPreviewMetal.mm)
+    set_source_files_properties(src/model3d/ModelPreviewMetal.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_link_libraries(photocrap_core PRIVATE "-framework Metal")
+endif()
 if(APPLE AND PHOTOCRAP_ENABLE_ACCELERATE)
     target_compile_definitions(photocrap_core PRIVATE PHOTOCRAP_USE_ACCELERATE)
     target_link_libraries(photocrap_core PRIVATE "-framework Accelerate")
@@ -1088,6 +1094,9 @@ else()
     set(cgltf_license_dir "${CMAKE_INSTALL_DATADIR}/PhotoCrap/third-party/cgltf")
 endif()
 install(FILES src/model3d/LICENSE.cgltf DESTINATION "${cgltf_license_dir}" RENAME LICENSE)
+get_filename_component(model_license_dir "${cgltf_license_dir}" DIRECTORY)
+install(FILES "${photocrap_meshoptimizer_SOURCE_DIR}/LICENSE.md"
+    DESTINATION "${model_license_dir}/meshoptimizer")
 if(APPLE)
     # Qt's deployment step adds frameworks, plugins and QML resources after
     # the executable has received its linker signature. Seal the completed

@@ -7,6 +7,7 @@
 #include <QDropEvent>
 #include <QFile>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -282,32 +283,62 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
 
     const auto rotatedPose = pose();
     const auto zoom        = window->property("zoom").toReal();
-    QTest::mousePress(window, Qt::RightButton, Qt::NoModifier, start);
-    QTest::mouseMove(window, finish);
-    QTest::mouseRelease(window, Qt::RightButton, Qt::NoModifier, finish);
-    if (!require(QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
-                     document.historyIndex() == rotateHistory + 2 &&
+    auto *modelMouse = window->findChild<QQuickItem *>("model3dCanvasControls");
+    if (!require(modelMouse && modelMouse->isEnabled(), "model mouse ready for right drag"))
+        return false;
+    const auto rightStart  = sceneRect(modelMouse).center().toPoint();
+    const auto rightFinish = rightStart + QPoint(10, 3);
+    const auto sendMouse = [&](QEvent::Type type, const QPoint &point, Qt::MouseButton button,
+                               Qt::MouseButtons buttons) {
+        QMouseEvent event(type, point, window->mapToGlobal(point), button, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &event);
+    };
+    sendMouse(QEvent::MouseButtonPress, rightStart, Qt::RightButton, Qt::RightButton);
+    if (!require(modelMouse->property("pressed").toBool(), "model received right press"))
+        return false;
+    sendMouse(QEvent::MouseMove, rightFinish, Qt::NoButton, Qt::RightButton);
+    sendMouse(QEvent::MouseButtonRelease, rightFinish, Qt::RightButton, Qt::NoButton);
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return !document.operationBusy() &&
+                                document.historyIndex() == rotateHistory + 2;
+                     },
+                     5000) &&
                      qAbs(pose()["x"].toReal() - rotatedPose["x"].toReal() - 10. / zoom) < .01 &&
                      qAbs(pose()["y"].toReal() - rotatedPose["y"].toReal() - 3. / zoom) < .01 &&
                      pose()["yaw"] == rotatedPose["yaw"],
                  "right drag pans the model in document coordinates"))
         return false;
 
-    for (int step = 0; step < 2; ++step) {
-        QWheelEvent wheel(start, window->mapToGlobal(start), QPoint(), QPoint(0, 120), Qt::NoButton,
-                          Qt::NoModifier, Qt::NoScrollPhase, false);
+    const auto scrollY = drawingArea->height() / 2;
+    canvasViewport->setProperty("contentY", scrollY);
+    const auto wheelPoint = sceneRect(drawingArea).center().toPoint();
+    const auto sendWheel  = [&] {
+        QWheelEvent wheel(wheelPoint, window->mapToGlobal(wheelPoint), QPoint(), QPoint(0, 120),
+                          Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
         QCoreApplication::sendEvent(window, &wheel);
-    }
-    if (!require(QTest::qWaitFor(
-                     [&] {
-                         return document.historyIndex() == rotateHistory + 3 &&
-                                !document.operationBusy();
-                     },
-                     5000) &&
+    };
+    bool       wheelDuringRender = false;
+    const auto watchRender = QObject::connect(&document, &Document::operationChanged, window, [&] {
+        if (document.operationBusy() && !wheelDuringRender) {
+            wheelDuringRender = true;
+            sendWheel();
+        }
+    });
+    sendWheel();
+    sendWheel();
+    const bool wheelCommitted = QTest::qWaitFor(
+        [&] { return document.historyIndex() == rotateHistory + 3 && !document.operationBusy(); },
+        5000);
+    QObject::disconnect(watchRender);
+    if (!require(wheelCommitted && wheelDuringRender &&
                      qAbs(pose()["scale"].toReal() - rotatedPose["scale"].toReal() * 1.15 * 1.15) <
                          .01 &&
                      window->property("zoom").toReal() == zoom,
                  "wheel scales the layer in one undo step and preserves canvas zoom"))
+        return false;
+    if (!require(qAbs(canvasViewport->property("contentY").toReal() - scrollY) < .01,
+                 "wheel preserves canvas scroll even during the model render"))
         return false;
 
     window->setProperty("zoom", 1.75);

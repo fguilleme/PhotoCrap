@@ -293,8 +293,6 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
         else if (qMax(_size.width(), _size.height()) > 960)
             renderSize.scale(960, 960, Qt::KeepAspectRatio);
     }
-    if (_model && qMax(renderSize.width(), renderSize.height()) > 512)
-        renderSize.scale(512, 512, Qt::KeepAspectRatio);
     const auto bits         = renderSize == _size ? channelBits : 8;
     const auto rendersModel = [&](const Layer &layer) {
         return _model && layer.model3D && layer.visible &&
@@ -344,10 +342,10 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
             parameters["light3d"] = _model->parameters.value("light3d");
             if (!PhotoCrap::Model3D::transformPlacement(parameters, scale))
                 return {};
-            layer.image =
-                PhotoCrap::Model3D::render(*layer.model3D, parameters, renderSize,
-                                           bits == 16 ? QImage::Format_RGBA64_Premultiplied
-                                                      : QImage::Format_ARGB32_Premultiplied);
+            layer.image = PhotoCrap::Model3D::renderPreview(
+                layer.model3D, parameters, renderSize,
+                bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                           : QImage::Format_ARGB32_Premultiplied);
             if (layer.image.isNull())
                 return {};
         }

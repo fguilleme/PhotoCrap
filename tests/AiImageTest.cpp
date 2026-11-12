@@ -174,8 +174,16 @@ private slots:
         QCoreApplication::setOrganizationName("PhotoCrapAiTest");
         QCoreApplication::setApplicationName("AiImageTest");
     }
+    void meshyTextStagesImportOneEditableLayer_data()
+    {
+        QTest::addColumn<int>("triangles");
+        QTest::newRow("original") << 0;
+        QTest::newRow("remesh") << 240000;
+    }
+
     void meshyTextStagesImportOneEditableLayer()
     {
+        QFETCH(int, triangles);
         Server     server;
         const auto asset = Model3DTest::modelFixture();
         QVERIFY(!asset.isEmpty());
@@ -196,7 +204,7 @@ private slots:
         Document   document;
         QVERIFY(document.newDocument(128, 128, true, 16));
         MeshyController controller(&document, &settings, QUrl(server.url()));
-        QVERIFY(controller.generate(0, "Une tasse", "test-meshy", true, true));
+        QVERIFY(controller.generate(0, "Une tasse", "test-meshy", true, true, triangles));
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 12000);
         QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
         QCOMPARE(server.requests.size(), 5);
@@ -213,14 +221,83 @@ private slots:
         QCOMPARE(refine.value("mode").toString(), "refine");
         QCOMPARE(refine.value("texture_resolution").toString(), "4k");
         QCOMPARE(refine.value("preview_task_id").toString(), "geometry");
+        QVERIFY(!refine.contains("target_polycount"));
         for (const auto &request : server.requests.first(4))
             QVERIFY(request.headers.toLower().contains("authorization: bearer test-meshy"));
         QVERIFY(!server.requests.back().headers.toLower().contains("authorization:"));
         QVERIFY(settings.hasKey("meshy"));
         QCOMPARE(document.layerCount(), 2);
         QCOMPARE(document.layers().first().toMap().value("kind").toString(), "model3d");
+        QCOMPARE(controller.resultInfo().value("triangleTarget").toInt(), triangles);
+        QCOMPARE(controller.resultInfo().value("triangles").toInt(), 1);
         document.undo();
         QCOMPARE(document.layerCount(), 1);
+    }
+
+    void meshyRetriesPollsAndResumesSameTask()
+    {
+        Server server;
+        int    polls   = 0;
+        server.handler = [&server, &polls](const Request &request) -> Response {
+            if (request.method == "POST")
+                return {202, json({{"result", "recoverable"}})};
+            if (request.target == "/model.glb")
+                return {200, Model3DTest::modelFixture(), "model/gltf-binary"};
+            ++polls;
+            const QByteArray retryAfter = "Retry-After: 1\r\n";
+            if (polls <= 2)
+                return {polls == 1 ? 429 : 503, "{}", "application/json", retryAfter};
+            if (polls == 3)
+                return {200, json({{"status", "PENDING"}}), "application/json", retryAfter};
+            return {200, json({{"status", "SUCCEEDED"},
+                               {"model_urls", QJsonObject{{"glb", server.url("/model.glb")}}}})};
+        };
+        AiSettings settings(nullptr, false);
+        Document   document;
+        QVERIFY(document.newDocument(128, 128, true));
+        MeshyController controller(&document, &settings, QUrl(server.url()));
+        QVERIFY(controller.generate(1, {}, "test-meshy", false));
+        QTRY_COMPARE_WITH_TIMEOUT(controller.status(), QString("Tâche Meshy en file d’attente…"),
+                                  8000);
+        QVERIFY(controller.busy());
+        controller.cancel();
+        QVERIFY(controller.canResume());
+        controller.resume();
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(document.layerCount(), 2);
+        QVERIFY(!controller.canResume());
+        QCOMPARE(server.requests.size(), 6);
+        QCOMPARE(server.requests.first().method, "POST");
+        for (const auto &request : server.requests.sliced(1, 4)) {
+            QCOMPARE(request.method, "GET");
+            QCOMPARE(request.target, "/openapi/v1/image-to-3d/recoverable");
+        }
+    }
+
+    void meshyRecoversTextPreviewWithoutSubmittingRefine()
+    {
+        Server server;
+        server.handler = [&server](const Request &request) -> Response {
+            if (request.target == "/model.glb")
+                return {200, Model3DTest::modelFixture(), "model/gltf-binary"};
+            return {200, json({{"status", "SUCCEEDED"},
+                               {"type", "text-to-3d-preview"},
+                               {"model_urls", QJsonObject{{"glb", server.url("/model.glb")}}}})};
+        };
+        AiSettings settings(nullptr, false);
+        Document   document;
+        QVERIFY(document.newDocument(128, 128, true));
+        MeshyController controller(&document, &settings, QUrl(server.url()));
+        QVERIFY(!controller.recover("../wrong-path", true, "test-meshy", false));
+        QVERIFY(controller.recover("previous-preview", true, "test-meshy", false));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(document.layerCount(), 2);
+        QCOMPARE(server.requests.size(), 2);
+        QCOMPARE(server.requests.first().method, "GET");
+        QCOMPARE(server.requests.first().target, "/openapi/v2/text-to-3d/previous-preview");
+        QCOMPARE(server.requests.last().target, "/model.glb");
     }
 
     void meshyLargeGlbSurvivesProjectReopen()
@@ -284,7 +361,9 @@ private slots:
         Document   document;
         fixture(document);
         MeshyController controller(&document, &settings, QUrl(server.url()));
-        QVERIFY(controller.generate(1, {}, "test-meshy", false));
+        QVERIFY(!controller.generate(1, {}, "test-meshy", false, false, 99));
+        QVERIFY(!controller.generate(1, {}, "test-meshy", false, false, 8000001));
+        QVERIFY(controller.generate(1, {}, "test-meshy", false, false, 1000000));
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 10000);
         QVERIFY(!controller.error().isEmpty());
         QCOMPARE(server.requests.size(), 2);
@@ -304,6 +383,51 @@ private slots:
         QVERIFY(!body.contains("target_polycount"));
         QCOMPARE(body.value("texture_resolution").toString(), "4k");
         QCOMPARE(document.layerCount(), 1);
+    }
+
+    void meshySimplifiesLocallyAndReportsActualModel()
+    {
+        Server        server;
+        constexpr int cells = 500, target = 400000;
+        const auto    model = Model3DTest::denseGrid(cells);
+        QVERIFY(!model.isEmpty());
+        server.handler = [&server, &model](const Request &request) -> Response {
+            if (request.target == "/model.glb")
+                return {200, model, "model/gltf-binary"};
+            return {200, json({{"status", "SUCCEEDED"},
+                               {"model_urls", QJsonObject{{"glb", server.url("/model.glb")}}}})};
+        };
+        AiSettings settings(nullptr, false);
+        Document   document;
+        QVERIFY(document.newDocument(256, 256, true, 16));
+        MeshyController controller(&document, &settings, QUrl(server.url()));
+        QVERIFY(controller.recover("dense", false, "test-meshy", false, target));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 10000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(document.layerCount(), 2);
+        QCOMPARE(server.requests.size(), 2);
+        QCOMPARE(server.requests.first().method, "GET");
+
+        const auto info = controller.resultInfo();
+        QCOMPARE(info.value("sourceTriangles").toInt(), cells * cells * 2);
+        const int triangles = info.value("triangles").toInt();
+        QVERIFY2(triangles > 300000 && triangles <= target, qPrintable(QString::number(triangles)));
+        QVERIFY(info.value("vertices").toInt() < (cells + 1) * (cells + 1));
+        QCOMPARE(info.value("fileBytes").toLongLong(), model.size());
+        const auto textures = info.value("textures").toList();
+        QCOMPARE(textures.size(), 1);
+        const auto texture = textures.first().toMap();
+        QCOMPARE(texture.value("width").toInt(), 4);
+        QCOMPARE(texture.value("height").toInt(), 4);
+        QVERIFY(texture.value("bytes").toInt() > 0);
+
+        QTemporaryDir dir;
+        const auto    project = QUrl::fromLocalFile(dir.filePath("Simplified.pcr"));
+        QVERIFY(document.saveProject(project));
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.model3DStatistics(1), document.model3DStatistics(1));
+        QCOMPARE(reopened.layerImage(1), document.layerImage(1));
     }
 
     void meshyFitsReferenceInDocumentPixels_data()

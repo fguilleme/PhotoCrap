@@ -11,21 +11,33 @@
 #include <QSet>
 #include <QTemporaryFile>
 #include <QtEndian>
+#include <meshoptimizer.h>
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
+#include <limits>
 
 namespace PhotoCrap::Model3D
 {
 namespace
 {
-constexpr qsizetype MaxVertices = 8'000'000, MaxTriangles = 8'000'000;
-constexpr qsizetype MaxDecodedBytes = 384 * 1024 * 1024;
+constexpr qsizetype MaxVertices      = 8'000'000;
 constexpr qsizetype MaxTexturePixels = 16 * 1024 * 1024;
 constexpr size_t    MaxParserBytes   = 32 * 1024 * 1024;
+constexpr qsizetype MiB              = 1024 * 1024;
+// Leave room for the maximum supported textured mesh with no vertex colors.
+constexpr qsizetype MaxDecodedBytes = 400 * MiB;
+static_assert(MaxVertices * sizeof(Vertex) + MaxTriangles * sizeof(Face) + MaxTexturePixels * 4 <=
+              MaxDecodedBytes);
+
+struct MeshBudget {
+    qsizetype vertices = 0, triangles = 0, geometryBytes = 0;
+};
 
 struct TextureCache {
     QHash<const cgltf_image *, QImage> images;
+    QVariantList                       statistics;
     qsizetype                          pixelsPerImage = MaxTexturePixels;
     qsizetype                          decodedPixels  = 0;
 };
@@ -57,7 +69,7 @@ bool validAccessor(const cgltf_accessor *_accessor)
            _accessor->count - 1 <= (available - element) / _accessor->stride;
 }
 
-QImage textureImage(const cgltf_image &_image, qsizetype _pixelLimit)
+QImage textureImage(const cgltf_image &_image, qsizetype _pixelLimit, QSize &_originalSize)
 {
     const auto *view = _image.buffer_view;
     if (_image.uri || !view || !view->buffer || !view->buffer->data ||
@@ -74,6 +86,7 @@ QImage textureImage(const cgltf_image &_image, qsizetype _pixelLimit)
     if ((format != "png" && format != "jpeg") || size.isEmpty() || size.width() > 4096 ||
         size.height() > 4096)
         return {};
+    _originalSize = size;
     const qsizetype pixels      = qsizetype(size.width()) * size.height();
     auto            decodedSize = size;
     if (pixels > _pixelLimit) {
@@ -126,11 +139,17 @@ bool readMaterial(const cgltf_material *_source, Material &_material, TextureCac
     if (!image)
         return false;
     if (!_textures.images.contains(image)) {
-        const auto decoded = textureImage(*image, _textures.pixelsPerImage);
+        QSize      originalSize;
+        const auto decoded = textureImage(*image, _textures.pixelsPerImage, originalSize);
         if (decoded.isNull())
             return false;
         _textures.decodedPixels += qsizetype(decoded.width()) * decoded.height();
         _textures.images.insert(image, decoded);
+        _textures.statistics.append(QVariantMap{{"width", originalSize.width()},
+                                                {"height", originalSize.height()},
+                                                {"loadedWidth", decoded.width()},
+                                                {"loadedHeight", decoded.height()},
+                                                {"bytes", qsizetype(image->buffer_view->size)}});
     }
     _material.texture = _textures.images.value(image);
     if (const auto *sampler = texture.texture->sampler) {
@@ -219,9 +238,8 @@ bool skinTransform(const QVector<SkinAttributes> &_attributes, const QVector<QMa
 }
 
 bool readPrimitive(const cgltf_primitive &_source, const QMatrix4x4 &_world, Primitive &_target,
-                   const QVector<QMatrix4x4> &_joints, TextureCache &_textures,
-                   qsizetype &_vertices, qsizetype &_triangles, const Continue &_continue,
-                   QString &_error)
+                   const QVector<QMatrix4x4> &_joints, TextureCache &_textures, MeshBudget &_budget,
+                   const Continue &_continue, QString &_error)
 {
     if (_source.type != cgltf_primitive_type_triangles || _source.has_draco_mesh_compression) {
         _error = QCoreApplication::translate("Model3D",
@@ -264,7 +282,6 @@ bool readPrimitive(const cgltf_primitive &_source, const QMatrix4x4 &_world, Pri
             skin.append(SkinAttributes{joints, weights});
         }
     }
-    _target.vertexColors                  = colors != nullptr;
     const cgltf_accessor *    coordinates = nullptr;
     const cgltf_texture_view *texture     = nullptr;
     if (!_target.material.texture.isNull()) {
@@ -286,17 +303,32 @@ bool readPrimitive(const cgltf_primitive &_source, const QMatrix4x4 &_world, Pri
     const qsizetype count = indices ? indices->count : positions->count;
     if (count % 3)
         return false;
-    if (qsizetype(positions->count) > MaxVertices - _vertices ||
-        count / 3 > MaxTriangles - _triangles) {
+    if (qsizetype(positions->count) > MaxVertices - _budget.vertices ||
+        count / 3 > MaxTriangles - _budget.triangles) {
         _error = QCoreApplication::translate(
                      "Model3D", "Le GLB dépasse la limite de %L1 sommets ou %L2 triangles.")
                      .arg(MaxVertices)
                      .arg(MaxTriangles);
         return false;
     }
-    _vertices += positions->count;
-    _triangles += count / 3;
+    const qsizetype vertexBytes = sizeof(Vertex) + (colors ? sizeof(QVector4D) : 0);
+    const auto geometryBytes = _budget.geometryBytes + qsizetype(positions->count) * vertexBytes +
+                               (count / 3) * qsizetype(sizeof(Face));
+    const auto decodedBytes = geometryBytes + _textures.decodedPixels * 4;
+    if (decodedBytes > MaxDecodedBytes) {
+        _error =
+            QCoreApplication::translate(
+                "Model3D", "Le modèle 3D nécessite %L1 Mio de mémoire décodée (limite %L2 Mio).")
+                .arg((decodedBytes + MiB - 1) / MiB)
+                .arg(MaxDecodedBytes / MiB);
+        return false;
+    }
+    _budget.vertices += positions->count;
+    _budget.triangles += count / 3;
+    _budget.geometryBytes = geometryBytes;
     _target.vertices.resize(positions->count);
+    if (colors)
+        _target.vertexColors.resize(positions->count);
     const auto normalMatrix = _world.normalMatrix();
     for (qsizetype i = 0; i < _target.vertices.size(); ++i) {
         if (i % 2048 == 0 && _continue && !_continue())
@@ -325,11 +357,10 @@ bool readPrimitive(const cgltf_primitive &_source, const QMatrix4x4 &_world, Pri
             const auto components = cgltf_num_components(colors->type);
             if (!cgltf_accessor_read_float(colors, i, rgba, components))
                 return false;
-            for (int channel = 0; channel < 4; ++channel) {
-                if (!std::isfinite(rgba[channel]) || rgba[channel] < 0 || rgba[channel] > 1)
+            for (const float channel : rgba)
+                if (!std::isfinite(channel) || channel < 0 || channel > 1)
                     return false;
-                vertex.color[channel] = rgba[channel];
-            }
+            _target.vertexColors[i] = QVector4D(rgba[0], rgba[1], rgba[2], rgba[3]);
         }
         if (coordinates) {
             if (!cgltf_accessor_read_float(coordinates, i, uv, 2))
@@ -366,14 +397,63 @@ bool readPrimitive(const cgltf_primitive &_source, const QMatrix4x4 &_world, Pri
     }
     return true;
 }
+
+void simplify(Primitive &_mesh, qsizetype _target)
+{
+    if (_mesh.triangles.size() <= _target)
+        return;
+    static_assert(sizeof(Face) == 3 * sizeof(unsigned int));
+    static_assert(offsetof(Vertex, normal) == 3 * sizeof(float));
+    static_assert(offsetof(Vertex, uv) == 6 * sizeof(float));
+    const auto *          vertices   = reinterpret_cast<const float *>(_mesh.vertices.constData());
+    const auto            indexCount = _mesh.triangles.size() * 3;
+    const float           uvWeight   = _mesh.material.texture.isNull() ? 0.f : 1.f;
+    const float           weights[]{.4f, .4f, .4f, uvWeight, uvWeight};
+    QVector<unsigned int> indices(indexCount);
+    // Preserve seams and folds. The target may be missed when further collapses
+    // would introduce visible error in geometry, normals or texture coordinates.
+    const auto reducedCount = meshopt_simplifyWithAttributes(
+        indices.data(), _mesh.triangles.constFirst().data(), indexCount, vertices,
+        _mesh.vertices.size(), sizeof(Vertex), vertices + 3, sizeof(Vertex), weights,
+        std::size(weights), nullptr, _target * 3, .01f,
+        meshopt_SimplifyPreserveFolds | meshopt_SimplifyErrorClamped);
+    if (reducedCount == 0 || qsizetype(reducedCount) >= indexCount)
+        return;
+
+    QVector<unsigned int> remap(_mesh.vertices.size());
+    const auto            used = meshopt_optimizeVertexFetchRemap(remap.data(), indices.constData(),
+                                                       reducedCount, _mesh.vertices.size());
+    QVector<Vertex>       compactVertices(static_cast<qsizetype>(used));
+    QVector<QVector4D>    compactColors;
+    if (!_mesh.vertexColors.isEmpty())
+        compactColors.resize(qsizetype(used));
+    for (qsizetype i = 0; i < remap.size(); ++i) {
+        const auto index = remap[i];
+        if (index == std::numeric_limits<unsigned int>::max())
+            continue;
+        compactVertices[index] = _mesh.vertices.at(i);
+        if (!compactColors.isEmpty())
+            compactColors[index] = _mesh.vertexColors.at(i);
+    }
+    QVector<Face> faces(qsizetype(reducedCount / 3));
+    for (qsizetype i = 0; i < faces.size(); ++i) {
+        const auto at = i * 3;
+        faces[i]      = {remap[indices[at]], remap[indices[at + 1]], remap[indices[at + 2]]};
+    }
+    _mesh.vertices     = std::move(compactVertices);
+    _mesh.vertexColors = std::move(compactColors);
+    _mesh.triangles    = std::move(faces);
+}
 } // namespace
 
-static std::shared_ptr<Asset> loadAsset(QByteArray _bytes, const Continue &_continue, QString *_error)
+static std::shared_ptr<Asset> loadAsset(QByteArray _bytes, const Continue &_continue,
+                                        QString *_error, int _triangleTarget)
 {
     QString  detail;
     QString &error = _error ? *_error : detail;
     error.clear();
-    if (_bytes.size() < 20 || _bytes.size() > MaxFileBytes || !_bytes.startsWith("glTF"))
+    if (!validTriangleTarget(_triangleTarget) || _bytes.size() < 20 ||
+        _bytes.size() > MaxFileBytes || !_bytes.startsWith("glTF"))
         return {};
     if (qFromLittleEndian<quint32>(_bytes.constData() + 12) % 4 != 0)
         return {};
@@ -460,8 +540,8 @@ static std::shared_ptr<Asset> loadAsset(QByteArray _bytes, const Continue &_cont
     auto         asset = std::make_shared<Asset>();
     TextureCache textures;
     textures.pixelsPerImage = MaxTexturePixels / qMax(qsizetype(1), baseImages.size());
-    qsizetype vertices = 0, triangles = 0;
-    QVector3D minimum(1e9f, 1e9f, 1e9f), maximum(-1e9f, -1e9f, -1e9f);
+    MeshBudget budget;
+    QVector3D  minimum(1e9f, 1e9f, 1e9f), maximum(-1e9f, -1e9f, -1e9f);
     for (const auto *node : meshNodes) {
         QVector<QMatrix4x4> joints;
         // Capture the default pose. The joint hierarchy and inverse bind matrices
@@ -475,16 +555,9 @@ static std::shared_ptr<Asset> loadAsset(QByteArray _bytes, const Continue &_cont
         const auto *mesh  = node->mesh;
         for (size_t i = 0; i < mesh->primitives_count; ++i) {
             Primitive primitive;
-            if (!readPrimitive(mesh->primitives[i], world, primitive, joints, textures, vertices,
-                               triangles, _continue, error))
+            if (!readPrimitive(mesh->primitives[i], world, primitive, joints, textures, budget,
+                               _continue, error))
                 return {};
-            const qsizetype bytes = vertices * qsizetype(sizeof(Vertex)) +
-                                    triangles * qsizetype(sizeof(std::array<quint32, 3>)) +
-                                    textures.decodedPixels * 4;
-            if (bytes > MaxDecodedBytes) {
-                error = QCoreApplication::translate("Model3D", "Le modèle 3D dépasse la limite de mémoire.");
-                return {};
-            }
             for (const auto &vertex : primitive.vertices)
                 for (int axis = 0; axis < 3; ++axis) {
                     minimum[axis] = qMin(minimum[axis], vertex.position[axis]);
@@ -500,19 +573,44 @@ static std::shared_ptr<Asset> loadAsset(QByteArray _bytes, const Continue &_cont
     for (auto &primitive : asset->primitives)
         for (auto &vertex : primitive.vertices)
             vertex.position = (vertex.position - center) / diameter;
-    asset->bytesInMemory = _bytes.size() + vertices * sizeof(Vertex) +
-                           triangles * sizeof(std::array<quint32, 3>) + textures.decodedPixels * 4;
-    asset->bytes = std::move(_bytes);
+    const auto sourceTriangles = budget.triangles;
+    if (_triangleTarget > 0 && sourceTriangles > _triangleTarget) {
+        budget = {};
+        for (auto &primitive : asset->primitives) {
+            const auto target = qMax(qint64(1), qint64(primitive.triangles.size()) *
+                                                    _triangleTarget / sourceTriangles);
+            simplify(primitive, target);
+            if (_continue && !_continue())
+                return {};
+            budget.vertices += primitive.vertices.size();
+            budget.triangles += primitive.triangles.size();
+            budget.geometryBytes += primitive.vertices.size() * qsizetype(sizeof(Vertex)) +
+                                    primitive.triangles.size() * qsizetype(sizeof(Face)) +
+                                    primitive.vertexColors.size() * qsizetype(sizeof(QVector4D));
+        }
+    }
+    asset->triangleTarget = _triangleTarget;
+    asset->statistics     = {{"triangles", budget.triangles},
+                         {"sourceTriangles", sourceTriangles},
+                         {"triangleTarget", _triangleTarget},
+                         {"vertices", budget.vertices},
+                         {"fileBytes", _bytes.size()},
+                         {"decodedBytes", budget.geometryBytes + textures.decodedPixels * 4},
+                         {"textures", std::move(textures.statistics)}};
+    asset->bytesInMemory  = _bytes.size() + budget.geometryBytes + textures.decodedPixels * 4;
+    asset->bytes          = std::move(_bytes);
     return asset;
 }
 
-std::shared_ptr<const Asset> load(QByteArray _bytes, const Continue &_continue, QString *_error)
+std::shared_ptr<const Asset> load(QByteArray _bytes, const Continue &_continue, QString *_error,
+                                  int _triangleTarget)
 {
-    return loadAsset(std::move(_bytes), _continue, _error);
+    return loadAsset(std::move(_bytes), _continue, _error, _triangleTarget);
 }
 
 std::shared_ptr<const Asset> loadTemporary(const std::shared_ptr<QTemporaryFile> &_file,
-                                           const Continue &_continue, QString *_error)
+                                           const Continue &_continue, QString *_error,
+                                           int _triangleTarget)
 {
     const auto size = _file->size();
     if (size < 20 || size > MaxFileBytes)
@@ -524,7 +622,7 @@ std::shared_ptr<const Asset> loadTemporary(const std::shared_ptr<QTemporaryFile>
         return {};
     }
     auto asset = loadAsset(QByteArray::fromRawData(reinterpret_cast<const char *>(mapping), size),
-                           _continue, _error);
+                           _continue, _error, _triangleTarget);
     if (asset)
         asset->backing = _file;
     else
@@ -539,5 +637,13 @@ const QByteArray &encoded(const Asset &_asset)
 qsizetype storageBytes(const Asset &_asset)
 {
     return _asset.bytesInMemory;
+}
+const QVariantMap &statistics(const Asset &_asset)
+{
+    return _asset.statistics;
+}
+int triangleTarget(const Asset &_asset)
+{
+    return _asset.triangleTarget;
 }
 } // namespace PhotoCrap::Model3D

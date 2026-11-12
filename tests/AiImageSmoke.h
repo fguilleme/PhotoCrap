@@ -27,6 +27,10 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     auto *meshyKey    = _window->findChild<QQuickItem *>("meshyApiKey");
     auto *meshyPrompt = _window->findChild<QQuickItem *>("meshyPrompt");
     auto *meshySubmit = _window->findChild<QQuickItem *>("meshyGenerate");
+    auto *meshyTask   = _window->findChild<QQuickItem *>("meshyTaskId");
+    auto *meshyTabs   = _window->findChild<QQuickItem *>("meshyTabs");
+    auto *meshyLimit  = _window->findChild<QQuickItem *>("meshyLimitTriangles");
+    auto *meshyTarget = _window->findChild<QQuickItem *>("meshyTriangleTarget");
     if (!require(
             meshyAction && meshyDialog && meshySource && meshyKey && meshyPrompt && meshySubmit &&
                 QMetaObject::invokeMethod(meshyAction, "triggered") &&
@@ -44,6 +48,26 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     if (!require(meshyDialog->property("opened").toBool() && meshySubmit->isEnabled() &&
                      meshyPrompt->property("text").toString().contains('\n'),
                  "Return in a Meshy description adds a line"))
+        return false;
+    if (!require(meshyLimit && meshyTarget && !meshyTarget->isVisible(),
+                 "Meshy defaults to the original mesh"))
+        return false;
+    meshyLimit->setProperty("checked", true);
+    if (!require(meshyTarget->isVisible() && meshyTarget->property("value").toInt() == 1000000 &&
+                     meshyTarget->property("to").toInt() == 8000000,
+                 "enabling the triangle target shows its editable value"))
+        return false;
+    if (!require(meshyTabs && meshyTabs->property("count").toInt() == 2,
+                 "Meshy has separate generation and recovery tabs"))
+        return false;
+    meshyTabs->setProperty("currentIndex", 1);
+    if (!require(meshyTask && meshyTask->isVisible() && meshyTarget->isVisible() &&
+                     !meshySubmit->isEnabled(),
+                 "recovering a Meshy task requires an ID"))
+        return false;
+    meshyTask->setProperty("text", "existing-task");
+    if (!require(meshySubmit->isEnabled() && !meshyPrompt->isVisible(),
+                 "a valid task ID enables recovery"))
         return false;
     QMetaObject::invokeMethod(meshyDialog, "reject");
     if (!require(

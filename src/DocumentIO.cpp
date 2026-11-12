@@ -596,11 +596,11 @@ bool Document::loadProject(const QString &_path)
     }
     if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
-    QVector<Layer>      layers;
-    QHash<int, std::shared_ptr<const PhotoCrap::Model3D::Asset>> models;
-    qsizetype                                                    modelBytes = 0;
-    QVariantMap                                                  sceneLight;
-    PreparedPlaneBudget budget;
+    QVector<Layer>                                                           layers;
+    QHash<QPair<int, int>, std::shared_ptr<const PhotoCrap::Model3D::Asset>> models;
+    qsizetype                                                                modelBytes = 0;
+    QVariantMap                                                              sceneLight;
+    PreparedPlaneBudget                                                      budget;
     // Duplicated layers and frequency bands can serialize identical PNGs.
     // Include the native target format: the same PNG used as colour and as a
     // grayscale mask must not share their differently converted pixels.
@@ -760,27 +760,32 @@ bool Document::loadProject(const QString &_path)
         if (kind == "shape" && !PhotoCrap::Shape::normalize(layer.parameters))
             return fail(tr("Calque de forme invalide."));
         if (kind == "model3d") {
-            const auto id = object.value("model3d").toInt(-1);
+            const auto id          = object.value("model3d").toInt(-1);
+            const auto targetValue = object.value("parameters").toObject().value("triangleTarget");
+            const int  target      = targetValue.isUndefined() ? 0 : targetValue.toInt(-1);
             if (id < 0 || !index.archive.isOriginal(id) ||
+                !PhotoCrap::Model3D::validTriangleTarget(target) ||
                 !PhotoCrap::Model3D::normalize(layer.parameters))
                 return fail(tr("Calque 3D invalide."));
             const auto lighting = layer.parameters.value("light3d").toMap();
             if (!sceneLight.isEmpty() && sceneLight != lighting)
                 return fail(tr("Éclairage des calques 3D incohérent."));
             sceneLight = lighting;
-            if (!models.contains(id)) {
+            const QPair<int, int> modelKey{id, target};
+            if (!models.contains(modelKey)) {
                 const auto keepGoing = [this, completed, total] {
                     return operationStep(completed, total);
                 };
-                auto model = PhotoCrap::Model3D::load(index.archive.original(id), keepGoing);
+                auto model = PhotoCrap::Model3D::load(index.archive.original(id), keepGoing,
+                                                      nullptr, target);
                 if (!model)
                     return fail(tr("Modèle 3D de projet invalide."));
                 modelBytes += PhotoCrap::Model3D::storageBytes(*model);
                 if (modelBytes > PhotoCrap::Model3D::MaxSceneBytes)
                     return fail(tr("La limite de mémoire des modèles 3D est atteinte."));
-                models.insert(id, std::move(model));
+                models.insert(modelKey, std::move(model));
             }
-            layer.model3D = models.value(id);
+            layer.model3D = models.value(modelKey);
         } else if (object.contains("model3d")) {
             return fail(tr("Calque 3D invalide."));
         }

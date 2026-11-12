@@ -2,6 +2,7 @@
 #include "Model3DTestImage.h"
 #include "RawTestImage.h"
 #include "model3d/Model3D.h"
+#include "model3d/Model3DPrivate.h"
 #include <QFile>
 #include <QSemaphore>
 #include <QTemporaryDir>
@@ -20,7 +21,86 @@ private slots:
         const auto asset = Model3D::load(bytes, {}, &error);
         QVERIFY2(asset, qPrintable(error));
         QCOMPARE(Model3D::encoded(*asset), bytes);
-        QVERIFY(Model3D::storageBytes(*asset) >= bytes.size() + 200001 * 3 * 4);
+        QCOMPARE(Model3D::storageBytes(*asset) - bytes.size(), 200001 * 12 + 3 * 32 + 4 * 4 * 4);
+        QVERIFY(asset->primitives.first().vertexColors.isEmpty());
+
+        const auto coloredBytes = Model3DTest::modelFixture(Model3DTest::Pose::Original, 1, true);
+        const auto colored      = Model3D::load(coloredBytes, {}, &error);
+        QVERIFY2(colored, qPrintable(error));
+        QCOMPARE(colored->primitives.first().vertexColors.last(), QVector4D(.5f, .25f, 1.f, .5f));
+        QCOMPARE(Model3D::storageBytes(*colored) - coloredBytes.size(), 12 + 3 * 48 + 4 * 4 * 4);
+    }
+
+    void denseModelPreviewPreservesTexturedGeometry()
+    {
+        namespace Model3D        = PhotoCrap::Model3D;
+        const auto         asset = std::make_shared<Model3D::Asset>();
+        Model3D::Primitive surface;
+        surface.material.unlit     = true;
+        surface.material.alphaMask = true;
+        surface.material.texture   = QImage(256, 256, QImage::Format_ARGB32);
+        for (int y = 0; y < 256; ++y)
+            for (int x = 0; x < 256; ++x) {
+                const QRgb color = ((x / 4) ^ (y / 4)) & 1 ? qRgb(232, 80, 40) : qRgb(40, 144, 216);
+                surface.material.texture.setPixel(x, y, (x > 100 && x < 156) ? 0 : color);
+            }
+        constexpr int cells  = 320;
+        constexpr int stride = cells + 1;
+        for (int y = 0; y <= cells; ++y)
+            for (int x = 0; x <= cells; ++x) {
+                const float     u = float(x) / cells, v = float(y) / cells;
+                const float     px = u - .5f, py = v - .5f;
+                Model3D::Vertex vertex;
+                vertex.position = {px * .65f, py * .65f, .4f * (px * px + py * py)};
+                vertex.uv       = {u, v};
+                surface.vertices.append(vertex);
+            }
+        for (quint32 y = 0; y < cells; ++y)
+            for (quint32 x = 0; x < cells; ++x) {
+                const auto topLeft = y * stride + x;
+                surface.triangles.append({topLeft, topLeft + 1, topLeft + stride});
+                surface.triangles.append({topLeft + 1, topLeft + stride + 1, topLeft + stride});
+            }
+        asset->primitives.append(std::move(surface));
+        Model3D::Primitive backing;
+        backing.material.unlit = true;
+        backing.material.color = {1.f, .8f, 0.f, 1.f};
+        for (const auto &corner : {QVector3D(-.25f, -.25f, -.1f), QVector3D(.25f, -.25f, -.1f),
+                                   QVector3D(-.25f, .25f, -.1f), QVector3D(.25f, .25f, -.1f)}) {
+            Model3D::Vertex vertex;
+            vertex.position = corner;
+            backing.vertices.append(vertex);
+        }
+        backing.triangles = {{0, 1, 2}, {1, 3, 2}};
+        backing.vertexColors = {{1, .7f, 1, 1}, {.4f, 1, 1, 1}, {.8f, .5f, 1, 1}, {1, 1, 1, 1}};
+        asset->primitives.append(std::move(backing));
+        const QSize canvas(456, 684);
+        const QRect bounds(QPoint{}, canvas);
+        const auto  format = QImage::Format_ARGB32_Premultiplied;
+        auto        pose   = Model3D::pose(canvas);
+        pose["yaw"]        = 30.;
+        const QVariantMap params{{"pose3d", pose}, {"light3d", Model3D::light()}};
+        const auto reference = Model3D::render(*asset, params, canvas, format).region(bounds);
+        const auto preview   = Model3D::renderPreview(asset, params, canvas, format).region(bounds);
+        QVERIFY(!reference.isNull() && !preview.isNull());
+        int visible = 0, different = 0;
+        for (int y = 0; y < canvas.height(); ++y) {
+            const auto *expected = reinterpret_cast<const QRgb *>(reference.constScanLine(y));
+            const auto *actual   = reinterpret_cast<const QRgb *>(preview.constScanLine(y));
+            for (int x = 0; x < canvas.width(); ++x) {
+                if (!qAlpha(expected[x]) && !qAlpha(actual[x]))
+                    continue;
+                ++visible;
+                if (qAlpha(expected[x]) != qAlpha(actual[x]) ||
+                    qAbs(qRed(expected[x]) - qRed(actual[x])) > 2 ||
+                    qAbs(qGreen(expected[x]) - qGreen(actual[x])) > 2 ||
+                    qAbs(qBlue(expected[x]) - qBlue(actual[x])) > 2)
+                    ++different;
+            }
+        }
+        QVERIFY(visible > 10000);
+        QVERIFY2(different < visible / 100,
+                 qPrintable(QString("%1 mismatched pixels out of %2").arg(different).arg(visible)));
     }
 
     void large3DRenderMatchesNativeCropAcrossBands()

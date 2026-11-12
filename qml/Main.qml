@@ -2684,11 +2684,12 @@ ApplicationWindow {
                                     zoomAt(zoom*Math.pow(1.15,steps),viewportPoint.x,viewportPoint.y)
                                 } else if(wheel.modifiers&Qt.ShiftModifier) {
                                     panCanvas(-(vertical!==0?vertical:horizontal),0)
-                                } else {
-                                    const point = artboard.mapFromItem(viewport, viewportPoint.x, viewportPoint.y)
+                                } else if (model3dControls.wheelActive) {
                                     const steps = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y / 120 : vertical / 40
-                                    if (steps === 0 || !model3dControls.contains(point) || !model3dControls.scaleBy(steps))
-                                        panCanvas(-horizontal,-vertical)
+                                    if (steps !== 0)
+                                        model3dControls.scaleBy(steps)
+                                } else {
+                                    panCanvas(-horizontal,-vertical)
                                 }
                                 wheel.accepted=true
                             }
@@ -3027,12 +3028,15 @@ ApplicationWindow {
                                 objectName: "model3dCanvasControls"
                                 anchors.fill: parent
                                 z: 40
-                                enabled: window.activeInfo.kind === "model3d" && window.activeInfo.visible
-                                         && !window.activeInfo.locked && !window.activeInfo.editingMask
-                                         && !window.modalOpen && !window.spacePressed && !window.editingText
-                                         && (!window.activeInfo.groupId || !editor.layers.some(layer =>
-                                             layer.kind === "group" && layer.groupId === window.activeInfo.groupId
-                                             && (layer.locked || !layer.visible)))
+                                // Keep the wheel reserved for the model while its render is pending.
+                                readonly property bool wheelActive: window.activeInfo.kind === "model3d"
+                                    && window.activeInfo.visible && !window.activeInfo.locked
+                                    && !window.activeInfo.editingMask && !window.spacePressed && !window.editingText
+                                    && (!window.modalOpen || editor.operationBusy)
+                                    && (!window.activeInfo.groupId || !editor.layers.some(layer =>
+                                        layer.kind === "group" && layer.groupId === window.activeInfo.groupId
+                                        && (layer.locked || !layer.visible)))
+                                enabled: wheelActive && !window.modalOpen
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: enabled
                                 preventStealing: true
@@ -3082,17 +3086,14 @@ ApplicationWindow {
                                     return true
                                 }
                                 function scaleBy(steps) {
-                                    if (!enabled)
-                                        return false
-                                    if (pressed || (gesture && gesture.kind !== "scale"))
-                                        return true
+                                    if (!enabled || pressed || (gesture && gesture.kind !== "scale"))
+                                        return
                                     if (!gesture && !startGesture("scale", 0, 0))
-                                        return true
+                                        return
                                     const pose = Object.assign({}, gesture.pose || gesture.initial)
                                     pose.scale = Math.max(1, Math.min(1000, pose.scale * Math.pow(1.15, steps)))
                                     preview(pose)
                                     wheelCommit.restart()
-                                    return true
                                 }
                                 Timer {
                                     id: wheelCommit

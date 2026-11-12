@@ -1173,7 +1173,8 @@ public:
     bool             importModel3DData(const QByteArray &_bytes, const QString &_name,
                                        const QRectF &_reference = {});
     bool importDownloadedModel3D(std::shared_ptr<QTemporaryFile> _file, const QString &_name,
-                                 const QRectF &_reference);
+                                 const QRectF &_reference, int _triangleTarget = 0);
+    QVariantMap model3DStatistics(int _index) const;
     Q_INVOKABLE void previewModel3D(int _index, const QVariantMap &_pose,
                                     const QVariantMap &_light);
     Q_INVOKABLE void cancelModel3DPreview();

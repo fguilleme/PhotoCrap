@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QtEndian>
 #include <bit>
+#include <utility>
 
 namespace Model3DTest
 {
@@ -16,9 +17,28 @@ inline void appendWord(QByteArray &_bytes, quint32 _value)
     _bytes.append(reinterpret_cast<const char *>(&value), sizeof(value));
 }
 
+inline QByteArray packGlb(QJsonObject _root, const QByteArray &_binary)
+{
+    _root["buffers"] = QJsonArray{QJsonObject{{"byteLength", _binary.size()}}};
+    auto json        = QJsonDocument(_root).toJson(QJsonDocument::Compact);
+    while (json.size() % 4)
+        json.append(' ');
+    QByteArray glb("glTF");
+    appendWord(glb, 2);
+    appendWord(glb, 28 + json.size() + _binary.size());
+    appendWord(glb, json.size());
+    glb += "JSON";
+    glb += json;
+    appendWord(glb, _binary.size());
+    glb.append("BIN\0", 4);
+    glb += _binary;
+    return glb;
+}
+
 enum class Pose { Original, Skinned, Deformed };
 
-inline QByteArray modelFixture(Pose _pose = Pose::Original, int _faceCount = 1)
+inline QByteArray modelFixture(Pose _pose = Pose::Original, int _faceCount = 1,
+                               bool _vertexColors = false)
 {
     QByteArray  binary;
     const float thirdX = _pose == Pose::Deformed ? -.5f : -.75f;
@@ -100,20 +120,78 @@ inline QByteArray modelFixture(Pose _pose = Pose::Original, int _faceCount = 1)
         while (binary.size() % 4)
             binary.append('\0');
     }
+    if (_vertexColors) {
+        auto mesh             = root["meshes"].toArray().first().toObject();
+        auto primitive        = mesh["primitives"].toArray().first().toObject();
+        auto attributes       = primitive["attributes"].toObject();
+        auto accessors        = root["accessors"].toArray();
+        attributes["COLOR_0"] = accessors.size();
+        accessors.append(QJsonObject{
+            {"bufferView", views.size()}, {"componentType", 5126}, {"count", 3}, {"type", "VEC4"}});
+        primitive["attributes"] = attributes;
+        mesh["primitives"]      = QJsonArray{primitive};
+        root["meshes"]          = QJsonArray{mesh};
+        root["accessors"]       = accessors;
+        views.append(QJsonObject{{"buffer", 0}, {"byteOffset", binary.size()}, {"byteLength", 48}});
+        for (float v : {1.f, .5f, .25f, 1.f, .25f, 1.f, .5f, 1.f, .5f, .25f, 1.f, .5f})
+            appendWord(binary, std::bit_cast<quint32>(v));
+    }
     root["bufferViews"] = views;
-    root["buffers"]     = QJsonArray{QJsonObject{{"byteLength", binary.size()}}};
-    auto json           = QJsonDocument(root).toJson(QJsonDocument::Compact);
-    while (json.size() % 4)
-        json.append(' ');
-    QByteArray glb("glTF");
-    appendWord(glb, 2);
-    appendWord(glb, 28 + json.size() + binary.size());
-    appendWord(glb, json.size());
-    glb += "JSON";
-    glb += json;
-    appendWord(glb, binary.size());
-    glb.append("BIN\0", 4);
-    glb += binary;
-    return glb;
+    return packGlb(std::move(root), binary);
+}
+
+inline QByteArray denseGrid(int _cells)
+{
+    const auto fixture = modelFixture();
+    if (fixture.isEmpty())
+        return {};
+    const auto jsonSize = qFromLittleEndian<quint32>(fixture.constData() + 12);
+    auto       root     = QJsonDocument::fromJson(fixture.mid(20, jsonSize)).object();
+    const auto texture  = root["bufferViews"].toArray().at(2).toObject();
+    QByteArray binary =
+        fixture.mid(28 + jsonSize + texture["byteOffset"].toInt(), texture["byteLength"].toInt());
+    while (binary.size() % 4)
+        binary.append('\0');
+    const auto vertexStart = binary.size();
+    for (int y = 0; y <= _cells; ++y)
+        for (int x = 0; x <= _cells; ++x) {
+            const float u = float(x) / _cells, v = float(y) / _cells;
+            const float a = u - .5f, b = v - .5f;
+            for (const float value : {a, b, .25f * (a * a + b * b), u, v})
+                appendWord(binary, std::bit_cast<quint32>(value));
+        }
+    const auto indexStart = binary.size();
+    for (int y = 0; y < _cells; ++y)
+        for (int x = 0; x < _cells; ++x) {
+            const int i = y * (_cells + 1) + x;
+            for (const int index :
+                 {i, i + 1, i + _cells + 1, i + 1, i + _cells + 2, i + _cells + 1})
+                appendWord(binary, index);
+        }
+    const int vertices = (_cells + 1) * (_cells + 1);
+    root["meshes"]     = QJsonDocument::fromJson(R"([{"primitives":[{
+        "attributes":{"POSITION":0,"TEXCOORD_0":1},"indices":2,"material":0}]}])")
+                         .array();
+    root["accessors"] = QJsonArray{
+        QJsonObject{
+            {"bufferView", 0}, {"componentType", 5126}, {"count", vertices}, {"type", "VEC3"}},
+        QJsonObject{{"bufferView", 0},
+                    {"byteOffset", 12},
+                    {"componentType", 5126},
+                    {"count", vertices},
+                    {"type", "VEC2"}},
+        QJsonObject{{"bufferView", 1},
+                    {"componentType", 5125},
+                    {"count", _cells * _cells * 6},
+                    {"type", "SCALAR"}}};
+    root["bufferViews"] = QJsonArray{
+        QJsonObject{{"buffer", 0},
+                    {"byteOffset", vertexStart},
+                    {"byteLength", indexStart - vertexStart},
+                    {"byteStride", 20}},
+        QJsonObject{
+            {"buffer", 0}, {"byteOffset", indexStart}, {"byteLength", binary.size() - indexStart}},
+        QJsonObject{{"buffer", 0}, {"byteLength", texture["byteLength"]}}};
+    return packGlb(std::move(root), binary);
 }
 } // namespace Model3DTest

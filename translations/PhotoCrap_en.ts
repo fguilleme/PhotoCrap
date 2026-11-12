@@ -6366,7 +6366,7 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>Model3D</name>
-    <message><source>Le modèle 3D dépasse la limite de mémoire.</source><translation>The 3D model exceeds the memory limit.</translation></message>
+    <message><source>Le modèle 3D nécessite %L1 Mio de mémoire décodée (limite %L2 Mio).</source><translation>The 3D model requires %L1 MiB of decoded memory (limit %L2 MiB).</translation></message>
     <message><source>Le GLB doit contenir des triangles non compressés.</source><translation>The GLB must contain uncompressed triangles.</translation></message>
     <message><source>Un matériau ou une texture du GLB n’est pas pris en charge. Les textures de couleur doivent être intégrées en PNG ou JPEG, avec un maximum de 4 096 px par côté.</source><translation>The GLB uses an unsupported material or texture. Color textures must be embedded PNG or JPEG files, with at most 4,096 pixels per side.</translation></message>
     <message><source>Le GLB dépasse la limite de %L1 sommets ou %L2 triangles.</source><translation>The GLB exceeds the limit of %L1 vertices or %L2 triangles.</translation></message>
@@ -6379,7 +6379,13 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Impossible de créer le fichier temporaire du modèle 3D.</source><translation>Unable to create the temporary 3D model file.</translation></message>
     <message><source>Impossible d’écrire le modèle 3D sur le disque.</source><translation>Unable to write the 3D model to disk.</translation></message>
     <message><source>Le GLB téléchargé dépasse %L1 Mio.</source><translation>The downloaded GLB exceeds %L1 MiB.</translation></message>
-    <message><source>Le délai d’attente du résultat Meshy est dépassé.</source><translation>Timed out waiting for the Meshy result.</translation></message>
+    <message><source>Meshy n’a pas terminé après une heure. Vous pouvez reprendre le suivi.</source><translation>Meshy is still processing after one hour. You can resume tracking.</translation></message>
+    <message><source>Recherche de la tâche Meshy…</source><translation>Looking up the Meshy task…</translation></message>
+    <message><source>Tâche Meshy en file d’attente…</source><translation>Meshy task queued…</translation></message>
+    <message><source>Génération Meshy en cours…</source><translation>Meshy generation in progress…</translation></message>
+    <message><source>Connexion Meshy interrompue. Nouvelle vérification prévue…</source><translation>Meshy connection interrupted. Will check again…</translation></message>
+    <message><source>Téléchargement du GLB interrompu. Vous pouvez reprendre le suivi.</source><translation>GLB download interrupted. You can resume tracking.</translation></message>
+    <message><source>Tâche Meshy introuvable ou expirée.</source><translation>Meshy task not found or expired.</translation></message>
     <message><source>Calque 3D Meshy ajouté.</source><translation>Meshy 3D layer added.</translation></message>
     <message><source>L’importation du modèle Meshy a été interrompue.</source><translation>The Meshy model import was interrupted.</translation></message>
     <message><source>Meshy — %1</source><translation>Meshy — %1</translation></message>
@@ -6411,15 +6417,24 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>MeshyDialog</name>
+    <message><source>Calque 3D · Meshy</source><translation>3D Layer · Meshy</translation></message>
+    <message><source>Type de tâche</source><translation>Task Type</translation></message>
+    <message><source>Image</source><translation>Image</translation></message>
+    <message><source>Texte</source><translation>Text</translation></message>
+    <message><source>Maillage</source><translation>Mesh</translation></message>
+    <message><source>Réduire le maillage à l’import</source><translation>Reduce Mesh on Import</translation></message>
+    <message><source>Triangles cibles</source><translation>Target Triangles</translation></message>
+    <message><source>PhotoCrap vise ce nombre de triangles et préserve les détails fins. Le GLB source reste dans le projet.</source><translation>PhotoCrap aims for this triangle count while preserving fine detail. The source GLB stays in the project.</translation></message>
+    <message><source>La génération et la texture utilisent des crédits Meshy.</source><translation>Generation and texturing use Meshy credits.</translation></message>
+    <message><source>Identifiant de la tâche Meshy</source><translation>Meshy Task ID</translation></message>
+    <message><source>Récupère le résultat d’une tâche déjà lancée sur le même compte Meshy.</source><translation>Retrieve a task already started on the same Meshy account.</translation></message>
+    <message><source>Récupérer</source><translation>Retrieve</translation></message>
     <message><source>Géométrie Ultra 4K (+5 crédits Meshy)</source><translation>Ultra 4K Geometry (+5 Meshy credits)</translation></message>
-    <message><source>Générer un calque 3D avec Meshy</source><translation>Generate a 3D Layer with Meshy</translation></message>
     <message><source>Source</source><translation>Source</translation></message>
     <message><source>Description</source><translation>Description</translation></message>
     <message><source>Image du document</source><translation>Document Image</translation></message>
     <message><source>Sélection</source><translation>Selection</translation></message>
     <message><source>Décrivez l’objet à générer</source><translation>Describe the object to generate</translation></message>
-    <message><source>La description sera envoyée à Meshy pour générer puis texturer le modèle. Ces étapes utilisent des crédits Meshy.</source><translation>Meshy receives the description to generate and texture the model. These steps use Meshy credits.</translation></message>
-    <message><source>L’image choisie sera envoyée à Meshy pour générer et texturer le modèle. Cette opération utilise des crédits Meshy.</source><translation>Meshy receives the selected image to generate and texture the model. This uses Meshy credits.</translation></message>
     <message><source>Clé API Meshy</source><translation>Meshy API Key</translation></message>
     <message><source>Clé fournie par MESHY_API_KEY</source><translation>Key provided by MESHY_API_KEY</translation></message>
     <message><source>Clé du trousseau · saisir pour la remplacer</source><translation>Key stored in keychain · type to replace</translation></message>
@@ -6430,6 +6445,12 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>MeshyProgress</name>
+    <message><source>%1 triangles · %2 sommets · GLB source %3</source><translation>%1 triangles · %2 vertices · Source GLB %3</translation></message>
+    <message><source>Modèle décodé %1</source><translation>Decoded model %1</translation></message>
+    <message><source>Source %1 triangles · objectif %2</source><translation>Source %1 triangles · Target %2</translation></message>
+    <message><source>Texture %1 × %2 px · %3</source><translation>Texture %1 × %2 px · %3</translation></message>
+    <message><source>Texture %1 × %2 px · %3 · chargée en %4 × %5 px</source><translation>Texture %1 × %2 px · %3 · Loaded at %4 × %5 px</translation></message>
+    <message><source>Reprendre le suivi</source><translation>Resume Tracking</translation></message>
     <message><source>Meshy · Calque 3D</source><translation>Meshy · 3D Layer</translation></message>
     <message><source>Arrêter le suivi</source><translation>Stop Tracking</translation></message>
     <message><source>Fermer</source><translation>Close</translation></message>

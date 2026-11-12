@@ -31,8 +31,6 @@ QTransform placement(const QVariantMap &_pose)
             basis[3].toDouble(), _pose.value("x").toDouble(), _pose.value("y").toDouble()};
 }
 
-constexpr float CameraDistance = 3.f;
-
 float inverseDepth(const QVector3D &_position)
 {
     return 1.f / (CameraDistance - _position.z());
@@ -99,14 +97,25 @@ float sRgb(float _value)
 struct Projected {
     QPointF   pixel;
     QVector3D position, normal;
-    QVector2D uv;
-    QVector4D color;
     float     inverseZ;
 };
-struct Lighting {
-    QVector3D direction, color;
-    float     ambient, intensity;
-};
+RenderView renderView(const QVariantMap &parameters)
+{
+    const auto p = parameters["pose3d"].toMap(), l = parameters["light3d"].toMap();
+    const auto rotation =
+        QQuaternion::fromEulerAngles(p["pitch"].toFloat(), p["yaw"].toFloat(), p["roll"].toFloat());
+    const float  azimuth   = qDegreesToRadians(l["azimuth"].toFloat());
+    const float  elevation = qDegreesToRadians(l["elevation"].toFloat());
+    const QColor lightColor(l["color"].toString());
+    return {rotation,
+            placement(p),
+            {std::sin(azimuth) * std::cos(elevation), std::sin(elevation),
+             std::cos(azimuth) * std::cos(elevation)},
+            {linear(lightColor.red()), linear(lightColor.green()), linear(lightColor.blue())},
+            p["scale"].toFloat() / 100.f,
+            l["ambient"].toFloat() / 100.f,
+            l["intensity"].toFloat() / 100.f};
+}
 } // namespace
 
 QVariantMap pose(const QSize &_canvas)
@@ -206,20 +215,8 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
     auto parameters = _parameters;
     if (!normalize(parameters) || _canvas.isEmpty() || (_continue && !_continue()))
         return {};
-    const auto p = parameters["pose3d"].toMap(), l = parameters["light3d"].toMap();
-    const auto rotation =
-        QQuaternion::fromEulerAngles(p["pitch"].toFloat(), p["yaw"].toFloat(), p["roll"].toFloat());
-    const auto     map       = placement(p);
-    const float    scale     = p["scale"].toFloat() / 100.f;
-    const float    azimuth   = qDegreesToRadians(l["azimuth"].toFloat());
-    const float    elevation = qDegreesToRadians(l["elevation"].toFloat());
-    const QColor   lightColor(l["color"].toString());
-    const Lighting lighting{
-        {std::sin(azimuth) * std::cos(elevation), std::sin(elevation),
-         std::cos(azimuth) * std::cos(elevation)},
-        {linear(lightColor.red()), linear(lightColor.green()), linear(lightColor.blue())},
-        l["ambient"].toFloat() / 100.f,
-        l["intensity"].toFloat() / 100.f};
+    const auto  view = renderView(parameters);
+    const auto &map  = view.placement;
     // The common camera looks along -Z. Each layer is rendered into its own
     // transparent region and then participates in the document's 2D stack.
     Bounds                      bounds;
@@ -229,12 +226,14 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
         QVector<Projected> vertices;
         vertices.reserve(primitive.vertices.size());
         for (const auto &vertex : primitive.vertices) {
-            const auto  position = rotation.rotatedVector(vertex.position);
+            if (vertices.size() % 4096 == 0 && _continue && !_continue())
+                return {};
+            const auto  position = view.rotation.rotatedVector(vertex.position);
             const float inverseZ = inverseDepth(position);
-            const auto  pixel    = map.map(project(position, inverseZ, scale));
+            const auto  pixel    = map.map(project(position, inverseZ, view.scale));
             bounds.add(pixel);
-            vertices.append(Projected{pixel, position, rotation.rotatedVector(vertex.normal),
-                                      vertex.uv, vertex.color, inverseZ});
+            vertices.append(
+                Projected{pixel, position, view.rotation.rotatedVector(vertex.normal), inverseZ});
         }
         projected.append(std::move(vertices));
     }
@@ -251,8 +250,9 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
     const int   rowsPerBand = qMax(1, MaxBandPixels / width);
     const QRect area(0, 0, width, height);
     struct Triangle {
-        const Projected *a, *b, *c;
+        const Projected *vertices;
         const Primitive *primitive;
+        const Face *     indices;
         QRect            region;
         float            signedArea;
         bool             front;
@@ -263,10 +263,11 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
     qint64                samples = 0, visited = 0;
     const qint64          sampleLimit = qMax(160'000'000LL, 16LL * width * height);
     for (qsizetype i = 0; i < _asset.primitives.size(); ++i) {
-        const auto &primitive = _asset.primitives[i];
-        auto       &vertices  = projected[i];
-        for (auto &v : vertices)
+        const auto &primitive  = _asset.primitives[i];
+        auto &      projection = projected[i];
+        for (auto &v : projection)
             v.pixel -= nativeBounds.topLeft();
+        const auto *vertices = projection.constData();
         for (const auto &indices : primitive.triangles) {
             if (++visited % 128 == 0 && _continue && !_continue())
                 return {};
@@ -290,7 +291,7 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
             for (int band = region.top() / rowsPerBand; band <= region.bottom() / rowsPerBand;
                  ++band)
                 bands[band].append(int(triangles.size()));
-            triangles.append({&a, &b, &c, &primitive, region, signedArea, front});
+            triangles.append({vertices, &primitive, &indices, region, signedArea, front});
         }
     }
     for (qsizetype band = 0; band < bands.size(); ++band) {
@@ -309,10 +310,15 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
             if (++visited % 128 == 0 && _continue && !_continue())
                 return {};
             const auto &triangle = triangles[index];
-            const auto &a = *triangle.a, &b = *triangle.b, &c = *triangle.c;
+            const auto [i, j, k] = *triangle.indices;
+            const auto *vertices = triangle.vertices;
+            const auto &a = vertices[i], &b = vertices[j], &c = vertices[k];
             const auto &primitive = *triangle.primitive;
             const auto &material  = primitive.material;
-            const auto  region    = triangle.region.intersected(bandArea);
+            const auto *source    = primitive.vertices.constData();
+            const auto *colors =
+                primitive.vertexColors.isEmpty() ? nullptr : primitive.vertexColors.constData();
+            const auto  region = triangle.region.intersected(bandArea);
             const auto  flat =
                 QVector3D::crossProduct(b.position - a.position, c.position - a.position)
                     .normalized();
@@ -338,7 +344,7 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                     w /= inverseZ;
                     QRgb texel = qRgb(255, 255, 255);
                     if (textured) {
-                        const auto uv = u * a.uv + v * b.uv + w * c.uv;
+                        const auto uv = u * source[i].uv + v * source[j].uv + w * source[k].uv;
                         const int  tx =
                             qMin(material.texture.width() - 1,
                                  int(wrapped(uv.x(), material.u) * material.texture.width()));
@@ -349,9 +355,8 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                             reinterpret_cast<const QRgb *>(material.texture.constScanLine(ty))[tx];
                     }
                     const auto base =
-                        primitive.vertexColors
-                            ? material.color * (u * a.color + v * b.color + w * c.color)
-                            : material.color;
+                        colors ? material.color * (u * colors[i] + v * colors[j] + w * colors[k])
+                               : material.color;
                     if (material.alphaMask &&
                         qAlpha(texel) / 255.f * base.w() < material.alphaCutoff)
                         continue;
@@ -361,15 +366,15 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                     const float diffuse =
                         material.unlit
                             ? 0.f
-                            : lighting.intensity *
-                                  qMax(0.f, QVector3D::dotProduct(normal, lighting.direction));
-                    const float ambient = material.unlit ? 1.f : lighting.ambient;
+                            : view.intensity *
+                                  qMax(0.f, QVector3D::dotProduct(normal, view.lightDirection));
+                    const float ambient = material.unlit ? 1.f : view.ambient;
                     const float red     = sRgb(base.x() * linear(qRed(texel)) *
-                                               (ambient + diffuse * lighting.color.x()));
+                                           (ambient + diffuse * view.lightColor.x()));
                     const float green   = sRgb(base.y() * linear(qGreen(texel)) *
-                                               (ambient + diffuse * lighting.color.y()));
+                                             (ambient + diffuse * view.lightColor.y()));
                     const float blue    = sRgb(base.z() * linear(qBlue(texel)) *
-                                               (ambient + diffuse * lighting.color.z()));
+                                            (ambient + diffuse * view.lightColor.z()));
                     if (deep)
                         reinterpret_cast<QRgba64 *>(pixels)[x] =
                             QRgba64::fromRgba64(qRound(65535.f * red), qRound(65535.f * green),
@@ -385,5 +390,19 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
             return {};
     }
     return _continue && !_continue() ? PixelPlane{} : plane;
+}
+PixelPlane renderPreview(const std::shared_ptr<const Asset> &_asset, const QVariantMap &_parameters,
+                         const QSize &_canvas, QImage::Format _format)
+{
+#ifdef Q_OS_MACOS
+    auto parameters = _parameters;
+    if (_format == QImage::Format_ARGB32_Premultiplied && !_canvas.isEmpty() &&
+        normalize(parameters)) {
+        auto image = renderMetalPreview(_asset, renderView(parameters), _canvas);
+        if (!image.isNull())
+            return image;
+    }
+#endif
+    return render(*_asset, _parameters, _canvas, _format);
 }
 } // namespace PhotoCrap::Model3D

@@ -4,7 +4,7 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.23.0 — 12 novembre 2026
+## v0.23.1 — 12 novembre 2026
 
 - Calques 3D éditables à partir de fichiers GLB, avec pose par calque, éclairage
   commun, manipulation sur le canevas et conservation du modèle dans le projet.
@@ -16,6 +16,8 @@ Un [résumé en anglais](README.en.md) est également disponible.
   base. PhotoCrap réessaie une connexion initiale inaccessible avant l’envoi
   de la demande et réessaie une erreur d’authentification du trousseau macOS.
   [Guide IA](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
+- Stabilisation des tests de reconnexion Qwen, de rendu des calques et
+  de navigation au clavier observés sur le runner macOS.
 
 ## v0.22.0 — 11 novembre 2026
 

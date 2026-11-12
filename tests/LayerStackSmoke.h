@@ -372,6 +372,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
             document.endStroke();
             document.setEditingMask(false);
             document.addAdjustmentLayer("invert");
+            if (!require(waitForCommittedPreview(document),
+                         "the committed channel preview reaches its native reference"))
+                return false;
             const auto stack = document.gpuLayerStack();
             if (!require(stack.valid && !stack.layers.last().toneTable.isNull(),
                          "native channel adjustments stay in the GPU stack"))

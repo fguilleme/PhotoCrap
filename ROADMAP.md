@@ -1,11 +1,11 @@
 # Roadmap PhotoCrap
 
-État au **12 novembre 2026**. **v0.23.0** ajoute les calques 3D éditables,
+État au **12 novembre 2026**. **v0.23.1** ajoute les calques 3D éditables,
 la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
-## Livraison de v0.23.0
+## Livraison de v0.23.1
 
 - [x] Import GLB et calques 3D éditables, avec pose, éclairage, manipulation
   sur le canevas, aperçu Metal et persistance dans les projets PCR.

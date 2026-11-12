@@ -807,6 +807,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
         QMetaObject::invokeMethod(preferences, "close");
         QTest::qWait(80);
     }
+    _workspaceSettings.setSpringLoadedTools(false);
     QMetaObject::invokeMethod(_window, "activateGroupTool", Q_ARG(QVariant, "shape"),
                               Q_ARG(QVariant, "ellipse"));
     QTest::qWait(40);
@@ -830,6 +831,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                  "tool cycling without Shift follows the preference"))
         return false;
     _workspaceSettings.setUseShiftToCycleTools(true);
+    _workspaceSettings.setSpringLoadedTools(true);
     QTest::keyClick(_window, Qt::Key_B);
     QTest::keyPress(_window, Qt::Key_E);
     QTest::qWait(250);

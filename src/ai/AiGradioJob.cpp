@@ -53,7 +53,7 @@ QByteArray AiImageJob::authorization() const
 void AiImageJob::startGradio()
 {
     m_gradioReconnects = 0;
-    m_network.clearConnectionCache();
+    m_network->clearConnectionCache();
     auto options =
         QJsonDocument::fromJson(m_provider.value("options", "{}").toString().toUtf8()).object();
     const auto error = AiSettings::gradioOptionsError(options.toVariantMap());
@@ -103,7 +103,7 @@ void AiImageJob::submitGradio(const QUrl &url, const QByteArray &body, bool allo
             QTimer::singleShot(750, this, [this, generation, url, body] {
                 if (!m_running || generation != m_generation)
                     return;
-                m_network.clearConnectionCache();
+                m_network->clearConnectionCache();
                 submitGradio(url, body, false);
             });
             return true;
@@ -222,7 +222,7 @@ bool AiImageJob::retryGradioStream(const QString &eventId)
         return false;
     const int  delay      = 500 * (1 << m_gradioReconnects++);
     const auto generation = m_generation;
-    m_network.clearConnectionCache();
+    m_network->clearConnectionCache();
     emit status(
         tr("Connexion Qwen interrompue — reprise de la lecture (%1/3)…").arg(m_gradioReconnects));
     QTimer::singleShot(delay, this, [this, eventId, generation] {

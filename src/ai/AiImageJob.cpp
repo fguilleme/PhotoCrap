@@ -112,7 +112,9 @@ QJsonValue substitute(const QJsonValue &_value, const QJsonObject &_values)
     return _value;
 }
 } // namespace
-AiImageJob::AiImageJob(QObject *_parent) : QObject(_parent)
+AiImageJob::AiImageJob(QObject *_parent, std::unique_ptr<QNetworkAccessManager> _network)
+    : QObject(_parent),
+      m_network(_network ? std::move(_network) : std::make_unique<QNetworkAccessManager>())
 {
     m_poll.setSingleShot(true);
     m_poll.setInterval(1000);
@@ -206,10 +208,10 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
     if (_method == "POST" && m_provider.value("kind") == "gradio") {
         auto *upload = new GradioUpload(_body);
         request.setHeader(QNetworkRequest::ContentLengthHeader, _body.size());
-        reply = m_network.sendCustomRequest(request, _method, upload);
+        reply = m_network->sendCustomRequest(request, _method, upload);
         upload->setParent(reply);
     } else {
-        reply = m_network.sendCustomRequest(request, _method, _body);
+        reply = m_network->sendCustomRequest(request, _method, _body);
     }
     m_reply               = reply;
     const auto generation = m_generation;
@@ -582,7 +584,7 @@ void AiImageJob::cancel()
         if (!m_key.isEmpty())
             request.setRawHeader("Authorization", (fal ? "Key " : "Bearer ") + m_key.toUtf8());
         request.setRawHeader("Content-Type", "application/json");
-        auto *reply = m_network.sendCustomRequest(
+        auto *reply = m_network->sendCustomRequest(
             request, fal ? "PUT" : "POST",
             fal ? QByteArray{}
                 : QJsonDocument(QJsonObject{{"delete", QJsonArray{jobId}}})

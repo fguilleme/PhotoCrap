@@ -11,7 +11,8 @@ class AiImageJob final : public QObject
 {
     Q_OBJECT
 public:
-    explicit AiImageJob(QObject *_parent = nullptr);
+    explicit AiImageJob(QObject *_parent = nullptr,
+                        std::unique_ptr<QNetworkAccessManager> _network = {});
     void start(const QVariantMap &_provider, const QString &_key, const QString &_prompt,
                const PhotoCrap::Ai::Input &_input);
     void cancel();
@@ -49,7 +50,7 @@ private:
     QUrl endpoint(const QString &_path) const;
     bool sameOrigin(const QUrl &_url) const;
     bool acceptQueueUrl(const QUrl &_url) const;
-    QNetworkAccessManager   m_network;
+    std::unique_ptr<QNetworkAccessManager> m_network;
     QPointer<QNetworkReply> m_reply;
     QTimer                  m_poll, m_deadline;
     QVariantMap             m_provider;

@@ -55,6 +55,47 @@ struct Response {
     bool              keepOpen = false;
     bool              silent = false, drop = false;
 };
+class UnreachableReply final : public QNetworkReply
+{
+public:
+    UnreachableReply(const QNetworkRequest &request, QObject *parent) : QNetworkReply(parent)
+    {
+        setRequest(request);
+        setUrl(request.url());
+        open(ReadOnly);
+        QTimer::singleShot(0, this, [this] {
+            setError(UnknownNetworkError, "Host unreachable");
+            setFinished(true);
+            emit errorOccurred(error());
+            emit finished();
+        });
+    }
+    void abort() override
+    {
+        setFinished(true);
+    }
+
+protected:
+    qint64 readData(char *, qint64) override
+    {
+        return -1;
+    }
+};
+class InitiallyUnreachableNetwork final : public QNetworkAccessManager
+{
+    bool m_first = true;
+
+protected:
+    QNetworkReply *createRequest(Operation op, const QNetworkRequest &request,
+                                 QIODevice *outgoingData) override
+    {
+        if (m_first) {
+            m_first = false;
+            return new UnreachableReply(request, this);
+        }
+        return QNetworkAccessManager::createRequest(op, request, outgoingData);
+    }
+};
 class Server : public QTcpServer
 {
 public:
@@ -626,21 +667,17 @@ private slots:
     {
         AiSettings settings(nullptr, false);
         Server     server;
-        const auto provider = profile(settings, server);
-        const auto port     = server.serverPort();
-        QVERIFY(port != 0);
-        server.close();
+        QVERIFY(server.isListening());
         server.handler = [](const Request &r) {
             return r.method == "POST" ? Response{200, "{\"event_id\":\"ready\"}"}
                                       : stream(json({{"image", imageUri()}}));
         };
-        AiImageJob job;
+        AiImageJob job(nullptr, std::make_unique<InitiallyUnreachableNetwork>());
         QSignalSpy finished(&job, &AiImageJob::finished), status(&job, &AiImageJob::status);
-        job.start(provider, "password", "edit", input());
+        job.start(profile(settings, server), "password", "edit", input());
         QTRY_COMPARE_WITH_TIMEOUT(status.size(), 2, 3000);
         QVERIFY(status.last().first().toString().contains("nouvel essai"));
         QVERIFY(finished.isEmpty());
-        QVERIFY(server.listen(QHostAddress::LocalHost, port));
         QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 4000);
         QCOMPARE(finished[0][0].toByteArray(), png());
         QCOMPARE(server.requests.size(), 2);

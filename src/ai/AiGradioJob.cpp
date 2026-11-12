@@ -1,5 +1,6 @@
 #include "AiImageJob.h"
 #include "AiSettings.h"
+#include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -22,6 +23,19 @@ QString serverError(const QByteArray &bytes)
     auto text = value.isString() ? value.toString() : value.toObject().value("error").toString();
     text.replace(QRegularExpression(R"(data:[^\s"'<>]+)"), "[image masquée]");
     return text.left(800);
+}
+
+bool connectionUnavailable(const QNetworkReply &reply)
+{
+    const auto error = reply.error();
+    if (error == QNetworkReply::ConnectionRefusedError || error == QNetworkReply::HostNotFoundError)
+        return true;
+    if (error != QNetworkReply::UnknownNetworkError)
+        return false;
+    // Qt maps an unreachable host or route to UnknownNetworkError on HTTP/1.1.
+    const auto detail = reply.errorString();
+    return detail == QCoreApplication::translate("QNativeSocketEngine", "Host unreachable") ||
+           detail == QCoreApplication::translate("QNativeSocketEngine", "Network unreachable");
 }
 } // namespace
 
@@ -73,15 +87,40 @@ void AiImageJob::startGradio()
         options["guidance_scale"] = 1.;
     if (!options.contains("steps"))
         options["steps"] = 4;
-    json("POST", endpoint("gradio_api/call/v2/" + api), options, [this](const QByteArray &bytes) {
-        const auto eventId = QJsonDocument::fromJson(bytes).object().value("event_id").toString();
-        if (!QRegularExpression("^[A-Za-z0-9_-]{1,256}$").match(eventId).hasMatch()) {
-            fail(tr("Qwen n’a pas renvoyé un identifiant de tâche valide."));
-            return;
-        }
-        m_jobId = eventId;
-        streamGradio(eventId);
-    });
+    submitGradio(endpoint("gradio_api/call/v2/" + api),
+                 QJsonDocument(options).toJson(QJsonDocument::Compact), true);
+}
+
+void AiImageJob::submitGradio(const QUrl &url, const QByteArray &body, bool allowRetry)
+{
+    Retry retry;
+    if (allowRetry) {
+        retry = [this, url, body](const QNetworkReply &reply, int code, bool sent) {
+            if (code != 0 || sent || !connectionUnavailable(reply))
+                return false;
+            const auto generation = m_generation;
+            emit status(tr("Serveur Qwen inaccessible — nouvel essai…"));
+            QTimer::singleShot(750, this, [this, generation, url, body] {
+                if (!m_running || generation != m_generation)
+                    return;
+                m_network.clearConnectionCache();
+                submitGradio(url, body, false);
+            });
+            return true;
+        };
+    }
+    request(
+        "POST", url, body, "application/json", true,
+        [this](const QByteArray &bytes) {
+            const auto eventId = QJsonDocument::fromJson(bytes).object().value("event_id").toString();
+            if (!QRegularExpression("^[A-Za-z0-9_-]{1,256}$").match(eventId).hasMatch()) {
+                fail(tr("Qwen n’a pas renvoyé un identifiant de tâche valide."));
+                return;
+            }
+            m_jobId = eventId;
+            streamGradio(eventId);
+        },
+        0, false, {}, std::move(retry));
 }
 
 void AiImageJob::streamGradio(const QString &eventId)
@@ -157,12 +196,12 @@ void AiImageJob::streamGradio(const QString &eventId)
                          .arg(eventId));
         },
         0, false, consume,
-        [this, eventId](QNetworkReply::NetworkError error, int code) {
+        [this, eventId](const QNetworkReply &reply, int code, bool) {
             if (code == 502 || code == 503 || code == 504)
                 return retryGradioStream(eventId);
             if (code != 0 && (code < 200 || code >= 300))
                 return false;
-            switch (error) {
+            switch (reply.error()) {
             case QNetworkReply::TimeoutError:
             case QNetworkReply::RemoteHostClosedError:
             case QNetworkReply::TemporaryNetworkFailureError:

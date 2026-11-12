@@ -4,24 +4,46 @@ import QtQuick.Layouts
 
 ColumnLayout {
     id: root
+    readonly property string noAdapterLabel: qsTr("Sans LoRA")
     readonly property var adapters: ["Multiple-Angles", "Photo-to-Anime", "Anime-V2", "Light-Migration", "Upscaler", "Style-Transfer", "Manga-Tone", "Anything2Real", "Fal-Multiple-Angles", "Polaroid-Photo", "Unblur-Anything", "Midnight-Noir-Eyes-Spotlight", "Hyper-Realistic-Portrait", "Ultra-Realistic-Portrait", "Pixar-Inspired-3D", "Noir-Comic-Book", "Any-light", "Studio-DeLight", "Cinematic-FlatLog"]
     readonly property bool valid: lora.editText.trim().length > 0 && (randomize.checked || (seed.text.trim().length > 0 && Number.isSafeInteger(Number(seed.text)) && Number(seed.text) >= 0))
+    property bool noAdapterMode: false
+    property int alternateSteps: 40
+    property int alternateGuidance: 400
     spacing: 6
     function load(text) {
         let value = ({})
         try { value = JSON.parse(text || "{}") } catch (e) {}
-        const adapter = value.lora_adapter === undefined ? "Photo-to-Anime" : value.lora_adapter
-        lora.currentIndex = adapters.indexOf(adapter)
+        noAdapterMode = value.lora_adapter === null
+        alternateSteps = noAdapterMode ? 4 : 40
+        alternateGuidance = noAdapterMode ? 100 : 400
+        const adapter = noAdapterMode ? noAdapterLabel
+            : value.lora_adapter === undefined ? "Photo-to-Anime" : value.lora_adapter
+        lora.currentIndex = lora.find(adapter, Qt.MatchExactly)
         lora.editText = adapter
         seed.text = String(value.seed === undefined ? 42 : value.seed)
         randomize.checked = value.randomize_seed !== false
-        guidance.value = Math.round(Number(value.guidance_scale === undefined ? 1 : value.guidance_scale) * 100)
-        steps.value = Number(value.steps || 4)
+        guidance.value = value.guidance_scale === undefined
+            ? (noAdapterMode ? 400 : 100) : Math.round(Number(value.guidance_scale) * 100)
+        steps.value = Number(value.steps || (noAdapterMode ? 40 : 4))
+    }
+    function selectAdapterMode() {
+        const withoutAdapter = lora.editText.trim() === noAdapterLabel
+        if (withoutAdapter === noAdapterMode)
+            return
+        const previousSteps = steps.value
+        const previousGuidance = guidance.value
+        steps.value = alternateSteps
+        guidance.value = alternateGuidance
+        alternateSteps = previousSteps
+        alternateGuidance = previousGuidance
+        noAdapterMode = withoutAdapter
     }
     function options(base) {
         let value = ({})
         try { value = JSON.parse(base || "{}") } catch (e) {}
-        value.lora_adapter = lora.editText.trim()
+        const adapter = lora.editText.trim()
+        value.lora_adapter = adapter === noAdapterLabel ? null : adapter
         value.seed = Number.isSafeInteger(Number(seed.text)) && Number(seed.text) >= 0 ? Number(seed.text) : 42
         value.randomize_seed = randomize.checked
         value.guidance_scale = guidance.value / 100
@@ -38,8 +60,10 @@ ColumnLayout {
             objectName: "qwenLora"
             Layout.fillWidth: true
             editable: true
-            model: root.adapters
-            currentIndex: 1
+            model: [root.noAdapterLabel].concat(root.adapters)
+            currentIndex: 2
+            onActivated: root.selectAdapterMode()
+            onAccepted: root.selectAdapterMode()
             implicitHeight: 32
             palette.buttonText: "#e0e7ee"; palette.button: "#2d3641"
             palette.text: "#e0e7ee"; palette.base: "#202730"

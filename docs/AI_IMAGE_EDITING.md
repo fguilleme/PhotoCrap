@@ -55,8 +55,9 @@ au hash du binaire et change après recompilation. Le système peut donc redeman
 une autorisation au premier usage d’une clé avec une nouvelle build. Une identité
 de signature stable reste nécessaire pour conserver la confiance entre versions.
 Voir le [guide Apple sur les exigences de signature](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/RequirementLang/RequirementLang.html).
-Le correctif n’élargit pas les permissions du trousseau et n’effectue aucun
-nouvel essai automatique après un refus.
+Si macOS renvoie une erreur d’authentification lors de la lecture, PhotoCrap
+réessaie cette lecture une fois. Une annulation explicite dans le trousseau
+met fin à la demande.
 
 La suppression du fournisseur ou la modification de son adresse/protocole supprime
 sa clé enregistrée. Une modification purement équivalente de l’adresse (barre finale,
@@ -105,8 +106,9 @@ ou une indisponibilité temporaire déclenche au plus trois reprises du **même
 dépend de la conservation de cette tâche par le serveur ; un refus
 d’authentification, une tâche perdue ou une erreur de génération ne sont pas
 relancés automatiquement. Une annulation empêche également les reprises différées.
-Si l’envoi initial échoue avant réception de l’identifiant, PhotoCrap indique
-que l’envoi n’est pas confirmé et ne le répète pas automatiquement.
+Si la connexion initiale échoue avant l’envoi de la requête, PhotoCrap
+réessaie une fois. Si la connexion est coupée après le début de l’envoi
+et que la réception reste incertaine, PhotoCrap le signale.
 
 Les deux requêtes utilisent HTTP Basic lorsque ce mode est sélectionné. Exemple
 de corps construit automatiquement pour une image ou la sélection active :

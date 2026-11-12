@@ -196,12 +196,15 @@ private slots:
     void selectionAndGenerationParametersReachTheResult_data()
     {
         QTest::addColumn<bool>("newDocument");
-        QTest::newRow("new-layer") << false;
-        QTest::newRow("native-new-document") << true;
+        QTest::addColumn<bool>("useAdapter");
+        QTest::newRow("new-layer") << false << true;
+        QTest::newRow("native-new-document") << true << true;
+        QTest::newRow("new-layer-no-lora") << false << false;
     }
     void selectionAndGenerationParametersReachTheResult()
     {
         QFETCH(bool, newDocument);
+        QFETCH(bool, useAdapter);
         AiSettings settings(nullptr, false);
         Server     server;
         server.handler = [&](const Request &request) {
@@ -220,8 +223,10 @@ private slots:
         const auto history    = origin->historyIndex();
         const int  count      = documents.count();
         auto *     controller = documents.activeAi();
+        const auto adapter    =
+            useAdapter ? QVariant(QStringLiteral("Upscaler")) : QVariant::fromValue(nullptr);
         QVERIFY(controller->generate(id, "Adapt only the selection", true, 1, false,
-                                     {{"lora_adapter", "Upscaler"},
+                                     {{"lora_adapter", adapter},
                                       {"seed", 91},
                                       {"randomize_seed", false},
                                       {"steps", 8},
@@ -244,12 +249,12 @@ private slots:
             target->layers().first().toMap().value("parameters").toMap().value("_ai").toMap();
         QCOMPARE(metadata.value("seed").toInt(), 987);
         const auto parameters = metadata.value("qwenParameters").toMap();
-        QCOMPARE(parameters.value("lora_adapter").toString(), QString("Upscaler"));
+        QCOMPARE(parameters.value("lora_adapter"), adapter);
         QCOMPARE(parameters.value("steps").toInt(), 8);
         QCOMPARE(parameters.value("guidance_scale").toDouble(), .75);
         const auto body = QJsonDocument::fromJson(server.requests.first().body).object();
         QCOMPARE(body.value("seed").toInt(), 91);
-        QCOMPARE(body.value("lora_adapter").toString(), QString("Upscaler"));
+        QCOMPARE(body.value("lora_adapter"), QJsonValue::fromVariant(adapter));
         const auto mask = target->maskImage(target->activeLayer());
         QVERIFY(!mask.isNull());
         QCOMPARE(mask.size(), QSize(target->width(), target->height()));
@@ -616,6 +621,31 @@ private slots:
         QTest::qWait(700);
         QCOMPARE(server.requests.size(), 1);
         QCOMPARE(server.requests.first().method, QByteArray("POST"));
+    }
+    void anUnreachableServerGetsOneMoreConnectionAttempt()
+    {
+        AiSettings settings(nullptr, false);
+        Server     server;
+        const auto provider = profile(settings, server);
+        const auto port     = server.serverPort();
+        QVERIFY(port != 0);
+        server.close();
+        server.handler = [](const Request &r) {
+            return r.method == "POST" ? Response{200, "{\"event_id\":\"ready\"}"}
+                                      : stream(json({{"image", imageUri()}}));
+        };
+        AiImageJob job;
+        QSignalSpy finished(&job, &AiImageJob::finished), status(&job, &AiImageJob::status);
+        job.start(provider, "password", "edit", input());
+        QTRY_COMPARE_WITH_TIMEOUT(status.size(), 2, 3000);
+        QVERIFY(status.last().first().toString().contains("nouvel essai"));
+        QVERIFY(finished.isEmpty());
+        QVERIFY(server.listen(QHostAddress::LocalHost, port));
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 4000);
+        QCOMPARE(finished[0][0].toByteArray(), png());
+        QCOMPARE(server.requests.size(), 2);
+        QCOMPARE(server.requests.first().method, QByteArray("POST"));
+        QCOMPARE(server.requests.last().method, QByteArray("GET"));
     }
 };
 QTEST_MAIN(AiGradioTest)

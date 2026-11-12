@@ -25,7 +25,7 @@ signals:
 
 private:
     using Handler = std::function<void(const QByteArray &)>;
-    using Retry   = std::function<bool(QNetworkReply::NetworkError, int)>;
+    using Retry   = std::function<bool(const QNetworkReply &, int, bool)>;
     void       request(const QByteArray &_method, const QUrl &_url, const QByteArray &_body,
                        const QByteArray &_contentType, bool _auth, Handler _handler, int _redirects = 0,
                        bool _download = false, Handler _chunks = {}, Retry _retry = {});
@@ -41,6 +41,7 @@ private:
     void startComfy();
     void pollComfy();
     void       startGradio();
+    void       submitGradio(const QUrl &_url, const QByteArray &_body, bool _allowRetry);
     void       streamGradio(const QString &_eventId);
     bool       retryGradioStream(const QString &_eventId);
     void       finishGradio(const QByteArray &_data);

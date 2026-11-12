@@ -1,40 +1,55 @@
 #include "AiCredentialStore.h"
 #include <QHash>
-#include <QPointer>
+#include <QOperatingSystemVersion>
 #include <QTimer>
 #include <qtkeychain/keychain.h>
-#include <type_traits>
+#include <utility>
 
 namespace
 {
 class NativeStore final : public AiCredentialStore
 {
-    template <class Job>
-    static void run(Job *_job, QObject *_receiver, Callback _finished)
+    template <class Finished>
+    static void run(QKeychain::Job *_job, QObject *_receiver, Finished _finished)
     {
         _job->setInsecureFallback(false);
-        QObject::connect(
-            _job, &QKeychain::Job::finished, _receiver, [_job, _finished = std::move(_finished)] {
-                const auto error = _job->error();
-                QString    data;
-                if constexpr (std::is_same_v<Job, QKeychain::ReadPasswordJob>)
-                    if (!error)
-                        data = _job->textData();
-                const bool missingAllowed = !std::is_same_v<Job, QKeychain::WritePasswordJob>;
-                _finished(data, error == QKeychain::NoError ||
-                                        (missingAllowed && error == QKeychain::EntryNotFound)
-                                    ? QString{}
-                                    : _job->errorString());
-            });
+        QObject::connect(_job, &QKeychain::Job::finished, _receiver, std::move(_finished));
         _job->start();
+    }
+    static QString errorText(const QKeychain::Job *_job, bool _missingAllowed)
+    {
+        const auto error = _job->error();
+        return error == QKeychain::NoError || (_missingAllowed && error == QKeychain::EntryNotFound)
+                   ? QString{}
+                   : _job->errorString();
+    }
+    static void readPassword(const QString &_id, QObject *_receiver, Callback _finished,
+                             bool _retry)
+    {
+        auto *job = new QKeychain::ReadPasswordJob("PhotoCrap.AI");
+        job->setKey(_id);
+        run(job, _receiver, [job, _receiver, _finished = std::move(_finished), _retry] {
+            // QtKeychain groups several macOS errors under AccessDenied.
+            // Retry only errSecAuthFailed, which it reports with this suffix.
+            if (_retry && QOperatingSystemVersion::currentType() == QOperatingSystemVersion::MacOS &&
+                job->error() == QKeychain::AccessDenied &&
+                job->errorString().endsWith(QKeychain::Job::tr(
+                    "The user name or passphrase you entered is not correct"))) {
+                const auto account = job->key();
+                QTimer::singleShot(250, _receiver, [account, _receiver, _finished] {
+                    readPassword(account, _receiver, _finished, false);
+                });
+                return;
+            }
+            _finished(job->error() == QKeychain::NoError ? job->textData() : QString{},
+                      errorText(job, true));
+        });
     }
 
 public:
     void read(const QString &_id, QObject *_receiver, Callback _finished) override
     {
-        auto *job = new QKeychain::ReadPasswordJob("PhotoCrap.AI");
-        job->setKey(_id);
-        run(job, _receiver, std::move(_finished));
+        readPassword(_id, _receiver, std::move(_finished), true);
     }
     void write(const QString &_id, const QString &_secret, QObject *_receiver,
                Callback _finished) override
@@ -42,13 +57,17 @@ public:
         auto *job = new QKeychain::WritePasswordJob("PhotoCrap.AI");
         job->setKey(_id);
         job->setTextData(_secret);
-        run(job, _receiver, std::move(_finished));
+        run(job, _receiver, [job, _finished = std::move(_finished)] {
+            _finished({}, errorText(job, false));
+        });
     }
     void remove(const QString &_id, QObject *_receiver, Callback _finished) override
     {
         auto *job = new QKeychain::DeletePasswordJob("PhotoCrap.AI");
         job->setKey(_id);
-        run(job, _receiver, std::move(_finished));
+        run(job, _receiver, [job, _finished = std::move(_finished)] {
+            _finished({}, errorText(job, true));
+        });
     }
 };
 class MemoryStore final : public AiCredentialStore

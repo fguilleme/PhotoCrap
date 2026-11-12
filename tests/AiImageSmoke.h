@@ -288,8 +288,8 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     auto *     qwen     = panel->findChild<QObject *>("aiQwenProviderParameters");
     auto *     username = panel->findChild<QObject *>("aiGradioUsername");
     auto *     qwenLora = qwen ? qwen->findChild<QObject *>("qwenLora") : nullptr;
-    if (!require(qwen && username && qwenLora && qwenLora->property("count").toInt() == 19,
-                 "Qwen preferences expose HTTP Basic and all nineteen LoRA adapters"))
+    if (!require(qwen && username && qwenLora && qwenLora->property("count").toInt() == 20,
+                 "Qwen preferences expose HTTP Basic, nineteen LoRA adapters and no LoRA"))
         return false;
     auto adapters = qwen->property("adapters");
     if (adapters.metaType().id() == qMetaTypeId<QJSValue>())
@@ -319,8 +319,7 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     address->setProperty("text", "http://127.0.0.1:7861");
     username->setProperty("text", "qwen-ui-user");
     key->setProperty("text", "qwen-ui-only-password");
-    qwenLora->setProperty("currentIndex", 4);
-    qwenLora->setProperty("editText", "Upscaler");
+    qwenLora->setProperty("currentIndex", 5);
     qwen->findChild<QObject *>("qwenRandomizeSeed")->setProperty("checked", false);
     qwen->findChild<QObject *>("qwenSeed")->setProperty("text", "123");
     qwen->findChild<QObject *>("qwenGuidance")->setProperty("value", 75);
@@ -352,6 +351,21 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
                          8 &&
                      generate->isEnabled(),
                  "generation restores the saved Qwen adapter and exposes editable parameters"))
+        return false;
+    generationLora->setProperty("currentIndex", 0);
+    QMetaObject::invokeMethod(generationLora, "activated", Q_ARG(int, 0));
+    auto *generationSteps = generationQwen->findChild<QObject *>("qwenSteps");
+    auto *generationGuidance = generationQwen->findChild<QObject *>("qwenGuidance");
+    if (!require(generationLora->property("editText") == generationQwen->property("noAdapterLabel") &&
+                     generate->isEnabled() && generationSteps->property("value").toInt() == 40 &&
+                     generationGuidance->property("value").toInt() == 400,
+                 "no LoRA starts from the base model inference settings"))
+        return false;
+    generationLora->setProperty("currentIndex", 5);
+    QMetaObject::invokeMethod(generationLora, "activated", Q_ARG(int, 5));
+    if (!require(generationSteps->property("value").toInt() == 8 &&
+                     generationGuidance->property("value").toInt() == 75,
+                 "returning to a LoRA restores the previous inference settings"))
         return false;
     QMetaObject::invokeMethod(dialog, "reject");
     return runAiProgressSmoke(_window);

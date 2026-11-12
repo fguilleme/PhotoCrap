@@ -5469,6 +5469,7 @@ Independent software, not affiliated with Adobe.</translation>
 </context>
 <context>
     <name>AiImageJob</name>
+    <message><source>Serveur Qwen inaccessible — nouvel essai…</source><translation>Qwen server unreachable — retrying…</translation></message>
     <message>
         <source>Le délai de génération IA est dépassé.</source>
         <translation>The AI generation timed out.</translation>
@@ -6455,5 +6456,9 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Arrêter le suivi</source><translation>Stop Tracking</translation></message>
     <message><source>Fermer</source><translation>Close</translation></message>
     <message><source>La génération peut continuer chez Meshy.</source><translation>Generation may continue on Meshy.</translation></message>
+  </context>
+  <context>
+    <name>QwenParameters</name>
+    <message><source>Sans LoRA</source><translation>No LoRA</translation></message>
   </context>
 </TS>

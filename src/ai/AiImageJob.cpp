@@ -213,6 +213,9 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
     }
     m_reply               = reply;
     const auto generation = m_generation;
+    const auto requestSent = _retry && _method == "POST" ? std::make_shared<bool>(false) : nullptr;
+    if (requestSent)
+        connect(reply, &QNetworkReply::requestSent, reply, [requestSent] { *requestSent = true; });
     if (_method == "POST" && _url.path().endsWith("/images/edits"))
         connect(reply, &QNetworkReply::uploadProgress, this,
                 [this, generation](qint64 sent, qint64 total) {
@@ -240,7 +243,7 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
             });
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, bytes, received, generation, _auth, _redirects, _download, _chunks,
-             _retry, _handler = std::move(_handler)] {
+             _retry, requestSent, _handler = std::move(_handler)] {
                 reply->deleteLater();
                 if (generation != m_generation || !m_running)
                     return;
@@ -276,7 +279,7 @@ void AiImageJob::request(const QByteArray &_method, const QUrl &_url, const QByt
                         return;
                 }
                 if (reply->error() != QNetworkReply::NoError || code >= 400) {
-                    if (_retry && _retry(reply->error(), code))
+                    if (_retry && _retry(*reply, code, requestSent && *requestSent))
                         return;
                     bytes->append(tail);
                     const auto data = object(*bytes);

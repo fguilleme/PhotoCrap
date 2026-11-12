@@ -102,15 +102,15 @@ QString AiSettings::gradioOptionsError(const QVariantMap &options)
     const auto   numeric  = [&](const char *key) {
         return !options.contains(key) || QJsonValue::fromVariant(options.value(key)).isDouble();
     };
+    const auto adapter = options.value("lora_adapter");
     if (!numeric("seed") || !std::isfinite(seed) || seed < 0 || seed > 9007199254740991. ||
         seed != std::floor(seed) || !numeric("steps") || !std::isfinite(steps) || steps < 1 ||
         steps > 100 || steps != std::floor(steps) || !numeric("guidance_scale") ||
         !std::isfinite(guidance) || guidance < 0 || guidance > 100 ||
         (options.contains("randomize_seed") &&
          options.value("randomize_seed").metaType().id() != QMetaType::Bool) ||
-        (options.contains("lora_adapter") &&
-         (options.value("lora_adapter").metaType().id() != QMetaType::QString ||
-          options.value("lora_adapter").toString().size() > 512)))
+        (options.contains("lora_adapter") && adapter.metaType().id() != QMetaType::Nullptr &&
+         (adapter.metaType().id() != QMetaType::QString || adapter.toString().size() > 512)))
         return tr("Paramètres Qwen invalides : graine entière positive, 1 à 100 étapes, guidance "
                   "de 0 à 100 et aléatoire booléen.");
     return {};

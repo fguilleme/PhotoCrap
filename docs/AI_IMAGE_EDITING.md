@@ -142,7 +142,8 @@ La liste LoRA reprend exactement ces noms du serveur :
 - Any-light, Studio-DeLight, Cinematic-FlatLog.
 
 Le champ reste éditable pour un futur adaptateur. **Photo-to-Anime**, guidance 1,
-4 étapes et graine aléatoire sont proposés au départ ; ces réglages doivent
+4 étapes et graine aléatoire sont proposés au départ. **Sans LoRA** envoie
+`lora_adapter: null` et propose une guidance de 4 et 40 étapes. Ces réglages doivent
 correspondre aux capacités et adaptateurs installés sur le serveur. La commande
 ne passe ni par l’interface Gradio ni par ComfyUI. Une sélection est envoyée à sa
 boîte englobante puis réappliquée comme masque local ; le serveur ne reçoit pas

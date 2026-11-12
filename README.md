@@ -4,10 +4,9 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La version **v0.22.0** ajoute la [transformation manuelle](docs/TRANSFORM.md) des
-calques, des masques et des sélections, les [réglages directs et masques
-vectoriels](docs/MASK_ADJUSTMENTS.md), et la prise en charge de
-[Qwen Edit 2.1 via Gradio v2](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
+La version **v0.23.0** ajoute les [calques 3D éditables](docs/PROJECT_FORMAT.md#calques-3d)
+avec import GLB, éclairage et génération Meshy. [Qwen Edit 2.1](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2)
+propose **Sans LoRA** et réessaie automatiquement en cas d’échec de la connexion initiale avant envoi.
 
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 

@@ -4,6 +4,19 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.23.0 — 12 novembre 2026
+
+- Calques 3D éditables à partir de fichiers GLB, avec pose par calque, éclairage
+  commun, manipulation sur le canevas et conservation du modèle dans le projet.
+  Aperçu Metal sur Mac et rendu final en 8 ou 16 bits.
+- Génération Meshy depuis du texte ou une image, récupération par identifiant
+  de tâche, simplification optionnelle du maillage et bilan d’import des
+  triangles, du fichier et des textures. [Limites GLB](docs/PROJECT_FORMAT.md#calques-3d).
+- Qwen Edit propose **Sans LoRA** avec des réglages distincts pour le modèle de
+  base. PhotoCrap réessaie une connexion initiale inaccessible avant l’envoi
+  de la demande et réessaie une erreur d’authentification du trousseau macOS.
+  [Guide IA](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2).
+
 ## v0.22.0 — 11 novembre 2026
 
 - Transformation manuelle (⌘T / Ctrl+T) avec poignées, pivot et champs numériques.

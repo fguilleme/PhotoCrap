@@ -1,12 +1,18 @@
 # Roadmap PhotoCrap
 
-État au **11 novembre 2026**. **v0.22.0** ajoute la transformation manuelle,
-les réglages directs sur les pixels et masques, les masques vectoriels
-éditables et le fournisseur Qwen Edit 2.1 via Gradio v2.
+État au **12 novembre 2026**. **v0.23.0** ajoute les calques 3D éditables,
+la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
-La [release v0.16](https://github.com/fguilleme/PhotoCrap/releases/tag/v0.16) fournit les paquets macOS arm64, Linux x86_64 et Windows x64 en version **0.16.0**, avec SHA-256. Le [workflow du tag](https://github.com/fguilleme/PhotoCrap/actions/runs/41430300211) a validé les builds, tests, déploiements et paquets des trois plateformes avant publication. Voir les [notes de version](CHANGELOG.md).
+## Livraison de v0.23.0
+
+- [x] Import GLB et calques 3D éditables, avec pose, éclairage, manipulation
+  sur le canevas, aperçu Metal et persistance dans les projets PCR.
+- [x] Génération et récupération Meshy, simplification optionnelle et
+  statistiques d’import des maillages et textures.
+- [x] Mode Sans LoRA dans Qwen Edit et nouvelle tentative de connexion initiale,
+  validée sur le serveur de l’utilisateur.
 
 ## Livraison de v0.22.0
 

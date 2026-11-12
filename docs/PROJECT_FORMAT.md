@@ -123,12 +123,13 @@ plan de pixels pour la composition, avec le masque éventuel dans son bloc.
 Le prototype accepte les maillages triangulés avec couleurs et textures PNG/JPEG
 intégrées. Pour un modèle articulé, il calcule la pose par défaut du squelette
 à l’import et conserve les animations dans le GLB embarqué. Le calque affiche
-une pose fixe. Les GLB sont limités à 64 Mio chacun, et la mémoire
-des modèles à 256 Mio par document. Le cache des textures couleur est limité
-à 16 Mio de pixels par modèle et réduit les textures qui dépassent leur part.
-Le plafond est de 180 000 triangles par modèle. Le rendu CPU en arrière-plan
-est limité à 1 600 pixels sur son grand côté avant mise à l’échelle dans le
-document. L’éclairage est diffus, avec une
+une pose fixe. Les GLB sont limités à 512 Mio chacun, avec un plafond de
+8 millions de sommets, 8 millions de triangles et 400 Mio de données décodées
+par modèle. Le budget des modèles est de 1 Gio par document. Les textures
+couleur se partagent un plafond de 16 777 216 pixels par modèle.
+Quand une simplification Meshy est demandée, `parameters.triangleTarget`
+conserve la cible et le projet garde le GLB source. La cible peut être dépassée
+pour préserver des détails du maillage. L’éclairage est diffus, avec une
 composante ambiante et des matériaux non éclairés selon le GLB. Les matériaux
 semi-transparents sont découpés selon leur alpha. La superposition entre
 objets suit l’ordre des calques.

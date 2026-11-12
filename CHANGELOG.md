@@ -4,7 +4,7 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.23.1 — 12 novembre 2026
+## v0.23.2 — 12 novembre 2026
 
 - Calques 3D éditables à partir de fichiers GLB, avec pose par calque, éclairage
   commun, manipulation sur le canevas et conservation du modèle dans le projet.

@@ -1444,6 +1444,7 @@ signals:
     void statusMessage(const QString &_message);
 
 private:
+    friend bool waitForCommittedPreview(Document &_document);
     std::shared_ptr<PhotoCrap::Transform::Session>   m_transform;
     std::shared_ptr<PhotoCrap::Transform::Mapping>   m_lastTransform;
     std::shared_ptr<const PhotoCrap::Transform::Job> m_pendingTransform;

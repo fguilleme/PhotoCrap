@@ -5,6 +5,8 @@
 #include <QTransform>
 #include <QVariantMap>
 
+struct Layer;
+
 namespace PhotoCrap::Text
 {
 class Document : public QTextDocument
@@ -27,7 +29,8 @@ void        configure(QTextDocument &_document, const QVariantMap &_parameters);
 QSizeF      size(const QVariantMap &_parameters);
 QTransform  transform(const QVariantMap &_parameters);
 void        transform(QVariantMap &_parameters, const QTransform &_transform);
-PixelPlane  renderPlane(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format);
+PixelPlane  renderPlane(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format,
+                        const Layer *surface = nullptr);
 QImage      render(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format);
 QVariantMap formatting(const QTextDocument &_document);
 void        applyFormatting(QTextDocument &_document, const QVariantMap &_parameters);

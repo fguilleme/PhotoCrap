@@ -688,7 +688,9 @@ bool applyLayers(QVector<Layer> &_layers, const QSize &_size, const QSize &_nati
             if (!_preview && wholeLayer && (layer.kind == "text" || layer.kind == "shape")) {
                 if (layer.kind == "text") {
                     Text::transform(layer.parameters, transform);
-                    layer.image = Text::renderPlane(layer.parameters, _size, layer.image.format());
+                    layer.transformSurfaceNormals(transform);
+                    layer.image =
+                        Text::renderPlane(layer.parameters, _size, layer.image.format(), &layer);
                 } else {
                     if (!Shape::transform(layer.parameters, transform))
                         return false;

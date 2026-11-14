@@ -101,14 +101,15 @@ QtObject {
     if (!require(!panel->isVisible(), "idle notification can be dismissed"))
         return false;
 
-    auto *relief        = surfaces->findChild<QQuickItem *>("surfaceFollowRelief");
+    auto *mode          = surfaces->findChild<QQuickItem *>("surfaceSelectionMode");
     auto *paint         = surfaces->findChild<QQuickItem *>("surfacePaintApply");
+    auto *text          = surfaces->findChild<QQuickItem *>("surfaceTextApply");
     auto *surfaceCancel = surfaces->findChild<QQuickItem *>("surfacePaintCancel");
     auto *protection    = surfaces->findChild<QQuickItem *>("surfaceProtectObject");
     controller->setProperty("surfaceAnalysis", true);
     controller->setProperty("busy", true);
     QMetaObject::invokeMethod(controller.get(), "changed");
-    if (!require(surfaces->isVisible() && !panel->isVisible() && relief && !relief->isVisible(),
+    if (!require(surfaces->isVisible() && !panel->isVisible() && mode && !mode->isVisible(),
                  "surface analysis shows progress outside the canvas"))
         return false;
 
@@ -120,8 +121,9 @@ QtObject {
                      surfaces->mapToScene({0, surfaces->height()}).y() <=
                          viewport->mapToScene({0, 0}).y(),
                  "surface selection leaves the whole canvas exposed") ||
-        !require(relief->isVisible() && relief->isEnabled() && paint && paint->isVisible() &&
-                     !paint->isEnabled() && surfaceCancel && surfaceCancel->isVisible(),
+        !require(mode->isVisible() && mode->isEnabled() && paint && paint->isVisible() &&
+                     !paint->isEnabled() && text && text->isVisible() && !text->isEnabled() &&
+                     surfaceCancel && surfaceCancel->isVisible(),
                  "surface controls are shown and painting requires a selected region"))
         return false;
 
@@ -129,8 +131,10 @@ QtObject {
         const auto point = item->mapToScene({item->width() / 2, item->height() / 2}).toPoint();
         QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, point);
     };
-    click(relief);
-    if (!require(relief->property("checked").toBool(), "the relief checkbox responds to a click"))
+    click(mode);
+    QTest::keyClick(_window, Qt::Key_Down);
+    QTest::keyClick(_window, Qt::Key_Return);
+    if (!require(mode->property("followRelief").toBool(), "the toolbar can select curved surfaces"))
         return false;
     if (!require(protection && protection->isVisible(), "object protection is available"))
         return false;
@@ -139,8 +143,13 @@ QtObject {
         return false;
     controller->setProperty("hasSurfaceSelection", true);
     QMetaObject::invokeMethod(controller.get(), "changed");
-    if (!require(paint->isEnabled(), "selection enables Paint"))
+    if (!require(paint->isEnabled() && text->isEnabled(), "selection enables Paint and Text"))
         return false;
+    click(text);
+    if (!require(text->property("checked").toBool() && !protection->property("checked").toBool(),
+                 "Text arms text placement and leaves object protection mode"))
+        return false;
+    click(text);
     click(paint);
     if (!require(controller->property("surfaceApplies").toInt() == 1,
                  "clicking Paint applies the surface selection"))

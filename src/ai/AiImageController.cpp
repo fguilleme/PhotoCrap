@@ -618,12 +618,36 @@ void AiImageController::updateSurfaceSelection(const QPoint &seed, bool subtract
 
 void AiImageController::applySurfaceSelection()
 {
+    applySurfaceSelection(std::nullopt);
+}
+
+void AiImageController::applySurfaceText(int x, int y)
+{
+    applySurfaceSelection(QPoint(x, y));
+}
+
+void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition)
+{
     if (!hasSurfaceSelection() || !canEditSurfaceSelection())
         return;
     const auto generation = m_generation;
     const auto selected   = m_surfaceSelection.mask;
     const auto protection = m_surfaceProtection;
     const auto canvas     = m_input.canvas;
+    if (textPosition) {
+        if (!QRect(QPoint{}, canvas).contains(*textPosition))
+            return;
+        const QPoint p(
+            int((2LL * textPosition->x() + 1) * selected.width() / (2LL * canvas.width())),
+            int((2LL * textPosition->y() + 1) * selected.height() / (2LL * canvas.height())));
+        if (!selected.constScanLine(p.y())[p.x()] ||
+            (!protection.isNull() && protection.constScanLine(p.y())[p.x()])) {
+            m_surfacePickingHint = false;
+            m_status             = tr("Placez le texte à l’intérieur de la surface sélectionnée.");
+            emit changed();
+            return;
+        }
+    }
     const auto cancel     = m_cancel;
     m_busy                = true;
     m_status              = tr("Création du masque de surface…");
@@ -633,37 +657,42 @@ void AiImageController::applySurfaceSelection()
     using PaintLayer   = std::pair<PixelPlane, QImage>;
     const auto normals = m_surfaceGeometry.normals;
     auto      *watcher = new QFutureWatcher<PaintLayer>(this);
-    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation] {
-        watcher->deleteLater();
-        if (!m_busy || generation != m_generation || !m_document)
-            return;
-        if (!m_document->matchesAiSource(m_input)) {
-            stop(tr("L’image a changé. Relancez l’analyse de la surface."));
-            return;
-        }
-        PaintLayer layer;
-        try {
-            layer = watcher->result();
-        } catch (...) {
-            stop(tr("Mémoire insuffisante pour créer le masque de surface."));
-            return;
-        }
-        if (layer.first.isNull() || layer.second.isNull()) {
-            stop(tr("Mémoire insuffisante pour créer le masque de surface."));
-            return;
-        }
-        m_surfaceGeometry = {};
-        if (!m_document->addSurfacePaintLayer(m_input, std::move(layer.first),
-                                              std::move(layer.second))) {
-            stop(tr("Impossible d’ajouter le calque de peinture sur surface."));
-            return;
-        }
-        m_completed = 1;
-        stop();
-        m_status = tr("Calque de peinture prêt. Le masque protège les zones non sélectionnées.");
-        emit changed();
-        emit layerAdded();
-    });
+    connect(
+        watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation, textPosition] {
+            watcher->deleteLater();
+            if (!m_busy || generation != m_generation || !m_document)
+                return;
+            if (!m_document->matchesAiSource(m_input)) {
+                stop(tr("L’image a changé. Relancez l’analyse de la surface."));
+                return;
+            }
+            PaintLayer layer;
+            try {
+                layer = watcher->result();
+            } catch (...) {
+                stop(tr("Mémoire insuffisante pour créer le masque de surface."));
+                return;
+            }
+            if (layer.first.isNull() || layer.second.isNull()) {
+                stop(tr("Mémoire insuffisante pour créer le masque de surface."));
+                return;
+            }
+            m_surfaceGeometry = {};
+            if (!m_document->addSurfaceLayer(m_input, std::move(layer.first),
+                                             std::move(layer.second), textPosition)) {
+                stop(textPosition ? tr("Impossible d’ajouter le texte sur la surface.")
+                                  : tr("Impossible d’ajouter le calque de peinture sur surface."));
+                return;
+            }
+            m_completed = 1;
+            stop();
+            m_status =
+                textPosition
+                    ? tr("Saisissez le texte sur la surface.")
+                    : tr("Calque de peinture prêt. Le masque protège les zones non sélectionnées.");
+            emit changed();
+            emit layerAdded();
+        });
     watcher->setFuture(QtConcurrent::run([selected, protection, normals, canvas, cancel] {
         constexpr int edge = PhotoCrap::Ai::MaxSurfaceNormalEdge;
         const auto    reduced =

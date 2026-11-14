@@ -28,8 +28,9 @@ bool Document::renderTextEdit()
 {
     auto &layer = m_layers[m_active];
     auto  image = PhotoCrap::Text::renderPlane(textParameters(), m_size,
-                                              m_textMaskEdit ? QImage::Format_ARGB32_Premultiplied
-                                                              : workingFormat());
+                                               m_textMaskEdit ? QImage::Format_ARGB32_Premultiplied
+                                                              : workingFormat(),
+                                               m_textMaskEdit ? nullptr : &layer);
     if (image.isNull())
         return fail(tr("Mémoire insuffisante pour rendre le texte."));
     if (m_textMaskEdit) {

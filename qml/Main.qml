@@ -1928,8 +1928,8 @@ ApplicationWindow {
             objectName: "surfacePaintBar"
             property var controller: aiImages
             visible: controller.surfaceAnalysis && (controller.busy || controller.surfacePicking)
-            onVisibleChanged: if (!visible) { surfaceRelief.checked = false; surfaceProtect.checked = false }
-            onControllerChanged: { surfaceRelief.checked = false; surfaceProtect.checked = false }
+            onVisibleChanged: if (!visible) { surfaceProtect.checked = false; surfaceText.checked = false }
+            onControllerChanged: { surfaceProtect.checked = false; surfaceText.checked = false }
             Layout.fillWidth: true
             implicitHeight: 44
             color: "#242a32"
@@ -1938,16 +1938,16 @@ ApplicationWindow {
                 anchors.leftMargin: 12
                 anchors.rightMargin: 12
                 spacing: 12
-                CheckBox {
-                    id: surfaceRelief
-                    objectName: "surfaceFollowRelief"
+                ComboBox {
+                    id: surfaceMode
+                    objectName: "surfaceSelectionMode"
+                    readonly property bool followRelief: currentIndex === 1
+                    Accessible.name: qsTr("Mode de sélection de la surface")
+                    model: [qsTr("Face plane"), qsTr("Tissu / relief")]
                     visible: surfacePaintBar.controller.surfacePicking
                     enabled: !surfacePaintBar.controller.busy
-                    text: qsTr("Suivre le relief")
                     ToolTip.visible: hovered
-                    ToolTip.text: surfacePaintBar.controller.surfaceProtectionAvailable
-                                  ? qsTr("Sélectionne la pièce entière à travers les plis avec MobileSAM.")
-                                  : qsTr("Pour les surfaces courbes ou les tissus froissés.")
+                    ToolTip.text: qsTr("Choisissez Tissu / relief pour inclure les plis. Cliquez ensuite sur l’image.")
                 }
                 AiActionButton {
                     id: surfaceProtect
@@ -1957,6 +1957,7 @@ ApplicationWindow {
                     visible: surfacePaintBar.controller.surfacePicking && surfacePaintBar.controller.surfaceProtectionAvailable
                     enabled: !surfacePaintBar.controller.busy
                     text: qsTr("Protéger un objet")
+                    onClicked: if (checked) surfaceText.checked = false
                 }
                 BusyIndicator {
                     visible: surfacePaintBar.controller.busy
@@ -1965,15 +1966,29 @@ ApplicationWindow {
                     Layout.preferredHeight: 28
                 }
                 Label {
-                    text: surfaceProtect.checked && surfacePaintBar.controller.surfacePickingHint
+                    text: surfaceText.checked && !surfacePaintBar.controller.busy
+                          ? qsTr("Cliquez dans la surface sélectionnée pour placer le texte.")
+                          : surfaceProtect.checked && surfacePaintBar.controller.surfacePickingHint
                           ? qsTr("Cliquez au centre de l’objet. Clic droit pour retirer sa protection.")
-                          : surfaceRelief.checked && surfacePaintBar.controller.surfacePickingHint
+                          : surfaceMode.followRelief && surfacePaintBar.controller.surfacePickingHint
                           && surfacePaintBar.controller.surfaceProtectionAvailable
                           ? qsTr("Cliquez sur le tissu pour sélectionner l’ensemble de la pièce.")
+                          : !surfaceMode.followRelief && surfacePaintBar.controller.surfacePickingHint
+                          ? qsTr("Cliquez sur chaque face plane. Clic droit pour en retirer une.")
                           : surfacePaintBar.controller.status
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     elide: Text.ElideRight
+                }
+                AiActionButton {
+                    id: surfaceText
+                    objectName: "surfaceTextApply"
+                    checkable: true
+                    primary: checked
+                    text: qsTr("Texte")
+                    visible: surfacePaintBar.controller.surfacePicking
+                    enabled: !surfacePaintBar.controller.busy && surfacePaintBar.controller.hasSurfaceSelection
+                    onClicked: if (checked) surfaceProtect.checked = false
                 }
                 AiActionButton {
                     objectName: "surfacePaintApply"
@@ -2668,7 +2683,7 @@ ApplicationWindow {
                     Keys.onPressed: function(event) {
                         if (aiImages.surfacePicking && !window.modalOpen) {
                             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                aiImages.applySurfaceSelection()
+                                if (!surfaceText.checked) aiImages.applySurfaceSelection()
                                 event.accepted = true
                             }
                             return
@@ -3397,7 +3412,7 @@ ApplicationWindow {
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: enabled
                                 preventStealing: true
-                                cursorShape: aiImages.busy ? Qt.WaitCursor : Qt.CrossCursor
+                                cursorShape: aiImages.busy ? Qt.WaitCursor : surfaceText.checked ? Qt.IBeamCursor : Qt.CrossCursor
                                 onContainsMouseChanged: drawingArea.refreshSystemCursor()
                                 onEnabledChanged: drawingArea.refreshSystemCursor()
                                 onCursorShapeChanged: drawingArea.refreshSystemCursor()
@@ -3405,10 +3420,13 @@ ApplicationWindow {
                                     workspace.forceActiveFocus()
                                     const x = Math.floor(mouse.x / zoom), y = Math.floor(mouse.y / zoom)
                                     const subtract = mouse.button === Qt.RightButton
-                                    if (surfaceProtect.checked)
+                                    if (surfaceText.checked) {
+                                        if (subtract) surfaceText.checked = false
+                                        else aiImages.applySurfaceText(x, y)
+                                    } else if (surfaceProtect.checked)
                                         aiImages.protectSurfaceObject(x, y, subtract)
                                     else
-                                        aiImages.pickSurface(x, y, surfaceRelief.checked, subtract)
+                                        aiImages.pickSurface(x, y, surfaceMode.followRelief, subtract)
                                 }
                             }
                             MouseArea {

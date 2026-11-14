@@ -1,5 +1,4 @@
 #pragma once
-#include <QBrush>
 #include "ImageHistogram.h"
 #include "Layer.h"
 #include "RawImageReader.h"
@@ -10,6 +9,7 @@
 #include "storage/TiledImage.h"
 #include "tools/PenPath.h"
 #include "tools/SliceDescriptionCache.h"
+#include <QBrush>
 #include <QCache>
 #include <QColor>
 #include <QFutureWatcher>
@@ -30,6 +30,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 
 class ScratchImageCache;
 class QTemporaryFile;
@@ -1194,7 +1195,8 @@ public:
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
-    bool addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals);
+    bool addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
+                         std::optional<QPoint> textPosition = {});
 
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;

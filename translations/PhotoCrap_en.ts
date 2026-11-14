@@ -6468,12 +6468,15 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Peindre sur une surface (ComfyUI)</source><translation>Paint on a Surface (ComfyUI)</translation></message>
     <message><source>Peindre sur une surface (ComfyUI)…</source><translation>Paint on a Surface (ComfyUI)…</translation></message>
     <message><source>Peindre sur une surface (en local)</source><translation>Paint on a Surface (Local)</translation></message>
-    <message><source>Suivre le relief</source><translation>Follow Surface Relief</translation></message>
+    <message><source>Mode de sélection de la surface</source><translation>Surface Selection Mode</translation></message>
+    <message><source>Face plane</source><translation>Flat Surface</translation></message>
+    <message><source>Tissu / relief</source><translation>Fabric / Relief</translation></message>
     <message><source>Protéger un objet</source><translation>Protect an Object</translation></message>
     <message><source>Cliquez au centre de l’objet. Clic droit pour retirer sa protection.</source><translation>Click the center of the object. Right-click to remove its protection.</translation></message>
-    <message><source>Sélectionne la pièce entière à travers les plis avec MobileSAM.</source><translation>Selects the whole piece across folds using MobileSAM.</translation></message>
-    <message><source>Pour les surfaces courbes ou les tissus froissés.</source><translation>For curved surfaces or wrinkled fabric.</translation></message>
+    <message><source>Choisissez Tissu / relief pour inclure les plis. Cliquez ensuite sur l’image.</source><translation>Choose Fabric / Relief to include the folds. Then click the image.</translation></message>
+    <message><source>Cliquez sur chaque face plane. Clic droit pour en retirer une.</source><translation>Click each flat surface. Right-click to remove one.</translation></message>
     <message><source>Cliquez sur le tissu pour sélectionner l’ensemble de la pièce.</source><translation>Click the fabric to select the whole piece.</translation></message>
+    <message><source>Cliquez dans la surface sélectionnée pour placer le texte.</source><translation>Click inside the selected surface to place the text.</translation></message>
     <message><source>Peindre</source><translation>Paint</translation></message>
     <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
     <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its geometry. Then select the surfaces you want to paint.</translation></message>
@@ -6485,6 +6488,7 @@ Independent software, not affiliated with Adobe.</translation>
   <context>
     <name>Document</name>
     <message><source>Peinture sur surface</source><translation>Surface Painting</translation></message>
+    <message><source>Texte sur la surface</source><translation>Text on Surface</translation></message>
     <message><source>Impossible d’enregistrer les normales de surface.</source><translation>Unable to save the surface normals.</translation></message>
     <message><source>Carte de normales de surface invalide.</source><translation>Invalid surface normal map.</translation></message>
   </context>
@@ -6521,6 +6525,9 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Aucune surface exploitable ici. Cliquez ailleurs sur l’image.</source><translation>No usable surface here. Click elsewhere on the image.</translation></message>
     <message><source>Impossible d’ajouter le calque de peinture sur surface.</source><translation>Unable to add the surface painting layer.</translation></message>
     <message><source>Calque de peinture prêt. Le masque protège les zones non sélectionnées.</source><translation>Painting layer ready. The mask protects unselected areas.</translation></message>
+    <message><source>Placez le texte à l’intérieur de la surface sélectionnée.</source><translation>Place the text inside the selected surface.</translation></message>
+    <message><source>Impossible d’ajouter le texte sur la surface.</source><translation>Unable to add text to the surface.</translation></message>
+    <message><source>Saisissez le texte sur la surface.</source><translation>Enter text on the surface.</translation></message>
   </context>
   <context>
     <name>PhotoCrap::Ai::LocalSurfaceModel</name>

@@ -830,7 +830,7 @@ bool Document::loadProject(const QString &_path)
             const int   id      = surface.value("png").toInt(-1);
             const QSize surfaceCanvas(surface["width"].toInt(), surface["height"].toInt());
             const auto  transform = surface.value("transform").toArray();
-            if (version < 16 || kind != "pixel" || !index.binary ||
+            if (version < 16 || (kind != "pixel" && kind != "text") || !index.binary ||
                 !index.archive.isOriginal(id, 4 * 1024 * 1024) ||
                 !PhotoCrap::Ai::validSize(surfaceCanvas) || transform.size() != 9 ||
                 std::any_of(

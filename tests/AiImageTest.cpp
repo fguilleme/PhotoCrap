@@ -1576,7 +1576,7 @@ private slots:
         const auto cancel = std::make_shared<std::atomic_bool>(false);
         const auto source =
             document.prepareAiInput(false, 256, cancel, false, false, true).result();
-        QVERIFY(document.addSurfacePaintLayer(source, PixelPlane(mask), normals));
+        QVERIFY(document.addSurfaceLayer(source, PixelPlane(mask), normals));
         QTemporaryDir files;
         const auto    url = QUrl::fromLocalFile(files.filePath("fabric.pcr"));
         QVERIFY(document.saveProject(url));
@@ -1597,6 +1597,32 @@ private slots:
                 before.pixelColor(center + QPoint(-14, 0)));
         QCOMPARE(painted.pixelColor(center + QPoint(0, -14)),
                  before.pixelColor(center + QPoint(0, -14)));
+    }
+    void surfaceProjectionBendsTextWithoutLosingChannelPrecision()
+    {
+        using namespace PhotoCrap::Ai;
+        const QSize canvas(96, 64);
+        QImage      normals(12, 8, QImage::Format_RGB888);
+        normals.fill(QColor(128, 128, 255));
+        for (const auto format :
+             {QImage::Format_ARGB32_Premultiplied, QImage::Format_RGBA64_Premultiplied}) {
+            QImage lettering(canvas, format);
+            lettering.fill(Qt::transparent);
+            const QColor ink = QColor::fromRgba64(13021, 26833, 32041, 65535);
+            QPainter     painter(&lettering);
+            painter.fillRect(QRect(16, 34, 64, 8), ink);
+            painter.end();
+            QCOMPARE(projectSurfaceText(lettering, {}, {8, 10}, normals, canvas, {}), lettering);
+            auto     curved = normals.copy();
+            QPainter surface(&curved);
+            surface.fillRect(QRect(6, 0, 6, 8), QColor(128, 239, 189));
+            surface.end();
+            const auto projected = projectSurfaceText(lettering, {}, {8, 10}, curved, canvas, {});
+            QCOMPARE(projected.format(), format);
+            QCOMPARE(projected.pixelColor(24, 37), lettering.pixelColor(24, 37));
+            QCOMPARE(projected.pixelColor(72, 37).alpha(), 0);
+            QCOMPARE(projected.pixelColor(72, 24), lettering.pixelColor(72, 37));
+        }
     }
     void comfySurfacePaintingCombinesFacesAndKeepsOcclusion()
     {
@@ -1709,6 +1735,42 @@ private slots:
         document.undo();
         QCOMPARE(document.layerCount(), 1);
         QVERIFY(document.hasSelection());
+        QCOMPARE(document.composite(), initial);
+
+        QVERIFY(controller.analyzeSurface(profile));
+        QTRY_VERIFY_WITH_TIMEOUT(controller.surfacePicking(), 8000);
+        controller.pickSurface(55, 40);
+        QTRY_VERIFY(!controller.busy());
+        QVERIFY(controller.hasSurfaceSelection());
+        controller.applySurfaceText(82, 20);
+        QVERIFY(!controller.busy());
+        QCOMPARE(document.layerCount(), 1);
+        controller.applySurfaceText(40, 14);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QVERIFY(document.textEditing());
+        QCOMPARE(document.layerCount(), 2);
+        QCOMPARE(document.tool(), QString("text"));
+        document.updateTextHtml("<span style='font-size: 30px; color: white;'>SURFACE</span>");
+        document.finishTextEdit();
+        const auto printed = document.composite();
+        QVERIFY(printed != initial);
+        QCOMPARE(printed.pixelColor(82, 37), initial.pixelColor(82, 37));
+
+        QTemporaryDir files;
+        const auto    url = QUrl::fromLocalFile(files.filePath("projected-text.pcr"));
+        QVERIFY(document.saveProject(url));
+        Document reopened;
+        QVERIFY(reopened.openFile(url));
+        QCOMPARE(reopened.composite(), printed);
+        reopened.editTextLayer(1);
+        QVERIFY(reopened.textEditing());
+        QCOMPARE(reopened.text(), QString("SURFACE"));
+        reopened.updateTextHtml("<span style='font-size: 30px; color: white;'>TEST</span>");
+        reopened.finishTextEdit();
+        QVERIFY(reopened.composite() != printed);
+        document.undo();
+        QCOMPARE(document.layerCount(), 1);
         QCOMPARE(document.composite(), initial);
 
         QVERIFY(controller.analyzeSurface(profile));

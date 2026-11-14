@@ -5,6 +5,7 @@
 #include "SurfaceObjectModel.h"
 #include <QElapsedTimer>
 #include <QPointer>
+#include <optional>
 class Document;
 class DocumentManager;
 
@@ -71,6 +72,7 @@ public:
     Q_INVOKABLE void pickSurface(int x, int y, bool followRelief = false, bool subtract = false);
     Q_INVOKABLE void protectSurfaceObject(int x, int y, bool subtract = false);
     Q_INVOKABLE void applySurfaceSelection();
+    Q_INVOKABLE void applySurfaceText(int x, int y);
     bool             surfaceAnalysis() const
     {
         return m_surfaceAnalysis;
@@ -125,6 +127,7 @@ private:
     void prepareLocalSurface(const QString &path);
     void surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry);
     bool canEditSurfaceSelection();
+    void applySurfaceSelection(std::optional<QPoint> textPosition);
     void updateSurfaceSelection(const QPoint &seed, bool subtract, bool followRelief, bool protect);
     void showSurfacePickHint();
     QString               variantStatus(const QString &_status) const;

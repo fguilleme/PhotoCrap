@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
 #include "ai/SurfaceGeometry.h"
+#include "text/TextLayer.h"
 #include <QBuffer>
 #include <QImageReader>
 #include <QtConcurrentRun>
@@ -227,27 +228,27 @@ bool Document::matchesAiSource(const PhotoCrap::Ai::Input &source) const
            source.canvas == m_size;
 }
 
-bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask,
-                                    QImage normals)
+bool Document::addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
+                               std::optional<QPoint> textPosition)
 {
     if (!matchesAiSource(source) || aiInsertionBusy() || transformActive() ||
         mask.size() != m_size || mask.format() != QImage::Format_Grayscale8 ||
         normals.format() != QImage::Format_RGB888 ||
         qMax(normals.width(), normals.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge ||
+        (textPosition && !mask.rect().contains(*textPosition)) ||
         !validSize(width(), height(), int(m_layers.size()) + 1) ||
-        !validLayerStorage(width(), height(), 0, !ImageUtils::compact(mask), 0,
+        !validLayerStorage(width(), height(), textPosition ? 1 : 0, !ImageUtils::compact(mask), 0,
                            normals.sizeInBytes()))
         return false;
     const bool hadSelection = hasSelection();
-    const auto label = tr("Peinture sur surface");
-    edit(label, [&] {
-        Layer layer;
-        layer.name  = label;
-        layer.image = ImageUtils::blank({1, 1}, workingFormat());
-        layer.mask  = std::move(mask);
-        layer.surfaceNormals      = std::move(normals);
-        layer.surfaceNormalCanvas = m_size;
-        layer.blend = 25; // Color blend mode keeps the underlying luminosity.
+    const auto label = textPosition ? tr("Texte sur la surface") : tr("Peinture sur surface");
+    Layer      layer(label, ImageUtils::blank({1, 1}, workingFormat()));
+    if (layer.image.isNull())
+        return false;
+    layer.mask                = std::move(mask);
+    layer.surfaceNormals      = std::move(normals);
+    layer.surfaceNormalCanvas = m_size;
+    const auto insert         = [&] {
         // The analysis covers the visible composition. Keep it above that
         // composition even when the previously active layer was in a group.
         m_layers.append(std::move(layer));
@@ -256,11 +257,31 @@ bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPla
         selectOnly(m_active);
         if (hadSelection)
             clearActiveSelection(false);
-    });
+    };
+    if (textPosition) {
+        layer.kind = "text";
+        layer.parameters =
+            PhotoCrap::Text::create(textPosition->x(), textPosition->y(), m_textSize, m_color);
+        if (!PhotoCrap::Text::normalize(layer.parameters))
+            return false;
+        setTool(QStringLiteral("text"));
+        m_beforeText = snapshot(label);
+        insert();
+        m_textEditing = m_textNewLayer = true;
+        m_textGesture                  = false;
+        m_text.clear();
+        changed();
+        emit textEditingChanged();
+        emit textGeometryChanged();
+        emit textEditRequested();
+    } else {
+        layer.blend = 25; // Color blend mode keeps the underlying luminosity.
+        edit(label, insert);
+        setTool(QStringLiteral("brush"));
+    }
     if (hadSelection)
         emit selectionChanged();
     setDisplayChannel(0);
-    setTool(QStringLiteral("brush"));
     return true;
 }
 

@@ -6,6 +6,7 @@
 #include <QVector3D>
 #include <cmath>
 #include <new>
+#include <vector>
 
 namespace PhotoCrap::Ai
 {
@@ -73,6 +74,127 @@ QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, co
     const auto yy        = squeeze * direction.y() * direction.y();
     const auto xy        = squeeze * direction.x() * direction.y();
     return {1. - yy, xy, xy, 1. - xx, 0., 0.};
+}
+
+namespace
+{
+template <class Pixel, class Blend>
+void sampleSurfaceText(QImage &projected, const QImage &text, const std::vector<QPointF> &grid,
+                       const QSize &steps, Blend blend)
+{
+    const int   stride = steps.width() + 1;
+    const qreal stepX  = qreal(text.width() - 1) / steps.width();
+    const qreal stepY  = qreal(text.height() - 1) / steps.height();
+    for (int y = 0; y < text.height(); ++y) {
+        auto       *out = reinterpret_cast<Pixel *>(projected.scanLine(y));
+        const qreal row = stepY > 0. ? y / stepY : 0.;
+        const int   gy  = qMin(int(row), steps.height() - 1);
+        const qreal v   = row - gy;
+        for (int x = 0; x < text.width(); ++x) {
+            const qreal col    = stepX > 0. ? x / stepX : 0.;
+            const int   gx     = qMin(int(col), steps.width() - 1);
+            const qreal u      = col - gx;
+            const auto  i      = gy * stride + gx;
+            const auto  top    = grid[i] * (1. - u) + grid[i + 1] * u;
+            const auto  bottom = grid[i + stride] * (1. - u) + grid[i + stride + 1] * u;
+            const auto  p      = top * (1. - v) + bottom * v;
+            if (p.x() <= -1. || p.y() <= -1. || p.x() >= text.width() || p.y() >= text.height())
+                continue;
+            const int  sx = int(std::floor(p.x())), sy = int(std::floor(p.y()));
+            const auto sample = [&](int px, int py) -> Pixel {
+                if (px < 0 || py < 0 || px >= text.width() || py >= text.height())
+                    return {};
+                return reinterpret_cast<const Pixel *>(text.constScanLine(py))[px];
+            };
+            out[x] = blend(sample(sx, sy), sample(sx + 1, sy), sample(sx, sy + 1),
+                           sample(sx + 1, sy + 1), p.x() - sx, p.y() - sy);
+        }
+    }
+}
+} // namespace
+
+QImage projectSurfaceText(const QImage &text, const QPoint &origin, const QPointF &anchor,
+                          const QImage &normals, const QSize &canvas, const QTransform &mapping)
+{
+    if (text.isNull() || normals.isNull())
+        return text;
+    const QSize          steps(qBound(1, (text.width() + 5) / 6, 192),
+                               qBound(1, (text.height() + 5) / 6, 192));
+    const int            stride = steps.width() + 1;
+    const qreal          stepX  = qreal(text.width() - 1) / steps.width();
+    const qreal          stepY  = qreal(text.height() - 1) / steps.height();
+    std::vector<QPointF> stretch(stride * (steps.height() + 1));
+    std::vector<QPointF> grid(stretch.size());
+    bool                 flat = true;
+    for (int y = 0; y <= steps.height(); ++y)
+        for (int x = 0; x <= steps.width(); ++x) {
+            const auto projection = surfaceBrushProjection(
+                normals, canvas, QPointF(origin) + QPointF(x * stepX + .5, y * stepY + .5),
+                mapping);
+            // Convert image distances to approximate distances along the cloth.
+            // Cap the stretch to keep lettering legible on grazing folds.
+            constexpr qreal minimumScale = .45;
+            const qreal     sx = qMax(minimumScale, std::hypot(projection.m11(), projection.m12()));
+            const qreal     sy = qMax(minimumScale, std::hypot(projection.m21(), projection.m22()));
+            flat &= 1. - sx < .001 && 1. - sy < .001;
+            stretch[y * stride + x] = {1. / sx, 1. / sy};
+        }
+    if (flat)
+        return text;
+    // Integrate each row and column through the folds. Different distances on
+    // adjacent rows and columns deform the entire word, including its baseline.
+    const auto integrate = [&](int start, int increment, int count, int axis, qreal step,
+                               qreal at) {
+        const auto value = [axis](const QPointF &p) { return axis == 0 ? p.x() : p.y(); };
+        const auto coord = [axis](QPointF &p) -> qreal & { return axis == 0 ? p.rx() : p.ry(); };
+        for (int i = 1; i <= count; ++i) {
+            const int next = start + i * increment;
+            const int prev = next - increment;
+            coord(grid[next]) =
+                value(grid[prev]) + (value(stretch[prev]) + value(stretch[next])) * step * .5;
+        }
+        at                   = qBound(0., at, step * count);
+        const qreal t        = step > 0. ? at / step : 0.;
+        const int   i        = qMin(count - 1, int(t));
+        const qreal fraction = t - i;
+        const qreal offset   = at - value(grid[start + i * increment]) * (1. - fraction) -
+                               value(grid[start + (i + 1) * increment]) * fraction;
+        for (int k = 0; k <= count; ++k)
+            coord(grid[start + k * increment]) += offset;
+    };
+    const QPointF localAnchor = anchor - QPointF(origin) - QPointF(.5, .5);
+    for (int y = 0; y <= steps.height(); ++y)
+        integrate(y * stride, 1, steps.width(), 0, stepX, localAnchor.x());
+    for (int x = 0; x <= steps.width(); ++x)
+        integrate(x, stride, steps.height(), 1, stepY, localAnchor.y());
+
+    QImage projected(text.size(), text.format());
+    if (projected.isNull())
+        return {};
+    projected.fill(Qt::transparent);
+    const auto channel = [](int a, int b, int c, int d, qreal u, qreal v) {
+        return qRound((a * (1. - u) + b * u) * (1. - v) + (c * (1. - u) + d * u) * v);
+    };
+    if (text.format() == QImage::Format_RGBA64_Premultiplied) {
+        sampleSurfaceText<QRgba64>(
+            projected, text, grid, steps,
+            [&](QRgba64 a, QRgba64 b, QRgba64 c, QRgba64 d, qreal u, qreal v) {
+                return QRgba64::fromRgba64(
+                    channel(a.red(), b.red(), c.red(), d.red(), u, v),
+                    channel(a.green(), b.green(), c.green(), d.green(), u, v),
+                    channel(a.blue(), b.blue(), c.blue(), d.blue(), u, v),
+                    channel(a.alpha(), b.alpha(), c.alpha(), d.alpha(), u, v));
+            });
+    } else {
+        sampleSurfaceText<QRgb>(
+            projected, text, grid, steps, [&](QRgb a, QRgb b, QRgb c, QRgb d, qreal u, qreal v) {
+                return qRgba(channel(qRed(a), qRed(b), qRed(c), qRed(d), u, v),
+                             channel(qGreen(a), qGreen(b), qGreen(c), qGreen(d), u, v),
+                             channel(qBlue(a), qBlue(b), qBlue(c), qBlue(d), u, v),
+                             channel(qAlpha(a), qAlpha(b), qAlpha(c), qAlpha(d), u, v));
+            });
+    }
+    return projected;
 }
 
 bool SurfaceGeometry::isValid() const

@@ -30,4 +30,6 @@ QImage           combineSurfaceRegions(QImage region, const QImage &previous, bo
                                        const Cancel &cancel);
 QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, const QPointF &center,
                                   const QTransform &mapping = {});
+QImage projectSurfaceText(const QImage &text, const QPoint &origin, const QPointF &anchor,
+                          const QImage &normals, const QSize &canvas, const QTransform &mapping);
 } // namespace PhotoCrap::Ai

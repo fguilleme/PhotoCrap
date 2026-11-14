@@ -281,8 +281,9 @@ convertit cet alpha en masque pour le workflow fourni.
    à 2 048 px.
 3. Cliquer sur chaque surface à peindre, par exemple les deux faces d’un mur.
    La surimpression verte montre les zones retenues. Faire un clic droit sur une
-   zone pour la retirer. Pour un tissu froissé ou une surface courbe, cocher
-   **Suivre le relief** dans la barre au-dessus du canevas avant de cliquer.
+   zone pour la retirer. Dans la barre au-dessus du canevas, choisir **Face
+   plane** pour un pan de mur et **Tissu / relief** pour suivre les plis.
+   Le mode choisi s’applique au prochain clic sur l’image.
    Si un objet déborde dans la sélection, activer **Protéger un objet** puis
    cliquer au centre de l’objet. Le rouge indique ce que la peinture épargnera.
    En mode protection, un clic droit retire le masque de cet objet. La première
@@ -299,7 +300,7 @@ Les clics sur des faces combinent les zones connectées selon la profondeur et
 l’orientation, ce qui permet de sélectionner séparément deux pans d’un mur.
 Si MobileSAM est déjà téléchargé, ses contours affinent aussi les faces pour
 éviter de peindre sur les objets devant le mur, tout en conservant les ombres
-portées sur celui-ci. En mode **Suivre le relief**, MobileSAM délimite la pièce
+portées sur celui-ci. En mode **Tissu / relief**, MobileSAM délimite la pièce
 de tissu sur l’image pour pouvoir réunir les deux côtés d’un pli. Sur les
 versions sans MobileSAM, ce mode utilise les normales voisines et les ruptures
 de profondeur estimées.
@@ -309,6 +310,12 @@ orientation et sa largeur suivent la pente locale, et les protections d’objet
 restent dans le masque éditable. Les projets PCR contenant un calque de peinture
 sur surface enregistrent ses normales au format v16, pour reprendre le dessin
 après réouverture.
+
+Pour inscrire du texte sur du tissu, sélectionner la pièce avec **Tissu /
+relief**, choisir **Texte** et cliquer à l’emplacement voulu sur le tissu. Les
+lettres épousent les variations locales du relief et le masque protège ce qui
+se trouve devant le tissu. Utiliser **Caractère / Paragraphe…** pour la mise en
+forme. Le calque enregistré dans le projet PCR reste modifiable avec l’outil Texte.
 
 **Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
 CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie

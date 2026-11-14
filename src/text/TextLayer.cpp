@@ -1,5 +1,7 @@
 #include "TextLayer.h"
 #include "ImageUtils.h"
+#include "Layer.h"
+#include "ai/SurfaceGeometry.h"
 #include <QAbstractTextDocumentLayout>
 #include <QPainter>
 #include <QRegularExpression>
@@ -289,7 +291,8 @@ QRect bounds(const QVariantMap &_p, const QSize &_canvas)
     configure(doc, _p);
     return documentBounds(doc, _p, _canvas);
 }
-PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format _format)
+PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format _format,
+                       const Layer *surface)
 {
     if (_size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
         qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
@@ -312,7 +315,11 @@ PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format
     QPainter painter(&pixels);
     drawDocument(painter, doc, _p, region.topLeft());
     painter.end();
-    if (!result.writeRegion(region.topLeft(), pixels, _size))
+    if (surface && !surface->surfaceNormals.isNull())
+        pixels = Ai::projectSurfaceText(pixels, region.topLeft(), transform(_p).map(QPointF{}),
+                                        surface->surfaceNormals, surface->surfaceNormalCanvas,
+                                        surface->surfaceNormalTransform);
+    if (pixels.isNull() || !result.writeRegion(region.topLeft(), pixels, _size))
         return {};
     return result;
 }

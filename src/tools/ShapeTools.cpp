@@ -71,7 +71,8 @@ void Document::renderShape(const QPointF &_to)
             return;
         auto image = parameters == m_textMoveParameters ? m_strokePlaneBase
                      : shape ? PhotoCrap::Shape::renderPlane(parameters, m_size, workingFormat())
-                             : PhotoCrap::Text::renderPlane(parameters, m_size, workingFormat());
+                             : PhotoCrap::Text::renderPlane(parameters, m_size, workingFormat(),
+                                                            &m_layers[m_active]);
         if (image.isNull()) {
             cancelStroke();
             fail(tr("Mémoire insuffisante pour rendre le texte."));

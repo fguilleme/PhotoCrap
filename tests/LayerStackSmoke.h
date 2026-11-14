@@ -541,6 +541,9 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
         document.beginLayerPreview();
         document.previewLayerParameter("cyanRed", 17);
         document.finishLayerPreview("Balance");
+        if (!require(waitForCommittedPreview(document),
+                     "the committed color balance is ready before comparing zoom levels"))
+            return false;
         for (int width : {600, 300, 150, 600, 300}) {
             canvas.setSize({qreal(width), 128});
             canvas.setGpuStackEnabled(true);
@@ -574,10 +577,12 @@ inline bool runLayerStackSmoke(QQuickWindow *window)
                     const auto point = canvas.mapToScene({x + .5, y + .5}) * ratio;
                     const auto a     = actual.pixelColor(qFloor(point.x()), qFloor(point.y()));
                     const auto b     = expected.pixelColor(qFloor(point.x()), qFloor(point.y()));
-                    if (!require(qAbs(a.red() - b.red()) <= 2 && qAbs(a.green() - b.green()) <= 2 &&
-                                     qAbs(a.blue() - b.blue()) <= 2,
-                                 "shared scratch preserves independent tile colors at each zoom"))
+                    if (qAbs(a.red() - b.red()) > 2 || qAbs(a.green() - b.green()) > 2 ||
+                        qAbs(a.blue() - b.blue()) > 2) {
+                        qWarning()
+                            << "Tile color difference at zoom" << bits << width << x << y << a << b;
                         return false;
+                    }
                 }
         }
     }

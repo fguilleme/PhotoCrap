@@ -1,6 +1,7 @@
 #include "Document.h"
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
+#include "ai/SurfaceGeometry.h"
 #include <QBuffer>
 #include <QImageReader>
 #include <QtConcurrentRun>
@@ -226,12 +227,16 @@ bool Document::matchesAiSource(const PhotoCrap::Ai::Input &source) const
            source.canvas == m_size;
 }
 
-bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask)
+bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask,
+                                    QImage normals)
 {
     if (!matchesAiSource(source) || aiInsertionBusy() || transformActive() ||
         mask.size() != m_size || mask.format() != QImage::Format_Grayscale8 ||
+        normals.format() != QImage::Format_RGB888 ||
+        qMax(normals.width(), normals.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge ||
         !validSize(width(), height(), int(m_layers.size()) + 1) ||
-        !validLayerStorage(width(), height(), 0, !ImageUtils::compact(mask)))
+        !validLayerStorage(width(), height(), 0, !ImageUtils::compact(mask), 0,
+                           normals.sizeInBytes()))
         return false;
     const bool hadSelection = hasSelection();
     const auto label = tr("Peinture sur surface");
@@ -240,6 +245,8 @@ bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPla
         layer.name  = label;
         layer.image = ImageUtils::blank({1, 1}, workingFormat());
         layer.mask  = std::move(mask);
+        layer.surfaceNormals      = std::move(normals);
+        layer.surfaceNormalCanvas = m_size;
         layer.blend = 25; // Color blend mode keeps the underlying luminosity.
         // The analysis covers the visible composition. Keep it above that
         // composition even when the previously active layer was in a group.

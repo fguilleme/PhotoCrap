@@ -57,16 +57,16 @@ bool modelMatches(QFileDevice &file, const ModelFile &model)
     return hash.addData(&file) && hash.result().toHex() == model.sha256;
 }
 
-void ensureModel(const ModelFile &model, const Cancel &cancel)
+bool ensureModel(const ModelFile &model, const Cancel &cancel, bool allowDownload)
 {
     if (cancel->load())
-        return;
+        return false;
     const auto path = modelPath(model);
     QFile      existing(path);
     if (existing.open(QIODevice::ReadOnly) && modelMatches(existing, model))
-        return;
-    if (cancel->load())
-        return;
+        return true;
+    if (!allowDownload || cancel->load())
+        return false;
     existing.close();
     if (!QDir().mkpath(QFileInfo(path).path()))
         throw std::runtime_error("Cannot create model directory");
@@ -100,12 +100,13 @@ void ensureModel(const ModelFile &model, const Cancel &cancel)
     if (!reply->isFinished())
         loop.exec();
     if (cancel->load())
-        return;
+        return false;
     if (reply->error() != QNetworkReply::NoError)
         throw std::runtime_error(reply->errorString().toStdString());
     read();
     if (total != model.bytes || hash.result().toHex() != model.sha256 || !file.commit())
         throw std::runtime_error("Invalid MobileSAM model file");
+    return true;
 }
 
 Ort::Session loadModel(const ModelFile &model)
@@ -157,15 +158,12 @@ bool SurfaceObjectModel::available()
 #endif
 }
 
-std::shared_ptr<const SurfaceObjectEmbedding> SurfaceObjectModel::encode(const QImage &source,
-                                                                         const Cancel &cancel)
+std::shared_ptr<const SurfaceObjectEmbedding>
+SurfaceObjectModel::encode(const QImage &source, const Cancel &cancel, bool allowDownload)
 {
 #ifdef PHOTOCRAP_LOCAL_SURFACE
-    if (source.isNull())
-        return {};
-    ensureModel(encoder, cancel);
-    ensureModel(decoder, cancel);
-    if (source.isNull() || cancel->load())
+    if (source.isNull() || !ensureModel(encoder, cancel, allowDownload) ||
+        !ensureModel(decoder, cancel, allowDownload) || cancel->load())
         return {};
     const qreal scale = qreal(imageEdge) / qMax(source.width(), source.height());
     const QSize size(qMax(1, qRound(source.width() * scale)),
@@ -198,12 +196,13 @@ std::shared_ptr<const SurfaceObjectEmbedding> SurfaceObjectModel::encode(const Q
 #else
     Q_UNUSED(source);
     Q_UNUSED(cancel);
+    Q_UNUSED(allowDownload);
     return {};
 #endif
 }
 
 QImage SurfaceObjectModel::mask(const SurfaceObjectEmbedding &embedding, const QPointF &point,
-                                const QSize &size, const Cancel &cancel)
+                                const QSize &size, const Cancel &cancel, bool preferWhole)
 {
 #ifdef PHOTOCRAP_LOCAL_SURFACE
     if (size.isEmpty() || embedding.values.size() != embeddingSize || cancel->load())
@@ -263,6 +262,25 @@ QImage SurfaceObjectModel::mask(const SurfaceObjectEmbedding &embedding, const Q
     }
     if (!best)
         return {};
+    if (preferWhole) {
+        // A click inside a fold can yield several confident masks of the same
+        // object at different scales. Pick the broadest comparable candidate.
+        const auto covered = [pixels](const float *data) {
+            return std::count_if(data, data + pixels, [](float value) { return value > 0.f; });
+        };
+        auto largest = covered(best);
+        for (size_t index = 1; index < scores; ++index) {
+            const auto *candidate = values + index * pixels;
+            if (candidate == best || quality[index] < bestScore - .04f ||
+                candidate[y * width + x] <= 0.f)
+                continue;
+            const auto area = covered(candidate);
+            if (area > largest) {
+                best    = candidate;
+                largest = area;
+            }
+        }
+    }
     QImage selected(embedding.imageSize, QImage::Format_Grayscale8);
     if (selected.isNull())
         throw std::bad_alloc();
@@ -279,6 +297,7 @@ QImage SurfaceObjectModel::mask(const SurfaceObjectEmbedding &embedding, const Q
     Q_UNUSED(point);
     Q_UNUSED(size);
     Q_UNUSED(cancel);
+    Q_UNUSED(preferWhole);
     return {};
 #endif
 }

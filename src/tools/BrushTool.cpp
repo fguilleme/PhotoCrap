@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageUtils.h"
+#include "ai/SurfaceGeometry.h"
 
 #include <QPainter>
 #include <QtMath>
@@ -85,12 +86,19 @@ void Document::stampBrush(const QPointF &_point)
         colorReplacementDab(_point);
         return;
     }
-    const qreal  radius = m_brushSize / 2.;
+    const qreal radius = m_brushSize / 2.;
+    QTransform  projection;
+    const auto &layer = m_layers.at(m_active);
+    if (m_tool == "brush" && !m_editingMask && layer.maskEnabled && !layer.surfaceNormals.isNull())
+        projection = PhotoCrap::Ai::surfaceBrushProjection(
+            layer.surfaceNormals, layer.surfaceNormalCanvas, _point, layer.surfaceNormalTransform);
     const QRectF dabBounds(_point.x() - radius - 2, _point.y() - radius - 2, radius * 2 + 4,
                            radius * 2 + 4);
     const auto   paintDab = [&](QPainter &_painter) {
         _painter.setRenderHint(QPainter::Antialiasing, m_tool != "pencil");
         _painter.translate(_point);
+        if (!projection.isIdentity())
+            _painter.setTransform(projection, true);
         _painter.rotate(m_brushAngle);
         _painter.scale(1., m_brushRoundness);
         const QColor paint(255, 255, 255, qRound(m_brushFlow * 255));

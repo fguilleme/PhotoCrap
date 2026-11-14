@@ -2,6 +2,7 @@
 #include <QBuffer>
 #include <QImageReader>
 #include <QPainter>
+#include <QVector2D>
 #include <QVector3D>
 #include <cmath>
 #include <new>
@@ -13,7 +14,8 @@ namespace
 QVector3D normalAt(const QImage &normals, int x, int y)
 {
     const auto *rgb = normals.constScanLine(y) + 3 * x;
-    return QVector3D(rgb[0] - 127.5f, rgb[1] - 127.5f, rgb[2] - 127.5f).normalized();
+    const QVector3D normal(rgb[0] - 127.5f, rgb[1] - 127.5f, rgb[2] - 127.5f);
+    return normal.lengthSquared() <= 3.f ? QVector3D{} : normal.normalized();
 }
 
 bool continuousDepth(const QImage &disparity, const QImage &validity, const QPoint &point,
@@ -35,6 +37,43 @@ bool continuousDepth(const QImage &disparity, const QImage &validity, const QPoi
            similarSlope(next + offset, depthAt(next), 1);
 }
 } // namespace
+
+QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, const QPointF &center,
+                                  const QTransform &mapping)
+{
+    bool       invertible = false;
+    const auto point      = mapping.inverted(&invertible).map(center);
+    if (normals.format() != QImage::Format_RGB888 || canvas.isEmpty() || !invertible ||
+        !QRectF(QPointF{}, QSizeF(canvas)).contains(point))
+        return {};
+    // Interpolate the encoded normals in document coordinates so the dab's
+    // axis follows the fabric smoothly even when the map is much smaller.
+    const qreal x =
+        qBound(0., point.x() * normals.width() / canvas.width() - .5, qreal(normals.width() - 1));
+    const qreal y  = qBound(0., point.y() * normals.height() / canvas.height() - .5,
+                            qreal(normals.height() - 1));
+    const int   x0 = int(x), y0 = int(y);
+    const int   x1 = qMin(x0 + 1, normals.width() - 1), y1 = qMin(y0 + 1, normals.height() - 1);
+    const float u = float(x - x0), v = float(y - y0);
+    const auto  normal =
+        ((1.f - v) * ((1.f - u) * normalAt(normals, x0, y0) + u * normalAt(normals, x1, y0)) +
+         v * ((1.f - u) * normalAt(normals, x0, y1) + u * normalAt(normals, x1, y1)))
+            .normalized();
+    if (normal.x() * normal.x() + normal.y() * normal.y() < 0.0004f)
+        return {};
+    const QPointF   offset(-normal.y(), -normal.x());
+    const QVector2D tangent(mapping.map(point + offset) - center);
+    if (tangent.isNull())
+        return {};
+    // The projected tangent disk contracts by |N.z| along the projected normal.
+    // Keep a narrow footprint at grazing angles to avoid gaps between dabs.
+    const auto direction = tangent.normalized();
+    const auto squeeze   = 1. - qBound(.25, qreal(std::abs(normal.z())), 1.);
+    const auto xx        = squeeze * direction.x() * direction.x();
+    const auto yy        = squeeze * direction.y() * direction.y();
+    const auto xy        = squeeze * direction.x() * direction.y();
+    return {1. - yy, xy, xy, 1. - xx, 0., 0.};
+}
 
 bool SurfaceGeometry::isValid() const
 {
@@ -78,16 +117,12 @@ SurfaceGeometry SurfaceGeometry::fromComfyPreview(const QByteArray &preview, con
     return geometry;
 }
 
-std::optional<SurfaceSelection>
-SurfaceGeometry::selectRegion(const QPoint &seed, const QSize &canvas, bool followRelief,
-                              bool subtract, const QImage &previous, const Cancel &cancel) const
+QImage SurfaceGeometry::regionAt(const QPoint &seed, const QSize &canvas, bool followRelief,
+                                 const Cancel &cancel) const
 {
     if (!isValid() || canvas.isEmpty() || !QRect(QPoint{}, canvas).contains(seed))
         return {};
     const auto size = disparity.size();
-    if (!previous.isNull() &&
-        (previous.size() != size || previous.format() != QImage::Format_Grayscale8))
-        return {};
     const QPoint start(int((2LL * seed.x() + 1) * size.width() / (2LL * canvas.width())),
                        int((2LL * seed.y() + 1) * size.height() / (2LL * canvas.height())));
     if (!validity.constScanLine(start.y())[start.x()])
@@ -119,20 +154,62 @@ SurfaceGeometry::selectRegion(const QPoint &seed, const QSize &canvas, bool foll
         }
     }
 
-    bool any = false;
-    for (int y = 0; y < size.height(); ++y) {
+    return region;
+}
+
+QImage restrictSurfaceRegion(QImage region, const QImage &boundary, const Cancel &cancel)
+{
+    if (region.isNull() || boundary.format() != QImage::Format_Grayscale8 ||
+        region.size() != boundary.size())
+        return region;
+    qsizetype pixels = 0, agreement = 0;
+    for (int y = 0; y < region.height(); ++y) {
         if (cancel->load())
             return {};
-        const auto *old = previous.isNull() ? nullptr : previous.constScanLine(y);
+        const auto *selected = region.constScanLine(y);
+        const auto *inside   = boundary.constScanLine(y);
+        for (int x = 0; x < region.width(); ++x) {
+            pixels += selected[x] != 0;
+            agreement += selected[x] && inside[x];
+        }
+    }
+    // A prompt over a stain or a shadow can return just that detail. Only
+    // use the image boundary if it describes most of the same surface.
+    if (agreement * 4 < pixels * 3 || agreement == pixels)
+        return region;
+    for (int y = 0; y < region.height(); ++y) {
+        if (cancel->load())
+            return {};
+        auto       *selected = region.scanLine(y);
+        const auto *inside   = boundary.constScanLine(y);
+        for (int x = 0; x < region.width(); ++x)
+            selected[x] = inside[x] ? selected[x] : 0;
+    }
+    return region;
+}
+
+QImage combineSurfaceRegions(QImage region, const QImage &previous, bool subtract,
+                             const Cancel &cancel)
+{
+    if (region.isNull() || (!previous.isNull() && (previous.size() != region.size() ||
+                                                   previous.format() != QImage::Format_Grayscale8)))
+        return {};
+    if (previous.isNull())
+        return subtract || cancel->load() ? QImage{} : region;
+    bool any = false;
+    for (int y = 0; y < region.height(); ++y) {
+        if (cancel->load())
+            return {};
+        const auto *old = previous.constScanLine(y);
         auto       *row = region.scanLine(y);
-        for (int x = 0; x < size.width(); ++x) {
-            const bool wasSelected = old && old[x];
+        for (int x = 0; x < region.width(); ++x) {
+            const bool wasSelected = old[x] != 0;
             const bool selected    = subtract ? wasSelected && !row[x] : wasSelected || row[x];
             row[x]                 = selected ? 255 : 0;
             any |= selected;
         }
     }
-    return any ? surfaceSelection(region, {}, cancel) : SurfaceSelection{};
+    return any ? region : QImage{};
 }
 
 SurfaceSelection surfaceSelection(const QImage &mask, const QImage &protection,

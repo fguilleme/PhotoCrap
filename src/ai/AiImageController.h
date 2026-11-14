@@ -125,6 +125,7 @@ private:
     void prepareLocalSurface(const QString &path);
     void surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry);
     bool canEditSurfaceSelection();
+    void updateSurfaceSelection(const QPoint &seed, bool subtract, bool followRelief, bool protect);
     void showSurfacePickHint();
     QString               variantStatus(const QString &_status) const;
     void                  startVariant();

@@ -36,7 +36,7 @@ public:
     QJsonObject metadata;
     PixelPlane  plane(int id, QSize expected, QImage::Format format);
     QByteArray  original(int id);
-    bool        isOriginal(int id) const;
+    bool        isOriginal(int id, qint64 maxBytes = MaxOriginalBytes) const;
     int         planeCount() const
     {
         return int(m_planes.size());

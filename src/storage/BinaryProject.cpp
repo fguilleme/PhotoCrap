@@ -401,9 +401,13 @@ bool BinaryProjectReader::read(QIODevice &file, Continue progress)
     m_file = &file;
     return true;
 }
-bool BinaryProjectReader::isOriginal(int id) const
+bool BinaryProjectReader::isOriginal(int id, qint64 maxBytes) const
 {
-    return id >= 0 && id < m_planes.size() && m_planes[id].toArray()[2].toInteger() == 0;
+    if (id < 0 || id >= m_planes.size())
+        return false;
+    const auto plane = m_planes[id].toArray();
+    return plane[2].toInteger() == 0 &&
+           m_blocks[plane[4].toInteger()].toArray()[2].toInteger() <= maxBytes;
 }
 QByteArray BinaryProjectReader::block(int id, int w, int h, int bpp)
 {

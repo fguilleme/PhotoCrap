@@ -13,9 +13,9 @@ class SurfaceObjectModel
 {
 public:
     static bool                                          available();
-    static std::shared_ptr<const SurfaceObjectEmbedding> encode(const QImage &source,
-                                                                const Cancel &cancel);
+    static std::shared_ptr<const SurfaceObjectEmbedding>
+                  encode(const QImage &source, const Cancel &cancel, bool allowDownload = true);
     static QImage mask(const SurfaceObjectEmbedding &embedding, const QPointF &point,
-                       const QSize &size, const Cancel &cancel);
+                       const QSize &size, const Cancel &cancel, bool preferWhole = false);
 };
 } // namespace PhotoCrap::Ai

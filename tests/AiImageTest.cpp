@@ -1457,7 +1457,7 @@ private slots:
         for (const QPoint point :
              {QPoint(60, 100), QPoint(240, 140), QPoint(240, 210), QPoint(240, 280),
               QPoint(80, 280), QPoint(365, 280)}) {
-            controller.pickSurface(point.x(), point.y(), true);
+            controller.pickSurface(point.x(), point.y());
             QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
             QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
             if (controller.hasSurfaceSelection()) {
@@ -1506,16 +1506,40 @@ private slots:
             }
         }
         const auto cancel = std::make_shared<std::atomic_bool>(false);
-        const auto face   = geometry.selectRegion(QPoint(1, 15), size, false, false, {}, cancel);
-        QVERIFY(face);
-        QCOMPARE(face->mask.pixelColor(15, 15).red(), 0);
-        const auto relief = geometry.selectRegion(QPoint(1, 15), size, true, false, {}, cancel);
-        QVERIFY(relief);
-        QCOMPARE(relief->mask.pixelColor(16, 15).red(), 255);
-        QCOMPARE(relief->mask.pixelColor(31, 15).red(), 255);
-        QCOMPARE(relief->mask.pixelColor(32, 15).red(), 0);
-        QVERIFY(relief->preview.pixelColor(16, 15).alpha() > 0);
-        QCOMPARE(relief->preview.pixelColor(32, 15).alpha(), 0);
+        const auto face   = geometry.regionAt(QPoint(1, 15), size, false, cancel);
+        QVERIFY(!face.isNull());
+        QCOMPARE(face.pixelColor(15, 15).red(), 0);
+        const auto relief = geometry.regionAt(QPoint(1, 15), size, true, cancel);
+        QVERIFY(!relief.isNull());
+        QCOMPARE(relief.pixelColor(16, 15).red(), 255);
+        QCOMPARE(relief.pixelColor(31, 15).red(), 255);
+        QCOMPARE(relief.pixelColor(32, 15).red(), 0);
+    }
+    void imageBoundaryProtectsForegroundAndPreservesWallShadows()
+    {
+        using namespace PhotoCrap::Ai;
+        const QSize size(64, 48);
+        QImage      wall(size, QImage::Format_Grayscale8);
+        wall.fill(255);
+        QImage   boundary = wall.copy();
+        QPainter painter(&boundary);
+        painter.fillRect(QRect(23, 0, 5, 14), Qt::black);  // fingers against the wall
+        painter.fillRect(QRect(46, 9, 13, 18), Qt::black); // leg at a grazing angle
+        painter.end();
+        const auto cancel  = std::make_shared<std::atomic_bool>(false);
+        const auto clipped = restrictSurfaceRegion(wall, boundary, cancel);
+        QCOMPARE(clipped.pixelColor(25, 6).red(), 0);
+        QCOMPARE(clipped.pixelColor(50, 10).red(), 0);
+        QCOMPARE(clipped.pixelColor(26, 16).red(), 255); // shadow belongs to the wall
+        QCOMPARE(clipped.pixelColor(55, 34).red(), 255);
+
+        QImage shadow(size, QImage::Format_Grayscale8);
+        shadow.fill(0);
+        QPainter shadowPainter(&shadow);
+        shadowPainter.fillRect(QRect(20, 15, 5, 9), Qt::white);
+        shadowPainter.end();
+        QCOMPARE(restrictSurfaceRegion(wall, shadow, cancel), wall);
+        QVERIFY(combineSurfaceRegions(clipped, clipped, true, cancel).isNull());
     }
     void surfacePaintingKeepsProtectedObjectsInFront()
     {
@@ -1540,6 +1564,40 @@ private slots:
         QCOMPARE(mask.pixelColor(18, 30).red(), 255);
         QCOMPARE(mask.pixelColor(74, 30).red(), 255);
     }
+    void surfaceBrushFollowsNormalsAfterSavingAndRotating()
+    {
+        Document document;
+        fixture(document);
+        const QSize canvas(document.width(), document.height());
+        QImage      mask(canvas, QImage::Format_Grayscale8);
+        mask.fill(255);
+        QImage normals(16, 12, QImage::Format_RGB888);
+        normals.fill(QColor(251, 128, 159));
+        const auto cancel = std::make_shared<std::atomic_bool>(false);
+        const auto source =
+            document.prepareAiInput(false, 256, cancel, false, false, true).result();
+        QVERIFY(document.addSurfacePaintLayer(source, PixelPlane(mask), normals));
+        QTemporaryDir files;
+        const auto    url = QUrl::fromLocalFile(files.filePath("fabric.pcr"));
+        QVERIFY(document.saveProject(url));
+        Document reopened;
+        QVERIFY(reopened.openFile(url));
+        reopened.transformImage("rotateRight");
+        QCOMPARE(reopened.width(), canvas.height());
+        const auto before = reopened.composite();
+        reopened.setTool("brush");
+        reopened.setColor(Qt::green);
+        reopened.setBrushSize(40.);
+        reopened.setBrushHardness(1.);
+        const QPoint center(reopened.width() / 2, reopened.height() / 2);
+        reopened.beginStroke(center.x(), center.y());
+        reopened.endStroke();
+        const auto painted = reopened.composite();
+        QVERIFY(painted.pixelColor(center + QPoint(-14, 0)) !=
+                before.pixelColor(center + QPoint(-14, 0)));
+        QCOMPARE(painted.pixelColor(center + QPoint(0, -14)),
+                 before.pixelColor(center + QPoint(0, -14)));
+    }
     void comfySurfacePaintingCombinesFacesAndKeepsOcclusion()
     {
         Server server;
@@ -1553,7 +1611,7 @@ private slots:
                 const int  depth      = x >= 70 ? 180 : 40;
                 for (int c = 0; c < 3; ++c) {
                     row[3 * x + c]               = depth;
-                    row[3 * (x + width) + c]     = c == (secondFace ? 0 : 2) ? 255 : 128;
+                    row[3 * (x + width) + c]     = c == 0 && secondFace ? 228 : c == 2 ? 225 : 128;
                     row[3 * (x + 2 * width) + c] = y < 10 ? 0 : 255;
                 }
             }

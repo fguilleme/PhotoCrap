@@ -2,6 +2,7 @@
 #include "storage/PixelPlane.h"
 #include <QImage>
 #include <QString>
+#include <QTransform>
 #include <QUuid>
 #include <QVariantMap>
 
@@ -46,6 +47,15 @@ struct Layer {
     bool                                              directMask    = false;
     bool                                              directPreview = true;
     PixelPlane  source;
+    QImage                                            surfaceNormals;
+    // Keep geometry anchored to the photo when moving the paint or its mask.
+    QTransform surfaceNormalTransform;
+    QSize      surfaceNormalCanvas;
+    void       transformSurfaceNormals(const QTransform &transform)
+    {
+        if (!surfaceNormals.isNull())
+            surfaceNormalTransform *= transform;
+    }
     std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
     std::shared_ptr<const PhotoCrap::Model3D::Asset>  model3D;
 };

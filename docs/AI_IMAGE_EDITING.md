@@ -295,11 +295,20 @@ convertit cet alpha en masque pour le workflow fourni.
    fusion **Couleur** conserve la luminosité de la photo et peut être changé
    dans le panneau Calques.
 
-La segmentation combine les zones connectées aux clics. En mode **Suivre le
-relief**, elle compare l’orientation de pixels voisins pour suivre les plis.
-Les ruptures de profondeur estimées arrêtent la propagation, par exemple au
-contour d’un sujet devant un mur. La qualité des bordures dépend des cartes
-produites par MoGe et de leur résolution. Les clics réutilisent la même analyse.
+Les clics sur des faces combinent les zones connectées selon la profondeur et
+l’orientation, ce qui permet de sélectionner séparément deux pans d’un mur.
+Si MobileSAM est déjà téléchargé, ses contours affinent aussi les faces pour
+éviter de peindre sur les objets devant le mur, tout en conservant les ombres
+portées sur celui-ci. En mode **Suivre le relief**, MobileSAM délimite la pièce
+de tissu sur l’image pour pouvoir réunir les deux côtés d’un pli. Sur les
+versions sans MobileSAM, ce mode utilise les normales voisines et les ruptures
+de profondeur estimées.
+
+Le pinceau projette chaque empreinte sur le plan tangent estimé par MoGe. Son
+orientation et sa largeur suivent la pente locale, et les protections d’objet
+restent dans le masque éditable. Les projets PCR contenant un calque de peinture
+sur surface enregistrent ses normales au format v16, pour reprendre le dessin
+après réouverture.
 
 **Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
 CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie

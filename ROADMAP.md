@@ -13,6 +13,8 @@ la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
   et suivre les variations locales du relief sur les surfaces courbes ou pliées.
 - [x] Détourer au clic un objet qui masque la surface et le protéger de la
   peinture avec MobileSAM local.
+- [x] Sélectionner un tissu à travers ses plis avec MobileSAM et orienter le
+  pinceau à partir des normales conservées dans le projet.
 - [ ] Vérifier les bords d’occlusion et les surfaces courbes sur des photos avec
   un serveur ComfyUI équipé de MoGe.
 - [x] Ajouter l’inférence MoGe-2 ViT-S dans PhotoCrap via ONNX Runtime sur
@@ -20,7 +22,7 @@ la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
   exécution CPU disponible sur les trois plateformes.
 - [ ] Valider l’inférence locale dans les paquets Linux et Windows et comparer
   la précision des masques sur des photos avec le modèle ComfyUI.
-- [ ] Projeter la texture le long de la surface et tester un éclairage local
+- [ ] Déformer un calque de texte ou de texture sur les plis et tester un éclairage local
   à partir des normales. Évaluer la séparation albédo et éclairage pour
   conserver davantage de détails lors de la retouche.
 

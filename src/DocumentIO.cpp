@@ -2,6 +2,7 @@
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
+#include "ai/SurfaceGeometry.h"
 #include "masks/VectorMask.h"
 #include "model3d/Model3D.h"
 #include "shapes/ShapeLayer.h"
@@ -461,8 +462,12 @@ bool Document::saveProject(const QUrl &_url)
         std::any_of(m_layers.cbegin(), m_layers.cend(), PhotoCrap::Masks::hasVector);
     const bool  models = std::any_of(m_layers.cbegin(), m_layers.cend(),
                                     [](const Layer &layer) { return bool(layer.model3D); });
+    const bool  surfacePaint =
+        std::any_of(m_layers.cbegin(), m_layers.cend(),
+                    [](const Layer &layer) { return !layer.surfaceNormals.isNull(); });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", models             ? 15
+                     {"version", surfacePaint       ? 16
+                                 : models           ? 15
                                  : vectors          ? 14
                                  : originalAiImages ? 13
                                  : gradients        ? 12
@@ -533,6 +538,22 @@ bool Document::saveProject(const QUrl &_url)
                 return fail(tr("Impossible d’encoder le modèle 3D."));
             metadata["model3d"] = model;
         }
+        if (!layer.surfaceNormals.isNull()) {
+            QByteArray bytes;
+            QBuffer    buffer(&bytes);
+            if (!buffer.open(QIODevice::WriteOnly) || !layer.surfaceNormals.save(&buffer, "PNG"))
+                return fail(tr("Impossible d’enregistrer les normales de surface."));
+            const int payload = archive.original(bytes);
+            if (payload < 0)
+                return fail(tr("Impossible d’enregistrer les normales de surface."));
+            const auto &map            = layer.surfaceNormalTransform;
+            metadata["surfaceNormals"] = QJsonObject{
+                {"png", payload},
+                {"width", layer.surfaceNormalCanvas.width()},
+                {"height", layer.surfaceNormalCanvas.height()},
+                {"transform", QJsonArray{map.m11(), map.m12(), map.m13(), map.m21(), map.m22(),
+                                         map.m23(), map.m31(), map.m32(), map.m33()}}};
+        }
         metadata["png"]    = pixels;
         metadata["mask"]   = mask;
         metadata["source"] = source;
@@ -566,7 +587,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 15)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 16)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -598,6 +619,8 @@ bool Document::loadProject(const QString &_path)
         return false;
     QVector<Layer>                                                           layers;
     QHash<QPair<int, int>, std::shared_ptr<const PhotoCrap::Model3D::Asset>> models;
+    QHash<int, QImage>                                                       normalMaps;
+    qint64 normalBytes = DocumentStorage::estimateBytes(w, h, colors, masks, bits);
     qsizetype                                                                modelBytes = 0;
     QVariantMap                                                              sceneLight;
     PreparedPlaneBudget                                                      budget;
@@ -802,6 +825,47 @@ bool Document::loadProject(const QString &_path)
         layer.groupId        = object["groupId"].toString().left(64);
         layer.groupCollapsed = object["groupCollapsed"].toBool(false);
         layer.source         = source;
+        if (object.contains("surfaceNormals")) {
+            const auto  surface = object.value("surfaceNormals").toObject();
+            const int   id      = surface.value("png").toInt(-1);
+            const QSize surfaceCanvas(surface["width"].toInt(), surface["height"].toInt());
+            const auto  transform = surface.value("transform").toArray();
+            if (version < 16 || kind != "pixel" || !index.binary ||
+                !index.archive.isOriginal(id, 4 * 1024 * 1024) ||
+                !PhotoCrap::Ai::validSize(surfaceCanvas) || transform.size() != 9 ||
+                std::any_of(
+                    transform.cbegin(), transform.cend(),
+                    [](const QJsonValue &value) {
+                        return !value.isDouble() || !std::isfinite(value.toDouble()) ||
+                               std::abs(value.toDouble()) > 1e9;
+                    }))
+                return fail(tr("Carte de normales de surface invalide."));
+            layer.surfaceNormalTransform = QTransform(
+                transform[0].toDouble(), transform[1].toDouble(), transform[2].toDouble(),
+                transform[3].toDouble(), transform[4].toDouble(), transform[5].toDouble(),
+                transform[6].toDouble(), transform[7].toDouble(), transform[8].toDouble());
+            if (!layer.surfaceNormalTransform.isInvertible())
+                return fail(tr("Carte de normales de surface invalide."));
+            layer.surfaceNormalCanvas = surfaceCanvas;
+            if (!normalMaps.contains(id)) {
+                QBuffer buffer;
+                buffer.setData(index.archive.original(id));
+                buffer.open(QIODevice::ReadOnly);
+                QImageReader reader(&buffer, "png");
+                const QSize  size = reader.size();
+                if (size.isEmpty() ||
+                    qMax(size.width(), size.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge)
+                    return fail(tr("Carte de normales de surface invalide."));
+                const auto normals = reader.read().convertToFormat(QImage::Format_RGB888);
+                if (normals.isNull())
+                    return fail(tr("Carte de normales de surface invalide."));
+                normalMaps.insert(id, normals);
+            }
+            layer.surfaceNormals = normalMaps.value(id);
+            normalBytes += layer.surfaceNormals.sizeInBytes();
+            if (!validStorageBytes(normalBytes))
+                return false;
+        }
         layers.append(layer);
         if (version == 2 && kind == "frequency") {
             layers.last().kind       = "pixel";

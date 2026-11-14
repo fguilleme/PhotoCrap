@@ -26,6 +26,8 @@ QHash<qint64, qint64> layerBlocks(const Layer &layer)
     auto blocks = layer.image.storageBlocks();
     blocks.insert(layer.mask.storageBlocks());
     blocks.insert(layer.source.storageBlocks());
+    if (!layer.surfaceNormals.isNull())
+        blocks.insert(layer.surfaceNormals.cacheKey(), layer.surfaceNormals.sizeInBytes());
     if (layer.aiSource)
         blocks.insert(layer.aiSource->memoryKey, layer.aiSource->encoded.size());
     return blocks;
@@ -295,16 +297,19 @@ bool Document::validStorageBytes(qint64 _bytes)
                         .arg(DocumentStorage::MaxLayerBytes / (1024 * 1024)));
     return true;
 }
-bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMasks, int _bits)
+bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMasks, int _bits,
+                                 qint64 extraBytes)
 {
     int colors = _extraColors, masks = _extraMasks;
     for (const auto &layer : std::as_const(m_layers)) {
         colors +=
             (!layer.image.isNull() && !ImageUtils::compact(layer.image)) + !layer.source.isNull();
         masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
+        extraBytes += layer.surfaceNormals.sizeInBytes();
     }
     return validStorageBytes(
-        DocumentStorage::estimateBytes(_w, _h, colors, masks, _bits ? _bits : m_channelBits));
+        DocumentStorage::estimateBytes(_w, _h, colors, masks, _bits ? _bits : m_channelBits) +
+        extraBytes);
 }
 bool Document::editable(bool _materialize, bool _allowText)
 {
@@ -522,6 +527,9 @@ QVariantMap Document::memoryUsage() const
             heapBlocks.insert(layer.image.heapBlocks());
             heapBlocks.insert(layer.mask.heapBlocks());
             heapBlocks.insert(layer.source.heapBlocks());
+            if (!layer.surfaceNormals.isNull())
+                heapBlocks.insert(layer.surfaceNormals.cacheKey(),
+                                  layer.surfaceNormals.sizeInBytes());
             const auto blocks = layerBlocks(layer);
             for (auto it = blocks.cbegin(); it != blocks.cend(); ++it)
                 if (!seen.contains(it.key())) {

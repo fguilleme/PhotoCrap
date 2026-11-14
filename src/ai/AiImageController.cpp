@@ -223,7 +223,7 @@ bool AiImageController::analyzeSurfaceLocally()
           {{"kind", "localSurface"},
            {"name", tr("Sur cet ordinateur")},
            {"model", "MoGe-2 ViT-S"},
-           {"maxEdge", 768}},
+           {"maxEdge", PhotoCrap::Ai::MaxSurfaceNormalEdge}},
           {}, false, 1, false, false, true);
     return true;
 }
@@ -499,62 +499,21 @@ bool AiImageController::canEditSurfaceSelection()
 
 void AiImageController::pickSurface(int x, int y, bool followRelief, bool subtract)
 {
-    if (!canEditSurfaceSelection() || (subtract && !hasSurfaceSelection()))
-        return;
-    const auto generation = m_generation;
-    const auto geometry   = m_surfaceGeometry;
-    const auto selected   = m_surfaceSelection.mask;
-    const auto protection = m_surfaceProtection;
-    const auto canvas     = m_input.canvas;
-    const auto cancel     = m_cancel;
-    m_busy                = true;
-    m_surfacePickingHint  = false;
-    m_status              = tr("Sélection de la surface…");
-    emit changed();
-    if (!m_busy || generation != m_generation)
-        return;
-
-    using Selection = std::optional<PhotoCrap::Ai::SurfaceSelection>;
-    auto *watcher   = new QFutureWatcher<Selection>(this);
-    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation] {
-        watcher->deleteLater();
-        if (!m_busy || generation != m_generation || !m_document)
-            return;
-        if (!m_document->matchesAiSource(m_input)) {
-            stop(tr("L’image a changé. Relancez l’analyse de la surface."));
-            return;
-        }
-        Selection selection;
-        try {
-            selection = watcher->result();
-        } catch (...) {
-            stop(tr("Mémoire insuffisante pour sélectionner la surface."));
-            return;
-        }
-        m_busy = false;
-        if (selection) {
-            m_surfaceSelection = std::move(*selection);
-            ++m_surfacePreviewRevision;
-            showSurfacePickHint();
-        } else {
-            m_status = tr("Aucune surface exploitable ici. Cliquez ailleurs sur l’image.");
-        }
-        emit changed();
-    });
-    watcher->setFuture(QtConcurrent::run([geometry, seed = QPoint(x, y), canvas, followRelief,
-                                          subtract, selected, protection, cancel] {
-        auto result = geometry.selectRegion(seed, canvas, followRelief, subtract, selected, cancel);
-        if (result && !protection.isNull())
-            *result = PhotoCrap::Ai::surfaceSelection(result->mask, protection, cancel);
-        return result;
-    }));
+    updateSurfaceSelection({x, y}, subtract, followRelief, false);
 }
 
 void AiImageController::protectSurfaceObject(int x, int y, bool subtract)
 {
-    if (!surfaceProtectionAvailable() || !canEditSurfaceSelection() ||
-        (subtract && m_surfaceProtection.isNull()) ||
-        !QRect(QPoint{}, m_input.canvas).contains(x, y))
+    updateSurfaceSelection({x, y}, subtract, false, true);
+}
+
+void AiImageController::updateSurfaceSelection(const QPoint &seed, bool subtract, bool followRelief,
+                                               bool protect)
+{
+    const bool segment = surfaceProtectionAvailable();
+    if ((protect && !segment) || !canEditSurfaceSelection() ||
+        (subtract && (protect ? m_surfaceProtection.isNull() : !hasSurfaceSelection())) ||
+        !QRect(QPoint{}, m_input.canvas).contains(seed))
         return;
     using namespace PhotoCrap::Ai;
     struct Result {
@@ -565,21 +524,23 @@ void AiImageController::protectSurfaceObject(int x, int y, bool subtract)
     };
     const auto    generation = m_generation;
     const auto    cancel     = m_cancel;
-    const auto    size       = m_surfaceGeometry.disparity.size();
-    const QPointF point((x + .5) / m_input.canvas.width(), (y + .5) / m_input.canvas.height());
+    const auto    geometry   = m_surfaceGeometry;
+    const auto    canvas     = m_input.canvas;
     const auto    image    = m_input.localImage;
     const auto    encoded  = m_input.image;
     const auto    selected = m_surfaceSelection.mask;
     const auto    previous = m_surfaceProtection;
     m_busy                 = true;
     m_surfacePickingHint   = false;
-    m_status               = m_surfaceEmbedding ? tr("Détourage de l’objet…")
-                                                : tr("Préparation de MobileSAM et détourage…");
+    m_status                 = (protect || followRelief) && segment && !m_surfaceEmbedding
+                                   ? tr("Préparation de MobileSAM et détourage…")
+                               : protect ? tr("Détourage de l’objet…")
+                                         : tr("Sélection de la surface…");
     emit changed();
     if (!m_busy || generation != m_generation)
         return;
     auto *watcher = new QFutureWatcher<Result>(this);
-    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation] {
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation, protect] {
         watcher->deleteLater();
         if (!m_busy || generation != m_generation || !m_document)
             return;
@@ -601,7 +562,9 @@ void AiImageController::protectSurfaceObject(int x, int y, bool subtract)
                 ++m_surfacePreviewRevision;
                 showSurfacePickHint();
             } else {
-                m_status = tr("Aucun objet détecté ici. Cliquez au centre de l’objet.");
+                m_status =
+                    protect ? tr("Aucun objet détecté ici. Cliquez au centre de l’objet.")
+                            : tr("Aucune surface exploitable ici. Cliquez ailleurs sur l’image.");
             }
         } catch (const std::exception &error) {
             m_status = tr("Segmentation impossible. %1").arg(QString::fromUtf8(error.what()));
@@ -611,31 +574,45 @@ void AiImageController::protectSurfaceObject(int x, int y, bool subtract)
         emit changed();
     });
     watcher->setFuture(QtConcurrent::run([embedding = m_surfaceEmbedding, image, encoded, previous,
-                                          selected, size, point, subtract, cancel]() mutable {
-        if (!embedding)
-            embedding = SurfaceObjectModel::encode(
-                image.isNull() ? QImage::fromData(encoded, "PNG") : image, cancel);
-        if (!embedding || cancel->load())
-            return Result{};
-        auto mask = SurfaceObjectModel::mask(*embedding, point, size, cancel);
-        if (mask.isNull())
-            return Result{std::move(embedding), {}, {}, false};
-        bool any = false;
-        for (int row = 0; row < size.height(); ++row) {
-            if (cancel->load())
+                                          selected, geometry, canvas, seed, subtract, protect,
+                                          followRelief, segment, cancel]() mutable {
+        QImage region;
+        if (!protect && !followRelief) {
+            region = geometry.regionAt(seed, canvas, false, cancel);
+            if (region.isNull())
                 return Result{};
-            auto       *out    = mask.scanLine(row);
-            const auto *before = previous.isNull() ? nullptr : previous.constScanLine(row);
-            for (int col = 0; col < size.width(); ++col) {
-                const bool old = before && before[col];
-                out[col]       = (subtract ? old && !out[col] : old || out[col]) ? 255 : 0;
-                any |= out[col] != 0;
+        }
+        QImage boundary;
+        if (segment && !cancel->load()) {
+            try {
+                if (!embedding)
+                    embedding = SurfaceObjectModel::encode(
+                        image.isNull() ? QImage::fromData(encoded, "PNG") : image, cancel,
+                        protect || followRelief);
+                const QPointF point((seed.x() + .5) / canvas.width(),
+                                    (seed.y() + .5) / canvas.height());
+                if (embedding)
+                    boundary = SurfaceObjectModel::mask(
+                        *embedding, point, geometry.disparity.size(), cancel, followRelief);
+            } catch (...) {
+                if (protect || followRelief)
+                    throw;
+                // Planar selection is still available if model loading fails.
             }
         }
-        if (!any)
-            mask = {};
-        auto selection = surfaceSelection(selected, mask, cancel);
-        return Result{std::move(embedding), std::move(mask), std::move(selection), true};
+        if (protect || (followRelief && segment))
+            region = std::move(boundary);
+        else if (followRelief)
+            region = geometry.regionAt(seed, canvas, true, cancel);
+        else
+            region = restrictSurfaceRegion(std::move(region), boundary, cancel);
+        if (region.isNull() || cancel->load())
+            return Result{std::move(embedding), {}, {}, false};
+        auto mask       = combineSurfaceRegions(std::move(region), protect ? previous : selected,
+                                                subtract, cancel);
+        auto protection = protect ? mask : previous;
+        auto selection  = surfaceSelection(protect ? selected : mask, protection, cancel);
+        return Result{std::move(embedding), std::move(protection), std::move(selection), true};
     }));
 }
 
@@ -653,8 +630,10 @@ void AiImageController::applySurfaceSelection()
     emit changed();
     if (!m_busy || generation != m_generation)
         return;
-    auto *watcher = new QFutureWatcher<PixelPlane>(this);
-    connect(watcher, &QFutureWatcher<PixelPlane>::finished, this, [this, watcher, generation] {
+    using PaintLayer   = std::pair<PixelPlane, QImage>;
+    const auto normals = m_surfaceGeometry.normals;
+    auto      *watcher = new QFutureWatcher<PaintLayer>(this);
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation] {
         watcher->deleteLater();
         if (!m_busy || generation != m_generation || !m_document)
             return;
@@ -662,19 +641,20 @@ void AiImageController::applySurfaceSelection()
             stop(tr("L’image a changé. Relancez l’analyse de la surface."));
             return;
         }
-        PixelPlane mask;
+        PaintLayer layer;
         try {
-            mask = watcher->result();
+            layer = watcher->result();
         } catch (...) {
             stop(tr("Mémoire insuffisante pour créer le masque de surface."));
             return;
         }
-        if (mask.isNull()) {
+        if (layer.first.isNull() || layer.second.isNull()) {
             stop(tr("Mémoire insuffisante pour créer le masque de surface."));
             return;
         }
         m_surfaceGeometry = {};
-        if (!m_document->addSurfacePaintLayer(m_input, std::move(mask))) {
+        if (!m_document->addSurfacePaintLayer(m_input, std::move(layer.first),
+                                              std::move(layer.second))) {
             stop(tr("Impossible d’ajouter le calque de peinture sur surface."));
             return;
         }
@@ -684,8 +664,15 @@ void AiImageController::applySurfaceSelection()
         emit changed();
         emit layerAdded();
     });
-    watcher->setFuture(QtConcurrent::run([selected, protection, canvas, cancel] {
-        return PhotoCrap::Ai::SurfaceGeometry::paintMask(selected, canvas, cancel, protection);
+    watcher->setFuture(QtConcurrent::run([selected, protection, normals, canvas, cancel] {
+        constexpr int edge = PhotoCrap::Ai::MaxSurfaceNormalEdge;
+        const auto    reduced =
+            qMax(normals.width(), normals.height()) <= edge
+                ? normals
+                : normals.scaled(QSize(edge, edge), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        return PaintLayer{
+            PhotoCrap::Ai::SurfaceGeometry::paintMask(selected, canvas, cancel, protection),
+            reduced.convertToFormat(QImage::Format_RGB888)};
     }));
 }
 void AiImageController::prepareResult()

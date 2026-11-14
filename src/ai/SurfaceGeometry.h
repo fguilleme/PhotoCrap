@@ -1,9 +1,11 @@
 #pragma once
 #include "AiImageTypes.h"
-#include <optional>
+#include <QTransform>
 
 namespace PhotoCrap::Ai
 {
+inline constexpr int MaxSurfaceNormalEdge = 768;
+
 struct SurfaceSelection {
     QImage mask, preview;
 };
@@ -15,14 +17,17 @@ struct SurfaceGeometry {
 
     bool                   isValid() const;
     static SurfaceGeometry fromComfyPreview(const QByteArray &preview, const Input &source);
-    std::optional<SurfaceSelection> selectRegion(const QPoint &seed, const QSize &canvas,
-                                                 bool followRelief, bool subtract,
-                                                 const QImage &previous,
-                                                 const Cancel &cancel) const;
+    QImage                 regionAt(const QPoint &seed, const QSize &canvas, bool followRelief,
+                                    const Cancel &cancel) const;
     static PixelPlane paintMask(const QImage &selected, const QSize &canvas, const Cancel &cancel,
                                 const QImage &protection = {});
 };
 
 SurfaceSelection surfaceSelection(const QImage &mask, const QImage &protection,
                                   const Cancel &cancel);
+QImage           restrictSurfaceRegion(QImage region, const QImage &boundary, const Cancel &cancel);
+QImage           combineSurfaceRegions(QImage region, const QImage &previous, bool subtract,
+                                       const Cancel &cancel);
+QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, const QPointF &center,
+                                  const QTransform &mapping = {});
 } // namespace PhotoCrap::Ai

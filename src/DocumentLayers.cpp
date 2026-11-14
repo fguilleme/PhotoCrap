@@ -31,7 +31,8 @@ void Document::duplicateLayer()
         !validLayerStorage(width(), height(),
                            (!active.image.isNull() && !ImageUtils::compact(active.image)) +
                                !active.source.isNull(),
-                           !active.mask.isNull() && !ImageUtils::compact(active.mask)))
+                           !active.mask.isNull() && !ImageUtils::compact(active.mask), 0,
+                           active.surfaceNormals.sizeInBytes()))
         return;
     edit(tr("Dupliquer le calque"), [&] {
         auto layer = m_layers[m_active];

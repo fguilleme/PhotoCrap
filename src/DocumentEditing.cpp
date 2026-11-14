@@ -247,6 +247,7 @@ void Document::cropToSelection()
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
             PhotoCrap::Masks::transformVector(layer, pathTransform, m_selection.size());
+            layer.transformSurfaceNormals(pathTransform);
             if (layer.model3D)
                 PhotoCrap::Model3D::transformPlacement(layer.parameters, pathTransform);
             if (layer.kind == "text")
@@ -302,6 +303,7 @@ void Document::resizeImage(int _w, int _h)
             if (!operationStep(completed++, int(m_layers.size())))
                 return;
             PhotoCrap::Masks::transformVector(layer, pathTransform, {_w, _h});
+            layer.transformSurfaceNormals(pathTransform);
             if (layer.model3D)
                 PhotoCrap::Model3D::transformPlacement(layer.parameters, pathTransform);
             if (layer.kind == "text") {
@@ -378,6 +380,7 @@ void Document::transformImage(const QString &_operation)
                 (_operation == "rotateRight" || _operation == "rotateLeft")
                     ? QSize(height(), width())
                     : m_size);
+            layer.transformSurfaceNormals(pathTransform);
             if (layer.model3D)
                 PhotoCrap::Model3D::transformPlacement(layer.parameters, pathTransform);
             if (layer.kind == "text")

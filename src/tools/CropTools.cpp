@@ -331,6 +331,7 @@ void Document::applyCrop()
             _image = std::move(output);
         };
         for (auto &layer : layers) {
+            layer.transformSurfaceNormals(transform);
             if (!PhotoCrap::Masks::transformVector(layer, transform, outputSize)) {
                 result.valid = false;
                 return result;

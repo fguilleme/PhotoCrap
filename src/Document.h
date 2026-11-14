@@ -1194,7 +1194,7 @@ public:
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
-    bool addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask);
+    bool addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals);
 
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;
@@ -1930,7 +1930,7 @@ private:
     bool    validSize(int _width, int _height, int _layerCount = 1);
     bool    validStorageBytes(qint64 _bytes);
     bool    validLayerStorage(int _width, int _height, int _extraColors = 0, int _extraMasks = 0,
-                              int _bits = 0);
+                              int _bits = 0, qint64 extraBytes = 0);
     bool    editable(bool _materialize = true, bool _allowText = false);
     bool    fail(const QString &_message);
     void    edit(const QString &_label, const std::function<void()> &_operation);

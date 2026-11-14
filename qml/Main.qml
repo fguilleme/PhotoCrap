@@ -1945,7 +1945,9 @@ ApplicationWindow {
                     enabled: !surfacePaintBar.controller.busy
                     text: qsTr("Suivre le relief")
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Pour les surfaces courbes ou les tissus froissés.")
+                    ToolTip.text: surfacePaintBar.controller.surfaceProtectionAvailable
+                                  ? qsTr("Sélectionne la pièce entière à travers les plis avec MobileSAM.")
+                                  : qsTr("Pour les surfaces courbes ou les tissus froissés.")
                 }
                 AiActionButton {
                     id: surfaceProtect
@@ -1965,6 +1967,9 @@ ApplicationWindow {
                 Label {
                     text: surfaceProtect.checked && surfacePaintBar.controller.surfacePickingHint
                           ? qsTr("Cliquez au centre de l’objet. Clic droit pour retirer sa protection.")
+                          : surfaceRelief.checked && surfacePaintBar.controller.surfacePickingHint
+                          && surfacePaintBar.controller.surfaceProtectionAvailable
+                          ? qsTr("Cliquez sur le tissu pour sélectionner l’ensemble de la pièce.")
                           : surfacePaintBar.controller.status
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0

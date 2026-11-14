@@ -6471,7 +6471,9 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Suivre le relief</source><translation>Follow Surface Relief</translation></message>
     <message><source>Protéger un objet</source><translation>Protect an Object</translation></message>
     <message><source>Cliquez au centre de l’objet. Clic droit pour retirer sa protection.</source><translation>Click the center of the object. Right-click to remove its protection.</translation></message>
+    <message><source>Sélectionne la pièce entière à travers les plis avec MobileSAM.</source><translation>Selects the whole piece across folds using MobileSAM.</translation></message>
     <message><source>Pour les surfaces courbes ou les tissus froissés.</source><translation>For curved surfaces or wrinkled fabric.</translation></message>
+    <message><source>Cliquez sur le tissu pour sélectionner l’ensemble de la pièce.</source><translation>Click the fabric to select the whole piece.</translation></message>
     <message><source>Peindre</source><translation>Paint</translation></message>
     <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
     <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its geometry. Then select the surfaces you want to paint.</translation></message>
@@ -6483,6 +6485,8 @@ Independent software, not affiliated with Adobe.</translation>
   <context>
     <name>Document</name>
     <message><source>Peinture sur surface</source><translation>Surface Painting</translation></message>
+    <message><source>Impossible d’enregistrer les normales de surface.</source><translation>Unable to save the surface normals.</translation></message>
+    <message><source>Carte de normales de surface invalide.</source><translation>Invalid surface normal map.</translation></message>
   </context>
   <context>
     <name>AiProgressPanel</name>

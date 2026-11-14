@@ -13,6 +13,7 @@ struct Input {
     QSize      canvas, sentSize;
     QRect      bounds;
     QImage     coverage;
+    QImage     localImage;
     QString    layerId, error;
     quint64    session  = 0;
     quint64    contentId = 0;

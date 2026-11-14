@@ -273,7 +273,7 @@ convertit cet alpha en masque pour le workflow fourni.
    `models/geometry_estimation/`. Utiliser une version qui fournit
    `LoadMoGeModel`, `MoGeInference` et `MoGeRender`.
    [Guide ComfyUI et téléchargement du modèle](https://docs.comfy.org/tutorials/utility/moge)
-2. Dans PhotoCrap, ouvrir **Calque → 3D → Peindre sur une surface**. L’analyse
+2. Dans PhotoCrap, ouvrir **Calque → 3D → Peindre sur une surface (ComfyUI)**. L’analyse
    démarre directement si un seul serveur ComfyUI est configuré ou si un choix
    est déjà mémorisé. Pour changer de profil, utiliser **Choisir le serveur de
    peinture…** dans le même menu. PhotoCrap utilise son propre workflow et
@@ -290,12 +290,13 @@ contour d’un sujet devant un mur. La qualité des bordures dépend des cartes
 produites par MoGe et de leur résolution. L’analyse se lance une fois pour
 préparer le masque. Les coups de pinceau se font ensuite dans PhotoCrap.
 
-La version intégrée prévue pour macOS, Linux et Windows utilisera les mêmes
-cartes alignées sur l’image, avec une exécution CPU de référence. Le premier
-candidat est MoGe-2 ViT-S exporté vers ONNX. Il faudra convertir la sortie du
-modèle en disparité, normales en repère caméra et masque de validité, puis
-vérifier l’alignement avec la sortie ComfyUI. L’accélération matérielle pourra
-être activée par plateforme après mesure. [Export MoGe vers ONNX](https://github.com/microsoft/MoGe/blob/main/docs/onnx.md)
+**Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
+CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie
+le modèle de 141 Mo. Il est stocké dans le dossier de données de l’application
+et les analyses suivantes fonctionnent hors ligne. La photo est traitée sur
+l’ordinateur. Le grand côté de l’image d’analyse est limité à 768 px. Le clic,
+le masque éditable et le pinceau fonctionnent comme avec ComfyUI.
+[Modèle MoGe‑2 ViT‑S ONNX](https://huggingface.co/Ruicheng/moge-2-vits-normal-onnx)
 
 ## Variantes
 

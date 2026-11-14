@@ -6465,6 +6465,9 @@ Independent software, not affiliated with Adobe.</translation>
     <name>Main</name>
     <message><source>Peindre sur une surface…</source><translation>Paint on a Surface…</translation></message>
     <message><source>Peindre sur une surface</source><translation>Paint on a Surface</translation></message>
+    <message><source>Peindre sur une surface (ComfyUI)</source><translation>Paint on a Surface (ComfyUI)</translation></message>
+    <message><source>Peindre sur une surface (ComfyUI)…</source><translation>Paint on a Surface (ComfyUI)…</translation></message>
+    <message><source>Peindre sur une surface (en local)</source><translation>Paint on a Surface (Local)</translation></message>
     <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
     <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer sa profondeur. Cliquez ensuite sur la surface à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its depth. Then click the surface you want to paint.</translation></message>
     <message><source>Modèle requis dans ComfyUI : %1</source><translation>Required ComfyUI model: %1</translation></message>
@@ -6487,6 +6490,9 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>AiImageController</name>
+    <message><source>Sur cet ordinateur</source><translation>On This Computer</translation></message>
+    <message><source>Analyse de la surface sur cet ordinateur…</source><translation>Analyzing the surface on this computer…</translation></message>
+    <message><source>MoGe‑2 n’a détecté aucune surface exploitable.</source><translation>MoGe‑2 found no usable surface.</translation></message>
     <message><source>L’image a changé. Relancez l’analyse de la surface.</source><translation>The image has changed. Run the surface analysis again.</translation></message>
     <message><source>Peinture sur surface annulée</source><translation>Surface painting canceled</translation></message>
     <message><source>Choisissez un serveur ComfyUI dans les réglages IA.</source><translation>Choose a ComfyUI server in AI settings.</translation></message>
@@ -6499,5 +6505,18 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Aucune surface exploitable ici. Cliquez ailleurs sur l’image.</source><translation>No usable surface here. Click elsewhere on the image.</translation></message>
     <message><source>Impossible d’ajouter le calque de peinture sur surface.</source><translation>Unable to add the surface painting layer.</translation></message>
     <message><source>Calque de peinture prêt. Le masque limite les coups de pinceau à la surface.</source><translation>Painting layer ready. The mask confines brush strokes to the surface.</translation></message>
+  </context>
+  <context>
+    <name>PhotoCrap::Ai::LocalSurfaceModel</name>
+    <message><source>Impossible de créer le dossier des modèles locaux.</source><translation>Unable to create the local model folder.</translation></message>
+    <message><source>Le fichier MoGe‑2 téléchargé est incomplet ou corrompu.</source><translation>The downloaded MoGe‑2 file is incomplete or corrupted.</translation></message>
+    <message><source>Téléchargement de MoGe‑2 (141 Mo)…</source><translation>Downloading MoGe‑2 (141 MB)…</translation></message>
+    <message><source>Impossible d’enregistrer le modèle MoGe‑2.</source><translation>Unable to save the MoGe‑2 model.</translation></message>
+    <message><source>Téléchargement de MoGe‑2 — %1 %</source><translation>Downloading MoGe‑2 — %1%</translation></message>
+    <message><source>Téléchargement du modèle impossible. %1</source><translation>Unable to download the model. %1</translation></message>
+    <message><source>Le modèle MoGe‑2 est corrompu. Supprimez le fichier et relancez l’analyse. %1</source><translation>The MoGe‑2 model is corrupted. Delete the file and try again. %1</translation></message>
+    <message><source>Les cartes du modèle MoGe‑2 ont des dimensions inattendues.</source><translation>The MoGe‑2 maps have unexpected dimensions.</translation></message>
+    <message><source>Analyse locale MoGe‑2 impossible. %1</source><translation>Unable to analyze the surface with local MoGe‑2. %1</translation></message>
+    <message><source>L’analyse locale n’est pas disponible pour cette version.</source><translation>Local analysis is unavailable in this build.</translation></message>
   </context>
 </TS>

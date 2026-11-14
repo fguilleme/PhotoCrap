@@ -71,7 +71,8 @@ QVariantMap Document::originalAiSource() const
 
 QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _maxEdge,
                                                        std::shared_ptr<std::atomic_bool> _cancel,
-                                                       bool _original, bool _nativePrecision)
+                                                       bool _original, bool _nativePrecision,
+                                                       bool localImage)
 {
     endStroke();
     finishTextEdit();
@@ -114,7 +115,7 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
     const auto scratch  = m_scratchCache;
     const auto bits     = m_channelBits;
     return QtConcurrent::run([input, layers, coverage, region, scratch, bits, _maxEdge, _cancel,
-                              original, originalMask, _nativePrecision]() mutable {
+                              original, originalMask, _nativePrecision, localImage]() mutable {
         if (!input.error.isEmpty() || _cancel->load())
             return input;
         Document renderer;
@@ -178,6 +179,10 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
         input.sentSize = image.size();
         if (image.isNull()) {
             input.error = tr("Impossible de préparer l’image à envoyer.");
+            return input;
+        }
+        if (localImage) {
+            input.localImage = std::move(image);
             return input;
         }
         QImage mask(input.sentSize, QImage::Format_RGBA8888);

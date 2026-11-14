@@ -1403,7 +1403,7 @@ ApplicationWindow {
     Action {
         id: surfacePaintAction
         objectName: "surfacePaintAction"
-        text: aiSettings.surfaceProviderId.length ? qsTr("Peindre sur une surface") : qsTr("Peindre sur une surface…")
+        text: aiSettings.surfaceProviderId.length ? qsTr("Peindre sur une surface (ComfyUI)") : qsTr("Peindre sur une surface (ComfyUI)…")
         enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy
                  && !aiImages.busy && !aiImages.pendingResult && editor.width > 0
         onTriggered: {
@@ -1420,11 +1420,19 @@ ApplicationWindow {
         enabled: surfacePaintAction.enabled
         onTriggered: surfaceDialog.open()
     }
+    Action {
+        id: localSurfacePaintAction
+        objectName: "localSurfacePaintAction"
+        text: qsTr("Peindre sur une surface (en local)")
+        enabled: aiImages.localSurfaceAvailable && surfacePaintAction.enabled
+        onTriggered: aiImages.analyzeSurfaceLocally()
+    }
     component Model3DMenu: DarkMenu {
         title: "3D"
         DarkMenuItem { objectName: "importModel3DMenuItem"; action: importModel3DAction }
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
+        DarkMenuItem { objectName: "localSurfacePaintMenuItem"; action: localSurfacePaintAction; visible: aiImages.localSurfaceAvailable }
         DarkMenuItem { objectName: "surfaceServerMenuItem"; action: surfaceServerAction; visible: aiSettings.surfaceProviders.length > 1 }
     }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }

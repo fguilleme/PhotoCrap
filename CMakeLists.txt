@@ -87,6 +87,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/ai/SurfaceGeometry.cpp src/ai/SurfaceGeometry.h
+    src/ai/LocalSurfaceModel.cpp src/ai/LocalSurfaceModel.h
     src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -442,6 +443,7 @@ qt_add_library(photocrap_core STATIC
     src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/ai/SurfaceGeometry.cpp src/ai/SurfaceGeometry.h
+    src/ai/LocalSurfaceModel.cpp src/ai/LocalSurfaceModel.h
     src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -538,6 +540,7 @@ target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6:
 target_link_libraries(photocrap_core PRIVATE qt6keychain photocrap_libraw photocrap_raw_zlib photocrap_png_codec photocrap_zstd
     photocrap_jpeg_codec webp meshoptimizer)
 target_include_directories(photocrap_core PUBLIC src)
+include(cmake/SurfaceOnnxRuntime.cmake)
 if(APPLE)
     target_sources(photocrap_core PRIVATE src/model3d/ModelPreviewMetal.mm)
     set_source_files_properties(src/model3d/ModelPreviewMetal.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
@@ -951,7 +954,7 @@ if(BUILD_TESTING)
     target_link_libraries(photocrap_ai_tests PRIVATE photocrap_core Qt6::Test Qt6::Network)
     add_test(NAME ai_images COMMAND photocrap_ai_tests)
     set_tests_properties(ai_images PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
     qt_add_executable(photocrap_layer_import_tests tests/LayerImportTest.cpp)
     target_link_libraries(photocrap_layer_import_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME layer_import COMMAND photocrap_layer_import_tests)
@@ -1078,8 +1081,11 @@ if(BUILD_TESTING)
     endif()
 endif()
 
-include(cmake/MacQuickLook.cmake)
 include(GNUInstallDirs)
+if(TARGET photocrap_onnx_runtime)
+    photocrap_install_onnx_runtime()
+endif()
+include(cmake/MacQuickLook.cmake)
 install(TARGETS PhotoCrap BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 qt_generate_deploy_qml_app_script(TARGET PhotoCrap OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
 install(SCRIPT ${deploy_script})

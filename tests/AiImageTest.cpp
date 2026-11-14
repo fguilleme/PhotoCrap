@@ -10,6 +10,8 @@
 #include "storage/ProjectPng.h"
 #include "storage/ProjectWriteDevice.h"
 #include <QBuffer>
+#include <QDir>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -17,6 +19,7 @@
 #include <QScopeGuard>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
@@ -1405,6 +1408,73 @@ private slots:
         QCOMPARE(uploads, 4);
         QCOMPARE(finished.first().at(0).toByteArray(), bytes);
         QVERIFY(workflow["6"].toObject()["inputs"].toObject()["seed"].toDouble() != firstSeed);
+    }
+    void localSurfacePaintingUsesModelWithoutProvider()
+    {
+        const auto model = qEnvironmentVariable("PHOTOCRAP_TEST_MOGE_MODEL");
+        if (model.isEmpty() || !PhotoCrap::Ai::LocalSurfaceModel::available())
+            QSKIP("Optional integration test requires the published MoGe‑2 ONNX weights.");
+
+        QStandardPaths::setTestModeEnabled(true);
+        const auto restore = qScopeGuard([] { QStandardPaths::setTestModeEnabled(false); });
+        const auto name = QCoreApplication::applicationName();
+        QCoreApplication::setApplicationName(name + '-' + QUuid::createUuid().toString(QUuid::Id128));
+        const auto restoreName = qScopeGuard([&] { QCoreApplication::setApplicationName(name); });
+        const auto cached = PhotoCrap::Ai::LocalSurfaceModel::filePath();
+        QVERIFY(!cached.isEmpty());
+        const auto cleanup = qScopeGuard([&] {
+            QFile::remove(cached);
+            QDir().rmdir(QFileInfo(cached).path());
+            QDir().rmdir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+        });
+        if (model != "download") {
+            QVERIFY(QDir().mkpath(QFileInfo(cached).path()));
+            QVERIFY(QFile::copy(model, cached));
+        }
+
+        QTemporaryDir files;
+        const auto    sourcePath = files.filePath("surface.png");
+        QImage        scene(480, 320, QImage::Format_RGB32);
+        scene.fill(QColor("#9da4b2"));
+        {
+            QPainter painter(&scene);
+            painter.fillRect(QRect(0, 218, 480, 102), QColor("#8e6a4c"));
+            painter.setBrush(QColor("#d79752"));
+            painter.drawRect(170, 94, 140, 162);
+        }
+        QVERIFY(scene.save(sourcePath));
+        Document document;
+        QVERIFY(document.openFile(QUrl::fromLocalFile(sourcePath)));
+        const auto        initial = document.composite();
+        AiSettings        settings(nullptr, false);
+        AiImageController controller(&document, &settings);
+        QVERIFY(controller.analyzeSurfaceLocally());
+        const int timeout = model == "download" ? 120000 : 18000;
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), timeout);
+        QVERIFY2(controller.surfacePicking(), qPrintable(controller.error()));
+        QPoint seed;
+        for (const QPoint point :
+             {QPoint(60, 100), QPoint(240, 140), QPoint(240, 210), QPoint(240, 280),
+              QPoint(80, 280), QPoint(365, 280)}) {
+            controller.pickSurface(point.x(), point.y());
+            QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+            QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+            if (document.layerCount() == 2) {
+                seed = point;
+                break;
+            }
+        }
+        QVERIFY2(!seed.isNull(), qPrintable(controller.status()));
+        QCOMPARE(document.tool(), QString("brush"));
+        QCOMPARE(document.composite(), initial);
+        document.setColor(Qt::green);
+        document.setBrushSize(75);
+        document.beginStroke(seed.x(), seed.y());
+        document.endStroke();
+        QVERIFY(document.composite().pixelColor(seed) != initial.pixelColor(seed));
+        document.undo();
+        document.undo();
+        QCOMPARE(document.composite(), initial);
     }
     void comfySurfacePaintingKeepsOcclusionAndUndo()
     {

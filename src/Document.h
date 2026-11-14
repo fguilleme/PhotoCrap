@@ -1188,10 +1188,9 @@ public:
     }
     bool adoptAiDocument(const PhotoCrap::Ai::Result &result, const QVariantMap &metadata,
                          const PhotoCrap::Ai::Input &source, QString &error);
-    QFuture<PhotoCrap::Ai::Input> prepareAiInput(bool _selection, int _maxEdge,
-                                                 std::shared_ptr<std::atomic_bool> _cancel,
-                                                 bool _original        = false,
-                                                 bool _nativePrecision = false);
+    QFuture<PhotoCrap::Ai::Input>
+         prepareAiInput(bool _selection, int _maxEdge, std::shared_ptr<std::atomic_bool> _cancel,
+                        bool _original = false, bool _nativePrecision = false, bool localImage = false);
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;

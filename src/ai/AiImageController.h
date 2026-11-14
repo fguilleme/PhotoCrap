@@ -1,7 +1,7 @@
 #pragma once
 #include "AiImageJob.h"
 #include "AiSettings.h"
-#include "SurfaceGeometry.h"
+#include "LocalSurfaceModel.h"
 #include <QElapsedTimer>
 #include <QPointer>
 class Document;
@@ -21,6 +21,7 @@ class AiImageController final : public QObject
     Q_PROPERTY(int elapsedSeconds READ elapsedSeconds NOTIFY changed)
     Q_PROPERTY(bool surfaceAnalysis READ surfaceAnalysis NOTIFY changed)
     Q_PROPERTY(bool surfacePicking READ surfacePicking NOTIFY changed)
+    Q_PROPERTY(bool localSurfaceAvailable READ localSurfaceAvailable CONSTANT)
 public:
     AiImageController(Document *_document, AiSettings *_settings, QObject *_parent = nullptr);
     ~AiImageController() override;
@@ -60,6 +61,7 @@ public:
                               int _variants = 1, bool _original = false,
                               const QVariantMap &_options = {}, bool newDocument = false);
     Q_INVOKABLE bool analyzeSurface(const QString &providerId);
+    Q_INVOKABLE bool analyzeSurfaceLocally();
     Q_INVOKABLE void pickSurface(int x, int y);
     bool             surfaceAnalysis() const
     {
@@ -68,6 +70,10 @@ public:
     bool surfacePicking() const
     {
         return !m_busy && m_surfaceGeometry.isValid();
+    }
+    bool localSurfaceAvailable() const
+    {
+        return PhotoCrap::Ai::LocalSurfaceModel::available();
     }
     void             setDocumentManager(DocumentManager *manager);
     Q_INVOKABLE void cancel();
@@ -84,6 +90,8 @@ private:
     void begin(const QString &providerId, const QVariantMap &provider, const QString &prompt,
                bool selection, int variants, bool original, bool newDocument, bool surface);
     void prepareSurface(const QByteArray &bytes);
+    void prepareLocalSurface(const QString &path);
+    void surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry);
     QString               variantStatus(const QString &_status) const;
     void                  startVariant();
     void                  tryInsertion();
@@ -95,6 +103,7 @@ private:
     QPointer<DocumentManager> m_documents;
     AiSettings *          m_settings;
     AiImageJob            m_job;
+    PhotoCrap::Ai::LocalSurfaceModel m_localModel;
     PhotoCrap::Ai::Input  m_input;
     PhotoCrap::Ai::SurfaceGeometry m_surfaceGeometry;
     PhotoCrap::Ai::Cancel m_cancel;
@@ -110,6 +119,7 @@ private:
     bool                                   m_busy             = false;
     bool                                   m_newDocument      = false;
     bool                                   m_surfaceAnalysis  = false;
+    bool                                   m_localSurface     = false;
     bool                                   m_awaitingResponse = false;
     quint64                                m_generation       = 0;
 };

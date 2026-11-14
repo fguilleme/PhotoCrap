@@ -11,9 +11,11 @@ la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
   masque éditable, calculé depuis un clic. [Utilisation](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
 - [ ] Vérifier les bords d’occlusion et les surfaces courbes sur des photos avec
   un serveur ComfyUI équipé de MoGe.
-- [ ] Ajouter l’inférence MoGe-2 ViT-S dans PhotoCrap via ONNX Runtime sur
+- [x] Ajouter l’inférence MoGe-2 ViT-S dans PhotoCrap via ONNX Runtime sur
   macOS, Linux et Windows, avec téléchargement du modèle à la demande et
   exécution CPU disponible sur les trois plateformes.
+- [ ] Valider l’inférence locale dans les paquets Linux et Windows et comparer
+  la précision des masques sur des photos avec le modèle ComfyUI.
 - [ ] Projeter la texture le long de la surface et tester un éclairage local
   à partir des normales. Évaluer la séparation albédo et éclairage pour
   conserver davantage de détails lors de la retouche.

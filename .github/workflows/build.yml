@@ -29,9 +29,12 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
       - name: Build
         run: cmake --build build --config Release --parallel 3
+      - name: Download MoGe-2 for local inference test
+        run: cmake "-DMODEL_FILE=${{ runner.temp }}/photocrap-test-moge.onnx" -P cmake/DownloadSurfaceTestModel.cmake
       - name: Test engine and QML
         env:
           QT_FORCE_STDERR_LOGGING: '1'
+          PHOTOCRAP_TEST_MOGE_MODEL: ${{ runner.temp }}/photocrap-test-moge.onnx
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Upload test diagnostics
         if: failure()

@@ -3,16 +3,21 @@
 
 #include <QColorSpace>
 #include <QQuaternion>
+#include <QThreadPool>
+#include <QtConcurrent>
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace PhotoCrap::Model3D
 {
 namespace
 {
-constexpr int MaxBandPixels = 1024 * 1024;
+constexpr int       MaxBandPixels     = 1024 * 1024;
+constexpr int       PreviewBandPixels = 64 * 1024;
+constexpr qsizetype GeometryBatchSize = 16 * 1024;
 
 bool number(QVariantMap &_map, const QString &_key, double _min, double _max)
 {
@@ -57,6 +62,12 @@ struct Bounds {
     QRectF rect() const
     {
         return {minimum, maximum};
+    }
+
+    void include(const Bounds &_other)
+    {
+        add(_other.minimum);
+        add(_other.maximum);
     }
 };
 
@@ -206,8 +217,23 @@ bool transformPlacement(QVariantMap &_parameters, const QTransform &_transform)
     return normalize(_parameters);
 }
 
-PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSize &_canvas,
-                  QImage::Format _format, const Continue &_continue)
+namespace
+{
+QThreadPool &modelPreviewPool()
+{
+    struct Pool : QThreadPool {
+        Pool()
+        {
+            setMaxThreadCount(qBound(1, QThread::idealThreadCount() - 1, 8));
+        }
+    };
+    // The document preview itself already runs on Qt's global pool.
+    static Pool pool;
+    return pool;
+}
+
+PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const QSize &_canvas,
+                     QImage::Format _format, const Continue &_continue, bool _preview)
 {
     const bool deep = _format == QImage::Format_RGBA64_Premultiplied;
     if (!deep && _format != QImage::Format_ARGB32_Premultiplied)
@@ -222,60 +248,101 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
     Bounds                      bounds;
     QVector<QVector<Projected>> projected;
     projected.reserve(_asset.primitives.size());
+    struct ProjectionBatch {
+        const Vertex *source;
+        Projected    *destination;
+        qsizetype     size;
+        Bounds        bounds;
+    };
+    QVector<ProjectionBatch> projectionBatches;
     for (const auto &primitive : _asset.primitives) {
-        QVector<Projected> vertices;
-        vertices.reserve(primitive.vertices.size());
-        for (const auto &vertex : primitive.vertices) {
-            if (vertices.size() % 4096 == 0 && _continue && !_continue())
-                return {};
+        projected.append(QVector<Projected>(primitive.vertices.size()));
+        auto *destination = projected.last().data();
+        for (qsizetype first = 0; first < primitive.vertices.size(); first += GeometryBatchSize)
+            projectionBatches.append({primitive.vertices.constData() + first,
+                                      destination + first,
+                                      qMin(GeometryBatchSize, primitive.vertices.size() - first),
+                                      {}});
+    }
+    const auto projectBatch = [&](ProjectionBatch &batch) {
+        for (qsizetype i = 0; i < batch.size; ++i) {
+            const auto &vertex   = batch.source[i];
             const auto  position = view.rotation.rotatedVector(vertex.position);
             const float inverseZ = inverseDepth(position);
             const auto  pixel    = map.map(project(position, inverseZ, view.scale));
-            bounds.add(pixel);
-            vertices.append(
-                Projected{pixel, position, view.rotation.rotatedVector(vertex.normal), inverseZ});
+            batch.bounds.add(pixel);
+            batch.destination[i] = {pixel, position, view.rotation.rotatedVector(vertex.normal),
+                                    inverseZ};
         }
-        projected.append(std::move(vertices));
-    }
+    };
+    if (_preview && projectionBatches.size() > 1)
+        QtConcurrent::blockingMap(&modelPreviewPool(), projectionBatches, projectBatch);
+    else
+        for (auto &batch : projectionBatches) {
+            if (_continue && !_continue())
+                return {};
+            projectBatch(batch);
+        }
+    for (const auto &batch : std::as_const(projectionBatches))
+        bounds.include(batch.bounds);
     const auto nativeBounds = bounds.rect()
                                   .adjusted(-1, -1, 1, 1)
                                   .intersected(QRectF(QPointF{}, QSizeF(_canvas)))
                                   .toAlignedRect();
-    auto plane = PixelPlane::uniform(_canvas, ImageUtils::blank({1, 1}, _format));
+    auto       plane        = PixelPlane::uniform(_canvas, ImageUtils::blank({1, 1}, _format));
     if (nativeBounds.isEmpty())
         return plane;
     // Bin by rows. Each band uses document pixels and has a bounded color and depth buffer.
     // Keep triangle order for equal-depth faces.
-    const int   width = nativeBounds.width(), height = nativeBounds.height();
-    const int   rowsPerBand = qMax(1, MaxBandPixels / width);
+    const int width = nativeBounds.width(), height = nativeBounds.height();
+    // Keep final-render memory bounded. Smaller preview bands give cores
+    // independent rows to draw even when the whole proxy fits in one band.
+    const int   rowsPerBand = qMax(1, (_preview ? PreviewBandPixels : MaxBandPixels) / width);
     const QRect area(0, 0, width, height);
     struct Triangle {
         const Projected *vertices;
         const Primitive *primitive;
-        const Face *     indices;
+        const Face      *indices;
         QRect            region;
         float            signedArea;
         bool             front;
     };
-    QVector<Triangle>     triangles;
-    QVector<QVector<int>> bands((height + rowsPerBand - 1) / rowsPerBand);
-    const bool            mirrored = map.determinant() < 0.;
-    qint64                samples = 0, visited = 0;
-    const qint64          sampleLimit = qMax(160'000'000LL, 16LL * width * height);
+    struct TriangleBatch {
+        const Primitive  *primitive;
+        const Projected  *vertices;
+        const Face       *faces;
+        qsizetype         size;
+        QVector<Triangle> triangles;
+        qint64            samples = 0;
+    };
+    QVector<TriangleBatch>             batches;
+    QVector<QVector<const Triangle *>> bands((height + rowsPerBand - 1) / rowsPerBand);
+    const bool                         mirrored    = map.determinant() < 0.;
+    const qint64                       sampleLimit = qMax(160'000'000LL, 16LL * width * height);
     for (qsizetype i = 0; i < _asset.primitives.size(); ++i) {
         const auto &primitive  = _asset.primitives[i];
-        auto &      projection = projected[i];
+        auto       &projection = projected[i];
         for (auto &v : projection)
             v.pixel -= nativeBounds.topLeft();
-        const auto *vertices = projection.constData();
-        for (const auto &indices : primitive.triangles) {
-            if (++visited % 128 == 0 && _continue && !_continue())
-                return {};
+        for (qsizetype first = 0; first < primitive.triangles.size(); first += GeometryBatchSize)
+            batches.append({&primitive,
+                            projection.constData(),
+                            primitive.triangles.constData() + first,
+                            qMin(GeometryBatchSize, primitive.triangles.size() - first),
+                            {},
+                            0});
+    }
+    const auto prepareTriangles = [&](TriangleBatch &batch) {
+        const auto *vertices = batch.vertices;
+        for (qsizetype i = 0; i < batch.size; ++i) {
+            if (i % 128 == 0 && _continue && !_continue())
+                return;
+            const auto &indices = batch.faces[i];
             const auto &a = vertices[indices[0]], &b = vertices[indices[1]],
                        &c          = vertices[indices[2]];
             const float signedArea = edge(a.pixel, b.pixel, c.pixel);
             const bool  front      = (signedArea < 0) != mirrored;
-            if (qAbs(signedArea) < 1e-7f || (!front && !primitive.material.doubleSided))
+            if (qAbs(signedArea) < 1e-7f || (!front && !batch.primitive->material.doubleSided))
                 continue;
             const QRect region = QRectF(QPointF(std::min({a.pixel.x(), b.pixel.x(), c.pixel.x()}),
                                                 std::min({a.pixel.y(), b.pixel.y(), c.pixel.y()})),
@@ -285,31 +352,50 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                                      .intersected(area);
             if (region.isEmpty())
                 continue;
-            samples += qint64(region.width()) * region.height();
-            if (samples > sampleLimit)
+            batch.samples += qint64(region.width()) * region.height();
+            if (batch.samples > sampleLimit)
+                return;
+            batch.triangles.append(
+                {vertices, batch.primitive, &indices, region, signedArea, front});
+        }
+    };
+    qint64     samples      = 0;
+    const auto binTriangles = [&](const TriangleBatch &batch) {
+        samples += batch.samples;
+        if (samples > sampleLimit || (_continue && !_continue()))
+            return false;
+        for (const auto &triangle : batch.triangles)
+            for (int band = triangle.region.top() / rowsPerBand;
+                 band <= triangle.region.bottom() / rowsPerBand; ++band)
+                bands[band].append(&triangle);
+        return true;
+    };
+    if (_preview && batches.size() > 1) {
+        QtConcurrent::blockingMap(&modelPreviewPool(), batches, prepareTriangles);
+        for (const auto &batch : std::as_const(batches))
+            if (!binTriangles(batch))
                 return {};
-            for (int band = region.top() / rowsPerBand; band <= region.bottom() / rowsPerBand;
-                 ++band)
-                bands[band].append(int(triangles.size()));
-            triangles.append({vertices, &primitive, &indices, region, signedArea, front});
+    } else {
+        for (auto &batch : batches) {
+            prepareTriangles(batch);
+            if (!binTriangles(batch))
+                return {};
         }
     }
-    for (qsizetype band = 0; band < bands.size(); ++band) {
-        if (_continue && !_continue())
-            return {};
-        if (bands[band].isEmpty())
-            continue;
-        const int   top  = int(band) * rowsPerBand;
+    const auto &bins       = std::as_const(bands);
+    const auto  renderBand = [&](int band) -> QImage {
+        const int   top  = band * rowsPerBand;
         const int   rows = qMin(rowsPerBand, height - top);
         const QRect bandArea(0, top, width, rows);
         auto        image = ImageUtils::blank(bandArea.size(), _format);
         if (image.isNull())
             return {};
         QVector<float> depth(qsizetype(width) * rows, 0.f);
-        for (const int index : bands[band]) {
-            if (++visited % 128 == 0 && _continue && !_continue())
+        int            drawn = 0;
+        for (const auto *entry : bins[band]) {
+            if (++drawn % 128 == 0 && _continue && !_continue())
                 return {};
-            const auto &triangle = triangles[index];
+            const auto &triangle = *entry;
             const auto [i, j, k] = *triangle.indices;
             const auto *vertices = triangle.vertices;
             const auto &a = vertices[i], &b = vertices[j], &c = vertices[k];
@@ -318,8 +404,8 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
             const auto *source    = primitive.vertices.constData();
             const auto *colors =
                 primitive.vertexColors.isEmpty() ? nullptr : primitive.vertexColors.constData();
-            const auto  region = triangle.region.intersected(bandArea);
-            const auto  flat =
+            const auto region = triangle.region.intersected(bandArea);
+            const auto flat =
                 QVector3D::crossProduct(b.position - a.position, c.position - a.position)
                     .normalized();
             const bool textured = !material.texture.isNull();
@@ -360,9 +446,9 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                     if (material.alphaMask &&
                         qAlpha(texel) / 255.f * base.w() < material.alphaCutoff)
                         continue;
-                    const auto smooth = u * a.normal + v * b.normal + w * c.normal;
-                    const auto normal = (smooth.isNull() ? flat : smooth.normalized()) *
-                                        (triangle.front ? 1.f : -1.f);
+                    const auto  smooth = u * a.normal + v * b.normal + w * c.normal;
+                    const auto  normal = (smooth.isNull() ? flat : smooth.normalized()) *
+                                         (triangle.front ? 1.f : -1.f);
                     const float diffuse =
                         material.unlit
                             ? 0.f
@@ -370,11 +456,11 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                                   qMax(0.f, QVector3D::dotProduct(normal, view.lightDirection));
                     const float ambient = material.unlit ? 1.f : view.ambient;
                     const float red     = sRgb(base.x() * linear(qRed(texel)) *
-                                           (ambient + diffuse * view.lightColor.x()));
+                                               (ambient + diffuse * view.lightColor.x()));
                     const float green   = sRgb(base.y() * linear(qGreen(texel)) *
-                                             (ambient + diffuse * view.lightColor.y()));
+                                               (ambient + diffuse * view.lightColor.y()));
                     const float blue    = sRgb(base.z() * linear(qBlue(texel)) *
-                                            (ambient + diffuse * view.lightColor.z()));
+                                               (ambient + diffuse * view.lightColor.z()));
                     if (deep)
                         reinterpret_cast<QRgba64 *>(pixels)[x] =
                             QRgba64::fromRgba64(qRound(65535.f * red), qRound(65535.f * green),
@@ -386,11 +472,47 @@ PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSi
                 }
             }
         }
-        if (!plane.writeRegion(nativeBounds.topLeft() + QPoint(0, top), image, _canvas))
-            return {};
+        return image;
+    };
+    const auto storeBand = [&](int band, const QImage &image) {
+        return !image.isNull() &&
+               plane.writeRegion(nativeBounds.topLeft() + QPoint(0, band * rowsPerBand), image,
+                                 _canvas);
+    };
+    if (_preview && bands.size() > 1) {
+        QVector<int> activeBands;
+        for (int band = 0; band < bins.size(); ++band)
+            if (!bins[band].isEmpty())
+                activeBands.append(band);
+        const auto images = QtConcurrent::blockingMapped<QList<QImage>>(&modelPreviewPool(),
+                                                                        activeBands, renderBand);
+        for (qsizetype i = 0; i < activeBands.size(); ++i)
+            if (!storeBand(activeBands.at(i), images.at(i)))
+                return {};
+    } else {
+        for (int band = 0; band < bins.size(); ++band) {
+            if (_continue && !_continue())
+                return {};
+            if (!bins[band].isEmpty() && !storeBand(band, renderBand(band)))
+                return {};
+        }
     }
     return _continue && !_continue() ? PixelPlane{} : plane;
 }
+} // namespace
+
+PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSize &_canvas,
+                  QImage::Format _format, const Continue &_continue)
+{
+    return renderCpu(_asset, _parameters, _canvas, _format, _continue, false);
+}
+
+PixelPlane renderSoftwarePreview(const Asset &_asset, const QVariantMap &_parameters,
+                                 const QSize &_canvas, QImage::Format _format)
+{
+    return renderCpu(_asset, _parameters, _canvas, _format, {}, true);
+}
+
 PixelPlane renderPreview(const std::shared_ptr<const Asset> &_asset, const QVariantMap &_parameters,
                          const QSize &_canvas, QImage::Format _format)
 {
@@ -403,6 +525,6 @@ PixelPlane renderPreview(const std::shared_ptr<const Asset> &_asset, const QVari
             return image;
     }
 #endif
-    return render(*_asset, _parameters, _canvas, _format);
+    return renderSoftwarePreview(*_asset, _parameters, _canvas, _format);
 }
 } // namespace PhotoCrap::Model3D

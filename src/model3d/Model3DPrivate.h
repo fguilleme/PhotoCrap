@@ -56,6 +56,9 @@ struct RenderView {
 };
 inline constexpr float CameraDistance = 3.f;
 
+PixelPlane renderSoftwarePreview(const Asset &_asset, const QVariantMap &_parameters,
+                                 const QSize &_canvas, QImage::Format _format);
+
 #ifdef Q_OS_MACOS
 PixelPlane renderMetalPreview(const std::shared_ptr<const Asset> &_asset, const RenderView &_view,
                               const QSize &_canvas);

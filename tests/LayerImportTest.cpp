@@ -3,6 +3,7 @@
 #include "RawTestImage.h"
 #include "model3d/Model3D.h"
 #include "model3d/Model3DPrivate.h"
+#include <QElapsedTimer>
 #include <QFile>
 #include <QSemaphore>
 #include <QTemporaryDir>
@@ -71,18 +72,40 @@ private slots:
             vertex.position = corner;
             backing.vertices.append(vertex);
         }
-        backing.triangles = {{0, 1, 2}, {1, 3, 2}};
+        backing.triangles    = {{0, 1, 2}, {1, 3, 2}};
         backing.vertexColors = {{1, .7f, 1, 1}, {.4f, 1, 1, 1}, {.8f, .5f, 1, 1}, {1, 1, 1, 1}};
         asset->primitives.append(std::move(backing));
-        const QSize canvas(456, 684);
+        const QSize canvas(640, 960);
         const QRect bounds(QPoint{}, canvas);
         const auto  format = QImage::Format_ARGB32_Premultiplied;
         auto        pose   = Model3D::pose(canvas);
         pose["yaw"]        = 30.;
         const QVariantMap params{{"pose3d", pose}, {"light3d", Model3D::light()}};
+        if (qEnvironmentVariableIsSet("PHOTOCRAP_MODEL_PREVIEW_PROBE")) {
+            QElapsedTimer timer;
+            timer.start();
+            for (const bool parallel : {false, true}) {
+                timer.restart();
+                for (int yaw : {10, 20, 30, 40, 50, 60, 70, 80}) {
+                    pose["yaw"] = yaw;
+                    const QVariantMap frame{{"pose3d", pose}, {"light3d", Model3D::light()}};
+                    const auto        image =
+                        parallel ? Model3D::renderSoftwarePreview(*asset, frame, canvas, format)
+                                 : Model3D::render(*asset, frame, canvas, format);
+                    QVERIFY(!image.isNull());
+                }
+                qInfo() << "CPU rotation, eight frames (ms), parallel:" << parallel
+                        << timer.elapsed();
+            }
+        }
         const auto reference = Model3D::render(*asset, params, canvas, format).region(bounds);
         const auto preview   = Model3D::renderPreview(asset, params, canvas, format).region(bounds);
         QVERIFY(!reference.isNull() && !preview.isNull());
+        QCOMPARE(Model3D::renderSoftwarePreview(*asset, params, canvas, format).region(bounds),
+                 reference);
+        const auto deep = QImage::Format_RGBA64_Premultiplied;
+        QCOMPARE(Model3D::renderSoftwarePreview(*asset, params, canvas, deep).region(bounds),
+                 Model3D::render(*asset, params, canvas, deep).region(bounds));
         int visible = 0, different = 0;
         for (int y = 0; y < canvas.height(); ++y) {
             const auto *expected = reinterpret_cast<const QRgb *>(reference.constScanLine(y));
@@ -277,7 +300,7 @@ private slots:
         QFETCH(int, insertion);
         QTemporaryDir dir;
         QImage        image(8, 6,
-                     bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                            bits == 16 ? QImage::Format_RGBA64_Premultiplied
                                        : QImage::Format_ARGB32_Premultiplied);
         image.fill(QColor::fromRgba64(12345, 23456, 34567, 45678));
         const auto file = QUrl::fromLocalFile(dir.filePath("Portrait.png"));
@@ -390,7 +413,7 @@ private slots:
         Document d;
         QVERIFY(d.newDocument(16, 12, true));
         const int history = d.historyIndex();
-        auto *    pool    = QThreadPool::globalInstance();
+        auto     *pool    = QThreadPool::globalInstance();
         pool->waitForDone();
         const int maximum = pool->maxThreadCount();
         pool->setMaxThreadCount(1);

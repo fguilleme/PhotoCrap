@@ -50,7 +50,7 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
     if (layerList)
         QMetaObject::invokeMethod(layerList, "positionViewAtBeginning");
     QTest::qWait(100);
-    auto thumbnail = [&](int _index, const char *_name) -> QQuickItem * {
+    auto layerRow = [&](int _index) -> QQuickItem * {
         QList<QQuickItem *> pending{qobject_cast<QQuickItem *>(layerList)};
         while (!pending.isEmpty()) {
             auto row = pending.takeLast();
@@ -63,9 +63,13 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
             if (model.metaType() == QMetaType::fromType<QJSValue>())
                 model = model.value<QJSValue>().toVariant();
             if (row->isVisible() && model.toMap().value("layerIndex", -1).toInt() == _index)
-                return row->findChild<QQuickItem *>(_name);
+                return row;
         }
         return nullptr;
+    };
+    auto thumbnail = [&](int _index, const char *_name) -> QQuickItem * {
+        auto *row = layerRow(_index);
+        return row ? row->findChild<QQuickItem *>(_name) : nullptr;
     };
     auto target = thumbnail(0, "maskThumbnailMouse");
     if (!require(target && target->isVisible(), "mask thumbnail is available for a pointer test"))
@@ -146,5 +150,80 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
         return false;
     properties->setProperty("keepChanges", true);
     QMetaObject::invokeMethod(properties, "accept");
+
+    _document.newDocument(100, 80, true);
+    _document.setTool("brush");
+    _document.setColor(Qt::black);
+    _document.setBrushSize(16);
+    _document.beginStroke(30, 40);
+    _document.endStroke();
+    _document.addLayer();
+    _document.setColor(Qt::red);
+    _document.fillWithColor(true);
+    _document.selectLayer(0);
+    QTest::qWait(100);
+    auto *upper = layerRow(1);
+    auto *lower = layerRow(0);
+    if (!require(upper && lower, "the two clipping rows are visible"))
+        return false;
+    const auto upperEdge      = upper->mapToScene({upper->width() / 2, upper->height()});
+    const auto lowerEdge      = lower->mapToScene({lower->width() / 2, 0});
+    const auto gap            = ((upperEdge + lowerEdge) / 2).toPoint();
+    const int  beforeClipping = _document.historyIndex();
+    auto thumbnailX = [&] {
+        auto *item = thumbnail(0, "layerThumbnailMouse");
+        return item ? item->mapToScene({0, 0}).x() : -1.;
+    };
+    const auto originalX = thumbnailX();
+    if (!require(originalX >= 0, "the base layer thumbnail is visible"))
+        return false;
+    QTest::mouseMove(_window, gap);
+    QTest::qWait(20);
+    if (!require(_window->cursor().shape() == Qt::ArrowCursor,
+                 "the gap has the normal cursor before Option is pressed"))
+        return false;
+    QTest::keyPress(_window, Qt::Key_Alt);
+    QTest::qWait(20);
+    if (!require(_window->cursor().shape() == Qt::PointingHandCursor,
+                 "Option updates the clipping cursor without a mouse move"))
+        return false;
+    QTest::mouseMove(_window, gap - QPoint(0, 14));
+    QTest::qWait(20);
+    if (!require(_window->cursor().shape() == Qt::ArrowCursor,
+                 "the clipping cursor is limited to the gap between rows"))
+        return false;
+    QTest::mouseMove(_window, gap);
+    QTest::keyRelease(_window, Qt::Key_Alt);
+    QTest::qWait(20);
+    if (!require(_window->cursor().shape() == Qt::ArrowCursor,
+                 "releasing Option restores the cursor over the gap"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, gap);
+    if (!require(_document.historyIndex() == beforeClipping, "plain gap clicks leave layers alone"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, gap);
+    if (!require(_document.layers().first().toMap().value("clippingMask").toBool() &&
+                     _document.activeLayer() == 0 &&
+                     _document.historyIndex() == beforeClipping + 1 &&
+                     _document.composite().pixelColor(30, 40) == QColor(Qt::red) &&
+                     _document.composite().pixelColor(85, 65).alpha() == 0,
+                 "Option-click clips the upper row without changing the selection"))
+        return false;
+    QTest::qWait(50);
+    if (!require(thumbnailX() > originalX, "the clipping base is indented"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, gap);
+    if (!require(!_document.layers().first().toMap().value("clippingMask").toBool() &&
+                     _document.composite().pixelColor(85, 65) == QColor(Qt::red),
+                 "a second Option-click releases the clipping mask"))
+        return false;
+    QTest::qWait(50);
+    if (!require(qFuzzyCompare(thumbnailX(), originalX),
+                 "releasing clipping restores the base layer alignment"))
+        return false;
+    _document.undo();
+    if (!require(_document.composite().pixelColor(85, 65).alpha() == 0,
+                 "releasing the clipping mask is undoable"))
+        return false;
     return runLayerMergeSmoke(_window, _document);
 }

@@ -272,14 +272,16 @@ void Document::previewLayerBlend(int _i, int _blend)
 }
 void Document::setClippingMask(bool _enabled)
 {
-    if (finishTextForLayer(m_active) < 0)
-        return;
-    if (m_active < 0 || m_active >= m_layers.size() ||
-        m_layers[m_active].kind == QStringLiteral("group") ||
-        m_layers[m_active].clippingMask == _enabled || (_enabled && m_active == 0))
+    setLayerClippingMask(m_active, _enabled);
+}
+void Document::setLayerClippingMask(int _index, bool _enabled)
+{
+    _index = finishTextForLayer(_index);
+    if (_index < 0 || m_layers[_index].kind == QStringLiteral("group") ||
+        m_layers[_index].clippingMask == _enabled || (_enabled && _index == 0))
         return;
     edit(_enabled ? tr("Créer un masque d’écrêtage") : tr("Libérer le masque d’écrêtage"),
-         [&] { m_layers[m_active].clippingMask = _enabled; });
+         [&] { m_layers[_index].clippingMask = _enabled; });
 }
 void Document::addLayerMask(bool _revealAll)
 {

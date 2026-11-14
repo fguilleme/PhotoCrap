@@ -7489,6 +7489,67 @@ private slots:
         QVERIFY(loaded.layers().first().toMap().value("clippingMask").toBool());
         QCOMPARE(loaded.composite(), d.composite());
     }
+    void clippedAdjustmentsOnlyReadTheirBase()
+    {
+        for (int bits : {8, 16}) {
+            Document d;
+            QVERIFY(d.newDocument(40, 32, true, bits));
+            d.setColor(Qt::blue);
+            d.fillWithColor(true);
+            d.addLayer();
+            d.setColor(Qt::red);
+            d.setBrushSize(12);
+            d.setBrushHardness(1);
+            const QPoint center(12, 16), outside(32, 16);
+            d.beginStroke(center.x(), center.y());
+            d.endStroke();
+            d.setLayerOpacity(1, .5);
+            const QImage before = d.composite();
+
+            d.addAdjustmentLayer("invert");
+            d.setClippingMask(true);
+            QVERIFY(!d.gpuLayerStack().valid);
+            const QRect  region(7, 9, 27, 14);
+            const QImage regional = d.compositeRegion(region);
+            const QImage result   = d.composite();
+            QCOMPARE(regional, result.copy(region));
+            QCOMPARE(result.pixelColor(outside), QColor(Qt::blue));
+            const auto adjusted = result.pixelColor(center);
+            QCOMPARE(adjusted.red(), 0);
+            QVERIFY(qAbs(adjusted.green() - 128) <= 1);
+            QCOMPARE(adjusted.blue(), 255);
+
+            d.setLayerVisible(0, false);
+            const auto isolated = d.composite().pixelColor(center);
+            QCOMPARE(isolated.red(), 0);
+            QCOMPARE(isolated.green(), 255);
+            QCOMPARE(isolated.blue(), 255);
+            QVERIFY(qAbs(isolated.alpha() - 128) <= 1);
+            QCOMPARE(d.composite().pixelColor(outside).alpha(), 0);
+            d.setLayerVisible(0, true);
+
+            d.addAdjustmentLayer("invert");
+            d.setClippingMask(true);
+            QCOMPARE(d.composite(), before);
+            d.setLayerVisible(3, false);
+            QCOMPARE(d.composite(), result);
+            d.setLayerVisible(1, false);
+            QCOMPARE(d.composite().pixelColor(center), QColor(Qt::blue));
+
+            d.setLayerVisible(1, true);
+            d.setLayerOpacity(1, 1.);
+            d.selectLayer(1);
+            d.addLayerMask();
+            d.setColor(QColor(128, 128, 128));
+            d.fillWithColor(true);
+            d.setEditingMask(false);
+            const auto masked = d.composite().pixelColor(center);
+            QCOMPARE(masked.red(), 0);
+            QVERIFY(qAbs(masked.green() - 128) <= 1);
+            QCOMPARE(masked.blue(), 255);
+            QCOMPARE(d.composite().pixelColor(outside), QColor(Qt::blue));
+        }
+    }
     void integerAlphaMultiplicationMatchesScalarReference()
     {
         for (int channel = 0; channel < 256; ++channel) {
@@ -9831,18 +9892,25 @@ private slots:
                 << elapsed;
     }
 
-    void uniformCompositeMetadataDigest()
+    void uniformCompositeMetadataMatchesExpandedPlanes()
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        QCryptographicHash hash(QCryptographicHash::Sha256);
-        const QSize        size(67, 71);
-        const auto         encoded = [](const QImage &_image) {
+        const QSize size(67, 71);
+        const auto  encoded = [](const QImage &_image) {
             QByteArray bytes;
             QBuffer    buffer(&bytes);
             if (!buffer.open(QIODevice::WriteOnly) || !_image.save(&buffer, "PNG"))
                 return QString{};
             return QString::fromLatin1(bytes.toBase64());
+        };
+        const auto load = [&](Document &document, const QJsonObject &project) {
+            QFile file(directory.filePath("uniform.pcr"));
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) ||
+                file.write(QJsonDocument(project).toJson()) <= 0)
+                return false;
+            file.close();
+            return document.openFile(QUrl::fromLocalFile(file.fileName()));
         };
         int cases = 0;
         for (int bits : {8, 16}) {
@@ -9850,8 +9918,10 @@ private slots:
                                            : QImage::Format_ARGB32_Premultiplied;
             QImage pixels(size, format), empty(size, format), base(1, 1, format), top(1, 1, format);
             empty.fill(Qt::transparent);
-            base.fill(QColor(31, 61, 91, 197));
-            top.fill(QColor(223, 53, 113, 173));
+            // Exact native channels at both alpha values keep the PNG round
+            // trip independent of the raster path used for each plane size.
+            base.fill(QColor(255, 0, 255, 197));
+            top.fill(QColor(0, 255, 0, 173));
             for (int y = 0; y < size.height(); ++y)
                 for (int x = 0; x < size.width(); ++x)
                     pixels.setPixelColor(
@@ -9859,6 +9929,8 @@ private slots:
                         QColor::fromRgba64(ushort(x * 887), ushort(y * 811), ushort((x + y) * 431),
                                            ushort(20000 + (x * 97 + y * 163) % 40000)));
             const QString source = encoded(pixels), transparent = encoded(empty);
+            const auto    expandedBase = encoded(base.scaled(size));
+            const auto    expandedTop  = encoded(top.scaled(size));
             QVERIFY(!source.isEmpty());
             QVERIFY(!transparent.isEmpty());
             for (const QString kind : {QString("pixel"), QString("adjustment"),
@@ -9905,33 +9977,30 @@ private slots:
                                          {"channelBits", bits},
                                          {"layers", QJsonArray{background, target, overlay}},
                                          {"penPaths", QJsonArray{}}};
-                        const auto  url = QUrl::fromLocalFile(directory.filePath("uniform.pcr"));
-                        QFile       file(url.toLocalFile());
-                        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-                        QVERIFY(file.write(QJsonDocument(root).toJson()) > 0);
-                        file.close();
-                        Document d;
-                        QVERIFY(d.openFile(url));
+                        Document    d;
+                        QVERIFY(load(d, root));
                         const auto   before = d.historyIndex();
                         const QRect  sample(13, 17, 23, 29);
                         const QImage region = d.compositeRegion(sample), full = d.composite();
                         QCOMPARE(region, full.copy(sample));
                         QCOMPARE(d.historyIndex(), before);
-                        for (int y = 0; y < full.height(); ++y)
-                            hash.addData(QByteArrayView(
-                                reinterpret_cast<const char *>(full.constScanLine(y)),
-                                full.width() * full.depth() / 8));
+                        background["png"]           = expandedBase;
+                        background["compactPixels"] = false;
+                        overlay["png"]              = expandedTop;
+                        overlay["compactPixels"]    = false;
+                        root["layers"]              = QJsonArray{background, target, overlay};
+                        Document expanded;
+                        QVERIFY(load(expanded, root));
+                        QVERIFY2(full == expanded.composite(),
+                                 qPrintable(QString("%1-bit %2 mode %3, clipped=%4")
+                                                .arg(bits)
+                                                .arg(kind)
+                                                .arg(mode)
+                                                .arg(clipped)));
                         ++cases;
                     }
         }
         QCOMPARE(cases, 96);
-        compareRasterDigest(
-            hash.result().toHex(),
-            filterReference("d1248fbf79d7a21b50c08712b1b363c54c55d0166063e5d201e7f7afae60ea3b",
-                            "78e3c549fe042c02dcb1e8d293e31fa3a087138099863635c7edade059817f91",
-                            "129d7ad8f348629123e544c611b5416588cde3df7d1585ac47f808c92165a0f0",
-                            "1c9554a71c9557fbfc6de711783b6ed4b59482e9d7e3fdacd58fc1b26de0d9ee"),
-            "f10e2c521abfcaa81d866979ea54c5c5392ce87e0d08b9f6d3ad677173029fb5");
     }
     void uniformCompositionKeepsLowNativeAlphaAndPaintedCoverage()
     {

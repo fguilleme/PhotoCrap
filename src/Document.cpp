@@ -838,6 +838,9 @@ QVariantList Document::layers() const
         const auto &l = m_layers[i];
         if (l.kind != QStringLiteral("group") && collapsedGroups.contains(l.groupId))
             continue;
+        const bool clippingBase =
+            !l.clippingMask && l.kind != QStringLiteral("group") && i + 1 < m_layers.size() &&
+            m_layers[i + 1].clippingMask && m_layers[i + 1].groupId == l.groupId;
         result.append(QVariantMap{{"layerIndex", i},
                                   {"name", l.name},
                                   {"visible", l.visible},
@@ -853,6 +856,7 @@ QVariantList Document::layers() const
                                   {"editingVectorMask", i == m_active && editingVectorMask()},
                                   {"maskEnabled", l.maskEnabled},
                                   {"clippingMask", l.clippingMask},
+                                  {"clippingBase", clippingBase},
                                   {"groupId", l.groupId},
                                   {"groupCollapsed", l.groupCollapsed},
                                   {"selected", m_selectedLayers.contains(i)},

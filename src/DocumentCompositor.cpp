@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageAlpha.h"
+#include "ImagePixels.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
 #include "render/LayerVisibility.h"
@@ -26,7 +27,8 @@ bool requiresFullComposite(const Layer &_layer, bool _opaqueBase, bool _hasClipp
     // for noise over transparency.
     return (_layer.blend == 1 && _hasClipping) ||
            (_layer.kind == QStringLiteral("adjustment") &&
-            _layer.adjustmentType == QStringLiteral("noise") && !_opaqueBase);
+            _layer.adjustmentType == QStringLiteral("noise") &&
+            (!_opaqueBase || _layer.clippingMask));
 }
 
 bool opaqueBase(const Layer &_layer)
@@ -85,6 +87,33 @@ int effectMargin(const Layer &_layer)
 QRect expanded(const QRect &_region, int _margin, const QRect &_bounds)
 {
     return _region.adjusted(-_margin, -_margin, _margin, _margin).intersected(_bounds);
+}
+
+// The filter's alpha came from the clipping base. Apply the adjusted colors at
+// full strength wherever they exist, then use only the adjustment's own mask
+// and opacity for blending. The clipping base supplies the final alpha.
+template <typename Pixel>
+QImage clippedAdjustmentColors(const QImage &_image)
+{
+    using P      = ImageUtils::PixelAccess<Pixel>;
+    QImage image = _image.convertToFormat(P::format);
+    if (image.isNull())
+        return image;
+    auto        *data   = image.bits();
+    const auto   stride = image.bytesPerLine();
+    QVector<int> rows(image.height());
+    std::iota(rows.begin(), rows.end(), 0);
+    ImageUtils::blockingMap(rows, [&](int y) {
+        auto *row = reinterpret_cast<Pixel *>(data + y * stride);
+        for (int x = 0; x < image.width(); ++x) {
+            if constexpr (P::wide) {
+                if (row[x].alpha())
+                    row[x].setAlpha(65535);
+            } else if (qAlpha(row[x]))
+                row[x] |= 0xff000000u;
+        }
+    });
+    return image;
 }
 
 } // namespace
@@ -195,7 +224,13 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     };
     QImage     clippingBase, clippingCoverage;
     qreal      clippingBaseOpacity = 1.;
-    const auto resetClipping       = [&] {
+    int        isolatedBase        = -1;
+    const auto finishClipping      = [&] {
+        if (isolatedBase >= 0) {
+            const auto &base = m_layers[isolatedBase];
+            compositeLayer(clippingBase, base.blend, base.opacity);
+            isolatedBase = -1;
+        }
         clippingBase     = {};
         clippingCoverage = {};
     };
@@ -206,17 +241,15 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     for (int layerIndex = opaqueCoverIndex(m_layers, m_size); layerIndex < m_layers.size();
          ++layerIndex) {
         const auto &layer = m_layers[layerIndex];
-        if (layer.kind == QStringLiteral("group")) {
-            resetClipping();
+        if (!layer.clippingMask || layer.kind == QStringLiteral("group") ||
+            (layerIndex > 0 && m_layers[layerIndex - 1].groupId != layer.groupId))
+            finishClipping();
+        if (layer.kind == QStringLiteral("group"))
             continue;
-        }
         const bool groupVisible =
             layer.groupId.isEmpty() || groupVisibility.value(layer.groupId, true);
-        if (!groupVisible || !contributes(layer)) {
-            if (!layer.clippingMask)
-                resetClipping();
+        if (!groupVisible || !contributes(layer))
             continue;
-        }
         // A clipped layer cannot contribute without coverage from a visible
         // base. Reject it before filters, masks or frequency bands are built.
         if (layer.clippingMask && clippingBase.isNull())
@@ -239,31 +272,36 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                     layer.parameters.value("gradient").toMap(), m_size, gradient))
                 rendered = gradient.image(_region, m_channelBits == 16);
         } else if (layer.kind == QStringLiteral("adjustment")) {
+            const bool isolatedAdjustment =
+                isolatedBase >= 0 && PhotoCrap::Render::LayerVisibility::samplesComposite(layer);
+            const QImage            &input = isolatedAdjustment ? clippingBase : regionComposite;
             static const QStringList scalableFilters{
                 QStringLiteral("gaussianBlur"), QStringLiteral("motionBlur"),
                 QStringLiteral("boxBlur"),      QStringLiteral("unsharpMask"),
                 QStringLiteral("highPass"),     QStringLiteral("mosaic")};
             const bool draft = m_previewingLayer && layerIndex == m_active &&
                                scalableFilters.contains(layer.adjustmentType) &&
-                               qMax(regionComposite.width(), regionComposite.height()) > 960;
+                               qMax(input.width(), input.height()) > 960;
             if (draft) {
-                const qreal scale =
-                    960. / qreal(qMax(regionComposite.width(), regionComposite.height()));
-                const QSize draftSize(qMax(1, qRound(regionComposite.width() * scale)),
-                                      qMax(1, qRound(regionComposite.height() * scale)));
+                const qreal scale = 960. / qreal(qMax(input.width(), input.height()));
+                const QSize draftSize(qMax(1, qRound(input.width() * scale)),
+                                      qMax(1, qRound(input.height() * scale)));
                 QVariantMap parameters = layer.parameters;
                 for (const auto &key : {QStringLiteral("radius"), QStringLiteral("distance"),
                                         QStringLiteral("cellSize")})
                     if (parameters.contains(key))
                         parameters.insert(key, qMax(1., parameters.value(key).toDouble() * scale));
-                rendered = adjustedImage(regionComposite.scaled(draftSize, Qt::IgnoreAspectRatio,
-                                                                Qt::SmoothTransformation),
-                                         layer.adjustmentType, parameters)
-                               .scaled(regionComposite.size(), Qt::IgnoreAspectRatio,
-                                       Qt::SmoothTransformation);
+                rendered =
+                    adjustedImage(
+                        input.scaled(draftSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation),
+                        layer.adjustmentType, parameters)
+                        .scaled(input.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             } else
-                rendered = adjustedImage(regionComposite, layer.adjustmentType, layer.parameters,
+                rendered = adjustedImage(input, layer.adjustmentType, layer.parameters,
                                          _region.topLeft(), m_size);
+            if (isolatedAdjustment)
+                rendered = m_channelBits == 16 ? clippedAdjustmentColors<QRgba64>(rendered)
+                                               : clippedAdjustmentColors<QRgb>(rendered);
         } else if (layer.kind.startsWith(QStringLiteral("frequency"))) {
             const bool regional = !m_frequencyPreviewDraft && _region.size() != m_size &&
                                   canRenderFrequencyRegion(layer, m_size);
@@ -319,18 +357,26 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                                  layer.parameters.value("_vectorDensity", 100.).toDouble() / 100.);
         }
         if (layer.clippingMask) {
-            if (clippingBase.isNull())
+            if (isolatedBase >= 0) {
+                clippingBase = blendImages(clippingBase, rendered, layer.blend, layer.opacity,
+                                           _region.topLeft(), true);
                 continue;
+            }
             if (clippingCoverage.isNull())
                 clippingCoverage = PhotoCrap::alphaCoverage(clippingBase, clippingBaseOpacity);
             rendered = applyMask(rendered, clippingCoverage);
         } else {
             clippingBase        = rendered;
             clippingBaseOpacity = layer.opacity;
-            clippingCoverage    = {};
+            if (!rendered.isNull() && PhotoCrap::Render::LayerVisibility::needsIsolatedClipping(
+                                          m_layers, layerIndex, m_size)) {
+                isolatedBase = layerIndex;
+                continue;
+            }
         }
         compositeLayer(rendered, layer.blend, layer.opacity);
     }
+    finishClipping();
     return regionComposite;
 }
 

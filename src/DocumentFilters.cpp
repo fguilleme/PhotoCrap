@@ -108,7 +108,7 @@ QImage Document::applyMask(const QImage &_source, const QImage &_mask, qreal _de
                                         : render.template operator()<QRgb>();
 }
 QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mode, qreal _opacity,
-                             const QPoint &_origin)
+                             const QPoint &_origin, bool _preserveBaseAlpha)
 {
     if (_source.isNull())
         return _base;
@@ -120,6 +120,8 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
             QImage   background = _base.convertToFormat(P::premultiplied);
             QPainter painter(&background);
             painter.setOpacity(_opacity);
+            if (_preserveBaseAlpha)
+                painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
             painter.drawImage(0, 0, _source);
             painter.end();
             background.setColorSpace(QColorSpace::SRgb);
@@ -156,7 +158,7 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
                                          quint32(_y + _origin.y()) * 19349663u;
                     as                 = (hash & 0xffffu) < quint32(as * 65535.) ? 1. : 0.;
                 }
-                if (as <= 0)
+                if (as <= 0 || (_preserveBaseAlpha && ab <= 0))
                     continue;
                 double mixedRed = sr, mixedGreen = sg, mixedBlue = sb;
                 if (_mode == 6 || _mode == 11) {
@@ -195,8 +197,10 @@ QImage Document::blendImages(const QImage &_base, const QImage &_source, int _mo
                     mixedGreen = PhotoCrap::Filters::blendChannel(bg, sg, _mode);
                     mixedBlue  = PhotoCrap::Filters::blendChannel(bb, sb, _mode);
                 }
-                const double ao      = as + ab * (1 - as);
+                const double ao      = _preserveBaseAlpha ? ab : as + ab * (1 - as);
                 auto         compose = [&](double _b, double _s, double _mix) {
+                    if (_preserveBaseAlpha)
+                        return std::lerp(_b, _mix, as);
                     return ao <= 0
                                ? 0.
                                : ((1 - as) * ab * _b + (1 - ab) * as * _s + ab * as * _mix) / ao;

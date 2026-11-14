@@ -27,6 +27,8 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     for (int index = LayerVisibility::opaqueCoverIndex(m_layers, m_size); index < m_layers.size();
          ++index) {
         const auto &layer = m_layers[index];
+        if (index > 0 && m_layers[index - 1].groupId != layer.groupId)
+            hasClippingBase = false;
         if (PhotoCrap::Masks::vectorEnabled(layer) || !layer.directType.isEmpty())
             return {};
         if (layer.kind == "group" || !LayerVisibility::contributes(layer) ||
@@ -39,6 +41,10 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         // GPU eligibility, so a hidden base needs no separate GPU reset pass.
         if (layer.clippingMask && !hasClippingBase)
             continue;
+        // The stack shader samples the merged backdrop for adjustments. An
+        // isolated clipping chain must instead be evaluated on its own base.
+        if (!layer.clippingMask && LayerVisibility::needsIsolatedClipping(m_layers, index, m_size))
+            return {};
         // The CPU compositor treats an untouched frequency pair as a single
         // normal draw of its source. Use the same native pixels on the GPU.
         if (LayerVisibility::reconstructsFrequencySource(m_layers, index) &&

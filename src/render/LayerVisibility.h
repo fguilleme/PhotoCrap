@@ -43,6 +43,33 @@ inline bool contributes(const Layer &_layer)
     return true;
 }
 
+inline bool samplesComposite(const Layer &_layer)
+{
+    return _layer.kind == QStringLiteral("adjustment") &&
+           _layer.adjustmentType != QStringLiteral("solidColor") &&
+           _layer.adjustmentType != QStringLiteral("gradientFill");
+}
+
+inline bool needsIsolatedClipping(const QVector<Layer> &_layers, int _base, const QSize &_size)
+{
+    if (_base + 1 == _layers.size() || !_layers[_base + 1].clippingMask)
+        return false;
+    const auto &base = _layers[_base];
+    // A fully opaque normal base already covers the entire backdrop.
+    if (base.kind == QStringLiteral("pixel") && base.blend == 0 && base.opacity == 1. &&
+        !needsMask(base) && base.directType.isEmpty() && base.image.knownOpaque() &&
+        (base.image.size() == _size || ImageUtils::compact(base.image)))
+        return false;
+    for (int i = _base + 1; i < _layers.size(); ++i) {
+        const auto &layer = _layers[i];
+        if (!layer.clippingMask || layer.groupId != base.groupId || layer.kind == "group")
+            break;
+        if (samplesComposite(layer) && contributes(layer))
+            return true;
+    }
+    return false;
+}
+
 inline bool reconstructsFrequencySource(const QVector<Layer> &_layers, qsizetype _index)
 {
     const auto &low = _layers[_index];

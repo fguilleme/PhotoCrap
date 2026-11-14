@@ -3743,7 +3743,55 @@ ApplicationWindow {
                         reuseItems: true
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
                         clip: true; spacing: 5; model: editor.layers
+                        readonly property bool clippingEnabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading
+
+                        function clippingTargetAt(scenePosition) {
+                            const rows = model
+                            const position = mapFromItem(null, scenePosition)
+                            const x = position.x + contentX
+                            const y = position.y + contentY
+                            if (indexAt(x, y) !== -1)
+                                return null
+                            const above = indexAt(x, y - spacing)
+                            const below = indexAt(x, y + spacing)
+                            if (above < 0 || below !== above + 1)
+                                return null
+                            const upper = rows[above]
+                            const lower = rows[below]
+                            const adjacent = upper.layerIndex === lower.layerIndex + 1 &&
+                                             upper.groupId === lower.groupId && lower.kind !== "group"
+                            return upper.kind !== "group" && (upper.clippingMask || adjacent) ? upper : null
+                        }
+
                         ScrollBar.vertical: ScrollBar {}
+                        ToolInput {
+                            id: clippingInput
+                            modifiersOnly: true
+                            enabled: Qt.application.state === Qt.ApplicationActive
+                        }
+                        HoverHandler {
+                            id: clippingHover
+                        }
+                        MouseArea {
+                            parent: layerList
+                            anchors.fill: parent
+                            z: 1
+                            acceptedButtons: Qt.NoButton
+                            cursorShape: clippingHover.hovered && layerList.clippingEnabled &&
+                                         clippingInput.modifiers === Qt.AltModifier &&
+                                         layerList.clippingTargetAt(clippingHover.point.scenePosition)
+                                         ? Qt.PointingHandCursor : undefined
+                        }
+                        TapHandler {
+                            acceptedButtons: Qt.LeftButton
+                            acceptedModifiers: Qt.AltModifier
+                            enabled: layerList.clippingEnabled
+                            onTapped: function(eventPoint) {
+                                const target = layerList.clippingTargetAt(eventPoint.scenePosition)
+                                if (target)
+                                    editor.setLayerClippingMask(target.layerIndex, !target.clippingMask)
+                            }
+                        }
                         LayerImageDropArea {
                             objectName: "layerImageDropArea"
                             parent: layerList
@@ -3852,6 +3900,7 @@ ApplicationWindow {
                                     horizontalAlignment: Text.AlignHCenter
                                 }
                                 Rectangle {
+                                    Layout.leftMargin: modelData.clippingBase ? 32 : 0
                                     width: 42; height: 36; color: "#182027"; radius: 3; border.color: "#506159"
                                     Image { visible:modelData.kind!=="text"; anchors.fill: parent; anchors.margins: 2; source: "image://layers/"+editor.documentId+"/"+modelData.layerIndex+"/"+editor.thumbnailRevision; sourceSize.width: 80; sourceSize.height: 60; fillMode: Image.PreserveAspectFit; cache: false }
                                     Label {anchors.centerIn:parent;visible:modelData.kind==="text";text:"T";font.family:"serif";font.bold:true;font.pixelSize:27;color:"#dbe6ef"}

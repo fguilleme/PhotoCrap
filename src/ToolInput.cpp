@@ -1,7 +1,9 @@
 #include "ToolInput.h"
 #include <QCoreApplication>
+#include <QGuiApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QWindow>
 
 ToolInput::ToolInput(QObject *_parent) : QObject(_parent)
 {
@@ -28,6 +30,8 @@ void ToolInput::setEnabled(bool _enabled)
     if (m_enabled == _enabled)
         return;
     m_enabled = _enabled;
+    if (_enabled && m_modifiersOnly)
+        updateModifiers(int(QGuiApplication::queryKeyboardModifiers()));
     if (!_enabled) {
         updateModifiers(0);
         if (m_pressedKey) {
@@ -39,10 +43,12 @@ void ToolInput::setEnabled(bool _enabled)
 }
 bool ToolInput::eventFilter(QObject *_watched, QEvent *_event)
 {
-    if (_watched != m_targetWindow || !m_enabled)
+    if (!m_enabled || (!m_modifiersOnly && _watched != m_targetWindow))
         return false;
     const auto type = _event->type();
     if (type != QEvent::KeyPress && type != QEvent::KeyRelease && type != QEvent::ShortcutOverride)
+        return false;
+    if (m_modifiersOnly && !qobject_cast<QWindow *>(_watched))
         return false;
     auto *key = static_cast<QKeyEvent *>(_event);
     if (type != QEvent::ShortcutOverride) {
@@ -58,6 +64,8 @@ bool ToolInput::eventFilter(QObject *_watched, QEvent *_event)
             modifiers &= ~flag;
         updateModifiers(modifiers);
     }
+    if (m_modifiersOnly)
+        return false;
     // Temporary canvas navigation must work before the canvas receives its
     // first click, including when focus was restored to the window after a popup.
     // QML disables this filter while editing text or using a modal dialog.

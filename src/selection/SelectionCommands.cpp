@@ -54,19 +54,28 @@ void Document::deselect()
     if (m_polygonLassoActive)
         cancelPolygonLasso();
     const auto before = snapshot({});
+    clearActiveSelection(false);
+    commitSelectionEdit(before, tr("Désélectionner"));
+    emit selectionChanged();
+}
+
+void Document::clearActiveSelection(bool notify)
+{
     if (!m_selectionRegion.isEmpty()) {
         m_lastSelectionRegion  = m_selectionRegion;
         m_lastSelectionMask    = m_selectionMask;
         m_lastSelectionOutline = m_selectionOutline;
     }
-    m_selectionMask   = {};
-    m_selection       = {};
-    m_selectionRegion = {};
-    m_selectionShape  = 0;
+    m_selection           = {};
+    m_selectionRegion     = {};
+    m_selectionMask       = {};
+    m_selectionOutline    = {};
+    m_selectionMaskRegion = {};
+    m_selectionShape      = 0;
     m_selectionPath.clear();
     m_polygonLassoActive = false;
-    commitSelectionEdit(before, tr("Désélectionner"));
-    emit selectionChanged();
+    if (notify)
+        emit selectionChanged();
 }
 
 void Document::reselect()

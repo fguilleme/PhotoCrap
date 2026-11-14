@@ -1461,7 +1461,7 @@ ApplicationWindow {
         enabled: !window.modalOpen || editor.transformActive || editor.operationBusy || editor.selectionBusy
         sequence: "Escape"
         onActivated: {
-            if(aiImages.surfacePicking){aiImages.cancel();return}
+            if(surfacePaintBar.visible && !window.modalOpen){aiImages.cancel();return}
             if(editor.transformActive){editor.cancelTransform();return}
             if(editor.operationBusy){editor.cancelOperation();return}
             if (model3dControls.cancelGesture() || model3dPanel.cancelGesture()) return
@@ -1923,6 +1923,68 @@ ApplicationWindow {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+        Rectangle {
+            id: surfacePaintBar
+            objectName: "surfacePaintBar"
+            property var controller: aiImages
+            visible: controller.surfaceAnalysis && (controller.busy || controller.surfacePicking)
+            onVisibleChanged: if (!visible) { surfaceRelief.checked = false; surfaceProtect.checked = false }
+            onControllerChanged: { surfaceRelief.checked = false; surfaceProtect.checked = false }
+            Layout.fillWidth: true
+            implicitHeight: 44
+            color: "#242a32"
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                spacing: 12
+                CheckBox {
+                    id: surfaceRelief
+                    objectName: "surfaceFollowRelief"
+                    visible: surfacePaintBar.controller.surfacePicking
+                    enabled: !surfacePaintBar.controller.busy
+                    text: qsTr("Suivre le relief")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Pour les surfaces courbes ou les tissus froissés.")
+                }
+                AiActionButton {
+                    id: surfaceProtect
+                    objectName: "surfaceProtectObject"
+                    checkable: true
+                    primary: checked
+                    visible: surfacePaintBar.controller.surfacePicking && surfacePaintBar.controller.surfaceProtectionAvailable
+                    enabled: !surfacePaintBar.controller.busy
+                    text: qsTr("Protéger un objet")
+                }
+                BusyIndicator {
+                    visible: surfacePaintBar.controller.busy
+                    running: visible
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                }
+                Label {
+                    text: surfaceProtect.checked && surfacePaintBar.controller.surfacePickingHint
+                          ? qsTr("Cliquez au centre de l’objet. Clic droit pour retirer sa protection.")
+                          : surfacePaintBar.controller.status
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    elide: Text.ElideRight
+                }
+                AiActionButton {
+                    objectName: "surfacePaintApply"
+                    primary: true
+                    text: qsTr("Peindre")
+                    visible: surfacePaintBar.controller.surfacePicking
+                    enabled: !surfacePaintBar.controller.busy && surfacePaintBar.controller.hasSurfaceSelection
+                    onClicked: surfacePaintBar.controller.applySurfaceSelection()
+                }
+                AiActionButton {
+                    objectName: "surfacePaintCancel"
+                    text: qsTr("Annuler")
+                    onClicked: surfacePaintBar.controller.cancel()
+                }
+            }
+        }
         TransformOptions {
             objectName: "transformOptions"
             Layout.fillWidth: true
@@ -2599,6 +2661,13 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
                     Keys.priority: Keys.BeforeItem
                     Keys.onPressed: function(event) {
+                        if (aiImages.surfacePicking && !window.modalOpen) {
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                aiImages.applySurfaceSelection()
+                                event.accepted = true
+                            }
+                            return
+                        }
                         if (editor.transformActive) {
                             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                 editor.applyTransform(); event.accepted = true; return
@@ -2770,6 +2839,15 @@ ApplicationWindow {
                                 onWidthChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                                 onHeightChanged: editor.setPreviewSize(Math.round(width), Math.round(height))
                             }
+                            Image {
+                                objectName: "surfaceSelectionOverlay"
+                                anchors.fill: parent
+                                z: 6
+                                visible: aiImages.hasSurfacePreview
+                                source: visible ? "image://layers/" + editor.documentId + "/surfacePreview/" + aiImages.surfacePreviewRevision : ""
+                                cache: false
+                                fillMode: Image.Stretch
+                            }
                             GradientGuide {
                                 id: gradientGuideControl
                                 objectName: "gradientGuide"
@@ -2888,7 +2966,7 @@ ApplicationWindow {
                                 }
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                enabled: !editor.operationBusy && !editor.magicEraserBusy && !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
+                                enabled: !aiImages.surfacePicking && !editor.operationBusy && !editor.magicEraserBusy && !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape
@@ -2907,7 +2985,8 @@ ApplicationWindow {
                                               : window.temporaryPickerActive ? "picker"
                                               : window.penToolActive ? editor.penCursorAt(pointerX/zoom,pointerY/zoom,7/zoom,window.primaryPressed,window.stampSourcePicking) : editor.tool
                                     imageCanvas.setSystemCursor(controllingModel ? model3dControls.cursorShape
-                                                                : pickingSurface || calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
+                                                                : pickingSurface ? surfacePickerArea.cursorShape
+                                                                : calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
                                                                 (controllingModel || containsMouse || canvasTextEditor.pointerInside || pickingSurface || calibration || measuring || gradientControl) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
                                                                 tool, editor.selectionMode, window.stampSourcePicking, !gradientControl && editor.tool!=="text" && toolInput.precise)
                                 }
@@ -3308,16 +3387,23 @@ ApplicationWindow {
                                 id: surfacePickerArea
                                 objectName: "surfacePickerArea"
                                 anchors.fill: parent
-                                z: 7
+                                z: 45
                                 enabled: aiImages.surfacePicking && !window.modalOpen && !window.spacePressed
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: enabled
                                 preventStealing: true
-                                cursorShape: Qt.CrossCursor
+                                cursorShape: aiImages.busy ? Qt.WaitCursor : Qt.CrossCursor
                                 onContainsMouseChanged: drawingArea.refreshSystemCursor()
                                 onEnabledChanged: drawingArea.refreshSystemCursor()
+                                onCursorShapeChanged: drawingArea.refreshSystemCursor()
                                 onClicked: function(mouse) {
                                     workspace.forceActiveFocus()
-                                    aiImages.pickSurface(Math.floor(mouse.x / zoom), Math.floor(mouse.y / zoom))
+                                    const x = Math.floor(mouse.x / zoom), y = Math.floor(mouse.y / zoom)
+                                    const subtract = mouse.button === Qt.RightButton
+                                    if (surfaceProtect.checked)
+                                        aiImages.protectSurfaceObject(x, y, subtract)
+                                    else
+                                        aiImages.pickSurface(x, y, surfaceRelief.checked, subtract)
                                 }
                             }
                             MouseArea {
@@ -3390,7 +3476,7 @@ ApplicationWindow {
                         objectName: "zoomToolArea"
                         anchors.fill: viewport
                         z: 22
-                        enabled: ((editor.tool === "zoomTool" && !model3dControls.enabled) || (window.spacePressed && (window.primaryPressed || window.stampSourcePicking))) && !window.repositioningGesture
+                        enabled: ((editor.tool === "zoomTool" && !aiImages.surfacePicking && !model3dControls.enabled) || (window.spacePressed && (window.primaryPressed || window.stampSourcePicking))) && !window.repositioningGesture
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: Qt.CrossCursor
@@ -3421,7 +3507,7 @@ ApplicationWindow {
                         objectName: "rotateToolArea"
                         anchors.fill: viewport
                         z: 22
-                        enabled: editor.tool === "rotateView" && !window.spacePressed && !model3dControls.enabled
+                        enabled: editor.tool === "rotateView" && !aiImages.surfacePicking && !window.spacePressed && !model3dControls.enabled
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
@@ -3447,7 +3533,7 @@ ApplicationWindow {
                         objectName: "panArea"
                         anchors.fill: viewport
                         z: 21
-                        enabled: (window.spacePressed && !window.primaryPressed && !window.stampSourcePicking && !window.repositioningGesture) || (editor.tool==="hand" && !model3dControls.enabled)
+                        enabled: (window.spacePressed && !window.primaryPressed && !window.stampSourcePicking && !window.repositioningGesture) || (editor.tool==="hand" && !aiImages.surfacePicking && !model3dControls.enabled)
                         hoverEnabled: enabled
                         preventStealing: true
                         cursorShape: enabled && pressed ? Qt.ClosedHandCursor
@@ -4669,7 +4755,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("La composition visible est envoyée au serveur ComfyUI choisi pour estimer sa profondeur. Cliquez ensuite sur la surface à peindre.")
+                text: qsTr("La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.")
             }
             Label {
                 Layout.fillWidth: true

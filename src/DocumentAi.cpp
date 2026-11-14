@@ -233,6 +233,7 @@ bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPla
         !validSize(width(), height(), int(m_layers.size()) + 1) ||
         !validLayerStorage(width(), height(), 0, !ImageUtils::compact(mask)))
         return false;
+    const bool hadSelection = hasSelection();
     const auto label = tr("Peinture sur surface");
     edit(label, [&] {
         Layer layer;
@@ -246,7 +247,11 @@ bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPla
         m_active      = int(m_layers.size()) - 1;
         m_editingMask = false;
         selectOnly(m_active);
+        if (hadSelection)
+            clearActiveSelection(false);
     });
+    if (hadSelection)
+        emit selectionChanged();
     setDisplayChannel(0);
     setTool(QStringLiteral("brush"));
     return true;

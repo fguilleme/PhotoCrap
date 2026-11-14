@@ -80,7 +80,14 @@ public:
     QImage requestImage(const QString &key, QSize *_size, const QSize &_requested) override
     {
         const auto _id        = key.section('/', 1);
-        auto *     m_document = m_documents->document(key.section('/', 0, 0));
+        const auto documentId = key.section('/', 0, 0);
+        if (_id.startsWith("surfacePreview/")) {
+            const auto image = m_documents->surfacePreview(documentId);
+            if (_size)
+                *_size = image.size();
+            return image;
+        }
+        auto  *m_document = m_documents->document(documentId);
         QImage image;
         if (!m_document) {
             image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);

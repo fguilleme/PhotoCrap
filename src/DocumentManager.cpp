@@ -111,6 +111,11 @@ Document *DocumentManager::document(const QString &id) const
     const auto index = indexOf(id);
     return index < 0 ? nullptr : m_entries[index].document;
 }
+QImage DocumentManager::surfacePreview(const QString &id) const
+{
+    const auto index = indexOf(id);
+    return index < 0 ? QImage{} : m_entries[index].ai->surfacePreview();
+}
 QVariantList DocumentManager::documents() const
 {
     QVariantList list;

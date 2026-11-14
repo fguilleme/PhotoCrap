@@ -144,23 +144,6 @@ void Document::copyMerged()
     copyPixels(true);
 }
 
-void Document::discardClipboardSelection()
-{
-    if (hasSelection()) {
-        m_lastSelectionRegion  = m_selectionRegion;
-        m_lastSelectionMask    = m_selectionMask;
-        m_lastSelectionOutline = m_selectionOutline;
-    }
-    m_selection           = {};
-    m_selectionRegion     = {};
-    m_selectionMask       = {};
-    m_selectionOutline    = {};
-    m_selectionMaskRegion = {};
-    m_selectionShape      = 0;
-    m_selectionPath.clear();
-    m_polygonLassoActive = false;
-    emit selectionChanged();
-}
 bool Document::eraseClipboardSelection()
 {
     auto        next      = toolPlane();
@@ -216,7 +199,7 @@ void Document::cut()
     beginClipboardTransfer(std::make_shared<Pixels>(pixels), true);
     const auto work = [](Document &worker) {
         if (worker.eraseClipboardSelection())
-            worker.discardClipboardSelection();
+            worker.clearActiveSelection();
     };
     if (deferEdit(tr("Couper"), editCost(false), work))
         return;
@@ -225,7 +208,7 @@ void Document::cut()
         finishClipboardTransfer();
         return;
     }
-    discardClipboardSelection();
+    clearActiveSelection();
     commit(before, tr("Couper"), false);
     ++m_thumbnailRevision;
     emit thumbnailsChanged();
@@ -293,7 +276,7 @@ bool Document::applyClipboardPixels(const Pixels &_pixels, const QString &_mode)
         layer.image          = std::move(image);
         layer.mask           = std::move(mask);
     }
-    discardClipboardSelection();
+    clearActiveSelection();
     m_dirtyRegion |= bounds;
     return true;
 }

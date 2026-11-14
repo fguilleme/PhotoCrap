@@ -279,23 +279,34 @@ convertit cet alpha en masque pour le workflow fourni.
    peinture…** dans le même menu. PhotoCrap utilise son propre workflow et
    envoie la composition visible au serveur choisi, avec un grand côté limité
    à 2 048 px.
-3. Cliquer sur la surface à peindre, puis utiliser le pinceau. PhotoCrap ajoute
-   un calque de pixels et son masque éditable dans une seule étape d’annulation.
-   Le mode de fusion **Couleur** conserve la luminosité de la photo et peut être
-   changé dans le panneau Calques.
+3. Cliquer sur chaque surface à peindre, par exemple les deux faces d’un mur.
+   La surimpression verte montre les zones retenues. Faire un clic droit sur une
+   zone pour la retirer. Pour un tissu froissé ou une surface courbe, cocher
+   **Suivre le relief** dans la barre au-dessus du canevas avant de cliquer.
+   Si un objet déborde dans la sélection, activer **Protéger un objet** puis
+   cliquer au centre de l’objet. Le rouge indique ce que la peinture épargnera.
+   En mode protection, un clic droit retire le masque de cet objet. La première
+   utilisation télécharge environ 45 Mo de poids MobileSAM vérifiés. Le détourage
+   tourne sur l’ordinateur, y compris lorsque ComfyUI fournit le relief.
+   [MobileSAM](https://github.com/ChaoningZhang/MobileSAM) ·
+   [Poids ONNX](https://huggingface.co/Acly/MobileSAM)
+4. Cliquer sur **Peindre** ou appuyer sur **Entrée** pour créer un calque de
+   pixels et son masque éditable dans une seule étape d’annulation. Le mode de
+   fusion **Couleur** conserve la luminosité de la photo et peut être changé
+   dans le panneau Calques.
 
-Le masque suit la zone connectée au clic selon la disparité et l’orientation de
-la surface. Les discontinuités estimées arrêtent la propagation, par exemple au
+La segmentation combine les zones connectées aux clics. En mode **Suivre le
+relief**, elle compare l’orientation de pixels voisins pour suivre les plis.
+Les ruptures de profondeur estimées arrêtent la propagation, par exemple au
 contour d’un sujet devant un mur. La qualité des bordures dépend des cartes
-produites par MoGe et de leur résolution. L’analyse se lance une fois pour
-préparer le masque. Les coups de pinceau se font ensuite dans PhotoCrap.
+produites par MoGe et de leur résolution. Les clics réutilisent la même analyse.
 
 **Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
 CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie
 le modèle de 141 Mo. Il est stocké dans le dossier de données de l’application
 et les analyses suivantes fonctionnent hors ligne. La photo est traitée sur
-l’ordinateur. Le grand côté de l’image d’analyse est limité à 768 px. Le clic,
-le masque éditable et le pinceau fonctionnent comme avec ComfyUI.
+l’ordinateur. Le grand côté de l’image d’analyse est limité à 768 px. La sélection
+des surfaces, le masque éditable et le pinceau fonctionnent comme avec ComfyUI.
 [Modèle MoGe‑2 ViT‑S ONNX](https://huggingface.co/Ruicheng/moge-2-vits-normal-onnx)
 
 ## Variantes

@@ -29,6 +29,7 @@ public:
     QVariantList     documents() const;
     QVariantMap      activeView() const;
     Document        *document(const QString &id) const;
+    QImage           surfacePreview(const QString &id) const;
     Q_INVOKABLE bool activate(const QString &id);
     Q_INVOKABLE bool newDocument(int width, int height, bool transparent, int bits = 8);
     Q_INVOKABLE bool openFile(const QUrl &url);

@@ -6468,8 +6468,13 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Peindre sur une surface (ComfyUI)</source><translation>Paint on a Surface (ComfyUI)</translation></message>
     <message><source>Peindre sur une surface (ComfyUI)…</source><translation>Paint on a Surface (ComfyUI)…</translation></message>
     <message><source>Peindre sur une surface (en local)</source><translation>Paint on a Surface (Local)</translation></message>
+    <message><source>Suivre le relief</source><translation>Follow Surface Relief</translation></message>
+    <message><source>Protéger un objet</source><translation>Protect an Object</translation></message>
+    <message><source>Cliquez au centre de l’objet. Clic droit pour retirer sa protection.</source><translation>Click the center of the object. Right-click to remove its protection.</translation></message>
+    <message><source>Pour les surfaces courbes ou les tissus froissés.</source><translation>For curved surfaces or wrinkled fabric.</translation></message>
+    <message><source>Peindre</source><translation>Paint</translation></message>
     <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
-    <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer sa profondeur. Cliquez ensuite sur la surface à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its depth. Then click the surface you want to paint.</translation></message>
+    <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its geometry. Then select the surfaces you want to paint.</translation></message>
     <message><source>Modèle requis dans ComfyUI : %1</source><translation>Required ComfyUI model: %1</translation></message>
     <message><source>Serveur ComfyUI</source><translation>ComfyUI Server</translation></message>
     <message><source>Ajoutez un serveur ComfyUI dans Réglages → IA.</source><translation>Add a ComfyUI server in Settings → AI.</translation></message>
@@ -6499,12 +6504,19 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Lecture des cartes de surface…</source><translation>Reading surface maps…</translation></message>
     <message><source>Mémoire insuffisante pour lire les cartes de surface.</source><translation>Not enough memory to read the surface maps.</translation></message>
     <message><source>ComfyUI a renvoyé des cartes de surface illisibles ou mal alignées.</source><translation>ComfyUI returned unreadable or misaligned surface maps.</translation></message>
-    <message><source>Cliquez sur la surface à peindre.</source><translation>Click the surface you want to paint.</translation></message>
+    <message><source>Cliquez pour ajouter une surface. Clic droit pour la retirer.</source><translation>Click to add a surface. Right-click to remove it.</translation></message>
+    <message><source>Sélection de la surface…</source><translation>Selecting the surface…</translation></message>
+    <message><source>Préparation de MobileSAM et détourage…</source><translation>Preparing MobileSAM and segmenting the object…</translation></message>
+    <message><source>Détourage de l’objet…</source><translation>Segmenting the object…</translation></message>
+    <message><source>Aucun objet détecté ici. Cliquez au centre de l’objet.</source><translation>No object found here. Click the center of the object.</translation></message>
+    <message><source>Segmentation impossible. %1</source><translation>Segmentation failed. %1</translation></message>
+    <message><source>Segmentation impossible.</source><translation>Segmentation failed.</translation></message>
+    <message><source>Mémoire insuffisante pour sélectionner la surface.</source><translation>Not enough memory to select the surface.</translation></message>
     <message><source>Création du masque de surface…</source><translation>Creating the surface mask…</translation></message>
     <message><source>Mémoire insuffisante pour créer le masque de surface.</source><translation>Not enough memory to create the surface mask.</translation></message>
     <message><source>Aucune surface exploitable ici. Cliquez ailleurs sur l’image.</source><translation>No usable surface here. Click elsewhere on the image.</translation></message>
     <message><source>Impossible d’ajouter le calque de peinture sur surface.</source><translation>Unable to add the surface painting layer.</translation></message>
-    <message><source>Calque de peinture prêt. Le masque limite les coups de pinceau à la surface.</source><translation>Painting layer ready. The mask confines brush strokes to the surface.</translation></message>
+    <message><source>Calque de peinture prêt. Le masque protège les zones non sélectionnées.</source><translation>Painting layer ready. The mask protects unselected areas.</translation></message>
   </context>
   <context>
     <name>PhotoCrap::Ai::LocalSurfaceModel</name>

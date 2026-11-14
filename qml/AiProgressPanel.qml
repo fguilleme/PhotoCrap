@@ -10,7 +10,7 @@ Rectangle {
     readonly property bool active: controller.busy || controller.pendingResult || controller.surfacePicking
     readonly property bool succeeded: !active && !controller.error.length && controller.completedVariants === controller.variantCount
     objectName: "aiProgressPanel"
-    visible: active || notice
+    visible: controller.surfaceAnalysis ? notice && controller.error.length > 0 : active || notice
     implicitHeight: content.implicitHeight + 32
     height: implicitHeight
     radius: 9
@@ -156,12 +156,14 @@ Rectangle {
                 }
             }
             Basic.Label {
-                text: panel.controller.surfaceAnalysis ? "" : qsTr("%1 / %2 variante(s) créée(s)").arg(panel.controller.completedVariants).arg(panel.controller.variantCount)
+                visible: !panel.controller.surfaceAnalysis
+                text: qsTr("%1 / %2 variante(s) créée(s)").arg(panel.controller.completedVariants).arg(panel.controller.variantCount)
                 color: "#c7d8cc"
                 font.pixelSize: 12
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
             }
+            Item { Layout.fillWidth: true; visible: panel.controller.surfaceAnalysis }
             AiActionButton {
                 objectName: "aiProgressAddResult"
                 primary: true

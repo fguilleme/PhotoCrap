@@ -1456,7 +1456,7 @@ private:
     bool applyTransformJob(const PhotoCrap::Transform::Job &_job, const QString &_label);
     PhotoCrap::Clipboard::Pixels clipboardPixels(bool _merged);
     void                         copyPixels(bool _merged);
-    void                         discardClipboardSelection();
+    void                         clearActiveSelection(bool notify = true);
     bool                         eraseClipboardSelection();
     bool applyClipboardPixels(const PhotoCrap::Clipboard::Pixels &_pixels, const QString &_mode);
     void pastePreparedPixels(const PhotoCrap::Clipboard::Pixels &_pixels, const QString &_mode);

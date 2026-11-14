@@ -2,6 +2,7 @@
 #include "AiImageJob.h"
 #include "AiSettings.h"
 #include "LocalSurfaceModel.h"
+#include "SurfaceObjectModel.h"
 #include <QElapsedTimer>
 #include <QPointer>
 class Document;
@@ -21,6 +22,11 @@ class AiImageController final : public QObject
     Q_PROPERTY(int elapsedSeconds READ elapsedSeconds NOTIFY changed)
     Q_PROPERTY(bool surfaceAnalysis READ surfaceAnalysis NOTIFY changed)
     Q_PROPERTY(bool surfacePicking READ surfacePicking NOTIFY changed)
+    Q_PROPERTY(bool hasSurfaceSelection READ hasSurfaceSelection NOTIFY changed)
+    Q_PROPERTY(bool hasSurfacePreview READ hasSurfacePreview NOTIFY changed)
+    Q_PROPERTY(bool surfaceProtectionAvailable READ surfaceProtectionAvailable CONSTANT)
+    Q_PROPERTY(bool surfacePickingHint READ surfacePickingHint NOTIFY changed)
+    Q_PROPERTY(quint64 surfacePreviewRevision READ surfacePreviewRevision NOTIFY changed)
     Q_PROPERTY(bool localSurfaceAvailable READ localSurfaceAvailable CONSTANT)
 public:
     AiImageController(Document *_document, AiSettings *_settings, QObject *_parent = nullptr);
@@ -62,14 +68,40 @@ public:
                               const QVariantMap &_options = {}, bool newDocument = false);
     Q_INVOKABLE bool analyzeSurface(const QString &providerId);
     Q_INVOKABLE bool analyzeSurfaceLocally();
-    Q_INVOKABLE void pickSurface(int x, int y);
+    Q_INVOKABLE void pickSurface(int x, int y, bool followRelief = false, bool subtract = false);
+    Q_INVOKABLE void protectSurfaceObject(int x, int y, bool subtract = false);
+    Q_INVOKABLE void applySurfaceSelection();
     bool             surfaceAnalysis() const
     {
         return m_surfaceAnalysis;
     }
     bool surfacePicking() const
     {
-        return !m_busy && m_surfaceGeometry.isValid();
+        return m_surfaceGeometry.isValid();
+    }
+    bool hasSurfaceSelection() const
+    {
+        return !m_surfaceSelection.mask.isNull();
+    }
+    bool surfaceProtectionAvailable() const
+    {
+        return PhotoCrap::Ai::SurfaceObjectModel::available();
+    }
+    bool hasSurfacePreview() const
+    {
+        return !m_surfaceSelection.preview.isNull();
+    }
+    bool surfacePickingHint() const
+    {
+        return surfacePicking() && !m_busy && m_surfacePickingHint;
+    }
+    quint64 surfacePreviewRevision() const
+    {
+        return m_surfacePreviewRevision;
+    }
+    QImage surfacePreview() const
+    {
+        return m_surfaceSelection.preview;
     }
     bool localSurfaceAvailable() const
     {
@@ -92,6 +124,8 @@ private:
     void prepareSurface(const QByteArray &bytes);
     void prepareLocalSurface(const QString &path);
     void surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry);
+    bool canEditSurfaceSelection();
+    void showSurfacePickHint();
     QString               variantStatus(const QString &_status) const;
     void                  startVariant();
     void                  tryInsertion();
@@ -106,6 +140,9 @@ private:
     PhotoCrap::Ai::LocalSurfaceModel m_localModel;
     PhotoCrap::Ai::Input  m_input;
     PhotoCrap::Ai::SurfaceGeometry m_surfaceGeometry;
+    PhotoCrap::Ai::SurfaceSelection  m_surfaceSelection;
+    QImage                           m_surfaceProtection;
+    std::shared_ptr<const PhotoCrap::Ai::SurfaceObjectEmbedding> m_surfaceEmbedding;
     PhotoCrap::Ai::Cancel m_cancel;
     QVariantMap           m_provider;
     QString               m_prompt, m_status, m_error, m_key, m_batchId;
@@ -116,9 +153,11 @@ private:
     QString                                m_runProvider, m_runModel;
     int                                    m_elapsedSeconds = 0;
     int                                    m_variantCount = 1, m_completed = 0;
+    quint64                                m_surfacePreviewRevision = 0;
     bool                                   m_busy             = false;
     bool                                   m_newDocument      = false;
     bool                                   m_surfaceAnalysis  = false;
+    bool                                   m_surfacePickingHint     = false;
     bool                                   m_localSurface     = false;
     bool                                   m_awaitingResponse = false;
     quint64                                m_generation       = 0;

@@ -88,6 +88,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/ai/SurfaceGeometry.cpp src/ai/SurfaceGeometry.h
     src/ai/LocalSurfaceModel.cpp src/ai/LocalSurfaceModel.h
+    src/ai/SurfaceObjectModel.cpp src/ai/SurfaceObjectModel.h
     src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -444,6 +445,7 @@ qt_add_library(photocrap_core STATIC
     src/ai/AiImageController.cpp src/ai/AiImageController.h
     src/ai/SurfaceGeometry.cpp src/ai/SurfaceGeometry.h
     src/ai/LocalSurfaceModel.cpp src/ai/LocalSurfaceModel.h
+    src/ai/SurfaceObjectModel.cpp src/ai/SurfaceObjectModel.h
     src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp

@@ -8,7 +8,11 @@ la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
 ## Peinture sur surface
 
 - [x] Analyse MoGe-2 via ComfyUI et création d’un calque de peinture avec un
-  masque éditable, calculé depuis un clic. [Utilisation](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
+  masque éditable. [Utilisation](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
+- [x] Sélectionner plusieurs faces dans le même masque. Prévisualiser les zones
+  et suivre les variations locales du relief sur les surfaces courbes ou pliées.
+- [x] Détourer au clic un objet qui masque la surface et le protéger de la
+  peinture avec MobileSAM local.
 - [ ] Vérifier les bords d’occlusion et les surfaces courbes sur des photos avec
   un serveur ComfyUI équipé de MoGe.
 - [x] Ajouter l’inférence MoGe-2 ViT-S dans PhotoCrap via ONNX Runtime sur

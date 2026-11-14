@@ -25,6 +25,7 @@
 #include <QTemporaryDir>
 #include <QUuid>
 #include <QtTest>
+#include <cmath>
 
 namespace
 {
@@ -1456,15 +1457,21 @@ private slots:
         for (const QPoint point :
              {QPoint(60, 100), QPoint(240, 140), QPoint(240, 210), QPoint(240, 280),
               QPoint(80, 280), QPoint(365, 280)}) {
-            controller.pickSurface(point.x(), point.y());
+            controller.pickSurface(point.x(), point.y(), true);
             QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
             QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
-            if (document.layerCount() == 2) {
+            if (controller.hasSurfaceSelection()) {
                 seed = point;
                 break;
             }
         }
         QVERIFY2(!seed.isNull(), qPrintable(controller.status()));
+        QCOMPARE(document.layerCount(), 1);
+        QVERIFY(!controller.surfacePreview().isNull());
+        controller.applySurfaceSelection();
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(document.layerCount(), 2);
         QCOMPARE(document.tool(), QString("brush"));
         QCOMPARE(document.composite(), initial);
         document.setColor(Qt::green);
@@ -1476,7 +1483,64 @@ private slots:
         document.undo();
         QCOMPARE(document.composite(), initial);
     }
-    void comfySurfacePaintingKeepsOcclusionAndUndo()
+    void reliefSelectionFollowsFoldsAndStopsAtOcclusions()
+    {
+        using PhotoCrap::Ai::SurfaceGeometry;
+        const QSize     size(48, 30);
+        SurfaceGeometry geometry{QImage(size, QImage::Format_Grayscale8),
+                                 QImage(size, QImage::Format_RGB888),
+                                 QImage(size, QImage::Format_Grayscale8)};
+        geometry.validity.fill(255);
+        for (int y = 0; y < size.height(); ++y) {
+            auto *depth  = geometry.disparity.scanLine(y);
+            auto *normal = geometry.normals.scanLine(y);
+            for (int x = 0; x < size.width(); ++x) {
+                // A cloth ridge turns steeply away and comes back. Across its
+                // edge there is a small but abrupt depth jump onto the background.
+                const int    ridge = qMin(x, qMax(0, 32 - x));
+                const double angle = qMin(ridge / 12., 1.) * 1.2;
+                depth[x]           = uchar(x < 32 ? 40 + 6 * ridge : 56);
+                normal[3 * x]      = uchar(qRound(127.5 * (1. + std::sin(angle))));
+                normal[3 * x + 1]  = 128;
+                normal[3 * x + 2]  = uchar(qRound(127.5 * (1. + std::cos(angle))));
+            }
+        }
+        const auto cancel = std::make_shared<std::atomic_bool>(false);
+        const auto face   = geometry.selectRegion(QPoint(1, 15), size, false, false, {}, cancel);
+        QVERIFY(face);
+        QCOMPARE(face->mask.pixelColor(15, 15).red(), 0);
+        const auto relief = geometry.selectRegion(QPoint(1, 15), size, true, false, {}, cancel);
+        QVERIFY(relief);
+        QCOMPARE(relief->mask.pixelColor(16, 15).red(), 255);
+        QCOMPARE(relief->mask.pixelColor(31, 15).red(), 255);
+        QCOMPARE(relief->mask.pixelColor(32, 15).red(), 0);
+        QVERIFY(relief->preview.pixelColor(16, 15).alpha() > 0);
+        QCOMPARE(relief->preview.pixelColor(32, 15).alpha(), 0);
+    }
+    void surfacePaintingKeepsProtectedObjectsInFront()
+    {
+        using namespace PhotoCrap::Ai;
+        const QSize size(48, 30);
+        QImage      wall(size, QImage::Format_Grayscale8);
+        wall.fill(255);
+        QImage object(size, QImage::Format_Grayscale8);
+        object.fill(0);
+        QPainter painter(&object);
+        painter.fillRect(QRect(16, 0, 12, size.height()), Qt::white);
+        painter.end();
+        const auto cancel    = std::make_shared<std::atomic_bool>(false);
+        const auto selection = surfaceSelection(wall, object, cancel);
+        const auto red       = selection.preview.pixelColor(20, 15);
+        const auto green     = selection.preview.pixelColor(9, 15);
+        QVERIFY(red.red() > red.green());
+        QVERIFY(green.green() > green.red());
+        const auto mask = SurfaceGeometry::paintMask(selection.mask, 2 * size, cancel, object);
+        QCOMPARE(mask.size(), 2 * size);
+        QCOMPARE(mask.pixelColor(40, 30).red(), 0);
+        QCOMPARE(mask.pixelColor(18, 30).red(), 255);
+        QCOMPARE(mask.pixelColor(74, 30).red(), 255);
+    }
+    void comfySurfacePaintingCombinesFacesAndKeepsOcclusion()
     {
         Server server;
         QVERIFY(server.isListening());
@@ -1485,10 +1549,11 @@ private slots:
         for (int y = 0; y < height; ++y) {
             auto *row = maps.scanLine(y);
             for (int x = 0; x < width; ++x) {
-                const int depth = x >= 50 && x < 90 ? 180 : 40;
+                const bool secondFace = x >= 35 && x < 70;
+                const int  depth      = x >= 70 ? 180 : 40;
                 for (int c = 0; c < 3; ++c) {
                     row[3 * x + c]               = depth;
-                    row[3 * (x + width) + c]     = c == 2 ? 255 : 128;
+                    row[3 * (x + width) + c]     = c == (secondFace ? 0 : 2) ? 255 : 128;
                     row[3 * (x + 2 * width) + c] = y < 10 ? 0 : 255;
                 }
             }
@@ -1522,6 +1587,8 @@ private slots:
         QVERIFY(!profile.isEmpty());
         Document document;
         fixture(document);
+        document.selectAll();
+        QVERIFY(document.hasSelection());
         const auto        initial = document.composite();
         AiImageController controller(&document, &settings);
         QVERIFY(controller.analyzeSurface(profile));
@@ -1535,25 +1602,55 @@ private slots:
                  QString("moge_2_vitl_normal_fp16.safetensors"));
         QCOMPARE(workflow["9"].toObject()["class_type"].toString(), QString("PreviewImage"));
         controller.pickSurface(20, 3);
-        QTRY_VERIFY_WITH_TIMEOUT(controller.surfacePicking(), 8000);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY(!controller.hasSurfaceSelection());
         QCOMPARE(document.layerCount(), 1);
         controller.pickSurface(20, 40);
-        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 8000);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY(controller.hasSurfaceSelection());
+        QCOMPARE(controller.surfacePreview().pixelColor(55, 40).alpha(), 0);
+        controller.pickSurface(55, 40);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY(controller.surfacePreview().pixelColor(20, 40).alpha() > 0);
+        QVERIFY(controller.surfacePreview().pixelColor(55, 40).alpha() > 0);
+        controller.pickSurface(20, 40, false, true);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QCOMPARE(controller.surfacePreview().pixelColor(20, 40).alpha(), 0);
+        QVERIFY(controller.surfacePreview().pixelColor(55, 40).alpha() > 0);
+        controller.pickSurface(55, 40, false, true);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QVERIFY(!controller.hasSurfaceSelection());
+        QVERIFY(controller.surfacePreview().isNull());
+        controller.pickSurface(55, 40);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        controller.pickSurface(20, 40);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
+        QCOMPARE(document.layerCount(), 1);
+        QCOMPARE(server.requests.size(), 4);
+        controller.applySurfaceSelection();
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QVERIFY(!controller.surfacePicking());
+        QVERIFY(controller.surfacePreview().isNull());
+        QVERIFY(!document.hasSelection());
         QCOMPARE(document.layerCount(), 2);
         QCOMPARE(document.tool(), QString("brush"));
         QCOMPARE(document.composite(), initial);
         document.setColor(Qt::green);
         document.setBrushSize(100.);
-        document.beginStroke(40, 40);
+        document.beginStroke(34, 40);
+        document.continueStroke(68, 40);
         document.endStroke();
         const auto painted = document.composite();
         QVERIFY(painted.pixelColor(20, 40) != initial.pixelColor(20, 40));
-        QCOMPARE(painted.pixelColor(64, 40), initial.pixelColor(64, 40));
+        QVERIFY(painted.pixelColor(48, 40) != initial.pixelColor(48, 40));
+        QVERIFY(painted.pixelColor(62, 40) != initial.pixelColor(62, 40));
+        QCOMPARE(painted.pixelColor(82, 40), initial.pixelColor(82, 40));
         QCOMPARE(painted.pixelColor(20, 3), initial.pixelColor(20, 3));
         document.undo();
         document.undo();
         QCOMPARE(document.layerCount(), 1);
+        QVERIFY(document.hasSelection());
         QCOMPARE(document.composite(), initial);
 
         QVERIFY(controller.analyzeSurface(profile));

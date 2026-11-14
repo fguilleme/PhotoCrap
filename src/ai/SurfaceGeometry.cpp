@@ -3,6 +3,8 @@
 #include <QImageReader>
 #include <QPainter>
 #include <QVector3D>
+#include <cmath>
+#include <new>
 
 namespace PhotoCrap::Ai
 {
@@ -12,6 +14,25 @@ QVector3D normalAt(const QImage &normals, int x, int y)
 {
     const auto *rgb = normals.constScanLine(y) + 3 * x;
     return QVector3D(rgb[0] - 127.5f, rgb[1] - 127.5f, rgb[2] - 127.5f).normalized();
+}
+
+bool continuousDepth(const QImage &disparity, const QImage &validity, const QPoint &point,
+                     const QPoint &next, const QPoint &offset)
+{
+    const auto depthAt = [&](const QPoint &p) { return disparity.constScanLine(p.y())[p.x()]; };
+    const int  step    = depthAt(next) - depthAt(point);
+    // Ignore small variations in the quantized map. Larger gradients must
+    // continue on one side of the edge, as on a sloping surface or at a fold.
+    if (std::abs(step) <= 4)
+        return true;
+    if (std::abs(step) > 24)
+        return false;
+    const auto similarSlope = [&](const QPoint &p, int depth, int sign) {
+        return disparity.rect().contains(p) && validity.constScanLine(p.y())[p.x()] &&
+               std::abs((depthAt(p) - depth) * sign - step) <= qMax(2, std::abs(step) / 3);
+    };
+    return similarSlope(point - offset, depthAt(point), -1) ||
+           similarSlope(next + offset, depthAt(next), 1);
 }
 } // namespace
 
@@ -57,46 +78,106 @@ SurfaceGeometry SurfaceGeometry::fromComfyPreview(const QByteArray &preview, con
     return geometry;
 }
 
-PixelPlane SurfaceGeometry::connectedMask(const QPoint &seed, const QSize &canvas,
-                                          const Cancel &cancel) const
+std::optional<SurfaceSelection>
+SurfaceGeometry::selectRegion(const QPoint &seed, const QSize &canvas, bool followRelief,
+                              bool subtract, const QImage &previous, const Cancel &cancel) const
 {
     if (!isValid() || canvas.isEmpty() || !QRect(QPoint{}, canvas).contains(seed))
         return {};
-    const auto   size = disparity.size();
-    const QPoint start(int(qint64(seed.x()) * size.width() / canvas.width()),
-                       int(qint64(seed.y()) * size.height() / canvas.height()));
+    const auto size = disparity.size();
+    if (!previous.isNull() &&
+        (previous.size() != size || previous.format() != QImage::Format_Grayscale8))
+        return {};
+    const QPoint start(int((2LL * seed.x() + 1) * size.width() / (2LL * canvas.width())),
+                       int((2LL * seed.y() + 1) * size.height() / (2LL * canvas.height())));
     if (!validity.constScanLine(start.y())[start.x()])
         return {};
-    QImage selected(size, QImage::Format_Grayscale8);
-    if (selected.isNull())
-        return {};
-    selected.fill(0);
-    const auto direction = normalAt(normals, start.x(), start.y());
-    // Limit adjacent disparity jumps and compare the orientation to the seed
-    // so the flood does not progressively turn a corner onto another surface.
-    constexpr int   maxDepthStep = 12;
-    constexpr float minNormalDot = 0.78f;
-    const QPoint    neighbors[]  = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    QList<QPoint>   pending{start};
-    selected.scanLine(start.y())[start.x()] = 255;
+    QImage region(size, QImage::Format_Grayscale8);
+    if (region.isNull())
+        throw std::bad_alloc();
+    region.fill(0);
+    const auto       seedNormal   = normalAt(normals, start.x(), start.y());
+    const float      minNormalDot = followRelief ? 0.5f : 0.78f;
+    constexpr QPoint neighbors[]  = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    QList<QPoint>    pending{start};
+    region.scanLine(start.y())[start.x()] = 255;
     while (!pending.isEmpty()) {
         const QPoint point = pending.takeLast();
         if (cancel->load())
             return {};
-        const int depth = disparity.constScanLine(point.y())[point.x()];
+        const auto direction = followRelief ? normalAt(normals, point.x(), point.y()) : seedNormal;
         for (const auto &offset : neighbors) {
             const auto next = point + offset;
             const int  x = next.x(), y = next.y();
-            if (!selected.rect().contains(next) || selected.constScanLine(y)[x] ||
+            if (!region.rect().contains(next) || region.constScanLine(y)[x] ||
                 !validity.constScanLine(y)[x] ||
-                std::abs(depth - disparity.constScanLine(y)[x]) > maxDepthStep ||
+                !continuousDepth(disparity, validity, point, next, offset) ||
                 QVector3D::dotProduct(direction, normalAt(normals, x, y)) < minNormalDot)
                 continue;
-            selected.scanLine(y)[x] = 255;
+            region.scanLine(y)[x] = 255;
             pending.append(next);
         }
     }
 
+    bool any = false;
+    for (int y = 0; y < size.height(); ++y) {
+        if (cancel->load())
+            return {};
+        const auto *old = previous.isNull() ? nullptr : previous.constScanLine(y);
+        auto       *row = region.scanLine(y);
+        for (int x = 0; x < size.width(); ++x) {
+            const bool wasSelected = old && old[x];
+            const bool selected    = subtract ? wasSelected && !row[x] : wasSelected || row[x];
+            row[x]                 = selected ? 255 : 0;
+            any |= selected;
+        }
+    }
+    return any ? surfaceSelection(region, {}, cancel) : SurfaceSelection{};
+}
+
+SurfaceSelection surfaceSelection(const QImage &mask, const QImage &protection,
+                                  const Cancel &cancel)
+{
+    SurfaceSelection selection;
+    if (mask.isNull() && protection.isNull())
+        return selection;
+    selection.mask    = mask;
+    selection.preview = QImage(mask.isNull() ? protection.size() : mask.size(),
+                               QImage::Format_ARGB32_Premultiplied);
+    if (selection.preview.isNull())
+        throw std::bad_alloc();
+    const auto green = qPremultiply(qRgba(123, 234, 169, 112));
+    const auto red   = qPremultiply(qRgba(250, 115, 110, 125));
+    for (int y = 0; y < selection.preview.height(); ++y) {
+        if (cancel->load())
+            return {};
+        const auto *surface = mask.isNull() ? nullptr : mask.constScanLine(y);
+        const auto *object  = protection.isNull() ? nullptr : protection.constScanLine(y);
+        auto       *out     = reinterpret_cast<QRgb *>(selection.preview.scanLine(y));
+        for (int x = 0; x < selection.preview.width(); ++x)
+            out[x] = object && object[x] ? red : surface && surface[x] ? green : 0;
+    }
+    return selection;
+}
+
+PixelPlane SurfaceGeometry::paintMask(const QImage &selected, const QSize &canvas,
+                                      const Cancel &cancel, const QImage &protection)
+{
+    if (selected.isNull() || canvas.isEmpty() ||
+        (!protection.isNull() && protection.size() != selected.size()))
+        return {};
+    auto coverage = selected;
+    if (!protection.isNull()) {
+        for (int y = 0; y < coverage.height(); ++y) {
+            if (cancel->load())
+                return {};
+            auto       *out     = coverage.scanLine(y);
+            const auto *blocked = protection.constScanLine(y);
+            for (int x = 0; x < coverage.width(); ++x)
+                if (blocked[x])
+                    out[x] = 0;
+        }
+    }
     QImage clear(1, 1, QImage::Format_Grayscale8);
     if (clear.isNull())
         return {};
@@ -111,7 +192,7 @@ PixelPlane SurfaceGeometry::connectedMask(const QPoint &seed, const QSize &canva
             return {};
         QPainter painter(&band);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.drawImage(QRect(QPoint(0, -y), canvas), selected);
+        painter.drawImage(QRect(QPoint(0, -y), canvas), coverage);
         painter.end();
         if (!mask.writeRegion(QPoint(0, y), band, canvas))
             return {};

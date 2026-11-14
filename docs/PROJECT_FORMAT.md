@@ -51,8 +51,8 @@ Tous les nombres de l’en-tête sont des entiers non signés little-endian.
 | position de l’index | variable | Index CBOR compressé avec Zstandard |
 
 L’index CBOR contient `document`, `planes` et `blocks`. Les métadonnées du document
-conservent leur schéma fonctionnel v9–v13 : calques, réglages, masques, texte,
-formes, dégradés, tracés, tranches et provenance IA. Ces numéros de schéma ne sont
+prolongent le schéma fonctionnel v9–v13 avec les versions logiques 14 à 16
+décrites ci-dessous. Ces numéros de schéma ne sont
 pas la version du conteneur. Les anciens noms internes `png`, `mask`, `source`
 référencent désormais des identifiants de plans entiers ; ils ne contiennent
 aucune image encodée en texte. `-1` représente l’absence d’un plan.
@@ -134,3 +134,14 @@ composante ambiante et des matériaux non éclairés selon le GLB. Les matériau
 semi-transparents sont découpés selon leur alpha. La superposition entre
 objets suit l’ordre des calques.
 [cgltf 1.15 (MIT)](https://github.com/jkuhlmann/cgltf/releases/tag/v1.15).
+
+## Calques de peinture et de texte sur surface
+
+Un projet contenant une carte de normales utilise la version logique **16**.
+Sur un calque de pixels ou de texte, `surfaceNormals.png` référence un bloc PNG
+RGB sans perte, limité à 768 px sur le grand côté. `surfaceNormals.width` et
+`surfaceNormals.height` indiquent les dimensions du canevas de référence et
+`surfaceNormals.transform` conserve les neuf coefficients qui alignent la carte
+sur le canevas courant. Le masque de surface reste un plan raster éditable.
+Un calque de texte conserve aussi son contenu, sa mise en forme et son rendu
+déformé, ce qui permet de reprendre l’édition après réouverture.

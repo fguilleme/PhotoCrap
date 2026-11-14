@@ -1,7 +1,7 @@
 # Roadmap PhotoCrap
 
-État au **12 novembre 2026**. **v0.23.2** ajoute les calques 3D éditables,
-la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
+État au **14 novembre 2026**. **v0.24.0** ajoute la peinture sur surface,
+l’analyse locale du relief et le texte éditable qui suit les plis.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
@@ -22,9 +22,10 @@ la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
   exécution CPU disponible sur les trois plateformes.
 - [ ] Valider l’inférence locale dans les paquets Linux et Windows et comparer
   la précision des masques sur des photos avec le modèle ComfyUI.
-- [ ] Déformer un calque de texte ou de texture sur les plis et tester un éclairage local
-  à partir des normales. Évaluer la séparation albédo et éclairage pour
-  conserver davantage de détails lors de la retouche.
+- [x] Déformer un calque de texte sur les plis et le conserver éditable après
+  réouverture du projet. Choisir entre **Face plane** et **Tissu / relief**.
+- [ ] Projeter une texture sur le relief, tester un éclairage local à partir des
+  normales et évaluer la séparation de l’albédo et de l’éclairage.
 
 ## Livraison de v0.23.2
 

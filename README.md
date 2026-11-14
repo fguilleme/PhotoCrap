@@ -4,9 +4,9 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La version **v0.23.2** ajoute les [calques 3D éditables](docs/PROJECT_FORMAT.md#calques-3d)
-avec import GLB, éclairage et génération Meshy. [Qwen Edit 2.1](docs/AI_IMAGE_EDITING.md#qwen-edit-21-avec-api-gradio-v2)
-propose **Sans LoRA** et réessaie automatiquement en cas d’échec de la connexion initiale avant envoi.
+La version **v0.24.0** ajoute la [peinture et le texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface).
+MoGe‑2 estime le relief en local ou via ComfyUI. MobileSAM aide à sélectionner les
+surfaces et à protéger les objets. Le texte suit les plis et reste éditable dans le projet.
 
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 

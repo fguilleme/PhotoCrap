@@ -4,6 +4,18 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.24.0 — 14 novembre 2026
+
+- Peinture sur plusieurs surfaces analysées par MoGe‑2, via ComfyUI ou en
+  local sur macOS, Linux et Windows. Les modes **Face plane** et **Tissu / relief**
+  couvrent les pans de mur et les surfaces froissées. MobileSAM affine la
+  sélection et protège les objets au premier plan.
+- Empreintes de pinceau orientées selon les normales estimées. Le texte
+  éditable suit les plis et conserve sa déformation à la réouverture du projet.
+  [Guide de la peinture et du texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface).
+- Les réglages écrêtés s’appliquent à leur calque de base. Aperçu logiciel de
+  la rotation 3D parallélisé et commandes 3D regroupées dans un sous-menu dédié.
+
 ## v0.23.2 — 12 novembre 2026
 
 - Calques 3D éditables à partir de fichiers GLB, avec pose par calque, éclairage

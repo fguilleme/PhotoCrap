@@ -267,6 +267,36 @@ workflow devient le nouveau calque. Les nœuds personnalisés doivent être inst
 sur le serveur. Le masque PNG a un alpha nul dans la zone modifiable ; `LoadImage`
 convertit cet alpha en masque pour le workflow fourni.
 
+### Peindre sur une surface
+
+1. Dans ComfyUI, installer `moge_2_vitl_normal_fp16.safetensors` dans
+   `models/geometry_estimation/`. Utiliser une version qui fournit
+   `LoadMoGeModel`, `MoGeInference` et `MoGeRender`.
+   [Guide ComfyUI et téléchargement du modèle](https://docs.comfy.org/tutorials/utility/moge)
+2. Dans PhotoCrap, ouvrir **Calque → 3D → Peindre sur une surface**. L’analyse
+   démarre directement si un seul serveur ComfyUI est configuré ou si un choix
+   est déjà mémorisé. Pour changer de profil, utiliser **Choisir le serveur de
+   peinture…** dans le même menu. PhotoCrap utilise son propre workflow et
+   envoie la composition visible au serveur choisi, avec un grand côté limité
+   à 2 048 px.
+3. Cliquer sur la surface à peindre, puis utiliser le pinceau. PhotoCrap ajoute
+   un calque de pixels et son masque éditable dans une seule étape d’annulation.
+   Le mode de fusion **Couleur** conserve la luminosité de la photo et peut être
+   changé dans le panneau Calques.
+
+Le masque suit la zone connectée au clic selon la disparité et l’orientation de
+la surface. Les discontinuités estimées arrêtent la propagation, par exemple au
+contour d’un sujet devant un mur. La qualité des bordures dépend des cartes
+produites par MoGe et de leur résolution. L’analyse se lance une fois pour
+préparer le masque. Les coups de pinceau se font ensuite dans PhotoCrap.
+
+La version intégrée prévue pour macOS, Linux et Windows utilisera les mêmes
+cartes alignées sur l’image, avec une exécution CPU de référence. Le premier
+candidat est MoGe-2 ViT-S exporté vers ONNX. Il faudra convertir la sortie du
+modèle en disparité, normales en repère caméra et masque de validité, puis
+vérifier l’alignement avec la sortie ComfyUI. L’accélération matérielle pourra
+être activée par plateforme après mesure. [Export MoGe vers ONNX](https://github.com/microsoft/MoGe/blob/main/docs/onnx.md)
+
 ## Variantes
 
 Le dialogue propose **1 à 8 variantes** par lancement, sauf les upscales Topaz et Real-ESRGAN, limités à une image. Elles utilisent toutes

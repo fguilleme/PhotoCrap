@@ -328,15 +328,18 @@ void AiImageJob::multipart(const QUrl &_url, const QList<QPair<QByteArray, QByte
             std::move(_handler));
 }
 void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, const QString &_prompt,
-                       const PhotoCrap::Ai::Input &_input)
+                       const PhotoCrap::Ai::Input &_input, bool surfaceAnalysis)
 {
     const auto _provider = AiSettings::normalizedProvider(_rawProvider);
     cancel();
     m_jobId.clear();
+    m_uploadedImage.clear();
+    m_uploadedMask.clear();
     m_cancelUrl   = QUrl{};
     m_statusUrl   = QUrl{};
     m_responseUrl = QUrl{};
     m_provider    = _provider;
+    m_surfaceAnalysis = surfaceAnalysis && _provider.value("kind") == "comfy";
     m_resultMetadata.clear();
     m_key         = _key;
     m_prompt      = _provider.value("promptMode") == "none" ? QString{} : _prompt;
@@ -487,6 +490,10 @@ void AiImageJob::startComfy()
                       fail(tr("ComfyUI n’a pas accepté l’image source."));
                       return;
                   }
+                  if (m_surfaceAnalysis) {
+                      submitComfy();
+                      return;
+                  }
                   multipart(
                       endpoint("upload/image"), {{"overwrite", "false"}}, {{"image", m_input.mask}},
                       [this](const QByteArray &_mask) {
@@ -499,32 +506,33 @@ void AiImageJob::startComfy()
                               fail(tr("ComfyUI n’a pas accepté le masque."));
                               return;
                           }
-                          const QJsonObject values{
-                              {"{{image}}", m_uploadedImage},
-                              {"{{mask}}", m_uploadedMask},
-                              {"{{prompt}}", m_prompt},
-                              {"{{model}}", m_provider.value("model").toString()},
-                              {"{{width}}", m_input.sentSize.width()},
-                              {"{{height}}", m_input.sentSize.height()},
-                              {"{{seed}}", double(QRandomGenerator::global()->generate64() &
-                                                  ((1ULL << 53) - 1))}};
-                          const auto workflow = substitute(
-                              object(m_provider.value("workflow").toString().toUtf8()), values);
-                          json("POST", endpoint("prompt"),
-                               {{"prompt", workflow},
-                                {"client_id", QUuid::createUuid().toString(QUuid::WithoutBraces)}},
-                               [this](const QByteArray &_reply) {
-                                   const auto value = object(_reply);
-                                   m_jobId          = value.value("prompt_id").toString();
-                                   if (m_jobId.isEmpty()) {
-                                       fail(tr("ComfyUI a refusé le workflow. Vérifiez le "
-                                               "checkpoint et les nœuds installés."));
-                                       return;
-                                   }
-                                   pollComfy();
-                               });
+                          submitComfy();
                       });
               });
+}
+void AiImageJob::submitComfy()
+{
+    const QJsonObject values{
+        {"{{image}}", m_uploadedImage},
+        {"{{mask}}", m_uploadedMask},
+        {"{{prompt}}", m_prompt},
+        {"{{model}}", m_provider.value("model").toString()},
+        {"{{width}}", m_input.sentSize.width()},
+        {"{{height}}", m_input.sentSize.height()},
+        {"{{seed}}", double(QRandomGenerator::global()->generate64() & ((1ULL << 53) - 1))}};
+    const auto workflow =
+        substitute(object(m_provider.value("workflow").toString().toUtf8()), values);
+    json("POST", endpoint("prompt"),
+         {{"prompt", workflow}, {"client_id", QUuid::createUuid().toString(QUuid::WithoutBraces)}},
+         [this](const QByteArray &reply) {
+             m_jobId = object(reply).value("prompt_id").toString();
+             if (m_jobId.isEmpty()) {
+                 fail(tr("ComfyUI a refusé le workflow. Vérifiez le checkpoint et les nœuds "
+                         "installés."));
+                 return;
+             }
+             pollComfy();
+         });
 }
 void AiImageJob::pollComfy()
 {
@@ -538,6 +546,8 @@ void AiImageJob::pollComfy()
              }
              const auto outputs = entry.value("outputs").toObject();
              for (auto it = outputs.constBegin(); it != outputs.constEnd(); ++it) {
+                 if (m_surfaceAnalysis && it.key() != QStringLiteral("9"))
+                     continue;
                  const auto images = it.value().toObject().value("images").toArray();
                  if (images.isEmpty())
                      continue;
@@ -552,11 +562,14 @@ void AiImageJob::pollComfy()
                  return;
              }
              if (state.value("completed").toBool()) {
-                 fail(tr("Le workflow ComfyUI ne produit aucune image. Ajoutez un nœud SaveImage "
-                         "ou PreviewImage."));
+                 fail(m_surfaceAnalysis
+                          ? tr("Le workflow MoGe n’a renvoyé aucune carte de surface.")
+                          : tr("Le workflow ComfyUI ne produit aucune image. Ajoutez un nœud "
+                               "SaveImage ou PreviewImage."));
                  return;
              }
-             emit status(tr("Génération dans ComfyUI…"));
+             emit status(m_surfaceAnalysis ? tr("Analyse de la surface dans ComfyUI…")
+                                           : tr("Génération dans ComfyUI…"));
              m_poll.start();
          });
 }

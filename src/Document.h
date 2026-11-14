@@ -1194,6 +1194,8 @@ public:
                                                  bool _nativePrecision = false);
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
+    bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
+    bool addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask);
 
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;

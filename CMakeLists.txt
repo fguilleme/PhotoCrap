@@ -86,6 +86,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
     src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
+    src/ai/SurfaceGeometry.cpp src/ai/SurfaceGeometry.h
     src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp
@@ -440,6 +441,7 @@ qt_add_library(photocrap_core STATIC
     src/ai/AiCredentialStore.cpp src/ai/AiCredentialStore.h
     src/ai/AiImageJob.cpp src/ai/AiImageJob.h src/ai/AiGradioJob.cpp
     src/ai/AiImageController.cpp src/ai/AiImageController.h
+    src/ai/SurfaceGeometry.cpp src/ai/SurfaceGeometry.h
     src/ai/MeshyController.cpp src/ai/MeshyController.h
     src/DocumentPreview.cpp
     src/DocumentGpuPreview.cpp

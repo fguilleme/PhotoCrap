@@ -5,6 +5,19 @@ la génération Meshy et le mode Sans LoRA dans Qwen Edit 2.1.
 [Notes de version](CHANGELOG.md) ·
 [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
+## Peinture sur surface
+
+- [x] Analyse MoGe-2 via ComfyUI et création d’un calque de peinture avec un
+  masque éditable, calculé depuis un clic. [Utilisation](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
+- [ ] Vérifier les bords d’occlusion et les surfaces courbes sur des photos avec
+  un serveur ComfyUI équipé de MoGe.
+- [ ] Ajouter l’inférence MoGe-2 ViT-S dans PhotoCrap via ONNX Runtime sur
+  macOS, Linux et Windows, avec téléchargement du modèle à la demande et
+  exécution CPU disponible sur les trois plateformes.
+- [ ] Projeter la texture le long de la surface et tester un éclairage local
+  à partir des normales. Évaluer la séparation albédo et éclairage pour
+  conserver davantage de détails lors de la retouche.
+
 ## Livraison de v0.23.2
 
 - [x] Import GLB et calques 3D éditables, avec pose, éclairage, manipulation

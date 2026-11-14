@@ -1,6 +1,7 @@
 #pragma once
 #include "AiImageJob.h"
 #include "AiSettings.h"
+#include "SurfaceGeometry.h"
 #include <QElapsedTimer>
 #include <QPointer>
 class Document;
@@ -18,6 +19,8 @@ class AiImageController final : public QObject
     Q_PROPERTY(int variantCount READ variantCount NOTIFY changed)
     Q_PROPERTY(int completedVariants READ completedVariants NOTIFY changed)
     Q_PROPERTY(int elapsedSeconds READ elapsedSeconds NOTIFY changed)
+    Q_PROPERTY(bool surfaceAnalysis READ surfaceAnalysis NOTIFY changed)
+    Q_PROPERTY(bool surfacePicking READ surfacePicking NOTIFY changed)
 public:
     AiImageController(Document *_document, AiSettings *_settings, QObject *_parent = nullptr);
     ~AiImageController() override;
@@ -56,6 +59,16 @@ public:
     Q_INVOKABLE bool generate(const QString &_providerId, const QString &_prompt, bool _selection,
                               int _variants = 1, bool _original = false,
                               const QVariantMap &_options = {}, bool newDocument = false);
+    Q_INVOKABLE bool analyzeSurface(const QString &providerId);
+    Q_INVOKABLE void pickSurface(int x, int y);
+    bool             surfaceAnalysis() const
+    {
+        return m_surfaceAnalysis;
+    }
+    bool surfacePicking() const
+    {
+        return !m_busy && m_surfaceGeometry.isValid();
+    }
     void             setDocumentManager(DocumentManager *manager);
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void retryInsertion();
@@ -68,6 +81,9 @@ signals:
     void layerAdded();
 
 private:
+    void begin(const QString &providerId, const QVariantMap &provider, const QString &prompt,
+               bool selection, int variants, bool original, bool newDocument, bool surface);
+    void prepareSurface(const QByteArray &bytes);
     QString               variantStatus(const QString &_status) const;
     void                  startVariant();
     void                  tryInsertion();
@@ -80,6 +96,7 @@ private:
     AiSettings *          m_settings;
     AiImageJob            m_job;
     PhotoCrap::Ai::Input  m_input;
+    PhotoCrap::Ai::SurfaceGeometry m_surfaceGeometry;
     PhotoCrap::Ai::Cancel m_cancel;
     QVariantMap           m_provider;
     QString               m_prompt, m_status, m_error, m_key, m_batchId;
@@ -92,6 +109,7 @@ private:
     int                                    m_variantCount = 1, m_completed = 0;
     bool                                   m_busy             = false;
     bool                                   m_newDocument      = false;
+    bool                                   m_surfaceAnalysis  = false;
     bool                                   m_awaitingResponse = false;
     quint64                                m_generation       = 0;
 };

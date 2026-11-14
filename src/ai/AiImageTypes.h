@@ -15,6 +15,7 @@ struct Input {
     QImage     coverage;
     QString    layerId, error;
     quint64    session  = 0;
+    quint64    contentId = 0;
     bool       selected = false, originalSource = false;
     bool       maskEnabled = true;
     qreal      maskDensity = 100., maskFeather = 0.;

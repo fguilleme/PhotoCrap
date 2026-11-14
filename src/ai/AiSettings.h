@@ -11,6 +11,8 @@ class AiSettings final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QVariantList providers READ providers NOTIFY changed)
+    Q_PROPERTY(QVariantList surfaceProviders READ surfaceProviders NOTIFY changed)
+    Q_PROPERTY(QString surfaceProviderId READ surfaceProviderId NOTIFY changed)
     Q_PROPERTY(QVariantList prompts READ prompts NOTIFY changed)
     Q_PROPERTY(QString error READ error NOTIFY changed)
     Q_PROPERTY(bool credentialsBusy READ credentialsBusy NOTIFY changed)
@@ -39,6 +41,9 @@ public:
         return m_error;
     }
     QVariantMap             provider(const QString &_id) const;
+    QVariantList            surfaceProviders() const;
+    QString                 surfaceProviderId() const;
+    void                    rememberSurfaceProvider(const QString &providerId);
     Q_INVOKABLE QString     saveProvider(QVariantMap _provider);
     Q_INVOKABLE bool        removeProvider(const QString &_id);
     Q_INVOKABLE QString     savePrompt(QVariantMap _prompt);
@@ -78,6 +83,7 @@ private:
     QHash<QString, quint64>            m_keyVersions;
     QHash<QString, QList<AiCredentialStore::Callback>> m_keyRequests;
     QString                            m_error;
+    QString                                            m_surfaceProviderId;
     bool                               m_persist;
     std::shared_ptr<AiCredentialStore> m_credentials;
     int                                m_credentialJobs = 0, m_revision = 0;

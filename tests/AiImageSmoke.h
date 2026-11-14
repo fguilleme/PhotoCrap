@@ -74,6 +74,37 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
             QTest::qWaitFor([&] { return meshyKey->property("text").toString().isEmpty(); }, 2000),
             "closing Meshy clears the typed key"))
         return false;
+    auto      *surfaceAction = _window->findChild<QObject *>("surfacePaintAction");
+    auto      *surfaceDialog = _window->findChild<QObject *>("surfacePaintDialog");
+    auto      *surfaceServer = _window->findChild<QObject *>("surfaceServer");
+    const auto singleServer  = _settings.surfaceProviderId();
+    if (!require(surfaceAction && surfaceDialog && surfaceServer && !singleServer.isEmpty() &&
+                     QMetaObject::invokeMethod(surfaceAction, "triggered") && _controller.busy() &&
+                     !surfaceDialog->property("visible").toBool(),
+                 "surface painting starts directly with a single ComfyUI server"))
+        return false;
+    _controller.cancel();
+    const auto extraServer         = _settings.saveProvider(_settings.newProvider("comfy"));
+    auto      *surfaceServerAction = _window->findChild<QObject *>("surfaceServerAction");
+    if (!require(
+            surfaceServerAction && !extraServer.isEmpty() &&
+                QMetaObject::invokeMethod(surfaceServerAction, "triggered") &&
+                QTest::qWaitFor([&] { return surfaceDialog->property("opened").toBool(); }, 2000) &&
+                surfaceServer->property("count").toInt() == 2 &&
+                surfaceServer->property("currentValue").toString() == singleServer,
+            "the explicit server chooser lists only ComfyUI and selects the previous server"))
+        return false;
+    surfaceServer->setProperty("currentIndex", 1);
+    if (!require(QMetaObject::invokeMethod(surfaceDialog, "accept") && _controller.busy() &&
+                     _settings.surfaceProviderId() == extraServer,
+                 "choosing another server starts analysis and remembers the new server"))
+        return false;
+    _controller.cancel();
+    if (!require(
+            QTest::qWaitFor([&] { return !surfaceDialog->property("visible").toBool(); }, 2000) &&
+                _settings.removeProvider(extraServer),
+            "the extra test server can be removed"))
+        return false;
     auto *action   = _window->findChild<QObject *>("aiImageAction");
     auto *dialog   = _window->findChild<QObject *>("aiImageDialog");
     auto *provider = _window->findChild<QObject *>("aiGenerationProvider");

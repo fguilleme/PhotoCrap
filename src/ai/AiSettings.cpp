@@ -45,6 +45,7 @@ AiSettings::AiSettings(QObject *_parent, bool _persist,
     if (_persist) {
         m_providers = QSettings().value("ai/providers").toList();
         m_prompts   = QSettings().value("ai/prompts").toList();
+        m_surfaceProviderId = QSettings().value("ai/surfaceProviderId").toString();
         const auto accounts = QSettings().value("ai/credentialAccounts").toStringList();
         m_storedAccounts    = QSet<QString>(accounts.begin(), accounts.end());
     }
@@ -215,6 +216,36 @@ QVariantMap AiSettings::provider(const QString &_id) const
         if (value.toMap().value("id").toString() == _id)
             return normalizedProvider(value.toMap());
     return {};
+}
+QVariantList AiSettings::surfaceProviders() const
+{
+    QVariantList servers;
+    for (const auto &entry : m_providers) {
+        const auto profile = entry.toMap();
+        if (profile.value("kind") == "comfy" &&
+            validEndpoint(QUrl(profile.value("url").toString())))
+            servers.append(entry);
+    }
+    return servers;
+}
+QString AiSettings::surfaceProviderId() const
+{
+    const auto servers = surfaceProviders();
+    if (m_surfaceProviderId.isEmpty() && servers.size() == 1)
+        return servers.first().toMap().value("id").toString();
+    for (const auto &server : servers)
+        if (server.toMap().value("id").toString() == m_surfaceProviderId)
+            return m_surfaceProviderId;
+    return {};
+}
+void AiSettings::rememberSurfaceProvider(const QString &providerId)
+{
+    if (m_surfaceProviderId == providerId)
+        return;
+    m_surfaceProviderId = providerId;
+    if (m_persist)
+        QSettings().setValue("ai/surfaceProviderId", providerId);
+    notifyChanged();
 }
 bool AiSettings::reject(const QString &_error)
 {

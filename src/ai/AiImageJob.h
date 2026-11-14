@@ -13,8 +13,8 @@ class AiImageJob final : public QObject
 public:
     explicit AiImageJob(QObject *_parent = nullptr,
                         std::unique_ptr<QNetworkAccessManager> _network = {});
-    void start(const QVariantMap &_provider, const QString &_key, const QString &_prompt,
-               const PhotoCrap::Ai::Input &_input);
+    void        start(const QVariantMap &_provider, const QString &_key, const QString &_prompt,
+                      const PhotoCrap::Ai::Input &_input, bool surfaceAnalysis = false);
     void cancel();
     QVariantMap resultMetadata() const
     {
@@ -40,6 +40,7 @@ private:
     void download(const QUrl &_url, bool _auth = false);
     void pollFal();
     void startComfy();
+    void       submitComfy();
     void pollComfy();
     void       startGradio();
     void       submitGradio(const QUrl &_url, const QByteArray &_body, bool _allowRetry);
@@ -59,6 +60,7 @@ private:
     QString                 m_key, m_prompt, m_jobId, m_uploadedImage, m_uploadedMask;
     QUrl                    m_statusUrl, m_responseUrl, m_cancelUrl;
     bool                    m_running    = false;
+    bool                                   m_surfaceAnalysis  = false;
     quint64                 m_generation = 0;
     int                     m_gradioReconnects = 0;
 };

@@ -79,6 +79,7 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
     acceptLayerPropertiesSession();
     PhotoCrap::Ai::Input input;
     input.session  = m_documentSession;
+    input.contentId      = m_contentId;
     input.canvas   = m_size;
     input.selected = _selection;
     input.originalSource = _original;
@@ -214,6 +215,38 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
         return input;
     });
 }
+bool Document::matchesAiSource(const PhotoCrap::Ai::Input &source) const
+{
+    return source.session == m_documentSession && source.contentId == m_contentId &&
+           source.canvas == m_size;
+}
+
+bool Document::addSurfacePaintLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask)
+{
+    if (!matchesAiSource(source) || aiInsertionBusy() || transformActive() ||
+        mask.size() != m_size || mask.format() != QImage::Format_Grayscale8 ||
+        !validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 0, !ImageUtils::compact(mask)))
+        return false;
+    const auto label = tr("Peinture sur surface");
+    edit(label, [&] {
+        Layer layer;
+        layer.name  = label;
+        layer.image = ImageUtils::blank({1, 1}, workingFormat());
+        layer.mask  = std::move(mask);
+        layer.blend = 25; // Color blend mode keeps the underlying luminosity.
+        // The analysis covers the visible composition. Keep it above that
+        // composition even when the previously active layer was in a group.
+        m_layers.append(std::move(layer));
+        m_active      = int(m_layers.size()) - 1;
+        m_editingMask = false;
+        selectOnly(m_active);
+    });
+    setDisplayChannel(0);
+    setTool(QStringLiteral("brush"));
+    return true;
+}
+
 bool Document::insertAiResult(const PhotoCrap::Ai::Input & _input,
                               const PhotoCrap::Ai::Result &_result, const QVariantMap &_metadata,
                               QString &_error)

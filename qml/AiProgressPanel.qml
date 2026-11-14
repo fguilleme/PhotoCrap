@@ -7,7 +7,7 @@ Rectangle {
     required property var controller
     property bool notice: false
     property bool wasRunning: false
-    readonly property bool active: controller.busy || controller.pendingResult
+    readonly property bool active: controller.busy || controller.pendingResult || controller.surfacePicking
     readonly property bool succeeded: !active && !controller.error.length && controller.completedVariants === controller.variantCount
     objectName: "aiProgressPanel"
     visible: active || notice
@@ -76,7 +76,11 @@ Rectangle {
                     objectName: "aiProgressTitle"
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: panel.controller.busy ? qsTr("Création IA en cours") : panel.controller.pendingResult ? qsTr("Résultat IA prêt à ajouter") : panel.controller.error.length ? qsTr("La génération IA s’est arrêtée") : panel.succeeded ? qsTr("Création IA terminée") : qsTr("Génération IA interrompue")
+                    text: panel.controller.surfaceAnalysis ? qsTr("Peinture sur surface")
+                          : panel.controller.busy ? qsTr("Création IA en cours")
+                          : panel.controller.pendingResult ? qsTr("Résultat IA prêt à ajouter")
+                          : panel.controller.error.length ? qsTr("La génération IA s’est arrêtée")
+                          : panel.succeeded ? qsTr("Création IA terminée") : qsTr("Génération IA interrompue")
                     color: "#f2f8f3"
                     font.pixelSize: 17
                     font.bold: true
@@ -138,7 +142,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 10
             RowLayout {
-                visible: panel.width >= 580
+                visible: !panel.controller.surfaceAnalysis && panel.width >= 580
                 spacing: 4
                 Repeater {
                     model: panel.controller.variantCount
@@ -152,7 +156,7 @@ Rectangle {
                 }
             }
             Basic.Label {
-                text: qsTr("%1 / %2 variante(s) créée(s)").arg(panel.controller.completedVariants).arg(panel.controller.variantCount)
+                text: panel.controller.surfaceAnalysis ? "" : qsTr("%1 / %2 variante(s) créée(s)").arg(panel.controller.completedVariants).arg(panel.controller.variantCount)
                 color: "#c7d8cc"
                 font.pixelSize: 12
                 Layout.fillWidth: true

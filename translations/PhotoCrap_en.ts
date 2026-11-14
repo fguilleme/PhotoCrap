@@ -6461,4 +6461,43 @@ Independent software, not affiliated with Adobe.</translation>
     <name>QwenParameters</name>
     <message><source>Sans LoRA</source><translation>No LoRA</translation></message>
   </context>
+  <context>
+    <name>Main</name>
+    <message><source>Peindre sur une surface…</source><translation>Paint on a Surface…</translation></message>
+    <message><source>Peindre sur une surface</source><translation>Paint on a Surface</translation></message>
+    <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
+    <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer sa profondeur. Cliquez ensuite sur la surface à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its depth. Then click the surface you want to paint.</translation></message>
+    <message><source>Modèle requis dans ComfyUI : %1</source><translation>Required ComfyUI model: %1</translation></message>
+    <message><source>Serveur ComfyUI</source><translation>ComfyUI Server</translation></message>
+    <message><source>Ajoutez un serveur ComfyUI dans Réglages → IA.</source><translation>Add a ComfyUI server in Settings → AI.</translation></message>
+    <message><source>Analyser</source><translation>Analyze</translation></message>
+  </context>
+  <context>
+    <name>Document</name>
+    <message><source>Peinture sur surface</source><translation>Surface Painting</translation></message>
+  </context>
+  <context>
+    <name>AiProgressPanel</name>
+    <message><source>Peinture sur surface</source><translation>Surface Painting</translation></message>
+  </context>
+  <context>
+    <name>AiImageJob</name>
+    <message><source>Analyse de la surface dans ComfyUI…</source><translation>Analyzing the surface in ComfyUI…</translation></message>
+    <message><source>Le workflow MoGe n’a renvoyé aucune carte de surface.</source><translation>The MoGe workflow did not return any surface maps.</translation></message>
+  </context>
+  <context>
+    <name>AiImageController</name>
+    <message><source>L’image a changé. Relancez l’analyse de la surface.</source><translation>The image has changed. Run the surface analysis again.</translation></message>
+    <message><source>Peinture sur surface annulée</source><translation>Surface painting canceled</translation></message>
+    <message><source>Choisissez un serveur ComfyUI dans les réglages IA.</source><translation>Choose a ComfyUI server in AI settings.</translation></message>
+    <message><source>Lecture des cartes de surface…</source><translation>Reading surface maps…</translation></message>
+    <message><source>Mémoire insuffisante pour lire les cartes de surface.</source><translation>Not enough memory to read the surface maps.</translation></message>
+    <message><source>ComfyUI a renvoyé des cartes de surface illisibles ou mal alignées.</source><translation>ComfyUI returned unreadable or misaligned surface maps.</translation></message>
+    <message><source>Cliquez sur la surface à peindre.</source><translation>Click the surface you want to paint.</translation></message>
+    <message><source>Création du masque de surface…</source><translation>Creating the surface mask…</translation></message>
+    <message><source>Mémoire insuffisante pour créer le masque de surface.</source><translation>Not enough memory to create the surface mask.</translation></message>
+    <message><source>Aucune surface exploitable ici. Cliquez ailleurs sur l’image.</source><translation>No usable surface here. Click elsewhere on the image.</translation></message>
+    <message><source>Impossible d’ajouter le calque de peinture sur surface.</source><translation>Unable to add the surface painting layer.</translation></message>
+    <message><source>Calque de peinture prêt. Le masque limite les coups de pinceau à la surface.</source><translation>Painting layer ready. The mask confines brush strokes to the surface.</translation></message>
+  </context>
 </TS>

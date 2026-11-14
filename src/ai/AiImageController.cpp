@@ -33,16 +33,20 @@ AiImageController::AiImageController(Document *_document, AiSettings *_settings,
     });
     connect(&m_job, &AiImageJob::finished, this, &AiImageController::received);
     connect(_document, &Document::canvasSizeChanged, this, [this] {
-        if (m_busy || pendingResult()) {
+        if (m_busy || pendingResult() || surfacePicking()) {
             cancel();
             m_error = tr("La taille du document a changé. La demande IA a été annulée.");
             emit changed();
         }
     });
     connect(_document, &Document::documentChanged, this, [this] {
-        if ((m_busy || pendingResult()) && m_input.session && m_document &&
+        if ((m_busy || pendingResult() || surfacePicking()) && m_input.session && m_document &&
             m_input.session != m_document->documentSession())
             cancel();
+    });
+    connect(_document, &Document::historyChanged, this, [this] {
+        if (surfacePicking() && !m_document->matchesAiSource(m_input))
+            stop(tr("L’image a changé. Relancez l’analyse de la surface."));
     });
 }
 AiImageController::~AiImageController()
@@ -67,6 +71,7 @@ void AiImageController::stop(const QString &_error)
         m_elapsedSeconds = int(m_elapsed.elapsed() / 1000);
     m_resultBytes.clear();
     m_readyResult.reset();
+    m_surfaceGeometry = {};
     m_busy     = false;
     m_error    = _error.isEmpty() || !m_completed
                      ? _error
@@ -82,8 +87,9 @@ void AiImageController::cancel()
 {
     ++m_generation;
     stop();
-    m_status = m_completed ? tr("Demande annulée — %1 variante(s) conservée(s)").arg(m_completed)
-                           : tr("Demande IA annulée");
+    m_status = m_surfaceAnalysis ? tr("Peinture sur surface annulée")
+               : m_completed ? tr("Demande annulée — %1 variante(s) conservée(s)").arg(m_completed)
+                             : tr("Demande IA annulée");
     emit changed();
 }
 bool AiImageController::generate(const QString &_providerId, const QString &_prompt,
@@ -97,7 +103,6 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
         emit changed();
         return false;
     }
-    m_newDocument       = newDocument;
     auto       provider = m_settings->provider(_providerId);
     const bool topaz    = provider.value("kind") == "fal" &&
                        provider.value("model") == "topaz/upscale/image/precision";
@@ -151,12 +156,57 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
         emit changed();
         return false;
     }
+    begin(_providerId, provider, prompt, _selection, _variants, _original, newDocument, false);
+    return true;
+}
+
+bool AiImageController::analyzeSurface(const QString &providerId)
+{
+    if (m_busy || pendingResult() || !m_document || m_document->aiInsertionBusy() ||
+        m_document->transformActive())
+        return false;
+    auto provider = m_settings->provider(providerId);
+    if (provider.value("kind") != "comfy" ||
+        !AiSettings::validEndpoint(QUrl(provider.value("url").toString()))) {
+        m_error = tr("Choisissez un serveur ComfyUI dans les réglages IA.");
+        emit changed();
+        return false;
+    }
+    provider["model"]       = "moge_2_vitl_normal_fp16.safetensors";
+    provider["maxEdge"]     = qBound(256, provider.value("maxEdge", 1024).toInt(), 2048);
+    provider["nativeInput"] = false;
+    provider["promptMode"]  = "none";
+    // PreviewImage stores a temporary lossless PNG. Concatenating the three
+    // maps keeps the standard ComfyUI job and download protocol.
+    provider["workflow"] = QString::fromLatin1(R"json({
+        "1":{"class_type":"LoadImage","inputs":{"image":"{{image}}"}},
+        "2":{"class_type":"LoadMoGeModel","inputs":{"model_name":"{{model}}"}},
+        "3":{"class_type":"MoGeInference","inputs":{"moge_model":["2",0],"image":["1",0],"resolution_level":7,"fov_x_degrees":0.0,"batch_size":1,"force_projection":true,"apply_mask":true,"refine_steps":0}},
+        "4":{"class_type":"MoGeRender","inputs":{"moge_geometry":["3",0],"output":"depth"}},
+        "5":{"class_type":"MoGeRender","inputs":{"moge_geometry":["3",0],"output":"normal_opengl"}},
+        "6":{"class_type":"MoGeRender","inputs":{"moge_geometry":["3",0],"output":"mask"}},
+        "7":{"class_type":"ImageStitch","inputs":{"image1":["4",0],"image2":["5",0],"direction":"right","match_image_size":false,"spacing_width":0,"spacing_color":"black"}},
+        "8":{"class_type":"ImageStitch","inputs":{"image1":["7",0],"image2":["6",0],"direction":"right","match_image_size":false,"spacing_width":0,"spacing_color":"black"}},
+        "9":{"class_type":"PreviewImage","inputs":{"images":["8",0]}}
+    })json");
+    m_settings->rememberSurfaceProvider(providerId);
+    begin(providerId, provider, {}, false, 1, false, false, true);
+    return true;
+}
+
+void AiImageController::begin(const QString &providerId, const QVariantMap &provider,
+                              const QString &prompt, bool selection, int variants, bool original,
+                              bool newDocument, bool surface)
+{
+    m_newDocument     = newDocument;
+    m_surfaceAnalysis = surface;
+    m_surfaceGeometry = {};
     m_runProvider    = provider.value("name").toString();
     m_runModel       = provider.value("model").toString();
     m_elapsedSeconds = 0;
     m_elapsed.restart();
     m_clock.start();
-    m_variantCount = _variants;
+    m_variantCount = variants;
     m_completed    = 0;
     m_batchId      = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_key.clear();
@@ -171,11 +221,10 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
     m_input.session       = m_document->documentSession();
     emit changed();
     if (!m_busy || generation != m_generation)
-        return true;
+        return;
     m_settings->resolveKey(
-        _providerId, this,
-        [this, generation, selection = _selection, original = _original](const QString &key,
-                                                                         const QString &error) {
+        providerId, this,
+        [this, generation, selection, original](const QString &key, const QString &error) {
             if (!m_busy || generation != m_generation)
                 return;
             if (!error.isEmpty()) {
@@ -200,7 +249,6 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
             m_key = key;
             prepareInput(selection, generation, original);
         });
-    return true;
 }
 void AiImageController::prepareInput(bool _selection, quint64 generation, bool _original)
 {
@@ -284,7 +332,7 @@ void AiImageController::startVariant()
             return;
         }
     }
-    m_job.start(m_provider, m_key, m_prompt, m_input);
+    m_job.start(m_provider, m_key, m_prompt, m_input, m_surfaceAnalysis);
 }
 void AiImageController::received(const QByteArray &_bytes, const QString &_error)
 {
@@ -297,8 +345,109 @@ void AiImageController::received(const QByteArray &_bytes, const QString &_error
         stop(_error);
         return;
     }
+    if (m_surfaceAnalysis) {
+        prepareSurface(_bytes);
+        return;
+    }
     m_resultBytes = _bytes;
     prepareResult();
+}
+void AiImageController::prepareSurface(const QByteArray &bytes)
+{
+    const auto generation = m_generation;
+    const auto source     = m_input;
+    m_status              = tr("Lecture des cartes de surface…");
+    emit changed();
+    if (!m_busy || generation != m_generation)
+        return;
+    auto *watcher = new QFutureWatcher<PhotoCrap::Ai::SurfaceGeometry>(this);
+    connect(watcher, &QFutureWatcher<PhotoCrap::Ai::SurfaceGeometry>::finished, this,
+            [this, watcher, generation] {
+                watcher->deleteLater();
+                if (!m_busy || generation != m_generation || !m_document)
+                    return;
+                if (!m_document->matchesAiSource(m_input)) {
+                    stop(tr("L’image a changé. Relancez l’analyse de la surface."));
+                    return;
+                }
+                try {
+                    m_surfaceGeometry = watcher->result();
+                } catch (...) {
+                    stop(tr("Mémoire insuffisante pour lire les cartes de surface."));
+                    return;
+                }
+                if (!m_surfaceGeometry.isValid()) {
+                    stop(tr("ComfyUI a renvoyé des cartes de surface illisibles ou mal alignées."));
+                    return;
+                }
+                m_input.image.clear();
+                m_input.mask.clear();
+                m_key.clear();
+                m_busy = false;
+                m_clock.stop();
+                m_elapsedSeconds = int(m_elapsed.elapsed() / 1000);
+                m_status         = tr("Cliquez sur la surface à peindre.");
+                emit changed();
+            });
+    watcher->setFuture(QtConcurrent::run([bytes, source] {
+        return PhotoCrap::Ai::SurfaceGeometry::fromComfyPreview(bytes, source);
+    }));
+}
+
+void AiImageController::pickSurface(int x, int y)
+{
+    if (!surfacePicking() || !m_document || m_document->aiInsertionBusy() ||
+        m_document->transformActive())
+        return;
+    if (!m_document->matchesAiSource(m_input)) {
+        stop(tr("L’image a changé. Relancez l’analyse de la surface."));
+        return;
+    }
+    const auto generation = m_generation;
+    const auto geometry   = m_surfaceGeometry;
+    const auto canvas     = m_input.canvas;
+    const auto cancel     = m_cancel;
+    m_busy                = true;
+    m_status              = tr("Création du masque de surface…");
+    emit changed();
+    if (!m_busy || generation != m_generation)
+        return;
+    auto *watcher = new QFutureWatcher<PixelPlane>(this);
+    connect(watcher, &QFutureWatcher<PixelPlane>::finished, this, [this, watcher, generation] {
+        watcher->deleteLater();
+        if (!m_busy || generation != m_generation || !m_document)
+            return;
+        if (!m_document->matchesAiSource(m_input)) {
+            stop(tr("L’image a changé. Relancez l’analyse de la surface."));
+            return;
+        }
+        PixelPlane mask;
+        try {
+            mask = watcher->result();
+        } catch (...) {
+            stop(tr("Mémoire insuffisante pour créer le masque de surface."));
+            return;
+        }
+        if (mask.isNull()) {
+            m_busy   = false;
+            m_status = tr("Aucune surface exploitable ici. Cliquez ailleurs sur l’image.");
+            emit changed();
+            return;
+        }
+        if (!m_document->addSurfacePaintLayer(m_input, std::move(mask))) {
+            stop(tr("Impossible d’ajouter le calque de peinture sur surface."));
+            return;
+        }
+        m_completed = 1;
+        stop();
+        m_status =
+            tr("Calque de peinture prêt. Le masque limite les coups de pinceau à la surface.");
+        emit changed();
+        emit layerAdded();
+    });
+    watcher->setFuture(QtConcurrent::run([geometry, seed = QPoint(x, y), canvas, cancel] {
+        return geometry.connectedMask(seed, canvas, cancel);
+    }));
 }
 void AiImageController::prepareResult()
 {

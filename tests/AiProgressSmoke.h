@@ -22,6 +22,8 @@ inline bool runAiProgressSmoke(QQuickWindow *_window)
 QtObject {
     property bool busy: true
     property bool pendingResult: false
+    property bool surfaceAnalysis: false
+    property bool surfacePicking: false
     property string status: "Génération dans le fournisseur, étape complète et lisible"
     property string error: ""
     property string providerName: "UI provider"

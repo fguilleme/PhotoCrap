@@ -279,7 +279,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool model3dPropertiesShown: false
-    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || surfaceDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -1400,10 +1400,32 @@ ApplicationWindow {
         enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading && !editor.selectionBusy && !meshy.busy
         onTriggered: meshyDialog.open()
     }
+    Action {
+        id: surfacePaintAction
+        objectName: "surfacePaintAction"
+        text: aiSettings.surfaceProviderId.length ? qsTr("Peindre sur une surface") : qsTr("Peindre sur une surface…")
+        enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy
+                 && !aiImages.busy && !aiImages.pendingResult && editor.width > 0
+        onTriggered: {
+            if (aiSettings.surfaceProviderId.length)
+                aiImages.analyzeSurface(aiSettings.surfaceProviderId)
+            else
+                surfaceDialog.open()
+        }
+    }
+    Action {
+        id: surfaceServerAction
+        objectName: "surfaceServerAction"
+        text: qsTr("Choisir le serveur de peinture…")
+        enabled: surfacePaintAction.enabled
+        onTriggered: surfaceDialog.open()
+    }
     component Model3DMenu: DarkMenu {
         title: "3D"
         DarkMenuItem { objectName: "importModel3DMenuItem"; action: importModel3DAction }
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
+        DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
+        DarkMenuItem { objectName: "surfaceServerMenuItem"; action: surfaceServerAction; visible: aiSettings.surfaceProviders.length > 1 }
     }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
     readonly property bool transformEnabled: !editingText && !blockingModalOpen && (!modalOpen || editor.transformActive)
@@ -1431,6 +1453,7 @@ ApplicationWindow {
         enabled: !window.modalOpen || editor.transformActive || editor.operationBusy || editor.selectionBusy
         sequence: "Escape"
         onActivated: {
+            if(aiImages.surfacePicking){aiImages.cancel();return}
             if(editor.transformActive){editor.cancelTransform();return}
             if(editor.operationBusy){editor.cancelOperation();return}
             if (model3dControls.cancelGesture() || model3dPanel.cancelGesture()) return
@@ -2863,19 +2886,21 @@ ApplicationWindow {
                                 cursorShape: window.canvasCursorShape
                                 function syncSystemCursor() {
                                     const calibration=curvePickerArea.enabled && curvePickerArea.containsMouse
+                                    const pickingSurface=surfacePickerArea.enabled && surfacePickerArea.containsMouse
                                     const measuring=measureToolArea.enabled && measureToolArea.containsMouse
                                     const gradientControl=gradientGuideControl.pointerActive
                                     const controllingModel = model3dControls.enabled
                                         && (model3dControls.containsMouse || model3dControls.pressed)
                                     const tool=controllingModel ? "move"
+                                              : pickingSurface ? ""
                                               : gradientControl ? "gradientControl"
                                               : calibration ? "curvePicker_" + (window.colorPickerMode || window.curvePickerMode)
                                               : measuring && editor.tool==="colorSampler" && measureToolArea.deleteHovered ? "colorSamplerDelete"
                                               : window.temporaryPickerActive ? "picker"
                                               : window.penToolActive ? editor.penCursorAt(pointerX/zoom,pointerY/zoom,7/zoom,window.primaryPressed,window.stampSourcePicking) : editor.tool
                                     imageCanvas.setSystemCursor(controllingModel ? model3dControls.cursorShape
-                                                                : calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
-                                                                (controllingModel || containsMouse || canvasTextEditor.pointerInside || calibration || measuring || gradientControl) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
+                                                                : pickingSurface || calibration || measuring ? Qt.CrossCursor : window.canvasCursorShape,
+                                                                (controllingModel || containsMouse || canvasTextEditor.pointerInside || pickingSurface || calibration || measuring || gradientControl) && window.active && !window.modalOpen && (!window.spacePressed || window.repositioningGesture),
                                                                 tool, editor.selectionMode, window.stampSourcePicking, !gradientControl && editor.tool!=="text" && toolInput.precise)
                                 }
                                 function refreshSystemCursor() {
@@ -3035,7 +3060,7 @@ ApplicationWindow {
                                 anchors.fill: parent
                                 z: 40
                                 // Keep the wheel reserved for the model while its render is pending.
-                                readonly property bool wheelActive: window.activeInfo.kind === "model3d"
+                                readonly property bool wheelActive: !aiImages.surfacePicking && window.activeInfo.kind === "model3d"
                                     && window.activeInfo.visible && !window.activeInfo.locked
                                     && !window.activeInfo.editingMask && !window.spacePressed && !window.editingText
                                     && (!window.modalOpen || editor.operationBusy)
@@ -3270,6 +3295,22 @@ ApplicationWindow {
                                     draggedSample=-1
                                 }
                                 onCanceled: draggedSample=-1
+                            }
+                            MouseArea {
+                                id: surfacePickerArea
+                                objectName: "surfacePickerArea"
+                                anchors.fill: parent
+                                z: 7
+                                enabled: aiImages.surfacePicking && !window.modalOpen && !window.spacePressed
+                                hoverEnabled: enabled
+                                preventStealing: true
+                                cursorShape: Qt.CrossCursor
+                                onContainsMouseChanged: drawingArea.refreshSystemCursor()
+                                onEnabledChanged: drawingArea.refreshSystemCursor()
+                                onClicked: function(mouse) {
+                                    workspace.forceActiveFocus()
+                                    aiImages.pickSurface(Math.floor(mouse.x / zoom), Math.floor(mouse.y / zoom))
+                                }
                             }
                             MouseArea {
                                 id: curvePickerArea
@@ -4606,6 +4647,57 @@ ApplicationWindow {
         id: aiDialog
         document: editor; settings: aiSettings; controller: aiImages
         onSettingsRequested: { window.aiReturnToGeneration = true; window.preferencesPage = 4; window.openPreferences(); aiPreferences.selectProvider(aiDialog.selectedProvider.id) }
+    }
+    Dialog {
+        id: surfaceDialog
+        objectName: "surfacePaintDialog"
+        title: qsTr("Peindre sur une surface")
+        modal: true
+        width: Math.min(455, parent.width - 40)
+        anchors.centerIn: parent
+        onAboutToShow: surfaceServer.currentIndex = Math.max(0, surfaceServer.indexOfValue(aiSettings.surfaceProviderId))
+        contentItem: ColumnLayout {
+            spacing: 12
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("La composition visible est envoyée au serveur ComfyUI choisi pour estimer sa profondeur. Cliquez ensuite sur la surface à peindre.")
+            }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Modèle requis dans ComfyUI : %1").arg("moge_2_vitl_normal_fp16.safetensors")
+            }
+            ComboBox {
+                id: surfaceServer
+                objectName: "surfaceServer"
+                Layout.fillWidth: true
+                textRole: "name"
+                valueRole: "id"
+                Accessible.name: qsTr("Serveur ComfyUI")
+                model: aiSettings.surfaceProviders
+            }
+            Label {
+                Layout.fillWidth: true
+                visible: surfaceServer.count === 0
+                text: qsTr("Ajoutez un serveur ComfyUI dans Réglages → IA.")
+            }
+        }
+        footer: DialogButtonBox {
+            DialogActionButton {
+                text: qsTr("Annuler")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: surfaceDialog.reject()
+            }
+            DialogActionButton {
+                text: qsTr("Analyser")
+                defaultButton: true
+                enabled: surfaceServer.currentIndex >= 0
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: surfaceDialog.accept()
+            }
+        }
+        onAccepted: aiImages.analyzeSurface(surfaceServer.currentValue)
     }
     AiProgressPanel {
         id: aiProgress

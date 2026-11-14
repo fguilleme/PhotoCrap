@@ -135,7 +135,15 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
                      document.layers().size() == 3 && document.historyIndex() == history + 1,
                  "picker imports the selected image with one undo step"))
         return false;
-    auto *modelMenu        = window->findChild<QObject *>("importModel3DMenuItem");
+    auto *createModelMenu = window->findChild<QObject *>("createLayerModel3DMenu");
+    auto *layerModelMenu  = window->findChild<QObject *>("layerModel3DMenu");
+    for (auto *submenu : {createModelMenu, layerModelMenu})
+        if (!require(submenu && submenu->property("count").toInt() == 2 &&
+                         submenu->findChild<QObject *>("importModel3DMenuItem") &&
+                         submenu->findChild<QObject *>("meshyMenuItem"),
+                     "both 3D submenus contain import and Meshy"))
+            return false;
+    auto *modelMenu        = createModelMenu->findChild<QObject *>("importModel3DMenuItem");
     auto *modelPicker      = window->findChild<QObject *>("importModel3DDialog");
     auto *modelProperties  = window->findChild<QQuickItem *>("model3dPanel");
     auto *propertiesButton = window->findChild<QObject *>("layerPropertiesButton");
@@ -158,7 +166,8 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
         return false;
     modelFile.close();
     if (!require(
-            QMetaObject::invokeMethod(modelMenu, "triggered") &&
+            modelMenu->property("enabled").toBool() &&
+                QMetaObject::invokeMethod(modelMenu, "click") &&
                 QTest::qWaitFor([&] { return modelPicker->property("visible").toBool(); }, 2000),
             "the add-layer menu opens the GLB picker"))
         return false;

@@ -1388,11 +1388,22 @@ ApplicationWindow {
     Action { id: mergeClippingAction; text: qsTr("Fusionner le masque d’écrêtage"); shortcut: (shortcuts.revision, shortcuts.sequence("mergeClipping")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.clipping; onTriggered: editor.mergeLayers("clipping") }
     Action { id: flattenAction; objectName: "flattenAction"; text: qsTr("Aplatir l’image"); shortcut: (shortcuts.revision, shortcuts.sequence("flattenImage")); enabled: !window.editingText && !window.modalOpen && editor.layerMergeActions.flatten; onTriggered: window.requestFlatten() }
     Action {
+        id: importModel3DAction
+        text: qsTr("Importer un modèle 3D…")
+        enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
+        onTriggered: importModel3DDialog.open()
+    }
+    Action {
         id: meshyAction
         objectName: "meshyAction"
         text: qsTr("Générer un calque 3D avec Meshy…")
         enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading && !editor.selectionBusy && !meshy.busy
         onTriggered: meshyDialog.open()
+    }
+    component Model3DMenu: DarkMenu {
+        title: "3D"
+        DarkMenuItem { objectName: "importModel3DMenuItem"; action: importModel3DAction }
+        DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
     }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
     readonly property bool transformEnabled: !editingText && !blockingModalOpen && (!modalOpen || editor.transformActive)
@@ -1624,12 +1635,7 @@ ApplicationWindow {
                     DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: addAdjustmentLayer("noise") }
                 }
             }
-            DarkMenuItem {
-                text: qsTr("Importer un modèle 3D…")
-                enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
-                onTriggered: importModel3DDialog.open()
-            }
-            DarkMenuItem { action: meshyAction }
+            Model3DMenu { objectName: "layerModel3DMenu" }
             DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
             MenuSeparator {}
             DarkMenu {
@@ -4298,13 +4304,7 @@ ApplicationWindow {
             enabled: !editor.pixelEditBusy && !editor.rawLoading
             onTriggered: importLayerDialog.open()
         }
-        DarkMenuItem {
-            objectName: "importModel3DMenuItem"
-            text: qsTr("Importer un modèle 3D…")
-            enabled: !editor.pixelEditBusy && !editor.rawLoading && !editor.transformActive
-            onTriggered: importModel3DDialog.open()
-        }
-        DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
+        Model3DMenu { objectName: "createLayerModel3DMenu" }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }

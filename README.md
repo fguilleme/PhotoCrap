@@ -4,10 +4,9 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La version **v0.24.1** étend le [texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
-aux deux faces d’un angle, avec la perspective de chaque face sur toute la longueur du texte.
-Un clic sur un calque de texte affiche son cadre. MoGe‑2 estime le relief en local
-ou via ComfyUI. MobileSAM aide à sélectionner les surfaces et à protéger les objets.
+La [peinture et le texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
+s’appuient sur MoGe‑2, en local ou via ComfyUI. MobileSAM aide à sélectionner
+les surfaces et à protéger les objets au premier plan.
 
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
@@ -19,6 +18,18 @@ fichiers `.sha256`. Les paquets embarquent Qt. GitHub les publie après la
 validation des builds, tests et contrôles de déploiement des trois plateformes.
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+## Nouveautés de v0.24.1
+
+- **Texte sur deux faces.** Dans **Peindre sur une surface**, choisissez **Face
+  plane**, cliquez sur chaque face du mur, puis utilisez **Texte** pour placer
+  l’inscription. Les lettres et leur cadre suivent l’arête. Les longues
+  inscriptions conservent la perspective de chaque face.
+- **Texte sur tissu.** Choisissez **Tissu / relief**, sélectionnez le tissu et
+  placez le texte. Pendant l’édition, ajustez **Orientation du texte** et,
+  avec **Suivre les plis** activé, le réglage **Déformation**.
+- **Édition du texte.** Cliquez sur un calque de texte pour afficher son cadre.
+  Double-cliquez pour placer le curseur à la fin du texte et modifier le calque.
 
 ## Nouveautés de v0.21.0
 

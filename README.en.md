@@ -4,10 +4,9 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Version **v0.24.1** extends [surface text](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
-across two adjoining faces, preserving each face’s perspective along long lines.
-Click a text layer to reveal its frame. MoGe‑2 estimates surface geometry locally
-or through ComfyUI. MobileSAM helps select surfaces and protect objects.
+[Surface painting and text](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface) use
+MoGe‑2 locally or through ComfyUI. MobileSAM helps select surfaces and protect
+foreground objects.
 
 [Release notes](CHANGELOG.md) · [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 
@@ -19,6 +18,18 @@ files. The packages bundle Qt. GitHub publishes them after builds, tests,
 and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+## New in v0.24.1
+
+- **Text across two faces.** In surface painting, choose the planar selection
+  mode, click each face of the wall, then use **Text** to place the lettering.
+  The letters and their frame follow the edge. Long lines keep each face’s
+  perspective.
+- **Text on fabric.** Choose the fabric/relief selection mode, select the fabric,
+  and place the text. While editing, adjust the text orientation and enable
+  **Follow folds** to adjust the deformation.
+- **Text editing.** Click a text layer to show its frame. Double-click to place
+  the caret at the end and edit the layer.
 
 ## New in v0.21.0
 

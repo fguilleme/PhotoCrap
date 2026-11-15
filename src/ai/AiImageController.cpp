@@ -573,9 +573,10 @@ void AiImageController::updateSurfaceSelection(const QPoint &seed, bool subtract
         }
         emit changed();
     });
-    watcher->setFuture(QtConcurrent::run([embedding = m_surfaceEmbedding, image, encoded, previous,
-                                          selected, geometry, canvas, seed, subtract, protect,
-                                          followRelief, segment, cancel]() mutable {
+    watcher->setFuture(QtConcurrent::run([embedding = m_surfaceEmbedding,
+                                          seeds = m_surfaceSelection.planarSeeds, image, encoded,
+                                          previous, selected, geometry, canvas, seed, subtract,
+                                          protect, followRelief, segment, cancel]() mutable {
         QImage region;
         if (!protect && !followRelief) {
             region = geometry.regionAt(seed, canvas, false, cancel);
@@ -612,6 +613,21 @@ void AiImageController::updateSurfaceSelection(const QPoint &seed, bool subtract
                                                 subtract, cancel);
         auto protection = protect ? mask : previous;
         auto selection  = surfaceSelection(protect ? selected : mask, protection, cancel);
+        if (!protect) {
+            seeds.removeIf([&](const QPoint &point) {
+                if (mask.isNull())
+                    return true;
+                const int x = int((2LL * point.x() + 1) * mask.width() / (2LL * canvas.width()));
+                const int y = int((2LL * point.y() + 1) * mask.height() / (2LL * canvas.height()));
+                return !mask.constScanLine(y)[x];
+            });
+            if (!followRelief && !subtract && !seeds.contains(seed)) {
+                if (seeds.size() == 16)
+                    seeds.removeFirst();
+                seeds.append(seed);
+            }
+        }
+        selection.planarSeeds = std::move(seeds);
         return Result{std::move(embedding), std::move(protection), std::move(selection), true};
     }));
 }
@@ -654,7 +670,11 @@ void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition
     emit changed();
     if (!m_busy || generation != m_generation)
         return;
-    using PaintLayer   = std::pair<PixelPlane, QImage>;
+    struct PaintLayer {
+        PixelPlane   mask;
+        QImage       normals;
+        QVariantList crease;
+    };
     const auto geometry   = m_surfaceGeometry;
     const auto focalRatio = m_surfaceGeometry.focalRatio;
     auto      *watcher = new QFutureWatcher<PaintLayer>(this);
@@ -675,14 +695,14 @@ void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition
                 stop(tr("Mémoire insuffisante pour créer le masque de surface."));
                 return;
             }
-            if (layer.first.isNull() || layer.second.isNull()) {
+            if (layer.mask.isNull() || layer.normals.isNull()) {
                 stop(tr("Mémoire insuffisante pour créer le masque de surface."));
                 return;
             }
             m_surfaceGeometry = {};
-            if (!m_document->addSurfaceLayer(m_input, std::move(layer.first),
-                                             std::move(layer.second), textPosition, followRelief,
-                                             focalRatio)) {
+            if (!m_document->addSurfaceLayer(m_input, std::move(layer.mask),
+                                             std::move(layer.normals), textPosition, followRelief,
+                                             focalRatio, layer.crease)) {
                 stop(textPosition ? tr("Impossible d’ajouter le texte sur la surface.")
                                   : tr("Impossible d’ajouter le calque de peinture sur surface."));
                 return;
@@ -696,20 +716,29 @@ void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition
             emit changed();
             emit layerAdded();
         });
-    watcher->setFuture(QtConcurrent::run([selected, protection, geometry, canvas, cancel,
-                                          textPosition, followRelief] {
+    watcher->setFuture(QtConcurrent::run([coverage = selected,
+                                          seeds    = m_surfaceSelection.planarSeeds, protection,
+                                          geometry, canvas, cancel, textPosition,
+                                          followRelief]() mutable {
         constexpr int edge = PhotoCrap::Ai::MaxSurfaceNormalEdge;
         const auto   &normals = geometry.normals;
         const auto    reduced =
             qMax(normals.width(), normals.height()) <= edge
                 ? normals
                 : normals.scaled(QSize(edge, edge), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        const auto face = textPosition && !followRelief
-                              ? geometry.regionAt(*textPosition, canvas, false, cancel)
-                              : QImage{};
+        QImage                                      face;
+        std::optional<PhotoCrap::Ai::SurfaceCrease> crease;
+        if (textPosition && !followRelief) {
+            crease = geometry.textCrease(coverage, seeds, canvas, *textPosition, cancel);
+            if (crease)
+                geometry.closeTextCrease(coverage, canvas, *crease, cancel);
+            else
+                face = geometry.regionAt(*textPosition, canvas, false, cancel);
+        }
         return PaintLayer{
-            PhotoCrap::Ai::SurfaceGeometry::paintMask(selected, canvas, cancel, protection, face),
-            reduced.convertToFormat(QImage::Format_RGB888)};
+            PhotoCrap::Ai::SurfaceGeometry::paintMask(coverage, canvas, cancel, protection, face),
+            reduced.convertToFormat(QImage::Format_RGB888),
+            crease ? crease->parameters() : QVariantList{}};
     }));
 }
 void AiImageController::prepareResult()

@@ -1688,6 +1688,56 @@ private slots:
         QVERIFY(farDepth / bounded.m33() >= .76);
         QVERIFY(QLineF(bounded.map(QPointF{}), anchor).length() < .001);
     }
+    void foldedTextKeepsThePerspectiveOfBothPlanes()
+    {
+        using namespace PhotoCrap;
+        const QSize canvas(1000, 700);
+        const qreal focal = std::hypot(canvas.width(), canvas.height()) * .85;
+        Layer       layer;
+        layer.surfaceNormalCanvas = canvas;
+        layer.surfaceNormals      = QImage(1, 1, QImage::Format_RGB888);
+        layer.surfaceNormals.fill(Qt::white);
+        const QLineF    edge(300., 600., 300., 100.);
+        const QVector3D second(.8f, 0.f, .6f);
+        auto            p  = Text::create(100., 400., 28, Qt::white);
+        p["surfaceFocal"]  = .85;
+        p["surfaceCrease"] = Ai::SurfaceCrease{edge, {0.f, 0.f, 1.f}, second}.parameters();
+        const auto faces   = Text::faceProjection(p, layer);
+        QVERIFY(faces);
+        for (const qreal advance : {0., 100., 850.}) {
+            const QPointF source(200. + advance, 28.);
+            const qreal   depth = focal + .8 * advance;
+            const QPointF expected(500. + focal * (-200. + .6 * advance) / depth,
+                                   350. + focal * 78. / depth);
+            const auto    projected = faces->map(source);
+            QVERIFY(QLineF(projected, expected).length() < .001);
+            QVERIFY(QLineF(faces->unmap(projected), source).length() < .01);
+        }
+
+        p["surfaceCrease"] = Ai::SurfaceCrease{edge, {-.8f, 0.f, .6f}, second}.parameters();
+        const auto corner  = Text::faceProjection(p, layer);
+        QVERIFY(corner);
+        QCOMPARE(Text::displayTransform(p, &layer, {300., 40.}),
+                 Text::displayTransform(p, &layer, {6000., 40.}));
+        const qreal limit = -corner->primary.m33() / corner->primary.m13();
+        QVERIFY(limit > 0. && limit < 2000.);
+        const QPointF far(1800., 20.);
+        const auto    projected = corner->map(far);
+        QVERIFY(QRectF(300., 0., 700., 700.).contains(projected));
+        QVERIFY(QLineF(corner->unmap(projected), far).length() < .01);
+
+        p["html"] = QString(170, QLatin1Char('M'));
+        const auto lettering =
+            Text::renderPlane(p, canvas, QImage::Format_RGBA64_Premultiplied, &layer);
+        const auto region =
+            lettering.region(QRect(projected.toPoint() - QPoint(10, 6), QSize(20, 12)));
+        QVERIFY(!region.isNull());
+        int ink = 0;
+        for (int y = 0; y < region.height(); ++y)
+            for (int x = 0; x < region.width(); ++x)
+                ink += region.pixelColor(x, y).alpha() > 0;
+        QVERIFY(ink > 10);
+    }
     void comfySurfacePaintingCombinesFacesAndKeepsOcclusion()
     {
         Server server;
@@ -1811,17 +1861,40 @@ private slots:
         controller.applySurfaceText(82, 20);
         QVERIFY(!controller.busy());
         QCOMPARE(document.layerCount(), 1);
-        controller.applySurfaceText(40, 14);
+        controller.applySurfaceText(14, 27);
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
         QVERIFY(document.textEditing());
         QCOMPARE(document.layerCount(), 2);
         QCOMPARE(document.tool(), QString("text"));
-        QCOMPARE(document.maskImage(1).pixelColor(20, 40).red(), 0);
+        QCOMPARE(document.maskImage(1).pixelColor(20, 40).red(), 255);
         QCOMPARE(document.maskImage(1).pixelColor(55, 40).red(), 255);
-        document.updateTextHtml("<span style='font-size: 30px; color: white;'>SURFACE</span>");
+        QCOMPARE(document.maskImage(1).pixelColor(82, 40).red(), 0);
+        document.updateTextHtml("<span style='font-size: 19px; color: white;'>SURFACE</span>");
         const auto beforeRotation = document.composite();
-        QVERIFY(beforeRotation != initial);
+        const auto changesIn      = [&](const QRect &rect) {
+            return beforeRotation.copy(rect) != initial.copy(rect);
+        };
+        QVERIFY(changesIn({12, 10, 22, 60}));
+        QVERIFY(changesIn({36, 10, 30, 60}));
+        const auto state = document.textEditState();
+        const auto frame = state.value("surfaceOutline").toList();
+        QCOMPARE(state.value("surfaceEdge").toList().size(), 3);
+        QCOMPARE(frame.size(), 7);
+        QCOMPARE(frame.first(), frame.last());
+        int pointsOnCrease = 0;
+        for (const auto &point : frame)
+            pointsOnCrease += qAbs(point.toPointF().x() - 35.) < 1.;
+        QCOMPARE(pointsOnCrease, 2);
+        document.moveTextBy(29., 0.);
+        const auto moved = document.textEditState();
+        QCOMPARE(moved.value("surfaceAcross"), state.value("surfaceAcross"));
+        const auto primary = PhotoCrap::Text::transform(moved);
+        const auto across =
+            PhotoCrap::Text::transform({{"transform", moved.value("surfaceAcross")}});
+        QVERIFY(QLineF(across.map(primary.map(QPointF{})), QPointF(43, 27)).length() < .01);
+        document.moveTextBy(-29., 0.);
+        QCOMPARE(document.composite(), beforeRotation);
         document.setSurfaceTextAngle(20.);
         QCOMPARE(document.textEditState().value("surfaceAngle").toDouble(), 20.);
         document.setSurfaceTextStrength(1.65);
@@ -1840,6 +1913,7 @@ private slots:
         reopened.editTextLayer(1);
         QVERIFY(reopened.textEditing());
         QCOMPARE(reopened.text(), QString("SURFACE"));
+        QCOMPARE(reopened.textEditState().value("surfaceEdge"), state.value("surfaceEdge"));
         QCOMPARE(reopened.textEditState().value("surfaceAngle").toDouble(), 20.);
         QCOMPARE(reopened.textEditState().value("surfaceStrength").toDouble(), 1.65);
         reopened.updateTextHtml("<span style='font-size: 30px; color: white;'>TEST</span>");

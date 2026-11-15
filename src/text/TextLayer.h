@@ -5,11 +5,25 @@
 #include <QTextDocument>
 #include <QTransform>
 #include <QVariantMap>
+#include <optional>
 
 struct Layer;
 
 namespace PhotoCrap::Text
 {
+struct FaceProjection {
+    QTransform primary, across;
+    // Positive distances are on the secondary face.
+    QLineF edge;
+
+    qreal      distance(const QPointF &point) const;
+    qreal      localDistance(const QPointF &point) const;
+    QTransform face(bool secondary) const;
+    QPointF    map(const QPointF &point) const;
+    QPointF    unmap(const QPointF &point) const;
+    QPolygonF  outline(const QRectF &rect, const QSize &canvas) const;
+};
+
 class Document : public QTextDocument
 {
 public:
@@ -31,6 +45,7 @@ QSizeF      size(const QVariantMap &_parameters);
 QTransform  transform(const QVariantMap &_parameters);
 QTransform  displayTransform(const QVariantMap &parameters, const Layer *surface,
                              const QSizeF &extent = {});
+std::optional<FaceProjection> faceProjection(const QVariantMap &parameters, const Layer &surface);
 QPolygonF   surfaceOutline(const Layer &layer, const QSize &canvas, QPointF &bottomRight);
 void        transform(QVariantMap &_parameters, const QTransform &_transform);
 PixelPlane  renderPlane(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format,

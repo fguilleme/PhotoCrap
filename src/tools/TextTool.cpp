@@ -5,6 +5,18 @@
 #include <QTextCursor>
 #include <cmath>
 
+namespace
+{
+QVariantList pointsForQml(const QPolygonF &polygon)
+{
+    QVariantList points;
+    points.reserve(polygon.size());
+    for (const auto &point : polygon)
+        points.append(QVariant::fromValue(point));
+    return points;
+}
+} // namespace
+
 QVariantMap &Document::textParameters()
 {
     return m_textMaskEdit ? m_maskTextParameters : m_layers[m_active].parameters;
@@ -24,9 +36,23 @@ QVariantMap Document::textEditState() const
     state["viewHeight"] = bounds.height();
     const auto &layer   = m_layers[m_active];
     if (!m_textMaskEdit && !layer.surfaceNormals.isNull()) {
-        const auto t             = PhotoCrap::Text::displayTransform(state, &layer, bounds);
-        state["transform"]       = QVariantList{t.m11(), t.m12(), t.m13(), t.m21(), t.m22(),
-                                                t.m23(), t.m31(), t.m32(), t.m33()};
+        const auto values = [](const QTransform &matrix) {
+            return QVariantList{matrix.m11(), matrix.m12(), matrix.m13(),
+                                matrix.m21(), matrix.m22(), matrix.m23(),
+                                matrix.m31(), matrix.m32(), matrix.m33()};
+        };
+        const auto faces = PhotoCrap::Text::faceProjection(state, layer);
+        const auto t =
+            faces ? faces->primary : PhotoCrap::Text::displayTransform(state, &layer, bounds);
+        if (faces) {
+            const auto   &edge      = faces->edge;
+            const auto    direction = (edge.p2() - edge.p1()) / edge.length();
+            const QPointF n(-direction.y(), direction.x());
+            state["surfaceEdge"]   = QVariantList{n.x(), n.y(), -QPointF::dotProduct(n, edge.p1())};
+            state["surfaceAcross"] = values(faces->across);
+            state["surfaceSecondInverse"] = values(faces->face(true).inverted());
+        }
+        state["transform"]       = values(t);
         state["surfaceText"]     = true;
         state["surfaceRelief"]   = state.value("surfaceRelief", true);
         state["surfaceAngle"]    = state.value("surfaceAngle", 0.);
@@ -34,16 +60,22 @@ QVariantMap Document::textEditState() const
         QPointF    corner;
         const auto outline = PhotoCrap::Text::surfaceOutline(layer, m_size, corner);
         if (!outline.isEmpty()) {
-            QVariantList points;
-            points.reserve(outline.size());
-            for (const auto &point : outline)
-                points.append(QVariant::fromValue(point));
-            state["surfaceOutline"] = std::move(points);
+            state["surfaceOutline"] = pointsForQml(outline);
             state["surfaceCorner"]  = corner;
         }
     }
     return state;
 }
+QVariantList Document::surfaceTextRect(const QRectF &rect) const
+{
+    if (m_active < 0 || m_active >= m_layers.size() || m_textMaskEdit ||
+        m_layers[m_active].kind != "text" || rect.isEmpty())
+        return {};
+    const auto &layer = m_layers[m_active];
+    const auto  faces = PhotoCrap::Text::faceProjection(layer.parameters, layer);
+    return faces ? pointsForQml(faces->outline(rect, m_size)) : QVariantList{};
+}
+
 bool Document::renderTextEdit()
 {
     auto &layer = m_layers[m_active];
@@ -130,10 +162,15 @@ void Document::beginTextGesture(qreal _x, qreal _y, bool _forceNew)
                     protectedGroup = true;
             if (protectedGroup)
                 continue;
-            const auto point = PhotoCrap::Text::displayTransform(layer.parameters, &layer)
-                                   .inverted()
-                                   .map(QPointF(_x, _y));
-            if (QRectF(QPointF{}, PhotoCrap::Text::size(layer.parameters)).contains(point)) {
+            const auto    extent = PhotoCrap::Text::size(layer.parameters);
+            const auto    faces  = PhotoCrap::Text::faceProjection(layer.parameters, layer);
+            const QPointF canvasPoint(_x, _y);
+            const auto    point =
+                faces ? faces->unmap(canvasPoint)
+                      : PhotoCrap::Text::displayTransform(layer.parameters, &layer, extent)
+                            .inverted()
+                            .map(canvasPoint);
+            if (QRectF(QPointF{}, extent).contains(point)) {
                 m_textAnchor = point;
                 beginTextEdit(i, true);
                 return;

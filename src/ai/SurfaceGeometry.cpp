@@ -5,6 +5,7 @@
 #include <QVector2D>
 #include <QVector3D>
 #include <QtMath>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <new>
@@ -109,15 +110,20 @@ QTransform surfaceTextProjection(const QImage &normals, const QSize &canvas, con
                 average += near;
         }
     average.normalize();
-    if (average.z() < 0)
+    if (average.z() < 0.f)
         average = -average;
-    QVector3D n(average.x(), -average.y(), qMax(.25f, average.z()));
+    QVector3D n(-average.x(), average.y(), qMax(.25f, average.z()));
     if (n.x() * n.x() + n.y() * n.y() < .0004f)
         n = {0.f, 0.f, 1.f};
-    n.normalize();
+    return inverse * planeTextProjection(canvas, point, n.normalized(), angle, focalRatio) *
+           mapping;
+}
 
-    const QVector3D right   = QVector3D(n.z(), 0.f, -n.x()).normalized();
-    const QVector3D down    = QVector3D::crossProduct(n, right);
+QTransform planeTextProjection(const QSize &canvas, const QPointF &point, const QVector3D &normal,
+                               qreal angle, qreal focalRatio)
+{
+    const QVector3D right   = QVector3D(normal.z(), 0.f, -normal.x()).normalized();
+    const QVector3D down    = QVector3D::crossProduct(normal, right);
     const auto      radians = qDegreesToRadians(angle);
     const auto      c = float(std::cos(radians)), s = float(std::sin(radians));
     const auto      u = c * right + s * down;
@@ -127,10 +133,93 @@ QTransform surfaceTextProjection(const QImage &normals, const QSize &canvas, con
     const qreal focal = std::hypot(canvas.width(), canvas.height()) * qBound(.35, focalRatio, 3.);
     // Project a plane through the anchor. Its two depth slopes produce
     // converging lines and allow the lettering to rotate within that plane.
-    const QTransform perspective(u.x(), u.y(), -u.z() / focal, v.x(), v.y(), -v.z() / focal,
+    const QTransform perspective(u.x(), u.y(), u.z() / focal, v.x(), v.y(), v.z() / focal,
                                  offset.x(), offset.y(), 1.);
-    return inverse * QTransform::fromTranslate(-point.x(), -point.y()) * perspective *
-           QTransform::fromTranslate(center.x(), center.y()) * mapping;
+    return QTransform::fromTranslate(-point.x(), -point.y()) * perspective *
+           QTransform::fromTranslate(center.x(), center.y());
+}
+
+QVariantList SurfaceCrease::parameters() const
+{
+    return {edge.x1(),          edge.y1(),          edge.x2(),          edge.y2(),
+            negativeNormal.x(), negativeNormal.y(), negativeNormal.z(), positiveNormal.x(),
+            positiveNormal.y(), positiveNormal.z()};
+}
+
+std::optional<SurfaceCrease> SurfaceCrease::fromParameters(const QVariant &value)
+{
+    const auto values = value.toList();
+    if (values.size() != 10)
+        return {};
+    qreal p[10];
+    for (int i = 0; i < 10; ++i) {
+        bool ok = false;
+        p[i]    = values[i].toDouble(&ok);
+        if (!ok || !std::isfinite(p[i]) || qAbs(p[i]) > (i < 4 ? 32768. : 1.))
+            return {};
+    }
+    const SurfaceCrease crease{QLineF(p[0], p[1], p[2], p[3]), QVector3D(p[4], p[5], p[6]),
+                               QVector3D(p[7], p[8], p[9])};
+    if (crease.edge.length() < 1. || crease.negativeNormal.lengthSquared() < .5f ||
+        crease.positiveNormal.lengthSquared() < .5f)
+        return {};
+    return crease;
+}
+
+std::optional<SurfaceHinge> surfaceTextHinge(const SurfaceCrease &crease, const QSize &canvas,
+                                             qreal focalRatio)
+{
+    const auto cameraNormal = [](const QVector3D &normal) {
+        return QVector3D(-normal.x(), normal.y(), normal.z()).normalized();
+    };
+    auto            first  = cameraNormal(crease.negativeNormal);
+    auto            second = cameraNormal(crease.positiveNormal);
+    const QPointF   center(canvas.width() * .5, canvas.height() * .5);
+    const QPointF   origin = crease.edge.center();
+    const QPointF   axis   = crease.edge.unitVector().p2() - crease.edge.p1();
+    const QPointF   perpendicular(-axis.y(), axis.x());
+    const qreal     diagonal = std::hypot(canvas.width(), canvas.height());
+    const qreal     focal    = diagonal * qBound(.35, focalRatio, 3.);
+    const QVector3D pivot(origin.x() - center.x(), origin.y() - center.y(), focal);
+    const auto viewNormal = QVector3D(perpendicular.x(), perpendicular.y(),
+                                      -QPointF::dotProduct(origin - center, perpendicular) / focal)
+                                .normalized();
+    // The 3D hinge lies in the viewing plane of the fitted image edge.
+    const auto intersection = QVector3D::crossProduct(first, second);
+    const auto hinge =
+        (intersection - viewNormal * QVector3D::dotProduct(intersection, viewNormal)).normalized();
+    if (hinge.isNull())
+        return {};
+    first                   = (first - hinge * QVector3D::dotProduct(first, hinge)).normalized();
+    second                  = (second - hinge * QVector3D::dotProduct(second, hinge)).normalized();
+    const auto acrossFirst  = QVector3D::crossProduct(first, hinge);
+    const auto acrossSecond = QVector3D::crossProduct(second, hinge);
+    const auto rotate       = [&](const QVector3D &v) {
+        return hinge * QVector3D::dotProduct(v, hinge) +
+               acrossSecond * QVector3D::dotProduct(v, acrossFirst) +
+               second * QVector3D::dotProduct(v, first);
+    };
+    const qreal depth = QVector3D::dotProduct(first, pivot);
+    if (depth < focal * .06 || QVector3D::dotProduct(second, pivot) < focal * .06)
+        return {};
+    const auto      offset = pivot - rotate(pivot);
+    const QVector3D step(perpendicular.x(), perpendicular.y(), 0.);
+    const auto  delta = rotate(step) - step + offset * (QVector3D::dotProduct(first, step) / depth);
+    const qreal slope = delta.z() / focal;
+    const auto  b     = delta.toPointF() + center * slope;
+    const auto  tangent     = b - origin * slope;
+    const qreal normalScale = 1. + QPointF::dotProduct(tangent, perpendicular);
+    if (!std::isfinite(normalScale) || normalScale <= .06)
+        return {};
+
+    // H(p) = (p + b*s)/(1 + slope*s), where s is signed distance to the edge.
+    // The full projective term preserves the vanishing points of the second face.
+    const qreal d = -QPointF::dotProduct(origin, perpendicular);
+    return SurfaceHinge{QTransform(1. + b.x() * perpendicular.x(), b.y() * perpendicular.x(),
+                                   slope * perpendicular.x(), b.x() * perpendicular.y(),
+                                   1. + b.y() * perpendicular.y(), slope * perpendicular.y(),
+                                   b.x() * d, b.y() * d, 1. + slope * d),
+                        first};
 }
 
 namespace
@@ -485,6 +574,180 @@ QImage SurfaceGeometry::regionAt(const QPoint &seed, const QSize &canvas, bool f
     }
 
     return region;
+}
+
+std::optional<SurfaceCrease> SurfaceGeometry::textCrease(const QImage        &selected,
+                                                         const QList<QPoint> &seeds,
+                                                         const QSize &canvas, const QPoint &anchor,
+                                                         const Cancel &cancel) const
+{
+    if (seeds.size() < 2 || !isValid() || selected.size() != normals.size() || canvas.isEmpty())
+        return {};
+    const qreal sx         = qreal(normals.width()) / canvas.width();
+    const qreal sy         = qreal(normals.height()) / canvas.height();
+    const auto  map        = [&](const QPoint &p) { return QPointF(p.x() * sx, p.y() * sy); };
+    const auto  atAnchor   = sampleNormal(normals, canvas, anchor);
+    const auto  similarity = [&](const QPoint &p) {
+        return QVector3D::dotProduct(atAnchor, sampleNormal(normals, canvas, p));
+    };
+    const auto firstSeed  = std::max_element(seeds.cbegin(), seeds.cend(), [&](auto a, auto b) {
+        return similarity(a) < similarity(b);
+    });
+    const auto first      = sampleNormal(normals, canvas, *firstSeed);
+    const auto secondSeed = std::min_element(seeds.cbegin(), seeds.cend(), [&](auto a, auto b) {
+        return QVector3D::dotProduct(first, sampleNormal(normals, canvas, a)) <
+               QVector3D::dotProduct(first, sampleNormal(normals, canvas, b));
+    });
+    const auto second     = sampleNormal(normals, canvas, *secondSeed);
+    if (first.z() < .15f || second.z() < .15f || QVector3D::dotProduct(first, second) > .94f)
+        return {};
+
+    const int  shortEdge = qMin(normals.width(), normals.height());
+    const int  reach     = qBound(3, shortEdge / 85, 16);
+    const int  stride    = qMax(1, shortEdge / 240);
+    const auto delta     = second - first;
+    const auto score     = [&](const QPoint &p) {
+        return QVector3D::dotProduct(delta, normalAt(normals, p.x(), p.y()));
+    };
+    const auto supported = [&](const QPoint &p, const QPoint &step, float sign) {
+        for (int i = 0; i <= reach; ++i) {
+            const auto q = p + i * step;
+            if (!selected.rect().contains(q) || !validity.constScanLine(q.y())[q.x()])
+                return false;
+            if (i && !continuousDepth(disparity, validity, q - step, q, step))
+                return false;
+            if (selected.constScanLine(q.y())[q.x()] &&
+                sign * score(q) > delta.lengthSquared() * .16f)
+                return true;
+        }
+        return false;
+    };
+    std::vector<QPointF> crossings;
+    for (const auto step : {QPoint(1, 0), QPoint(0, 1)}) {
+        const int advance = step.x() ? normals.width() : normals.height();
+        const int lines   = step.x() ? normals.height() : normals.width();
+        for (int line = 0; line < lines; line += stride) {
+            if (cancel->load())
+                return {};
+            QPoint p      = step.x() ? QPoint(0, line) : QPoint(line, 0);
+            float  before = score(p);
+            for (int i = 1; i < advance; ++i, p += step) {
+                const auto  q     = p + step;
+                const float after = score(q);
+                if ((before < 0) != (after < 0) && validity.constScanLine(p.y())[p.x()] &&
+                    validity.constScanLine(q.y())[q.x()] &&
+                    continuousDepth(disparity, validity, p, q, step)) {
+                    const float sign = before < 0 ? -1.f : 1.f;
+                    if (supported(p, -step, sign) && supported(q, step, -sign))
+                        crossings.push_back(QPointF(p) + QPointF(.5, .5) +
+                                            QPointF(step) * (before / (before - after)));
+                }
+                before = after;
+            }
+        }
+    }
+    if (crossings.size() < 8)
+        return {};
+
+    const qreal tolerance = qMax(1.5, shortEdge * .004);
+    const auto  normal    = [](const QLineF &line) {
+        const auto direction = (line.p2() - line.p1()) / line.length();
+        return QPointF(-direction.y(), direction.x());
+    };
+    QLineF     best;
+    size_t     bestCount     = 0;
+    const auto skip          = qMax<size_t>(1, crossings.size() / 40);
+    const auto supportStride = qMax<size_t>(1, crossings.size() / 2048);
+    for (size_t i = 0; i < crossings.size(); i += skip) {
+        if (cancel->load())
+            return {};
+        for (size_t j = i + skip; j < crossings.size(); j += skip) {
+            const QLineF candidate(crossings[i], crossings[j]);
+            if (candidate.length() < shortEdge * .08)
+                continue;
+            const auto n = normal(candidate);
+            if (QPointF::dotProduct(n, map(*firstSeed) - candidate.p1()) *
+                    QPointF::dotProduct(n, map(*secondSeed) - candidate.p1()) >=
+                0.)
+                continue;
+            size_t count = 0;
+            for (size_t k = 0; k < crossings.size(); k += supportStride)
+                count += qAbs(QPointF::dotProduct(n, crossings[k] - candidate.p1())) < tolerance;
+            if (count > bestCount) {
+                best      = candidate;
+                bestCount = count;
+            }
+        }
+    }
+    if (bestCount < 8 || bestCount * supportStride * 3 < crossings.size())
+        return {};
+    const auto n = normal(best);
+    QPointF    center;
+    size_t     inliers = 0;
+    for (const auto &p : crossings)
+        if (qAbs(QPointF::dotProduct(n, p - best.p1())) < tolerance) {
+            center += p;
+            ++inliers;
+        }
+    center /= qreal(inliers);
+    qreal xx = 0., xy = 0., yy = 0.;
+    for (const auto &p : crossings)
+        if (qAbs(QPointF::dotProduct(n, p - best.p1())) < tolerance) {
+            const auto d = p - center;
+            xx += d.x() * d.x();
+            xy += d.x() * d.y();
+            yy += d.y() * d.y();
+        }
+    const qreal   angle = .5 * std::atan2(2. * xy, xx - yy);
+    const QPointF direction(std::cos(angle), std::sin(angle));
+    const QPointF perpendicular(-direction.y(), direction.x());
+    const bool    firstPositive = QPointF::dotProduct(perpendicular, map(*firstSeed) - center) > 0.;
+    const bool    anchorPositive = QPointF::dotProduct(perpendicular, map(anchor) - center) > 0.;
+    const auto    extent         = direction * (shortEdge / 4.);
+    const auto    unmap = [&](const QPointF &p) { return QPointF(p.x() / sx, p.y() / sy); };
+    QLineF        edge(unmap(center - extent), unmap(center + extent));
+    if (anchorPositive)
+        edge = QLineF(edge.p2(), edge.p1());
+    const bool anchorOnFirst = anchorPositive == firstPositive;
+    return SurfaceCrease{edge, anchorOnFirst ? first : second, anchorOnFirst ? second : first};
+}
+
+void SurfaceGeometry::closeTextCrease(QImage &selected, const QSize &canvas,
+                                      const SurfaceCrease &crease, const Cancel &cancel) const
+{
+    const auto    scale     = QTransform::fromScale(qreal(selected.width()) / canvas.width(),
+                                                    qreal(selected.height()) / canvas.height());
+    const auto    edge      = scale.map(crease.edge);
+    const auto    direction = (edge.p2() - edge.p1()) / edge.length();
+    const QPointF n(-direction.y(), direction.x());
+    const int     reach    = qBound(3, qMin(selected.width(), selected.height()) / 85, 16);
+    const auto    coverage = selected;
+    for (int y = 0; y < selected.height(); ++y) {
+        if (cancel->load())
+            return;
+        auto *out = selected.scanLine(y);
+        for (int x = 0; x < selected.width(); ++x) {
+            const QPoint p(x, y);
+            if (out[x] || !validity.constScanLine(y)[x] ||
+                qAbs(QPointF::dotProduct(n, QPointF(p) + QPointF(.5, .5) - edge.p1())) > reach)
+                continue;
+            const auto covered = [&](int side) {
+                QPoint previous = p;
+                for (int i = 1; i <= reach; ++i) {
+                    const auto q = p + (n * (i * side)).toPoint();
+                    if (!coverage.rect().contains(q) || !validity.constScanLine(q.y())[q.x()] ||
+                        !continuousDepth(disparity, validity, previous, q, q - previous))
+                        return false;
+                    if (coverage.constScanLine(q.y())[q.x()])
+                        return true;
+                    previous = q;
+                }
+                return false;
+            };
+            if (covered(-1) && covered(1))
+                out[x] = 255;
+        }
+    }
 }
 
 QImage restrictSurfaceRegion(QImage region, const QImage &boundary, const Cancel &cancel)

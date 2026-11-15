@@ -10,16 +10,21 @@ Item {
     readonly property var state: (geometryRevision, document.textEditState)
     readonly property var surfaceFrame: (state.surfaceOutline || []).map(p => Qt.point(p.x * zoom, p.y * zoom))
     readonly property bool hasSurfaceFrame: surfaceFrame.length > 3
+    readonly property bool hasCrease: state.surfaceEdge !== undefined
     property bool loading: false
     property bool ready: false
     property int revision: 0
+    property int focusRequest: 0
     property bool primaryPressed: false
     readonly property bool moveCursor: document.textEditing && (primaryPressed || textMove.moving || textMove.onFrame)
     readonly property bool pointerInside: visible && textMove.enabled && textMove.containsMouse
     readonly property var style: (revision, formatter.format(input.cursorPosition))
     property alias input: input
     property alias formatter: formatter
-    visible: document.textEditing || document.tool === "move" && state.html !== undefined
+    visible: document.textEditing
+             || (document.tool === "move" && state.html !== undefined)
+             || (hasCrease && !document.editingMask && !document.editingVectorMask
+                 && !document.transformActive)
     onVisibleChanged: if(!visible)primaryPressed=false
     width: Math.max(32,state.viewWidth || 32)
     height: Math.max(32,state.viewHeight || 64)
@@ -42,10 +47,16 @@ Item {
         loading=false
         ready=true
         revision++
+        const request = ++focusRequest
         if(focus)Qt.callLater(function(){
+            if(request !== root.focusRequest || !root.ready || !root.document.textEditing)return
             input.forceActiveFocus()
-            if(point!==undefined)input.cursorPosition=input.positionAt(point.x,point.y)
-            else input.selectAll()
+            if (point !== undefined)
+                input.cursorPosition = input.positionAt(point.x, point.y)
+            else if (root.hasCrease)
+                input.cursorPosition = input.length
+            else
+                input.selectAll()
         })
     }
     function isOnSurfaceFrame(x, y) {
@@ -59,6 +70,24 @@ Item {
             if (offsetX * offsetX + offsetY * offsetY <= 25) return true
         }
         return false
+    }
+    function creaseDistance(point) {
+        const line = state.surfaceEdge
+        return (line[0] * point.x + line[1] * point.y) / zoom + line[2]
+    }
+    function localPoint(point) {
+        if (!hasCrease || creaseDistance(point) <= 0)
+            return mapFromItem(parent, point.x, point.y)
+        const matrix = state.surfaceSecondInverse
+        const x = point.x / zoom, y = point.y / zoom
+        const w = matrix[2] * x + matrix[5] * y + matrix[8]
+        if (w <= 0)
+            return Qt.point(-1, -1)
+        return Qt.point((matrix[0] * x + matrix[3] * y + matrix[6]) / w,
+                        (matrix[1] * x + matrix[4] * y + matrix[7]) / w)
+    }
+    function projectRect(rect) {
+        return document.surfaceTextRect(rect).map(point => Qt.point(point.x * zoom, point.y * zoom))
     }
     transform: Matrix4x4 {
         matrix: {
@@ -88,7 +117,7 @@ Item {
         visible:root.ready && root.document.textEditing
         clip: true
         Repeater {
-            model: (root.revision,root.formatter.selectionRects(input.selectionStart,input.selectionEnd))
+            model: root.hasCrease ? [] : (root.revision,root.formatter.selectionRects(input.selectionStart,input.selectionEnd))
             Rectangle {
                 required property var modelData
                 x:modelData.x;y:modelData.y;width:modelData.width;height:modelData.height
@@ -98,7 +127,7 @@ Item {
         Rectangle {
             x:input.cursorRectangle.x;y:input.cursorRectangle.y
             width:1/root.zoom;height:input.cursorRectangle.height
-            color:"#5faaff";visible:input.activeFocus && input.selectionStart===input.selectionEnd && root.blink
+            color:"#5faaff";visible:!root.hasCrease && input.activeFocus && input.selectionStart===input.selectionEnd && root.blink
         }
         TextEdit {
             id: input
@@ -134,6 +163,37 @@ Item {
             }
         }
     }
+    Item {
+        parent: root.parent
+        anchors.fill: parent
+        z: root.z + 1
+        visible: root.hasCrease && root.ready && root.document.textEditing
+        Repeater {
+            model: parent.visible ? (root.revision, root.formatter.selectionRects(input.selectionStart, input.selectionEnd)) : []
+            Shape {
+                required property var modelData
+                anchors.fill: parent
+                ShapePath {
+                    strokeWidth: -1
+                    fillColor: "#70468cdf"
+                    PathPolyline { path: root.hasCrease ? (root.state, root.zoom, root.projectRect(modelData)) : [] }
+                }
+            }
+        }
+        Shape {
+            anchors.fill: parent
+            visible: parent.visible && input.activeFocus && input.selectionStart === input.selectionEnd && root.blink
+            ShapePath {
+                strokeWidth: -1
+                fillColor: "#5faaff"
+                PathPolyline {
+                    path: root.hasCrease ? (root.state, root.zoom, root.projectRect(
+                        Qt.rect(input.cursorRectangle.x, input.cursorRectangle.y,
+                                1 / root.zoom, input.cursorRectangle.height))) : []
+                }
+            }
+        }
+    }
     MouseArea {
         id: textMove
         objectName: "textMoveMouse"
@@ -150,6 +210,8 @@ Item {
         cursorShape: root.moveCursor ? Qt.SizeAllCursor : Qt.IBeamCursor
         property bool moving: false
         property bool onFrame: false
+        property bool selecting: false
+        property int selectionAnchor
         property point previous
         property point travelled: Qt.point(0,0)
         function updateFrame(mouse) {
@@ -165,9 +227,32 @@ Item {
             travelled=Qt.point(travelled.x+dx,travelled.y+dy)
             previous=p
         }
+        function positionAt(mouse) {
+            const p = root.localPoint(mapToItem(root.parent, mouse.x, mouse.y))
+            return input.positionAt(p.x, p.y)
+        }
+        function selectTo(position) {
+            if (position === selectionAnchor) {
+                input.deselect()
+                input.cursorPosition = position
+            } else {
+                input.select(selectionAnchor, position)
+            }
+        }
         onPressed: function(mouse) {
             updateFrame(mouse)
-            if(!(mouse.modifiers & Qt.ControlModifier) && !onFrame){mouse.accepted=false;return}
+            if (!(mouse.modifiers & Qt.ControlModifier) && !onFrame) {
+                if (!root.hasCrease) { mouse.accepted = false; return }
+                const position = positionAt(mouse)
+                selectionAnchor = mouse.modifiers & Qt.ShiftModifier
+                    ? (input.cursorPosition === input.selectionStart ? input.selectionEnd : input.selectionStart)
+                    : position
+                selecting = true
+                root.focusRequest++
+                input.forceActiveFocus()
+                selectTo(position)
+                return
+            }
             moving=true
             travelled=Qt.point(0,0)
             previous=mapToItem(root.parent,mouse.x,mouse.y)
@@ -175,17 +260,27 @@ Item {
         onPositionChanged: function(mouse) {
             root.primaryPressed=Boolean(mouse.modifiers & Qt.ControlModifier)
             updateFrame(mouse)
-            moveTo(mouse)
+            if (selecting) selectTo(positionAt(mouse))
+            else moveTo(mouse)
         }
         onReleased: function(mouse) {
-            moveTo(mouse)
+            if (selecting) selectTo(positionAt(mouse))
+            else moveTo(mouse)
+            selecting=false
             moving=false
             updateFrame(mouse)
             input.forceActiveFocus()
         }
+        onDoubleClicked: {
+            if (root.hasCrease && !onFrame && !moving) {
+                selecting = false
+                input.selectWord()
+            }
+        }
         onCanceled: {
             if(moving)root.document.moveTextBy(-travelled.x,-travelled.y)
             moving=false
+            selecting=false
         }
         onExited: onFrame=false
     }
@@ -193,7 +288,7 @@ Item {
         id: surfaceFrameHit
         function contains(point: point): bool {
             if (root.isOnSurfaceFrame(point.x, point.y)) return true
-            const p = root.mapFromItem(root.parent, point.x, point.y)
+            const p = root.localPoint(point)
             return p.x >= 0 && p.y >= 0 && p.x <= root.width && p.y <= root.height
         }
     }
@@ -212,10 +307,10 @@ Item {
             property point initial
             property real initialWidth
             property real initialHeight
-            onPressed: function(mouse){initial=mapToItem(root,mouse.x,mouse.y);initialWidth=root.width;initialHeight=root.height}
+            onPressed: function(mouse){initial=root.localPoint(mapToItem(root.parent,mouse.x,mouse.y));initialWidth=root.width;initialHeight=root.height}
             onPositionChanged: function(mouse) {
                 if(!pressed)return
-                const p=mapToItem(root,mouse.x,mouse.y)
+                const p=root.localPoint(mapToItem(root.parent,mouse.x,mouse.y))
                 root.document.setTextBox(true,Math.max(16,initialWidth+p.x-initial.x),Math.max(16,initialHeight+p.y-initial.y))
             }
         }

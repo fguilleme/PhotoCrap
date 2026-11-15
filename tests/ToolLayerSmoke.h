@@ -4,6 +4,7 @@
 #include "ValueScrubberSmoke.h"
 #include "WorkspaceSettings.h"
 #include "ai/AiImageTypes.h"
+#include "ai/SurfaceGeometry.h"
 #include "text/TextEditorController.h"
 #include "text/TextLayer.h"
 #ifdef Q_OS_MACOS
@@ -511,6 +512,49 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     const auto moved = PhotoCrap::Text::transform(_document.textEditState()).map(QPointF{});
     if (!require(QLineF(moved, anchor + QPointF(8, 5) / zoom).length() < 1.,
                  "the visible folded frame can be dragged"))
+        return false;
+    _document.finishTextEdit();
+
+    _document.newDocument(220, 160, true);
+    _window->setProperty("zoom", 1.0);
+    const auto twoFaces = _document.prepareAiInput(false, 220, cancel, false, false, true).result();
+    const PhotoCrap::Ai::SurfaceCrease crease{QLineF(100, 130, 100, 30), QVector3D(0.f, 0.f, 1.f),
+                                              QVector3D(.6f, 0.f, .8f)};
+    if (!require(_document.addSurfaceLayer(twoFaces, PixelPlane::uniform({220, 160}, coverage),
+                                           normals, QPoint(35, 60), false, .85,
+                                           crease.parameters()),
+                 "text can be placed across a wall edge"))
+        return false;
+    _document.updateTextHtml("<span style='font-size: 21px;'>WRAP AROUND</span>");
+    _document.finishTextEdit();
+    if (!require(outline->isVisible() &&
+                     _document.textEditState().value("surfaceOutline").toList().size() == 7,
+                 "the selected text frame turns at the wall edge"))
+        return false;
+    _document.editTextLayer(1);
+    if (!require(QTest::qWaitFor([&] { return textInput->hasActiveFocus(); }, 1000),
+                 "the projected text editor receives keyboard focus"))
+        return false;
+    const auto state   = _document.textEditState();
+    const auto primary = PhotoCrap::Text::transform(state);
+    const auto across  = PhotoCrap::Text::transform({{"transform", state.value("surfaceAcross")}});
+    QRectF     caret;
+    constexpr int character = 8;
+    QMetaObject::invokeMethod(textInput, "positionToRectangle", Q_RETURN_ARG(QRectF, caret),
+                              Q_ARG(int, character));
+    const auto click = across.map(primary.map(caret.center()));
+    if (!require(click.x() > 100. && click.x() < 220.,
+                 "the caret test targets a letter on the second face"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, area->mapToScene(click).toPoint());
+    QTest::qWait(20);
+    if (!require(textInput->property("cursorPosition").toInt() == character,
+                 "clicking projected text positions the caret on the second face"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_Left, Qt::ShiftModifier);
+    if (!require(textInput->property("selectionStart").toInt() == character - 1 &&
+                     textInput->property("selectionEnd").toInt() == character,
+                 "character selection still works while editing across the edge"))
         return false;
     _document.finishTextEdit();
     return true;

@@ -1197,7 +1197,7 @@ public:
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
     bool addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
                          std::optional<QPoint> textPosition = {}, bool followRelief = false,
-                         qreal focalRatio = .85);
+                         qreal focalRatio = .85, const QVariantList &crease = {});
 
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;
@@ -1235,6 +1235,7 @@ public:
         return m_textGesture;
     }
     QVariantMap      textEditState() const;
+    Q_INVOKABLE QVariantList surfaceTextRect(const QRectF &rect) const;
     Q_INVOKABLE void editTextLayer(int _index);
     Q_INVOKABLE void updateTextHtml(const QString &_html);
     Q_INVOKABLE void updateTextContent(const QString &_html, const QVariantMap &_formatting);

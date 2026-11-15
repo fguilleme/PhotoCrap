@@ -2,6 +2,8 @@
 #include "AiImageTypes.h"
 #include <QPolygonF>
 #include <QTransform>
+#include <QVector3D>
+#include <optional>
 
 namespace PhotoCrap::Ai
 {
@@ -9,6 +11,21 @@ inline constexpr int MaxSurfaceNormalEdge = 768;
 
 struct SurfaceSelection {
     QImage mask, preview;
+    QList<QPoint> planarSeeds;
+};
+
+struct SurfaceCrease {
+    // The face used to place and orient the text is on the negative side.
+    QLineF    edge;
+    QVector3D negativeNormal, positiveNormal;
+
+    QVariantList                        parameters() const;
+    static std::optional<SurfaceCrease> fromParameters(const QVariant &value);
+};
+
+struct SurfaceHinge {
+    QTransform across;
+    QVector3D  referenceNormal; // Camera coordinates, with Z pointing into the scene.
 };
 
 // Maps are aligned to the source image. Depth is relative inverse depth
@@ -21,6 +38,11 @@ struct SurfaceGeometry {
     static SurfaceGeometry fromComfyPreview(const QByteArray &preview, const Input &source);
     QImage                 regionAt(const QPoint &seed, const QSize &canvas, bool followRelief,
                                     const Cancel &cancel) const;
+    std::optional<SurfaceCrease> textCrease(const QImage &selected, const QList<QPoint> &seeds,
+                                            const QSize &canvas, const QPoint &anchor,
+                                            const Cancel &cancel) const;
+    void closeTextCrease(QImage &selected, const QSize &canvas, const SurfaceCrease &crease,
+                         const Cancel &cancel) const;
     static PixelPlane paintMask(const QImage &selected, const QSize &canvas, const Cancel &cancel,
                                 const QImage &protection = {}, const QImage &face = {});
 };
@@ -34,6 +56,10 @@ QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, co
                                   const QTransform &mapping = {});
 QTransform surfaceTextProjection(const QImage &normals, const QSize &canvas, const QPointF &anchor,
                                  const QTransform &mapping, qreal angle, qreal focalRatio);
+QTransform planeTextProjection(const QSize &canvas, const QPointF &anchor, const QVector3D &normal,
+                               qreal angle, qreal focalRatio);
+std::optional<SurfaceHinge> surfaceTextHinge(const SurfaceCrease &crease, const QSize &canvas,
+                                             qreal focalRatio);
 QImage     projectSurfaceText(const QImage &text, const QPoint &origin, const QPointF &anchor,
                               const QImage &normals, const QSize &canvas, const QTransform &mapping,
                               qreal focalRatio = .85, qreal strength = 1.);

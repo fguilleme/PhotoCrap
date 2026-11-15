@@ -4,6 +4,7 @@
 #include "ai/SurfaceGeometry.h"
 #include <QAbstractTextDocumentLayout>
 #include <QPainter>
+#include <QPainterPath>
 #include <QRegularExpression>
 #include <QSet>
 #include <QTextBlock>
@@ -138,17 +139,76 @@ QTransform transform(const QVariantMap &_p)
                       t[4].toDouble(), t[5].toDouble(), t[6].toDouble(), t[7].toDouble(),
                       t[8].toDouble());
 }
-QTransform displayTransform(const QVariantMap &parameters, const Layer *surface,
-                            const QSizeF &extent)
+namespace
 {
-    const auto base = transform(parameters);
-    if (!surface || surface->surfaceNormals.isNull() || !parameters.contains("surfaceFocal"))
-        return base;
-    const auto projection =
-        base * Ai::surfaceTextProjection(surface->surfaceNormals, surface->surfaceNormalCanvas,
-                                         base.map(QPointF{}), surface->surfaceNormalTransform,
-                                         parameters.value("surfaceAngle").toDouble(),
-                                         parameters.value("surfaceFocal", .85).toDouble());
+constexpr qreal nearDepth = .001;
+
+struct ProjectedPoint {
+    qreal x, y, depth;
+};
+
+ProjectedPoint homogeneousPoint(const QTransform &t, const QPointF &p)
+{
+    return {t.m11() * p.x() + t.m21() * p.y() + t.m31(),
+            t.m12() * p.x() + t.m22() * p.y() + t.m32(),
+            t.m13() * p.x() + t.m23() * p.y() + t.m33()};
+}
+
+template <typename Side>
+QPolygonF clipPolygon(const QPolygonF &polygon, Side distance)
+{
+    if (polygon.isEmpty())
+        return {};
+    QPolygonF result;
+    QPointF   previous = polygon.back();
+    qreal     before   = distance(previous);
+    for (const auto &point : polygon) {
+        const qreal after = distance(point);
+        if ((before < 0.) != (after < 0.))
+            result.append(previous + (point - previous) * (before / (before - after)));
+        if (after >= 0.)
+            result.append(point);
+        previous = point;
+        before   = after;
+    }
+    return result;
+}
+
+QPolygonF visibleFace(const QRectF &rect, const QRectF &viewport, const FaceProjection &faces,
+                      bool secondary)
+{
+    QPolygonF polygon(rect);
+    polygon.removeLast(); // The rectangle constructor closes the polygon.
+    const auto projection = faces.face(secondary);
+    polygon               = clipPolygon(
+        polygon, [&](const QPointF &p) { return (secondary ? 1. : -1.) * faces.localDistance(p); });
+    // Clip before dividing by depth. The unrolled reference plane can cross
+    // the camera while the corresponding lettering on the other face remains visible.
+    polygon = clipPolygon(polygon, [&](const QPointF &p) {
+        return homogeneousPoint(projection, p).depth - nearDepth;
+    });
+    polygon = clipPolygon(polygon, [&](const QPointF &p) {
+        const auto v = homogeneousPoint(projection, p);
+        return v.x - viewport.left() * v.depth;
+    });
+    polygon = clipPolygon(polygon, [&](const QPointF &p) {
+        const auto v = homogeneousPoint(projection, p);
+        return viewport.right() * v.depth - v.x;
+    });
+    polygon = clipPolygon(polygon, [&](const QPointF &p) {
+        const auto v = homogeneousPoint(projection, p);
+        return v.y - viewport.top() * v.depth;
+    });
+    polygon = clipPolygon(polygon, [&](const QPointF &p) {
+        const auto v = homogeneousPoint(projection, p);
+        return viewport.bottom() * v.depth - v.y;
+    });
+    return projection.map(polygon);
+}
+
+QTransform boundedPerspective(const QTransform &projection, const QVariantMap &parameters,
+                              const QSizeF &extent)
+{
     if (projection.isAffine() || qFuzzyIsNull(projection.m33()))
         return projection;
 
@@ -174,6 +234,123 @@ QTransform displayTransform(const QVariantMap &parameters, const Layer *surface,
             projection.m31(),
             projection.m32(),
             projection.m33()};
+}
+} // namespace
+
+qreal FaceProjection::distance(const QPointF &point) const
+{
+    const auto delta = point - edge.p1();
+    return edge.dx() * delta.y() - edge.dy() * delta.x();
+}
+
+QPointF FaceProjection::unmap(const QPointF &point) const
+{
+    return face(distance(point) > 0.).inverted().map(point);
+}
+
+QTransform FaceProjection::face(bool secondary) const
+{
+    return secondary ? primary * across : primary;
+}
+
+qreal FaceProjection::localDistance(const QPointF &point) const
+{
+    const auto p = homogeneousPoint(primary, point);
+    return edge.dx() * (p.y - edge.y1() * p.depth) - edge.dy() * (p.x - edge.x1() * p.depth);
+}
+
+QPointF FaceProjection::map(const QPointF &point) const
+{
+    const auto p = homogeneousPoint(face(localDistance(point) > 0.), point);
+    return p.depth >= nearDepth ? QPointF(p.x / p.depth, p.y / p.depth) : QPointF(-1., -1.);
+}
+
+QPolygonF FaceProjection::outline(const QRectF &rect, const QSize &canvas) const
+{
+    const QPolygonF polygon(rect);
+    const QRectF    viewport{QPointF{}, QSizeF(canvas)};
+    const qreal     margin = 3. * qMax(canvas.width(), canvas.height());
+    const auto      safe   = viewport.adjusted(-margin, -margin, margin, margin);
+    QPolygonF       outline;
+    for (qsizetype i = 1; i < polygon.size(); ++i) {
+        const auto a = polygon[i - 1], b = polygon[i];
+        const auto sa = localDistance(a), sb = localDistance(b);
+        const auto v      = homogeneousPoint(face(sa > 0.), a);
+        const auto corner = QPointF(v.x / v.depth, v.y / v.depth);
+        if (v.depth < nearDepth || !safe.contains(corner))
+            break;
+        outline.append(corner);
+        if ((sa < 0. && sb > 0.) || (sa > 0. && sb < 0.)) {
+            const auto    seam = homogeneousPoint(primary, a + (b - a) * (sa / (sa - sb)));
+            const QPointF mapped(seam.x / seam.depth, seam.y / seam.depth);
+            if (seam.depth < nearDepth || !safe.contains(mapped))
+                break;
+            outline.append(mapped);
+        }
+        if (i == polygon.size() - 1) {
+            outline.append(outline.front());
+            return outline;
+        }
+    }
+    return visibleFace(rect, viewport, *this, false)
+        .united(visibleFace(rect, viewport, *this, true));
+}
+
+std::optional<FaceProjection> faceProjection(const QVariantMap &parameters, const Layer &surface)
+{
+    const auto  crease = Ai::SurfaceCrease::fromParameters(parameters.value("surfaceCrease"));
+    const auto &canvas = surface.surfaceNormalCanvas;
+    if (!crease || surface.surfaceNormals.isNull() || canvas.isEmpty())
+        return {};
+    const auto &mapping    = surface.surfaceNormalTransform;
+    bool        invertible = false;
+    const auto  inverse    = mapping.inverted(&invertible);
+    if (!invertible)
+        return {};
+    const auto  base     = transform(parameters);
+    const auto  origin   = base.map(QPointF{});
+    const auto  anchor   = inverse.map(origin);
+    const auto  delta    = anchor - crease->edge.p1();
+    const bool  positive = crease->edge.dx() * delta.y() - crease->edge.dy() * delta.x() > 0.;
+    const qreal focal    = parameters.value("surfaceFocal", .85).toDouble();
+    const auto  hinge    = Ai::surfaceTextHinge(*crease, canvas, focal);
+    if (!hinge)
+        return {};
+    const auto &fold = hinge->across;
+    // Keep the same unrolled plane when the text anchor is dragged across the edge.
+    const auto flatAnchor = positive ? fold.inverted().map(anchor) : anchor;
+    const auto shift      = mapping.map(flatAnchor) - origin;
+    const auto plane = Ai::planeTextProjection(canvas, flatAnchor, hinge->referenceNormal,
+                                               parameters.value("surfaceAngle").toDouble(), focal);
+    const auto primary =
+        base * QTransform::fromTranslate(shift.x(), shift.y()) * inverse * plane * mapping;
+    const auto across = inverse * fold * mapping;
+    auto       edge   = mapping.map(crease->edge);
+    if (edge.isNull() || !primary.isInvertible() || !across.isInvertible())
+        return {};
+    // Orient the edge using a point on the second face, including after a canvas flip.
+    QPointF direction(-crease->edge.dy(), crease->edge.dx());
+    direction /= crease->edge.length();
+    const auto side = mapping.map(crease->edge.center() + direction) - edge.p1();
+    if (edge.dx() * side.y() - edge.dy() * side.x() < 0.)
+        edge = QLineF(edge.p2(), edge.p1());
+    return FaceProjection{primary, across, edge};
+}
+
+QTransform displayTransform(const QVariantMap &parameters, const Layer *surface,
+                            const QSizeF &extent)
+{
+    const auto base = transform(parameters);
+    if (!surface || surface->surfaceNormals.isNull() || !parameters.contains("surfaceFocal"))
+        return base;
+    if (const auto faces = faceProjection(parameters, *surface))
+        return faces->primary;
+    const auto projection =
+        base * Ai::surfaceTextProjection(surface->surfaceNormals, surface->surfaceNormalCanvas,
+                                         base.map(QPointF{}), surface->surfaceNormalTransform,
+                                         parameters.value("surfaceAngle").toDouble(),
+                                         parameters.value("surfaceFocal", .85).toDouble());
+    return boundedPerspective(projection, parameters, extent);
 }
 void transform(QVariantMap &_p, const QTransform &_t)
 {
@@ -225,6 +402,9 @@ bool normalize(QVariantMap &_p)
     const qreal strength = _p.value("surfaceStrength", 1.).toDouble();
     if (!std::isfinite(angle) || qAbs(angle) > 180. || !std::isfinite(focal) || focal < .35 ||
         focal > 3. || !std::isfinite(strength) || strength < 0. || strength > 3.)
+        return false;
+    if (_p.contains("surfaceCrease") &&
+        !Ai::SurfaceCrease::fromParameters(_p.value("surfaceCrease")))
         return false;
     for (const auto key : {"width", "height", "fontSize"}) {
         const auto n = _p.value(key).toDouble();
@@ -291,8 +471,7 @@ QString plainText(const QVariantMap &_p)
 }
 namespace
 {
-QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_canvas,
-                     const QTransform &matrix, bool followRelief)
+QRectF documentBox(QTextDocument &_doc, const QVariantMap &_p)
 {
     qreal margin = _p.value("fontSize", 64).toDouble() * 2;
     if (!_p.value("paragraph").toBool())
@@ -304,11 +483,15 @@ QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_c
                                      : qMax(1., f.fontPointSize() * 96. / 72.);
                 margin         = qMax(margin, px * (2 + qAbs(f.baselineOffset()) / 100.));
             }
-    const auto local =
-        _p.value("paragraph").toBool()
-            ? QRectF(QPointF{}, size(_p))
-            : QRectF(QPointF{}, _doc.size()).adjusted(-margin, -margin, margin, margin);
-    auto mapped = matrix.mapRect(local);
+    return _p.value("paragraph").toBool()
+               ? QRectF(QPointF{}, size(_p))
+               : QRectF(QPointF{}, _doc.size()).adjusted(-margin, -margin, margin, margin);
+}
+
+QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_canvas,
+                     const QTransform &matrix, bool followRelief)
+{
+    auto mapped = matrix.mapRect(documentBox(_doc, _p));
     if (!std::isfinite(mapped.x()) || !std::isfinite(mapped.y()) ||
         !std::isfinite(mapped.width()) || !std::isfinite(mapped.height()))
         return QRect(QPoint{}, _canvas);
@@ -321,35 +504,74 @@ QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_c
         .toAlignedRect()
         .intersected(QRect(QPoint{}, _canvas));
 }
+
+QRect foldedBounds(QTextDocument &doc, const QVariantMap &parameters, const QSize &canvas,
+                   const FaceProjection &faces)
+{
+    const auto   box = documentBox(doc, parameters);
+    const QRectF viewport{QPointF{}, QSizeF(canvas)};
+    return visibleFace(box, viewport, faces, false)
+        .boundingRect()
+        .united(visibleFace(box, viewport, faces, true).boundingRect())
+        .toAlignedRect()
+        .intersected(QRect(QPoint{}, canvas));
+}
+
 void drawDocument(QPainter &_painter, QTextDocument &_doc, const QVariantMap &_p,
                   const QPoint &_origin, const QTransform &matrix)
 {
     _painter.setRenderHint(QPainter::TextAntialiasing);
     _painter.setWorldTransform(matrix * QTransform::fromTranslate(-_origin.x(), -_origin.y()));
     if (_p.value("paragraph").toBool())
-        _painter.setClipRect(QRectF(QPointF{}, size(_p)));
+        _painter.setClipRect(QRectF(QPointF{}, size(_p)), Qt::IntersectClip);
     QAbstractTextDocumentLayout::PaintContext context;
     context.palette.setColor(QPalette::Text, QColor(_p.value("color").toString()));
     _doc.documentLayout()->draw(&_painter, context);
+}
+
+void drawFoldedDocument(QPainter &painter, QTextDocument &doc, const QVariantMap &parameters,
+                        const QRect &region, const FaceProjection &faces)
+{
+    const auto box      = documentBox(doc, parameters);
+    const auto drawFace = [&](bool secondary) {
+        auto clip = visibleFace(box, QRectF(region), faces, secondary);
+        if (clip.size() < 3)
+            return;
+        clip.translate(-QPointF(region.topLeft()));
+        QPainterPath path;
+        path.addPolygon(clip);
+        path.closeSubpath();
+        painter.save();
+        painter.setClipPath(path);
+        drawDocument(painter, doc, parameters, region.topLeft(), faces.face(secondary));
+        painter.restore();
+    };
+    drawFace(false);
+    drawFace(true);
 }
 } // namespace
 QPolygonF surfaceOutline(const Layer &layer, const QSize &canvas, QPointF &bottomRight)
 {
     const auto &parameters = layer.parameters;
     const qreal strength   = parameters.value("surfaceStrength", 1.).toDouble();
-    if (layer.surfaceNormals.isNull() || !parameters.value("surfaceRelief", true).toBool() ||
-        strength <= 0.)
+    if (layer.surfaceNormals.isNull())
         return {};
     Document doc;
     configure(doc, parameters);
     if (doc.toPlainText().trimmed().isEmpty())
         return {};
     const auto      extent = parameters.value("paragraph").toBool() ? size(parameters) : doc.size();
-    const auto      matrix = displayTransform(parameters, &layer, extent);
-    const auto      region = documentBounds(doc, parameters, canvas, matrix, true);
     const qreal     width  = qMax(32., extent.width());
     const qreal     height = qMax(32., extent.height());
     const QPolygonF corners{{0., 0.}, {width, 0.}, {width, height}, {0., height}};
+    if (const auto faces = faceProjection(parameters, layer)) {
+        bottomRight = faces->map(corners[2]);
+        return faces->outline(QRectF(0., 0., width, height), canvas);
+    }
+    if (!parameters.value("surfaceRelief", true).toBool() || strength <= 0.)
+        return {};
+    const auto matrix = displayTransform(parameters, &layer, extent);
+    const auto region = documentBounds(doc, parameters, canvas, matrix, true);
     return Ai::projectSurfaceTextOutline(
         matrix.map(corners), region, matrix.map(QPointF{}), layer.surfaceNormals,
         layer.surfaceNormalCanvas, layer.surfaceNormalTransform,
@@ -360,6 +582,9 @@ QRect bounds(const QVariantMap &_p, const QSize &_canvas, const Layer *surface)
     Document doc;
     configure(doc, _p);
     const auto extent = _p.value("paragraph").toBool() ? size(_p) : doc.size();
+    if (surface)
+        if (const auto faces = faceProjection(_p, *surface))
+            return foldedBounds(doc, _p, _canvas, *faces);
     const bool relief = surface && !surface->surfaceNormals.isNull() &&
                         _p.value("surfaceRelief", true).toBool() &&
                         _p.value("surfaceStrength", 1.).toDouble() > 0.;
@@ -382,17 +607,22 @@ PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format
         return result;
     const auto  extent   = _p.value("paragraph").toBool() ? size(_p) : doc.size();
     const qreal strength = _p.value("surfaceStrength", 1.).toDouble();
-    const bool  relief   = surface && !surface->surfaceNormals.isNull() &&
+    const auto  faces    = surface ? faceProjection(_p, *surface) : std::nullopt;
+    const bool  relief   = !faces && surface && !surface->surfaceNormals.isNull() &&
                            _p.value("surfaceRelief", true).toBool() && strength > 0.;
-    const auto  matrix   = displayTransform(_p, surface, extent);
-    const QRect region   = documentBounds(doc, _p, _size, matrix, relief);
+    const auto  matrix   = faces ? faces->primary : displayTransform(_p, surface, extent);
+    const QRect region   = faces ? foldedBounds(doc, _p, _size, *faces)
+                                 : documentBounds(doc, _p, _size, matrix, relief);
     if (region.isEmpty())
         return result;
     QImage pixels = ImageUtils::blank(region.size(), _format);
     if (pixels.isNull())
         return {};
     QPainter painter(&pixels);
-    drawDocument(painter, doc, _p, region.topLeft(), matrix);
+    if (faces)
+        drawFoldedDocument(painter, doc, _p, region, *faces);
+    else
+        drawDocument(painter, doc, _p, region.topLeft(), matrix);
     painter.end();
     if (relief)
         pixels = Ai::projectSurfaceText(pixels, region.topLeft(), matrix.map(QPointF{}),

@@ -1947,7 +1947,9 @@ ApplicationWindow {
                     visible: surfacePaintBar.controller.surfacePicking
                     enabled: !surfacePaintBar.controller.busy
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Choisissez Tissu / relief pour inclure les plis. Cliquez ensuite sur l’image.")
+                    ToolTip.text: surfaceMode.followRelief
+                                  ? qsTr("Cliquez sur le tissu pour inclure ses plis.")
+                                  : qsTr("Pour poser du texte sur un angle, sélectionnez les deux faces avant de le placer.")
                 }
                 AiActionButton {
                     id: surfaceProtect
@@ -1967,7 +1969,7 @@ ApplicationWindow {
                 }
                 Label {
                     text: surfaceText.checked && !surfacePaintBar.controller.busy
-                          ? qsTr("Cliquez dans la surface sélectionnée pour placer le texte.")
+                          ? qsTr("Cliquez sur une surface sélectionnée pour placer le texte.")
                           : surfaceProtect.checked && surfacePaintBar.controller.surfacePickingHint
                           ? qsTr("Cliquez au centre de l’objet. Clic droit pour retirer sa protection.")
                           : surfaceMode.followRelief && surfacePaintBar.controller.surfacePickingHint
@@ -2033,6 +2035,7 @@ ApplicationWindow {
                         onValueModified: editor.setSurfaceTextAngle(value)
                     }
                     CheckBox {
+                        visible: !canvasTextEditor.state.surfaceEdge
                         text: qsTr("Suivre les plis")
                         checked: canvasTextEditor.state.surfaceRelief === true
                         onToggled: editor.setSurfaceTextRelief(checked)

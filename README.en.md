@@ -4,11 +4,16 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-[Surface painting and text](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface) use
-MoGe‑2 locally or through ComfyUI. MobileSAM helps select surfaces and protect
-foreground objects.
+## v0.24.1 · Changes since v0.21.0
 
-[Release notes](CHANGELOG.md) · [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
+- Editable text on fabric folds or across two faces of a wall, with perspective
+  along long lines and a frame that appears when the layer is selected.
+- Surface painting with MoGe‑2 locally or through ComfyUI and foreground object
+  protection with MobileSAM.
+- GLB 3D layers, Meshy generation, and adjustable lighting.
+- Free Transform, vector masks, and direct adjustments on layers and masks.
+
+[Surface text and painting guide](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface) · [Release notes](CHANGELOG.md)
 
 ## Download
 
@@ -18,133 +23,6 @@ files. The packages bundle Qt. GitHub publishes them after builds, tests,
 and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
-
-## New in v0.24.1
-
-- **Text across two faces.** In surface painting, choose the planar selection
-  mode, click each face of the wall, then use **Text** to place the lettering.
-  The letters and their frame follow the edge. Long lines keep each face’s
-  perspective.
-- **Text on fabric.** Choose the fabric/relief selection mode, select the fabric,
-  and place the text. While editing, adjust the text orientation and enable
-  **Follow folds** to adjust the deformation.
-- **Text editing.** Click a text layer to show its frame. Double-click to place
-  the caret at the end and edit the layer.
-
-## New in v0.21.0
-
-- **Multiple document tabs** with independent layers, selections and history,
-  restored views, and save/discard/cancel protection when closing tabs or quitting.
-- **Upscale to a new document** at the provider’s native output resolution,
-  preserving the source. This is the default destination for Topaz and Real-ESRGAN;
-  adding a layer to the source document remains available.
-  [Document guide](docs/DOCUMENTS.md) (French).
-- **API credentials reused across same-service profiles**: upscale profiles can
-  use a saved fal.ai editing-profile key. Explicit saved profile keys take
-  precedence over environment variables after restart; preferences show key
-  provenance and pending saves. OpenAI and fal.ai credentials remain separate.
-- **Simpler Pen tools** with contextual add/delete actions, distinct cursors,
-  and migration of older toolbar configurations. Converting a path to a shape
-  keeps a single editable entry, with linked fill/stroke colours and handles;
-  raster fills are identified separately.
-  [Pen guide](docs/PEN_TOOL.md) (French).
-
-## New in v0.20.0
-
-- **Import images as layers** using **+** or dropping files into the layer stack,
-  with insertion feedback, asynchronous loading and one undo step per batch.
-  Images are centered and retain native precision, including RAW inputs.
-- **Open files by dropping** them on the main canvas or welcome screen, or through
-  the operating system, with protection for unsaved edits.
-- **Promptless AI upscaling** with Topaz and Real-ESRGAN profiles, model/scale controls,
-  original AI layer pixels and preserved placement/masks. Document dimensions stay
-  unchanged. Protocol tests use mock servers; compare model fidelity on your own
-  images. [AI guide](docs/AI_IMAGE_EDITING.md) (French).
-- **Space-drag immediately after startup** with hand cursors and no initial brush
-  stroke required, while text fields and modal dialogs retain their input.
-
-## New in v0.19.0
-
-- **Compact interface**: remove the branding/tool-name banner and keep common
-  actions in the document bar.
-
-- **On-demand AI credentials**: no credential-store reads at startup or in preferences.
-  Only the chosen provider's key is retrieved when generating, then reused
-  during the session.
-- **Binary v14 projects**: lossless Zstandard-compressed native tiles, compact
-  uniform planes, deduplicated data, exact 8/16-bit samples and files up to 8 GiB.
-  Legacy JSON/PNG/Base64 projects remain readable; new saves require this
-  version of PhotoCrap. [Format and compatibility](docs/PROJECT_FORMAT.md) (French).
-
-- **macOS Quick Look**: Space-bar previews and Finder thumbnails for `.pcr`
-  projects without launching the editor. Newly saved projects embed a small
-  composite before their layer data. Older projects show a source-image
-  fallback; saving them again adds the composite preview. The recent-files
-  grid also uses these embedded previews.
-  [Installation and limitations](docs/MACOS_QUICK_LOOK.md) (French).
-
-## New in v0.18.0
-
-- **AI layers** from the visible image or selection, using OpenAI, fal.ai,
-  ComfyUI or a compatible API, with saved profiles, system credential storage,
-  reusable prompts and 1–8 variants. Visible progress, undoable results and
-  provider/model/variant details per layer. OpenAI and fal.ai have been tested
-  in the application; ComfyUI still needs a real-server trial.
-  [AI guide](docs/AI_IMAGE_EDITING.md) (French).
-- **Compact AI sources in v13 projects** retain the original provider image until
-  its pixels are edited, then preserve edits in the native raster format.
-- **Editable gradients** with on-canvas handles and color stops, 8/16-bit GPU
-  previews, Paint Bucket options and layer-mask editing.
-- **Clipboard and merging**: cut/paste selections to new layers, special paste
-  modes, group/visible-layer merges, stamped copies and flattening.
-- **GPU resource reuse** across tiles, zoom levels and renders.
-
-## New in v0.15
-
-- **Fewer memory copies** during Normal-mode composition, source reads, and background-render handoff. Invisible layer planes are no longer resized for previews.
-- **Disk scratch cache** for large frequency renders: reuse across workers, lossless native 8/16-bit blocks, SHA-256 validation, and memory-mapped reads. **Settings → Scratch cache** controls its folder, budget (4 GiB by default, 0 to disable), and clearing.
-- **256 × 256 tiled coverage for brush, pencil, and eraser strokes**: only touched tiles are allocated, for both pixels and masks. A small mask stroke in a 24 MP/16-bit document uses 512 KiB of coverage instead of about 183 MiB.
-- **Frequency LRU cache fix**: an existing high band is reused without rebuilding its evicted low band.
-- **Expanded memory and rendering tests**: 64 populated 8/16-bit layers, shared tile versions, eviction, cleanup, unavailable storage, concurrency, and Undo/Redo.
-
-## Optimizations in the v0.17 tag
-
-- **Shared 256 × 256 tiled planes and history**: compact backgrounds from creation, allocation of touched tiles only and native 8/16-bit conversions without rebuilding the canvas. Identical image, mask and source PNGs are reused per native format when loading projects.
-- **Shared frequency sources** with neutral masks, and compact backgrounds given logical dimensions only. Large masked or composed sources are prepared on a cancellable worker using the RAM/disk budget and an existing completed composite. Full-density 16-bit masks use exact integer arithmetic.
-- **Shared CPU/GPU visibility rules**: transparent planes, neutral uniform masks and layers hidden under an opaque uniform pixel layer avoid unnecessary expansion and passes. Fully hidden unsupported effects no longer force CPU fallback; partial opacity restores that fallback. Low native alpha values remain present.
-- **Regional processing** for eyedroppers, dab-based tools and their supported composited sources, path fills, shapes, text, selected gradients, selected-area clipboard copies and imported-image placement. Magic Wand reads tiles on demand with a bounded cache; recognized uniform sources are selected without scanning their pixels. Quick Selection and feathered masks use their search regions and required halos. Move handles source and destination separately. Dense and transparent layers move tile by tile, and full-image gradients render in bounded bands. Global selections and stacks with nonlocal effects may still require full-size buffers.
-- **Background loading and expensive operations**: images, projects, RAW, imports, geometry, bit depth, merges, fills, direct filters and Magic Wand on large documents. Only current results are applied; edits create one undoable step. The previous document stays visible while opening a file and is not needlessly retained after replacement. General operations use a worker from four million processed pixels; small edits retain their direct path.
-- **Asynchronous saving and export**: atomic binary `.pcr` v14 files with lossless native tiles, a CBOR index and deduplication; legacy JSON projects remain readable. Closing waits for save confirmation. Cancellation preserves the previous file until the final publication point, which is then non-cancellable.
-- **Large projects and exports** use bounded allocations in supported cases. Eligible project PNG planes are encoded in bands and decoded directly into native tiles. Large PNG, BMP, and JPEG exports write in bands, and WebP fills its YUVA planes from those bands. Stacks that require a full composite keep that path.
-- **Scratch cache and RAM budgeting during preparation** of conversions, imports and loads, then for history after a pause. The worker collects shared layer groups outside the interface thread. Stale jobs stop between tiles; an unavailable or full cache keeps pixels in RAM. The tile target defaults to 256 MiB; decoders, the composite, selections and mapped pages remain distinct from total RSS.
-- **GPU display stacks** for pixels, text, shapes, and Solid Color. All 27 blend modes are eligible under documented conditions, with masks and clipping where supported. The GPU also handles blur, sharpening, high pass, noise, and mosaic. Unsupported stacks and final rendering use the native CPU engine.
-- **GPU resources are reused** across tiles and zoom levels. Tiles share the vertex buffer and compatible pipelines. Retained-input mode also shares immutable lookup tables. The four reduction levels from 1/2 to 1/16 upload their parameters once. Shared intermediate textures are released after their last use.
-- **Shared graphics budget** across canvases, photos, masks, effects and intermediates, with visible working sets checked before allocation. Partial borders keep bounded fingerprints. This accounting is neither a measurement nor a hard limit of physical driver VRAM.
-
-Selected local measurements, with conditions documented in [validation](docs/VALIDATION.md):
-
-| Case | Measurement |
-|---|---|
-| Reopening a lightly retouched layer and mask, 24 MP/16-bit | 576 KiB of planes |
-| Importing 33 × 27 px into a 24 MP/16-bit document | One 512 KiB tile |
-| Dense frequency source, 24 MP/16-bit without a mask | 95 → 0.10 ms; 183 MiB of additional tiles avoided |
-| Total masked-source preparation, 24 MP/16-bit | 264 → 84 ms on worker; identical pixels |
-| Two frequency bands hidden under an opaque cover, 24 MP/16-bit | 838 → 15 ms CPU composite |
-| Frequency source with a neutral mask, 24 MP/16-bit | 70 → 0.073 ms; 183 MiB of additional tiles avoided |
-| Retouch-preparation submission, 24 MP/16-bit | 36 → 0.055 ms; bands subsequently computed on worker |
-| Compact frequency source, 24 MP/16-bit | 57 → 0.011 ms; no full-sized expansion |
-| New white/transparent document, 24 MP/16-bit | 40–57 → 0.003–0.004 ms; logical native background |
-| Reopening five identical layers and masks | One native set of planes; local detachment when edited |
-| Saving ten copies of a 4 MP/16-bit gradient | 2.78 → 0.285 s; identical payloads |
-| Reopening a frequency pair with identical PNGs | One native plane instead of three, including the original; transparent composite preserved |
-| Cold 101² read, radius-12 feathered mask, 24 MP/16-bit | 297 → 0.45 ms, identical pixels |
-| Isolated encoder for twelve 1 MP planes | Peak RSS 324 → 74 MiB at 8-bit; 692 → 122 MiB at 16-bit |
-
-These plane footprints and isolated measurements do not represent total application memory. Limits remain **32 MP, 512 layers and 2 GiB of logical plane reservation**; binary `.pcr` v14 accepts files up to 8 GiB, while legacy JSON v1–v13 retains its 256 MiB limit. Binary metadata retains feature schemas v9–v13. [Format specification](docs/PROJECT_FORMAT.md). Metal tests and local Qt 6.8/6.12 checks are documented; physical Vulkan/Direct3D validation and driver VRAM measurements remain open.
-
-See the [layer and memory guide](docs/LAYER_MEMORY.md), [GPU formats and fallbacks](docs/GPU_RENDERING.md), and [five-part optimization plan](docs/OPTIMIZATION_PLAN.md) (French).
-
-![PhotoCrap demo composition](docs/screenshot.png)
 
 ## Features
 

@@ -4,11 +4,17 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La [peinture et le texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
-s’appuient sur MoGe‑2, en local ou via ComfyUI. MobileSAM aide à sélectionner
-les surfaces et à protéger les objets au premier plan.
+## v0.24.1 · Évolutions depuis v0.21.0
 
-[Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
+- Texte éditable sur les plis d’un tissu ou les deux faces d’un mur. La
+  perspective tient sur les lignes longues et le cadre apparaît au simple clic.
+- Peinture sur surface avec MoGe‑2 en local ou via ComfyUI et protection des
+  objets au premier plan avec MobileSAM.
+- Calques 3D GLB, génération Meshy et éclairage réglable.
+- Transformation manuelle, masques vectoriels et réglages directs sur les
+  calques et leurs masques.
+
+[Guide du texte et de la peinture sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface) · [Notes de version](CHANGELOG.md)
 
 ## Télécharger
 
@@ -18,136 +24,6 @@ fichiers `.sha256`. Les paquets embarquent Qt. GitHub les publie après la
 validation des builds, tests et contrôles de déploiement des trois plateformes.
 [Télécharger](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
-
-## Nouveautés de v0.24.1
-
-- **Texte sur deux faces.** Dans **Peindre sur une surface**, choisissez **Face
-  plane**, cliquez sur chaque face du mur, puis utilisez **Texte** pour placer
-  l’inscription. Les lettres et leur cadre suivent l’arête. Les longues
-  inscriptions conservent la perspective de chaque face.
-- **Texte sur tissu.** Choisissez **Tissu / relief**, sélectionnez le tissu et
-  placez le texte. Pendant l’édition, ajustez **Orientation du texte** et,
-  avec **Suivre les plis** activé, le réglage **Déformation**.
-- **Édition du texte.** Cliquez sur un calque de texte pour afficher son cadre.
-  Double-cliquez pour placer le curseur à la fin du texte et modifier le calque.
-
-## Nouveautés de v0.21.0
-
-- **Documents multiples en onglets** : fichiers ouverts et nouveaux documents
-  indépendants, historique et sélection conservés, vue restaurée par onglet,
-  fermeture et Quitter avec protection des modifications de tous les documents.
-- **Upscale dans un nouveau document**, à la résolution native du fournisseur,
-  sans changer la source. Cette destination est proposée par défaut pour Topaz
-  et Real-ESRGAN ; le nouveau calque reste disponible.
-  [Guide des documents](docs/DOCUMENTS.md).
-- **Clés API retrouvées entre profils du même service** : un profil d’upscale peut
-  reprendre la clé fal.ai d’un profil d’édition. La clé propre au profil reste
-  prioritaire sur l’environnement après redémarrage ; provenance et état de
-  sauvegarde sont affichés dans les réglages. OpenAI et fal.ai restent séparés.
-- **Plume simplifiée** : ajout/suppression de points dans l’outil Plume,
-  curseurs contextuels distincts et migration des anciennes configurations.
-  Conversion Tracé → Forme en une seule entrée modifiable ; le panneau distingue
-  les formes liées aux points du remplissage peint dans les pixels.
-  [Guide de la Plume](docs/PEN_TOOL.md).
-
-## Nouveautés de v0.20.0
-
-- **Import d’images comme calques** avec le menu **+** ou par dépôt dans la pile,
-  position d’insertion visible, chargement asynchrone et lot annulable en une étape.
-  Les images sont centrées et conservent leur précision native, RAW compris.
-- **Ouverture par dépôt** dans la zone principale ou l’accueil, et ouverture depuis
-  le système, avec protection des modifications non enregistrées.
-- **Upscales IA sans prompt** : profils Topaz et Real-ESRGAN, choix du modèle et du
-  facteur, reprise de l’image IA d’origine du calque, masque et placement conservés.
-  Le document garde ses dimensions. Les tests de protocole sont simulés ; comparer
-  la fidélité des modèles sur ses images. [Guide IA](docs/AI_IMAGE_EDITING.md).
-- **Espace + glisser dès le démarrage** : navigation avec curseur main sans premier
-  trait de pinceau nécessaire, saisie de texte et dialogues préservés.
-
-## Nouveautés de v0.19.0
-
-- **Interface compacte** : suppression du bandeau de marque et du nom d’outil,
-  commandes communes regroupées dans la barre du document.
-
-- **Accès IA au trousseau différé** : aucun accès au trousseau au démarrage ou dans
-  les réglages ; seul le fournisseur choisi est consulté au lancement de la
-  génération, puis sa clé est réutilisée pendant la session.
-- **Projets binaires v14** : tuiles natives compressées sans perte avec Zstandard,
-  aplats compacts, données identiques dédupliquées, pixels 8/16 bits exacts et
-  fichiers jusqu’à 8 Gio. Lecture des anciens JSON/PNG/Base64 conservée ; les
-  nouvelles sauvegardes nécessitent cette version de PhotoCrap.
-  [Format et compatibilité](docs/PROJECT_FORMAT.md).
-
-- **Quick Look sur macOS** : aperçu des `.pcr` avec Espace et miniatures Finder,
-  sans lancer l’éditeur. Les nouveaux enregistrements intègrent une composition
-  réduite, lue avant les données de calques. Les anciens projets montrent une
-  image source de repli ; les réenregistrer ajoute l’aperçu de la composition.
-  Les mêmes aperçus accélèrent la grille des fichiers récents.
-  [Installation et limites](docs/MACOS_QUICK_LOOK.md).
-
-## Nouveautés de v0.18.0
-
-- **Calques IA** depuis l’image ou la sélection, avec OpenAI, fal.ai, ComfyUI et
-  API compatible, profils persistants, trousseau sécurisé, prompts réutilisables
-  et 1–8 variantes. Suivi visible, résultats annulables et informations par calque.
-  OpenAI et fal.ai ont été testés dans l’application ; ComfyUI reste à essayer
-  avec un serveur réel. [Guide IA](docs/AI_IMAGE_EDITING.md).
-- **Sources IA compactes dans les projets v13** : conserver la sortie d’origine
-  tant que les pixels sont intacts, puis sauvegarder les retouches en raster natif.
-- **Dégradés dynamiques** avec poignées et points de couleur sur le canevas,
-  aperçu GPU 8/16 bits, options du Pot de peinture et édition des masques.
-- **Presse-papiers et fusions** : sélections coupées/collées sur un nouveau calque,
-  collages spéciaux, fusion de groupes/calques visibles, copies et aplatissement.
-- **Réutilisation des ressources GPU** entre tuiles, niveaux de zoom et rendus.
-
-## Nouveautés de v0.15
-
-- **Moins de copies mémoire** pendant la composition en mode Normal, la lecture des sources et le retour des rendus en arrière-plan. Les calques invisibles ne sont plus réduits pour les aperçus.
-- **Cache de travail disque** pour les gros rendus de fréquences : réutilisation entre workers, blocs natifs 8/16 bits sans recompression, vérification SHA-256 et lecture par fichiers mappés. **Réglages → Cache de travail** permet de choisir le dossier, le budget (4 Gio par défaut, 0 pour désactiver) et de vider le cache.
-- **Couverture du pinceau, du crayon et de la gomme par tuiles de 256 × 256** : seules les tuiles touchées sont allouées, sur les pixels et les masques. Un petit trait sur un masque de document 24 Mpx/16 bits utilise 512 Kio de couverture au lieu d’environ 183 Mio.
-- **Cache LRU de fréquences corrigé** : une bande haute déjà présente est réutilisée sans recalculer sa bande basse évincée.
-- **Tests de mémoire et de rendu renforcés** : 64 calques remplis en 8/16 bits, versions de tuiles partagées, éviction, nettoyage, stockage indisponible, concurrence et Annuler/Rétablir.
-
-## Optimisations présentes dans le tag v0.17
-
-- **Plans et historique par tuiles partagées de 256 × 256** : fonds compacts dès la création, allocation des seules tuiles modifiées et conversions natives 8/16 bits sans reconstruire le canevas. Les PNG identiques des images, masques et sources sont réutilisés au chargement, par format natif.
-- **Sources de fréquences partagées** quand le masque est neutre, fonds compacts étendus par leur seule taille logique. Les grandes sources masquées ou composées sont préparées sur un worker annulable, avec budget RAM/disque et réutilisation du composite terminé. Les masques 16 bits à pleine densité utilisent un calcul entier exact.
-- **Visibilité commune au CPU et au GPU** : plans transparents, masques uniformes sans effet visible et couches cachées sous un aplat uniforme opaque évitent expansions et passes inutiles. Un effet incompatible entièrement caché ne force plus le repli CPU ; une opacité partielle restaure ce repli. Les faibles alphas natifs restent présents.
-- **Calculs locaux** pour les pipettes, outils à empreintes et leurs sources composées compatibles, tracés, formes, texte, dégradés sélectionnés, copie de sélection et placement des imports. La Baguette magique lit ses tuiles à la demande avec un cache borné ; les sources uniformes reconnues sont sélectionnées sans parcours des pixels. Sélection rapide et contours progressifs des masques travaillent aussi dans leur région utile, avec les halos requis. Le déplacement sépare source et destination ; les calques denses ou transparents se déplacent par tuiles, en conservant les fonds uniformes. Les dégradés pleine image utilisent des bandes natives bornées. Les sélections globales et piles à effets non locaux peuvent encore demander des tampons complets.
-- **Chargements et opérations coûteuses en arrière-plan** : images, projets, RAW, imports, géométrie, profondeur, fusion, remplissages, filtres directs et Baguette magique sur les grands documents. Seul un résultat encore courant est appliqué ; les éditions ajoutent une étape annulable. L’ancien document reste affiché pendant une ouverture et n’est pas retenu inutilement après son remplacement. Les opérations générales passent sur worker à partir de quatre millions de pixels traités ; les petites éditions gardent leur chemin direct.
-- **Sauvegarde et export asynchrones** : écriture `.pcr` binaire v14 par tuiles compressées sans perte, index CBOR et déduplication ; anciens projets JSON toujours lisibles. La fermeture attend la confirmation d’enregistrement. L’annulation conserve le fichier précédent jusqu’au point de publication final, ensuite non annulable.
-- **Grands projets et exports** avec des allocations bornées pour les cas compatibles. Les plans PNG de projet éligibles sont encodés par bandes et décodés directement en tuiles. Les grands exports PNG, BMP et JPEG sont écrits par bandes, et WebP remplit ses plans YUVA à partir de ces bandes. Les piles qui demandent une composition intégrale gardent ce chemin.
-- **Cache disque et budget RAM appliqués pendant la préparation** des conversions, imports et chargements, puis à l’historique après une pause. Le worker collecte les groupes partagés hors interface. Les tâches caduques s’arrêtent entre tuiles ; cache indisponible ou saturé laisse les pixels en RAM. Le budget des tuiles vaut 256 Mio par défaut ; décodeurs, composite, sélections et pages mappées restent distincts du RSS total.
-- **Pile d’affichage GPU** pour les pixels, le texte, les formes et Couleur unie. Les 27 modes de fusion sont éligibles sous conditions, avec masques et écrêtage selon le cas. Le GPU traite aussi les flous, la netteté, le passe-haut, le bruit et la mosaïque. Les piles incompatibles et le rendu final utilisent le moteur CPU natif.
-- **Ressources GPU réutilisées** entre tuiles et niveaux de zoom. Les tuiles partagent le tampon de sommets et les pipelines compatibles. Le mode à entrées conservées partage aussi les tables immuables. Les quatre niveaux réduits de 1/2 à 1/16 envoient leurs paramètres une seule fois. Les textures intermédiaires partagées sont libérées après leur dernier usage.
-- **Budget graphique partagé** entre canevas, photos, masques, effets et intermédiaires, avec réserve visible vérifiée avant allocation. Les bordures partielles gardent des empreintes bornées. Ce suivi n’est pas une mesure ni un plafond de la VRAM physique du pilote.
-
-Quelques mesures locales, dont les conditions sont décrites dans la [validation](docs/VALIDATION.md) :
-
-| Cas | Mesure |
-|---|---|
-| Réouverture d’un calque et masque peu retouchés, 24 Mpx/16 bits | 576 Kio de plans |
-| Import de 33 × 27 px dans un document 24 Mpx/16 bits | Une tuile de 512 Kio |
-| Source de fréquences dense, 24 Mpx/16 bits sans masque | 95 → 0,10 ms ; 183 Mio de tuiles supplémentaires évités |
-| Préparation totale d’une source masquée, 24 Mpx/16 bits | 264 → 84 ms sur worker ; mêmes pixels |
-| Deux bandes de fréquences cachées sous un aplat opaque, 24 Mpx/16 bits | 838 → 15 ms de composite CPU |
-| Source de fréquences avec masque neutre, 24 Mpx/16 bits | 70 → 0,073 ms ; 183 Mio de tuiles supplémentaires évités |
-| Soumission de la préparation de retouche, 24 Mpx/16 bits | 36 → 0,055 ms ; calcul des bandes ensuite sur worker |
-| Source de fréquences compacte, 24 Mpx/16 bits | 57 → 0,011 ms ; aucune expansion pleine taille |
-| Nouveau document blanc/transparent, 24 Mpx/16 bits | 40–57 → 0,003–0,004 ms ; fond natif logique |
-| Réouverture de cinq calques et masques identiques | Un seul jeu de plans natifs ; détachement local à la retouche |
-| Sauvegarde de dix copies d’un dégradé 4 Mpx/16 bits | 2,78 → 0,285 s ; payloads identiques |
-| Réouverture d’une paire de fréquences, PNG tous identiques | Un plan natif au lieu de trois, original inclus ; composite transparent préservé |
-| Lecture 101², cache froid, masque progressif de rayon 12, 24 Mpx/16 bits | 297 → 0,45 ms, mêmes pixels |
-| Encodeur isolé de douze plans de 1 Mpx | Pic RSS 324 → 74 Mio en 8 bits ; 692 → 122 Mio en 16 bits |
-
-Ces empreintes de plans et mesures isolées ne représentent pas la mémoire totale de l’application. Les limites restent **32 Mpx, 512 calques et 2 Gio de réservation logique de plans** ; le nouveau conteneur `.pcr` v14 accepte jusqu’à 8 Gio, et le lecteur JSON v1–v13 conserve sa limite de 256 Mio. Les essais Metal et les contrôles locaux Qt 6.8/6.12 sont documentés ; les validations physiques Vulkan/Direct3D et les mesures de VRAM du pilote restent ouvertes.
-
-Les nouvelles sauvegardes utilisent le conteneur binaire v14. Leurs métadonnées conservent les schémas v9–v13 selon les fonctions présentes. Le lecteur accepte aussi les anciens fichiers JSON v1 à v13. [Spécification](docs/PROJECT_FORMAT.md).
-
-Voir le [guide calques et mémoire](docs/LAYER_MEMORY.md), les [formats et replis GPU](docs/GPU_RENDERING.md) et le [plan des cinq chantiers](docs/OPTIMIZATION_PLAN.md).
-
-![Composition de démonstration PhotoCrap](docs/screenshot.png)
 
 ## Fonctionnalités
 

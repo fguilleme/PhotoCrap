@@ -165,6 +165,10 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     _document.endStroke();
     _document.setText("other");
     _document.finishTextEdit(true);
+    _document.setTool("brush");
+    _document.setActiveLayer(0);
+    if (!require(!textFrame->isVisible(), "selecting a non-text layer hides the text frame"))
+        return false;
     QTest::qWait(40);
     QMetaObject::invokeMethod(_window, "selectDockPanel", Q_ARG(QVariant, "layers"));
     QMetaObject::invokeMethod(_window, "moveDockPanelTo", Q_ARG(QVariant, "layers"),
@@ -192,18 +196,33 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     }
     if (!require(textThumbnail && textThumbnail->isVisible(), "the text thumbnail is visible"))
         return false;
-    QTest::mouseDClick(
-        _window, Qt::LeftButton, Qt::NoModifier,
+    const auto thumbnailPoint =
         textThumbnail->mapToScene(QPointF(textThumbnail->width() / 2, textThumbnail->height() / 2))
-            .toPoint());
+            .toPoint();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, thumbnailPoint);
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return _document.activeLayer() == 2 && _document.tool() == "brush" &&
+                                textFrame->isVisible() && !_document.textEditing() &&
+                                !textInput->hasActiveFocus();
+                     },
+                     500),
+                 "selecting a text layer shows its frame without entering text editing")) {
+        qWarning() << _document.activeLayer() << _document.tool() << textFrame->isVisible()
+                   << _document.textEditing() << textInput->hasActiveFocus();
+        return false;
+    }
+    QTest::mouseDClick(_window, Qt::LeftButton, Qt::NoModifier, thumbnailPoint);
     QTest::qWait(60);
     if (!require(_document.textEditing() && _document.layers().size() == 3,
                  "double-clicking the text thumbnail reopens the existing text without renaming or "
                  "creating"))
         return false;
     QTest::qWait(50);
-    if (!require(_document.text() == "layer",
-                 "reopening a layer does not replace it with stale editor content"))
+    if (!require(_document.text() == "layer" && textInput->hasActiveFocus() &&
+                     textInput->property("selectionStart").toInt() == 5 &&
+                     textInput->property("selectionEnd").toInt() == 5,
+                 "reopening text places a focused caret at the end without selecting it"))
         return false;
     auto *formatting = _window->findChild<TextEditorController *>("textFormatter");
     if (!require(formatting, "the character formatter exists"))
@@ -514,6 +533,9 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
                  "the visible folded frame can be dragged"))
         return false;
     _document.finishTextEdit();
+    if (!require(outline->isVisible() && !strength->isVisible(),
+                 "a selected folded layer keeps its frame when text editing ends"))
+        return false;
 
     _document.newDocument(220, 160, true);
     _window->setProperty("zoom", 1.0);

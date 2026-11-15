@@ -4051,9 +4051,12 @@ ApplicationWindow {
                                 }
                                 onDoubleClicked: function(mouse) {
                                     if(mouse.button!==Qt.LeftButton) return
+                                    if(modelData.kind==="text") {
+                                        editor.editTextLayer(modelData.layerIndex)
+                                        return
+                                    }
                                     editor.selectLayer(modelData.layerIndex)
-                                    if(modelData.kind==="text") editor.editTextLayer(modelData.layerIndex)
-                                    else if(window.canOpenLayerProperties(modelData)) window.openActiveLayerProperties()
+                                    if(window.canOpenLayerProperties(modelData)) window.openActiveLayerProperties()
                                     else { layerName.text=modelData.name; renameDialog.open() }
                                 }
                             }
@@ -4116,9 +4119,9 @@ ApplicationWindow {
                                                 if(!modelData.selected) editor.selectLayer(modelData.layerIndex)
                                                 window.openLayerContextMenu()
                                             } else {
-                                                editor.activeLayer=modelData.layerIndex
-                                                editor.setEditingMask(false)
-                                                editor.showCompositeView()
+                                                const document = editor
+                                                document.activeLayer = modelData.layerIndex
+                                                document.showCompositeView()
                                             }
                                         }
                                     }

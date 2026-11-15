@@ -21,10 +21,8 @@ Item {
     readonly property var style: (revision, formatter.format(input.cursorPosition))
     property alias input: input
     property alias formatter: formatter
-    visible: document.textEditing
-             || (document.tool === "move" && state.html !== undefined)
-             || (hasCrease && !document.editingMask && !document.editingVectorMask
-                 && !document.transformActive)
+    visible: document.textEditing || (state.html !== undefined && !document.editingMask
+                                      && !document.editingVectorMask && !document.transformActive)
     onVisibleChanged: if(!visible)primaryPressed=false
     width: Math.max(32,state.viewWidth || 32)
     height: Math.max(32,state.viewHeight || 64)
@@ -51,12 +49,7 @@ Item {
         if(focus)Qt.callLater(function(){
             if(request !== root.focusRequest || !root.ready || !root.document.textEditing)return
             input.forceActiveFocus()
-            if (point !== undefined)
-                input.cursorPosition = input.positionAt(point.x, point.y)
-            else if (root.hasCrease)
-                input.cursorPosition = input.length
-            else
-                input.selectAll()
+            input.cursorPosition=point!==undefined ? input.positionAt(point.x,point.y) : input.length
         })
     }
     function isOnSurfaceFrame(x, y) {

@@ -4,9 +4,10 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-La version **v0.24.0** ajoute la [peinture et le texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface).
-MoGe‑2 estime le relief en local ou via ComfyUI. MobileSAM aide à sélectionner les
-surfaces et à protéger les objets. Le texte suit les plis et reste éditable dans le projet.
+La version **v0.24.1** étend le [texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
+aux deux faces d’un angle, avec la perspective de chaque face sur toute la longueur du texte.
+Un clic sur un calque de texte affiche son cadre. MoGe‑2 estime le relief en local
+ou via ComfyUI. MobileSAM aide à sélectionner les surfaces et à protéger les objets.
 
 [Notes de version](CHANGELOG.md) · [Dernière version publiée](https://github.com/fguilleme/PhotoCrap/releases/latest)
 

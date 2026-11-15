@@ -4,6 +4,17 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.24.1 — 15 novembre 2026
+
+- Texte éditable sur deux faces planes adjacentes. Les lettres, le cadre et le
+  curseur suivent l’arête, et la perspective de chaque face se prolonge jusqu’aux
+  dernières lettres des inscriptions longues.
+- Orientation du texte sur surface et réglage de la déformation sur les plis,
+  avec un cadre qui suit la projection.
+- Le cadre apparaît au simple clic sur un calque de texte. Un double-clic place
+  le curseur à la fin du texte.
+  [Guide du texte sur surface](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface).
+
 ## v0.24.0 — 14 novembre 2026
 
 - Peinture sur plusieurs surfaces analysées par MoGe‑2, via ComfyUI ou en

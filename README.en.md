@@ -4,9 +4,10 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-Version **v0.24.0** adds [surface painting and text](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface).
-MoGe‑2 estimates surface geometry locally or through ComfyUI. MobileSAM helps select
-surfaces and protect objects. Text follows folds and remains editable in the project.
+Version **v0.24.1** extends [surface text](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
+across two adjoining faces, preserving each face’s perspective along long lines.
+Click a text layer to reveal its frame. MoGe‑2 estimates surface geometry locally
+or through ComfyUI. MobileSAM helps select surfaces and protect objects.
 
 [Release notes](CHANGELOG.md) · [Latest published release](https://github.com/fguilleme/PhotoCrap/releases/latest)
 

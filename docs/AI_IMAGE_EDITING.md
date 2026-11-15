@@ -316,12 +316,17 @@ relief**, choisir **Texte** et cliquer à l’emplacement voulu sur le tissu. Le
 lettres sont projetées en perspective à partir de la pente au point de pose.
 Le masque protège ce qui se trouve devant le tissu. Pendant la saisie, régler
 **Orientation du texte** pour tourner l’inscription dans le plan de la surface.
-En mode **Face plane**, chaque inscription reste sur la face cliquée et la
-perspective est bornée sur les longues inscriptions. L’option **Suivre les plis**
-déforme la ligne de base, les lettres et leur cadre selon les pentes du tissu.
-Le réglage **Déformation** dose cet effet de 0 à 300 %. Utiliser
-**Caractère / Paragraphe…** pour la mise en forme. Le calque enregistré dans le
-projet PCR reste modifiable avec l’outil Texte.
+L’option **Suivre les plis** déforme la ligne de base, les lettres et leur cadre
+selon les pentes du tissu. Le réglage **Déformation** dose cet effet de 0 à 300 %.
+
+Pour poser un texte sur un angle de mur, choisir **Face plane**, sélectionner
+les deux faces adjacentes, puis choisir **Texte** et cliquer pour le placer.
+Le texte et son cadre épousent l’arête. Chaque portion conserve la perspective
+de sa face sur toute la longueur de l’inscription.
+
+Un simple clic sur un calque de texte affiche son cadre. Un double-clic ouvre
+l’édition avec le curseur à la fin du texte. Utiliser **Caractère / Paragraphe…**
+pour la mise en forme. Le calque reste éditable après réouverture du projet PCR.
 
 **Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
 CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie

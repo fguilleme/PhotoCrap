@@ -621,12 +621,12 @@ void AiImageController::applySurfaceSelection()
     applySurfaceSelection(std::nullopt);
 }
 
-void AiImageController::applySurfaceText(int x, int y)
+void AiImageController::applySurfaceText(int x, int y, bool followRelief)
 {
-    applySurfaceSelection(QPoint(x, y));
+    applySurfaceSelection(QPoint(x, y), followRelief);
 }
 
-void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition)
+void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition, bool followRelief)
 {
     if (!hasSurfaceSelection() || !canEditSurfaceSelection())
         return;
@@ -655,10 +655,12 @@ void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition
     if (!m_busy || generation != m_generation)
         return;
     using PaintLayer   = std::pair<PixelPlane, QImage>;
-    const auto normals = m_surfaceGeometry.normals;
+    const auto geometry   = m_surfaceGeometry;
+    const auto focalRatio = m_surfaceGeometry.focalRatio;
     auto      *watcher = new QFutureWatcher<PaintLayer>(this);
     connect(
-        watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation, textPosition] {
+        watcher, &QFutureWatcherBase::finished, this,
+        [this, watcher, generation, textPosition, followRelief, focalRatio] {
             watcher->deleteLater();
             if (!m_busy || generation != m_generation || !m_document)
                 return;
@@ -679,7 +681,8 @@ void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition
             }
             m_surfaceGeometry = {};
             if (!m_document->addSurfaceLayer(m_input, std::move(layer.first),
-                                             std::move(layer.second), textPosition)) {
+                                             std::move(layer.second), textPosition, followRelief,
+                                             focalRatio)) {
                 stop(textPosition ? tr("Impossible d’ajouter le texte sur la surface.")
                                   : tr("Impossible d’ajouter le calque de peinture sur surface."));
                 return;
@@ -693,14 +696,19 @@ void AiImageController::applySurfaceSelection(std::optional<QPoint> textPosition
             emit changed();
             emit layerAdded();
         });
-    watcher->setFuture(QtConcurrent::run([selected, protection, normals, canvas, cancel] {
+    watcher->setFuture(QtConcurrent::run([selected, protection, geometry, canvas, cancel,
+                                          textPosition, followRelief] {
         constexpr int edge = PhotoCrap::Ai::MaxSurfaceNormalEdge;
+        const auto   &normals = geometry.normals;
         const auto    reduced =
             qMax(normals.width(), normals.height()) <= edge
                 ? normals
                 : normals.scaled(QSize(edge, edge), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        const auto face = textPosition && !followRelief
+                              ? geometry.regionAt(*textPosition, canvas, false, cancel)
+                              : QImage{};
         return PaintLayer{
-            PhotoCrap::Ai::SurfaceGeometry::paintMask(selected, canvas, cancel, protection),
+            PhotoCrap::Ai::SurfaceGeometry::paintMask(selected, canvas, cancel, protection, face),
             reduced.convertToFormat(QImage::Format_RGB888)};
     }));
 }

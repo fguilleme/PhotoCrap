@@ -2017,10 +2017,41 @@ ApplicationWindow {
             visible: !editor.transformActive && ((window.paintToolActive && editor.tool !== "mixerBrush")
                      || window.opacityToolActive || window.smartSelectionToolActive
                      || window.shapeToolActive || editor.tool === "gradient"
+                     || (editor.textEditing && canvasTextEditor.state.surfaceText === true)
                      || editor.tool === "rotateView" || editor.tool === "zoomTool")
             Layout.fillWidth: true; Layout.preferredHeight: 44; color: "#242a32"
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
+                RowLayout {
+                    visible: editor.textEditing && canvasTextEditor.state.surfaceText === true
+                    ScrubLabel { control: surfaceTextAngle; text: qsTr("Orientation du texte"); color: "#87929e" }
+                    DarkSpinBox {
+                        id: surfaceTextAngle
+                        objectName: "surfaceTextAngle"
+                        from: -180; to: 180; suffix: " °"
+                        value: Math.round(canvasTextEditor.state.surfaceAngle || 0)
+                        onValueModified: editor.setSurfaceTextAngle(value)
+                    }
+                    CheckBox {
+                        text: qsTr("Suivre les plis")
+                        checked: canvasTextEditor.state.surfaceRelief === true
+                        onToggled: editor.setSurfaceTextRelief(checked)
+                    }
+                    ScrubLabel {
+                        control: surfaceTextStrength
+                        visible: canvasTextEditor.state.surfaceRelief === true
+                        text: qsTr("Déformation")
+                        color: "#87929e"
+                    }
+                    DarkSpinBox {
+                        id: surfaceTextStrength
+                        objectName: "surfaceTextStrength"
+                        visible: canvasTextEditor.state.surfaceRelief === true
+                        from: 0; to: 300; suffix: " %"
+                        value: Math.round((canvasTextEditor.state.surfaceStrength ?? 1) * 100)
+                        onValueModified: editor.setSurfaceTextStrength(value / 100)
+                    }
+                }
                 ScrollView {
                     visible: editor.tool === "gradient"
                     Layout.fillWidth: visible
@@ -2954,12 +2985,16 @@ ApplicationWindow {
                                 color: "#2073c5ff"; border.color: "#b5dfff"; border.width: 1
                                 z: 4
                             }
-                            TextLayerEditor {
-                                id: canvasTextEditor
-                                objectName: "textLayerOverlay"
-                                document: editor
-                                zoom: window.zoom
+                            Item {
+                                anchors.fill: parent
+                                clip: canvasTextEditor.state.surfaceText === true
                                 z: 30
+                                TextLayerEditor {
+                                    id: canvasTextEditor
+                                    objectName: "textLayerOverlay"
+                                    document: editor
+                                    zoom: window.zoom
+                                }
                             }
                             MouseArea {
                                 id: drawingArea
@@ -3422,7 +3457,7 @@ ApplicationWindow {
                                     const subtract = mouse.button === Qt.RightButton
                                     if (surfaceText.checked) {
                                         if (subtract) surfaceText.checked = false
-                                        else aiImages.applySurfaceText(x, y)
+                                        else aiImages.applySurfaceText(x, y, surfaceMode.followRelief)
                                     } else if (surfaceProtect.checked)
                                         aiImages.protectSurfaceObject(x, y, subtract)
                                     else

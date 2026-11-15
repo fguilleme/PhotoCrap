@@ -229,7 +229,8 @@ bool Document::matchesAiSource(const PhotoCrap::Ai::Input &source) const
 }
 
 bool Document::addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
-                               std::optional<QPoint> textPosition)
+                               std::optional<QPoint> textPosition, bool followRelief,
+                               qreal focalRatio)
 {
     if (!matchesAiSource(source) || aiInsertionBusy() || transformActive() ||
         mask.size() != m_size || mask.format() != QImage::Format_Grayscale8 ||
@@ -262,6 +263,8 @@ bool Document::addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane ma
         layer.kind = "text";
         layer.parameters =
             PhotoCrap::Text::create(textPosition->x(), textPosition->y(), m_textSize, m_color);
+        layer.parameters["surfaceRelief"] = followRelief;
+        layer.parameters["surfaceFocal"]  = focalRatio;
         if (!PhotoCrap::Text::normalize(layer.parameters))
             return false;
         setTool(QStringLiteral("text"));

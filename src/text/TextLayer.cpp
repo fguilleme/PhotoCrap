@@ -138,6 +138,43 @@ QTransform transform(const QVariantMap &_p)
                       t[4].toDouble(), t[5].toDouble(), t[6].toDouble(), t[7].toDouble(),
                       t[8].toDouble());
 }
+QTransform displayTransform(const QVariantMap &parameters, const Layer *surface,
+                            const QSizeF &extent)
+{
+    const auto base = transform(parameters);
+    if (!surface || surface->surfaceNormals.isNull() || !parameters.contains("surfaceFocal"))
+        return base;
+    const auto projection =
+        base * Ai::surfaceTextProjection(surface->surfaceNormals, surface->surfaceNormalCanvas,
+                                         base.map(QPointF{}), surface->surfaceNormalTransform,
+                                         parameters.value("surfaceAngle").toDouble(),
+                                         parameters.value("surfaceFocal", .85).toDouble());
+    if (projection.isAffine() || qFuzzyIsNull(projection.m33()))
+        return projection;
+
+    const auto  box     = extent.isValid() ? extent : size(parameters);
+    const qreal padding = parameters.value("fontSize", 64.).toDouble() * 2.;
+    const qreal span    = qAbs(projection.m13()) * (qMax(32., box.width()) + padding) +
+                          qAbs(projection.m23()) * (qMax(64., box.height()) + padding);
+    // Bound the perspective denominator across the editable text. Keep the
+    // anchor and its local tangent frame, so long text cannot reach a pole.
+    const qreal maximumSpan = .24 * qAbs(projection.m33());
+    if (span <= maximumSpan)
+        return projection;
+    const qreal strength = maximumSpan / span;
+    const auto  anchor   = projection.map(QPointF{});
+    const qreal dx       = projection.m13() * (1. - strength);
+    const qreal dy       = projection.m23() * (1. - strength);
+    return {projection.m11() - anchor.x() * dx,
+            projection.m12() - anchor.y() * dx,
+            projection.m13() * strength,
+            projection.m21() - anchor.x() * dy,
+            projection.m22() - anchor.y() * dy,
+            projection.m23() * strength,
+            projection.m31(),
+            projection.m32(),
+            projection.m33()};
+}
 void transform(QVariantMap &_p, const QTransform &_t)
 {
     storeTransform(_p, transform(_p) * _t);
@@ -182,6 +219,12 @@ bool normalize(QVariantMap &_p)
         if (!std::isfinite(v.toDouble()) || qAbs(v.toDouble()) > 1e9)
             return false;
     if (!transform(_p).isInvertible())
+        return false;
+    const qreal angle    = _p.value("surfaceAngle", 0.).toDouble();
+    const qreal focal    = _p.value("surfaceFocal", .85).toDouble();
+    const qreal strength = _p.value("surfaceStrength", 1.).toDouble();
+    if (!std::isfinite(angle) || qAbs(angle) > 180. || !std::isfinite(focal) || focal < .35 ||
+        focal > 3. || !std::isfinite(strength) || strength < 0. || strength > 3.)
         return false;
     for (const auto key : {"width", "height", "fontSize"}) {
         const auto n = _p.value(key).toDouble();
@@ -248,7 +291,8 @@ QString plainText(const QVariantMap &_p)
 }
 namespace
 {
-QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_canvas)
+QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_canvas,
+                     const QTransform &matrix, bool followRelief)
 {
     qreal margin = _p.value("fontSize", 64).toDouble() * 2;
     if (!_p.value("paragraph").toBool())
@@ -264,20 +308,24 @@ QRect documentBounds(QTextDocument &_doc, const QVariantMap &_p, const QSize &_c
         _p.value("paragraph").toBool()
             ? QRectF(QPointF{}, size(_p))
             : QRectF(QPointF{}, _doc.size()).adjusted(-margin, -margin, margin, margin);
-    const auto mapped = transform(_p).mapRect(local);
+    auto mapped = matrix.mapRect(local);
     if (!std::isfinite(mapped.x()) || !std::isfinite(mapped.y()) ||
         !std::isfinite(mapped.width()) || !std::isfinite(mapped.height()))
         return QRect(QPoint{}, _canvas);
+    if (followRelief) {
+        // The inverse warp can move glyphs outside their original projected box.
+        const qreal extra = .55 * qMax(mapped.width(), mapped.height());
+        mapped.adjust(-extra, -extra, extra, extra);
+    }
     return mapped.intersected(QRectF(QPointF{}, _canvas))
         .toAlignedRect()
         .intersected(QRect(QPoint{}, _canvas));
 }
 void drawDocument(QPainter &_painter, QTextDocument &_doc, const QVariantMap &_p,
-                  const QPoint &_origin)
+                  const QPoint &_origin, const QTransform &matrix)
 {
     _painter.setRenderHint(QPainter::TextAntialiasing);
-    _painter.setWorldTransform(transform(_p) *
-                               QTransform::fromTranslate(-_origin.x(), -_origin.y()));
+    _painter.setWorldTransform(matrix * QTransform::fromTranslate(-_origin.x(), -_origin.y()));
     if (_p.value("paragraph").toBool())
         _painter.setClipRect(QRectF(QPointF{}, size(_p)));
     QAbstractTextDocumentLayout::PaintContext context;
@@ -285,11 +333,37 @@ void drawDocument(QPainter &_painter, QTextDocument &_doc, const QVariantMap &_p
     _doc.documentLayout()->draw(&_painter, context);
 }
 } // namespace
-QRect bounds(const QVariantMap &_p, const QSize &_canvas)
+QPolygonF surfaceOutline(const Layer &layer, const QSize &canvas, QPointF &bottomRight)
+{
+    const auto &parameters = layer.parameters;
+    const qreal strength   = parameters.value("surfaceStrength", 1.).toDouble();
+    if (layer.surfaceNormals.isNull() || !parameters.value("surfaceRelief", true).toBool() ||
+        strength <= 0.)
+        return {};
+    Document doc;
+    configure(doc, parameters);
+    if (doc.toPlainText().trimmed().isEmpty())
+        return {};
+    const auto      extent = parameters.value("paragraph").toBool() ? size(parameters) : doc.size();
+    const auto      matrix = displayTransform(parameters, &layer, extent);
+    const auto      region = documentBounds(doc, parameters, canvas, matrix, true);
+    const qreal     width  = qMax(32., extent.width());
+    const qreal     height = qMax(32., extent.height());
+    const QPolygonF corners{{0., 0.}, {width, 0.}, {width, height}, {0., height}};
+    return Ai::projectSurfaceTextOutline(
+        matrix.map(corners), region, matrix.map(QPointF{}), layer.surfaceNormals,
+        layer.surfaceNormalCanvas, layer.surfaceNormalTransform,
+        parameters.value("surfaceFocal", .85).toDouble(), strength, bottomRight);
+}
+QRect bounds(const QVariantMap &_p, const QSize &_canvas, const Layer *surface)
 {
     Document doc;
     configure(doc, _p);
-    return documentBounds(doc, _p, _canvas);
+    const auto extent = _p.value("paragraph").toBool() ? size(_p) : doc.size();
+    const bool relief = surface && !surface->surfaceNormals.isNull() &&
+                        _p.value("surfaceRelief", true).toBool() &&
+                        _p.value("surfaceStrength", 1.).toDouble() > 0.;
+    return documentBounds(doc, _p, _canvas, displayTransform(_p, surface, extent), relief);
 }
 PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format _format,
                        const Layer *surface)
@@ -306,19 +380,25 @@ PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format
         return {};
     if (doc.toPlainText().trimmed().isEmpty())
         return result;
-    const QRect region = documentBounds(doc, _p, _size);
+    const auto  extent   = _p.value("paragraph").toBool() ? size(_p) : doc.size();
+    const qreal strength = _p.value("surfaceStrength", 1.).toDouble();
+    const bool  relief   = surface && !surface->surfaceNormals.isNull() &&
+                           _p.value("surfaceRelief", true).toBool() && strength > 0.;
+    const auto  matrix   = displayTransform(_p, surface, extent);
+    const QRect region   = documentBounds(doc, _p, _size, matrix, relief);
     if (region.isEmpty())
         return result;
     QImage pixels = ImageUtils::blank(region.size(), _format);
     if (pixels.isNull())
         return {};
     QPainter painter(&pixels);
-    drawDocument(painter, doc, _p, region.topLeft());
+    drawDocument(painter, doc, _p, region.topLeft(), matrix);
     painter.end();
-    if (surface && !surface->surfaceNormals.isNull())
-        pixels = Ai::projectSurfaceText(pixels, region.topLeft(), transform(_p).map(QPointF{}),
+    if (relief)
+        pixels = Ai::projectSurfaceText(pixels, region.topLeft(), matrix.map(QPointF{}),
                                         surface->surfaceNormals, surface->surfaceNormalCanvas,
-                                        surface->surfaceNormalTransform);
+                                        surface->surfaceNormalTransform,
+                                        _p.value("surfaceFocal", .85).toDouble(), strength);
     if (pixels.isNull() || !result.writeRegion(region.topLeft(), pixels, _size))
         return {};
     return result;
@@ -334,7 +414,7 @@ QImage render(const QVariantMap &_p, const QSize &_size, QImage::Format _format)
     if (result.isNull())
         return {};
     QPainter painter(&result);
-    drawDocument(painter, doc, _p, {});
+    drawDocument(painter, doc, _p, {}, transform(_p));
     return result;
 }
 } // namespace PhotoCrap::Text

@@ -313,9 +313,15 @@ après réouverture.
 
 Pour inscrire du texte sur du tissu, sélectionner la pièce avec **Tissu /
 relief**, choisir **Texte** et cliquer à l’emplacement voulu sur le tissu. Les
-lettres épousent les variations locales du relief et le masque protège ce qui
-se trouve devant le tissu. Utiliser **Caractère / Paragraphe…** pour la mise en
-forme. Le calque enregistré dans le projet PCR reste modifiable avec l’outil Texte.
+lettres sont projetées en perspective à partir de la pente au point de pose.
+Le masque protège ce qui se trouve devant le tissu. Pendant la saisie, régler
+**Orientation du texte** pour tourner l’inscription dans le plan de la surface.
+En mode **Face plane**, chaque inscription reste sur la face cliquée et la
+perspective est bornée sur les longues inscriptions. L’option **Suivre les plis**
+déforme la ligne de base, les lettres et leur cadre selon les pentes du tissu.
+Le réglage **Déformation** dose cet effet de 0 à 300 %. Utiliser
+**Caractère / Paragraphe…** pour la mise en forme. Le calque enregistré dans le
+projet PCR reste modifiable avec l’outil Texte.
 
 **Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
 CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie

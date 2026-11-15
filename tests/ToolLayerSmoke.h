@@ -3,6 +3,7 @@
 #include "Document.h"
 #include "ValueScrubberSmoke.h"
 #include "WorkspaceSettings.h"
+#include "ai/AiImageTypes.h"
 #include "text/TextEditorController.h"
 #include "text/TextLayer.h"
 #ifdef Q_OS_MACOS
@@ -11,6 +12,7 @@
 #include <QCursor>
 #include <QGuiApplication>
 #include <QJSValue>
+#include <QPainter>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QtTest>
@@ -458,5 +460,58 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
                                                            .toDouble() == 20.,
                  "undo removes only the new shape and preserves the finished adjustment"))
         return false;
+
+    _document.newDocument(220, 160, true);
+    _document.setTextSize(21);
+    _window->setProperty("zoom", 1.0);
+    const auto cancel = std::make_shared<std::atomic_bool>(false);
+    const auto source = _document.prepareAiInput(false, 220, cancel, false, false, true).result();
+    QImage     coverage(1, 1, QImage::Format_Grayscale8);
+    coverage.fill(255);
+    QImage normals(22, 16, QImage::Format_RGB888);
+    normals.fill(QColor(128, 128, 255));
+    QPainter plane(&normals);
+    plane.fillRect(7, 0, 15, 16, QColor(165, 205, 219));
+    plane.end();
+    if (!require(_document.addSurfaceLayer(source, PixelPlane::uniform({220, 160}, coverage),
+                                           normals, QPoint(24, 50), true),
+                 "a folded text layer can be created for the canvas"))
+        return false;
+    _document.updateTextHtml("<b>Surface frame</b>");
+    auto *outline  = _window->findChild<QQuickItem *>("surfaceTextOutline");
+    auto *strength = _window->findChild<QQuickItem *>("surfaceTextStrength");
+    if (!require(QTest::qWaitFor([&] { return outline && outline->isVisible(); }, 1500) &&
+                     strength && strength->isVisible() &&
+                     strength->property("value").toInt() == 100,
+                 "folded text shows its outline and relief strength"))
+        return false;
+    const auto firstFrame = _document.textEditState().value("surfaceOutline").toList();
+    _document.setSurfaceTextStrength(0.);
+    if (!require(!outline->isVisible(), "zero strength restores the planar frame"))
+        return false;
+    _document.setSurfaceTextStrength(1.7);
+    const auto newFrame = _document.textEditState().value("surfaceOutline").toList();
+    if (!require(outline->isVisible() && newFrame != firstFrame && newFrame.size() > 4,
+                 "changing the relief strength updates the outline"))
+        return false;
+    QTest::qWait(80);
+    const auto anchor = PhotoCrap::Text::transform(_document.textEditState()).map(QPointF{});
+    const qreal zoom = _window->property("zoom").toDouble();
+    const auto borderPoint = outline->mapToScene(newFrame[2].toPointF() * zoom).toPoint();
+    auto *frameDrag = _window->findChild<QQuickItem *>("textMoveMouse");
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, borderPoint);
+    if (!require(frameDrag && frameDrag->property("moving").toBool(),
+                 "the visible folded frame captures a press")) {
+        qWarning() << borderPoint << newFrame[2] << zoom << (frameDrag ? frameDrag->size() : QSizeF{})
+                   << (frameDrag ? frameDrag->mapFromScene(borderPoint) : QPointF{});
+        return false;
+    }
+    QTest::mouseMove(_window, borderPoint + QPoint(8, 5), 20);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, borderPoint + QPoint(8, 5));
+    const auto moved = PhotoCrap::Text::transform(_document.textEditState()).map(QPointF{});
+    if (!require(QLineF(moved, anchor + QPointF(8, 5) / zoom).length() < 1.,
+                 "the visible folded frame can be dragged"))
+        return false;
+    _document.finishTextEdit();
     return true;
 }

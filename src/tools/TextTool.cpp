@@ -22,6 +22,26 @@ QVariantMap Document::textEditState() const
     const auto bounds   = PhotoCrap::Text::size(state);
     state["viewWidth"]  = bounds.width();
     state["viewHeight"] = bounds.height();
+    const auto &layer   = m_layers[m_active];
+    if (!m_textMaskEdit && !layer.surfaceNormals.isNull()) {
+        const auto t             = PhotoCrap::Text::displayTransform(state, &layer, bounds);
+        state["transform"]       = QVariantList{t.m11(), t.m12(), t.m13(), t.m21(), t.m22(),
+                                                t.m23(), t.m31(), t.m32(), t.m33()};
+        state["surfaceText"]     = true;
+        state["surfaceRelief"]   = state.value("surfaceRelief", true);
+        state["surfaceAngle"]    = state.value("surfaceAngle", 0.);
+        state["surfaceStrength"] = state.value("surfaceStrength", 1.);
+        QPointF    corner;
+        const auto outline = PhotoCrap::Text::surfaceOutline(layer, m_size, corner);
+        if (!outline.isEmpty()) {
+            QVariantList points;
+            points.reserve(outline.size());
+            for (const auto &point : outline)
+                points.append(QVariant::fromValue(point));
+            state["surfaceOutline"] = std::move(points);
+            state["surfaceCorner"]  = corner;
+        }
+    }
     return state;
 }
 bool Document::renderTextEdit()
@@ -110,8 +130,9 @@ void Document::beginTextGesture(qreal _x, qreal _y, bool _forceNew)
                     protectedGroup = true;
             if (protectedGroup)
                 continue;
-            const auto point =
-                PhotoCrap::Text::transform(layer.parameters).inverted().map(QPointF(_x, _y));
+            const auto point = PhotoCrap::Text::displayTransform(layer.parameters, &layer)
+                                   .inverted()
+                                   .map(QPointF(_x, _y));
             if (QRectF(QPointF{}, PhotoCrap::Text::size(layer.parameters)).contains(point)) {
                 m_textAnchor = point;
                 beginTextEdit(i, true);
@@ -181,9 +202,13 @@ void Document::beginTextEdit(int _index, bool _fromCanvas)
     setTool("text");
     m_beforeText   = snapshot(tr("Modifier le texte"));
     m_textEditing  = true;
-    m_textGesture  = _fromCanvas;
+    m_textGesture  = false;
     m_textNewLayer = false;
     m_text         = PhotoCrap::Text::plainText(m_layers[m_active].parameters);
+    if (!m_layers[m_active].surfaceNormals.isNull() &&
+        !m_layers[m_active].parameters.contains("surfaceFocal"))
+        setSurfaceTextParameter(QStringLiteral("surfaceFocal"), .85);
+    m_textGesture = _fromCanvas;
     showCompositeView();
     emit textEditingChanged();
     emit textGeometryChanged();
@@ -209,8 +234,9 @@ void Document::updateTextContent(const QString &_html, const QVariantMap &_forma
     if (parameters == textParameters())
         return;
     const auto before = textParameters();
-    m_dirtyRegion     = m_dirtyRegion.united(PhotoCrap::Text::bounds(before, m_size))
-                        .united(PhotoCrap::Text::bounds(parameters, m_size));
+    const auto *surface = m_textMaskEdit ? nullptr : &m_layers[m_active];
+    m_dirtyRegion |= PhotoCrap::Text::bounds(before, m_size, surface) |
+                     PhotoCrap::Text::bounds(parameters, m_size, surface);
     textParameters() = parameters;
     if (!renderTextEdit())
         textParameters() = before;
@@ -227,8 +253,9 @@ void Document::setTextBox(bool _paragraph, qreal _width, qreal _height)
         fail(tr("Dimensions du bloc de texte invalides."));
         return;
     }
-    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(textParameters(), m_size))
-                        .united(PhotoCrap::Text::bounds(p, m_size));
+    const auto *surface = m_textMaskEdit ? nullptr : &m_layers[m_active];
+    m_dirtyRegion |= PhotoCrap::Text::bounds(textParameters(), m_size, surface) |
+                     PhotoCrap::Text::bounds(p, m_size, surface);
     textParameters() = p;
     renderTextEdit();
 }
@@ -242,11 +269,41 @@ void Document::moveTextBy(qreal _dx, qreal _dy)
     PhotoCrap::Text::transform(parameters, QTransform::fromTranslate(_dx, _dy));
     if (!PhotoCrap::Text::normalize(parameters))
         return;
-    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(before, m_size))
-                        .united(PhotoCrap::Text::bounds(parameters, m_size));
+    const auto *surface = m_textMaskEdit ? nullptr : &m_layers[m_active];
+    m_dirtyRegion |= PhotoCrap::Text::bounds(before, m_size, surface) |
+                     PhotoCrap::Text::bounds(parameters, m_size, surface);
     textParameters() = parameters;
     if (!renderTextEdit())
         textParameters() = before;
+}
+void Document::setSurfaceTextAngle(qreal angle)
+{
+    if (std::isfinite(angle))
+        setSurfaceTextParameter(QStringLiteral("surfaceAngle"), qBound(-180., angle, 180.));
+}
+void Document::setSurfaceTextRelief(bool enabled)
+{
+    setSurfaceTextParameter(QStringLiteral("surfaceRelief"), enabled);
+}
+void Document::setSurfaceTextStrength(qreal strength)
+{
+    if (std::isfinite(strength))
+        setSurfaceTextParameter(QStringLiteral("surfaceStrength"), qBound(0., strength, 3.));
+}
+void Document::setSurfaceTextParameter(const QString &key, const QVariant &value)
+{
+    if (!m_textEditing || m_textGesture || m_textMaskEdit ||
+        m_layers[m_active].surfaceNormals.isNull())
+        return;
+    auto &layer  = m_layers[m_active];
+    auto  before = layer.parameters;
+    if (before.value(key) == value)
+        return;
+    layer.parameters[key] = value;
+    m_dirtyRegion |= PhotoCrap::Text::bounds(before, m_size, &layer) |
+                     PhotoCrap::Text::bounds(layer.parameters, m_size, &layer);
+    if (!renderTextEdit())
+        layer.parameters = std::move(before);
 }
 void Document::finishTextEdit(bool _cancel)
 {
@@ -304,8 +361,9 @@ void Document::updateTextFormatting(const QVariantMap &_formatting)
     }
     if (p == textParameters())
         return;
-    m_dirtyRegion = m_dirtyRegion.united(PhotoCrap::Text::bounds(textParameters(), m_size))
-                        .united(PhotoCrap::Text::bounds(p, m_size));
+    const auto *surface = m_textMaskEdit ? nullptr : &m_layers[m_active];
+    m_dirtyRegion |= PhotoCrap::Text::bounds(textParameters(), m_size, surface) |
+                     PhotoCrap::Text::bounds(p, m_size, surface);
     textParameters() = p;
     renderTextEdit();
 }

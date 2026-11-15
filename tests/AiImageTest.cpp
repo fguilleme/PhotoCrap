@@ -9,6 +9,7 @@
 #include "ai/MeshyController.h"
 #include "storage/ProjectPng.h"
 #include "storage/ProjectWriteDevice.h"
+#include "text/TextLayer.h"
 #include <QBuffer>
 #include <QDir>
 #include <QFileInfo>
@@ -1618,11 +1619,74 @@ private slots:
             surface.fillRect(QRect(6, 0, 6, 8), QColor(128, 239, 189));
             surface.end();
             const auto projected = projectSurfaceText(lettering, {}, {8, 10}, curved, canvas, {});
+            QCOMPARE(projectSurfaceText(lettering, {}, {8, 10}, curved, canvas, {}, .85, 0.),
+                     lettering);
+            QVERIFY(projectSurfaceText(lettering, {}, {8, 10}, curved, canvas, {}, .85, .25) !=
+                    projected);
             QCOMPARE(projected.format(), format);
             QCOMPARE(projected.pixelColor(24, 37), lettering.pixelColor(24, 37));
             QCOMPARE(projected.pixelColor(72, 37).alpha(), 0);
-            QCOMPARE(projected.pixelColor(72, 24), lettering.pixelColor(72, 37));
+            bool inkMovedWithTheFold = false;
+            for (int y = 24; y < 35; ++y)
+                inkMovedWithTheFold |= projected.pixelColor(72, y) == lettering.pixelColor(72, 37);
+            QVERIFY(inkMovedWithTheFold);
+
+            const QPolygonF frame{{16., 34.}, {80., 34.}, {80., 42.}, {16., 42.}};
+            QPointF         corner;
+            const auto warpedFrame = projectSurfaceTextOutline(frame, lettering.rect(), {8, 10},
+                                                               curved, canvas, {}, .85, 1., corner);
+            QVERIFY(warpedFrame.size() > frame.size());
+            QVERIFY(corner.y() < 40.);
+            QCOMPARE(warpedFrame.first(), warpedFrame.last());
+            int pixels = 0, inside = 0;
+            for (int y = 0; y < canvas.height(); ++y)
+                for (int x = 0; x < canvas.width(); ++x)
+                    if (projected.pixelColor(x, y).alpha() >= 240) {
+                        ++pixels;
+                        inside +=
+                            warpedFrame.containsPoint(QPointF(x + .5, y + .5), Qt::OddEvenFill);
+                    }
+            QVERIFY(pixels > 100 && inside * 100 >= pixels * 98);
         }
+    }
+    void surfaceTextUsesPerspectiveAndRotatesWithinThePlane()
+    {
+        using namespace PhotoCrap::Ai;
+        const QSize   canvas(800, 600);
+        const QPointF anchor(210, 420);
+        QImage        normals(16, 12, QImage::Format_RGB888);
+        normals.fill(QColor(204, 128, 230));
+        const auto plane = surfaceTextProjection(normals, canvas, anchor, {}, 0., .85);
+        QVERIFY(!plane.isAffine());
+        QVERIFY(QLineF(plane.map(anchor), anchor).length() < .001);
+        const QPointF across = plane.map(anchor + QPointF(200, 0)) - anchor;
+        QVERIFY(across.x() > 100. && across.x() < 200.);
+        QVERIFY(across.y() < -10.);
+        const auto    rotated = surfaceTextProjection(normals, canvas, anchor, {}, 90., .85);
+        const QPointF down    = rotated.map(anchor + QPointF(200, 0)) - anchor;
+        QVERIFY(qAbs(down.x()) < 1.);
+        QVERIFY(down.y() > 195.);
+
+        QTransform imageTransform;
+        imageTransform.translate(600, 0).rotate(90);
+        const auto mapped = surfaceTextProjection(normals, canvas, imageTransform.map(anchor),
+                                                  imageTransform, 0., .85);
+        const auto end    = anchor + QPointF(200, 0);
+        QVERIFY(QLineF(mapped.map(imageTransform.map(end)), imageTransform.map(plane.map(end)))
+                    .length() < .001);
+
+        Layer layer;
+        layer.surfaceNormals      = normals;
+        layer.surfaceNormalCanvas = canvas;
+        auto text                 = PhotoCrap::Text::create(anchor.x(), anchor.y(), 64, Qt::black);
+        text["surfaceAngle"]      = 180.;
+        text["surfaceFocal"]      = .35;
+        const QSizeF longLine(4200, 90);
+        const auto   bounded = PhotoCrap::Text::displayTransform(text, &layer, longLine);
+        const qreal  farDepth =
+            bounded.m13() * longLine.width() + bounded.m23() * longLine.height() + bounded.m33();
+        QVERIFY(farDepth / bounded.m33() >= .76);
+        QVERIFY(QLineF(bounded.map(QPointF{}), anchor).length() < .001);
     }
     void comfySurfacePaintingCombinesFacesAndKeepsOcclusion()
     {
@@ -1741,6 +1805,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(controller.surfacePicking(), 8000);
         controller.pickSurface(55, 40);
         QTRY_VERIFY(!controller.busy());
+        controller.pickSurface(20, 40);
+        QTRY_VERIFY(!controller.busy());
         QVERIFY(controller.hasSurfaceSelection());
         controller.applySurfaceText(82, 20);
         QVERIFY(!controller.busy());
@@ -1751,10 +1817,18 @@ private slots:
         QVERIFY(document.textEditing());
         QCOMPARE(document.layerCount(), 2);
         QCOMPARE(document.tool(), QString("text"));
+        QCOMPARE(document.maskImage(1).pixelColor(20, 40).red(), 0);
+        QCOMPARE(document.maskImage(1).pixelColor(55, 40).red(), 255);
         document.updateTextHtml("<span style='font-size: 30px; color: white;'>SURFACE</span>");
+        const auto beforeRotation = document.composite();
+        QVERIFY(beforeRotation != initial);
+        document.setSurfaceTextAngle(20.);
+        QCOMPARE(document.textEditState().value("surfaceAngle").toDouble(), 20.);
+        document.setSurfaceTextStrength(1.65);
         document.finishTextEdit();
         const auto printed = document.composite();
         QVERIFY(printed != initial);
+        QVERIFY(printed != beforeRotation);
         QCOMPARE(printed.pixelColor(82, 37), initial.pixelColor(82, 37));
 
         QTemporaryDir files;
@@ -1766,6 +1840,8 @@ private slots:
         reopened.editTextLayer(1);
         QVERIFY(reopened.textEditing());
         QCOMPARE(reopened.text(), QString("SURFACE"));
+        QCOMPARE(reopened.textEditState().value("surfaceAngle").toDouble(), 20.);
+        QCOMPARE(reopened.textEditState().value("surfaceStrength").toDouble(), 1.65);
         reopened.updateTextHtml("<span style='font-size: 30px; color: white;'>TEST</span>");
         reopened.finishTextEdit();
         QVERIFY(reopened.composite() != printed);

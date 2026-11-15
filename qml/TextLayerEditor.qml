@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import PhotoCrap.Native 1.0
 
 Item {
@@ -7,6 +8,8 @@ Item {
     property real zoom: 1
     property int geometryRevision: 0
     readonly property var state: (geometryRevision, document.textEditState)
+    readonly property var surfaceFrame: (state.surfaceOutline || []).map(p => Qt.point(p.x * zoom, p.y * zoom))
+    readonly property bool hasSurfaceFrame: surfaceFrame.length > 3
     property bool loading: false
     property bool ready: false
     property int revision: 0
@@ -45,6 +48,18 @@ Item {
             else input.selectAll()
         })
     }
+    function isOnSurfaceFrame(x, y) {
+        for (let i = 1; i < surfaceFrame.length; ++i) {
+            const a = surfaceFrame[i - 1], b = surfaceFrame[i]
+            const dx = b.x - a.x, dy = b.y - a.y
+            const lengthSquared = dx * dx + dy * dy
+            const t = lengthSquared > 0
+                      ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared)) : 0
+            const offsetX = x - a.x - t * dx, offsetY = y - a.y - t * dy
+            if (offsetX * offsetX + offsetY * offsetY <= 25) return true
+        }
+        return false
+    }
     transform: Matrix4x4 {
         matrix: {
             const m=root.state.transform || [1,0,0,0,1,0,0,0,1],z=root.zoom
@@ -54,7 +69,20 @@ Item {
                                m[2],m[5],0,m[8])
         }
     }
-    Rectangle { anchors.fill: parent; color: "transparent"; border.color: "#75b2f5"; border.width: 1/root.zoom }
+    Rectangle { anchors.fill: parent; visible: !root.hasSurfaceFrame; color: "transparent"; border.color: "#75b2f5"; border.width: 1/root.zoom }
+    Shape {
+        objectName: "surfaceTextOutline"
+        parent: root.parent
+        anchors.fill: parent
+        z: root.z + 1
+        visible: root.visible && root.hasSurfaceFrame
+        ShapePath {
+            fillColor: "transparent"
+            strokeColor: "#75b2f5"
+            strokeWidth: 1
+            PathPolyline { path: root.surfaceFrame }
+        }
+    }
     Item {
         anchors.fill: parent
         visible:root.ready && root.document.textEditing
@@ -109,8 +137,12 @@ Item {
     MouseArea {
         id: textMove
         objectName: "textMoveMouse"
+        parent: root.hasSurfaceFrame ? root.parent : root
         anchors.fill: parent
-        anchors.margins: -4/root.zoom
+        anchors.margins: root.hasSurfaceFrame ? 0 : -4/root.zoom
+        z: root.hasSurfaceFrame ? root.z + 2 : 1
+        containmentMask: root.hasSurfaceFrame ? surfaceFrameHit : null
+        visible: root.visible
         enabled: root.document.textEditing && root.ready && !root.document.textGesture
         hoverEnabled: true
         preventStealing: true
@@ -122,7 +154,8 @@ Item {
         property point travelled: Qt.point(0,0)
         function updateFrame(mouse) {
             const px=mouse.x+x,py=mouse.y+y
-            onFrame=px<0 || py<0 || px>root.width || py>root.height
+            onFrame=root.hasSurfaceFrame ? root.isOnSurfaceFrame(px, py)
+                                        : px<0 || py<0 || px>root.width || py>root.height
         }
         function moveTo(mouse) {
             if(!moving)return
@@ -156,10 +189,24 @@ Item {
         }
         onExited: onFrame=false
     }
+    QtObject {
+        id: surfaceFrameHit
+        function contains(point: point): bool {
+            if (root.isOnSurfaceFrame(point.x, point.y)) return true
+            const p = root.mapFromItem(root.parent, point.x, point.y)
+            return p.x >= 0 && p.y >= 0 && p.x <= root.width && p.y <= root.height
+        }
+    }
     Rectangle {
+        parent: root.hasSurfaceFrame ? root.parent : root
         visible: root.document.textEditing && Boolean(root.state.paragraph)
-        width: 9/root.zoom;height:9/root.zoom;color:"white";border.color:"#327ac6"
-        anchors.right:parent.right;anchors.bottom:parent.bottom
+        width: root.hasSurfaceFrame ? 9 : 9/root.zoom
+        height: width; color:"white";border.color:"#327ac6"
+        anchors.right: root.hasSurfaceFrame ? undefined : parent.right
+        anchors.bottom: root.hasSurfaceFrame ? undefined : parent.bottom
+        x: root.hasSurfaceFrame ? root.state.surfaceCorner.x * root.zoom - width / 2 : 0
+        y: root.hasSurfaceFrame ? root.state.surfaceCorner.y * root.zoom - height / 2 : 0
+        z: root.hasSurfaceFrame ? root.z + 3 : 2
         MouseArea {
             anchors.fill:parent;anchors.margins:-5/root.zoom;cursorShape:Qt.SizeFDiagCursor
             property point initial

@@ -80,9 +80,11 @@ void Document::renderShape(const QPointF &_to)
         }
         const auto oldBounds = shape
                                    ? PhotoCrap::Shape::bounds(m_layers[m_active].parameters, m_size)
-                                   : PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size);
-        const auto newBounds = shape ? PhotoCrap::Shape::bounds(parameters, m_size)
-                                     : PhotoCrap::Text::bounds(parameters, m_size);
+                                   : PhotoCrap::Text::bounds(m_layers[m_active].parameters, m_size,
+                                                             &m_layers[m_active]);
+        const auto newBounds =
+            shape ? PhotoCrap::Shape::bounds(parameters, m_size)
+                  : PhotoCrap::Text::bounds(parameters, m_size, &m_layers[m_active]);
         m_dirtyRegion        = m_dirtyRegion.united(oldBounds).united(newBounds);
         m_layers[m_active].parameters = parameters;
         m_layers[m_active].image      = image;

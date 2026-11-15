@@ -6477,6 +6477,8 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Cliquez sur chaque face plane. Clic droit pour en retirer une.</source><translation>Click each flat surface. Right-click to remove one.</translation></message>
     <message><source>Cliquez sur le tissu pour sélectionner l’ensemble de la pièce.</source><translation>Click the fabric to select the whole piece.</translation></message>
     <message><source>Cliquez dans la surface sélectionnée pour placer le texte.</source><translation>Click inside the selected surface to place the text.</translation></message>
+    <message><source>Orientation du texte</source><translation>Text Orientation</translation></message>
+    <message><source>Suivre les plis</source><translation>Follow Folds</translation></message>
     <message><source>Peindre</source><translation>Paint</translation></message>
     <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
     <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its geometry. Then select the surfaces you want to paint.</translation></message>

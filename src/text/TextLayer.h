@@ -1,6 +1,7 @@
 #pragma once
 #include "storage/PixelPlane.h"
 #include <QImage>
+#include <QPolygonF>
 #include <QTextDocument>
 #include <QTransform>
 #include <QVariantMap>
@@ -28,6 +29,9 @@ bool        normalize(QVariantMap &_parameters);
 void        configure(QTextDocument &_document, const QVariantMap &_parameters);
 QSizeF      size(const QVariantMap &_parameters);
 QTransform  transform(const QVariantMap &_parameters);
+QTransform  displayTransform(const QVariantMap &parameters, const Layer *surface,
+                             const QSizeF &extent = {});
+QPolygonF   surfaceOutline(const Layer &layer, const QSize &canvas, QPointF &bottomRight);
 void        transform(QVariantMap &_parameters, const QTransform &_transform);
 PixelPlane  renderPlane(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format,
                         const Layer *surface = nullptr);
@@ -36,5 +40,5 @@ QVariantMap formatting(const QTextDocument &_document);
 void        applyFormatting(QTextDocument &_document, const QVariantMap &_parameters);
 bool        validFormatting(const QVariantMap &_parameters, int _length);
 QString     plainText(const QVariantMap &_parameters);
-QRect       bounds(const QVariantMap &_parameters, const QSize &_canvas);
+QRect bounds(const QVariantMap &_parameters, const QSize &_canvas, const Layer *surface = nullptr);
 } // namespace PhotoCrap::Text

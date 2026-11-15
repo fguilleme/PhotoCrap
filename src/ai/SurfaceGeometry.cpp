@@ -4,7 +4,9 @@
 #include <QPainter>
 #include <QVector2D>
 #include <QVector3D>
+#include <QtMath>
 #include <cmath>
+#include <limits>
 #include <new>
 #include <vector>
 
@@ -39,12 +41,11 @@ bool continuousDepth(const QImage &disparity, const QImage &validity, const QPoi
 }
 } // namespace
 
-QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, const QPointF &center,
-                                  const QTransform &mapping)
+namespace
 {
-    bool       invertible = false;
-    const auto point      = mapping.inverted(&invertible).map(center);
-    if (normals.format() != QImage::Format_RGB888 || canvas.isEmpty() || !invertible ||
+QVector3D sampleNormal(const QImage &normals, const QSize &canvas, const QPointF &point)
+{
+    if (normals.format() != QImage::Format_RGB888 || canvas.isEmpty() ||
         !QRectF(QPointF{}, QSizeF(canvas)).contains(point))
         return {};
     // Interpolate the encoded normals in document coordinates so the dab's
@@ -56,10 +57,20 @@ QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, co
     const int   x0 = int(x), y0 = int(y);
     const int   x1 = qMin(x0 + 1, normals.width() - 1), y1 = qMin(y0 + 1, normals.height() - 1);
     const float u = float(x - x0), v = float(y - y0);
-    const auto  normal =
-        ((1.f - v) * ((1.f - u) * normalAt(normals, x0, y0) + u * normalAt(normals, x1, y0)) +
-         v * ((1.f - u) * normalAt(normals, x0, y1) + u * normalAt(normals, x1, y1)))
-            .normalized();
+    return ((1.f - v) * ((1.f - u) * normalAt(normals, x0, y0) + u * normalAt(normals, x1, y0)) +
+            v * ((1.f - u) * normalAt(normals, x0, y1) + u * normalAt(normals, x1, y1)))
+        .normalized();
+}
+} // namespace
+
+QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, const QPointF &center,
+                                  const QTransform &mapping)
+{
+    bool       invertible = false;
+    const auto point      = mapping.inverted(&invertible).map(center);
+    if (!invertible)
+        return {};
+    const auto normal = sampleNormal(normals, canvas, point);
     if (normal.x() * normal.x() + normal.y() * normal.y() < 0.0004f)
         return {};
     const QPointF   offset(-normal.y(), -normal.x());
@@ -76,28 +87,78 @@ QTransform surfaceBrushProjection(const QImage &normals, const QSize &canvas, co
     return {1. - yy, xy, xy, 1. - xx, 0., 0.};
 }
 
+QTransform surfaceTextProjection(const QImage &normals, const QSize &canvas, const QPointF &anchor,
+                                 const QTransform &mapping, qreal angle, qreal focalRatio)
+{
+    bool       invertible = false;
+    const auto inverse    = mapping.inverted(&invertible);
+    if (!invertible || canvas.isEmpty() || !std::isfinite(angle) || !std::isfinite(focalRatio))
+        return {};
+    const auto point = inverse.map(anchor);
+    if (!std::isfinite(point.x()) || !std::isfinite(point.y()))
+        return {};
+    const auto normal  = sampleNormal(normals, canvas, point);
+    QVector3D  average = normal * 4.f;
+    // Smooth small variations while avoiding a second face at a corner.
+    const qreal radius = qMax(canvas.width(), canvas.height()) / 240.;
+    for (int dy : {-1, 0, 1})
+        for (int dx : {-1, 0, 1}) {
+            const auto near =
+                sampleNormal(normals, canvas, point + QPointF(dx * radius, dy * radius));
+            if (QVector3D::dotProduct(normal, near) > .90f)
+                average += near;
+        }
+    average.normalize();
+    if (average.z() < 0)
+        average = -average;
+    QVector3D n(average.x(), -average.y(), qMax(.25f, average.z()));
+    if (n.x() * n.x() + n.y() * n.y() < .0004f)
+        n = {0.f, 0.f, 1.f};
+    n.normalize();
+
+    const QVector3D right   = QVector3D(n.z(), 0.f, -n.x()).normalized();
+    const QVector3D down    = QVector3D::crossProduct(n, right);
+    const auto      radians = qDegreesToRadians(angle);
+    const auto      c = float(std::cos(radians)), s = float(std::sin(radians));
+    const auto      u = c * right + s * down;
+    const auto      v = c * down - s * right;
+    const QPointF   center(canvas.width() * .5, canvas.height() * .5);
+    const auto      offset = point - center;
+    const qreal focal = std::hypot(canvas.width(), canvas.height()) * qBound(.35, focalRatio, 3.);
+    // Project a plane through the anchor. Its two depth slopes produce
+    // converging lines and allow the lettering to rotate within that plane.
+    const QTransform perspective(u.x(), u.y(), -u.z() / focal, v.x(), v.y(), -v.z() / focal,
+                                 offset.x(), offset.y(), 1.);
+    return inverse * QTransform::fromTranslate(-point.x(), -point.y()) * perspective *
+           QTransform::fromTranslate(center.x(), center.y()) * mapping;
+}
+
 namespace
 {
+QPointF sampleTextGrid(const std::vector<QPointF> &grid, const QSize &steps, qreal col, qreal row)
+{
+    const int   gx = qMin(int(col), steps.width() - 1);
+    const int   gy = qMin(int(row), steps.height() - 1);
+    const qreal u = col - gx, v = row - gy;
+    const int   stride = steps.width() + 1;
+    const int   i      = gy * stride + gx;
+    const auto  top    = grid[i] * (1. - u) + grid[i + 1] * u;
+    const auto  bottom = grid[i + stride] * (1. - u) + grid[i + stride + 1] * u;
+    return top * (1. - v) + bottom * v;
+}
+
 template <class Pixel, class Blend>
 void sampleSurfaceText(QImage &projected, const QImage &text, const std::vector<QPointF> &grid,
                        const QSize &steps, Blend blend)
 {
-    const int   stride = steps.width() + 1;
     const qreal stepX  = qreal(text.width() - 1) / steps.width();
     const qreal stepY  = qreal(text.height() - 1) / steps.height();
     for (int y = 0; y < text.height(); ++y) {
         auto       *out = reinterpret_cast<Pixel *>(projected.scanLine(y));
         const qreal row = stepY > 0. ? y / stepY : 0.;
-        const int   gy  = qMin(int(row), steps.height() - 1);
-        const qreal v   = row - gy;
         for (int x = 0; x < text.width(); ++x) {
             const qreal col    = stepX > 0. ? x / stepX : 0.;
-            const int   gx     = qMin(int(col), steps.width() - 1);
-            const qreal u      = col - gx;
-            const auto  i      = gy * stride + gx;
-            const auto  top    = grid[i] * (1. - u) + grid[i + 1] * u;
-            const auto  bottom = grid[i + stride] * (1. - u) + grid[i + stride + 1] * u;
-            const auto  p      = top * (1. - v) + bottom * v;
+            const auto  p      = sampleTextGrid(grid, steps, col, row);
             if (p.x() <= -1. || p.y() <= -1. || p.x() >= text.width() || p.y() >= text.height())
                 continue;
             const int  sx = int(std::floor(p.x())), sy = int(std::floor(p.y()));
@@ -111,63 +172,210 @@ void sampleSurfaceText(QImage &projected, const QImage &text, const std::vector<
         }
     }
 }
-} // namespace
+struct SurfaceTextWarp {
+    QSize                imageSize;
+    QSize                steps;
+    std::vector<QPointF> grid;
 
-QImage projectSurfaceText(const QImage &text, const QPoint &origin, const QPointF &anchor,
-                          const QImage &normals, const QSize &canvas, const QTransform &mapping)
+    QPointF sourcePoint(const QPointF &point) const
+    {
+        const qreal x   = qBound(0., point.x(), qreal(imageSize.width() - 1));
+        const qreal y   = qBound(0., point.y(), qreal(imageSize.height() - 1));
+        const qreal col = imageSize.width() > 1 ? x * steps.width() / (imageSize.width() - 1) : 0.;
+        const qreal row =
+            imageSize.height() > 1 ? y * steps.height() / (imageSize.height() - 1) : 0.;
+        return sampleTextGrid(grid, steps, col, row) + point - QPointF(x, y);
+    }
+
+    QPointF outputPoint(const QPointF &target, const QPointF &guess) const
+    {
+        // Invert the bilinear sampling map used for the glyphs. Start from the
+        // previous boundary sample to stay on the same side of a steep fold.
+        QPointF point     = guess;
+        QPointF best      = point;
+        qreal   bestError = std::numeric_limits<qreal>::infinity();
+        for (int iteration = 0; iteration < 16; ++iteration) {
+            const auto  source   = sourcePoint(point);
+            const auto  residual = source - target;
+            const qreal error    = std::hypot(residual.x(), residual.y());
+            if (error < bestError) {
+                best      = point;
+                bestError = error;
+            }
+            if (error < .05)
+                break;
+            const auto  dx   = sourcePoint(point + QPointF(.5, 0.)) - source;
+            const auto  dy   = sourcePoint(point + QPointF(0., .5)) - source;
+            const qreal det  = dx.x() * dy.y() - dy.x() * dx.y();
+            QPointF     step = residual;
+            if (qAbs(det) > .025)
+                step = QPointF(dy.y() * residual.x() - dy.x() * residual.y(),
+                               dx.x() * residual.y() - dx.y() * residual.x()) *
+                       (.5 / det);
+            const qreal length = std::hypot(step.x(), step.y());
+            point -= step * qMin(1., 64. / qMax(1., length));
+        }
+        return best;
+    }
+};
+
+SurfaceTextWarp surfaceTextWarp(const QRect &region, const QPointF &anchor, const QImage &normals,
+                                const QSize &canvas, const QTransform &mapping, qreal focalRatio,
+                                qreal strength)
 {
-    if (text.isNull() || normals.isNull())
-        return text;
-    const QSize          steps(qBound(1, (text.width() + 5) / 6, 192),
-                               qBound(1, (text.height() + 5) / 6, 192));
+    if (region.isEmpty() || normals.isNull() || strength <= 0.)
+        return {};
+    const auto           origin = region.topLeft();
+    const QSize          steps(qBound(1, (region.width() + 5) / 6, 192),
+                               qBound(1, (region.height() + 5) / 6, 192));
     const int            stride = steps.width() + 1;
-    const qreal          stepX  = qreal(text.width() - 1) / steps.width();
-    const qreal          stepY  = qreal(text.height() - 1) / steps.height();
-    std::vector<QPointF> stretch(stride * (steps.height() + 1));
-    std::vector<QPointF> grid(stretch.size());
-    bool                 flat = true;
+    const qreal          stepX  = qreal(region.width() - 1) / steps.width();
+    const qreal          stepY  = qreal(region.height() - 1) / steps.height();
+    const auto           unmap  = mapping.inverted();
+    struct Differential {
+        QTransform metric;
+        QVector2D  depthSlope;
+    };
+    const auto differentialAt = [&](const QPointF &position, const Differential &fallback) {
+        const auto point  = unmap.map(position);
+        auto       normal = sampleNormal(normals, canvas, point);
+        if (normal.isNull())
+            return fallback;
+        if (normal.z() < 0)
+            normal = -normal;
+        const auto across    = mapping.map(point + QPointF(normal.x(), -normal.y())) - position;
+        const auto direction = QVector2D(across).normalized();
+        // The square root of the surface metric gives the local increase in
+        // distance along the slope, including the shear of a diagonal fold.
+        const qreal stretch = 1. / qMax(.48, qreal(qAbs(normal.z()))) - 1.;
+        const qreal xy      = stretch * direction.x() * direction.y();
+        const auto slope = -direction * std::hypot(normal.x(), normal.y()) / qMax(.48f, normal.z());
+        return Differential{QTransform(1. + stretch * direction.x() * direction.x(), xy, xy,
+                                       1. + stretch * direction.y() * direction.y(), 0., 0.),
+                            slope};
+    };
+    const auto             reference        = differentialAt(anchor, {});
+    const auto             inverseReference = reference.metric.inverted();
+    const auto             points           = stride * (steps.height() + 1);
+    std::vector<QVector3D> horizontal(points), vertical(points);
+    std::vector<QPointF>   grid(points);
+    bool                   warped = false;
     for (int y = 0; y <= steps.height(); ++y)
         for (int x = 0; x <= steps.width(); ++x) {
-            const auto projection = surfaceBrushProjection(
-                normals, canvas, QPointF(origin) + QPointF(x * stepX + .5, y * stepY + .5),
-                mapping);
-            // Convert image distances to approximate distances along the cloth.
-            // Cap the stretch to keep lettering legible on grazing folds.
-            constexpr qreal minimumScale = .45;
-            const qreal     sx = qMax(minimumScale, std::hypot(projection.m11(), projection.m12()));
-            const qreal     sy = qMax(minimumScale, std::hypot(projection.m21(), projection.m22()));
-            flat &= 1. - sx < .001 && 1. - sy < .001;
-            stretch[y * stride + x] = {1. / sx, 1. / sy};
+            const auto position   = QPointF(origin) + QPointF(x * stepX + .5, y * stepY + .5);
+            const auto local      = differentialAt(position, reference);
+            const auto relative   = local.metric * inverseReference;
+            const auto depthSlope = (local.depthSlope - reference.depthSlope) * float(strength);
+            const int  i          = y * stride + x;
+            horizontal[i]         = {float(qBound(-.30, (relative.m11() - 1.) * strength, .60)),
+                                     float(qBound(-.26, relative.m12() * strength, .26)),
+                                     qBound(-1.f, depthSlope.x(), 1.f)};
+            vertical[i]           = {float(qBound(-.26, relative.m21() * strength, .26)),
+                                     float(qBound(-.30, (relative.m22() - 1.) * strength, .60)),
+                                     qBound(-1.f, depthSlope.y(), 1.f)};
+            warped |= horizontal[i].lengthSquared() > 1e-5f || vertical[i].lengthSquared() > 1e-5f;
         }
-    if (flat)
-        return text;
-    // Integrate each row and column through the folds. Different distances on
-    // adjacent rows and columns deform the entire word, including its baseline.
-    const auto integrate = [&](int start, int increment, int count, int axis, qreal step,
-                               qreal at) {
-        const auto value = [axis](const QPointF &p) { return axis == 0 ? p.x() : p.y(); };
-        const auto coord = [axis](QPointF &p) -> qreal & { return axis == 0 ? p.rx() : p.ry(); };
+    if (!warped)
+        return {};
+
+    const auto anchorInGrid = anchor - QPointF(origin) - QPointF(.5, .5);
+    const auto gridPosition = [](qreal position, qreal step, int count) {
+        return step > 0. ? qBound(0., position / step, qreal(count)) : 0.;
+    };
+    const qreal ax          = gridPosition(anchorInGrid.x(), stepX, steps.width());
+    const qreal ay          = gridPosition(anchorInGrid.y(), stepY, steps.height());
+    const auto  interpolate = [](const std::vector<QVector3D> &line, int start, int increment,
+                                 int count, qreal at) {
+        const int   i        = qMin(count - 1, int(at));
+        const float fraction = float(at - i);
+        return line[start + i * increment] * (1.f - fraction) +
+               line[start + (i + 1) * increment] * fraction;
+    };
+    const auto integrate = [&](std::vector<QVector3D> &line, int start, int increment, int count,
+                               qreal step, qreal at) {
+        auto previous = line[start];
+        line[start]   = {};
         for (int i = 1; i <= count; ++i) {
             const int next = start + i * increment;
-            const int prev = next - increment;
-            coord(grid[next]) =
-                value(grid[prev]) + (value(stretch[prev]) + value(stretch[next])) * step * .5;
+            const auto slope = line[next];
+            line[next]       = line[next - increment] + (previous + slope) * float(step * .5);
+            previous         = slope;
         }
-        at                   = qBound(0., at, step * count);
-        const qreal t        = step > 0. ? at / step : 0.;
-        const int   i        = qMin(count - 1, int(t));
-        const qreal fraction = t - i;
-        const qreal offset   = at - value(grid[start + i * increment]) * (1. - fraction) -
-                               value(grid[start + (i + 1) * increment]) * fraction;
-        for (int k = 0; k <= count; ++k)
-            coord(grid[start + k * increment]) += offset;
+        const auto offset = interpolate(line, start, increment, count, at);
+        for (int i = 0; i <= count; ++i)
+            line[start + i * increment] -= offset;
     };
-    const QPointF localAnchor = anchor - QPointF(origin) - QPointF(.5, .5);
     for (int y = 0; y <= steps.height(); ++y)
-        integrate(y * stride, 1, steps.width(), 0, stepX, localAnchor.x());
+        integrate(horizontal, y * stride, 1, steps.width(), stepX, ax);
     for (int x = 0; x <= steps.width(); ++x)
-        integrate(x, stride, steps.height(), 1, stepY, localAnchor.y());
+        integrate(vertical, x, stride, steps.height(), stepY, ay);
 
+    const auto  center = mapping.map(QPointF(canvas.width() * .5, canvas.height() * .5)) -
+                         QPointF(origin) - QPointF(.5, .5);
+    const qreal focal  = qMax(
+        1., QLineF(mapping.map(QPointF{}), mapping.map(QPointF(canvas.width(), canvas.height())))
+                    .length() *
+                focalRatio);
+    // Normals can be noisy. Average the two paths from the anchor instead of
+    // letting the warp depend on one traversal of the grid.
+    for (int y = 0; y <= steps.height(); ++y) {
+        const auto anchorColumn = interpolate(vertical, y * stride, 1, steps.width(), ax);
+        for (int x = 0; x <= steps.width(); ++x) {
+            const int     i         = y * stride + x;
+            const auto    anchorRow = interpolate(horizontal, x, stride, steps.height(), ay);
+            const QPointF position(x * stepX, y * stepY);
+            const auto    delta = (horizontal[i] + vertical[i] + anchorRow + anchorColumn) * .5f;
+            // A fold closer to the camera also changes scale along its ray.
+            const qreal perspective = qBound(-.12, delta.z() / focal, .12);
+            grid[i] = position + delta.toPointF() - (position - center) * perspective;
+        }
+    }
+
+    return {region.size(), steps, std::move(grid)};
+}
+} // namespace
+
+QPolygonF projectSurfaceTextOutline(const QPolygonF &polygon, const QRect &region,
+                                    const QPointF &anchor, const QImage &normals,
+                                    const QSize &canvas, const QTransform &mapping,
+                                    qreal focalRatio, qreal strength, QPointF &bottomRight)
+{
+    const auto warp =
+        surfaceTextWarp(region, anchor, normals, canvas, mapping, focalRatio, strength);
+    if (warp.grid.empty())
+        return {};
+    QPolygonF     outline;
+    const QPointF origin = QPointF(region.topLeft()) + QPointF(.5, .5);
+    QPointF       previous, output;
+    for (int edge = 0; edge < polygon.size(); ++edge) {
+        const auto start   = polygon[edge] - origin;
+        const auto end     = polygon[(edge + 1) % polygon.size()] - origin;
+        const int  samples = int(qBound(1., std::ceil(QLineF(start, end).length() / 8.), 128.));
+        for (int sample = 0; sample < samples; ++sample) {
+            const auto target = start + (end - start) * (qreal(sample) / samples);
+            const auto guess  = outline.isEmpty() ? target : output + target - previous;
+            output            = warp.outputPoint(target, guess);
+            outline.append(output + origin);
+            if (edge == 2 && sample == 0)
+                bottomRight = outline.back();
+            previous = target;
+        }
+    }
+    if (!outline.isEmpty())
+        outline.append(outline.front());
+    return outline;
+}
+
+QImage projectSurfaceText(const QImage &text, const QPoint &origin, const QPointF &anchor,
+                          const QImage &normals, const QSize &canvas, const QTransform &mapping,
+                          qreal focalRatio, qreal strength)
+{
+    const auto warp = surfaceTextWarp(QRect(origin, text.size()), anchor, normals, canvas, mapping,
+                                      focalRatio, strength);
+    if (warp.grid.empty())
+        return text;
+    const auto &grid  = warp.grid;
+    const auto &steps = warp.steps;
     QImage projected(text.size(), text.format());
     if (projected.isNull())
         return {};
@@ -360,20 +568,23 @@ SurfaceSelection surfaceSelection(const QImage &mask, const QImage &protection,
 }
 
 PixelPlane SurfaceGeometry::paintMask(const QImage &selected, const QSize &canvas,
-                                      const Cancel &cancel, const QImage &protection)
+                                      const Cancel &cancel, const QImage &protection,
+                                      const QImage &face)
 {
     if (selected.isNull() || canvas.isEmpty() ||
-        (!protection.isNull() && protection.size() != selected.size()))
+        (!protection.isNull() && protection.size() != selected.size()) ||
+        (!face.isNull() && face.size() != selected.size()))
         return {};
     auto coverage = selected;
-    if (!protection.isNull()) {
+    if (!protection.isNull() || !face.isNull()) {
         for (int y = 0; y < coverage.height(); ++y) {
             if (cancel->load())
                 return {};
             auto       *out     = coverage.scanLine(y);
-            const auto *blocked = protection.constScanLine(y);
+            const auto *blocked = protection.isNull() ? nullptr : protection.constScanLine(y);
+            const auto *inside  = face.isNull() ? nullptr : face.constScanLine(y);
             for (int x = 0; x < coverage.width(); ++x)
-                if (blocked[x])
+                if ((blocked && blocked[x]) || (inside && !inside[x]))
                     out[x] = 0;
         }
     }

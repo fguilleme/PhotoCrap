@@ -54,7 +54,12 @@ bool validPoint(const float *point, float mask)
            std::isfinite(point[2]);
 }
 
-double depthShift(const float *points, const float *mask, const QSize &size)
+struct CameraFit {
+    double shift      = 0.;
+    double focalRatio = .85;
+};
+
+CameraFit fitCamera(const float *points, const float *mask, const QSize &size)
 {
     // The affine point map has an unknown offset on Z. Fit
     // focal * (X,Y) - shift * (u,v) = Z * (u,v) in normalized camera coordinates.
@@ -82,22 +87,24 @@ double depthShift(const float *points, const float *mask, const QSize &size)
     }
     const double determinant = xx * uu - xu * xu;
     if (determinant <= xx * uu * 1e-8)
-        return 0.;
+        return {};
     const double focal = (uu * xuz - xu * uuz) / determinant;
     const double shift = (xu * xuz - xx * uuz) / determinant;
-    return std::isfinite(shift) && std::isfinite(focal) && focal > 0. ? shift : 0.;
+    if (!std::isfinite(shift) || !std::isfinite(focal) || focal <= 0.)
+        return {};
+    return {shift, qBound(.35, focal * .5, 3.)};
 }
 
 SurfaceGeometry geometryFromTensors(const QImage &image, const float *points, const float *normals,
                                     const float *mask, const Cancel &cancel)
 {
     const auto          size  = image.size();
-    const double        shift = depthShift(points, mask, size);
+    const auto          camera = fitCamera(points, mask, size);
     std::vector<double> range;
     range.reserve(size.width() * size.height());
     SurfaceGeometry result{QImage(size, QImage::Format_Grayscale8),
                            QImage(size, QImage::Format_RGB888),
-                           QImage(size, QImage::Format_Grayscale8)};
+                           QImage(size, QImage::Format_Grayscale8), camera.focalRatio};
     if (!result.isValid())
         return {};
     for (int y = 0; y < size.height() && !cancel->load(); ++y) {
@@ -107,7 +114,7 @@ SurfaceGeometry geometryFromTensors(const QImage &image, const float *points, co
             const int    i     = y * size.width() + x;
             const auto  *point = points + 3 * i;
             const auto  *n     = normals + 3 * i;
-            const double z     = point[2] + shift;
+            const double z     = point[2] + camera.shift;
             const bool   valid = rgba[4 * x + 3] && z > 0. && validPoint(point, mask[i]) &&
                                std::isfinite(n[0]) && std::isfinite(n[1]) && std::isfinite(n[2]);
             validity[x] = valid ? 255 : 0;
@@ -134,7 +141,8 @@ SurfaceGeometry geometryFromTensors(const QImage &image, const float *points, co
         for (int x = 0; x < size.width(); ++x) {
             const int    i     = y * size.width() + x;
             const auto  *n     = normals + 3 * i;
-            const double value = validity[x] ? 1. / qMax(1e-6, points[3 * i + 2] + shift) : low;
+            const double value =
+                validity[x] ? 1. / qMax(1e-6, points[3 * i + 2] + camera.shift) : low;
             depth[x]           = uchar(qRound(255. * qBound(0., (value - low) / span, 1.)));
             // MoGe uses X right, Y down, Z away from the camera.
             normal[3 * x]     = validity[x] ? encodeNormal(n[0]) : 128;

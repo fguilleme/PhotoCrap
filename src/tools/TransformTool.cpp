@@ -139,7 +139,7 @@ bool Document::beginTransform(const QString &_mode, bool _copy, bool _selectionO
                 layerBounds         = Shape::bounds(layer.parameters, m_size);
                 job.allowProjective = job.allowWarp = false;
             } else if (layer.kind == "text") {
-                layerBounds         = Text::bounds(layer.parameters, m_size);
+                layerBounds         = Text::bounds(layer.parameters, m_size, &layer);
                 job.allowProjective = job.allowWarp = false;
             } else if (layer.model3D) {
                 layerBounds         = Transform::contentBounds(layer.image, m_size);

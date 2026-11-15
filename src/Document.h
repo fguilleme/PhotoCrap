@@ -1196,7 +1196,8 @@ public:
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
     bool addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
-                         std::optional<QPoint> textPosition = {});
+                         std::optional<QPoint> textPosition = {}, bool followRelief = false,
+                         qreal focalRatio = .85);
 
     Q_INVOKABLE void requestImportLayer(const QUrl &_url);
     Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;
@@ -1240,6 +1241,9 @@ public:
     Q_INVOKABLE void updateTextFormatting(const QVariantMap &_formatting);
     Q_INVOKABLE void setTextBox(bool _paragraph, qreal _width, qreal _height);
     Q_INVOKABLE void moveTextBy(qreal _dx, qreal _dy);
+    Q_INVOKABLE void setSurfaceTextAngle(qreal angle);
+    Q_INVOKABLE void setSurfaceTextRelief(bool enabled);
+    Q_INVOKABLE void setSurfaceTextStrength(qreal strength);
     Q_INVOKABLE void finishTextEdit(bool _cancel = false);
     Q_INVOKABLE void rasterizeTextLayer();
 
@@ -1886,6 +1890,7 @@ private:
     void        beginTextEdit(int _index, bool _fromCanvas);
     void        updateTextGesture(qreal _x, qreal _y);
     bool        renderTextEdit();
+    void               setSurfaceTextParameter(const QString &key, const QVariant &value);
     bool               m_textMaskEdit = false;
     QVariantMap        m_maskTextParameters;
     QRect              m_maskTextBounds;

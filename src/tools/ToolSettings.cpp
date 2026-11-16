@@ -2,7 +2,38 @@
 #include "text/TextLayer.h"
 
 #include <QtMath>
+#include <algorithm>
 #include <cmath>
+
+void Document::activateLayerTool()
+{
+    if (m_active < 0 || m_active >= m_layers.size() || m_selectedLayers.size() != 1 ||
+        !m_selectedLayers.contains(m_active) || m_editingMask || editingVectorMask())
+        return;
+    const auto &layer = m_layers[m_active];
+    if (!layer.visible || layer.locked ||
+        (!layer.groupId.isEmpty() &&
+         std::any_of(m_layers.cbegin(), m_layers.cend(), [&](const Layer &group) {
+             return group.kind == "group" && group.groupId == layer.groupId &&
+                    (group.locked || !group.visible);
+         })))
+        return;
+    if (layer.kind == "shape") {
+        editPenShape();
+        return;
+    }
+    QString tool;
+    if (layer.kind == "text")
+        tool = QStringLiteral("text");
+    else if (activeGradientLayer())
+        tool = QStringLiteral("gradient");
+    else if (layer.kind == "model3d")
+        tool = QStringLiteral("move");
+    else if (layer.kind == "pixel" && !layer.surfaceNormals.isNull())
+        tool = QStringLiteral("brush");
+    if (!tool.isEmpty() && m_tool != tool)
+        setTool(tool);
+}
 
 void Document::setTool(const QString &_value)
 {

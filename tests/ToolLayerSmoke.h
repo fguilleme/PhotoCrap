@@ -177,23 +177,25 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     if (layerList)
         QMetaObject::invokeMethod(layerList, "positionViewAtBeginning");
     QTest::qWait(100);
-    QQuickItem         *textThumbnail = nullptr;
-    QList<QQuickItem *> pending{layerList};
-    while (!pending.isEmpty()) {
-        auto *row = pending.takeLast();
-        if (!row)
-            continue;
-        pending.append(row->childItems());
-        if (row->objectName() != "layerDelegate")
-            continue;
-        auto model = row->property("modelData");
-        if (model.metaType() == QMetaType::fromType<QJSValue>())
-            model = model.value<QJSValue>().toVariant();
-        if (row->isVisible() && model.toMap().value("layerIndex", -1).toInt() == 2) {
-            textThumbnail = row->findChild<QQuickItem *>("layerThumbnailMouse");
-            break;
+    const auto layerRow = [layerList](int index) -> QQuickItem * {
+        QList<QQuickItem *> pending{layerList};
+        while (!pending.isEmpty()) {
+            auto *row = pending.takeLast();
+            if (!row)
+                continue;
+            pending.append(row->childItems());
+            if (row->objectName() != "layerDelegate")
+                continue;
+            auto model = row->property("modelData");
+            if (model.metaType() == QMetaType::fromType<QJSValue>())
+                model = model.value<QJSValue>().toVariant();
+            if (row->isVisible() && model.toMap().value("layerIndex", -1).toInt() == index)
+                return row;
         }
-    }
+        return nullptr;
+    };
+    auto *row           = layerRow(2);
+    auto *textThumbnail = row ? row->findChild<QQuickItem *>("layerThumbnailMouse") : nullptr;
     if (!require(textThumbnail && textThumbnail->isVisible(), "the text thumbnail is visible"))
         return false;
     const auto thumbnailPoint =
@@ -202,12 +204,12 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, thumbnailPoint);
     if (!require(QTest::qWaitFor(
                      [&] {
-                         return _document.activeLayer() == 2 && _document.tool() == "brush" &&
+                         return _document.activeLayer() == 2 && _document.tool() == "text" &&
                                 textFrame->isVisible() && !_document.textEditing() &&
                                 !textInput->hasActiveFocus();
                      },
                      500),
-                 "selecting a text layer shows its frame without entering text editing")) {
+                 "selecting a text layer activates the text tool and shows its frame")) {
         qWarning() << _document.activeLayer() << _document.tool() << textFrame->isVisible()
                    << _document.textEditing() << textInput->hasActiveFocus();
         return false;
@@ -392,6 +394,16 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
                      _document.dynamicGradientActive() && _document.layers().size() == 2,
                  "releasing the dynamic gradient retains the editable handles"))
         return false;
+    _document.setTool("pencil");
+    QMetaObject::invokeMethod(_window, "activateShortcut", Q_ARG(QVariant, "selectBottomLayer"));
+    if (!require(_document.activeLayer() == 0 && _document.tool() == "pencil",
+                 "selecting an ordinary pixel layer keeps the current tool"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateShortcut", Q_ARG(QVariant, "selectLayerUp"));
+    if (!require(_document.activeLayer() == 1 && _document.tool() == "gradient" &&
+                     guide->isVisible() && _document.dynamicGradientActive(),
+                 "selecting an existing gradient activates its tool and handles"))
+        return false;
     auto *endHandle = guide->findChild<QQuickItem *>("gradientEndHandle");
     if (!require(endHandle && endHandle->isVisible(), "the gradient has an end handle"))
         return false;
@@ -568,10 +580,50 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     if (!require(click.x() > 100. && click.x() < 220.,
                  "the caret test targets a letter on the second face"))
         return false;
+    _document.finishTextEdit();
+    _document.setActiveLayer(0);
+    _document.setTool("brush");
+    const auto toolReady = [&] {
+        return _document.activeLayer() == 1 && _document.tool() == "text" &&
+               !_document.textEditing() && _document.layerCount() == 2;
+    };
+    QMetaObject::invokeMethod(layerList, "positionViewAtBeginning");
+    if (!require(QTest::qWaitFor([&] { return layerRow(1); }, 1000),
+                 "the projected text row is visible"))
+        return false;
+    auto      *projectedRow = layerRow(1);
+    const auto rowPoint =
+        projectedRow->mapToScene({projectedRow->width() * .7, projectedRow->height() / 2})
+            .toPoint();
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, rowPoint);
+    if (!require(QTest::qWaitFor(toolReady, 500),
+                 "selecting a projected text row activates the text tool")) {
+        qWarning() << rowPoint << _document.activeLayer() << _document.tool()
+                   << _document.textEditing() << _document.layerCount();
+        return false;
+    }
+    _document.setTool("brush");
+    auto *selectedRow = layerRow(1);
+    auto *thumbnail =
+        selectedRow ? selectedRow->findChild<QQuickItem *>("layerThumbnailMouse") : nullptr;
+    if (!require(thumbnail && thumbnail->isVisible(), "the projected text thumbnail is visible"))
+        return false;
+    QTest::mouseClick(
+        _window, Qt::LeftButton, Qt::NoModifier,
+        thumbnail->mapToScene({thumbnail->width() / 2, thumbnail->height() / 2}).toPoint());
+    if (!require(QTest::qWaitFor(toolReady, 500),
+                 "clicking the projected text thumbnail activates the text tool"))
+        return false;
     QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, area->mapToScene(click).toPoint());
-    QTest::qWait(20);
-    if (!require(textInput->property("cursorPosition").toInt() == character,
-                 "clicking projected text positions the caret on the second face"))
+    if (!require(QTest::qWaitFor(
+                     [&] {
+                         return _document.textEditing() && !_document.textGesture() &&
+                                _document.activeLayer() == 1 && _document.layerCount() == 2 &&
+                                textInput->hasActiveFocus() &&
+                                textInput->property("cursorPosition").toInt() == character;
+                     },
+                     500),
+                 "clicking the second face reopens the projected text with a focused caret"))
         return false;
     QTest::keyClick(_window, Qt::Key_Left, Qt::ShiftModifier);
     if (!require(textInput->property("selectionStart").toInt() == character - 1 &&
@@ -579,5 +631,29 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
                  "character selection still works while editing across the edge"))
         return false;
     _document.finishTextEdit();
+
+    _document.newDocument(220, 160, true);
+    const auto paintSource =
+        _document.prepareAiInput(false, 220, cancel, false, false, true).result();
+    if (!require(_document.addSurfaceLayer(paintSource, PixelPlane::uniform({220, 160}, coverage),
+                                           normals),
+                 "a projected paint layer can be created"))
+        return false;
+    _document.setActiveLayer(0);
+    _document.setTool("text");
+    QMetaObject::invokeMethod(_window, "activateShortcut", Q_ARG(QVariant, "selectTopLayer"));
+    if (!require(_document.activeLayer() == 1 && _document.tool() == "brush",
+                 "selecting a projected paint layer activates the brush"))
+        return false;
+    _document.setTool("pencil");
+    QMetaObject::invokeMethod(_window, "activateMaskThumbnail", Q_ARG(QVariant, 1),
+                              Q_ARG(QVariant, int(Qt::AltModifier)));
+    if (!require(_document.editingMask() && _document.tool() == "pencil",
+                 "selecting the mask keeps the chosen mask editing tool"))
+        return false;
+    QMetaObject::invokeMethod(_window, "activateShortcut", Q_ARG(QVariant, "selectTopLayer"));
+    if (!require(!_document.editingMask() && _document.tool() == "brush",
+                 "returning to layer content restores its tool"))
+        return false;
     return true;
 }

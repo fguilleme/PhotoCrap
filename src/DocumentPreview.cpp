@@ -261,6 +261,8 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
             _layers.insert(++modelIndex, duplicate);
         }
         _layers[modelIndex].parameters = _model->parameters;
+        if (!_model->paint.isEmpty())
+            _layers[modelIndex].modelPaint = _model->paint;
     }
     int                  channelBits = 8;
     QHash<QString, bool> groupVisibility;
@@ -342,10 +344,11 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
             parameters["light3d"] = _model->parameters.value("light3d");
             if (!PhotoCrap::Model3D::transformPlacement(parameters, scale))
                 return {};
-            layer.image = PhotoCrap::Model3D::renderPreview(
-                layer.model3D, parameters, renderSize,
-                bits == 16 ? QImage::Format_RGBA64_Premultiplied
-                           : QImage::Format_ARGB32_Premultiplied);
+            layer.image =
+                PhotoCrap::Model3D::renderPreview(layer.model3D, parameters, renderSize,
+                                                  bits == 16 ? QImage::Format_RGBA64_Premultiplied
+                                                             : QImage::Format_ARGB32_Premultiplied,
+                                                  layer.modelPaint);
             if (layer.image.isNull())
                 return {};
         }

@@ -37,7 +37,7 @@ struct Material {
 };
 struct Varying {
     float4 clip [[position]];
-    float3 position, normal;
+    float3 position, normal, modelPosition;
     float2 uv;
     float4 color;
 };
@@ -49,18 +49,27 @@ vertex Varying modelVertex(Vertex v [[stage_in]], uint index [[vertex_id]],
 {
     return {view.clipFromModel * float4(v.position, 1.0),
             (view.rotation * float4(v.position, 1.0)).xyz,
-            (view.rotation * float4(v.normal, 0.0)).xyz, v.uv,
+            (view.rotation * float4(v.normal, 0.0)).xyz, v.position, v.uv,
             material.vertexColors ? colors[index] : float4(1.0)};
 }
+
+struct PaintDab {
+    float4 centerRadius, normalHardness, colorOpacity;
+};
 
 fragment float4 modelFragment(Varying v [[stage_in]], bool front [[front_facing]],
                               constant View &view [[buffer(1)]],
                               constant Material &material [[buffer(2)]],
+                              device const PaintDab *paint [[buffer(3)]],
+                              device const uint *offsets [[buffer(4)]],
+                              device const uint *indices [[buffer(5)]],
+                              constant int &gridEdge [[buffer(6)]],
                               texture2d<float> image [[texture(0)]],
                               sampler imageSampler [[sampler(0)]])
 {
     const float4 texel = image.sample(imageSampler, v.uv);
     const float4 base = material.vertexColors ? material.color * v.color : material.color;
+    const float3 modelFlat = cross(dfdy(v.modelPosition), dfdx(v.modelPosition));
     if (texel.a * base.a < material.cutoff)
         discard_fragment();
     float3 light(1.0);
@@ -74,7 +83,24 @@ fragment float4 modelFragment(Varying v [[stage_in]], bool front [[front_facing]
                             * max(0.0, dot(normal, view.directionAndIntensity.xyz));
         light = view.colorAndAmbient.w + diffuse * view.colorAndAmbient.xyz;
     }
-    return float4(saturate(base.rgb * texel.rgb * light), 1.0);
+    float3 pigment = base.rgb * texel.rgb;
+    if (gridEdge != 0) {
+        const int3 cell = clamp(int3((v.modelPosition + 0.5) * gridEdge), 0, gridEdge - 1);
+        const int index = (cell.z * gridEdge + cell.y) * gridEdge + cell.x;
+        const float3 normal = normalize(modelFlat) * (material.mirrored ? -1.0 : 1.0);
+        for (uint i = offsets[index]; i < offsets[index + 1]; ++i) {
+            const PaintDab dab = paint[indices[i]];
+            const float3 delta = (v.modelPosition - dab.centerRadius.xyz) / dab.centerRadius.w;
+            const float depth = dot(delta, dab.normalHardness.xyz);
+            const float distance = sqrt(dot(delta, delta) + 12.0 * depth * depth);
+            if (distance < 1.0 && dot(normal, dab.normalHardness.xyz) >= 0.30) {
+                const float alpha = dab.colorOpacity.w *
+                    min(1.0, (1.0 - distance) / max(0.015, 1.0 - dab.normalHardness.w));
+                pigment = mix(pigment, dab.colorOpacity.xyz, alpha);
+            }
+        }
+    }
+    return float4(saturate(pigment * light), 1.0);
 }
 )metal";
 
@@ -273,7 +299,7 @@ bool Renderer::prepare(const std::shared_ptr<const Asset> &_asset)
 }
 
 PixelPlane renderMetalPreview(const std::shared_ptr<const Asset> &_asset, const RenderView &_view,
-                              const QSize &_canvas)
+                              const QSize &_canvas, const Paint &paint)
 {
     @autoreleasepool {
         static Renderer    renderer;
@@ -288,6 +314,22 @@ PixelPlane renderMetalPreview(const std::shared_ptr<const Asset> &_asset, const 
                                                          options:MTLResourceStorageModeShared];
         if (!color || !depth || !output)
             return {};
+        const PaintGrid grid(paint);
+        id<MTLBuffer>   dabs = nil, offsets = nil, indices = nil;
+        if (!paint.isEmpty()) {
+            static_assert(sizeof(PaintDab) == 3 * sizeof(simd_float4));
+            dabs    = [renderer.device newBufferWithBytes:paint.constData()
+                                                   length:paint.size() * sizeof(PaintDab)
+                                                  options:MTLResourceStorageModeShared];
+            offsets = [renderer.device newBufferWithBytes:grid.offsets.constData()
+                                                   length:grid.offsets.size() * sizeof(quint32)
+                                                  options:MTLResourceStorageModeShared];
+            indices = [renderer.device newBufferWithBytes:grid.indices.constData()
+                                                   length:grid.indices.size() * sizeof(quint32)
+                                                  options:MTLResourceStorageModeShared];
+            if (!dabs || !offsets || !indices)
+                return {};
+        }
 
         auto *pass                           = [MTLRenderPassDescriptor renderPassDescriptor];
         pass.colorAttachments[0].texture     = color;
@@ -310,6 +352,16 @@ PixelPlane renderMetalPreview(const std::shared_ptr<const Asset> &_asset, const 
         [encoder setVertexBytes:&view length:sizeof(view) atIndex:1];
         [encoder setFragmentBytes:&view length:sizeof(view) atIndex:1];
         constexpr simd_float4 white = {1.f, 1.f, 1.f, 1.f};
+        const int             gridEdge = paint.isEmpty() ? 0 : PaintGridEdge;
+        [encoder setFragmentBytes:&gridEdge length:sizeof(gridEdge) atIndex:6];
+        if (dabs) {
+            [encoder setFragmentBuffer:dabs offset:0 atIndex:3];
+            [encoder setFragmentBuffer:offsets offset:0 atIndex:4];
+            [encoder setFragmentBuffer:indices offset:0 atIndex:5];
+        } else {
+            for (NSUInteger slot = 3; slot <= 5; ++slot)
+                [encoder setFragmentBytes:&white length:sizeof(white) atIndex:slot];
+        }
         for (const auto &p : _asset->metalMesh->primitives) {
             auto material     = p.material;
             material.mirrored = mirrored;

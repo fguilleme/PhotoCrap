@@ -1,4 +1,5 @@
 #pragma once
+#include "model3d/ModelPaint.h"
 #include "storage/PixelPlane.h"
 #include <QImage>
 #include <QString>
@@ -58,4 +59,5 @@ struct Layer {
     }
     std::shared_ptr<const PhotoCrap::Ai::ImageSource> aiSource;
     std::shared_ptr<const PhotoCrap::Model3D::Asset>  model3D;
+    PhotoCrap::Model3D::Paint                         modelPaint;
 };

@@ -107,7 +107,14 @@ inline bool runPenStrokeVisibilitySmoke(QQuickWindow *_window, Document &_docume
                 _document.historyIndex() == beforeDeselect,
             "deselecting hides editing controls but leaves the real painted outline unchanged"))
         return false;
-    _document.editPenShape();
+    const int shapeIndex = _document.activeLayer();
+    _document.setActiveLayer(0);
+    _document.setTool("brush");
+    QMetaObject::invokeMethod(_window, "activateShortcut", Q_ARG(QVariant, "selectTopLayer"));
+    if (!require(_document.activeLayer() == shapeIndex && _document.tool() == "pen" &&
+                     _document.activePenPath() >= 0,
+                 "selecting a vector shape activates its path for editing"))
+        return false;
     _document.setTool("directSelection");
     _document.setPenShapeStyle("strokeWidth", 5.1);
     _document.setPenShapeStyle("strokeStyle", 2);

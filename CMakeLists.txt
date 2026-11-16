@@ -67,6 +67,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentModel3D.cpp
     src/model3d/GlbImport.cpp
     src/model3d/ModelRender.cpp
+    src/model3d/ModelPaint.cpp
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h
@@ -421,6 +422,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentModel3D.cpp
     src/model3d/GlbImport.cpp
     src/model3d/ModelRender.cpp
+    src/model3d/ModelPaint.cpp
     src/DocumentProjectPreview.cpp
     src/storage/ProjectPreview.cpp src/storage/ProjectPreview.h
     src/storage/ProjectPreviewScan.h

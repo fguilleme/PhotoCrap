@@ -1130,6 +1130,7 @@ public:
     Q_INVOKABLE void toggleMaskOnlyView(int _index);
     Q_INVOKABLE void showCompositeView();
     Q_INVOKABLE void selectLayer(int _index, bool _toggle = false, bool _range = false);
+    Q_INVOKABLE void activateLayerTool();
     void             setTool(const QString &_value);
     void             setColor(const QColor &_value);
     void             setSecondaryColor(const QColor &_value);
@@ -1850,18 +1851,28 @@ private:
         QVariantMap parameters;
         quint64     firstGeneration;
         bool        copy;
+        PhotoCrap::Model3D::Paint paint;
     };
     bool model3DMoveTarget() const;
     void previewModel3DMove(const QPointF &_position);
     void finishModel3DMove();
+    bool model3DPaintTarget() const;
+    void beginModel3DPaint(const QPointF &point);
+    void continueModel3DPaint(const QPointF &point);
+    void addModel3DPaintDab(const QPointF &point);
+    void finishModel3DPaint(bool cancel = false);
     bool canImportModel3D();
     using ModelLoader = std::function<std::shared_ptr<const PhotoCrap::Model3D::Asset>(
         const std::function<bool()> &, QString *)>;
     bool importModel3DWithLoader(ModelLoader _load, const QString &_name, const QRectF &_reference);
     bool insertModel3D(const ModelLoader &_load, const QString &_name, const QRectF &_reference);
-    void queueModel3DPreview(int _index, QVariantMap _parameters, bool _copy = false);
+    void queueModel3DPreview(int _index, QVariantMap _parameters, bool _copy = false,
+                             const PhotoCrap::Model3D::Paint &paint = {});
     bool applyModel3DParameters(int _index, const QVariantMap &_parameters, const QString &_label,
-                                bool _copy = false);
+                                bool _copy = false, const PhotoCrap::Model3D::Paint &paint = {});
+    std::weak_ptr<const PhotoCrap::Model3D::Asset>          m_modelPaintAsset;
+    std::shared_ptr<const PhotoCrap::Model3D::PaintPicking> m_modelPaintPicking;
+    PhotoCrap::Model3D::Paint                               m_modelPaintDraft;
     std::shared_ptr<const Model3DPreview> m_model3DPreview, m_pendingModel3DPreview;
     bool                                  m_runningModel3DPreview = false;
     QVector<Layer>                      m_pendingPreviewLayers;

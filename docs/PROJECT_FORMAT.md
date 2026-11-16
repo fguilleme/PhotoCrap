@@ -120,6 +120,12 @@ l’échelle et l’orientation. `parameters.light3d` contient l’éclairage co
 identique sur tous les calques 3D. Le rendu transparent est conservé comme
 plan de pixels pour la composition, avec le masque éventuel dans son bloc.
 
+Les projets avec de la peinture sur un modèle utilisent la version logique **17**.
+Le champ `modelPaint` référence un bloc original contenant jusqu’à 8 192
+empreintes de pinceau. Chaque empreinte contient douze flottants 32 bits en
+petit-boutiste. Ils décrivent le centre et le rayon dans le repère du maillage
+normalisé, la normale et la dureté, puis la couleur RVB linéaire et l’opacité.
+
 Le prototype accepte les maillages triangulés avec couleurs et textures PNG/JPEG
 intégrées. Pour un modèle articulé, il calcule la pose par défaut du squelette
 à l’import et conserve les animations dans le GLB embarqué. Le calque affiche

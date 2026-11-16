@@ -977,6 +977,14 @@ ApplicationWindow {
         const next=Array.from(colorSamples);next.splice(index,1);colorSamples=next
     }
     function removeNearestColorSample(x,y) { removeColorSample(nearestColorSample(x,y)) }
+    function activateLayerContent(layerIndex) {
+        const document = editor
+        document.activeLayer = layerIndex
+        if (document.editingVectorMask)
+            document.setActivePenPath(-1)
+        document.showCompositeView()
+        document.activateLayerTool()
+    }
     function activateMaskThumbnail(layerIndex, modifiers) {
         editor.activeLayer = layerIndex
         editor.setEditingMask(true)
@@ -1202,10 +1210,10 @@ ApplicationWindow {
             const rows = editor.layers
             const current = rows.findIndex(function(row) { return row.layerIndex === editor.activeLayer })
             const next = Math.max(0, Math.min(rows.length-1, current + (id === "selectLayerUp" ? -1 : 1)))
-            if (rows.length) editor.activeLayer = rows[next].layerIndex
+            if (rows.length) activateLayerContent(rows[next].layerIndex)
         }
-        else if (id === "selectTopLayer") { if (editor.layers.length) editor.activeLayer = editor.layers[0].layerIndex }
-        else if (id === "selectBottomLayer") { if (editor.layers.length) editor.activeLayer = editor.layers[editor.layers.length-1].layerIndex }
+        else if (id === "selectTopLayer") { if (editor.layers.length) activateLayerContent(editor.layers[0].layerIndex) }
+        else if (id === "selectBottomLayer") { if (editor.layers.length) activateLayerContent(editor.layers[editor.layers.length-1].layerIndex) }
         else if (id === "selectAllLayers") editor.selectAllLayers()
         else if (id === "resizeImage") { resizeWidth.value = editor.width; resizeHeight.value = editor.height; resizeDialog.open() }
         else if (id === "invertImage") editor.invertSelectedPixels()
@@ -1401,6 +1409,16 @@ ApplicationWindow {
         onTriggered: meshyDialog.open()
     }
     Action {
+        id: model3dPaintAction
+        text: qsTr("Peindre sur le modèle 3D")
+        enabled: model3dControls.editableModel && !window.modalOpen && !editor.pixelEditBusy
+                 && !editor.rawLoading && !editor.transformActive
+        onTriggered: {
+            editor.tool = "brush"
+            workspace.forceActiveFocus()
+        }
+    }
+    Action {
         id: surfacePaintAction
         objectName: "surfacePaintAction"
         text: aiSettings.surfaceProviderId.length ? qsTr("Peindre sur une surface (ComfyUI)") : qsTr("Peindre sur une surface (ComfyUI)…")
@@ -1431,6 +1449,7 @@ ApplicationWindow {
         title: "3D"
         DarkMenuItem { objectName: "importModel3DMenuItem"; action: importModel3DAction }
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
+        DarkMenuItem { objectName: "model3dPaintMenuItem"; action: model3dPaintAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
         DarkMenuItem { objectName: "localSurfacePaintMenuItem"; action: localSurfacePaintAction; visible: aiImages.localSurfaceAvailable }
         DarkMenuItem { objectName: "surfaceServerMenuItem"; action: surfaceServerAction; visible: aiSettings.surfaceProviders.length > 1 }
@@ -3033,7 +3052,7 @@ ApplicationWindow {
                                     const measuring=measureToolArea.enabled && measureToolArea.containsMouse
                                     const gradientControl=gradientGuideControl.pointerActive
                                     const controllingModel = model3dControls.enabled
-                                        && (model3dControls.containsMouse || model3dControls.pressed)
+                                        && (model3dControls.pressed || (!window.paintToolActive && model3dControls.containsMouse))
                                     const tool=controllingModel ? "move"
                                               : pickingSurface ? ""
                                               : gradientControl ? "gradientControl"
@@ -3203,17 +3222,19 @@ ApplicationWindow {
                                 objectName: "model3dCanvasControls"
                                 anchors.fill: parent
                                 z: 40
-                                // Keep the wheel reserved for the model while its render is pending.
-                                readonly property bool wheelActive: !aiImages.surfacePicking && window.activeInfo.kind === "model3d"
+                                readonly property bool editableModel: window.activeInfo.kind === "model3d"
                                     && window.activeInfo.visible && !window.activeInfo.locked
-                                    && !window.activeInfo.editingMask && !window.spacePressed && !window.editingText
-                                    && (!window.modalOpen || editor.operationBusy)
+                                    && !window.activeInfo.editingMask && !window.activeInfo.editingVectorMask
                                     && (!window.activeInfo.groupId || !editor.layers.some(layer =>
                                         layer.kind === "group" && layer.groupId === window.activeInfo.groupId
                                         && (layer.locked || !layer.visible)))
+                                // Keep the wheel reserved for the model while its render is pending.
+                                readonly property bool wheelActive: editableModel && !aiImages.surfacePicking
+                                    && !window.spacePressed && !window.editingText
+                                    && (!window.modalOpen || editor.operationBusy)
                                 enabled: wheelActive && !window.modalOpen
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                hoverEnabled: enabled
+                                acceptedButtons: window.paintToolActive ? Qt.RightButton : Qt.LeftButton | Qt.RightButton
+                                hoverEnabled: enabled && !window.paintToolActive
                                 preventStealing: true
                                 cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
 
@@ -3229,7 +3250,8 @@ ApplicationWindow {
                                 onPressedChanged: drawingArea.refreshSystemCursor()
 
                                 function startGesture(kind, x, y) {
-                                    if (!enabled || !layerId.length || editor.pixelEditBusy)
+                                    if (!enabled || !layerId.length || editor.pixelEditBusy
+                                            || (window.paintToolActive && drawingArea.pressed))
                                         return false
                                     const params = window.activeInfo.parameters
                                     gesture = {kind: kind, document: editor, id: layerId, x: x, y: y,
@@ -4042,12 +4064,13 @@ ApplicationWindow {
                                 onClicked: function(mouse) {
                                     if(mouse.button===Qt.RightButton) {
                                         if(!modelData.selected) editor.selectLayer(modelData.layerIndex)
+                                        window.openLayerContextMenu()
                                     } else {
-                                        const toggle=Boolean(mouse.modifiers&(Qt.ControlModifier|Qt.MetaModifier))
-                                        const range=Boolean(mouse.modifiers&Qt.ShiftModifier)
-                                        editor.selectLayer(modelData.layerIndex,toggle,range)
+                                        const toggle = Boolean(mouse.modifiers & (Qt.ControlModifier | Qt.MetaModifier))
+                                        const range = Boolean(mouse.modifiers & Qt.ShiftModifier)
+                                        if (toggle || range) editor.selectLayer(modelData.layerIndex, toggle, range)
+                                        else window.activateLayerContent(modelData.layerIndex)
                                     }
-                                    if(mouse.button===Qt.RightButton) window.openLayerContextMenu()
                                 }
                                 onDoubleClicked: function(mouse) {
                                     if(mouse.button!==Qt.LeftButton) return
@@ -4111,18 +4134,17 @@ ApplicationWindow {
                                     Label {anchors.centerIn:parent;visible:modelData.kind==="text";text:"T";font.family:"serif";font.bold:true;font.pixelSize:27;color:"#dbe6ef"}
                                     MouseArea {
                                         objectName: "layerThumbnailMouse"
-                                        onDoubleClicked: function(mouse){if(mouse.button===Qt.LeftButton && modelData.kind==="text")editor.editTextLayer(modelData.layerIndex);else if(mouse.button===Qt.LeftButton && modelData.kind==="shape"){editor.setActiveLayer(modelData.layerIndex);editor.editPenShape()}}
+                                        onDoubleClicked: function(mouse) {
+                                            if (mouse.button === Qt.LeftButton && modelData.kind === "text")
+                                                editor.editTextLayer(modelData.layerIndex)
+                                        }
                                         anchors.fill: parent
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         onClicked: function(mouse) {
                                             if(mouse.button === Qt.RightButton) {
                                                 if(!modelData.selected) editor.selectLayer(modelData.layerIndex)
                                                 window.openLayerContextMenu()
-                                            } else {
-                                                const document = editor
-                                                document.activeLayer = modelData.layerIndex
-                                                document.showCompositeView()
-                                            }
+                                            } else window.activateLayerContent(modelData.layerIndex)
                                         }
                                     }
                                 }

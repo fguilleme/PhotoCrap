@@ -212,6 +212,10 @@ void Document::beginStroke(qreal _x, qreal _y, bool _alternate, bool _straight)
         m_drawing = true;
         return;
     }
+    if (model3DPaintTarget()) {
+        beginModel3DPaint(m_anchor);
+        return;
+    }
     const bool newLayer = toolNeedsNewLayer();
     if (newLayer && (m_brushOpacity <= 0 || (m_tool == "text" && m_text.trimmed().isEmpty()) ||
                      ((m_tool == "line" || m_tool == "rectangle" || m_tool == "ellipse" ||
@@ -363,6 +367,10 @@ void Document::continueStroke(qreal _x, qreal _y)
         previewModel3DMove(point);
         return;
     }
+    if (model3DPaintTarget()) {
+        continueModel3DPaint(point);
+        return;
+    }
     if (m_tool == "remove") {
         continueRemove(point);
     } else if (m_tool == "contentAwareMove") {
@@ -462,6 +470,10 @@ void Document::endStroke()
     if (model3DMoveTarget()) {
         m_drawing = false;
         finishModel3DMove();
+        return;
+    }
+    if (model3DPaintTarget()) {
+        finishModel3DPaint();
         return;
     }
     if (m_tool == "remove") {
@@ -609,6 +621,10 @@ void Document::cancelStroke()
     if (model3DMoveTarget()) {
         m_drawing = false;
         cancelModel3DPreview();
+        return;
+    }
+    if (model3DPaintTarget()) {
+        finishModel3DPaint(true);
         return;
     }
     if (m_tool == "contentAwareMove") {

@@ -14,6 +14,66 @@ class LayerImportTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void paintOnModelSurvivesSaveAndRotation()
+    {
+        Document document;
+        QVERIFY(document.newDocument(240, 160, true, 16));
+        QVERIFY(document.importModel3DData(Model3DTest::modelFixture(), "Surface", {}));
+        QTRY_VERIFY_WITH_TIMEOUT(!document.operationBusy(), 5000);
+        const auto original = document.layerImage(1);
+        const auto before   = document.historyIndex();
+        document.setTool("brush");
+        document.setColor(Qt::green);
+        document.setBrushSize(12);
+        document.beginStroke(5., 5.);
+        document.endStroke();
+        QCOMPARE(document.historyIndex(), before);
+
+        const auto originalPreview = document.displayComposite();
+        document.beginStroke(104.5, 88.5);
+        document.continueStroke(112.5, 88.5);
+        QTRY_VERIFY_WITH_TIMEOUT(document.displayComposite() != originalPreview, 5000);
+        QCOMPARE(document.layerImage(1), original);
+        document.cancelStroke();
+        QTRY_COMPARE_WITH_TIMEOUT(document.displayComposite(), originalPreview, 5000);
+        QCOMPARE(document.historyIndex(), before);
+
+        document.beginStroke(104.5, 88.5);
+        document.continueStroke(112.5, 88.5);
+        document.endStroke();
+        QTRY_VERIFY_WITH_TIMEOUT(!document.operationBusy(), 5000);
+        QCOMPARE(document.historyIndex(), before + 1);
+        QCOMPARE(document.layerCount(), 2);
+        const auto painted = document.layerImage(1);
+        const auto ink     = painted.pixelColor(108, 88);
+        QVERIFY(ink.green() > ink.red() && ink.alpha() == 255);
+        QCOMPARE(painted.pixelColor(99, 99), original.pixelColor(99, 99));
+        document.undo();
+        QCOMPARE(document.layerImage(1), original);
+        document.redo();
+        QCOMPARE(document.layerImage(1), painted);
+
+        QTemporaryDir dir;
+        const auto    file = QUrl::fromLocalFile(dir.filePath("Peinture.pcr"));
+        QVERIFY(document.saveProject(file));
+        Document reopened;
+        QVERIFY(reopened.openFile(file));
+        QCOMPARE(reopened.layerImage(1), painted);
+        const auto parameters = reopened.layers().first().toMap().value("parameters").toMap();
+        const auto light      = parameters.value("light3d").toMap();
+        auto       pose       = parameters.value("pose3d").toMap();
+        pose["roll"]          = 90.;
+        QVERIFY(reopened.editModel3D(1, pose, light));
+        QTRY_VERIFY_WITH_TIMEOUT(!reopened.operationBusy(), 5000);
+        const auto rotated = reopened.layerImage(1).pixelColor(128, 91);
+        QVERIFY(rotated.green() > rotated.red() && rotated.alpha() == 255);
+        pose["yaw"] = 180.;
+        QVERIFY(reopened.editModel3D(1, pose, light));
+        QTRY_VERIFY_WITH_TIMEOUT(!reopened.operationBusy(), 5000);
+        const auto back = reopened.layerImage(1).pixelColor(111, 91);
+        QVERIFY(back.red() > back.green() && back.alpha() == 255);
+    }
+
     void denseGLBRetainsAllTriangles()
     {
         namespace Model3D = PhotoCrap::Model3D;

@@ -56,11 +56,23 @@ struct RenderView {
 };
 inline constexpr float CameraDistance = 3.f;
 
+RenderView renderView(const QVariantMap &parameters);
+QRgb       materialTexel(const Material &material, const QVector2D &uv);
+float      linear(int byte);
+
+constexpr int PaintGridEdge = 8;
+struct PaintGrid {
+    explicit PaintGrid(const Paint &paint);
+    QList<quint32> offsets, indices;
+};
+QVector3D paintedColor(const Paint &paint, const PaintGrid &grid, const QVector3D &position,
+                       const QVector3D &normal, QVector3D color);
+
 PixelPlane renderSoftwarePreview(const Asset &_asset, const QVariantMap &_parameters,
                                  const QSize &_canvas, QImage::Format _format);
 
 #ifdef Q_OS_MACOS
 PixelPlane renderMetalPreview(const std::shared_ptr<const Asset> &_asset, const RenderView &_view,
-                              const QSize &_canvas);
+                              const QSize &_canvas, const Paint &paint);
 #endif
 } // namespace PhotoCrap::Model3D

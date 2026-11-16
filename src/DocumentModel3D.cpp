@@ -7,6 +7,7 @@
 #include <QSet>
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 using namespace PhotoCrap;
 
@@ -174,6 +175,80 @@ bool Document::model3DMoveTarget() const
            m_layers[m_active].model3D;
 }
 
+bool Document::model3DPaintTarget() const
+{
+    return (m_tool == "brush" || m_tool == "pencil") && !m_editingMask && !editingVectorMask() &&
+           m_active >= 0 && m_active < m_layers.size() && m_layers.at(m_active).model3D;
+}
+
+void Document::beginModel3DPaint(const QPointF &point)
+{
+    const auto &layer = m_layers.at(m_active);
+    if (!layer.visible || rawLoading() || pixelEditBusy() || transformActive() ||
+        !penShapeEditable(m_active) || m_brushOpacity <= 0. || m_brushFlow <= 0. ||
+        m_color.alpha() == 0)
+        return;
+    if (layer.modelPaint.size() >= Model3D::MaxPaintDabs) {
+        fail(tr("Ce calque 3D a atteint la limite de peinture."));
+        return;
+    }
+    if (m_modelPaintAsset.lock() != layer.model3D) {
+        m_modelPaintPicking = Model3D::paintPicking(*layer.model3D);
+        m_modelPaintAsset   = layer.model3D;
+    }
+    cancelModel3DPreview();
+    m_modelPaintDraft   = layer.modelPaint;
+    m_drawing           = true;
+    m_distanceToNextDab = qMax(.5, m_brushSize * m_brushSpacing);
+    addModel3DPaintDab(point);
+    if (m_modelPaintDraft.size() != layer.modelPaint.size())
+        queueModel3DPreview(m_active, layer.parameters, false, m_modelPaintDraft);
+}
+
+void Document::addModel3DPaintDab(const QPointF &point)
+{
+    if (!QRectF(QPointF{}, m_size).contains(point) ||
+        m_modelPaintDraft.size() >= Model3D::MaxPaintDabs)
+        return;
+    const qreal coverage =
+        hasSelection() ? selectionCoverage(int(point.x()), int(point.y())) / 255. : 1.;
+    const qreal       opacity = coverage * m_brushOpacity * m_brushFlow * m_color.alphaF();
+    Model3D::PaintDab dab;
+    if (opacity > 0. &&
+        Model3D::paintDab(*m_modelPaintPicking, m_layers.at(m_active).parameters, point,
+                          m_brushSize / 2., m_tool == "pencil" ? 1. : m_brushHardness, m_color,
+                          opacity, dab))
+        m_modelPaintDraft.append(dab);
+}
+
+void Document::continueModel3DPaint(const QPointF &point)
+{
+    const QLineF line(m_last, point);
+    const auto   length = line.length();
+    const auto   before = m_modelPaintDraft.size();
+    if (length <= 0.)
+        return;
+    for (; m_distanceToNextDab <= length && m_modelPaintDraft.size() < Model3D::MaxPaintDabs;
+         m_distanceToNextDab += qMax(.5, m_brushSize * m_brushSpacing))
+        addModel3DPaintDab(line.pointAt(m_distanceToNextDab / length));
+    m_distanceToNextDab -= length;
+    m_last = point;
+    if (m_modelPaintDraft.size() != before)
+        queueModel3DPreview(m_active, m_layers.at(m_active).parameters, false, m_modelPaintDraft);
+}
+
+void Document::finishModel3DPaint(bool cancel)
+{
+    m_drawing         = false;
+    const auto  paint = std::exchange(m_modelPaintDraft, {});
+    const auto &layer = m_layers.at(m_active);
+    if (!cancel && paint.size() != layer.modelPaint.size() &&
+        applyModel3DParameters(m_active, layer.parameters, tr("Peinture 3D"), false, paint) &&
+        operationBusy())
+        return;
+    cancelModel3DPreview();
+}
+
 void Document::previewModel3DMove(const QPointF &_position)
 {
     const auto delta = _position - m_anchor;
@@ -198,16 +273,18 @@ void Document::finishModel3DMove()
         cancelModel3DPreview();
 }
 
-void Document::queueModel3DPreview(int _index, QVariantMap _parameters, bool _copy)
+void Document::queueModel3DPreview(int _index, QVariantMap _parameters, bool _copy,
+                                   const Model3D::Paint &paint)
 {
     if (m_model3DPreview && m_model3DPreview->layer == _index && m_model3DPreview->copy == _copy &&
-        m_model3DPreview->parameters == _parameters)
+        m_model3DPreview->parameters == _parameters && paint.isEmpty() &&
+        m_model3DPreview->paint.isEmpty())
         return;
     const quint64 firstGeneration = m_model3DPreview && m_model3DPreview->layer == _index
                                         ? m_model3DPreview->firstGeneration
                                         : m_previewRequestGeneration + 1;
     m_model3DPreview              = std::make_shared<Model3DPreview>(
-        Model3DPreview{_index, std::move(_parameters), firstGeneration, _copy});
+        Model3DPreview{_index, std::move(_parameters), firstGeneration, _copy, paint});
     requestPreviewRender(true, false, false);
 }
 
@@ -222,7 +299,7 @@ void Document::cancelModel3DPreview()
 bool Document::editModel3D(int _index, const QVariantMap &_pose, const QVariantMap &_light)
 {
     if (_index < 0 || _index >= m_layers.size() || !m_layers[_index].model3D || rawLoading() ||
-        pixelEditBusy() || transformActive())
+        pixelEditBusy() || transformActive() || m_drawing)
         return false;
     const auto &selected = m_layers[_index];
     auto        edited   = modelParameters(selected, _pose, _light);
@@ -240,14 +317,15 @@ bool Document::editModel3D(int _index, const QVariantMap &_pose, const QVariantM
 }
 
 bool Document::applyModel3DParameters(int _index, const QVariantMap &_parameters,
-                                      const QString &_label, bool _copy)
+                                      const QString &_label, bool _copy,
+                                      const Model3D::Paint &paint)
 {
     const auto &current = m_layers[_index].parameters;
-    if (!_copy && current == _parameters)
+    if (!_copy && current == _parameters && paint.isEmpty())
         return true;
     if (deferEdit(_label, std::numeric_limits<qint64>::max(),
-                  [_index, _parameters, _label, _copy](Document &worker) {
-                      worker.applyModel3DParameters(_index, _parameters, _label, _copy);
+                  [_index, _parameters, _label, _copy, paint](Document &worker) {
+                      worker.applyModel3DParameters(_index, _parameters, _label, _copy, paint);
                   }))
         return true;
 
@@ -269,12 +347,15 @@ bool Document::applyModel3DParameters(int _index, const QVariantMap &_parameters
         auto &layer = layers[i];
         if (!layer.model3D || (i != _index && !lightChanged))
             continue;
-        if (i == _index)
+        if (i == _index) {
             layer.parameters = _parameters;
+            if (!paint.isEmpty())
+                layer.modelPaint = paint;
+        }
         layer.parameters["light3d"] = light;
         const auto keepGoing = [this, completed, total] { return operationStep(completed, total); };
-        layer.image =
-            Model3D::render(*layer.model3D, layer.parameters, m_size, workingFormat(), keepGoing);
+        layer.image = Model3D::render(*layer.model3D, layer.parameters, m_size, workingFormat(),
+                                      keepGoing, layer.modelPaint);
         if (layer.image.isNull())
             return keepGoing() ? fail(tr("Impossible de calculer le rendu du modèle 3D.")) : false;
         ++completed;

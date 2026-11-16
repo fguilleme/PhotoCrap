@@ -138,9 +138,10 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     auto *createModelMenu = window->findChild<QObject *>("createLayerModel3DMenu");
     auto *layerModelMenu  = window->findChild<QObject *>("layerModel3DMenu");
     for (auto *submenu : {createModelMenu, layerModelMenu})
-        if (!require(submenu && submenu->property("count").toInt() == 5 &&
+        if (!require(submenu && submenu->property("count").toInt() == 6 &&
                          submenu->findChild<QObject *>("importModel3DMenuItem") &&
                          submenu->findChild<QObject *>("meshyMenuItem") &&
+                         submenu->findChild<QObject *>("model3dPaintMenuItem") &&
                          submenu->findChild<QObject *>("surfacePaintMenuItem") &&
                          submenu->findChild<QObject *>("localSurfacePaintMenuItem") &&
                          submenu->findChild<QObject *>("surfaceServerMenuItem"),
@@ -237,9 +238,11 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     document.setActiveLayer(modelIndex - 1);
     if (!require(!modelProperties->isVisible(), "3D controls follow the active layer"))
         return false;
-    document.setActiveLayer(modelIndex);
-    if (!require(modelProperties->isVisible() && yaw->property("value").toInt() == rotation,
-                 "returning to the model shows the applied pose"))
+    document.setTool("brush");
+    QMetaObject::invokeMethod(window, "activateShortcut", Q_ARG(QVariant, "selectTopLayer"));
+    if (!require(document.activeLayer() == modelIndex && document.tool() == "move" &&
+                     modelProperties->isVisible() && yaw->property("value").toInt() == rotation,
+                 "returning to the model activates Move and shows the applied pose"))
         return false;
     QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
                       sceneRect(lightTab).center().toPoint());
@@ -270,6 +273,31 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     const auto pose = [&] {
         return document.layers().first().toMap()["parameters"].toMap()["pose3d"].toMap();
     };
+    auto      *paintMenu   = layerModelMenu->findChild<QObject *>("model3dPaintMenuItem");
+    const auto paintPose   = pose();
+    const auto unpainted   = document.layerImage(modelIndex);
+    const auto beforePaint = document.historyIndex();
+    const auto paintLayers = document.layerCount();
+    if (!require(paintMenu->property("enabled").toBool() &&
+                     QMetaObject::invokeMethod(paintMenu, "click") && document.tool() == "brush",
+                 "the 3D model painting command activates the brush"))
+        return false;
+    document.setColor(Qt::green);
+    document.setBrushSize(5.);
+    const auto paintPoint = [&](qreal x, qreal y) {
+        return drawingArea->mapToScene(QPointF(x, y) * window->property("zoom").toReal()).toPoint();
+    };
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier,
+                      paintPoint(document.width() * .44, document.height() * .57));
+    QTest::mouseMove(window, paintPoint(document.width() * .50, document.height() * .57), 20);
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier,
+                        paintPoint(document.width() * .50, document.height() * .57));
+    if (!require(QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
+                     document.layerImage(modelIndex) != unpainted && pose() == paintPose &&
+                     document.layerCount() == paintLayers &&
+                     document.historyIndex() == beforePaint + 1,
+                 "the left drag paints the selected mesh in one undo step"))
+        return false;
     QTest::keyClick(window, Qt::Key_V);
     if (!require(document.tool() == "move", "V selects the move tool"))
         return false;

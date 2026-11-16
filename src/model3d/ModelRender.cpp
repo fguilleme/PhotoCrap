@@ -85,6 +85,17 @@ float wrapped(float _value, Material::Wrap _mode)
     const float fraction = _value - tile;
     return _mode == Material::Wrap::mirror && int(tile) % 2 != 0 ? 1.f - fraction : fraction;
 }
+} // namespace
+
+QRgb materialTexel(const Material &material, const QVector2D &uv)
+{
+    const auto &texture = material.texture;
+    if (texture.isNull())
+        return qRgb(255, 255, 255);
+    const int x = qMin(texture.width() - 1, int(wrapped(uv.x(), material.u) * texture.width()));
+    const int y = qMin(texture.height() - 1, int(wrapped(uv.y(), material.v) * texture.height()));
+    return reinterpret_cast<const QRgb *>(texture.constScanLine(y))[x];
+}
 
 float linear(int _byte)
 {
@@ -99,6 +110,8 @@ float linear(int _byte)
     return table[_byte];
 }
 
+namespace
+{
 float sRgb(float _value)
 {
     const float l = qBound(0.f, _value, 1.f);
@@ -110,6 +123,8 @@ struct Projected {
     QVector3D position, normal;
     float     inverseZ;
 };
+} // namespace
+
 RenderView renderView(const QVariantMap &parameters)
 {
     const auto p = parameters["pose3d"].toMap(), l = parameters["light3d"].toMap();
@@ -127,7 +142,6 @@ RenderView renderView(const QVariantMap &parameters)
             l["ambient"].toFloat() / 100.f,
             l["intensity"].toFloat() / 100.f};
 }
-} // namespace
 
 QVariantMap pose(const QSize &_canvas)
 {
@@ -233,7 +247,8 @@ QThreadPool &modelPreviewPool()
 }
 
 PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const QSize &_canvas,
-                     QImage::Format _format, const Continue &_continue, bool _preview)
+                     QImage::Format _format, const Continue &_continue, bool _preview,
+                     const Paint &paint)
 {
     const bool deep = _format == QImage::Format_RGBA64_Premultiplied;
     if (!deep && _format != QImage::Format_ARGB32_Premultiplied)
@@ -243,6 +258,7 @@ PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const 
         return {};
     const auto  view = renderView(parameters);
     const auto &map  = view.placement;
+    const PaintGrid paintGrid(paint);
     // The common camera looks along -Z. Each layer is rendered into its own
     // transparent region and then participates in the document's 2D stack.
     Bounds                      bounds;
@@ -408,6 +424,14 @@ PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const 
             const auto flat =
                 QVector3D::crossProduct(b.position - a.position, c.position - a.position)
                     .normalized();
+            QVector3D paintNormal;
+            if (!paint.isEmpty()) {
+                const auto cross = QVector3D::crossProduct(source[j].position - source[i].position,
+                                                           source[k].position - source[i].position);
+                const float length = cross.length();
+                if (length > 0.f)
+                    paintNormal = cross * ((triangle.front ? 1.f : -1.f) / length);
+            }
             const bool textured = !material.texture.isNull();
             for (int y = region.top(); y <= region.bottom(); ++y) {
                 auto *pixels = image.scanLine(y - top);
@@ -428,18 +452,10 @@ PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const 
                     u /= inverseZ;
                     v /= inverseZ;
                     w /= inverseZ;
-                    QRgb texel = qRgb(255, 255, 255);
-                    if (textured) {
-                        const auto uv = u * source[i].uv + v * source[j].uv + w * source[k].uv;
-                        const int  tx =
-                            qMin(material.texture.width() - 1,
-                                 int(wrapped(uv.x(), material.u) * material.texture.width()));
-                        const int ty =
-                            qMin(material.texture.height() - 1,
-                                 int(wrapped(uv.y(), material.v) * material.texture.height()));
-                        texel =
-                            reinterpret_cast<const QRgb *>(material.texture.constScanLine(ty))[tx];
-                    }
+                    const QRgb texel =
+                        textured ? materialTexel(material, u * source[i].uv + v * source[j].uv +
+                                                               w * source[k].uv)
+                                 : qRgb(255, 255, 255);
                     const auto base =
                         colors ? material.color * (u * colors[i] + v * colors[j] + w * colors[k])
                                : material.color;
@@ -455,12 +471,19 @@ PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const 
                             : view.intensity *
                                   qMax(0.f, QVector3D::dotProduct(normal, view.lightDirection));
                     const float ambient = material.unlit ? 1.f : view.ambient;
-                    const float red     = sRgb(base.x() * linear(qRed(texel)) *
-                                               (ambient + diffuse * view.lightColor.x()));
-                    const float green   = sRgb(base.y() * linear(qGreen(texel)) *
-                                               (ambient + diffuse * view.lightColor.y()));
-                    const float blue    = sRgb(base.z() * linear(qBlue(texel)) *
-                                               (ambient + diffuse * view.lightColor.z()));
+                    QVector3D   pigment(base.x() * linear(qRed(texel)),
+                                        base.y() * linear(qGreen(texel)),
+                                        base.z() * linear(qBlue(texel)));
+                    if (!paint.isEmpty())
+                        pigment = paintedColor(paint, paintGrid,
+                                               u * source[i].position + v * source[j].position +
+                                                   w * source[k].position,
+                                               paintNormal, pigment);
+                    const float red = sRgb(pigment.x() * (ambient + diffuse * view.lightColor.x()));
+                    const float green =
+                        sRgb(pigment.y() * (ambient + diffuse * view.lightColor.y()));
+                    const float blue =
+                        sRgb(pigment.z() * (ambient + diffuse * view.lightColor.z()));
                     if (deep)
                         reinterpret_cast<QRgba64 *>(pixels)[x] =
                             QRgba64::fromRgba64(qRound(65535.f * red), qRound(65535.f * green),
@@ -502,29 +525,29 @@ PixelPlane renderCpu(const Asset &_asset, const QVariantMap &_parameters, const 
 } // namespace
 
 PixelPlane render(const Asset &_asset, const QVariantMap &_parameters, const QSize &_canvas,
-                  QImage::Format _format, const Continue &_continue)
+                  QImage::Format _format, const Continue &_continue, const Paint &paint)
 {
-    return renderCpu(_asset, _parameters, _canvas, _format, _continue, false);
+    return renderCpu(_asset, _parameters, _canvas, _format, _continue, false, paint);
 }
 
 PixelPlane renderSoftwarePreview(const Asset &_asset, const QVariantMap &_parameters,
                                  const QSize &_canvas, QImage::Format _format)
 {
-    return renderCpu(_asset, _parameters, _canvas, _format, {}, true);
+    return renderCpu(_asset, _parameters, _canvas, _format, {}, true, {});
 }
 
 PixelPlane renderPreview(const std::shared_ptr<const Asset> &_asset, const QVariantMap &_parameters,
-                         const QSize &_canvas, QImage::Format _format)
+                         const QSize &_canvas, QImage::Format _format, const Paint &paint)
 {
 #ifdef Q_OS_MACOS
     auto parameters = _parameters;
     if (_format == QImage::Format_ARGB32_Premultiplied && !_canvas.isEmpty() &&
         normalize(parameters)) {
-        auto image = renderMetalPreview(_asset, renderView(parameters), _canvas);
+        auto image = renderMetalPreview(_asset, renderView(parameters), _canvas, paint);
         if (!image.isNull())
             return image;
     }
 #endif
-    return renderSoftwarePreview(*_asset, _parameters, _canvas, _format);
+    return renderCpu(*_asset, _parameters, _canvas, _format, {}, true, paint);
 }
 } // namespace PhotoCrap::Model3D

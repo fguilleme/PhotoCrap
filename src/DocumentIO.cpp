@@ -465,8 +465,12 @@ bool Document::saveProject(const QUrl &_url)
     const bool  surfacePaint =
         std::any_of(m_layers.cbegin(), m_layers.cend(),
                     [](const Layer &layer) { return !layer.surfaceNormals.isNull(); });
+    const bool paintedModels =
+        std::any_of(m_layers.cbegin(), m_layers.cend(),
+                    [](const Layer &layer) { return !layer.modelPaint.isEmpty(); });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", surfacePaint       ? 16
+                     {"version", paintedModels      ? 17
+                                 : surfacePaint     ? 16
                                  : models           ? 15
                                  : vectors          ? 14
                                  : originalAiImages ? 13
@@ -537,6 +541,13 @@ bool Document::saveProject(const QUrl &_url)
             if (model < 0)
                 return fail(tr("Impossible d’encoder le modèle 3D."));
             metadata["model3d"] = model;
+            if (!layer.modelPaint.isEmpty()) {
+                const int paint =
+                    archive.original(PhotoCrap::Model3D::encodePaint(layer.modelPaint));
+                if (paint < 0)
+                    return fail(tr("Impossible d’enregistrer la peinture 3D."));
+                metadata["modelPaint"] = paint;
+            }
         }
         if (!layer.surfaceNormals.isNull()) {
             QByteArray bytes;
@@ -587,7 +598,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 16)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 17)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -811,6 +822,13 @@ bool Document::loadProject(const QString &_path)
             layer.model3D = models.value(modelKey);
         } else if (object.contains("model3d")) {
             return fail(tr("Calque 3D invalide."));
+        }
+        if (object.contains("modelPaint")) {
+            const auto id = object.value("modelPaint").toInt(-1);
+            if (version < 17 || !layer.model3D || id < 0 ||
+                !index.archive.isOriginal(id, PhotoCrap::Model3D::MaxPaintBytes) ||
+                !PhotoCrap::Model3D::decodePaint(index.archive.original(id), layer.modelPaint))
+                return fail(tr("Peinture 3D du projet invalide."));
         }
         if (layer.adjustmentType == "gradientFill") {
             PhotoCrap::Tools::GradientRaster gradient;

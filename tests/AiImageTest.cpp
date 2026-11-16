@@ -1825,6 +1825,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QCOMPARE(document.layerCount(), 1);
         QCOMPARE(server.requests.size(), 4);
+        const QColor foreground(37, 91, 201);
+        document.setColor(foreground);
         controller.applySurfaceSelection();
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
@@ -1833,14 +1835,15 @@ private slots:
         QVERIFY(!document.hasSelection());
         QCOMPARE(document.layerCount(), 2);
         QCOMPARE(document.tool(), QString("brush"));
+        QCOMPARE(document.color(), foreground);
         QCOMPARE(document.composite(), initial);
-        document.setColor(Qt::green);
         document.setBrushSize(100.);
+        document.setBrushHardness(1.);
         document.beginStroke(34, 40);
         document.continueStroke(68, 40);
         document.endStroke();
         const auto painted = document.composite();
-        QVERIFY(painted.pixelColor(20, 40) != initial.pixelColor(20, 40));
+        QCOMPARE(painted.pixelColor(20, 40).rgba(), foreground.rgba());
         QVERIFY(painted.pixelColor(48, 40) != initial.pixelColor(48, 40));
         QVERIFY(painted.pixelColor(62, 40) != initial.pixelColor(62, 40));
         QCOMPARE(painted.pixelColor(82, 40), initial.pixelColor(82, 40));

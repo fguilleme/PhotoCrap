@@ -106,6 +106,7 @@ QtObject {
     auto *text          = surfaces->findChild<QQuickItem *>("surfaceTextApply");
     auto *surfaceCancel = surfaces->findChild<QQuickItem *>("surfacePaintCancel");
     auto *protection    = surfaces->findChild<QQuickItem *>("surfaceProtectObject");
+    auto *picker        = _window->findChild<QQuickItem *>("surfacePickerArea");
     controller->setProperty("surfaceAnalysis", true);
     controller->setProperty("busy", true);
     QMetaObject::invokeMethod(controller.get(), "changed");
@@ -145,11 +146,23 @@ QtObject {
     QMetaObject::invokeMethod(controller.get(), "changed");
     if (!require(paint->isEnabled() && text->isEnabled(), "selection enables Paint and Text"))
         return false;
+    if (!require(!paint->property("primary").toBool() && !text->property("primary").toBool() && picker &&
+                     picker->property("cursorShape").toInt() == Qt::PointingHandCursor,
+                 "surface selection uses the pointing hand with neither action highlighted"))
+        return false;
     click(text);
     if (!require(text->property("checked").toBool() && !protection->property("checked").toBool(),
                  "Text arms text placement and leaves object protection mode"))
         return false;
+    if (!require(text->property("primary").toBool() && !paint->property("primary").toBool() &&
+                     picker->property("cursorShape").toInt() == Qt::IBeamCursor,
+                 "text placement highlights only Text and uses the text cursor"))
+        return false;
     click(text);
+    if (!require(!paint->property("primary").toBool() && !text->property("primary").toBool() &&
+                     picker->property("cursorShape").toInt() == Qt::PointingHandCursor,
+                 "leaving text placement restores the surface selection appearance"))
+        return false;
     click(paint);
     if (!require(controller->property("surfaceApplies").toInt() == 1,
                  "clicking Paint applies the surface selection"))

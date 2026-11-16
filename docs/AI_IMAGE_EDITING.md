@@ -292,9 +292,10 @@ convertit cet alpha en masque pour le workflow fourni.
    [MobileSAM](https://github.com/ChaoningZhang/MobileSAM) ·
    [Poids ONNX](https://huggingface.co/Acly/MobileSAM)
 4. Cliquer sur **Peindre** ou appuyer sur **Entrée** pour créer un calque de
-   pixels et son masque éditable dans une seule étape d’annulation. Le mode de
-   fusion **Couleur** conserve la luminosité de la photo et peut être changé
-   dans le panneau Calques.
+   pixels et son masque éditable dans une seule étape d’annulation. Le pinceau
+   utilise la couleur de premier plan et le calque est en mode **Normal** par
+   défaut. Choisir **Couleur** dans le panneau Calques pour conserver la
+   luminosité de la photo.
 
 Les clics sur des faces combinent les zones connectées selon la profondeur et
 l’orientation, ce qui permet de sélectionner séparément deux pans d’un mur.

@@ -1994,7 +1994,6 @@ ApplicationWindow {
                 }
                 AiActionButton {
                     objectName: "surfacePaintApply"
-                    primary: true
                     text: qsTr("Peindre")
                     visible: surfacePaintBar.controller.surfacePicking
                     enabled: !surfacePaintBar.controller.busy && surfacePaintBar.controller.hasSurfaceSelection
@@ -3450,7 +3449,8 @@ ApplicationWindow {
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: enabled
                                 preventStealing: true
-                                cursorShape: aiImages.busy ? Qt.WaitCursor : surfaceText.checked ? Qt.IBeamCursor : Qt.CrossCursor
+                                cursorShape: aiImages.busy ? Qt.WaitCursor
+                                           : surfaceText.checked ? Qt.IBeamCursor : Qt.PointingHandCursor
                                 onContainsMouseChanged: drawingArea.refreshSystemCursor()
                                 onEnabledChanged: drawingArea.refreshSystemCursor()
                                 onCursorShapeChanged: drawingArea.refreshSystemCursor()

@@ -280,7 +280,6 @@ bool Document::addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane ma
         emit textGeometryChanged();
         emit textEditRequested();
     } else {
-        layer.blend = 25; // Color blend mode keeps the underlying luminosity.
         edit(label, insert);
         setTool(QStringLiteral("brush"));
     }

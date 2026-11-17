@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Studio.js" as Studio
 
 Button {
     id: control
@@ -57,18 +58,18 @@ Button {
         radius: control.macStyle ? 6 : 5
         color: {
             if (!control.enabled)
-                return "#282d34"
+                return Studio.panel
             if (control.defaultButton)
-                return control.down ? "#276db5" : control.hovered ? "#438ed9" : "#347fc8"
-            return control.down ? "#414954" : control.hovered ? "#39414b" : "#303741"
+                return control.down ? Studio.accentPressed : control.hovered ? Studio.accentHover : Studio.accent
+            return control.down ? Studio.line : control.hovered ? Studio.hover : Studio.raised
         }
-        border.width: control.activeFocus ? 2 : 1
-        border.color: control.activeFocus ? "#7eb7f0" : control.defaultButton ? "#65a3df" : "#515c68"
+        border.width: control.visualFocus ? 2 : 1
+        border.color: control.visualFocus ? Studio.ink : control.defaultButton ? Studio.accent : Studio.line
     }
 
     contentItem: Text {
         text: control.text
-        color: control.enabled ? "#f5f7f9" : "#747d87"
+        color: !control.enabled ? Studio.disabled : control.defaultButton ? Studio.onAccent : Studio.ink
         font: control.font
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

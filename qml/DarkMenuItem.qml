@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Studio.js" as Studio
 
 MenuItem {
     id: control
@@ -23,8 +24,8 @@ MenuItem {
             anchors.rightMargin: parent.arrowPadding
             anchors.verticalCenter: parent.verticalCenter
             text: control.text
-            color: !control.enabled ? "#747c85"
-                                    : control.highlighted || control.down ? "#ffffff" : "#dbe1e8"
+            color: !control.enabled ? Studio.disabled
+                                    : control.highlighted || control.down ? Studio.ink : Studio.ink
             font: control.font
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -35,7 +36,7 @@ MenuItem {
             anchors.verticalCenter: parent.verticalCenter
             visible: control.checkable && control.checked
             text: "✓"
-            color: control.highlighted || control.down ? "#ffffff" : "#b9d6c2"
+            color: control.highlighted || control.down ? Studio.ink : Studio.accent
             font.pixelSize: 15
             font.bold: true
         }
@@ -48,7 +49,7 @@ MenuItem {
             visible: text.length > 0
             text: control.action && control.action.shortcut
                   ? control.action.shortcut.toString() : ""
-            color: control.highlighted || control.down ? "#e8f0ff" : "#909ba6"
+            color: control.highlighted || control.down ? Studio.ink : Studio.muted
             font: control.font
         }
     }
@@ -58,7 +59,7 @@ MenuItem {
         y: (control.height - height) / 2
         visible: control.subMenu
         text: control.mirrored ? "‹" : "›"
-        color: control.highlighted || control.down ? "#ffffff" : "#aeb8c2"
+        color: control.highlighted || control.down ? Studio.ink : Studio.secondary
         font.pixelSize: 18
         font.bold: true
     }
@@ -66,7 +67,7 @@ MenuItem {
     background: Rectangle {
         radius: 4
         color: control.enabled && (control.highlighted || control.down)
-               ? "#2866c8"
-               : control.enabled && control.hovered ? "#343d48" : "transparent"
+               ? Studio.selected
+               : control.enabled && control.hovered ? Studio.hover : "transparent"
     }
 }

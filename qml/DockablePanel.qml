@@ -1,4 +1,5 @@
 import QtQuick
+import "Studio.js" as Studio
 import QtQuick.Controls
 import QtQuick.Layouts
 
@@ -72,7 +73,7 @@ Item {
         minimumWidth: 230
         minimumHeight: 110
         title: root.title + " — PhotoCrap"
-        color: "#242a32"
+        color: Studio.panel
         flags: Qt.Tool
         onXChanged: root.layoutChanged()
         onYChanged: root.layoutChanged()
@@ -117,9 +118,9 @@ Item {
         id: frame
         objectName: root.panelId + "DockFrame"
         anchors.fill: parent
-        color: "#242a32"
+        color: Studio.panel
         border.width: 1
-        border.color: "#3a444f"
+        border.color: Studio.line
         radius: root.floating ? 6 : 0
 
         ColumnLayout {
@@ -130,7 +131,7 @@ Item {
                 id: titleBar
                 Layout.fillWidth: true
                 Layout.preferredHeight: root.headerHeight
-                color: headerMouse.pressed ? "#3a4652" : "#2c343e"
+                color: headerMouse.pressed ? Studio.hover : Studio.raised
 
                 RowLayout {
                     z: 2
@@ -145,10 +146,10 @@ Item {
                     }
                     Label {
                         visible: root.groupTabs.length <= 1
-                        text: root.title.toUpperCase()
-                        color: "#c4cdd6"
-                        font.pixelSize: 10
-                        font.bold: true
+                        text: root.title
+                        color: Studio.ink
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
@@ -160,21 +161,21 @@ Item {
                             model: root.groupTabs
                             delegate: TabButton {
                                 required property var modelData
-                                text: modelData.title.toUpperCase()
+                                id: dockTab
+                                text: modelData.title
                                 checked: root.activeGroupPanel === modelData.panelId
-                                implicitHeight: 25
+                                implicitHeight: 30; leftPadding: 1; rightPadding: 1
                                 Layout.fillWidth: true
                                 onClicked: root.groupTabSelected(modelData.panelId)
                                 background: Rectangle {
-                                    radius: 3
-                                    color: parent.checked ? "#465463" : "#252c34"
-                                    border.width: 1
-                                    border.color: parent.checked ? "#8194a8" : "#3a444f"
+                                    color: dockTab.down || dockTab.hovered ? Studio.hover : "transparent"
+                                    border.width: dockTab.visualFocus ? 1 : 0; border.color: Studio.accent
+                                    Rectangle { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(parent.width-4, dockTab.contentItem.implicitWidth); height: 2; visible: dockTab.checked; color: Studio.accent }
                                 }
                                 contentItem: Label {
                                     text: parent.text
-                                    color: parent.checked ? "#ffffff" : "#aeb9c4"
-                                    font.pixelSize: 9
+                                    color: parent.checked ? Studio.ink : Studio.secondary
+                                    font.pixelSize: 11
                                     font.bold: parent.checked
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
@@ -186,9 +187,10 @@ Item {
                     ToolButton {
                         visible: !root.floating
                         text: root.collapsed ? "▸" : "▾"
-                        implicitWidth: 28
+                        implicitWidth: 24
                         implicitHeight: 28
                         font.pixelSize: 16
+                        Accessible.name: ToolTip.text
                         ToolTip.visible: hovered
                         ToolTip.text: root.collapsed ? qsTr("Déplier le panneau") : qsTr("Replier le panneau")
                         onClicked: root.collapsed = !root.collapsed
@@ -197,18 +199,20 @@ Item {
                         objectName: root.panelId + "UngroupButton"
                         visible: !root.floating && root.groupTabs.length > 1
                         text: "↥"
-                        implicitWidth: visible ? 28 : 0
+                        implicitWidth: visible ? 24 : 0
                         implicitHeight: 28
                         font.pixelSize: 16
+                        Accessible.name: ToolTip.text
                         ToolTip.visible: hovered
                         ToolTip.text: qsTr("Sortir du groupe d’onglets")
                         onClicked: root.ungroupRequested(root.panelId)
                     }
                     ToolButton {
                         text: root.floating ? "↘" : "↗"
-                        implicitWidth: 28
+                        implicitWidth: 24
                         implicitHeight: 28
                         font.pixelSize: 16
+                        Accessible.name: ToolTip.text
                         ToolTip.visible: hovered
                         ToolTip.text: root.floating ? qsTr("Ancrer le panneau") : qsTr("Détacher le panneau")
                         onClicked: {
@@ -226,7 +230,7 @@ Item {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.rightMargin: root.groupTabs.length > 1 ? 92 : 62
+                    anchors.rightMargin: root.groupTabs.length > 1 ? 86 : 58
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor

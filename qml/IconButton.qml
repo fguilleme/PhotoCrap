@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Studio.js" as Studio
 
 Button {
     id: control
@@ -17,10 +18,15 @@ Button {
     hoverEnabled: true
     Accessible.name: hint.length ? hint : text
     background: Rectangle {
-        color: control.selected ? "#365549" : control.down ? "#3c424b" : control.hovered ? "#30363e" : "transparent"
-        radius: 5
-        border.width: control.selected ? 1 : 0
-        border.color: "#668f78"
+        color: control.down ? Studio.line : control.selected ? Studio.selected : control.hovered && control.enabled ? Studio.hover : "transparent"
+        radius: 4
+        border.width: control.visualFocus ? 2 : 0
+        border.color: Studio.accent
+        Rectangle {
+            visible: control.selected
+            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+            width: 3; height: 15; radius: 1; color: Studio.accent
+        }
     }
     contentItem: Item {
         ToolIcon {
@@ -30,7 +36,7 @@ Button {
             toolName: control.toolName
             fallback: control.glyph.length ? control.glyph : control.text
             fallbackPixelSize: control.glyph.length ? 19 : 12
-            iconColor: !control.enabled ? "#545d68" : control.selected ? "#c5f2cf" : "#c0c7d0"
+            iconColor: !control.enabled ? Studio.disabled : control.selected || control.hovered ? Studio.ink : Studio.secondary
         }
     }
     Text {
@@ -40,7 +46,7 @@ Button {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 3
         text: "◢"
-        color: control.selected ? "#c5f2cf" : "#89939e"
+        color: control.selected ? Studio.accent : Studio.muted
         font.pixelSize: 7
     }
     MouseArea {

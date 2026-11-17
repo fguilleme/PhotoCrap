@@ -33,6 +33,7 @@ void ToolInput::setEnabled(bool _enabled)
     if (_enabled && m_modifiersOnly)
         updateModifiers(int(QGuiApplication::queryKeyboardModifiers()));
     if (!_enabled) {
+        m_spaceHeld = false;
         updateModifiers(0);
         if (m_pressedKey) {
             m_pressedKey = 0;
@@ -70,10 +71,14 @@ bool ToolInput::eventFilter(QObject *_watched, QEvent *_event)
     // first click, including when focus was restored to the window after a popup.
     // QML disables this filter while editing text or using a modal dialog.
     if (key->key() == Qt::Key_Space) {
+        if (!m_panWithSpace && !m_spaceHeld)
+            return false;
         if (type == QEvent::ShortcutOverride)
             key->accept();
-        else if (!key->isAutoRepeat())
-            emit spaceChanged(type == QEvent::KeyPress);
+        else if (!key->isAutoRepeat()) {
+            m_spaceHeld = type == QEvent::KeyPress;
+            emit spaceChanged(m_spaceHeld);
+        }
         return true;
     }
     if (type == QEvent::KeyRelease && key->key() == m_pressedKey && !key->isAutoRepeat()) {

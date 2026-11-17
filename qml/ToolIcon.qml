@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["pathSelection", "directSelection", "pen", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["studioMark", "move", "brush", "eye", "eyeOff", "locked", "unlocked", "undo", "redo", "open", "export", "zoomTool", "text", "rectSelect", "pathSelection", "directSelection", "pen", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -49,7 +49,38 @@ Item {
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
-            if (root.toolName === "pathSelection" || root.toolName === "directSelection") {
+            function line(points) {
+                ctx.beginPath(); ctx.moveTo(points[0], points[1])
+                for (let i=2; i<points.length; i+=2) ctx.lineTo(points[i],points[i+1])
+                ctx.stroke()
+            }
+            if (root.toolName === "studioMark") {
+                // Three offset exposures, cut on a common diagonal.
+                for (let i=0;i<3;++i) { const x=1+i*7; ctx.beginPath(); ctx.moveTo(x,9);ctx.lineTo(x+6,3);ctx.lineTo(x+6,15);ctx.lineTo(x,21);ctx.closePath();ctx.fill() }
+            } else if (root.toolName === "move") {
+                line([12,3,12,21]); line([3,12,21,12]); line([9,6,12,3,15,6]);line([9,18,12,21,15,18]);line([6,9,3,12,6,15]);line([18,9,21,12,18,15])
+            } else if (root.toolName === "brush") {
+                ctx.beginPath();ctx.moveTo(9,14);ctx.quadraticCurveTo(15,5,21,3);ctx.quadraticCurveTo(20,8,12,16);ctx.closePath();ctx.stroke()
+                ctx.beginPath();ctx.moveTo(10,15);ctx.bezierCurveTo(4,12,7,19,2,20);ctx.bezierCurveTo(8,24,15,19,10,15);ctx.fill()
+            } else if (root.toolName === "eye" || root.toolName === "eyeOff") {
+                ctx.beginPath();ctx.moveTo(2,12);ctx.quadraticCurveTo(12,-1,22,12);ctx.quadraticCurveTo(12,25,2,12);ctx.closePath();ctx.stroke();ctx.beginPath();ctx.arc(12,12,2.5,0,2*Math.PI);ctx.fill()
+                if(root.toolName === "eyeOff") line([3,3,21,21])
+            } else if (root.toolName === "unlocked" || root.toolName === "locked") {
+                ctx.strokeRect(5,11,14,10); ctx.beginPath();ctx.moveTo(8,11);ctx.lineTo(8,7);ctx.bezierCurveTo(8,1,16,1,16,7);if(root.toolName === "locked")ctx.lineTo(16,11);ctx.stroke();line([12,15,12,17])
+            } else if (root.toolName === "redo" || root.toolName === "undo") {
+                if(root.toolName === "redo"){ctx.translate(24,0);ctx.scale(-1,1)}
+                line([9,4,4,9,9,14]);ctx.beginPath();ctx.moveTo(4,9);ctx.lineTo(13,9);ctx.quadraticCurveTo(21,9,20,19);ctx.stroke()
+            } else if (root.toolName === "open") {
+                line([3,10,3,6,9,6,11,8,19,8,19,10]);line([3,19,5,11,22,11,19,19,3,19])
+            } else if (root.toolName === "export") {
+                line([5,11,5,20,20,20,20,11]);line([12.5,15,12.5,3]);line([8,7.5,12.5,3,17,7.5])
+            } else if (root.toolName === "zoomTool") {
+                ctx.beginPath();ctx.arc(10,10,6,0,2*Math.PI);ctx.stroke();line([15,15,21,21])
+            } else if (root.toolName === "text") {
+                line([4,7,4,4,20,4,20,7]);line([12,4,12,20]);line([8,20,16,20])
+            } else if (root.toolName === "rectSelect") {
+                ctx.setLineDash([3,2]);ctx.strokeRect(3,5,18,14);ctx.setLineDash([])
+            } else if (root.toolName === "pathSelection" || root.toolName === "directSelection") {
                 ctx.beginPath();ctx.moveTo(5,2);ctx.lineTo(5,20);ctx.lineTo(10,15);ctx.lineTo(14,23);ctx.lineTo(18,21);ctx.lineTo(14,13);ctx.lineTo(21,13);ctx.closePath()
                 ctx.fillStyle=root.toolName === "pathSelection" ? "#18202a" : root.iconColor
                 ctx.fill();ctx.stroke()

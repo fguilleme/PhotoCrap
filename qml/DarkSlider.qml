@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Studio.js" as Studio
 
 Slider {
     id: control
@@ -15,38 +16,26 @@ Slider {
         x: control.leftPadding
         y: control.topPadding + (control.availableHeight - height) / 2
         width: control.availableWidth
-        height: 8
-        radius: 4
-        color: "#11171d"
-        border.width: 1
-        border.color: control.enabled ? "#82909c" : "#4b545d"
+        height: 4
+        radius: 2
+        color: Studio.line
 
         Rectangle {
             width: control.visualPosition * parent.width
             height: parent.height
             radius: parent.radius
-            color: control.enabled ? "#62a97d" : "#46544d"
-            border.width: 1
-            border.color: control.enabled ? "#a4d8b4" : "#59635e"
+            color: control.enabled ? Studio.secondary : Studio.disabled
         }
     }
 
     handle: Rectangle {
         x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
         y: control.topPadding + (control.availableHeight - height) / 2
-        implicitWidth: 20
-        implicitHeight: 20
-        radius: 10
-        color: !control.enabled ? "#596169" : control.pressed ? "#d9f8e2" : control.hovered ? "#caefd5" : "#aed8ba"
+        implicitWidth: 14
+        implicitHeight: 14
+        radius: 7
+        color: !control.enabled ? Studio.disabled : control.pressed ? Studio.accent : control.hovered ? Studio.ink : Studio.secondary
         border.width: 2
-        border.color: control.enabled ? "#f5f8fa" : "#747d85"
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: 6
-            height: 6
-            radius: 3
-            color: control.enabled ? "#315d40" : "#454c52"
-        }
+        border.color: control.visualFocus ? Studio.accent : Studio.field
     }
 }

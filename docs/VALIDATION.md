@@ -1,5 +1,9 @@
 # Validation
 
+## Comparer deux versions de l’espace de travail
+
+Avec un build de test, lancer `PhotoCrap --smoke-test --workspace-review /chemin/photo.jpg /chemin/dossier-vide`. Le dossier de sortie doit exister. Le scénario ouvre la photo avec des préférences isolées, crée deux calques supplémentaires, enregistre le projet, puis capture des fenêtres de 1480 × 900 à 78 % et de 1000 × 680 à 46 %. Il contrôle aussi la taille réelle et l’export PNG depuis la barre du document au clavier. Pour une comparaison reproductible, utiliser la même photo, le même backend Qt et la même échelle d’écran.
+
 ## Documents multiples et upscale natif — 9 novembre 2026
 
 Build local Qt 6.12 / macOS réussi. Suite hors écran complète : **69/69 tests

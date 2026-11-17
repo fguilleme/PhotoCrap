@@ -10,6 +10,7 @@ class ToolInput : public QObject
     Q_PROPERTY(QObject *targetWindow MEMBER m_targetWindow)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(bool modifiersOnly MEMBER m_modifiersOnly)
+    Q_PROPERTY(bool panWithSpace MEMBER m_panWithSpace)
     Q_PROPERTY(QVariantList bindings MEMBER m_bindings)
     Q_PROPERTY(int modifiers READ modifiers NOTIFY modifiersChanged)
     Q_PROPERTY(bool precise READ precise NOTIFY preciseChanged)
@@ -45,6 +46,7 @@ private:
     QObject      *m_targetWindow = nullptr;
     QVariantList  m_bindings;
     bool          m_enabled = false, m_precise = false, m_modifiersOnly = false;
+    bool          m_panWithSpace = true, m_spaceHeld = false;
     int           m_modifiers = 0, m_pressedKey = 0;
     QElapsedTimer m_pressTimer;
     void          updateModifiers(int _modifiers);

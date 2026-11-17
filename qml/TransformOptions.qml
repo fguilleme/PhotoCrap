@@ -1,4 +1,5 @@
 import QtQuick
+import "Studio.js" as Studio
 import QtQuick.Controls
 import QtQuick.Layouts
 
@@ -9,7 +10,7 @@ Rectangle {
     readonly property var options: document.transformOptions
     readonly property bool warping: options.mode === "warp"
     implicitHeight: 46
-    color: "#242a32"
+    color: Studio.panel
 
     component TransformField: RowLayout {
         id: field
@@ -17,7 +18,7 @@ Rectangle {
         required property string parameter
         property string unit: ""
         spacing: 4
-        Label { text: field.label; color: "#aeb9c5" }
+        Label { text: field.label; color: Studio.secondary }
         TextField {
             id: entry
             objectName: "transformField_" + field.parameter
@@ -39,7 +40,7 @@ Rectangle {
                 root.editCommitted()
             }
         }
-        Label { visible: field.unit.length > 0; text: field.unit; color: "#aeb9c5" }
+        Label { visible: field.unit.length > 0; text: field.unit; color: Studio.secondary }
     }
 
     RowLayout {
@@ -99,7 +100,7 @@ Rectangle {
                             readonly property point position: Qt.point((index % 3) / 2, Math.floor(index / 3) / 2)
                             width: 9; height: 9; radius: 1
                             color: root.options.reference && root.options.reference.x === position.x
-                                   && root.options.reference.y === position.y ? "#b6dfff" : "#454f5d"
+                                   && root.options.reference.y === position.y ? Studio.accent : Studio.line
                             TapHandler { onTapped: root.document.setTransformParameter("reference", parent.position) }
                         }
                     }

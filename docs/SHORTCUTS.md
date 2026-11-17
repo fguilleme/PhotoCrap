@@ -2,6 +2,8 @@
 
 Référence des raccourcis Photoshop pertinents pour l’édition d’images dans PhotoCrap : documents, sélection, calques, couches, peinture, fusion, affichage et outils. Les anciennes fonctions 3D, DICOM, vidéo et les modules externes de Photoshop ne font pas partie de ce périmètre.
 
+**Affichage → Parcourir les commandes au clavier** place le focus sur Ouvrir. Tab et Maj+Tab parcourent alors les commandes ; Espace active le bouton en focus. Sur le canevas, Espace conserve son rôle de main temporaire.
+
 Sources Adobe :
 - [Référence Photoshop Desktop](https://helpx.adobe.com/photoshop/desktop/get-started/settings-and-preferences/view-keyboard-shortcuts.html).
 - [Manuel officiel Photoshop CS6 archivé, pages 71–95](https://help.adobe.com/archive/en/photoshop/cs6/photoshop_reference.pdf), pour les tableaux détaillés de gestes, peinture, fusion, couches et panneaux. Ces tableaux anciens servent de référence aux gestes historiques ; ils ne décrivent pas les nouveautés de Photoshop.

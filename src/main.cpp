@@ -64,6 +64,7 @@
 #include "../tests/ToneRenderSmoke.h"
 #include "../tests/UiSmoke.h"
 #include "../tests/ViewportRulerSmoke.h"
+#include "../tests/WorkspaceReview.h"
 #ifdef Q_OS_MACOS
 #include "../tests/MacApplicationMenuTest.h"
 #include "../tests/MacToolCursorTest.h"
@@ -230,7 +231,8 @@ int main(int argc, char *argv[])
     const auto args  = app.arguments();
     const bool smoke = args.contains("--smoke-test");
 #ifdef PHOTOCRAP_TESTING
-    if (args.contains("--file-dialog-test") || args.contains("--layer-import-test"))
+    if (args.contains("--file-dialog-test") || args.contains("--layer-import-test") ||
+        args.contains("--workspace-review"))
         QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
 #endif
     qmlRegisterType<ToolInput>("PhotoCrap.Native", 1, 0, "ToolInput");
@@ -345,6 +347,13 @@ int main(int argc, char *argv[])
             auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 #ifdef PHOTOCRAP_TESTING
             bool passed = false;
+            const int review = args.indexOf("--workspace-review");
+            if (review >= 0) {
+                passed = review + 2 < args.size() && captureWorkspaceReview(
+                    window, document, args[review + 1], args[review + 2]);
+                app.exit(passed && !qmlWarnings ? 0 : 3);
+                return;
+            }
             if (args.contains("--pen-stroke-test")) {
                 passed = window && runPenStrokeVisibilitySmoke(window, document);
                 app.exit(passed && !qmlWarnings ? 0 : 3);

@@ -924,6 +924,70 @@
   </context>
   <context>
     <name>Main</name>
+    <message>
+      <source>Parcourir les commandes au clavier</source>
+      <translation>Navigate controls with the keyboard</translation>
+    </message>
+    <message>
+      <source>Couleur de premier plan</source>
+      <translation>Foreground color</translation>
+    </message>
+    <message>
+      <source>Couleur d’arrière-plan</source>
+      <translation>Background color</translation>
+    </message>
+    <message>
+      <source>Creux</source>
+      <translation>Indent</translation>
+    </message>
+    <message>
+      <source>Côtés</source>
+      <translation>Sides</translation>
+    </message>
+    <message>
+      <source>Exporter</source>
+      <translation>Export</translation>
+    </message>
+    <message>
+      <source>Fermer le document</source>
+      <translation>Close document</translation>
+    </message>
+    <message>
+      <source>Gamme</source>
+      <translation>Range</translation>
+    </message>
+    <message>
+      <source>Intensité</source>
+      <translation>Strength</translation>
+    </message>
+    <message>
+      <source>Mode de fusion</source>
+      <translation>Blend mode</translation>
+    </message>
+    <message>
+      <source>Opacité du calque</source>
+      <translation>Layer opacity</translation>
+    </message>
+    <message>
+      <source>Orientation du texte</source>
+      <translation>Text orientation</translation>
+    </message>
+    <message>
+      <source>Rétablir la disposition de retouche</source>
+      <translation>Restore retouching layout</translation>
+    </message>
+    <message>
+      <source>Taille réelle (100 %)</source>
+      <translation>Actual size (100%)</translation>
+    </message>
+    <message>
+      <source>Tolérance</source>
+      <translation>Tolerance</translation>
+    </message>
+    <message>
+      <source>Visibilité : %1</source>
+      <translation>Visibility: %1</translation>
+    </message>
     <message><source>Accueil…</source><translation>Home…</translation></message>
     <message><source>Bienvenue dans PhotoCrap</source><translation>Welcome to PhotoCrap</translation></message>
     <message><source>Fichiers récents</source><translation>Recent files</translation></message>

@@ -1,4 +1,5 @@
 import QtQuick
+import "Studio.js" as Studio
 import QtQuick.Controls
 import QtQuick.Layouts
 
@@ -78,7 +79,7 @@ RowLayout {
             ToolTip.text: modelData
             Accessible.name: modelData
             background: Rectangle {
-                color: button.checked ? "#48535f" : button.hovered ? "#353e49" : "transparent"
+                color: button.checked ? Studio.selected : button.hovered ? Studio.hover : "transparent"
                 radius: 4
             }
             contentItem: Canvas {
@@ -136,7 +137,7 @@ RowLayout {
         checked: root.document.gradientDither
         onToggled: { root.document.gradientDither = checked; root.editCommitted() }
     }
-    Label { text: qsTr("Méthode"); color: "#c8d0d9" }
+    Label { text: qsTr("Méthode"); color: Studio.secondary }
     ComboBox {
         objectName: "gradientMethod"
         model: [qsTr("Classique"), qsTr("Linéaire"), qsTr("Perceptive")]
@@ -147,7 +148,7 @@ RowLayout {
             root.editCommitted()
         }
     }
-    ScrubLabel { control: gradientOpacity; visible: !root.document.gradientNewLayer; text: qsTr("Opacité"); color: "#c8d0d9" }
+    ScrubLabel { control: gradientOpacity; visible: !root.document.gradientNewLayer; text: qsTr("Opacité"); color: Studio.secondary }
     DarkSpinBox { id: gradientOpacity;
         objectName: "gradientOpacity"
         visible: !root.document.gradientNewLayer

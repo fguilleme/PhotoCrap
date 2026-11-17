@@ -1,24 +1,25 @@
 import QtQuick
 import QtQuick.Controls
+import "Studio.js" as Studio
 
 Menu {
     id: control
 
     padding: 5
     delegate: DarkMenuItem { }
-    palette.window: "#20252c"
-    palette.windowText: "#dbe1e8"
-    palette.base: "#20252c"
-    palette.text: "#dbe1e8"
-    palette.button: "#20252c"
-    palette.buttonText: "#dbe1e8"
-    palette.highlight: "#2866c8"
-    palette.highlightedText: "#ffffff"
+    palette.window: Studio.panel
+    palette.windowText: Studio.ink
+    palette.base: Studio.panel
+    palette.text: Studio.ink
+    palette.button: Studio.panel
+    palette.buttonText: Studio.ink
+    palette.highlight: Studio.selected
+    palette.highlightedText: Studio.ink
 
     background: Rectangle {
         implicitWidth: 220
-        color: "#20252c"
-        border.color: "#4a535e"
+        color: Studio.panel
+        border.color: Studio.line
         border.width: 1
         radius: 7
     }

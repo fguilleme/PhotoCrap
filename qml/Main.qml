@@ -1,4 +1,5 @@
 import QtQuick
+import "Studio.js" as Studio
 import QtQuick.Controls
 // Bundle the desktop skins used by Qt Quick fallback dialogs.
 import QtQuick.Controls.Fusion as DialogFusion
@@ -23,26 +24,25 @@ ApplicationWindow {
     minimumHeight: 680
     visible: true
     title: (editor.modified ? "● " : "") + editor.name + " — PhotoCrap"
-    color: "#191d23"
-    font.family: Qt.platform.os === "osx" ? "SF Pro Text" : "sans-serif"
+    color: Studio.rail
     font.pixelSize: 12
-    palette.window: "#22272f"
-    palette.windowText: "#dbe1e8"
-    palette.base: "#191e25"
-    palette.alternateBase: "#292f38"
-    palette.text: "#dbe1e8"
-    palette.button: "#303741"
-    palette.buttonText: "#dbe1e8"
-    palette.highlight: "#597f6b"
-    palette.highlightedText: "#ffffff"
-    palette.mid: "#343d48"
-    palette.dark: "#657383"
-    palette.light: "#303741"
-    palette.midlight: "#3b444e"
-    palette.shadow: "#0c1015"
-    palette.toolTipBase: "#303741"
-    palette.toolTipText: "#dbe1e8"
-    palette.placeholderText: "#aab6c4"
+    palette.window: Studio.panel
+    palette.windowText: Studio.ink
+    palette.base: Studio.field
+    palette.alternateBase: Studio.raised
+    palette.text: Studio.ink
+    palette.button: Studio.raised
+    palette.buttonText: Studio.ink
+    palette.highlight: Studio.selected
+    palette.highlightedText: Studio.ink
+    palette.mid: Studio.line
+    palette.dark: Studio.muted
+    palette.light: Studio.raised
+    palette.midlight: Studio.line
+    palette.shadow: Studio.field
+    palette.toolTipBase: Studio.raised
+    palette.toolTipText: Studio.ink
+    palette.placeholderText: Studio.muted
     property real zoom: 0.6
     property real canvasRotation: 0
     property string status: qsTr("Prêt à créer")
@@ -63,6 +63,8 @@ ApplicationWindow {
     property bool fillingMaskColor: false
     property bool fillingPixelsColor: false
     property bool spacePressed: false
+    readonly property bool keyboardCommandFocused: activeFocusItem !== null &&
+        (activeFocusItem.visualFocus === true || activeFocusItem.keyboardCommand === true)
     onSpacePressedChanged: editor.setToolModifiers(window.shiftPressed, window.stampSourcePicking, spacePressed)
     // Hover events can carry an older modifier snapshot than the latest key
     // event. Keep the held-key state authoritative until its actual release.
@@ -150,6 +152,7 @@ ApplicationWindow {
         id: toolInput
         objectName: "toolInput"
         targetWindow: window
+        panWithSpace: !window.keyboardCommandFocused
         enabled: window.active && !window.editingText && (!window.modalOpen || editor.transformActive)
         bindings: (shortcuts.revision, window.toolbarRevision, editor.transformActive ? [] : window.toolBindings())
         onEnabledChanged: if (!enabled) window.spacePressed=false
@@ -248,13 +251,14 @@ ApplicationWindow {
     property string colorPickerMode: ""
     property int inspectorTab: 0
     property bool inspectorCollapsed: false
-    property real dockWidth: 300
+    property real dockWidth: 312
     readonly property var dockPanelIds: ["histogram", "navigator", "color", "layers", "channels", "paths", "history", "information"]
-    property var dockPanelOrder: ["histogram", "navigator", "color", "layers", "channels", "paths", "history", "information"]
+    property var dockPanelOrder: ["histogram", "navigator", "layers", "channels", "paths", "color", "history", "information"]
     property var dockPanelColumns: ({histogram: 0, navigator: 0, color: 0, layers: 0, channels: 0, paths: 0, history: 0, information: 0})
-    property var dockPanelGroups: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "layers", paths: "layers", history: "history", information: "information"})
+    property var dockPanelGroups: ({histogram: "histogram", navigator: "histogram", color: "color", layers: "layers", channels: "layers", paths: "layers", history: "history", information: "information"})
     property var dockGroupActive: ({histogram: "histogram", navigator: "navigator", color: "color", layers: "layers", channels: "layers", paths: "layers", history: "history", information: "information"})
     property var dockPanelVisibility: ({histogram: true, navigator: true, color: true, layers: true, channels: true, paths: true, history: true, information: false})
+    property var defaultWorkspaceLayout
     property bool workspaceRestored: false
     property string informationTool: editor.tool
     property bool informationFloating: true
@@ -805,14 +809,13 @@ ApplicationWindow {
             floatingHeight: panel.floatingHeight
         }
     }
-    function saveWorkspaceLayout() {
-        if (!workspaceRestored) return
+    function currentWorkspaceLayout() {
         const panels = ({})
         for (let i = 0; i < dockPanelIds.length; ++i) {
             const id = dockPanelIds[i]
             panels[id] = workspacePanelState(id)
         }
-        workspaceSettings.saveLayout({
+        return {
             version: 1,
             dockWidth: dockWidth,
             order: dockPanelOrder,
@@ -821,13 +824,25 @@ ApplicationWindow {
             active: dockGroupActive,
             visibility: dockPanelVisibility,
             panels: panels
-        })
+        }
+    }
+    function saveWorkspaceLayout() {
+        if (workspaceRestored) workspaceSettings.saveLayout(currentWorkspaceLayout())
+    }
+    function resetWorkspacePanels() {
+        for (const id of dockPanelIds) {
+            const panel = dockPanelObject(id)
+            if (panel.floating) panel.setPanelFloating(false)
+        }
+        applyWorkspaceLayout(defaultWorkspaceLayout)
+        dockScroll.contentY = 0
+        scheduleWorkspaceSave()
     }
     function scheduleWorkspaceSave() {
         if (workspaceRestored) workspaceSaveTimer.restart()
     }
-    function restoreWorkspaceLayout() {
-        const saved = workspaceSettings.layout
+    function restoreWorkspaceLayout() { applyWorkspaceLayout(workspaceSettings.layout) }
+    function applyWorkspaceLayout(saved) {
         if (saved && Number(saved.version) === 1) {
             const savedOrder = saved.order || []
             const order = []
@@ -1300,6 +1315,7 @@ ApplicationWindow {
         editor.gradientDither = true
         sampleDocumentSession=editor.documentSession
         refreshToolLayout()
+        defaultWorkspaceLayout = currentWorkspaceLayout()
         restoreWorkspaceLayout()
         Qt.callLater(fitCanvas)
         if (showWelcomeAtStartup) Qt.callLater(function() { if (!nativeDocumentOpening) { recentFiles.refresh(); welcomeDialog.open() } })
@@ -1507,6 +1523,7 @@ ApplicationWindow {
             objectName: "commandShortcut_" + modelData.id
             sequence: modelData.sequence
             enabled: !window.editingText && !window.modalOpen &&
+                     !(window.keyboardCommandFocused && (modelData.sequence === "Tab" || modelData.sequence === "Shift+Tab")) &&
                      (!layerPropertiesDialog.opened || (modelData.id !== "hidePanels" && modelData.id !== "hideAllPanels"))
             onActivated: window.activateShortcut(modelData.id)
         }
@@ -1537,20 +1554,20 @@ ApplicationWindow {
     Shortcut { enabled: !window.editingText && !window.modalOpen; sequence: (shortcuts.revision, shortcuts.sequence("backgroundFillPreserve")); onActivated: editor.fillWithColor(false, true) }
 
     menuBar: MenuBar {
-        background: Rectangle { color: "#22272e" }
+        background: Rectangle { color: Studio.rail }
         delegate: MenuBarItem {
             id: menuBarItem
             contentItem: Text {
                 text: menuBarItem.text
-                color: menuBarItem.highlighted || menuBarItem.down ? "#ffffff" : "#dbe1e8"
+                color: menuBarItem.highlighted || menuBarItem.down ? Studio.ink : Studio.ink
                 font: menuBarItem.font
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 color: menuBarItem.highlighted || menuBarItem.down
-                       ? "#2866c8"
-                       : menuBarItem.hovered ? "#343d48" : "transparent"
+                       ? Studio.selected
+                       : menuBarItem.hovered ? Studio.hover : "transparent"
             }
         }
         DarkMenu {
@@ -1773,7 +1790,10 @@ ApplicationWindow {
                 DarkMenuItem { objectName: "pathsPanelMenuItem"; text: qsTr("Tracés"); checkable: true; checked: window.dockPanelVisible("paths"); onTriggered: window.toggleDockPanel("paths") }
                 DarkMenuItem { objectName: "informationPanelMenuItem"; text: qsTr("Informations"); checkable: true; checked: window.dockPanelVisible("information"); onTriggered: window.toggleDockPanel("information") }
                 DarkMenuItem { text: qsTr("Historique"); checkable: true; checked: window.dockPanelVisible("history"); onTriggered: window.toggleDockPanel("history") }
+                MenuSeparator {}
+                DarkMenuItem { text: qsTr("Rétablir la disposition de retouche"); onTriggered: window.resetWorkspacePanels() }
             }
+            DarkMenuItem { text: qsTr("Parcourir les commandes au clavier"); onTriggered: Qt.callLater(function() { openWorkspaceButton.forceActiveFocus(Qt.TabFocusReason) }) }
             MenuSeparator {}
             // Avoid Qt's macOS Preferences heuristic (Options/Settings/Config prefixes).
             DarkMenuItem { objectName: "brushOptionsMenuItem"; text: qsTr("Pinceau…"); onTriggered: brushSettingsDialog.open() }
@@ -1943,6 +1963,92 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
         Rectangle {
+            Layout.fillWidth: true; implicitHeight: 44; color: Studio.rail
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 6
+                ToolIcon { toolName: "studioMark"; iconColor: Studio.accent; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+                Label { text: "PhotoCrap"; color: Studio.ink; font.pixelSize: 16; font.weight: Font.DemiBold; Layout.rightMargin: 12 }
+                Rectangle { color: Studio.line; implicitWidth: 1; implicitHeight: 20 }
+                IconButton { id: openWorkspaceButton; toolName: "open"; hint: qsTr("Ouvrir…"); enabled: openAction.enabled; onClicked: openAction.trigger() }
+                IconButton { glyph: "+"; hint: qsTr("Nouveau document"); onClicked: guard("new") }
+                Flickable {
+                    id: documentTabs
+                    objectName: "documentTabs"
+                    function revealActive() {
+                        for(let i=0;i<documentTabRepeater.count;++i) {
+                            const tab=documentTabRepeater.itemAt(i)
+                            if(!tab || tab.modelData.id!==documents.activeId)continue
+                            if(tab.x<contentX)contentX=tab.x
+                            else if(tab.x+tab.width>contentX+width)contentX=tab.x+tab.width-width
+                            contentX=window.clampScroll(contentX,contentWidth-width)
+                        }
+                    }
+                    onWidthChanged: Qt.callLater(revealActive)
+                    onContentWidthChanged: Qt.callLater(revealActive)
+                    Connections {
+                        target: documents
+                        function onActiveChanged() { Qt.callLater(documentTabs.revealActive) }
+                    }
+                    ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+                    Layout.fillWidth: true; Layout.preferredHeight: 36; Layout.minimumWidth: 85
+                    contentWidth: tabsRow.width; contentHeight: height
+                    clip: true; boundsBehavior: Flickable.StopAtBounds
+                    Row {
+                        id: tabsRow; height: parent.height; spacing: 1
+                        Repeater {
+                            id: documentTabRepeater
+                            onCountChanged: Qt.callLater(documentTabs.revealActive)
+                            model: documents.documents
+                            delegate: Rectangle {
+                                required property var modelData
+                                objectName: "documentTab_"+modelData.id
+                                width: Math.min(250,Math.max(150,tabName.implicitWidth+55)); height: 36
+                                color: modelData.id===documents.activeId ? Studio.raised : tabHover.hovered ? Studio.hover : "transparent"
+                                activeFocusOnTab: true
+                                readonly property bool keyboardCommand: true
+                                Accessible.role: Accessible.PageTab
+                                Accessible.name: modelData.name
+                                Accessible.selected: modelData.id === documents.activeId
+                                Accessible.onPressAction: window.activateDocument(modelData.id)
+                                Keys.onSpacePressed: window.activateDocument(modelData.id)
+                                Keys.onReturnPressed: window.activateDocument(modelData.id)
+                                border.color: Studio.accent; border.width: activeFocus ? 2 : 0
+                                HoverHandler { id: tabHover }
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Studio.accent; visible: modelData.id===documents.activeId }
+                                MouseArea { anchors.fill: parent; onClicked: window.activateDocument(modelData.id) }
+                                RowLayout {
+                                    anchors.fill: parent; anchors.leftMargin: 10; spacing: 5
+                                    Label { id: tabName; text: (modelData.modified ? "● " : "")+modelData.name; color: modelData.id===documents.activeId ? Studio.ink : Studio.secondary; font.weight: modelData.id===documents.activeId ? Font.DemiBold : Font.Normal; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                                    Label { visible: modelData.aiBusy || modelData.busy || modelData.pendingResult; text: modelData.pendingResult && !modelData.aiBusy ? "!" : "…"; color: Studio.accent }
+                                    ToolButton {
+                                        objectName: "closeDocument_"+modelData.id
+                                        text: "×"; implicitWidth: 28; implicitHeight: 28
+                                        Accessible.name: qsTr("Fermer le document") + " : " + modelData.name; palette.buttonText: Studio.secondary
+                                        enabled: !window.blockingModalOpen && !window.saveInFlight
+                                        onClicked: window.closeDocument(modelData.id)
+                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Fermer le document")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                IconButton { toolName: "undo"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
+                IconButton { toolName: "redo"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
+                Rectangle { color: Studio.line; implicitWidth: 1; implicitHeight: 20; Layout.rightMargin: 4 }
+                Button {
+                    id: exportButton; objectName: "workspaceExport"; text: qsTr("Exporter"); enabled: exportAction.enabled
+                    implicitHeight: 30; implicitWidth: 100; onClicked: exportAction.trigger()
+                    background: Rectangle { radius: 4; color: exportButton.down ? Studio.line : exportButton.hovered ? Studio.hover : Studio.raised; border.color: exportButton.visualFocus ? Studio.accent : Studio.line }
+                    contentItem: Row { spacing: 6; leftPadding: 5
+                        ToolIcon { anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; toolName: "export"; iconColor: exportButton.enabled ? Studio.ink : Studio.disabled }
+                        Label { anchors.verticalCenter: parent.verticalCenter; text: exportButton.text; color: exportButton.enabled ? Studio.ink : Studio.disabled; font.weight: Font.DemiBold }
+                    }
+                }
+            }
+        }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Studio.field }
+        Rectangle {
             id: surfacePaintBar
             objectName: "surfacePaintBar"
             property var controller: aiImages
@@ -1951,7 +2057,7 @@ ApplicationWindow {
             onControllerChanged: { surfaceProtect.checked = false; surfaceText.checked = false }
             Layout.fillWidth: true
             implicitHeight: 44
-            color: "#242a32"
+            color: Studio.panel
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 12
@@ -2039,12 +2145,19 @@ ApplicationWindow {
                      || window.shapeToolActive || editor.tool === "gradient"
                      || (editor.textEditing && canvasTextEditor.state.surfaceText === true)
                      || editor.tool === "rotateView" || editor.tool === "zoomTool")
-            Layout.fillWidth: true; Layout.preferredHeight: 44; color: "#242a32"
+            Layout.fillWidth: true; Layout.preferredHeight: 42; color: Studio.panel
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
                 RowLayout {
+                    visible: window.paintToolActive && !window.shapeToolActive
+                    spacing: 7
+                    ToolIcon { toolName: editor.tool; iconColor: Studio.ink; Layout.preferredWidth: 19; Layout.preferredHeight: 19 }
+                    Label { text: window.toolName; color: Studio.ink; font.weight: Font.DemiBold }
+                    Rectangle { Layout.leftMargin: 4; Layout.rightMargin: 4; implicitWidth: 1; implicitHeight: 18; color: Studio.line }
+                }
+                RowLayout {
                     visible: editor.textEditing && canvasTextEditor.state.surfaceText === true
-                    ScrubLabel { control: surfaceTextAngle; text: qsTr("Orientation du texte"); color: "#87929e" }
+                    ScrubLabel { control: surfaceTextAngle; text: qsTr("Orientation du texte"); color: Studio.muted }
                     DarkSpinBox {
                         id: surfaceTextAngle
                         objectName: "surfaceTextAngle"
@@ -2062,7 +2175,7 @@ ApplicationWindow {
                         control: surfaceTextStrength
                         visible: canvasTextEditor.state.surfaceRelief === true
                         text: qsTr("Déformation")
-                        color: "#87929e"
+                        color: Studio.muted
                     }
                     DarkSpinBox {
                         id: surfaceTextStrength
@@ -2131,11 +2244,11 @@ ApplicationWindow {
                         }
                     }
                 }
-                ScrubLabel { objectName: "brushSizeLabel"; control: brushSizeTop; visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; text: qsTr("Taille"); color: "#87929e" }
+                ScrubLabel { objectName: "brushSizeLabel"; control: brushSizeTop; visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; text: qsTr("Taille"); color: Studio.muted }
                 DarkSpinBox { id: brushSizeTop; objectName: "brushSizeTop"; visible: (window.paintToolActive && editor.tool !== "mixerBrush") || editor.tool === "quickSelection"; from: 1; to: 500; value: Math.round(editor.brushSize); suffix: " px"; implicitWidth: 110; onValueModified: editor.brushSize=value }
-                ScrubLabel { control: brushHardnessTop; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: "#87929e"; Layout.leftMargin: 4 }
+                ScrubLabel { control: brushHardnessTop; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; text: qsTr("Dureté"); color: Studio.muted; Layout.leftMargin: 4 }
                 DarkSpinBox { id: brushHardnessTop; objectName: "brushHardnessTop"; visible: editor.tool==="brush" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge" || editor.tool === "colorReplacement" || editor.tool === "quickSelection"; from: 0; to: 100; value: Math.round(editor.brushHardness*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushHardness=value/100 }
-                ScrubLabel { control: selectionTolerance; visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: "#87929e" }
+                ScrubLabel { control: selectionTolerance; visible: editor.tool === "magicWand"; text: qsTr("Tolérance"); color: Studio.muted }
                 DarkSpinBox { id: selectionTolerance;
                     objectName: "selectionTolerance"
                     visible: editor.tool === "magicWand"
@@ -2165,7 +2278,7 @@ ApplicationWindow {
                     checked: editor.selectionEnhanceEdge
                     onToggled: editor.selectionEnhanceEdge = checked
                 }
-                ScrubLabel { control: magicEraserTolerance; visible: editor.tool === "magicEraser"; text: qsTr("Tolérance"); color: "#87929e" }
+                ScrubLabel { control: magicEraserTolerance; visible: editor.tool === "magicEraser"; text: qsTr("Tolérance"); color: Studio.muted }
                 DarkSpinBox { id: magicEraserTolerance;
                     objectName: "magicEraserTolerance"
                     visible: editor.tool === "magicEraser"
@@ -2197,11 +2310,11 @@ ApplicationWindow {
                     text: qsTr("Effacement… Échap pour annuler")
                     color: "#c8d0d9"
                 }
-                ScrubLabel { control: brushOpacityTop; visible: window.opacityToolActive && editor.tool !== "fill"; text: qsTr("Opacité"); color: "#87929e"; Layout.leftMargin: 8 }
+                ScrubLabel { control: brushOpacityTop; visible: window.opacityToolActive && editor.tool !== "fill"; text: qsTr("Opacité"); color: Studio.muted; Layout.leftMargin: 8 }
                 DarkSpinBox { id: brushOpacityTop; objectName: "brushOpacityTop"; visible: window.opacityToolActive && editor.tool !== "fill"; from: 1; to: 100; value: Math.round(editor.brushOpacity*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushOpacity=value/100 }
-                ScrubLabel { control: brushFlowTop; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: "#87929e"; Layout.leftMargin: 4 }
+                ScrubLabel { control: brushFlowTop; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; text: qsTr("Débit"); color: Studio.muted; Layout.leftMargin: 4 }
                 DarkSpinBox { id: brushFlowTop; objectName: "brushFlowTop"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing"; from: 1; to: 100; value: Math.round(editor.brushFlow*100); suffix: " %"; implicitWidth: 100; onValueModified: editor.brushFlow=value/100 }
-                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge"; text: qsTr("Pinceau…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
+                Button { objectName: "brushOptionsButton"; visible: editor.tool==="brush" || editor.tool==="pencil" || editor.tool==="eraser" || window.stampToolActive || editor.tool === "healing" || (editor.tool === "historyBrush" || editor.tool === "artHistoryBrush") || editor.tool === "spotHealing" || editor.tool === "smudge"; text: qsTr("Réglages…"); implicitHeight: 32; onClicked: brushSettingsDialog.open() }
                 CheckBox {
                     objectName: "stampAligned"
                     visible: window.stampToolActive
@@ -2245,7 +2358,7 @@ ApplicationWindow {
                     checked: editor.pencilAutoErase
                     onToggled: editor.pencilAutoErase=checked
                 }
-                ScrubLabel { control: retouchStrength; visible: editor.tool === "blur" || editor.tool === "sharpen" || editor.tool === "smudge"; text: qsTr("Intensité"); color: "#87929e" }
+                ScrubLabel { control: retouchStrength; visible: editor.tool === "blur" || editor.tool === "sharpen" || editor.tool === "smudge"; text: qsTr("Intensité"); color: Studio.muted }
                 DarkSpinBox { id: retouchStrength;
                     objectName: "retouchStrength"
                     visible: editor.tool === "blur" || editor.tool === "sharpen" || editor.tool === "smudge"
@@ -2308,7 +2421,7 @@ ApplicationWindow {
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Limites du remplacement")
                 }
-                ScrubLabel { control: replacementTolerance; visible: editor.tool === "colorReplacement"; text: qsTr("Tolérance"); color: "#87929e" }
+                ScrubLabel { control: replacementTolerance; visible: editor.tool === "colorReplacement"; text: qsTr("Tolérance"); color: Studio.muted }
                 DarkSpinBox { id: replacementTolerance;
                     objectName: "replacementTolerance"
                     visible: editor.tool === "colorReplacement"
@@ -2323,7 +2436,7 @@ ApplicationWindow {
                     checked: editor.replacementAntialias
                     onToggled: editor.replacementAntialias = checked
                 }
-                Label { visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Gamme"); color: "#87929e" }
+                Label { visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Gamme"); color: Studio.muted }
                 ComboBox {
                     objectName: "retouchRange"
                     visible: editor.tool === "dodge" || editor.tool === "burn"
@@ -2332,7 +2445,7 @@ ApplicationWindow {
                     implicitWidth: 118; implicitHeight: 30
                     onActivated: editor.retouchRange=currentIndex
                 }
-                ScrubLabel { control: scrubValue9; visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Exposition"); color: "#87929e" }
+                ScrubLabel { control: scrubValue9; visible: editor.tool === "dodge" || editor.tool === "burn"; text: qsTr("Exposition"); color: Studio.muted }
                 DarkSpinBox { id: scrubValue9;
                     visible: editor.tool === "dodge" || editor.tool === "burn"
                     from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
@@ -2346,7 +2459,7 @@ ApplicationWindow {
                     checked: editor.protectTones
                     onToggled: editor.protectTones=checked
                 }
-                Label { visible: editor.tool === "sponge"; text: qsTr("Mode"); color: "#87929e" }
+                Label { visible: editor.tool === "sponge"; text: qsTr("Mode"); color: Studio.muted }
                 ComboBox {
                     objectName: "spongeMode"
                     visible: editor.tool === "sponge"
@@ -2355,7 +2468,7 @@ ApplicationWindow {
                     implicitWidth: 108; implicitHeight: 30
                     onActivated: editor.spongeSaturate=currentIndex === 1
                 }
-                ScrubLabel { control: scrubValue10; visible: editor.tool === "sponge"; text: qsTr("Débit"); color: "#87929e" }
+                ScrubLabel { control: scrubValue10; visible: editor.tool === "sponge"; text: qsTr("Débit"); color: Studio.muted }
                 DarkSpinBox { id: scrubValue10;
                     visible: editor.tool === "sponge"
                     from: 1; to: 100; value: Math.round(editor.toolStrength*100); suffix: " %"
@@ -2440,7 +2553,7 @@ ApplicationWindow {
                     implicitWidth: 104; implicitHeight: 30
                     onActivated: editor.shapeStrokeStyle=currentIndex
                 }
-                ScrubLabel { control: shapeCornerRadius; visible: editor.tool === "rectangle"; text: qsTr("Rayon"); color: "#87929e" }
+                ScrubLabel { control: shapeCornerRadius; visible: editor.tool === "rectangle"; text: qsTr("Rayon"); color: Studio.muted }
                 DarkSpinBox { id: shapeCornerRadius;
                     objectName: "shapeCornerRadius"
                     visible: editor.tool === "rectangle"
@@ -2448,7 +2561,7 @@ ApplicationWindow {
                     implicitWidth: 88
                     onValueModified: editor.shapeCornerRadius=value
                 }
-                ScrubLabel { control: shapeSides; visible: editor.tool === "polygon" || editor.tool === "star"; text: qsTr("Côtés"); color: "#87929e" }
+                ScrubLabel { control: shapeSides; visible: editor.tool === "polygon" || editor.tool === "star"; text: qsTr("Côtés"); color: Studio.muted }
                 DarkSpinBox { id: shapeSides;
                     objectName: "shapeSides"
                     visible: editor.tool === "polygon" || editor.tool === "star"
@@ -2456,7 +2569,7 @@ ApplicationWindow {
                     implicitWidth: 70
                     onValueModified: editor.shapeSides=value
                 }
-                ScrubLabel { control: shapeStarRatio; visible: editor.tool === "star"; text: qsTr("Creux"); color: "#87929e" }
+                ScrubLabel { control: shapeStarRatio; visible: editor.tool === "star"; text: qsTr("Creux"); color: Studio.muted }
                 DarkSpinBox { id: shapeStarRatio;
                     objectName: "shapeStarRatio"
                     visible: editor.tool === "star"
@@ -2471,7 +2584,7 @@ ApplicationWindow {
                     checked: editor.shapeAlignPixels
                     onToggled: editor.shapeAlignPixels=checked
                 }
-                ScrubLabel { control: viewRotationAngle; visible: editor.tool === "rotateView"; text: qsTr("Angle"); color: "#87929e" }
+                ScrubLabel { control: viewRotationAngle; visible: editor.tool === "rotateView"; text: qsTr("Angle"); color: Studio.muted }
                 DarkSpinBox { id: viewRotationAngle;
                     objectName: "viewRotationAngle"
                     visible: editor.tool === "rotateView"
@@ -2507,7 +2620,7 @@ ApplicationWindow {
                 Item { visible: editor.tool !== "gradient" && editor.tool !== "fill"; Layout.fillWidth: true }
             }
         }
-        Rectangle { visible: toolOptionsBar.visible; Layout.fillWidth: true; height: 1; color: "#10141a" }
+        Rectangle { visible: toolOptionsBar.visible; Layout.fillWidth: true; height: 1; color: Studio.field }
         SelectionOptions {
             objectName: "selectionOptions"
             Layout.fillWidth: true
@@ -2620,17 +2733,22 @@ ApplicationWindow {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
             Rectangle {
                 visible: !window.toolsTemporarilyHidden
-                Layout.preferredWidth: 58; Layout.fillHeight: true; color: "#222830"
+                id: toolRail
+                readonly property bool twoColumns: toolGroups.count * 34 + 59 > height
+                Layout.preferredWidth: twoColumns ? 78 : 46; Layout.fillHeight: true; color: Studio.rail
                 Flickable {
-                    anchors.fill: parent; contentHeight: toolColumn.height+26; clip: true
+                    anchors.fill: parent; anchors.bottomMargin: 48; contentHeight: toolColumn.height + 12; clip: true
                     boundsBehavior: Flickable.StopAtBounds
-                    Column {
+                    Grid {
                     id: toolColumn
-                    y: 13; anchors.horizontalCenter: parent.horizontalCenter; spacing: 4
+                    y: 6; anchors.horizontalCenter: parent.horizontalCenter; spacing: 2
+                    flow: Grid.TopToBottom; rows: Math.max(1, toolRail.twoColumns ? Math.ceil(toolGroups.count / 2) : toolGroups.count)
                     Repeater {
+                        id: toolGroups
                         model: (window.toolbarRevision, window.visibleToolGroups())
                         delegate: IconButton {
                             id: toolButton
+                            implicitWidth: 34; implicitHeight: 32
                             required property var modelData
                             objectName: "toolGroup_" + modelData.id
                             groupId: modelData.id
@@ -2646,88 +2764,27 @@ ApplicationWindow {
                             onContextRequested: window.openToolGroupMenu(modelData.id, toolButton)
                         }
                     }
-                    Rectangle { width: 30; height: 1; color: "#3b444e"; anchors.horizontalCenter: parent.horizontalCenter }
-                    Item {
-                        width: 38; height: 48
-                        Rectangle { x: 13; y: 15; width: 24; height: 24; radius: 3; color: editor.secondaryColor; border.color: "#87939e"; MouseArea { anchors.fill: parent; onClicked: { changingSecondary=true; colorDialog.selectedColor=editor.secondaryColor; colorDialog.open() } } }
-                        Rectangle { x: 2; y: 4; width: 25; height: 25; radius: 3; color: editor.color; border.color: "#b5c4bf"; MouseArea { anchors.fill: parent; onClicked: { changingSecondary=false; colorDialog.selectedColor=editor.color; colorDialog.open() } } }
                     }
+                }
+                Rectangle { anchors.bottom: swatches.top; anchors.horizontalCenter: parent.horizontalCenter; width: parent.width - 12; height: 1; color: Studio.line }
+                Item {
+                    id: swatches; anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: 38; height: 46
+                    Repeater {
+                        model: 2
+                        delegate: Button {
+                            required property int index
+                            readonly property bool foreground: index === 1
+                            x: foreground ? 1 : 13; y: foreground ? 6 : 17; width: 24; height: 24
+                            Accessible.name: foreground ? qsTr("Couleur de premier plan") : qsTr("Couleur d’arrière-plan")
+                            ToolTip.visible: hovered; ToolTip.text: Accessible.name
+                            background: Rectangle { radius: 3; color: parent.foreground ? editor.color : editor.secondaryColor; border.width: parent.visualFocus || parent.hovered ? 2 : 1; border.color: parent.visualFocus || parent.hovered ? Studio.accent : Studio.muted }
+                            onClicked: { changingSecondary = !foreground; colorDialog.selectedColor = foreground ? editor.color : editor.secondaryColor; colorDialog.open() }
+                        }
                     }
                 }
             }
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
-                Flickable {
-                    id: documentTabs
-                    objectName: "documentTabs"
-                    function revealActive() {
-                        for(let i=0;i<documentTabRepeater.count;++i) {
-                            const tab=documentTabRepeater.itemAt(i)
-                            if(!tab || tab.modelData.id!==documents.activeId)continue
-                            if(tab.x<contentX)contentX=tab.x
-                            else if(tab.x+tab.width>contentX+width)contentX=tab.x+tab.width-width
-                            contentX=window.clampScroll(contentX,contentWidth-width)
-                        }
-                    }
-                    onWidthChanged: Qt.callLater(revealActive)
-                    onContentWidthChanged: Qt.callLater(revealActive)
-                    Connections {
-                        target: documents
-                        function onActiveChanged() { Qt.callLater(documentTabs.revealActive) }
-                    }
-                    ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
-                    Layout.fillWidth: true; Layout.preferredHeight: 32
-                    contentWidth: tabsRow.width; contentHeight: height
-                    clip: true; boundsBehavior: Flickable.StopAtBounds
-                    Row {
-                        id: tabsRow; height: parent.height; spacing: 1
-                        Repeater {
-                            id: documentTabRepeater
-                            onCountChanged: Qt.callLater(documentTabs.revealActive)
-                            model: documents.documents
-                            delegate: Rectangle {
-                                required property var modelData
-                                objectName: "documentTab_"+modelData.id
-                                width: Math.min(250,Math.max(150,tabName.implicitWidth+55)); height: 32
-                                color: modelData.id===documents.activeId ? "#34423d" : "#252c34"
-                                MouseArea { anchors.fill: parent; onClicked: window.activateDocument(modelData.id) }
-                                RowLayout {
-                                    anchors.fill: parent; anchors.leftMargin: 10; spacing: 5
-                                    Label { id: tabName; text: (modelData.modified ? "● " : "")+modelData.name; color: "#dce2e8"; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                                    Label { visible: modelData.aiBusy || modelData.busy || modelData.pendingResult; text: modelData.pendingResult && !modelData.aiBusy ? "!" : "…"; color: "#c7e5b4" }
-                                    ToolButton {
-                                        objectName: "closeDocument_"+modelData.id
-                                        text: "×"; implicitWidth: 28; implicitHeight: 28
-                                        palette.buttonText: "#c9d3df"
-                                        enabled: !window.blockingModalOpen && !window.saveInFlight
-                                        onClicked: window.closeDocument(modelData.id)
-                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Fermer le document")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Rectangle {
-                    Layout.fillWidth: true; height: 42; color: "#1f242c"
-                    RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 12; spacing: 10
-                        Rectangle { width: 6; height: 6; radius: 3; color: editor.modified ? "#c7e5b4" : "#687482" }
-                        Label { text: editor.name; color: "#dce2e8"; font.pixelSize: 12 }
-                        Label { text: qsTr("@ ") + Math.round(zoom*100) + " %"; color: "#73808e" }
-                        Item { Layout.fillWidth: true }
-                        Label { objectName: "documentDepthLabel"; text: qsTr("RVB") + " / " + editor.channelBits; color: "#73808e"; font.pixelSize: 10 }
-                        IconButton { glyph: "↶"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
-                        IconButton { glyph: "↷"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
-                        Button {
-                            text: qsTr("Exporter ↗"); implicitWidth: 116; implicitHeight: 32
-                            background: Rectangle { color: parent.down ? "#94caa4" : "#beeccb"; radius: 5 }
-                            contentItem: Text { text: parent.text; color: "#203b2c"; font.pixelSize: 12; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                            onClicked: exportDialog.open()
-                        }
-                        IconButton { glyph: "+"; hint: qsTr("Nouveau document"); implicitWidth: 27; onClicked: guard("new") }
-                    }
-                }
                 Item {
                     id: workspace
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
@@ -2812,7 +2869,7 @@ ApplicationWindow {
                             return
                         }
                     }
-                    Rectangle { anchors.fill: parent; color: "#171c22" }
+                    Rectangle { anchors.fill: parent; color: Studio.canvas }
                     // Rulers keep their visible ticks in the scene graph.
                     ViewportRuler {
                         id: horizontalRuler
@@ -3658,7 +3715,7 @@ ApplicationWindow {
                     }
                 }
                 Rectangle {
-                    Layout.fillWidth: true; height: editor.tool==="text" ? 54 : 40; color: "#20262e"
+                    Layout.fillWidth: true; visible: editor.tool === "text" || window.cropToolActive; implicitHeight: 40; color: Studio.panel
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 15
                         Label { text: editor.tool==="text" ? qsTr("Texte") : window.cropToolActive ? qsTr("Tracez le cadre, ajustez les poignées ; Entrée pour recadrer, Échap pour annuler") : ""; color: "#8e9aa7" }
@@ -3671,14 +3728,11 @@ ApplicationWindow {
                         Button {visible:editor.textEditing;text:qsTr("Annuler");onClicked:editor.finishTextEdit(true)}
                         Button {visible:editor.textEditing;text:qsTr("Valider");onClicked:{canvasTextEditor.sync();editor.finishTextEdit()}}
                         Item { Layout.fillWidth: true; visible: editor.tool!=="text" }
-                        IconButton { text: qsTr("−"); implicitHeight: 28; onClicked: setZoom(zoom/1.25) }
-                        Label { text: Math.round(zoom*100)+" %"; color: "#bec8d2"; horizontalAlignment: Text.AlignHCenter; Layout.preferredWidth: 50 }
-                        IconButton { text: qsTr("+"); implicitHeight: 28; onClicked: setZoom(zoom*1.25) }
-                        IconButton { text: qsTr("Adapter"); implicitWidth: 65; implicitHeight: 28; hint: qsTr("Adapter à la fenêtre"); onClicked: fitCanvas() }
+
                     }
                 }
             }
-            Rectangle { width: 1; Layout.fillHeight: true; color: "#10141a" }
+            Rectangle { width: 1; Layout.fillHeight: true; color: Studio.field }
             Rectangle {
                 id: dockArea
                 visible: !window.panelsTemporarilyHidden
@@ -3686,7 +3740,7 @@ ApplicationWindow {
                 Layout.minimumWidth: 230
                 Layout.maximumWidth: 760
                 Layout.fillHeight: true
-                color: "#20262e"
+                color: Studio.rail
 
                 MouseArea {
                     anchors.left: parent.left
@@ -3898,7 +3952,7 @@ ApplicationWindow {
                         title: qsTr("Calques")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
-                        dockedHeight: 370
+                        dockedHeight: 316
                         minimumContentHeight: 170
                         property int dockColumn: window.dockPanelColumn(panelId)
                         groupTabs: window.dockGroupTabs(panelId)
@@ -3924,6 +3978,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         ComboBox {
                             id: layerBlendMode
+                            Accessible.name: qsTr("Mode de fusion"); Layout.minimumWidth: 60; implicitHeight: 32
                             objectName: "layerBlendMode"
                             property bool previewActive: false
                             Layout.fillWidth: true
@@ -3948,18 +4003,19 @@ ApplicationWindow {
                                 previewActive = false
                             }
                         }
-                        IconButton { glyph: activeInfo.locked?"▣":"▢"; selected: activeInfo.locked; hint: qsTr("Verrouiller / déverrouiller"); onClicked: editor.setLayerLocked(editor.activeLayer,!activeInfo.locked) }
+                        IconButton { toolName: activeInfo.locked ? "locked" : "unlocked"; implicitWidth: 32; selected: activeInfo.locked; hint: qsTr("Verrouiller / déverrouiller"); onClicked: editor.setLayerLocked(editor.activeLayer,!activeInfo.locked) }
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: qsTr("Opacité"); color: "#8e9baa"; font.pixelSize: 11 }
+                        Label { text: qsTr("Opacité"); color: Studio.muted; font.pixelSize: 11 }
                         DarkSlider {
-                            id: layerOpacity; Layout.fillWidth: true; from: 0; to: 1
+                            id: layerOpacity; Accessible.name: qsTr("Opacité du calque"); Layout.fillWidth: true; Layout.minimumWidth: 30; from: 0; to: 1; stepSize: 0.01
+                            onMoved: if (!pressed) editor.setLayerOpacity(editor.activeLayer, value)
                             enabled: activeInfo.kind!=="group"
                             value: window.activeInfo.opacity
                             onPressedChanged: if(!pressed) editor.setLayerOpacity(editor.activeLayer,value)
                         }
-                        Label { text: Math.round(layerOpacity.value*100)+" %"; color: "#b7c2cc"; font.pixelSize: 11; Layout.preferredWidth: 38 }
+                        Label { text: Math.round(layerOpacity.value*100)+" %"; color: Studio.secondary; font.pixelSize: 11; Layout.preferredWidth: 38 }
                     }
                     ListView {
                         id: layerList
@@ -4032,10 +4088,11 @@ ApplicationWindow {
                             objectName: "layerDelegate"
                             required property var modelData
                             readonly property var aiInfo: modelData.parameters._ai || ({})
-                            width: layerList.width; height: 64; radius: 5
-                            color: modelData.layerIndex===editor.activeLayer ? "#35443e" : modelData.selected ? "#303b48" : "#292f38"
-                            border.width: modelData.selected ? 2 : 1
-                            border.color: modelData.layerIndex===editor.activeLayer ? "#78a589" : modelData.selected ? "#66829b" : "#343c46"
+                            width: layerList.width; height: 50; radius: 3
+                            HoverHandler { id: rowHover }
+                            color: modelData.layerIndex===editor.activeLayer ? Studio.selected : modelData.selected || rowHover.hovered ? Studio.hover : Studio.panel
+                            border.width: modelData.selected ? 1 : 0; border.color: Studio.line
+                            Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 3; radius: 1; color: Studio.accent; visible: modelData.layerIndex===editor.activeLayer }
                             DropArea {
                                 id: maskDropArea
                                 anchors.fill: parent
@@ -4099,12 +4156,16 @@ ApplicationWindow {
                                 Item {
                                     Layout.preferredWidth: 24
                                     Layout.fillHeight: true
-                                    Label {
-                                        anchors.centerIn: parent
-                                        text: modelData.visible ? "◉" : "○"
-                                        color: visibilityMouse.containsMouse ? "#ffffff" : "#c0c7d0"
-                                        font.pixelSize: 19
-                                    }
+                                    activeFocusOnTab: true
+                                    readonly property bool keyboardCommand: true
+                                    Accessible.role: Accessible.CheckBox
+                                    Accessible.name: qsTr("Visibilité : %1").arg(modelData.name)
+                                    Accessible.checkable: true
+                                    Accessible.checked: modelData.visible
+                                    Accessible.onPressAction: editor.setLayerVisible(modelData.layerIndex, !modelData.visible)
+                                    Keys.onSpacePressed: editor.setLayerVisible(modelData.layerIndex, !modelData.visible)
+                                    Rectangle { anchors.centerIn: parent; width: 23; height: 25; radius: 3; visible: parent.activeFocus; color: "transparent"; border.width: 2; border.color: Studio.accent }
+                                    ToolIcon { anchors.centerIn: parent; width: 19; height: 19; toolName: modelData.visible ? "eye" : "eyeOff"; iconColor: visibilityMouse.containsMouse ? Studio.ink : modelData.visible ? Studio.secondary : Studio.disabled }
                                     MouseArea {
                                         id: visibilityMouse
                                         objectName: "layerVisibilityMouse"
@@ -4235,7 +4296,7 @@ ApplicationWindow {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
                                     Label {
-                                        text: modelData.name; color: modelData.visible?"#d6e0db":"#7c8791"; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11
+                                        text: modelData.name; color: modelData.visible ? Studio.ink : Studio.muted; font.weight: modelData.layerIndex===editor.activeLayer ? Font.DemiBold : Font.Normal; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 11
                                         HoverHandler { id: layerNameHover }
                                         ToolTip {
                                             id: aiLayerTip
@@ -4256,8 +4317,8 @@ ApplicationWindow {
                                     Label {
                                         text: (modelData.clippingMask ? qsTr("Écrêté · ") : "") +
                                               (modelData.locked?qsTr("Verrouillé"):modelData.kind==="group"?qsTr("Groupe de calques"):modelData.editingMask?qsTr("Masque actif"):layerDelegate.aiInfo.provider?qsTr("IA · %1 · Variante %2/%3").arg(layerDelegate.aiInfo.provider).arg(layerDelegate.aiInfo.variant || 1).arg(layerDelegate.aiInfo.variantCount || 1):modelData.kind==="adjustment"?qsTr("Calque de réglage"):modelData.kind==="text"?qsTr("Texte éditable"):modelData.kind==="shape"?qsTr("Forme vectorielle"):modelData.kind==="model3d"?qsTr("Modèle 3D"):modelData.kind.indexOf("frequency")===0?qsTr("Séparation dynamique"):qsTr("Calque de pixels"))
-                                        color: modelData.clippingMask?"#a7d7b5":modelData.editingMask?"#bce8c8":"#80928c"
-                                        font.pixelSize: 9
+                                        color: modelData.clippingMask || modelData.editingMask ? Studio.accent : Studio.muted
+                                        font.pixelSize: 10
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
                                     }
@@ -4266,15 +4327,15 @@ ApplicationWindow {
                         }
                     }
                     RowLayout {
-                        Layout.fillWidth: true; spacing: 4
-                        IconButton { glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
-                        IconButton { glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
-                        IconButton { glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
-                        IconButton { objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: window.openActiveLayerProperties() }
-                        IconButton { glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
-                        IconButton { glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
+                        Layout.fillWidth: true; spacing: 2
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: window.openActiveLayerProperties() }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
                         Item { Layout.fillWidth: true }
-                        IconButton { glyph: "×"; hint: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onClicked: editor.removeLayer() }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "×"; hint: qsTr("Supprimer le calque"); enabled: editor.layers.length>1; onClicked: editor.removeLayer() }
                     }
                         } }
                     }
@@ -4370,7 +4431,7 @@ ApplicationWindow {
                                         font.pixelSize: 18
                                     }
                                     Rectangle {
-                                        width: 38; height: 34; radius: 4; color: "#171c22"
+                                        width: 38; height: 34; radius: 4; color: Studio.canvas
                                         border.width: 1; border.color: "#56616c"
                                         Rectangle {
                                             anchors.centerIn: parent; width: 23; height: 23; radius: index === 0 ? 12 : 4
@@ -4447,7 +4508,7 @@ ApplicationWindow {
                         title: qsTr("Historique")
                         panelShown: window.dockPanelVisible(panelId)
                         temporarilyHidden: window.panelsTemporarilyHidden
-                        dockedHeight: 118
+                        dockedHeight: 132
                         minimumContentHeight: 55
                         property int dockColumn: window.dockPanelColumn(panelId)
                         groupTabs: window.dockGroupTabs(panelId)
@@ -4484,18 +4545,18 @@ ApplicationWindow {
                                     onClicked: editor.setHistoryBrushSource(index)
                                     background: Rectangle {
                                         radius: 4
-                                        color: editor.historyBrushSourceIndex === index ? "#345344" : parent.hovered ? "#343f49" : "#20262e"
-                                        border.color: editor.historyBrushSourceIndex === index ? "#74b393" : "#46515d"
+                                        color: editor.historyBrushSourceIndex === index ? Studio.selected : parent.hovered ? Studio.hover : Studio.panel
+                                        border.color: editor.historyBrushSourceIndex === index ? Studio.accent : Studio.line
                                     }
                                     contentItem: ToolIcon {
                                         toolName: "historyBrush"
-                                        iconColor: editor.historyBrushSourceIndex === index ? "#c0f1d2" : "#a3afbb"
+                                        iconColor: editor.historyBrushSourceIndex === index ? Studio.accent : Studio.secondary
                                     }
                                 }
                                 Label {
                                     Layout.fillWidth: true
                                     text: (index===editor.historyIndex?"●  ":"    ")+modelData
-                                    color: index===editor.historyIndex?"#beeccb":index>editor.historyIndex?"#65707b":"#9ba8b6"
+                                    color: index===editor.historyIndex?Studio.ink:index>editor.historyIndex?Studio.disabled:Studio.secondary
                                     font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
                                 }
                             }
@@ -4507,13 +4568,19 @@ ApplicationWindow {
             }
         }
         Rectangle {
-            Layout.fillWidth: true; height: 27; color: "#20262d"
+            Layout.fillWidth: true; implicitHeight: 32; color: Studio.rail
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 15; anchors.rightMargin: 15
-                Rectangle { width: 5; height: 5; radius: 3; color: "#aad4b4" }
-                Label { text: window.status; color: "#8c99a7"; font.pixelSize: 10 }
-                Item { Layout.fillWidth: true }
-                Label { text: qsTr("%1 × %2 px   ·   %3 calques   ·   PhotoCrap %4").arg(editor.width).arg(editor.height).arg(editor.layers.length).arg(Qt.application.version); color: "#73818f"; font.pixelSize: 10 }
+                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 8
+                Label { text: window.toolName; color: Studio.ink; font.pixelSize: 11; font.weight: Font.DemiBold; Layout.maximumWidth: 160; elide: Text.ElideRight }
+                Rectangle { width: 1; height: 14; color: Studio.line }
+                Label { text: window.status; color: Studio.muted; font.pixelSize: 11; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
+                Label { text: editor.width + " × " + editor.height + " px"; color: Studio.secondary; font.pixelSize: 11 }
+                Label { objectName: "documentDepthLabel"; text: qsTr("RVB") + " / " + editor.channelBits; color: Studio.muted; font.pixelSize: 11 }
+                Rectangle { width: 1; height: 14; color: Studio.line }
+                IconButton { glyph: "−"; implicitWidth: 28; implicitHeight: 28; hint: qsTr("Zoom arrière"); onClicked: setZoom(zoom/1.25) }
+                IconButton { objectName: "actualSizeButton"; text: Math.round(zoom * 100) + " %"; implicitWidth: 54; implicitHeight: 28; hint: qsTr("Taille réelle (100 %)"); onClicked: setZoom(1) }
+                IconButton { glyph: "+"; implicitWidth: 28; implicitHeight: 28; hint: qsTr("Zoom avant"); onClicked: setZoom(zoom*1.25) }
+                IconButton { text: qsTr("Adapter"); implicitWidth: 60; implicitHeight: 28; hint: qsTr("Adapter à la fenêtre"); onClicked: fitCanvas() }
             }
         }
     }
@@ -4665,7 +4732,7 @@ ApplicationWindow {
                         spacing: 5
                         Rectangle {
                             Layout.fillWidth: true; Layout.fillHeight: true
-                            color: "#171c22"; radius: 3; clip: true
+                            color: Studio.canvas; radius: 3; clip: true
                             Image {
                                 id: recentThumbnail
                                 objectName: "welcomeRecentThumbnail"
@@ -4991,14 +5058,14 @@ ApplicationWindow {
         id: adjustmentDialog; title: window.adjustmentTitle; anchors.centerIn: parent; modal: true; width: 390
         ColumnLayout {
             anchors.fill: parent; spacing: 16
-            Label { text: qsTr("Appliquer au calque actif"); color: "#9cabb7" }
+            Label { text: qsTr("Appliquer au calque actif"); color: Studio.muted }
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: window.adjustmentTitle; color: "#c4cdd5"; Layout.fillWidth: true }
-                Label { text: Math.round(adjustmentSlider.value); color: "#aeb9c3"; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
+                Label { text: window.adjustmentTitle; color: Studio.secondary; Layout.fillWidth: true }
+                Label { text: Math.round(adjustmentSlider.value); color: Studio.secondary; Layout.preferredWidth: 42; horizontalAlignment: Text.AlignRight }
             }
             DarkSlider { id: adjustmentSlider; Layout.fillWidth: true; from: window.adjustment==="blur"?1:-100; to: window.adjustment==="blur"?30:100; stepSize: 1 }
-            Label { text: qsTr("La sélection limite la zone traitée.\nL’opération peut être annulée."); color: "#8996a4" }
+            Label { text: qsTr("La sélection limite la zone traitée.\nL’opération peut être annulée."); color: Studio.muted }
         }
         footer: DialogButtonBox {
             DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: adjustmentDialog.reject() }
@@ -5056,7 +5123,7 @@ ApplicationWindow {
 
         contentItem: ColumnLayout {
             spacing: 10
-            Label { text: qsTr("Forme de la pointe"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
+            Label { text: qsTr("Forme de la pointe"); color: Studio.ink; font.pixelSize: 17; font.bold: true }
             BrushTipPreview {
                 id: brushPreview
                 objectName: "brushTipPreview"
@@ -5070,18 +5137,18 @@ ApplicationWindow {
                 roundness: editor.brushRoundness
             }
             Label {
-                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#91a0ad"
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Studio.muted
                 text: qsTr("L’opacité plafonne un passage. Le débit détermine la quantité déposée par chaque empreinte et s’accumule lorsque les empreintes se chevauchent.")
             }
             Label {
                 visible: editor.tool === "pencil"
-                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#91a0ad"
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Studio.muted
                 text: qsTr("Le crayon conserve un bord net ; la dureté se règle avec le pinceau.")
             }
             RowLayout {
                 visible: editor.tool !== "mixerBrush" && editor.tool !== "healing" && editor.tool !== "spotHealing"
                 Layout.fillWidth: true
-                Label { text: qsTr("Mode"); color: "#c4cdd5" }
+                Label { text: qsTr("Mode"); color: Studio.secondary }
                 ComboBox { Layout.fillWidth: true; model: window.blendModeNames; currentIndex: editor.brushBlend; onActivated: editor.brushBlend=currentIndex }
             }
             ScrollView {
@@ -5109,8 +5176,8 @@ ApplicationWindow {
                             Layout.fillWidth: true; spacing: 2
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label { text: modelData.label; color: "#c4cdd5"; Layout.fillWidth: true }
-                                Label { text: Math.round(brushSettingSlider.value)+modelData.suffix; color: "#91a0ad"; Layout.preferredWidth: 64; horizontalAlignment: Text.AlignRight }
+                                Label { text: modelData.label; color: Studio.secondary; Layout.fillWidth: true }
+                                Label { text: Math.round(brushSettingSlider.value)+modelData.suffix; color: Studio.muted; Layout.preferredWidth: 64; horizontalAlignment: Text.AlignRight }
                             }
                             DarkSlider {
                                 id: brushSettingSlider
@@ -5183,14 +5250,14 @@ ApplicationWindow {
             spacing: 12
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: activeInfo.direct ? qsTr("Appliquer directement") : activeInfo.editingVectorMask ? qsTr("Masque vectoriel") : activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: "#eef2f5"; font.pixelSize: 17; font.bold: true }
+                Label { text: activeInfo.direct ? qsTr("Appliquer directement") : activeInfo.editingVectorMask ? qsTr("Masque vectoriel") : activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: Studio.ink; font.pixelSize: 17; font.bold: true }
                 Item { Layout.fillWidth: true }
                 CheckBox { id: layerPreview; objectName: "layerPreviewCheck"; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true; onToggled: { if (activeInfo.direct) editor.setDirectAdjustmentPreview(checked) } }
             }
             Label {
                 Layout.fillWidth: true
                 text: activeInfo.direct ? (activeInfo.maskTarget ? qsTr("Le réglage modifie le masque sélectionné. Les pixels couleur du calque restent intacts.") : qsTr("Le réglage modifie les pixels du calque actif, dans la sélection éventuelle. Annuler restaure l’état d’ouverture.")) : activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : window.frequencyPrepared ? qsTr("Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
-                color: "#91a0ad"; wrapMode: Text.WordWrap
+                color: Studio.muted; wrapMode: Text.WordWrap
             }
             CheckBox {
                 objectName: "directLimitSelectionCheck"
@@ -5226,8 +5293,8 @@ ApplicationWindow {
                             Layout.fillWidth: true; spacing: 3
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label { text: modelData.label; color: "#c4cdd5"; Layout.fillWidth: true }
-                                Label { text: Number(parameterSlider.value).toFixed(modelData.step<1?2:0); color: "#91a0ad"; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
+                                Label { text: modelData.label; color: Studio.secondary; Layout.fillWidth: true }
+                                Label { text: Number(parameterSlider.value).toFixed(modelData.step<1?2:0); color: Studio.muted; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
                             DarkSlider {
                                 id: parameterSlider
@@ -5531,7 +5598,7 @@ ApplicationWindow {
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="invert"
                         Layout.fillWidth: true
                         text: qsTr("Ce calque inverse automatiquement les couleurs. Son intensité se règle avec l’opacité du calque.")
-                        color: "#91a0ad"; wrapMode: Text.WordWrap
+                        color: Studio.muted; wrapMode: Text.WordWrap
                     }
                     RowLayout {
                         visible: activeInfo.editingMask && !activeInfo.editingVectorMask

@@ -1,4 +1,5 @@
 import QtQuick
+import "Studio.js" as Studio
 import QtQuick.Controls
 import QtQuick.Layouts
 
@@ -6,7 +7,7 @@ Rectangle {
     id: root
     required property var document
     signal editCommitted()
-    color: "#20262e"
+    color: Studio.panel
     implicitHeight: 44
     enabled: !document.cropBusy
     readonly property bool perspective: document.tool === "perspectiveCrop"
@@ -48,7 +49,7 @@ Rectangle {
                 required property string modelData
                 required property int index
                 spacing: 4
-                Label { text: modelData + ":"; color: "#b4beca" }
+                Label { text: modelData + ":"; color: Studio.secondary }
                 TextField {
                     objectName: index===0 ? "cropOutputWidth" : "cropOutputHeight"
                     implicitWidth: 78; implicitHeight: 30

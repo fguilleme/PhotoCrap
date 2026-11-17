@@ -644,6 +644,7 @@ qt_add_qml_module(PhotoCrap
     IMPORT_PATH ${photocrap_qml_import_paths}
     QML_FILES
         qml/Main.qml
+        qml/Studio.js
         qml/Model3DPanel.qml
         qml/TransformMenu.qml
         qml/TransformOptions.qml

@@ -4,6 +4,11 @@ Chaque document possède son onglet au-dessus du canevas, ses calques, ses masqu
 sélections, tracés, historique et rendus en arrière-plan. Le zoom, le défilement
 et la rotation de la vue sont conservés lors des changements d’onglet.
 
+La barre des documents regroupe Ouvrir, Nouveau, Annuler, Rétablir et Exporter.
+Le zoom, la taille réelle et l’adaptation à la fenêtre se trouvent sous le canevas.
+**Affichage → Panneaux → Rétablir la disposition de retouche** replace les calques
+sous l’histogramme, sans toucher aux documents.
+
 ## Ouvrir et créer
 
 **Fichier → Ouvrir**, les fichiers récents et les fichiers transmis par le système

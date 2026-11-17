@@ -225,5 +225,42 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
     if (!require(_document.composite().pixelColor(85, 65).alpha() == 0,
                  "releasing the clipping mask is undoable"))
         return false;
+
+    _document.newDocument(64, 64, true);
+    for (int i = 0; i < 15; ++i)
+        _document.addLayer();
+    _document.setLayerVisible(1, false);
+    const auto bottomVisibility = [&]() -> QQuickItem * {
+        QMetaObject::invokeMethod(layerList, "positionViewAtEnd");
+        QQuickItem *item     = nullptr;
+        const bool  scrolled = QTest::qWaitFor(
+            [&] {
+                item = thumbnail(0, "layerVisibilityMouse");
+                return item && layerList->property("contentY").toDouble() > 0.;
+            },
+            1000);
+        return scrolled ? item : nullptr;
+    };
+    const auto visibleCount = [&] {
+        int count = 0;
+        for (const auto &layer : _document.layers())
+            count += layer.toMap().value("visible").toBool();
+        return count;
+    };
+    for (const int expected : {1, 15}) {
+        auto *item = bottomVisibility();
+        if (!require(item, "the visibility icon is shown after scrolling the layers"))
+            return false;
+        const auto eye = item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint();
+        QTest::mouseMove(_window, eye);
+        QTest::keyPress(_window, Qt::Key_Alt);
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, eye);
+        QTest::keyRelease(_window, Qt::Key_Alt);
+        const auto rows = _document.layers();
+        if (!require(visibleCount() == expected && rows.last().toMap()["visible"].toBool() &&
+                         !rows.at(rows.size() - 2).toMap()["visible"].toBool(),
+                     "Option-click isolates and restores visibility in a scrolled layer list"))
+            return false;
+    }
     return runLayerMergeSmoke(_window, _document);
 }

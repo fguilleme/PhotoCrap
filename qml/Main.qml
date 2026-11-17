@@ -3966,11 +3966,13 @@ ApplicationWindow {
                         objectName: "layerListView"
                         reuseItems: true
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
-                        clip: true; spacing: 5; model: editor.layers
+                        clip: true; spacing: 5; model: layerRows
+                        readonly property var layerRows: editor.layers
                         readonly property bool clippingEnabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading
 
                         function clippingTargetAt(scenePosition) {
-                            const rows = model
+                            // contentY can change while ListView is replacing its delegate model.
+                            const rows = layerRows
                             const position = mapFromItem(null, scenePosition)
                             const x = position.x + contentX
                             const y = position.y + contentY
@@ -3978,7 +3980,7 @@ ApplicationWindow {
                                 return null
                             const above = indexAt(x, y - spacing)
                             const below = indexAt(x, y + spacing)
-                            if (above < 0 || below !== above + 1)
+                            if (above < 0 || below !== above + 1 || below >= rows.length)
                                 return null
                             const upper = rows[above]
                             const lower = rows[below]
@@ -4105,6 +4107,7 @@ ApplicationWindow {
                                     }
                                     MouseArea {
                                         id: visibilityMouse
+                                        objectName: "layerVisibilityMouse"
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         onClicked: function(mouse) {

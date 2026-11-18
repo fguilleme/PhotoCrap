@@ -1,6 +1,4 @@
 #include "SurfaceGeometry.h"
-#include <QBuffer>
-#include <QImageReader>
 #include <QPainter>
 #include <QVector2D>
 #include <QVector3D>
@@ -497,40 +495,6 @@ bool SurfaceGeometry::isValid() const
            disparity.size() == validity.size() && disparity.format() == QImage::Format_Grayscale8 &&
            validity.format() == QImage::Format_Grayscale8 &&
            normals.format() == QImage::Format_RGB888;
-}
-
-SurfaceGeometry SurfaceGeometry::fromComfyPreview(const QByteArray &preview, const Input &source)
-{
-    const auto size = source.sentSize;
-    if (size.isEmpty() || qMax(size.width(), size.height()) > 2048)
-        return {};
-    QBuffer buffer;
-    buffer.setData(preview);
-    buffer.open(QIODevice::ReadOnly);
-    QImageReader reader(&buffer, "png");
-    if (reader.size() != QSize(size.width() * 3, size.height()))
-        return {};
-    const auto maps = reader.read();
-    const auto image =
-        QImage::fromData(source.image, "PNG").convertToFormat(QImage::Format_RGBA8888);
-    if (maps.isNull() || image.size() != size)
-        return {};
-
-    SurfaceGeometry geometry{
-        maps.copy(0, 0, size.width(), size.height()).convertToFormat(QImage::Format_Grayscale8),
-        maps.copy(size.width(), 0, size.width(), size.height())
-            .convertToFormat(QImage::Format_RGB888),
-        maps.copy(size.width() * 2, 0, size.width(), size.height())
-            .convertToFormat(QImage::Format_Grayscale8)};
-    if (!geometry.isValid())
-        return {};
-    for (int y = 0; y < size.height(); ++y) {
-        auto       *valid = geometry.validity.scanLine(y);
-        const auto *rgba  = image.constScanLine(y);
-        for (int x = 0; x < size.width(); ++x)
-            valid[x] = valid[x] >= 128 && rgba[4 * x + 3] > 0 ? 255 : 0;
-    }
-    return geometry;
 }
 
 QImage SurfaceGeometry::regionAt(const QPoint &seed, const QSize &canvas, bool followRelief,

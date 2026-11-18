@@ -499,30 +499,6 @@ private slots:
         }
     }
 
-    void surfaceProviderIsRememberedAcrossSessions()
-    {
-        QSettings().clear();
-        const auto credentials = memoryAiCredentialStore();
-        QString    initialId, chosenId;
-        {
-            AiSettings settings(nullptr, true, credentials);
-            initialId = settings.surfaceProviderId();
-            QVERIFY(!initialId.isEmpty());
-            auto profile   = settings.newProvider("comfy");
-            profile["url"] = "http://127.0.0.1:8189";
-            chosenId       = settings.saveProvider(profile);
-            QVERIFY(!chosenId.isEmpty());
-            QVERIFY(settings.surfaceProviderId().isEmpty());
-            settings.rememberSurfaceProvider(chosenId);
-            QCOMPARE(settings.surfaceProviderId(), chosenId);
-        }
-        AiSettings reopened(nullptr, true, credentials);
-        QCOMPARE(reopened.surfaceProviderId(), chosenId);
-        QVERIFY(reopened.removeProvider(chosenId));
-        QVERIFY(reopened.surfaceProviderId().isEmpty());
-        QCOMPARE(reopened.surfaceProviders().size(), 1);
-        QCOMPARE(reopened.surfaceProviders().first().toMap().value("id").toString(), initialId);
-    }
     void settingsPersistProvidersAndPromptsButNeverSessionKeys()
     {
         QSettings().clear();
@@ -1740,67 +1716,42 @@ private slots:
                 ink += region.pixelColor(x, y).alpha() > 0;
         QVERIFY(ink > 10);
     }
-    void comfySurfacePaintingCombinesFacesAndKeepsOcclusion()
+    void surfacePaintingCombinesFacesAndKeepsOcclusion()
     {
-        Server server;
-        QVERIFY(server.isListening());
-        constexpr int width = 120, height = 90;
-        QImage        maps(width * 3, height, QImage::Format_RGB888);
-        for (int y = 0; y < height; ++y) {
-            auto *row = maps.scanLine(y);
-            for (int x = 0; x < width; ++x) {
-                const bool secondFace = x >= 35 && x < 70;
-                const int  depth      = x >= 70 ? 180 : 40;
-                for (int c = 0; c < 3; ++c) {
-                    row[3 * x + c]               = depth;
-                    row[3 * (x + width) + c]     = c == 0 && secondFace ? 228 : c == 2 ? 225 : 128;
-                    row[3 * (x + 2 * width) + c] = y < 10 ? 0 : 255;
-                }
+        const QSize size(120, 90);
+        PhotoCrap::Ai::SurfaceGeometry geometry{QImage(size, QImage::Format_Grayscale8),
+                                                QImage(size, QImage::Format_RGB888),
+                                                QImage(size, QImage::Format_Grayscale8)};
+        for (int y = 0; y < size.height(); ++y) {
+            auto *depth = geometry.disparity.scanLine(y);
+            auto *normal = geometry.normals.scanLine(y);
+            auto *valid = geometry.validity.scanLine(y);
+            for (int x = 0; x < size.width(); ++x) {
+                depth[x] = x >= 70 ? 180 : 40;
+                normal[3 * x] = x >= 35 && x < 70 ? 228 : 128;
+                normal[3 * x + 1] = 128;
+                normal[3 * x + 2] = 225;
+                valid[x] = y < 10 ? 0 : 255;
             }
         }
-        QByteArray bytes;
-        QBuffer    buffer(&bytes);
-        QVERIFY(buffer.open(QIODevice::WriteOnly));
-        QVERIFY(maps.save(&buffer, "PNG"));
-        QJsonObject workflow;
-        server.handler = [&](const Request &request) {
-            if (request.target == "/upload/image")
-                return Response{200, R"({"name":"source.png","subfolder":"input"})"};
-            if (request.target == "/prompt") {
-                workflow =
-                    QJsonDocument::fromJson(request.body).object().value("prompt").toObject();
-                return Response{200, R"({"prompt_id":"geometry"})"};
-            }
-            if (request.target == "/history/geometry")
-                return Response{200, R"({"geometry":{"status":{"completed":true},"outputs":{
-                    "1":{"images":[{"filename":"unrelated.png"}]},
-                    "9":{"images":[{"filename":"maps.png","type":"temp"}]}
-                }}})"};
-            if (request.target.startsWith("/view?") &&
-                request.target.contains("filename=maps.png") &&
-                request.target.contains("type=temp"))
-                return Response{200, bytes, "image/png"};
-            return Response{404, {}};
-        };
         AiSettings settings(nullptr, false);
-        const auto profile = settings.saveProvider(provider(settings, server, "comfy"));
-        QVERIFY(!profile.isEmpty());
         Document document;
         fixture(document);
         document.selectAll();
         QVERIFY(document.hasSelection());
         const auto        initial = document.composite();
         AiImageController controller(&document, &settings);
-        QVERIFY(controller.analyzeSurface(profile));
-        QTRY_VERIFY_WITH_TIMEOUT(controller.surfacePicking() || !controller.error().isEmpty(),
-                                 8000);
+        // Supply two known faces at the local inference boundary for reproducible picking.
+        const auto startSelection = [&] {
+            controller.m_cancel = std::make_shared<std::atomic_bool>(false);
+            controller.m_input = document.prepareAiInput(false, PhotoCrap::Ai::MaxSurfaceNormalEdge,
+                                                         controller.m_cancel, false, false, true).result();
+            controller.m_surfaceAnalysis = true;
+            controller.m_elapsed.start();
+            controller.surfaceReady(geometry);
+        };
+        startSelection();
         QVERIFY2(controller.surfacePicking(), qPrintable(controller.error()));
-        QCOMPARE(server.requests.size(), 4);
-        QCOMPARE(workflow["1"].toObject()["inputs"].toObject()["image"].toString(),
-                 QString("input/source.png"));
-        QCOMPARE(workflow["2"].toObject()["inputs"].toObject()["model_name"].toString(),
-                 QString("moge_2_vitl_normal_fp16.safetensors"));
-        QCOMPARE(workflow["9"].toObject()["class_type"].toString(), QString("PreviewImage"));
         controller.pickSurface(20, 3);
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QVERIFY(!controller.hasSurfaceSelection());
@@ -1826,7 +1777,6 @@ private slots:
         controller.pickSurface(20, 40);
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QCOMPARE(document.layerCount(), 1);
-        QCOMPARE(server.requests.size(), 4);
         const QColor foreground(37, 91, 201);
         document.setColor(foreground);
         controller.applySurfaceSelection();
@@ -1856,8 +1806,8 @@ private slots:
         QVERIFY(document.hasSelection());
         QCOMPARE(document.composite(), initial);
 
-        QVERIFY(controller.analyzeSurface(profile));
-        QTRY_VERIFY_WITH_TIMEOUT(controller.surfacePicking(), 8000);
+        startSelection();
+        QVERIFY(controller.surfacePicking());
         controller.pickSurface(55, 40);
         QTRY_VERIFY(!controller.busy());
         controller.pickSurface(20, 40);
@@ -1941,8 +1891,8 @@ private slots:
         QCOMPARE(document.layerCount(), 1);
         QCOMPARE(document.composite(), initial);
 
-        QVERIFY(controller.analyzeSurface(profile));
-        QTRY_VERIFY_WITH_TIMEOUT(controller.surfacePicking(), 8000);
+        startSelection();
+        QVERIFY(controller.surfacePicking());
         document.addLayer();
         QVERIFY(!controller.surfacePicking());
         QVERIFY(!controller.error().isEmpty());

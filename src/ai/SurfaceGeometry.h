@@ -36,7 +36,6 @@ struct SurfaceGeometry {
     qreal  focalRatio = .85; // Focal length divided by the image diagonal.
 
     bool                   isValid() const;
-    static SurfaceGeometry fromComfyPreview(const QByteArray &preview, const Input &source);
     QImage                 regionAt(const QPoint &seed, const QSize &canvas, bool followRelief,
                                     const Cancel &cancel) const;
     std::optional<SurfaceCrease> textCrease(const QImage &selected, const QList<QPoint> &seeds,

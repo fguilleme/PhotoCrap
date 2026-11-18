@@ -14,7 +14,7 @@ public:
     explicit AiImageJob(QObject *_parent = nullptr,
                         std::unique_ptr<QNetworkAccessManager> _network = {});
     void        start(const QVariantMap &_provider, const QString &_key, const QString &_prompt,
-                      const PhotoCrap::Ai::Input &_input, bool surfaceAnalysis = false);
+                      const PhotoCrap::Ai::Input &_input);
     void cancel();
     QVariantMap resultMetadata() const
     {
@@ -60,7 +60,6 @@ private:
     QString                 m_key, m_prompt, m_jobId, m_uploadedImage, m_uploadedMask;
     QUrl                    m_statusUrl, m_responseUrl, m_cancelUrl;
     bool                    m_running    = false;
-    bool                                   m_surfaceAnalysis  = false;
     quint64                 m_generation = 0;
     int                     m_gradioReconnects = 0;
 };

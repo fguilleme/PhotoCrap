@@ -267,19 +267,14 @@ workflow devient le nouveau calque. Les nœuds personnalisés doivent être inst
 sur le serveur. Le masque PNG a un alpha nul dans la zone modifiable ; `LoadImage`
 convertit cet alpha en masque pour le workflow fourni.
 
-### Peindre sur une surface
+## Peindre sur une surface
 
-1. Dans ComfyUI, installer `moge_2_vitl_normal_fp16.safetensors` dans
-   `models/geometry_estimation/`. Utiliser une version qui fournit
-   `LoadMoGeModel`, `MoGeInference` et `MoGeRender`.
-   [Guide ComfyUI et téléchargement du modèle](https://docs.comfy.org/tutorials/utility/moge)
-2. Dans PhotoCrap, ouvrir **Calque → 3D → Peindre sur une surface (ComfyUI)**. L’analyse
-   démarre directement si un seul serveur ComfyUI est configuré ou si un choix
-   est déjà mémorisé. Pour changer de profil, utiliser **Choisir le serveur de
-   peinture…** dans le même menu. PhotoCrap utilise son propre workflow et
-   envoie la composition visible au serveur choisi, avec un grand côté limité
-   à 2 048 px.
-3. Cliquer sur chaque surface à peindre, par exemple les deux faces d’un mur.
+1. Ouvrir **Calque → 3D → Peindre sur une surface**. PhotoCrap estime le relief
+   de la composition visible sur cet ordinateur avec MoGe‑2 ViT‑S et ONNX Runtime.
+   Au premier usage, il télécharge et vérifie le modèle de 141 Mo. Les analyses
+   suivantes fonctionnent hors ligne. Le grand côté de l’image d’analyse est limité à 768 px.
+   [Modèle MoGe‑2 ViT‑S ONNX](https://huggingface.co/Ruicheng/moge-2-vits-normal-onnx)
+2. Cliquer sur chaque surface à peindre, par exemple les deux faces d’un mur.
    La surimpression verte montre les zones retenues. Faire un clic droit sur une
    zone pour la retirer. Dans la barre au-dessus du canevas, choisir **Face
    plane** pour un pan de mur et **Tissu / relief** pour suivre les plis.
@@ -288,10 +283,10 @@ convertit cet alpha en masque pour le workflow fourni.
    cliquer au centre de l’objet. Le rouge indique ce que la peinture épargnera.
    En mode protection, un clic droit retire le masque de cet objet. La première
    utilisation télécharge environ 45 Mo de poids MobileSAM vérifiés. Le détourage
-   tourne sur l’ordinateur, y compris lorsque ComfyUI fournit le relief.
+   tourne sur l’ordinateur.
    [MobileSAM](https://github.com/ChaoningZhang/MobileSAM) ·
    [Poids ONNX](https://huggingface.co/Acly/MobileSAM)
-4. Cliquer sur **Peindre** ou appuyer sur **Entrée** pour créer un calque de
+3. Cliquer sur **Peindre** ou appuyer sur **Entrée** pour créer un calque de
    pixels et son masque éditable dans une seule étape d’annulation. Le pinceau
    utilise la couleur de premier plan et le calque est en mode **Normal** par
    défaut. Choisir **Couleur** dans le panneau Calques pour conserver la
@@ -328,14 +323,6 @@ de sa face sur toute la longueur de l’inscription.
 Un simple clic sur un calque de texte affiche son cadre. Un double-clic ouvre
 l’édition avec le curseur à la fin du texte. Utiliser **Caractère / Paragraphe…**
 pour la mise en forme. Le calque reste éditable après réouverture du projet PCR.
-
-**Calque → 3D → Peindre sur une surface (en local)** lance MoGe‑2 ViT‑S sur le
-CPU avec ONNX Runtime. Au premier lancement, PhotoCrap télécharge et vérifie
-le modèle de 141 Mo. Il est stocké dans le dossier de données de l’application
-et les analyses suivantes fonctionnent hors ligne. La photo est traitée sur
-l’ordinateur. Le grand côté de l’image d’analyse est limité à 768 px. La sélection
-des surfaces, le masque éditable et le pinceau fonctionnent comme avec ComfyUI.
-[Modèle MoGe‑2 ViT‑S ONNX](https://huggingface.co/Ruicheng/moge-2-vits-normal-onnx)
 
 ## Variantes
 

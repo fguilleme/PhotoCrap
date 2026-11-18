@@ -7,7 +7,7 @@ l’analyse locale du relief et le texte éditable qui suit les plis.
 
 ## Peinture sur surface
 
-- [x] Analyse MoGe-2 via ComfyUI et création d’un calque de peinture avec un
+- [x] Analyse locale du relief et création d’un calque de peinture avec un
   masque éditable. [Utilisation](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface)
 - [x] Sélectionner plusieurs faces dans le même masque. Prévisualiser les zones
   et suivre les variations locales du relief sur les surfaces courbes ou pliées.
@@ -15,13 +15,11 @@ l’analyse locale du relief et le texte éditable qui suit les plis.
   peinture avec MobileSAM local.
 - [x] Sélectionner un tissu à travers ses plis avec MobileSAM et orienter le
   pinceau à partir des normales conservées dans le projet.
-- [ ] Vérifier les bords d’occlusion et les surfaces courbes sur des photos avec
-  un serveur ComfyUI équipé de MoGe.
+- [ ] Vérifier les bords d’occlusion et les surfaces courbes sur des photos réelles.
 - [x] Ajouter l’inférence MoGe-2 ViT-S dans PhotoCrap via ONNX Runtime sur
   macOS, Linux et Windows, avec téléchargement du modèle à la demande et
   exécution CPU disponible sur les trois plateformes.
-- [ ] Valider l’inférence locale dans les paquets Linux et Windows et comparer
-  la précision des masques sur des photos avec le modèle ComfyUI.
+- [ ] Valider l’inférence locale dans les paquets Linux et Windows.
 - [x] Déformer un calque de texte sur les plis et le conserver éditable après
   réouverture du projet. Choisir entre **Face plane** et **Tissu / relief**.
 - [ ] Projeter une texture sur le relief, tester un éclairage local à partir des

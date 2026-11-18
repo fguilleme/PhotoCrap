@@ -6540,11 +6540,7 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>Main</name>
-    <message><source>Peindre sur une surface…</source><translation>Paint on a Surface…</translation></message>
     <message><source>Peindre sur une surface</source><translation>Paint on a Surface</translation></message>
-    <message><source>Peindre sur une surface (ComfyUI)</source><translation>Paint on a Surface (ComfyUI)</translation></message>
-    <message><source>Peindre sur une surface (ComfyUI)…</source><translation>Paint on a Surface (ComfyUI)…</translation></message>
-    <message><source>Peindre sur une surface (en local)</source><translation>Paint on a Surface (Local)</translation></message>
     <message><source>Mode de sélection de la surface</source><translation>Surface Selection Mode</translation></message>
     <message><source>Face plane</source><translation>Flat Surface</translation></message>
     <message><source>Tissu / relief</source><translation>Fabric / Relief</translation></message>
@@ -6557,12 +6553,6 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Orientation du texte</source><translation>Text Orientation</translation></message>
     <message><source>Suivre les plis</source><translation>Follow Folds</translation></message>
     <message><source>Peindre</source><translation>Paint</translation></message>
-    <message><source>Choisir le serveur de peinture…</source><translation>Choose Painting Server…</translation></message>
-    <message><source>La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.</source><translation>The visible composite is sent to the selected ComfyUI server to estimate its geometry. Then select the surfaces you want to paint.</translation></message>
-    <message><source>Modèle requis dans ComfyUI : %1</source><translation>Required ComfyUI model: %1</translation></message>
-    <message><source>Serveur ComfyUI</source><translation>ComfyUI Server</translation></message>
-    <message><source>Ajoutez un serveur ComfyUI dans Réglages → IA.</source><translation>Add a ComfyUI server in Settings → AI.</translation></message>
-    <message><source>Analyser</source><translation>Analyze</translation></message>
   </context>
   <context>
     <name>Document</name>
@@ -6576,21 +6566,12 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Peinture sur surface</source><translation>Surface Painting</translation></message>
   </context>
   <context>
-    <name>AiImageJob</name>
-    <message><source>Analyse de la surface dans ComfyUI…</source><translation>Analyzing the surface in ComfyUI…</translation></message>
-    <message><source>Le workflow MoGe n’a renvoyé aucune carte de surface.</source><translation>The MoGe workflow did not return any surface maps.</translation></message>
-  </context>
-  <context>
     <name>AiImageController</name>
     <message><source>Sur cet ordinateur</source><translation>On This Computer</translation></message>
     <message><source>Analyse de la surface sur cet ordinateur…</source><translation>Analyzing the surface on this computer…</translation></message>
     <message><source>MoGe‑2 n’a détecté aucune surface exploitable.</source><translation>MoGe‑2 found no usable surface.</translation></message>
     <message><source>L’image a changé. Relancez l’analyse de la surface.</source><translation>The image has changed. Run the surface analysis again.</translation></message>
     <message><source>Peinture sur surface annulée</source><translation>Surface painting canceled</translation></message>
-    <message><source>Choisissez un serveur ComfyUI dans les réglages IA.</source><translation>Choose a ComfyUI server in AI settings.</translation></message>
-    <message><source>Lecture des cartes de surface…</source><translation>Reading surface maps…</translation></message>
-    <message><source>Mémoire insuffisante pour lire les cartes de surface.</source><translation>Not enough memory to read the surface maps.</translation></message>
-    <message><source>ComfyUI a renvoyé des cartes de surface illisibles ou mal alignées.</source><translation>ComfyUI returned unreadable or misaligned surface maps.</translation></message>
     <message><source>Cliquez pour ajouter une surface. Clic droit pour la retirer.</source><translation>Click to add a surface. Right-click to remove it.</translation></message>
     <message><source>Sélection de la surface…</source><translation>Selecting the surface…</translation></message>
     <message><source>Préparation de MobileSAM et détourage…</source><translation>Preparing MobileSAM and segmenting the object…</translation></message>

@@ -67,7 +67,6 @@ public:
     Q_INVOKABLE bool generate(const QString &_providerId, const QString &_prompt, bool _selection,
                               int _variants = 1, bool _original = false,
                               const QVariantMap &_options = {}, bool newDocument = false);
-    Q_INVOKABLE bool analyzeSurface(const QString &providerId);
     Q_INVOKABLE bool analyzeSurfaceLocally();
     Q_INVOKABLE void pickSurface(int x, int y, bool followRelief = false, bool subtract = false);
     Q_INVOKABLE void protectSurfaceObject(int x, int y, bool subtract = false);
@@ -121,9 +120,9 @@ signals:
     void layerAdded();
 
 private:
+    friend class AiImageTest;
     void begin(const QString &providerId, const QVariantMap &provider, const QString &prompt,
                bool selection, int variants, bool original, bool newDocument, bool surface);
-    void prepareSurface(const QByteArray &bytes);
     void prepareLocalSurface(const QString &path);
     void surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry);
     bool canEditSurfaceSelection();
@@ -162,7 +161,6 @@ private:
     bool                                   m_newDocument      = false;
     bool                                   m_surfaceAnalysis  = false;
     bool                                   m_surfacePickingHint     = false;
-    bool                                   m_localSurface     = false;
     bool                                   m_awaitingResponse = false;
     quint64                                m_generation       = 0;
 };

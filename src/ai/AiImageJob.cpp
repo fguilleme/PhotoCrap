@@ -328,7 +328,7 @@ void AiImageJob::multipart(const QUrl &_url, const QList<QPair<QByteArray, QByte
             std::move(_handler));
 }
 void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, const QString &_prompt,
-                       const PhotoCrap::Ai::Input &_input, bool surfaceAnalysis)
+                       const PhotoCrap::Ai::Input &_input)
 {
     const auto _provider = AiSettings::normalizedProvider(_rawProvider);
     cancel();
@@ -339,7 +339,6 @@ void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, con
     m_statusUrl   = QUrl{};
     m_responseUrl = QUrl{};
     m_provider    = _provider;
-    m_surfaceAnalysis = surfaceAnalysis && _provider.value("kind") == "comfy";
     m_resultMetadata.clear();
     m_key         = _key;
     m_prompt      = _provider.value("promptMode") == "none" ? QString{} : _prompt;
@@ -490,10 +489,6 @@ void AiImageJob::startComfy()
                       fail(tr("ComfyUI n’a pas accepté l’image source."));
                       return;
                   }
-                  if (m_surfaceAnalysis) {
-                      submitComfy();
-                      return;
-                  }
                   multipart(
                       endpoint("upload/image"), {{"overwrite", "false"}}, {{"image", m_input.mask}},
                       [this](const QByteArray &_mask) {
@@ -546,8 +541,6 @@ void AiImageJob::pollComfy()
              }
              const auto outputs = entry.value("outputs").toObject();
              for (auto it = outputs.constBegin(); it != outputs.constEnd(); ++it) {
-                 if (m_surfaceAnalysis && it.key() != QStringLiteral("9"))
-                     continue;
                  const auto images = it.value().toObject().value("images").toArray();
                  if (images.isEmpty())
                      continue;
@@ -562,14 +555,11 @@ void AiImageJob::pollComfy()
                  return;
              }
              if (state.value("completed").toBool()) {
-                 fail(m_surfaceAnalysis
-                          ? tr("Le workflow MoGe n’a renvoyé aucune carte de surface.")
-                          : tr("Le workflow ComfyUI ne produit aucune image. Ajoutez un nœud "
-                               "SaveImage ou PreviewImage."));
+                 fail(tr("Le workflow ComfyUI ne produit aucune image. Ajoutez un nœud "
+                         "SaveImage ou PreviewImage."));
                  return;
              }
-             emit status(m_surfaceAnalysis ? tr("Analyse de la surface dans ComfyUI…")
-                                           : tr("Génération dans ComfyUI…"));
+             emit status(tr("Génération dans ComfyUI…"));
              m_poll.start();
          });
 }

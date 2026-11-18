@@ -8,7 +8,7 @@ Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Li
 
 - Editable text on fabric folds or across two faces of a wall, with perspective
   along long lines and a frame that appears when the layer is selected.
-- Surface painting with MoGe‑2 locally or through ComfyUI and foreground object
+- Surface painting with MoGe‑2 locally and foreground object
   protection with MobileSAM.
 - GLB 3D layers, Meshy generation, and adjustable lighting.
 - Free Transform, vector masks, and direct adjustments on layers and masks.

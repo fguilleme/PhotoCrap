@@ -8,7 +8,7 @@
 
 - Texte éditable sur les plis d’un tissu ou les deux faces d’un mur. La
   perspective tient sur les lignes longues et le cadre apparaît au simple clic.
-- Peinture sur surface avec MoGe‑2 en local ou via ComfyUI et protection des
+- Peinture sur surface avec MoGe‑2 en local et protection des
   objets au premier plan avec MobileSAM.
 - Calques 3D GLB, génération Meshy et éclairage réglable.
 - Transformation manuelle, masques vectoriels et réglages directs sur les

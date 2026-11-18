@@ -283,7 +283,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool model3dPropertiesShown: false
-    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || surfaceDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -1437,28 +1437,9 @@ ApplicationWindow {
     Action {
         id: surfacePaintAction
         objectName: "surfacePaintAction"
-        text: aiSettings.surfaceProviderId.length ? qsTr("Peindre sur une surface (ComfyUI)") : qsTr("Peindre sur une surface (ComfyUI)…")
-        enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy
-                 && !aiImages.busy && !aiImages.pendingResult && editor.width > 0
-        onTriggered: {
-            if (aiSettings.surfaceProviderId.length)
-                aiImages.analyzeSurface(aiSettings.surfaceProviderId)
-            else
-                surfaceDialog.open()
-        }
-    }
-    Action {
-        id: surfaceServerAction
-        objectName: "surfaceServerAction"
-        text: qsTr("Choisir le serveur de peinture…")
-        enabled: surfacePaintAction.enabled
-        onTriggered: surfaceDialog.open()
-    }
-    Action {
-        id: localSurfacePaintAction
-        objectName: "localSurfacePaintAction"
-        text: qsTr("Peindre sur une surface (en local)")
-        enabled: aiImages.localSurfaceAvailable && surfacePaintAction.enabled
+        text: qsTr("Peindre sur une surface")
+        enabled: aiImages.localSurfaceAvailable && !window.modalOpen && !editor.pixelEditBusy
+                 && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0
         onTriggered: aiImages.analyzeSurfaceLocally()
     }
     component Model3DMenu: DarkMenu {
@@ -1467,8 +1448,6 @@ ApplicationWindow {
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { objectName: "model3dPaintMenuItem"; action: model3dPaintAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
-        DarkMenuItem { objectName: "localSurfacePaintMenuItem"; action: localSurfacePaintAction; visible: aiImages.localSurfaceAvailable }
-        DarkMenuItem { objectName: "surfaceServerMenuItem"; action: surfaceServerAction; visible: aiSettings.surfaceProviders.length > 1 }
     }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
     readonly property bool transformEnabled: !editingText && !blockingModalOpen && (!modalOpen || editor.transformActive)
@@ -4907,57 +4886,6 @@ ApplicationWindow {
         id: aiDialog
         document: editor; settings: aiSettings; controller: aiImages
         onSettingsRequested: { window.aiReturnToGeneration = true; window.preferencesPage = 4; window.openPreferences(); aiPreferences.selectProvider(aiDialog.selectedProvider.id) }
-    }
-    Dialog {
-        id: surfaceDialog
-        objectName: "surfacePaintDialog"
-        title: qsTr("Peindre sur une surface")
-        modal: true
-        width: Math.min(455, parent.width - 40)
-        anchors.centerIn: parent
-        onAboutToShow: surfaceServer.currentIndex = Math.max(0, surfaceServer.indexOfValue(aiSettings.surfaceProviderId))
-        contentItem: ColumnLayout {
-            spacing: 12
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: qsTr("La composition visible est envoyée au serveur ComfyUI choisi pour estimer son relief. Sélectionnez ensuite les surfaces à peindre.")
-            }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: qsTr("Modèle requis dans ComfyUI : %1").arg("moge_2_vitl_normal_fp16.safetensors")
-            }
-            ComboBox {
-                id: surfaceServer
-                objectName: "surfaceServer"
-                Layout.fillWidth: true
-                textRole: "name"
-                valueRole: "id"
-                Accessible.name: qsTr("Serveur ComfyUI")
-                model: aiSettings.surfaceProviders
-            }
-            Label {
-                Layout.fillWidth: true
-                visible: surfaceServer.count === 0
-                text: qsTr("Ajoutez un serveur ComfyUI dans Réglages → IA.")
-            }
-        }
-        footer: DialogButtonBox {
-            DialogActionButton {
-                text: qsTr("Annuler")
-                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-                onClicked: surfaceDialog.reject()
-            }
-            DialogActionButton {
-                text: qsTr("Analyser")
-                defaultButton: true
-                enabled: surfaceServer.currentIndex >= 0
-                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-                onClicked: surfaceDialog.accept()
-            }
-        }
-        onAccepted: aiImages.analyzeSurface(surfaceServer.currentValue)
     }
     AiProgressPanel {
         id: aiProgress

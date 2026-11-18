@@ -4,13 +4,14 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-## v0.24.1 · Changes since v0.21.0
+## v0.25.0 · Changes since v0.21.0
 
+- Redesigned workspace and typography panel with live font previews on hover.
 - Editable text on fabric folds or across two faces of a wall, with perspective
   along long lines and a frame that appears when the layer is selected.
 - Surface painting with MoGe‑2 locally and foreground object
   protection with MobileSAM.
-- GLB 3D layers, Meshy generation, and adjustable lighting.
+- GLB 3D layers, Meshy generation, adjustable lighting, and painting directly on models.
 - Free Transform, vector masks, and direct adjustments on layers and masks.
 
 [Surface text and painting guide](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface) · [Release notes](CHANGELOG.md)

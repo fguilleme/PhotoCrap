@@ -4,13 +4,14 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-## v0.24.1 · Évolutions depuis v0.21.0
+## v0.25.0 · Évolutions depuis v0.21.0
 
+- Espace de travail repensé et panneau de typographie avec aperçu des polices au survol.
 - Texte éditable sur les plis d’un tissu ou les deux faces d’un mur. La
   perspective tient sur les lignes longues et le cadre apparaît au simple clic.
 - Peinture sur surface avec MoGe‑2 en local et protection des
   objets au premier plan avec MobileSAM.
-- Calques 3D GLB, génération Meshy et éclairage réglable.
+- Calques 3D GLB, génération Meshy, éclairage réglable et peinture directe sur le modèle.
 - Transformation manuelle, masques vectoriels et réglages directs sur les
   calques et leurs masques.
 

@@ -4,6 +4,18 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.25.0 — 18 novembre 2026
+
+- L’espace de travail regroupe les documents ouverts, les options de l’outil
+  actif et les commandes d’export autour du canevas.
+- Le panneau de typographie affiche les réglages courants et donne un aperçu
+  des polices au survol. Sélectionner un calque de texte sur surface active
+  l’outil Texte pour reprendre l’édition.
+- Le pinceau permet de peindre directement sur les modèles 3D. Pour peindre sur
+  une photo ou y projeter du texte, **Calque → 3D → Peindre sur une surface**
+  calcule désormais le relief localement avec MoGe‑2.
+- Correction d’un plantage lors de l’isolation d’un calque.
+
 ## v0.24.1 — 15 novembre 2026
 
 - Texte éditable sur deux faces planes adjacentes. Les lettres, le cadre et le

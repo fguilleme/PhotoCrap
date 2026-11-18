@@ -4,7 +4,7 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-## v0.25.1 · Changes since v0.21.0
+## v0.25.2 · Changes since v0.21.0
 
 - Redesigned workspace and typography panel with live font previews on hover.
 - Editable text on fabric folds or across two faces of a wall, with perspective

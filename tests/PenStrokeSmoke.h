@@ -116,7 +116,10 @@ inline bool runPenStrokeVisibilitySmoke(QQuickWindow *_window, Document &_docume
                  "selecting a vector shape activates its path for editing"))
         return false;
     _document.setTool("directSelection");
-    _document.setPenShapeStyle("strokeWidth", 5.1);
+    // At 13% zoom a 5.1 px dot is subpixel on a 1x display. Keep at least
+    // one physical pixel per dot so the screenshot can distinguish its colour.
+    const auto scale = _window->property("zoom").toReal() * _window->devicePixelRatio();
+    _document.setPenShapeStyle("strokeWidth", qMax(5.1, 1. / scale));
     _document.setPenShapeStyle("strokeStyle", 2);
     if (!require(QTest::qWaitFor([&] { return pinkCount() > 30; }, 3000),
                  "the fine editing guide also leaves a thin dotted stroke visible"))

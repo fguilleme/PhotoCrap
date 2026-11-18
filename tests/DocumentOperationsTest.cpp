@@ -1353,6 +1353,7 @@ private slots:
         }
         // Finished decoding does not replace the document before the GUI callback.
         QCOMPARE(d.composite(), before);
+        QCOMPARE(d.tool(), QString("eraser"));
         QVERIFY(d.operationBusy());
         QVERIFY(d.operationCancellable());
         QTRY_VERIFY_WITH_TIMEOUT(!d.operationBusy(), 10000);
@@ -1369,7 +1370,7 @@ private slots:
         QCOMPARE(d.activeSlice(), reference.activeSlice());
         QCOMPARE(d.historyIndex(), 0);
         QVERIFY(!d.modified());
-        QCOMPARE(d.tool(), QString("eraser"));
+        QCOMPARE(d.tool(), QString("text"));
         QCOMPARE(d.brushSize(), 39.);
         d.undo();
         QCOMPARE(d.composite(), expected);

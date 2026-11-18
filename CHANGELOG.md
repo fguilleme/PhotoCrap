@@ -4,7 +4,7 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.25.1 — 18 novembre 2026
+## v0.25.2 — 18 novembre 2026
 
 - L’espace de travail regroupe les documents ouverts, les options de l’outil
   actif et les commandes d’export autour du canevas.

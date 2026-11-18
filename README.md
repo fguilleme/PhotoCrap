@@ -4,7 +4,7 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-## v0.25.1 · Évolutions depuis v0.21.0
+## v0.25.2 · Évolutions depuis v0.21.0
 
 - Espace de travail repensé et panneau de typographie avec aperçu des polices au survol.
 - Texte éditable sur les plis d’un tissu ou les deux faces d’un mur. La

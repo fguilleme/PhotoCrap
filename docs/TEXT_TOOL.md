@@ -20,13 +20,22 @@ un texte situé sous le pointeur.
 La vignette **T** désigne un vrai calque de texte. Double-cliquer dessus, ou sur
 sa ligne, reprend son édition ; **Renommer** reste une action distincte du menu
 contextuel et ne modifie pas les lettres sur l’image. Le renommage manuel est
-conservé lors des éditions suivantes. Avec Texte actif, le survol garde un curseur
+conservé lors des éditions suivantes. Si le texte est sélectionné à la réouverture
+du projet, l’outil Texte est actif. Cliquez dans les lettres pour placer le
+curseur, y compris sur un pli, ou ouvrez **Caractère / Paragraphe…** pour mettre
+en forme le calque entier. Avec Texte actif, le survol garde un curseur
 de saisie et un clic dans un texte existant reprend l’édition à l’endroit cliqué,
 y compris après le relâchement de la souris, sans créer un autre calque.
 Le menu contextuel offre **Modifier le texte…** et
 **Pixelliser le texte** ; cette dernière action est annulable.
 
-**Caractère / Paragraphe…** ouvre les réglages du texte en cours. Une sélection
+**Caractère / Paragraphe…** ouvre un panneau au-dessus du bouton. Il propose la
+police, la taille et la couleur. **Style** apparaît si la famille offre plusieurs
+variantes. **Alignement** apparaît pour un texte libre de plusieurs lignes ou
+pour un bloc de paragraphe, même si celui-ci ne contient qu’une ligne. Dans la liste, chaque nom est écrit dans sa police. Survolez
+une famille pour l’essayer sur l’image ; cliquez pour la conserver ou fermez
+la liste avec Échap pour retrouver le rendu initial. **Options avancées**
+regroupe notamment l’approche, le crénage, l’interligne et les retraits. Une sélection
 de caractères reçoit la mise en forme ; sans sélection, elle s’applique au texte
 entier. Entrée insère une nouvelle ligne ; Commande/Ctrl–Entrée ou **Valider**
 termine la session. Échap ou **Annuler** restaure toute la session. Le moteur Qt
@@ -82,7 +91,7 @@ la saisie ; le composant d’entrée ne dessine pas une deuxième copie des lett
 | Correction orthographique, recherche/remplacement dans les calques de texte | NYI |
 
 Ces fonctions ne constituent donc pas encore l’ensemble des fonctions de texte
-de Photoshop. Les entrées avancées du panneau restent marquées **NYI**.
+de Photoshop. Les fonctions indisponibles sont recensées ici.
 
 ## Stockage et rendu
 

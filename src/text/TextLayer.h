@@ -1,5 +1,6 @@
 #pragma once
 #include "storage/PixelPlane.h"
+#include "ai/SurfaceGeometry.h"
 #include <QImage>
 #include <QPolygonF>
 #include <QTextDocument>
@@ -46,7 +47,17 @@ QTransform  transform(const QVariantMap &_parameters);
 QTransform  displayTransform(const QVariantMap &parameters, const Layer *surface,
                              const QSizeF &extent = {});
 std::optional<FaceProjection> faceProjection(const QVariantMap &parameters, const Layer &surface);
-QPolygonF   surfaceOutline(const Layer &layer, const QSize &canvas, QPointF &bottomRight);
+struct SurfaceLayout {
+    SurfaceLayout(const Layer &layer, const QSize &canvas);
+    QPointF   unmap(const QPointF &point) const;
+    QPolygonF outline(const QRectF &rect, QPointF *bottomRight = nullptr) const;
+
+    QSize                         canvas;
+    QSizeF                        extent;
+    QTransform                    matrix;
+    std::optional<FaceProjection> faces;
+    Ai::SurfaceTextWarp           warp;
+};
 void        transform(QVariantMap &_parameters, const QTransform &_transform);
 PixelPlane  renderPlane(const QVariantMap &_parameters, const QSize &_size, QImage::Format _format,
                         const Layer *surface = nullptr);

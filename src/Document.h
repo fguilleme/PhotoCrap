@@ -32,6 +32,8 @@
 #include <memory>
 #include <optional>
 
+namespace PhotoCrap::Text { struct SurfaceLayout; }
+
 class ScratchImageCache;
 class QTemporaryFile;
 namespace PhotoCrap::Clipboard
@@ -231,6 +233,7 @@ class Document : public QObject
     Q_PROPERTY(bool hasCustomStampPattern READ hasCustomStampPattern NOTIFY settingsChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY settingsChanged)
     Q_PROPERTY(bool textEditing READ textEditing NOTIFY textEditingChanged)
+    Q_PROPERTY(bool selectedTextEditable READ selectedTextEditable NOTIFY layersChanged)
     Q_PROPERTY(bool textGesture READ textGesture NOTIFY textGeometryChanged)
     Q_PROPERTY(QVariantMap textEditState READ textEditState NOTIFY textGeometryChanged)
 
@@ -1131,6 +1134,7 @@ public:
     Q_INVOKABLE void showCompositeView();
     Q_INVOKABLE void selectLayer(int _index, bool _toggle = false, bool _range = false);
     Q_INVOKABLE void activateLayerTool();
+    bool             selectedTextEditable() const;
     void             setTool(const QString &_value);
     void             setColor(const QColor &_value);
     void             setSecondaryColor(const QColor &_value);
@@ -1236,11 +1240,14 @@ public:
         return m_textGesture;
     }
     QVariantMap      textEditState() const;
+    Q_INVOKABLE QPointF      surfaceTextLocalPoint(const QPointF &point) const;
     Q_INVOKABLE QVariantList surfaceTextRect(const QRectF &rect) const;
     Q_INVOKABLE void editTextLayer(int _index);
     Q_INVOKABLE void updateTextHtml(const QString &_html);
     Q_INVOKABLE void updateTextContent(const QString &_html, const QVariantMap &_formatting);
     Q_INVOKABLE void updateTextFormatting(const QVariantMap &_formatting);
+    Q_INVOKABLE void previewTextFont(const QString &family, int start, int end);
+    Q_INVOKABLE void clearTextFontPreview();
     Q_INVOKABLE void setTextBox(bool _paragraph, qreal _width, qreal _height);
     Q_INVOKABLE void moveTextBy(qreal _dx, qreal _dy);
     Q_INVOKABLE void setSurfaceTextAngle(qreal angle);
@@ -1902,12 +1909,18 @@ private:
     void        beginTextEdit(int _index, bool _fromCanvas);
     void        updateTextGesture(qreal _x, qreal _y);
     bool        renderTextEdit();
+    PixelPlane  rasterTextEdit(const QVariantMap &parameters, QRect &maskBounds) const;
+    PixelPlane  m_textFontPreview;
     void               setSurfaceTextParameter(const QString &key, const QVariant &value);
     bool               m_textMaskEdit = false;
     QVariantMap        m_maskTextParameters;
     QRect              m_maskTextBounds;
     QVariantMap &      textParameters();
     const QVariantMap &textParameters() const;
+
+    const PhotoCrap::Text::SurfaceLayout &surfaceTextLayout(int index) const;
+    mutable std::shared_ptr<PhotoCrap::Text::SurfaceLayout> m_surfaceTextLayout;
+    mutable int m_surfaceLayoutLayer = -1, m_surfaceLayoutRevision = -1;
 
     Snapshot          m_beforeLayerPreview;
     QImage            m_beforeLayerPreviewComposite;
@@ -1950,6 +1963,7 @@ private:
     bool    validStorageBytes(qint64 _bytes);
     bool    validLayerStorage(int _width, int _height, int _extraColors = 0, int _extraMasks = 0,
                               int _bits = 0, qint64 extraBytes = 0);
+    bool    selectedLayerContentEditable() const;
     bool    editable(bool _materialize = true, bool _allowText = false);
     bool    fail(const QString &_message);
     void    edit(const QString &_label, const std::function<void()> &_operation);

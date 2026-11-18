@@ -10,7 +10,6 @@ Item {
     readonly property var state: (geometryRevision, document.textEditState)
     readonly property var surfaceFrame: (state.surfaceOutline || []).map(p => Qt.point(p.x * zoom, p.y * zoom))
     readonly property bool hasSurfaceFrame: surfaceFrame.length > 3
-    readonly property bool hasCrease: state.surfaceEdge !== undefined
     property bool loading: false
     property bool ready: false
     property int revision: 0
@@ -64,20 +63,10 @@ Item {
         }
         return false
     }
-    function creaseDistance(point) {
-        const line = state.surfaceEdge
-        return (line[0] * point.x + line[1] * point.y) / zoom + line[2]
-    }
     function localPoint(point) {
-        if (!hasCrease || creaseDistance(point) <= 0)
-            return mapFromItem(parent, point.x, point.y)
-        const matrix = state.surfaceSecondInverse
-        const x = point.x / zoom, y = point.y / zoom
-        const w = matrix[2] * x + matrix[5] * y + matrix[8]
-        if (w <= 0)
-            return Qt.point(-1, -1)
-        return Qt.point((matrix[0] * x + matrix[3] * y + matrix[6]) / w,
-                        (matrix[1] * x + matrix[4] * y + matrix[7]) / w)
+        if (hasSurfaceFrame)
+            return document.surfaceTextLocalPoint(Qt.point(point.x / zoom, point.y / zoom))
+        return mapFromItem(parent, point.x, point.y)
     }
     function projectRect(rect) {
         return document.surfaceTextRect(rect).map(point => Qt.point(point.x * zoom, point.y * zoom))
@@ -110,7 +99,7 @@ Item {
         visible:root.ready && root.document.textEditing
         clip: true
         Repeater {
-            model: root.hasCrease ? [] : (root.revision,root.formatter.selectionRects(input.selectionStart,input.selectionEnd))
+            model: root.hasSurfaceFrame ? [] : (root.revision,root.formatter.selectionRects(input.selectionStart,input.selectionEnd))
             Rectangle {
                 required property var modelData
                 x:modelData.x;y:modelData.y;width:modelData.width;height:modelData.height
@@ -120,7 +109,7 @@ Item {
         Rectangle {
             x:input.cursorRectangle.x;y:input.cursorRectangle.y
             width:1/root.zoom;height:input.cursorRectangle.height
-            color:"#5faaff";visible:!root.hasCrease && input.activeFocus && input.selectionStart===input.selectionEnd && root.blink
+            color:"#5faaff";visible:!root.hasSurfaceFrame && input.activeFocus && input.selectionStart===input.selectionEnd && root.blink
         }
         TextEdit {
             id: input
@@ -160,7 +149,7 @@ Item {
         parent: root.parent
         anchors.fill: parent
         z: root.z + 1
-        visible: root.hasCrease && root.ready && root.document.textEditing
+        visible: root.hasSurfaceFrame && root.ready && root.document.textEditing
         Repeater {
             model: parent.visible ? (root.revision, root.formatter.selectionRects(input.selectionStart, input.selectionEnd)) : []
             Shape {
@@ -169,7 +158,7 @@ Item {
                 ShapePath {
                     strokeWidth: -1
                     fillColor: "#70468cdf"
-                    PathPolyline { path: root.hasCrease ? (root.state, root.zoom, root.projectRect(modelData)) : [] }
+                    PathPolyline { path: root.hasSurfaceFrame ? (root.state, root.zoom, root.projectRect(modelData)) : [] }
                 }
             }
         }
@@ -180,7 +169,7 @@ Item {
                 strokeWidth: -1
                 fillColor: "#5faaff"
                 PathPolyline {
-                    path: root.hasCrease ? (root.state, root.zoom, root.projectRect(
+                    path: root.hasSurfaceFrame ? (root.state, root.zoom, root.projectRect(
                         Qt.rect(input.cursorRectangle.x, input.cursorRectangle.y,
                                 1 / root.zoom, input.cursorRectangle.height))) : []
                 }
@@ -235,7 +224,7 @@ Item {
         onPressed: function(mouse) {
             updateFrame(mouse)
             if (!(mouse.modifiers & Qt.ControlModifier) && !onFrame) {
-                if (!root.hasCrease) { mouse.accepted = false; return }
+                if (!root.hasSurfaceFrame) { mouse.accepted = false; return }
                 const position = positionAt(mouse)
                 selectionAnchor = mouse.modifiers & Qt.ShiftModifier
                     ? (input.cursorPosition === input.selectionStart ? input.selectionEnd : input.selectionStart)
@@ -265,7 +254,7 @@ Item {
             input.forceActiveFocus()
         }
         onDoubleClicked: {
-            if (root.hasCrease && !onFrame && !moving) {
+            if (root.hasSurfaceFrame && !onFrame && !moving) {
                 selecting = false
                 input.selectWord()
             }

@@ -5232,6 +5232,19 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>TextTypographyPanel</name>
+    <message><source>Position</source><translation>Position</translation></message>
+    <message><source>Police</source><translation>Font family</translation></message>
+    <message><source>Style</source><translation>Style</translation></message>
+    <message><source>Alignement</source><translation>Alignment</translation></message>
+    <message><source>Couleur…</source><translation>Color…</translation></message>
+    <message><source>Gras</source><translation>Bold</translation></message>
+    <message><source>Italique</source><translation>Italic</translation></message>
+    <message><source>Souligné</source><translation>Underline</translation></message>
+    <message><source>Barré</source><translation>Strikethrough</translation></message>
+    <message><source>Options avancées</source><translation>Advanced options</translation></message>
+    <message><source>Portée : sélection</source><translation>Applies to selection</translation></message>
+    <message><source>Portée : tout le texte</source><translation>Applies to all text</translation></message>
+    <message><source>Fermer</source><translation>Close</translation></message>
       <message><source>Caractère et paragraphe</source><translation>Character and Paragraph</translation></message>
     <message><source>La mise en forme s’applique à la sélection, sinon à tout le texte.</source><translation>Formatting applies to the selection, or to all text if nothing is selected.</translation></message>
     <message><source>Taille</source><translation>Size</translation></message>

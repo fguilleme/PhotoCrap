@@ -5,19 +5,30 @@
 #include <algorithm>
 #include <cmath>
 
-void Document::activateLayerTool()
+bool Document::selectedLayerContentEditable() const
 {
     if (m_active < 0 || m_active >= m_layers.size() || m_selectedLayers.size() != 1 ||
         !m_selectedLayers.contains(m_active) || m_editingMask || editingVectorMask())
+        return false;
+    const auto &layer = m_layers[m_active];
+    return layer.visible && !layer.locked &&
+           (layer.groupId.isEmpty() ||
+            std::none_of(m_layers.cbegin(), m_layers.cend(), [&](const Layer &group) {
+                return group.kind == "group" && group.groupId == layer.groupId &&
+                       (group.locked || !group.visible);
+            }));
+}
+
+bool Document::selectedTextEditable() const
+{
+    return selectedLayerContentEditable() && m_layers[m_active].kind == "text";
+}
+
+void Document::activateLayerTool()
+{
+    if (!selectedLayerContentEditable())
         return;
     const auto &layer = m_layers[m_active];
-    if (!layer.visible || layer.locked ||
-        (!layer.groupId.isEmpty() &&
-         std::any_of(m_layers.cbegin(), m_layers.cend(), [&](const Layer &group) {
-             return group.kind == "group" && group.groupId == layer.groupId &&
-                    (group.locked || !group.visible);
-         })))
-        return;
     if (layer.kind == "shape") {
         editPenShape();
         return;

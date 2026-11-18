@@ -152,6 +152,10 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
             : nullptr;
     m_pendingModel3DPreview    = _draft ? m_model3DPreview : nullptr;
     m_pendingPreviewLayers     = m_layers;
+    if (_draft && !m_textFontPreview.isNull() && m_textEditing) {
+        auto &layer = m_pendingPreviewLayers[m_active];
+        (m_textMaskEdit ? layer.mask : layer.image) = m_textFontPreview;
+    }
     m_pendingPreviewSize       = m_size;
     m_pendingPreviewTargetSize = m_previewTargetSize;
     m_pendingPreviewDraft      = _draft;

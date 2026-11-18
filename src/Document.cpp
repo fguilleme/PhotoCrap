@@ -676,6 +676,7 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    m_textFontPreview = {};
     if (m_transform) {
         m_transform.reset();
         m_pendingTransform.reset();

@@ -447,7 +447,10 @@ QImage Document::displayComposite() const
             if (!m_previewComposite.isNull())
                 return m_previewComposite;
         }
-        QImage mask = maskImage(m_active).convertToFormat(QImage::Format_RGB32);
+        const auto pixels = m_textMaskEdit && !m_textFontPreview.isNull()
+                                ? ImageUtils::expandedPlane(m_textFontPreview, m_size)
+                                : maskImage(m_active);
+        QImage mask = pixels.convertToFormat(QImage::Format_RGB32);
         mask.setColorSpace(QColorSpace::SRgb);
         return mask;
     }

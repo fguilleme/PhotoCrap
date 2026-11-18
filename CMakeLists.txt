@@ -257,6 +257,7 @@ set(PHOTOCRAP_FORMAT_SOURCES
     tests/RawTestImage.h
     tests/UiSmoke.h
     tests/ToolLayerSmoke.h
+    tests/FontMenuSmoke.h
     tests/CanvasRenderSmoke.h
     tests/MeasurementOverlaySmoke.h
     tests/OverlayReference.h

@@ -13,6 +13,7 @@
 #include <QBuffer>
 #include <QDir>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1633,8 +1634,9 @@ private slots:
 
             const QPolygonF frame{{16., 34.}, {80., 34.}, {80., 42.}, {16., 42.}};
             QPointF         corner;
-            const auto warpedFrame = projectSurfaceTextOutline(frame, lettering.rect(), {8, 10},
-                                                               curved, canvas, {}, .85, 1., corner);
+            const auto warp = surfaceTextWarp(lettering.rect(), {8, 10}, curved, canvas, {}, .85, 1.);
+            const auto warpedFrame = warp.outline(frame, &corner);
+            QVERIFY(QLineF(warp.unmap(corner), frame[2]).length() < .1);
             QVERIFY(warpedFrame.size() > frame.size());
             QVERIFY(corner.y() < 40.);
             QCOMPARE(warpedFrame.first(), warpedFrame.last());
@@ -1875,7 +1877,20 @@ private slots:
         QCOMPARE(document.maskImage(1).pixelColor(82, 40).red(), 0);
         document.updateTextHtml("<span style='font-size: 19px; color: white;'>SURFACE</span>");
         const auto beforeRotation = document.composite();
-        const auto changesIn      = [&](const QRect &rect) {
+        auto       testFace       = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+        for (const QString &name : QFontDatabase::families())
+            if (QFontDatabase::isFixedPitch(name) &&
+                QFontDatabase::writingSystems(name).contains(QFontDatabase::Latin)) {
+                testFace = name;
+                break;
+            }
+        document.previewTextFont(testFace, 0, 0);
+        QTRY_VERIFY(document.displayComposite() != beforeRotation);
+        QCOMPARE(document.displayComposite().pixelColor(82, 37), initial.pixelColor(82, 37));
+        QCOMPARE(document.composite(), beforeRotation);
+        document.clearTextFontPreview();
+        QCOMPARE(document.displayComposite(), beforeRotation);
+        const auto changesIn = [&](const QRect &rect) {
             return beforeRotation.copy(rect) != initial.copy(rect);
         };
         QVERIFY(changesIn({12, 10, 22, 60}));

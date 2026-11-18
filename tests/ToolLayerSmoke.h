@@ -1,5 +1,6 @@
 #pragma once
 #include "ClipboardSmoke.h"
+#include "FontMenuSmoke.h"
 #include "Document.h"
 #include "ValueScrubberSmoke.h"
 #include "WorkspaceSettings.h"
@@ -16,6 +17,7 @@
 #include <QPainter>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QTemporaryDir>
 #include <QtTest>
 
 inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
@@ -237,15 +239,18 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     if (!require(typography->property("visible").toBool(), "character and paragraph controls open"))
         return false;
     auto *fontFamily = _window->findChild<QObject *>("textFontFamily");
-    auto *fontStyle  = _window->findChild<QObject *>("textFontStyle");
+    auto *fontStyle  = _window->findChild<QQuickItem *>("textFontStyle");
     if (!require(fontFamily && fontStyle &&
                      fontFamily->property("editText").toString() ==
                          formatting->format(1).value("family").toString() &&
-                     fontStyle->property("count").toInt() > 0,
-                 "the font selector shows the actual text family and an available style"))
+                     fontStyle->isVisible() == (fontStyle->property("count").toInt() > 1),
+                 "the font selector shows the actual family and hides a redundant style field"))
         return false;
     if (QCoreApplication::arguments().contains("--capture-text"))
         _window->grabWindow().save("/tmp/photocrap-text-editor.png");
+    if (!require(checkFontMenu(_window, _document, typography, textInput, formatting),
+                 "font hover is reversible and choosing a family changes only selected text"))
+        return false;
     auto *fontSizeLabel = _window->findChild<QQuickItem *>("textFontSizeLabel");
     if (!require(fontSizeLabel && fontSizeLabel->isVisible(), "the font size title is draggable"))
         return false;
@@ -548,6 +553,53 @@ inline bool runToolLayerSmoke(QQuickWindow *_window, Document &_document,
     if (!require(outline->isVisible() && !strength->isVisible(),
                  "a selected folded layer keeps its frame when text editing ends"))
         return false;
+
+    QTemporaryDir textProjectDir;
+    const auto projectUrl = QUrl::fromLocalFile(textProjectDir.filePath("fabric.pcr"));
+    if (!require(textProjectDir.isValid() && _document.saveProject(projectUrl),
+                 "save a project with the folded text selected"))
+        return false;
+    _document.setTool("brush");
+    _document.requestOpenFile(projectUrl);
+    auto *typeButton = _window->findChild<QQuickItem *>("textTypographyButton");
+    if (!require(QTest::qWaitFor([&] {
+                     return !_document.operationBusy() && _document.tool() == "text" &&
+                            _document.activeLayer() == 1 && outline->isVisible() &&
+                            typeButton && typeButton->isVisible() && typeButton->isEnabled();
+                 }, 3000) && !_document.textEditing() && !_document.modified(),
+                 "reopening selected surface text activates its tool and formatting controls"))
+        return false;
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                      typeButton->mapToScene(typeButton->boundingRect().center()).toPoint());
+    if (!require(QTest::qWaitFor([&] {
+                     return typography->property("visible").toBool() && _document.textEditing();
+                 }) && textInput->property("selectionStart") == textInput->property("selectionEnd"),
+                 "formatting opens for the restored text without selecting its characters"))
+        return false;
+    constexpr int fabricCharacter = 11;
+    QRectF fabricCaret;
+    QMetaObject::invokeMethod(textInput, "positionToRectangle", Q_RETURN_ARG(QRectF, fabricCaret),
+                              Q_ARG(int, fabricCharacter));
+    QPolygonF caretOutline;
+    for (const auto &point : _document.surfaceTextRect(fabricCaret))
+        caretOutline.append(point.toPointF());
+    if (!require(!caretOutline.isEmpty(), "the insertion caret is projected onto the fold"))
+        return false;
+    const QPointF insideText = caretOutline.boundingRect().center();
+    QMetaObject::invokeMethod(typography, "close");
+    _document.finishTextEdit(true);
+    QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                      area->mapToScene(insideText * _window->property("zoom").toReal()).toPoint());
+    if (!require(QTest::qWaitFor([&] { return textInput->hasActiveFocus(); }) &&
+                     textInput->property("cursorPosition").toInt() == fabricCharacter &&
+                     _document.text() == "Surface frame" && _document.layerCount() == 2,
+                 "clicking restored surface text focuses the existing letters"))
+        return false;
+    QTest::keyClick(_window, Qt::Key_X);
+    if (!require(_document.text() == QStringLiteral("Surface frame").insert(fabricCharacter, 'x'),
+                 "typing inserts a character in the restored text"))
+        return false;
+    _document.finishTextEdit(true);
 
     _document.newDocument(220, 160, true);
     _window->setProperty("zoom", 1.0);

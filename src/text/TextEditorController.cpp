@@ -2,6 +2,7 @@
 #include "TextLayer.h"
 #include <QAbstractTextDocumentLayout>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextLayout>
@@ -30,9 +31,10 @@ QVariantMap TextEditorController::format(int _position) const
                            ? f.property(QTextFormat::FontPixelSize).toDouble()
                        : font.pointSizeF() > 0 ? font.pointSizeF() * 96. / 72.
                                                : doc->defaultFont().pixelSize();
+    const auto faceName = QFontInfo(font).styleName();
     QVariantMap result{
         {"family", font.family()},
-        {"style", font.styleName().isEmpty() ? QFontDatabase::styleString(font) : font.styleName()},
+        {"style", faceName.isEmpty() ? QFontDatabase::styleString(font) : faceName},
         {"size", size},
         {"bold", font.bold()},
         {"italic", font.italic()},
@@ -83,16 +85,12 @@ void TextEditorController::apply(const QVariantMap &_values, int _start, int _en
             f.setFontFamilies({v.toString()});
         else if (key == "style") {
             const auto family = format(cursor.position()).value("family").toString();
-            if (QFontDatabase::styles(family).isEmpty()) {
-                f.setFontWeight(v.toString().contains("Bold") ? QFont::Bold : QFont::Normal);
-                f.setFontItalic(v.toString().contains("Italic"));
-                f.setFontStretch(100);
-            } else {
-                const auto font = QFontDatabase::font(family, v.toString(), 12);
-                f.setFontWeight(font.weight());
-                f.setFontItalic(font.italic());
-                f.setFontStretch(font.stretch() > 0 ? font.stretch() : 100);
-            }
+            if (!fontStyles(family).contains(v.toString()))
+                continue;
+            const auto font = QFontDatabase::font(family, v.toString(), 12);
+            f.setFontWeight(font.weight());
+            f.setFontItalic(font.italic());
+            f.setFontStretch(font.stretch() > 0 ? font.stretch() : 100);
         } else if (key == "size")
             f.setProperty(QTextFormat::FontPixelSize, qBound(1, qRound(v.toDouble()), 1024));
         else if (key == "bold")
@@ -193,8 +191,7 @@ void TextEditorController::restoreFormatting(const QVariantMap &_parameters)
 
 QStringList TextEditorController::fontStyles(const QString &_family) const
 {
-    const auto styles = QFontDatabase::styles(_family);
-    return styles.isEmpty() ? QStringList{"Regular", "Italic", "Bold", "Bold Italic"} : styles;
+    return QFontDatabase::styles(_family);
 }
 bool TextEditorController::fontAvailable(const QString &_family) const
 {

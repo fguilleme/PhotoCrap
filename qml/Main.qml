@@ -3724,7 +3724,17 @@ ApplicationWindow {
                             text: editor.textEditing ? qsTr("Saisie sur l’image · ⌘/Ctrl Entrée : valider · Échap : annuler") : qsTr("Cliquez pour écrire ; glissez pour créer un bloc de paragraphe")
                             elide:Text.ElideRight
                         }
-                        Button {visible:editor.tool==="text";text:qsTr("Caractère / Paragraphe…");enabled:editor.textEditing;onClicked:textTypography.open()}
+                        Button {
+                            id: typographyButton
+                            objectName: "textTypographyButton"
+                            visible: editor.tool === "text"
+                            enabled: editor.textEditing || editor.selectedTextEditable
+                            text: qsTr("Caractère / Paragraphe…")
+                            onClicked: {
+                                if (editor.textEditing) textTypography.open()
+                                else window.openActiveLayerProperties()
+                            }
+                        }
                         Button {visible:editor.textEditing;text:qsTr("Annuler");onClicked:editor.finishTextEdit(true)}
                         Button {visible:editor.textEditing;text:qsTr("Valider");onClicked:{canvasTextEditor.sync();editor.finishTextEdit()}}
                         Item { Layout.fillWidth: true; visible: editor.tool!=="text" }
@@ -5041,7 +5051,7 @@ ApplicationWindow {
         objectName: "textTypographyPanel"
         textEditor: canvasTextEditor
         document: editor
-        x:Math.max(20,window.width-width-30);y:110
+        parent: typographyButton
     }
     Connections {target:editor;function onTextEditingChanged(){if(!editor.textEditing)textTypography.close()}}
     Dialog {

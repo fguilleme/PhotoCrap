@@ -261,52 +261,48 @@ void sampleSurfaceText(QImage &projected, const QImage &text, const std::vector<
         }
     }
 }
-struct SurfaceTextWarp {
-    QSize                imageSize;
-    QSize                steps;
-    std::vector<QPointF> grid;
+} // namespace
 
-    QPointF sourcePoint(const QPointF &point) const
-    {
-        const qreal x   = qBound(0., point.x(), qreal(imageSize.width() - 1));
-        const qreal y   = qBound(0., point.y(), qreal(imageSize.height() - 1));
-        const qreal col = imageSize.width() > 1 ? x * steps.width() / (imageSize.width() - 1) : 0.;
-        const qreal row =
-            imageSize.height() > 1 ? y * steps.height() / (imageSize.height() - 1) : 0.;
-        return sampleTextGrid(grid, steps, col, row) + point - QPointF(x, y);
-    }
+QPointF SurfaceTextWarp::sourcePoint(const QPointF &point) const
+{
+    const qreal x   = qBound(0., point.x(), qreal(region.width() - 1));
+    const qreal y   = qBound(0., point.y(), qreal(region.height() - 1));
+    const qreal col = region.width() > 1 ? x * steps.width() / (region.width() - 1) : 0.;
+    const qreal row =
+        region.height() > 1 ? y * steps.height() / (region.height() - 1) : 0.;
+    return sampleTextGrid(grid, steps, col, row) + point - QPointF(x, y);
+}
 
-    QPointF outputPoint(const QPointF &target, const QPointF &guess) const
-    {
-        // Invert the bilinear sampling map used for the glyphs. Start from the
-        // previous boundary sample to stay on the same side of a steep fold.
-        QPointF point     = guess;
-        QPointF best      = point;
-        qreal   bestError = std::numeric_limits<qreal>::infinity();
-        for (int iteration = 0; iteration < 16; ++iteration) {
-            const auto  source   = sourcePoint(point);
-            const auto  residual = source - target;
-            const qreal error    = std::hypot(residual.x(), residual.y());
-            if (error < bestError) {
-                best      = point;
-                bestError = error;
-            }
-            if (error < .05)
-                break;
-            const auto  dx   = sourcePoint(point + QPointF(.5, 0.)) - source;
-            const auto  dy   = sourcePoint(point + QPointF(0., .5)) - source;
-            const qreal det  = dx.x() * dy.y() - dy.x() * dx.y();
-            QPointF     step = residual;
-            if (qAbs(det) > .025)
-                step = QPointF(dy.y() * residual.x() - dy.x() * residual.y(),
-                               dx.x() * residual.y() - dx.y() * residual.x()) *
-                       (.5 / det);
-            const qreal length = std::hypot(step.x(), step.y());
-            point -= step * qMin(1., 64. / qMax(1., length));
+QPointF SurfaceTextWarp::outputPoint(const QPointF &target, const QPointF &guess) const
+{
+    // Invert the bilinear sampling map used for the glyphs. Start from the
+    // previous boundary sample to stay on the same side of a steep fold.
+    QPointF point     = guess;
+    QPointF best      = point;
+    qreal   bestError = std::numeric_limits<qreal>::infinity();
+    for (int iteration = 0; iteration < 16; ++iteration) {
+        const auto  source   = sourcePoint(point);
+        const auto  residual = source - target;
+        const qreal error    = std::hypot(residual.x(), residual.y());
+        if (error < bestError) {
+            best      = point;
+            bestError = error;
         }
-        return best;
+        if (error < .05)
+            break;
+        const auto  dx   = sourcePoint(point + QPointF(.5, 0.)) - source;
+        const auto  dy   = sourcePoint(point + QPointF(0., .5)) - source;
+        const qreal det  = dx.x() * dy.y() - dy.x() * dx.y();
+        QPointF     step = residual;
+        if (qAbs(det) > .025)
+            step = QPointF(dy.y() * residual.x() - dy.x() * residual.y(),
+                           dx.x() * residual.y() - dx.y() * residual.x()) *
+                   (.5 / det);
+        const qreal length = std::hypot(step.x(), step.y());
+        point -= step * qMin(1., 64. / qMax(1., length));
     }
-};
+    return best;
+}
 
 SurfaceTextWarp surfaceTextWarp(const QRect &region, const QPointF &anchor, const QImage &normals,
                                 const QSize &canvas, const QTransform &mapping, qreal focalRatio,
@@ -420,18 +416,19 @@ SurfaceTextWarp surfaceTextWarp(const QRect &region, const QPointF &anchor, cons
         }
     }
 
-    return {region.size(), steps, std::move(grid)};
+    return {region, steps, std::move(grid)};
 }
-} // namespace
-
-QPolygonF projectSurfaceTextOutline(const QPolygonF &polygon, const QRect &region,
-                                    const QPointF &anchor, const QImage &normals,
-                                    const QSize &canvas, const QTransform &mapping,
-                                    qreal focalRatio, qreal strength, QPointF &bottomRight)
+QPointF SurfaceTextWarp::unmap(const QPointF &canvasPoint) const
 {
-    const auto warp =
-        surfaceTextWarp(region, anchor, normals, canvas, mapping, focalRatio, strength);
-    if (warp.grid.empty())
+    if (grid.empty())
+        return canvasPoint;
+    const QPointF origin = QPointF(region.topLeft()) + QPointF(.5, .5);
+    return sourcePoint(canvasPoint - origin) + origin;
+}
+
+QPolygonF SurfaceTextWarp::outline(const QPolygonF &polygon, QPointF *bottomRight) const
+{
+    if (grid.empty())
         return {};
     QPolygonF     outline;
     const QPointF origin = QPointF(region.topLeft()) + QPointF(.5, .5);
@@ -443,10 +440,10 @@ QPolygonF projectSurfaceTextOutline(const QPolygonF &polygon, const QRect &regio
         for (int sample = 0; sample < samples; ++sample) {
             const auto target = start + (end - start) * (qreal(sample) / samples);
             const auto guess  = outline.isEmpty() ? target : output + target - previous;
-            output            = warp.outputPoint(target, guess);
+            output            = outputPoint(target, guess);
             outline.append(output + origin);
-            if (edge == 2 && sample == 0)
-                bottomRight = outline.back();
+            if (bottomRight && edge == 2 && sample == 0)
+                *bottomRight = outline.back();
             previous = target;
         }
     }

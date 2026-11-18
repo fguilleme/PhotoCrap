@@ -941,6 +941,8 @@ void Document::adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, 
     m_slices      = _loaded.slices;
     m_activeSlice = m_slices.isEmpty() ? -1 : 0;
     emit slicesChanged();
+    if (_project && selectedTextEditable())
+        activateLayerTool();
 }
 void Document::requestExportImage(const QUrl &_url)
 {

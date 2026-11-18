@@ -4,6 +4,7 @@
 #include <QTransform>
 #include <QVector3D>
 #include <optional>
+#include <vector>
 
 namespace PhotoCrap::Ai
 {
@@ -63,8 +64,20 @@ std::optional<SurfaceHinge> surfaceTextHinge(const SurfaceCrease &crease, const 
 QImage     projectSurfaceText(const QImage &text, const QPoint &origin, const QPointF &anchor,
                               const QImage &normals, const QSize &canvas, const QTransform &mapping,
                               qreal focalRatio = .85, qreal strength = 1.);
-QPolygonF  projectSurfaceTextOutline(const QPolygonF &polygon, const QRect &region,
-                                     const QPointF &anchor, const QImage &normals,
-                                     const QSize &canvas, const QTransform &mapping,
-                                     qreal focalRatio, qreal strength, QPointF &bottomRight);
+// The same sampling grid drives the rasterizer and the editable text overlay.
+struct SurfaceTextWarp {
+    QRect                region;
+    QSize                steps;
+    std::vector<QPointF> grid;
+    QPointF              unmap(const QPointF &canvasPoint) const;
+    QPolygonF            outline(const QPolygonF &polygon, QPointF *bottomRight = nullptr) const;
+
+private:
+    QPointF sourcePoint(const QPointF &point) const;
+    QPointF outputPoint(const QPointF &target, const QPointF &guess) const;
+};
+
+SurfaceTextWarp surfaceTextWarp(const QRect &region, const QPointF &anchor, const QImage &normals,
+                                const QSize &canvas, const QTransform &mapping, qreal focalRatio,
+                                qreal strength);
 } // namespace PhotoCrap::Ai

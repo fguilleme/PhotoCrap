@@ -15,7 +15,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
     using namespace PhotoCrap::Render;
     LayerStack stack;
     if (m_displayChannel || m_maskOnlyView || m_size.isEmpty() || transformActive() ||
-        m_model3DPreview)
+        m_model3DPreview || !m_textFontPreview.isNull())
         return stack;
     stack.size = m_size;
     stack.bits = m_channelBits;

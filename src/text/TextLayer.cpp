@@ -550,32 +550,38 @@ void drawFoldedDocument(QPainter &painter, QTextDocument &doc, const QVariantMap
     drawFace(true);
 }
 } // namespace
-QPolygonF surfaceOutline(const Layer &layer, const QSize &canvas, QPointF &bottomRight)
+SurfaceLayout::SurfaceLayout(const Layer &layer, const QSize &canvasSize) : canvas(canvasSize)
 {
     const auto &parameters = layer.parameters;
-    const qreal strength   = parameters.value("surfaceStrength", 1.).toDouble();
-    if (layer.surfaceNormals.isNull())
-        return {};
     Document doc;
     configure(doc, parameters);
-    if (doc.toPlainText().trimmed().isEmpty())
-        return {};
-    const auto      extent = parameters.value("paragraph").toBool() ? size(parameters) : doc.size();
-    const qreal     width  = qMax(32., extent.width());
-    const qreal     height = qMax(32., extent.height());
-    const QPolygonF corners{{0., 0.}, {width, 0.}, {width, height}, {0., height}};
-    if (const auto faces = faceProjection(parameters, layer)) {
-        bottomRight = faces->map(corners[2]);
-        return faces->outline(QRectF(0., 0., width, height), canvas);
+    extent = parameters.value("paragraph").toBool() ? size(parameters) : doc.size();
+    faces = faceProjection(parameters, layer);
+    matrix = faces ? faces->primary : displayTransform(parameters, &layer, extent);
+    if (!faces && parameters.value("surfaceRelief", true).toBool() &&
+        !doc.toPlainText().trimmed().isEmpty()) {
+        const QRect region = documentBounds(doc, parameters, canvas, matrix, true);
+        warp = Ai::surfaceTextWarp(region, matrix.map(QPointF{}), layer.surfaceNormals,
+                                   layer.surfaceNormalCanvas, layer.surfaceNormalTransform,
+                                   parameters.value("surfaceFocal", .85).toDouble(),
+                                   parameters.value("surfaceStrength", 1.).toDouble());
     }
-    if (!parameters.value("surfaceRelief", true).toBool() || strength <= 0.)
-        return {};
-    const auto matrix = displayTransform(parameters, &layer, extent);
-    const auto region = documentBounds(doc, parameters, canvas, matrix, true);
-    return Ai::projectSurfaceTextOutline(
-        matrix.map(corners), region, matrix.map(QPointF{}), layer.surfaceNormals,
-        layer.surfaceNormalCanvas, layer.surfaceNormalTransform,
-        parameters.value("surfaceFocal", .85).toDouble(), strength, bottomRight);
+}
+
+QPointF SurfaceLayout::unmap(const QPointF &point) const
+{
+    return faces ? faces->unmap(point) : matrix.inverted().map(warp.unmap(point));
+}
+
+QPolygonF SurfaceLayout::outline(const QRectF &rect, QPointF *bottomRight) const
+{
+    if (faces) {
+        if (bottomRight)
+            *bottomRight = faces->map(rect.bottomRight());
+        return faces->outline(rect, canvas);
+    }
+    const QPolygonF corners{rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()};
+    return warp.outline(matrix.map(corners), bottomRight);
 }
 QRect bounds(const QVariantMap &_p, const QSize &_canvas, const Layer *surface)
 {

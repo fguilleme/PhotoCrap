@@ -25,25 +25,37 @@ const QVariantMap &Document::textParameters() const
 {
     return m_textMaskEdit ? m_maskTextParameters : m_layers[m_active].parameters;
 }
+const PhotoCrap::Text::SurfaceLayout &Document::surfaceTextLayout(int index) const
+{
+    if (!m_surfaceTextLayout || index != m_surfaceLayoutLayer ||
+        m_revision != m_surfaceLayoutRevision) {
+        m_surfaceTextLayout =
+            std::make_shared<PhotoCrap::Text::SurfaceLayout>(m_layers[index], m_size);
+        m_surfaceLayoutLayer    = index;
+        m_surfaceLayoutRevision = m_revision;
+    }
+    return *m_surfaceTextLayout;
+}
+
 QVariantMap Document::textEditState() const
 {
     if (m_active < 0 || m_active >= m_layers.size() ||
         (!m_textMaskEdit && m_layers[m_active].kind != "text"))
         return {};
     auto       state    = textParameters();
-    const auto bounds   = PhotoCrap::Text::size(state);
+    const auto &layer = m_layers[m_active];
+    const auto *surface = !m_textMaskEdit && !layer.surfaceNormals.isNull()
+                            ? &surfaceTextLayout(m_active) : nullptr;
+    const auto bounds = surface ? surface->extent : PhotoCrap::Text::size(state);
     state["viewWidth"]  = bounds.width();
     state["viewHeight"] = bounds.height();
-    const auto &layer   = m_layers[m_active];
-    if (!m_textMaskEdit && !layer.surfaceNormals.isNull()) {
+    if (surface) {
         const auto values = [](const QTransform &matrix) {
             return QVariantList{matrix.m11(), matrix.m12(), matrix.m13(),
                                 matrix.m21(), matrix.m22(), matrix.m23(),
                                 matrix.m31(), matrix.m32(), matrix.m33()};
         };
-        const auto faces = PhotoCrap::Text::faceProjection(state, layer);
-        const auto t =
-            faces ? faces->primary : PhotoCrap::Text::displayTransform(state, &layer, bounds);
+        const auto &faces = surface->faces;
         if (faces) {
             const auto   &edge      = faces->edge;
             const auto    direction = (edge.p2() - edge.p1()) / edge.length();
@@ -52,13 +64,13 @@ QVariantMap Document::textEditState() const
             state["surfaceAcross"] = values(faces->across);
             state["surfaceSecondInverse"] = values(faces->face(true).inverted());
         }
-        state["transform"]       = values(t);
+        state["transform"]       = values(surface->matrix);
         state["surfaceText"]     = true;
         state["surfaceRelief"]   = state.value("surfaceRelief", true);
         state["surfaceAngle"]    = state.value("surfaceAngle", 0.);
         state["surfaceStrength"] = state.value("surfaceStrength", 1.);
         QPointF    corner;
-        const auto outline = PhotoCrap::Text::surfaceOutline(layer, m_size, corner);
+        const auto outline = surface->outline(QRectF(QPointF{}, bounds.expandedTo({32., 32.})), &corner);
         if (!outline.isEmpty()) {
             state["surfaceOutline"] = pointsForQml(outline);
             state["surfaceCorner"]  = corner;
@@ -66,28 +78,33 @@ QVariantMap Document::textEditState() const
     }
     return state;
 }
+QPointF Document::surfaceTextLocalPoint(const QPointF &point) const
+{
+    if (m_textMaskEdit || m_active < 0 || m_active >= m_layers.size() ||
+        m_layers[m_active].kind != "text" || m_layers[m_active].surfaceNormals.isNull())
+        return {-1., -1.};
+    return surfaceTextLayout(m_active).unmap(point);
+}
+
 QVariantList Document::surfaceTextRect(const QRectF &rect) const
 {
     if (m_active < 0 || m_active >= m_layers.size() || m_textMaskEdit ||
-        m_layers[m_active].kind != "text" || rect.isEmpty())
+        m_layers[m_active].kind != "text" || m_layers[m_active].surfaceNormals.isNull() || rect.isEmpty())
         return {};
-    const auto &layer = m_layers[m_active];
-    const auto  faces = PhotoCrap::Text::faceProjection(layer.parameters, layer);
-    return faces ? pointsForQml(faces->outline(rect, m_size)) : QVariantList{};
+    return pointsForQml(surfaceTextLayout(m_active).outline(rect));
 }
 
-bool Document::renderTextEdit()
+PixelPlane Document::rasterTextEdit(const QVariantMap &parameters, QRect &bounds) const
 {
-    auto &layer = m_layers[m_active];
-    auto  image = PhotoCrap::Text::renderPlane(textParameters(), m_size,
-                                               m_textMaskEdit ? QImage::Format_ARGB32_Premultiplied
-                                                              : workingFormat(),
-                                               m_textMaskEdit ? nullptr : &layer);
+    const auto &layer = m_layers[m_active];
+    auto        image = PhotoCrap::Text::renderPlane(
+        parameters, m_size, m_textMaskEdit ? QImage::Format_ARGB32_Premultiplied : workingFormat(),
+        m_textMaskEdit ? nullptr : &layer);
     if (image.isNull())
-        return fail(tr("Mémoire insuffisante pour rendre le texte."));
+        return {};
     if (m_textMaskEdit) {
-        auto next   = m_beforeText.layers[m_active].mask;
-        auto bounds = PhotoCrap::Text::bounds(textParameters(), m_size);
+        auto next = m_beforeText.layers[m_active].mask;
+        bounds    = PhotoCrap::Text::bounds(parameters, m_size);
         if (hasSelection())
             bounds = bounds.intersected(m_selectionRegion.boundingRect());
         if (!bounds.isEmpty()) {
@@ -96,7 +113,7 @@ bool Document::renderTextEdit()
             auto       output = before.copy();
             const auto text   = image.region(bounds);
             if (output.isNull() || text.isNull())
-                return fail(tr("Mémoire insuffisante pour rendre le texte."));
+                return {};
             QPainter painter(&output);
             if (hasSelection())
                 painter.setClipRegion(m_selectionRegion.translated(-bounds.topLeft()));
@@ -107,9 +124,71 @@ bool Document::renderTextEdit()
                 output, before, m_selectionMask.isNull() ? QImage{} : m_selectionMask.copy(bounds),
                 output.rect());
             if (!next.writeRegion(bounds.topLeft(), output.convertToFormat(next.format()), m_size))
-                return fail(tr("Mémoire insuffisante pour rendre le texte."));
+                return {};
         }
-        layer.mask = std::move(next);
+        return next;
+    }
+    return image;
+}
+
+// The live editor and the stored layer keep their original fonts until a choice is accepted.
+void Document::previewTextFont(const QString &family, int start, int end)
+{
+    if (!m_textEditing || m_textGesture || family.isEmpty() || family.size() > 256)
+        return;
+    auto                      parameters = textParameters();
+    PhotoCrap::Text::Document sample;
+    PhotoCrap::Text::configure(sample, parameters);
+    if (sample.isEmpty())
+        return;
+    QTextCursor range(&sample);
+    if (start == end)
+        range.select(QTextCursor::Document);
+    else {
+        const int last = sample.characterCount() - 1;
+        range.setPosition(qBound(0, start, last));
+        range.setPosition(qBound(0, end, last), QTextCursor::KeepAnchor);
+    }
+    QTextCharFormat face;
+    face.setFontFamilies({family});
+    range.mergeCharFormat(face);
+    parameters["html"] = sample.toHtml();
+    QRect bounds;
+    auto  plane = rasterTextEdit(parameters, bounds);
+    if (plane.isNull()) {
+        clearTextFontPreview();
+        return;
+    }
+    m_textFontPreview = std::move(plane);
+    requestPreviewRender(true, false, false);
+}
+
+void Document::clearTextFontPreview()
+{
+    if (m_textFontPreview.isNull())
+        return;
+    m_textFontPreview = {};
+    ++m_previewRequestGeneration;
+    m_previewRenderPending = false;
+    m_previewRenderActive.store(false);
+    {
+        QMutexLocker lock(&m_previewImageMutex);
+        m_previewComposite = {};
+    }
+    ++m_revision;
+    emit gpuStackChanged();
+    emit imageChanged();
+}
+
+bool Document::renderTextEdit()
+{
+    auto &layer = m_layers[m_active];
+    QRect bounds;
+    auto  image = rasterTextEdit(textParameters(), bounds);
+    if (image.isNull())
+        return fail(tr("Mémoire insuffisante pour rendre le texte."));
+    if (m_textMaskEdit) {
+        layer.mask = std::move(image);
         m_dirtyRegion |= m_maskTextBounds.united(bounds);
         m_maskTextBounds = bounds;
         m_text           = PhotoCrap::Text::plainText(textParameters());
@@ -162,14 +241,11 @@ void Document::beginTextGesture(qreal _x, qreal _y, bool _forceNew)
                     protectedGroup = true;
             if (protectedGroup)
                 continue;
-            const auto    extent = PhotoCrap::Text::size(layer.parameters);
-            const auto    faces  = PhotoCrap::Text::faceProjection(layer.parameters, layer);
+            const auto *surface = layer.surfaceNormals.isNull() ? nullptr : &surfaceTextLayout(i);
+            const auto extent = surface ? surface->extent : PhotoCrap::Text::size(layer.parameters);
             const QPointF canvasPoint(_x, _y);
-            const auto    point =
-                faces ? faces->unmap(canvasPoint)
-                      : PhotoCrap::Text::displayTransform(layer.parameters, &layer, extent)
-                            .inverted()
-                            .map(canvasPoint);
+            const auto point = surface ? surface->unmap(canvasPoint)
+                                       : PhotoCrap::Text::transform(layer.parameters).inverted().map(canvasPoint);
             if (QRectF(QPointF{}, extent).contains(point)) {
                 m_textAnchor = point;
                 beginTextEdit(i, true);
@@ -346,6 +422,7 @@ void Document::finishTextEdit(bool _cancel)
 {
     if (!m_textEditing)
         return;
+    clearTextFontPreview();
     m_textGesture      = false;
     const auto  before = m_beforeText;
     const auto &layer  = m_layers[m_active];

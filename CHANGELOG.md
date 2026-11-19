@@ -4,7 +4,10 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## En développement
+## v0.26.0 — 19 novembre 2026
+
+- Calque de rééclairage local avec plusieurs lumières déplaçables sur la photo et hors cadre. Chaque source a sa profondeur, sa couleur, son intensité et sa douceur. L’ambiance se règle pour tout le calque.
+- Vue côte à côte pour comparer deux documents ouverts.
 
 - Import des réglages globaux Lightroom et Camera Raw depuis un fichier XMP, y compris le virage partiel et la texture, sous forme de calques éditables.
 - Reproduction des tons et des couleurs d’une photo de référence avec des calques de réglage calculés localement. [Guide des deux commandes](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)

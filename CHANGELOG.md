@@ -4,6 +4,11 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## En développement
+
+- Import des réglages globaux Lightroom et Camera Raw depuis un fichier XMP, y compris le virage partiel et la texture, sous forme de calques éditables.
+- Reproduction des tons et des couleurs d’une photo de référence avec des calques de réglage calculés localement. [Guide des deux commandes](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
+
 ## v0.25.2 — 18 novembre 2026
 
 - L’espace de travail regroupe les documents ouverts, les options de l’outil

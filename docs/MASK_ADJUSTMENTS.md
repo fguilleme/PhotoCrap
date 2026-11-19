@@ -72,8 +72,24 @@ par les shaders de pile reste à faire.
 
 ## Importer un rendu sur la photo ouverte
 
-**Calque → Importer des réglages Adobe XMP…** lit les réglages Camera Raw d’un fichier annexe ou d’un préréglage Lightroom. Les calques créés regroupent les réglages de lumière, de couleur, de noir et blanc, les courbes à points RVB et par canal, la texture, le virage partiel et la netteté. Le calque **Virage partiel** reprend la teinte et la saturation des ombres et des hautes lumières. Une balance positive étend la teinte des hautes lumières. Le calque **Texture** adoucit les détails avec une valeur négative et les accentue avec une valeur positive. La balance des blancs relative est prise en charge. Les valeurs absolues en kelvins, profils de caméra, masques locaux et autres réglages non traduits figurent dans le bilan de l’import. Le rendu utilise les filtres de PhotoCrap et peut différer du développement RAW d’Adobe.
+### À partir d’un fichier Adobe XMP
 
-**Calque → Reproduire le rendu d’une image…** compare les pixels visibles de la composition à une photo de référence. PhotoCrap estime localement la tonalité, la saturation et les courbes par canal. Des images aux éclairages et aux sujets proches donnent généralement une meilleure correspondance. La disposition des objets et les retouches locales de la référence ne sont pas transférées.
+Ouvrez la photo à retoucher, puis choisissez **Calque → Importer des réglages Adobe XMP…**. Sélectionnez le fichier `.xmp` associé à la photo ou un préréglage Lightroom ou Camera Raw. PhotoCrap crée un calque pour chaque famille de réglages active.
 
-Les deux commandes ajoutent les réglages en haut de la pile. Double-cliquer un calque permet d’en modifier les paramètres. Pour affiner les courbes, choisir le canal RVB, rouge, vert ou bleu dans le graphe. L’opacité de chaque calque règle son intensité. Une seule annulation retire les calques de l’import.
+| Calque | Réglages repris |
+| --- | --- |
+| Lumière | Exposition, contraste, hautes lumières, ombres, blancs et noirs |
+| Couleur | Vibrance, saturation et corrections relatives de température et de teinte |
+| Noir et blanc | Conversion en niveaux de gris |
+| Courbes | Courbe à points RVB et courbes rouge, verte et bleue |
+| Texture | Une valeur négative adoucit les détails, une valeur positive les accentue |
+| Virage partiel | Teinte et saturation des ombres et des hautes lumières. Une balance positive favorise les hautes lumières, une balance négative les ombres |
+| Netteté optimisée | Gain et rayon de l’accentuation |
+
+Si un réglage est ignoré, le bilan indique son nom et le nombre de calques créés. Cela concerne notamment la température absolue en kelvins, les profils de caméra et les masques locaux. Le rendu utilise les filtres de PhotoCrap et peut différer du développement RAW d’Adobe.
+
+### À partir d’une photo de référence
+
+Ouvrez la photo à retoucher, puis choisissez **Calque → Reproduire le rendu d’une image…** et sélectionnez la photo dont vous souhaitez retrouver l’aspect. PhotoCrap compare localement les pixels visibles des deux images et ajoute jusqu’à trois calques selon les écarts mesurés, **Tonalité**, **Saturation** et **Courbes couleur**. Des sujets et des éclairages proches donnent généralement un meilleur point de départ.
+
+Les deux commandes ajoutent leurs calques en haut de la pile. Double-cliquez sur un calque pour modifier ses réglages ou réduisez son opacité pour atténuer l’effet. **Annuler** retire tout l’import en une étape. Enregistrez en `.pcr` pour retrouver les réglages à la réouverture.

@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["studioMark", "move", "brush", "eye", "eyeOff", "locked", "unlocked", "undo", "redo", "open", "export", "zoomTool", "text", "rectSelect", "pathSelection", "directSelection", "pen", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["sideBySide", "studioMark", "move", "brush", "eye", "eyeOff", "locked", "unlocked", "undo", "redo", "open", "export", "zoomTool", "text", "rectSelect", "pathSelection", "directSelection", "pen", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -57,6 +57,8 @@ Item {
             if (root.toolName === "studioMark") {
                 // Three offset exposures, cut on a common diagonal.
                 for (let i=0;i<3;++i) { const x=1+i*7; ctx.beginPath(); ctx.moveTo(x,9);ctx.lineTo(x+6,3);ctx.lineTo(x+6,15);ctx.lineTo(x,21);ctx.closePath();ctx.fill() }
+            } else if (root.toolName === "sideBySide") {
+                ctx.strokeRect(2,4,20,16); line([12,4,12,20])
             } else if (root.toolName === "move") {
                 line([12,3,12,21]); line([3,12,21,12]); line([9,6,12,3,15,6]);line([9,18,12,21,15,18]);line([6,9,3,12,6,15]);line([18,9,21,12,18,15])
             } else if (root.toolName === "brush") {

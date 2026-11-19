@@ -44,6 +44,25 @@ ApplicationWindow {
     palette.toolTipText: Studio.ink
     palette.placeholderText: Studio.muted
     property real zoom: 0.6
+    property string peerId: ""
+    property bool editorOnRight: false
+    property var peerView: null
+    readonly property bool sideBySide: peerId !== ""
+    readonly property ImageDocument peerDocument: sideBySide
+        ? (documents.documents.find(d => d.id === peerId)?.document ?? null) : null
+    function toggleSideBySide() {
+        if (sideBySide) {
+            peerId = ""
+            peerView = null
+        } else if (documents.count >= 2) {
+            const tabs = documents.documents
+            const index = tabs.findIndex(d => d.id === documents.activeId)
+            editorOnRight = false
+            peerView = null
+            peerId = tabs[index > 0 ? index - 1 : 1].id
+            Qt.callLater(window.fitCanvas)
+        }
+    }
     property real canvasRotation: 0
     property string status: qsTr("Prêt à créer")
     property string pendingAction: ""
@@ -1018,8 +1037,8 @@ ApplicationWindow {
             window.openActiveLayerProperties()
         }
     }
-    function rememberDocumentView() {
-        documents.saveView({zoom: zoom, x: viewport.contentX, y: viewport.contentY, rotation: canvasRotation})
+    function currentDocumentView() {
+        return {zoom: zoom, x: viewport.contentX, y: viewport.contentY, rotation: canvasRotation}
     }
     function activateDocument(id) {
         if (window.blockingModalOpen || saveInFlight) return
@@ -1281,10 +1300,18 @@ ApplicationWindow {
     }
     Connections {
         target: documents
+        property string departingId: ""
+        property var departingView: null
+        function onDocumentsChanged() {
+            if (window.sideBySide && !documents.documents.some(d => d.id === window.peerId))
+                window.toggleSideBySide()
+        }
         function onActiveAboutToChange() {
+            departingId = documents.activeId
             editor.cancelTransform()
             if (editor.textEditing) canvasTextEditor.sync()
-            window.rememberDocumentView()
+            departingView = window.currentDocumentView()
+            documents.saveView(departingView)
         }
         function onActiveChanged() {
             window.spacePressed=false
@@ -1293,7 +1320,18 @@ ApplicationWindow {
             window.informationPointerValid=false
             window.frequencyPropertiesLayerCount=-1
             window.sampleDocumentSession=editor.documentSession
-            const id=documents.activeId, view=documents.activeView
+            const id = documents.activeId
+            let view = documents.activeView
+            if (window.sideBySide && id === window.peerId) {
+                if (documents.documents.some(d => d.id === departingId)) {
+                    view = window.peerView || {}
+                    window.peerView = departingView
+                    window.peerId = departingId
+                    window.editorOnRight = !window.editorOnRight
+                } else {
+                    window.toggleSideBySide()
+                }
+            }
             Qt.callLater(function() {
                 if(documents.activeId!==id)return
                 drawingArea.refreshSystemCursor()
@@ -1784,6 +1822,13 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Affichage")
+            DarkMenuItem {
+                objectName: "sideBySideMenu"
+                text: qsTr("Documents côte à côte")
+                checkable: true; checked: window.sideBySide
+                enabled: documents.count >= 2 && !window.blockingModalOpen
+                onTriggered: window.toggleSideBySide()
+            }
             DarkMenu {
                 title: qsTr("Afficher")
                 DarkMenuItem { action: selectionMenu.edgesAction }
@@ -2040,6 +2085,12 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+                IconButton {
+                    objectName: "sideBySideButton"; toolName: "sideBySide"
+                    hint: qsTr("Documents côte à côte"); selected: window.sideBySide
+                    enabled: documents.count >= 2 && !window.blockingModalOpen
+                    onClicked: window.toggleSideBySide()
                 }
                 IconButton { toolName: "undo"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
                 IconButton { toolName: "redo"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
@@ -2791,8 +2842,19 @@ ApplicationWindow {
                     }
                 }
             }
+            Item {
+                id: documentArea
+                Layout.fillWidth: true; Layout.fillHeight: true
+                readonly property real paneWidth: window.sideBySide ? Math.floor((width - 1) / 2) : width
             ColumnLayout {
-                Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
+                x: window.sideBySide && window.editorOnRight ? documentArea.width - width : 0
+                width: documentArea.paneWidth; height: parent.height; spacing: 0
+                Label {
+                    visible: window.sideBySide; Layout.fillWidth: true; Layout.preferredHeight: 26
+                    leftPadding: 10; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                    text: editor.name; color: Studio.ink; font.bold: true
+                    background: Rectangle { color: Studio.raised }
+                }
                 Item {
                     id: workspace
                     Layout.fillWidth: true; Layout.fillHeight: true; focus: true
@@ -3747,6 +3809,46 @@ ApplicationWindow {
                         Button {visible:editor.textEditing;text:qsTr("Valider");onClicked:{canvasTextEditor.sync();editor.finishTextEdit()}}
                         Item { Layout.fillWidth: true; visible: editor.tool!=="text" }
 
+                    }
+                }
+            }
+                Rectangle {
+                    objectName: "peerPane"
+                    visible: window.sideBySide; clip: true
+                    x: window.editorOnRight ? 0 : documentArea.paneWidth + 1
+                    width: Math.max(0, documentArea.width - documentArea.paneWidth - 1); height: parent.height
+                    color: Studio.canvas
+                    Label {
+                        width: parent.width; height: 26; leftPadding: 10
+                        verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                        text: window.peerDocument ? window.peerDocument.name : ""
+                        color: Studio.secondary; background: Rectangle { color: Studio.panel }
+                    }
+                    Item {
+                        anchors.fill: parent; anchors.topMargin: 50; anchors.leftMargin: 24; clip: true
+                        Image {
+                            id: peerImage
+                            objectName: "peerImage"
+                            readonly property var doc: window.peerDocument
+                            readonly property var view: window.peerView
+                            readonly property real scaleFactor: !doc ? 0 : view ? view.zoom
+                                : Math.max(0.02, Math.min(1, (parent.width-110)/Math.max(1,doc.width),
+                                                             (parent.height-110)/Math.max(1,doc.height)))
+                            width: doc ? doc.width * scaleFactor : 0
+                            height: doc ? doc.height * scaleFactor : 0
+                            x: parent.width / 2 - (view ? view.x : width / 2)
+                            y: parent.height / 2 - (view ? view.y : height / 2)
+                            rotation: view ? view.rotation : 0
+                            sourceSize.width: Math.max(1, Math.min(4096, Math.ceil(width * Screen.devicePixelRatio)))
+                            sourceSize.height: Math.max(1, Math.min(4096, Math.ceil(height * Screen.devicePixelRatio)))
+                            cache: false
+                            source: doc ? "image://layers/"+doc.documentId+"/composite/"+doc.revision : ""
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: window.activateDocument(window.peerId)
                     }
                 }
             }

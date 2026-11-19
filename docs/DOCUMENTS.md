@@ -24,6 +24,13 @@ importer dans le document actif, sans créer d’onglet.
 
 ## Naviguer, enregistrer et fermer
 
+Avec deux documents ouverts, choisissez **Affichage → Documents côte à côte**
+ou cliquez sur l’icône à deux volets dans la barre des documents. Cliquez dans
+un volet pour y retoucher la photo. Les outils, les calques et l’historique
+suivent le document actif. Si d’autres onglets sont ouverts, cliquez sur l’un
+d’eux pour remplacer le document du volet actif. Un second clic sur l’icône
+rétablit la vue à un seul document.
+
 Cliquer un onglet affiche son document et rétablit sa vue. Le point indique des
 modifications non enregistrées ; une activité ou un résultat IA en attente est
 également signalé dans l’onglet. **Enregistrer** et **Exporter** concernent uniquement

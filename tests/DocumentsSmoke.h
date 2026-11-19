@@ -105,6 +105,55 @@ inline bool runDocumentsSmoke(QQuickWindow *window, DocumentManager &manager, Ai
                      2000),
                  "switching tabs renders the first document rather than a stale cached image"))
         return false;
+    auto *split     = window->findChild<QQuickItem *>("sideBySideButton");
+    auto *peer      = window->findChild<QQuickItem *>("peerPane");
+    auto *peerImage = window->findChild<QQuickItem *>("peerImage");
+    if (!require(split && peer && peerImage && split->isEnabled(), "two tabs enable comparison"))
+        return false;
+    const auto clickCenter = [&](QQuickItem *item) {
+        QTest::mouseClick(
+            window, Qt::LeftButton, Qt::NoModifier,
+            item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
+    };
+    clickCenter(split);
+    if (!require(QTest::qWaitFor([&] {
+                     if (!peer->isVisible() || !peerImage->width() || canvasColor().red() < 200)
+                         return false;
+                     const auto frame = window->grabWindow();
+                     const auto point = peerImage->mapToScene(
+                         QPointF(peerImage->width() / 2, peerImage->height() / 2));
+                     const auto pixel =
+                         (point * (qreal(frame.width()) / window->width())).toPoint();
+                     return frame.rect().contains(pixel) && frame.pixelColor(pixel).blue() > 200 &&
+                            frame.pixelColor(pixel).red() < 50;
+                 }),
+                 "comparison displays both documents' pixels"))
+        return false;
+    const auto rightEdge = peer->mapToScene(QPointF()).x();
+    clickCenter(peer);
+    if (!require(QTest::qWaitFor([&] {
+                     return manager.activeDocument() == second &&
+                            peer->mapToScene(QPointF()).x() < rightEdge &&
+                            canvasColor().blue() > 200;
+                 }),
+                 "clicking the right pane activates it in place"))
+        return false;
+    clickCenter(peer);
+    if (!require(manager.activeDocument() == first, "clicking the left pane restores its tools"))
+        return false;
+    clickCenter(split);
+    if (!require(!peer->isVisible() && manager.count() == 2,
+                 "leaving comparison preserves both tabs"))
+        return false;
+    clickCenter(split);
+    if (!require(manager.newDocument(80, 120, true) && peer->isVisible() &&
+                     window->property("peerId").toString() == second->documentId(),
+                 "opening a third document keeps the other pane in place"))
+        return false;
+    if (!require(manager.closeDocument(manager.activeId(), true) && !peer->isVisible() &&
+                     manager.activate(first->documentId()),
+                 "closing the active pane returns to the surviving document"))
+        return false;
     auto *guard   = window->findChild<QObject *>("unsavedDialog");
     auto *cancel  = window->findChild<QObject *>("unsavedCancelButton");
     auto *discard = window->findChild<QObject *>("unsavedDiscardButton");

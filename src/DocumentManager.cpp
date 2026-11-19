@@ -123,6 +123,7 @@ QVariantList DocumentManager::documents() const
         list.append(
             QVariantMap{{"id", entry.document->documentId()},
                         {"name", entry.document->name()},
+                        {"document", QVariant::fromValue(entry.document)},
                         {"modified", entry.document->modified()},
                         {"busy", entry.document->pixelEditBusy() || entry.document->rawLoading()},
                         {"aiBusy", entry.ai->busy() || entry.meshy->busy()},

@@ -6634,6 +6634,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Teinte des hautes lumières (°)</source><translation>Highlight hue (°)</translation></message>
     <message><source>Saturation des hautes lumières (%)</source><translation>Highlight saturation (%)</translation></message>
     <message><source>Balance</source><translation>Balance</translation></message>
+    <message><source>Documents côte à côte</source><translation>Side-by-side documents</translation></message>
     <message><source>Importer des réglages Adobe XMP…</source><translation>Import Adobe XMP settings…</translation></message>
     <message><source>Reproduire le rendu d’une image…</source><translation>Match a reference image…</translation></message>
     <message><source>Réglages Adobe XMP (*.xmp *.XMP)</source><translation>Adobe XMP settings (*.xmp *.XMP)</translation></message>

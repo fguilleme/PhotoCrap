@@ -648,6 +648,104 @@ QImage Document::frequencyImage(const Layer &_layer, const QRect &_region) const
     return ImageUtils::is16Bit(_layer.source) ? render.template operator()<QRgba64>()
                                               : render.template operator()<QRgb>();
 }
+namespace
+{
+template <typename Pixel, typename Function>
+QImage adjustRows(const QImage &source, Function process)
+{
+    using P      = ImageUtils::PixelAccess<Pixel>;
+    QImage image = source.convertToFormat(P::format);
+    uchar *data  = image.bits();
+    if (!data)
+        return {};
+    const qsizetype stride = image.bytesPerLine();
+    const int       width  = image.width();
+    QVector<int>    rows(image.height());
+    std::iota(rows.begin(), rows.end(), 0);
+    ImageUtils::blockingMap(
+        rows, [&](int y) { process(reinterpret_cast<Pixel *>(data + y * stride), width, y); });
+    return image.convertToFormat(P::premultiplied);
+}
+
+double luminance(double r, double g, double b)
+{
+    return .2126 * r + .7152 * g + .0722 * b;
+}
+
+std::array<double, 3> tintVector(double hue, double saturation)
+{
+    const QColor color = QColor::fromHsvF(std::fmod(qBound(0., hue, 360.), 360.) / 360., 1., 1.);
+    const double gray  = luminance(color.redF(), color.greenF(), color.blueF());
+    return {(color.redF() - gray) * saturation, (color.greenF() - gray) * saturation,
+            (color.blueF() - gray) * saturation};
+}
+
+template <typename Pixel>
+QImage splitToning(const QImage &source, const QVariantMap &params)
+{
+    using P                = ImageUtils::PixelAccess<Pixel>;
+    const double shadowSat = qBound(0., params.value("shadowSaturation").toDouble(), 100.) / 100.;
+    const double highlightSat =
+        qBound(0., params.value("highlightSaturation").toDouble(), 100.) / 100.;
+    if (shadowSat == 0. && highlightSat == 0.)
+        return source;
+    const auto   shadows    = tintVector(params.value("shadowHue").toDouble(), shadowSat);
+    const auto   highlights = tintVector(params.value("highlightHue").toDouble(), highlightSat);
+    const double balance    = qBound(-100., params.value("balance").toDouble(), 100.) * .0025;
+    const auto   smoothstep = [](double t) {
+        t = qBound(0., t, 1.);
+        return t * t * (3. - 2. * t);
+    };
+    return adjustRows<Pixel>(source, [&](Pixel *row, int width, int) {
+        for (int x = 0; x < width; ++x) {
+            const auto                  p = row[x];
+            const std::array<double, 3> rgb{P::red(p), P::green(p), P::blue(p)};
+            const double                y = luminance(rgb[0], rgb[1], rgb[2]) / 255.;
+            // As in Lumora, the two tonal ranges overlap around the midtones.
+            const double          dark     = 1. - smoothstep((y + balance) / .6);
+            const double          light    = smoothstep((y + balance - .4) / .6);
+            const double          envelope = 255. * .35 * 4. * y * (1. - y);
+            std::array<double, 3> tint;
+            double                scale = 1.;
+            for (int i = 0; i < 3; ++i) {
+                tint[i] = envelope * (shadows[i] * dark + highlights[i] * light);
+                if (tint[i] > 0.)
+                    scale = std::min(scale, (255. - rgb[i]) / tint[i]);
+                else if (tint[i] < 0.)
+                    scale = std::min(scale, -rgb[i] / tint[i]);
+            }
+            row[x] = P::rgba(rgb[0] + scale * tint[0], rgb[1] + scale * tint[1],
+                             rgb[2] + scale * tint[2], P::alpha(p));
+        }
+    });
+}
+
+template <typename Pixel>
+QImage textureContrast(const QImage &source, const QImage &fine, const QImage &coarse, double gain)
+{
+    using P            = ImageUtils::PixelAccess<Pixel>;
+    const QImage inner = fine.convertToFormat(P::format);
+    const QImage outer = coarse.convertToFormat(P::format);
+    if (inner.isNull() || outer.isNull())
+        return {};
+    const auto light = [](Pixel p) { return luminance(P::red(p), P::green(p), P::blue(p)); };
+    return adjustRows<Pixel>(source, [&](Pixel *row, int width, int y) {
+        const auto *a = reinterpret_cast<const Pixel *>(inner.constScanLine(y));
+        const auto *b = reinterpret_cast<const Pixel *>(outer.constScanLine(y));
+        for (int x = 0; x < width; ++x) {
+            const auto   p = row[x];
+            const double r = P::red(p), g = P::green(p), blue = P::blue(p);
+            const double detail = light(a[x]) - light(b[x]);
+            // Limit halos around strong edges. A common shift preserves channel differences.
+            const double edge  = detail / 24.;
+            const double shift = qBound(-std::min({r, g, blue}), gain * detail / (1. + edge * edge),
+                                        255. - std::max({r, g, blue}));
+            row[x]             = P::rgba(r + shift, g + shift, blue + shift, P::alpha(p));
+        }
+    });
+}
+} // namespace
+
 QImage Document::adjustedImage(const QImage &_source, const QString &_type, const QVariantMap &_p,
                                const QPoint &_origin, const QSize &_documentSize)
 {
@@ -697,6 +795,16 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return PhotoCrap::Filters::applyThreshold(_source, _p);
         if (_type == "colorBalance")
             return PhotoCrap::Filters::applyColorBalance(_source, _p);
+        if (_type == "splitToning")
+            return splitToning<Pixel>(_source, _p);
+        if (_type == "texture") {
+            const double gain = qBound(-100., _p.value("amount").toDouble(), 100.) / 100.;
+            if (gain == 0.)
+                return _source;
+            const int    radius = qBound(1, qRound(_p.value("radius", 4.).toDouble()), 100);
+            const QImage fine   = blurImage(_source, radius / 4);
+            return textureContrast<Pixel>(_source, fine, blurImage(fine, radius), gain);
+        }
         if (_type == "gaussianBlur")
             return gaussianBlurImage(_source, _p.value("radius", 8.).toDouble());
         if (_type == "motionBlur")

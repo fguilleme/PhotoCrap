@@ -94,7 +94,10 @@ QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255)
 
 QVariantList channelPoints(const QVariantMap &_parameters, int _channel)
 {
-    QVariantList result{QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 255}, {"y", 255}}};
+    constexpr std::array keys{"redPoints", "greenPoints", "bluePoints"};
+    QVariantList result = _parameters.value(keys[_channel]).toList();
+    if (result.isEmpty())
+        result = {QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 255}, {"y", 255}}};
     const auto   appendSample = [&](const QString &_key, int _output) {
         const QVariantList sample = _parameters.value(_key).toList();
         if (sample.size() == 3)

@@ -69,3 +69,11 @@ les propriétés des masques pixels ; il ne prétend pas reproduire le noyau Ado
 bit pour bit. L’affichage des piles contenant ces nouveaux masques ou un aperçu
 direct utilise le compositeur CPU asynchrone ; leur prise en charge analytique
 par les shaders de pile reste à faire.
+
+## Importer un rendu sur la photo ouverte
+
+**Calque → Importer des réglages Adobe XMP…** lit les réglages Camera Raw d’un fichier annexe ou d’un préréglage Lightroom. Les calques créés regroupent les réglages de lumière, de couleur, de noir et blanc, les courbes à points RVB et par canal, la texture, le virage partiel et la netteté. Le calque **Virage partiel** reprend la teinte et la saturation des ombres et des hautes lumières. Une balance positive étend la teinte des hautes lumières. Le calque **Texture** adoucit les détails avec une valeur négative et les accentue avec une valeur positive. La balance des blancs relative est prise en charge. Les valeurs absolues en kelvins, profils de caméra, masques locaux et autres réglages non traduits figurent dans le bilan de l’import. Le rendu utilise les filtres de PhotoCrap et peut différer du développement RAW d’Adobe.
+
+**Calque → Reproduire le rendu d’une image…** compare les pixels visibles de la composition à une photo de référence. PhotoCrap estime localement la tonalité, la saturation et les courbes par canal. Des images aux éclairages et aux sujets proches donnent généralement une meilleure correspondance. La disposition des objets et les retouches locales de la référence ne sont pas transférées.
+
+Les deux commandes ajoutent les réglages en haut de la pile. Double-cliquer un calque permet d’en modifier les paramètres. Pour affiner les courbes, choisir le canal RVB, rouge, vert ou bleu dans le graphe. L’opacité de chaque calque règle son intensité. Une seule annulation retire les calques de l’import.

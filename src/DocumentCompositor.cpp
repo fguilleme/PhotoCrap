@@ -74,6 +74,10 @@ int effectMargin(const Layer &_layer)
         return maskMargin + radius() * 3;
     if (_layer.adjustmentType == QStringLiteral("boxBlur"))
         return maskMargin + radius();
+    if (_layer.adjustmentType == QStringLiteral("texture")) {
+        const int r = qBound(1, qRound(_layer.parameters.value("radius", 4.).toDouble()), 100);
+        return maskMargin + vectorMargin + r + r / 4;
+    }
     if (_layer.adjustmentType == QStringLiteral("motionBlur"))
         return maskMargin +
                qBound(0, qCeil(_layer.parameters.value("distance").toDouble() / 2.) + 2, 102);
@@ -89,11 +93,10 @@ QRect expanded(const QRect &_region, int _margin, const QRect &_bounds)
     return _region.adjusted(-_margin, -_margin, _margin, _margin).intersected(_bounds);
 }
 
-// The filter's alpha came from the clipping base. Apply the adjusted colors at
-// full strength wherever they exist, then use only the adjustment's own mask
-// and opacity for blending. The clipping base supplies the final alpha.
+// A color adjustment inherits its input alpha. Remove that contribution before
+// blending atop the base, retaining any coverage introduced by the layer mask.
 template <typename Pixel>
-QImage clippedAdjustmentColors(const QImage &_image)
+QImage adjustmentColors(const QImage &_image, const QImage &backdrop = {})
 {
     using P      = ImageUtils::PixelAccess<Pixel>;
     QImage image = _image.convertToFormat(P::format);
@@ -104,13 +107,20 @@ QImage clippedAdjustmentColors(const QImage &_image)
     QVector<int> rows(image.height());
     std::iota(rows.begin(), rows.end(), 0);
     ImageUtils::blockingMap(rows, [&](int y) {
-        auto *row = reinterpret_cast<Pixel *>(data + y * stride);
+        auto       *row  = reinterpret_cast<Pixel *>(data + y * stride);
+        const auto *base = backdrop.isNull()
+                               ? nullptr
+                               : reinterpret_cast<const Pixel *>(backdrop.constScanLine(y));
         for (int x = 0; x < image.width(); ++x) {
-            if constexpr (P::wide) {
-                if (row[x].alpha())
-                    row[x].setAlpha(65535);
-            } else if (qAlpha(row[x]))
-                row[x] |= 0xff000000u;
+            if (!P::alpha(row[x]))
+                continue;
+            const double alpha = base && P::alpha(base[x]) > 0.
+                                     ? qMin(255., 255. * P::alpha(row[x]) / P::alpha(base[x]))
+                                     : 255.;
+            if constexpr (P::wide)
+                row[x].setAlpha(qRound(alpha * 257.));
+            else
+                row[x] = (row[x] & 0x00ffffffu) | (QRgb(qRound(alpha)) << 24);
         }
     });
     return image;
@@ -206,16 +216,30 @@ QImage Document::compositeRegion(const QRect &_region) const
 QImage Document::renderCompositeRect(const QRect &_region) const
 {
     QImage     regionComposite = ImageUtils::blank(_region.size(), workingFormat());
-    const auto compositeLayer  = [&](const QImage &_source, int _mode, qreal _opacity) {
-        if (_mode == 0) {
+    const auto compositeLayer  = [&](const QImage &_source, const Layer &layer) {
+        const bool preserveAlpha =
+            layer.kind == "adjustment" &&
+            (layer.adjustmentType == "texture" || layer.adjustmentType == "splitToning");
+        if (preserveAlpha) {
+            if (layer.blend == 0 && layer.opacity == 1. && !needsMask(layer) &&
+                !layer.clippingMask && layer.directType.isEmpty()) {
+                regionComposite = _source;
+                return;
+            }
+            const auto colors = m_channelBits == 16
+                                     ? adjustmentColors<QRgba64>(_source, regionComposite)
+                                     : adjustmentColors<QRgb>(_source, regionComposite);
+            regionComposite   = blendImages(regionComposite, colors, layer.blend, layer.opacity,
+                                             _region.topLeft(), true);
+        } else if (layer.blend == 0) {
             // The accumulator belongs to this render. Painting into it avoids
             // allocating and copying the whole composite for every normal layer.
             QPainter painter(&regionComposite);
-            painter.setOpacity(qBound(0., _opacity, 1.));
+            painter.setOpacity(qBound(0., layer.opacity, 1.));
             painter.drawImage(0, 0, _source);
         } else
-            regionComposite =
-                blendImages(regionComposite, _source, _mode, _opacity, _region.topLeft());
+            regionComposite = blendImages(regionComposite, _source, layer.blend, layer.opacity,
+                                           _region.topLeft());
     };
     const auto regionImage = [&](const QImage &_image) {
         // QImage keeps immutable source pixels shared. Only a partial render
@@ -228,7 +252,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     const auto finishClipping      = [&] {
         if (isolatedBase >= 0) {
             const auto &base = m_layers[isolatedBase];
-            compositeLayer(clippingBase, base.blend, base.opacity);
+            compositeLayer(clippingBase, base);
             isolatedBase = -1;
         }
         clippingBase     = {};
@@ -261,7 +285,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                                    layer.source.devicePixelRatio() == 1.
                                ? layer.source.region(_region)
                                : regionImage(layer.source),
-                           0, 1.);
+                           layer);
             ++layerIndex;
             continue;
         }
@@ -300,8 +324,8 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                 rendered = adjustedImage(input, layer.adjustmentType, layer.parameters,
                                          _region.topLeft(), m_size);
             if (isolatedAdjustment)
-                rendered = m_channelBits == 16 ? clippedAdjustmentColors<QRgba64>(rendered)
-                                               : clippedAdjustmentColors<QRgb>(rendered);
+                rendered = m_channelBits == 16 ? adjustmentColors<QRgba64>(rendered)
+                                               : adjustmentColors<QRgb>(rendered);
         } else if (layer.kind.startsWith(QStringLiteral("frequency"))) {
             const bool regional = !m_frequencyPreviewDraft && _region.size() != m_size &&
                                   canRenderFrequencyRegion(layer, m_size);
@@ -374,7 +398,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
                 continue;
             }
         }
-        compositeLayer(rendered, layer.blend, layer.opacity);
+        compositeLayer(rendered, layer);
     }
     finishClipping();
     return regionComposite;

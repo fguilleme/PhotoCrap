@@ -283,7 +283,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool model3dPropertiesShown: false
-    property bool blockingModalOpen: model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: xmpDialog.visible || referenceDialog.visible || xmpReport.opened || model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -295,6 +295,14 @@ ApplicationWindow {
         exposure: [{key:"exposure",label:qsTr("Exposition"),from:-5,to:5,step:0.1},{key:"offset",label:qsTr("Décalage"),from:-0.5,to:0.5,step:0.01},{key:"gamma",label:qsTr("Gamma"),from:0.1,to:3,step:0.05}],
         vibrance: [{key:"vibrance",label:qsTr("Vibrance"),from:-100,to:100,step:1},{key:"saturation",label:qsTr("Saturation"),from:-100,to:100,step:1}],
         hueSaturation: [{key:"hue",label:qsTr("Teinte"),from:-180,to:180,step:1},{key:"saturation",label:qsTr("Saturation"),from:-100,to:100,step:1},{key:"lightness",label:qsTr("Luminosité"),from:-100,to:100,step:1}],
+        splitToning: [
+            {key:"shadowHue",label:qsTr("Teinte des ombres (°)"),from:0,to:360,step:1},
+            {key:"shadowSaturation",label:qsTr("Saturation des ombres (%)"),from:0,to:100,step:1},
+            {key:"highlightHue",label:qsTr("Teinte des hautes lumières (°)"),from:0,to:360,step:1},
+            {key:"highlightSaturation",label:qsTr("Saturation des hautes lumières (%)"),from:0,to:100,step:1},
+            {key:"balance",label:qsTr("Balance"),from:-100,to:100,step:1}
+        ],
+        texture: [{key:"amount",label:qsTr("Texture"),from:-100,to:100,step:1}],
         colorBalance: [{key:"cyanRed",label:qsTr("Cyan ↔ Rouge"),from:-100,to:100,step:1},{key:"magentaGreen",label:qsTr("Magenta ↔ Vert"),from:-100,to:100,step:1},{key:"yellowBlue",label:qsTr("Jaune ↔ Bleu"),from:-100,to:100,step:1}],
         blackWhite: [{key:"reds",label:qsTr("Rouges"),from:0,to:100,step:1},{key:"greens",label:qsTr("Verts"),from:0,to:100,step:1},{key:"blues",label:qsTr("Bleus"),from:0,to:100,step:1}],
         photoFilter: [{key:"hue",label:qsTr("Teinte du filtre"),from:0,to:360,step:1},{key:"density",label:qsTr("Densité"),from:0,to:100,step:1}],
@@ -1356,6 +1364,11 @@ ApplicationWindow {
                 window.quitApprovedIds=[]
             }
         }
+        function onXmpSettingsSkipped(added, settings) {
+            xmpReport.added = added
+            xmpReport.skipped = settings
+            xmpReport.open()
+        }
         function onStatusMessage(message) { window.status = message; statusTimer.restart() }
         function onCanvasSizeChanged() { Qt.callLater(window.fitCanvas) }
     }
@@ -1448,6 +1461,18 @@ ApplicationWindow {
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { objectName: "model3dPaintMenuItem"; action: model3dPaintAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
+    }
+    Action {
+        id: importXmpAction
+        text: qsTr("Importer des réglages Adobe XMP…")
+        enabled: !window.modalOpen && !editor.pixelEditBusy && editor.width > 0
+        onTriggered: xmpDialog.open()
+    }
+    Action {
+        id: referenceLookAction
+        text: qsTr("Reproduire le rendu d’une image…")
+        enabled: importXmpAction.enabled
+        onTriggered: referenceDialog.open()
     }
     Action { id: aiAction; objectName: "aiImageAction"; text: qsTr("Créer avec l’IA…"); shortcut: (shortcuts.revision, shortcuts.sequence("aiGenerate")); enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0; onTriggered: aiDialog.start() }
     readonly property bool transformEnabled: !editingText && !blockingModalOpen && (!modalOpen || editor.transformActive)
@@ -1649,6 +1674,8 @@ ApplicationWindow {
             DarkMenuItem { action: addAction }
             DarkMenuItem { action: duplicateAction }
             DarkMenuItem { action: layerViaCutAction }
+            DarkMenuItem { action: importXmpAction }
+            DarkMenuItem { action: referenceLookAction }
             DarkMenuItem { action: aiAction }
             DarkMenu {
                 title: qsTr("Nouveau calque de réglage")
@@ -1658,6 +1685,8 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
                 DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
                 DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
+                DarkMenuItem { text: qsTr("Virage partiel"); onTriggered: addAdjustmentLayer("splitToning") }
+                DarkMenuItem { text: qsTr("Texture"); onTriggered: addAdjustmentLayer("texture") }
                 DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
                 DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
                 DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }
@@ -4584,6 +4613,8 @@ ApplicationWindow {
             enabled: !editor.pixelEditBusy && !editor.rawLoading
             onTriggered: importLayerDialog.open()
         }
+        DarkMenuItem { objectName: "importXmpMenuItem"; action: importXmpAction }
+        DarkMenuItem { objectName: "referenceLookMenuItem"; action: referenceLookAction }
         Model3DMenu { objectName: "createLayerModel3DMenu" }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
@@ -4593,6 +4624,8 @@ ApplicationWindow {
         DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
         DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
         DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
+        DarkMenuItem { text: qsTr("Virage partiel"); onTriggered: addAdjustmentLayer("splitToning") }
+        DarkMenuItem { text: qsTr("Texture"); onTriggered: addAdjustmentLayer("texture") }
         DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
         DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
         DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }
@@ -4764,6 +4797,48 @@ ApplicationWindow {
                             welcomeDialog.height = Math.max(300, Math.min(window.height - 32, originalSize.height + 2 * (p.y - start.y)))
                         }
                     }
+                }
+            }
+        }
+    }
+    FileDialog {
+        id: xmpDialog
+        objectName: "xmpDialog"
+        title: qsTr("Importer des réglages Adobe XMP…")
+        nameFilters: [qsTr("Réglages Adobe XMP (*.xmp *.XMP)")]
+        onAccepted: editor.importAdobeXmp(selectedFile)
+    }
+    FileDialog {
+        id: referenceDialog
+        objectName: "referenceDialog"
+        title: qsTr("Choisir la photo de référence")
+        nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff " + editor.rawFilePatterns()),
+                      qsTr("Tous les fichiers (*)")]
+        onAccepted: editor.matchReferenceImage(selectedFile)
+    }
+    Dialog {
+        id: xmpReport
+        objectName: "xmpReport"
+        title: qsTr("Import des réglages XMP")
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(460, window.width - 32)
+        property int added: 0
+        property var skipped: []
+        standardButtons: Dialog.Ok
+        ColumnLayout {
+            anchors.fill: parent
+            Label { text: qsTr("Calques créés : %1").arg(xmpReport.added) }
+            Label { text: qsTr("Réglages Adobe ignorés") }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(180, skippedLabel.implicitHeight)
+                contentWidth: availableWidth
+                Label {
+                    id: skippedLabel
+                    width: parent.width
+                    wrapMode: Text.WrapAnywhere
+                    text: xmpReport.skipped.join(", ")
                 }
             }
         }
@@ -5296,16 +5371,17 @@ ApplicationWindow {
                         id: curvesEditorControl
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="curves"
                         Layout.fillWidth: true
-                        histogram: (editor.revision, editor.histogram())
-                        sourcePoints: activeInfo.parameters.points || [{"x":0,"y":0},{"x":255,"y":255}]
+                        histogram: (editor.revision, channel === 0 ? editor.histogram()
+                                    : editor.colorHistogram()[["red", "green", "blue"][channel - 1]])
+                        sourcePoints: activeInfo.parameters[curvesEditorControl.pointsKey] || [{"x":0,"y":0},{"x":255,"y":255}]
                         pickerMode: window.curvePickerMode
                         onPickerSelected: function(mode) { window.curvePickerMode = mode }
                         onEditStarted: editor.beginLayerPreview()
                         onPreviewed: function(points) {
-                            if(layerPreview.checked) window.queueLayerPreview("points",points)
+                            if(layerPreview.checked) window.queueLayerPreview(curvesEditorControl.pointsKey,points)
                         }
                         onCommitted: function(points) {
-                            window.previewLayerValue("points",points,true)
+                            window.previewLayerValue(curvesEditorControl.pointsKey,points,true)
                         }
                     }
                     LightEditor {

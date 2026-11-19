@@ -6602,4 +6602,44 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Analyse locale MoGe‑2 impossible. %1</source><translation>Unable to analyze the surface with local MoGe‑2. %1</translation></message>
     <message><source>L’analyse locale n’est pas disponible pour cette version.</source><translation>Local analysis is unavailable in this build.</translation></message>
   </context>
+  <context><name>CurvesEditor</name>
+    <message><source>Rouge</source><translation>Red</translation></message>
+    <message><source>Vert</source><translation>Green</translation></message>
+    <message><source>Bleu</source><translation>Blue</translation></message>
+  </context>
+  <context><name>PhotoLook</name>
+    <message><source>Courbe XMP invalide.</source><translation>Invalid XMP curve.</translation></message>
+    <message><source>Fichier XMP illisible ou supérieur à 8 Mio.</source><translation>Cannot read the XMP file, or it exceeds 8 MiB.</translation></message>
+    <message><source>La déclaration DTD est interdite dans un XMP.</source><translation>DTD declarations are not supported in XMP files.</translation></message>
+    <message><source>XMP invalide à la ligne %1 (%2).</source><translation>Invalid XMP at line %1 (%2).</translation></message>
+    <message><source>La photo et la référence doivent contenir des pixels visibles.</source><translation>The photo and reference must both contain visible pixels.</translation></message>
+    <message><source>Tonalité</source><translation>Tone</translation></message>
+    <message><source>Saturation</source><translation>Saturation</translation></message>
+    <message><source>Courbes couleur</source><translation>Color curves</translation></message>
+  </context>
+  <context><name>Document</name>
+    <message><source>Virage partiel</source><translation>Split toning</translation></message>
+    <message><source>Texture</source><translation>Texture</translation></message>
+    <message><source>Importer des réglages XMP</source><translation>Import XMP settings</translation></message>
+    <message><source>Ce XMP ne contient aucun réglage global à appliquer.</source><translation>This XMP contains no global adjustments to apply.</translation></message>
+    <message><source>Import XMP terminé (%1 calques).</source><translation>XMP import complete. Layers added: %1.</translation></message>
+    <message><source>Reproduire le rendu d’une image</source><translation>Match a reference image</translation></message>
+    <message><source>Le rendu de la photo est déjà proche de la référence.</source><translation>The photo already closely matches the reference.</translation></message>
+  </context>
+  <context><name>Main</name>
+    <message><source>Virage partiel</source><translation>Split toning</translation></message>
+    <message><source>Texture</source><translation>Texture</translation></message>
+    <message><source>Teinte des ombres (°)</source><translation>Shadow hue (°)</translation></message>
+    <message><source>Saturation des ombres (%)</source><translation>Shadow saturation (%)</translation></message>
+    <message><source>Teinte des hautes lumières (°)</source><translation>Highlight hue (°)</translation></message>
+    <message><source>Saturation des hautes lumières (%)</source><translation>Highlight saturation (%)</translation></message>
+    <message><source>Balance</source><translation>Balance</translation></message>
+    <message><source>Importer des réglages Adobe XMP…</source><translation>Import Adobe XMP settings…</translation></message>
+    <message><source>Reproduire le rendu d’une image…</source><translation>Match a reference image…</translation></message>
+    <message><source>Réglages Adobe XMP (*.xmp *.XMP)</source><translation>Adobe XMP settings (*.xmp *.XMP)</translation></message>
+    <message><source>Choisir la photo de référence</source><translation>Choose a reference photo</translation></message>
+    <message><source>Import des réglages XMP</source><translation>XMP settings import</translation></message>
+    <message><source>Calques créés : %1</source><translation>Layers added: %1</translation></message>
+    <message><source>Réglages Adobe ignorés</source><translation>Skipped Adobe settings</translation></message>
+  </context>
 </TS>

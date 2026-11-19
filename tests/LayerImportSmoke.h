@@ -113,28 +113,79 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
                 return found;
         return nullptr;
     };
-    QQuickItem *fileRow = nullptr;
-    if (!require(QTest::qWaitFor(
-                     [&] {
-                         for (auto *surface : QGuiApplication::allWindows())
-                             if (auto *quick = qobject_cast<QQuickWindow *>(surface);
-                                 quick && quick->isVisible())
-                                 if ((fileRow = findRow(findRow, quick->contentItem())))
-                                     return true;
-                         return false;
-                     },
-                     3000),
-                 "file picker has loaded its image rows"))
+    const auto chooseFirstFile = [&] {
+        QQuickItem *fileRow = nullptr;
+        if (!require(QTest::qWaitFor(
+                         [&] {
+                             for (auto *surface : QGuiApplication::allWindows())
+                                 if (auto *quick = qobject_cast<QQuickWindow *>(surface);
+                                     quick && quick->isVisible())
+                                     if ((fileRow = findRow(findRow, quick->contentItem())))
+                                         return true;
+                             return false;
+                         },
+                         3000),
+                     "file picker has loaded its rows"))
+            return false;
+        QTest::mouseClick(
+            fileRow->window(), Qt::LeftButton, Qt::NoModifier,
+            fileRow->mapToScene(QPointF(fileRow->width() / 2, fileRow->height() / 2)).toPoint());
+        return true;
+    };
+    if (!chooseFirstFile())
         return false;
-    QTest::mouseClick(
-        fileRow->window(), Qt::LeftButton, Qt::NoModifier,
-        fileRow->mapToScene(QPointF(fileRow->width() / 2, fileRow->height() / 2)).toPoint());
     const int history = document.historyIndex();
     if (!require(QMetaObject::invokeMethod(dialog, "accept") &&
                      QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
                      document.layers().size() == 3 && document.historyIndex() == history + 1,
                  "picker imports the selected image with one undo step"))
         return false;
+    // Exercise the same picker flow for both nondestructive look commands.
+    const auto importLook = [&](const char *itemName, const char *pickerName, const QUrl &url) {
+        auto *item   = window->findChild<QObject *>(itemName);
+        auto *picker = window->findChild<QObject *>(pickerName);
+        if (!item || !picker)
+            return false;
+        picker->setProperty("currentFolder", url.adjusted(QUrl::RemoveFilename));
+        picker->setProperty("selectedFile", url);
+        return QMetaObject::invokeMethod(item, "click") &&
+               QTest::qWaitFor([&] { return picker->property("visible").toBool(); }, 2000) &&
+               chooseFirstFile() && QMetaObject::invokeMethod(picker, "accept");
+    };
+    QTemporaryDir presetDir;
+    const auto    preset = QUrl::fromLocalFile(presetDir.filePath("Test.xmp"));
+    QFile         xmp(preset.toLocalFile());
+    if (!xmp.open(QIODevice::WriteOnly))
+        return false;
+    xmp.write("<r:RDF xmlns:r='http://www.w3.org/1999/02/22-rdf-syntax-ns#' "
+              "xmlns:c='http://ns.adobe.com/camera-raw-settings/1.0/'>"
+              "<r:Description c:Exposure2012='0.5' c:Clarity2012='30' c:Texture='-20' "
+              "c:SplitToningShadowHue='215' c:SplitToningShadowSaturation='30'/></r:RDF>");
+    xmp.close();
+    auto *report = window->findChild<QObject *>("xmpReport");
+    if (!require(report && importLook("importXmpMenuItem", "xmpDialog", preset) &&
+                     QTest::qWaitFor([&] { return report->property("opened").toBool(); }) &&
+                     report->property("added").toInt() == 3 &&
+                     document.layers().first().toMap()["adjustmentType"] == "splitToning" &&
+                     document.layers().at(1).toMap()["adjustmentType"] == "texture" &&
+                     document.layers().at(2).toMap()["adjustmentType"] == "light",
+                 "XMP picker creates editable light, texture and toning layers"))
+        return false;
+    QMetaObject::invokeMethod(report, "close");
+    document.undo();
+    QTemporaryDir referenceDir;
+    const auto    reference = QUrl::fromLocalFile(referenceDir.filePath("Target.png"));
+    QImage        sample(16, 16, QImage::Format_RGB32);
+    sample.fill(Qt::blue);
+    if (!require(sample.save(reference.toLocalFile()) && QTest::qWaitFor([&] {
+                     return !window->property("blockingModalOpen").toBool();
+                 }) &&
+                     importLook("referenceLookMenuItem", "referenceDialog", reference) &&
+                     QTest::qWaitFor([&] { return !document.operationBusy(); }, 5000) &&
+                     document.layers().first().toMap()["kind"] == "adjustment",
+                 "reference picker matches the look with native adjustments"))
+        return false;
+    document.undo();
     auto *createModelMenu = window->findChild<QObject *>("createLayerModel3DMenu");
     auto *layerModelMenu  = window->findChild<QObject *>("layerModel3DMenu");
     for (auto *submenu : {createModelMenu, layerModelMenu})

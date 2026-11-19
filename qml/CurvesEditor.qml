@@ -8,6 +8,8 @@ ColumnLayout {
     objectName: "curvesEditorRoot"
     property var histogram: []
     property var sourcePoints: [{"x": 0, "y": 0}, {"x": 255, "y": 255}]
+    readonly property int channel: Math.max(0, channelBox.currentIndex)
+    readonly property string pointsKey: ["points", "redPoints", "greenPoints", "bluePoints"][channel]
     property var points: []
     property int activePoint: -1
     property bool dragging: false
@@ -30,7 +32,8 @@ ColumnLayout {
     function sync() { if(!dragging) { points=copyPoints(sourcePoints) } }
     function emittedPoints() { return copyPoints(points) }
     function addColorSample(color) {
-        const input=Math.max(0,Math.min(255,Math.round((.2126*color.r+.7152*color.g+.0722*color.b)*255)))
+        const levels = [.2126 * color.r + .7152 * color.g + .0722 * color.b, color.r, color.g, color.b]
+        const input = Math.max(0, Math.min(255, Math.round(levels[channel] * 255)))
         const output=curveValue(input)
         editStarted()
         let nearest=-1
@@ -51,7 +54,12 @@ ColumnLayout {
 
     RowLayout {
         Layout.fillWidth: true
-        Label { text: qsTr("RVB composite"); color: "#c4cdd5"; Layout.fillWidth: true }
+        ComboBox {
+            id: channelBox
+            Layout.fillWidth: true
+            model: [qsTr("RVB composite"), qsTr("Rouge"), qsTr("Vert"), qsTr("Bleu")]
+            onActivated: root.activePoint = -1
+        }
         Label { text: qsTr("Pipettes"); color: "#7f8b96"; font.pixelSize: 10 }
         EyedropperButton {
             objectName: "curveColorPicker"

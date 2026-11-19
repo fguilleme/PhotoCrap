@@ -54,6 +54,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentDirectAdjustments.cpp
     src/DocumentVectorMasks.cpp
     src/masks/VectorMask.cpp
+    src/DocumentPhotoLook.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
@@ -151,6 +152,9 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/ColorFilter.cpp
     src/filters/ColorBalanceFilter.cpp
     src/filters/ColorLookupFilter.cpp
+    src/filters/AdjustmentRecipe.h
+    src/filters/AdobeXmp.cpp
+    src/filters/ReferenceLook.cpp
     src/filters/CurvesFilter.cpp
     src/filters/HueSaturationFilter.cpp
     src/filters/InvertFilter.cpp
@@ -410,6 +414,7 @@ qt_add_library(photocrap_core STATIC
     src/DocumentDirectAdjustments.cpp
     src/DocumentVectorMasks.cpp
     src/masks/VectorMask.cpp
+    src/DocumentPhotoLook.cpp
     src/DocumentAdjustments.cpp
     src/DocumentCompositor.cpp
     src/DocumentEditing.cpp
@@ -514,6 +519,9 @@ qt_add_library(photocrap_core STATIC
     src/filters/ColorBalanceFilter.h
     src/filters/ColorLookupFilter.cpp
     src/filters/ColorLookupFilter.h
+    src/filters/AdjustmentRecipe.h
+    src/filters/AdobeXmp.cpp
+    src/filters/ReferenceLook.cpp
     src/filters/CurvesFilter.cpp
     src/filters/HueSaturationFilter.cpp
     src/filters/InvertFilter.cpp

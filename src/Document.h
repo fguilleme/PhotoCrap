@@ -32,6 +32,7 @@
 #include <memory>
 #include <optional>
 
+namespace PhotoCrap::Look { struct Recipe; }
 namespace PhotoCrap::Text { struct SurfaceLayout; }
 
 class ScratchImageCache;
@@ -1174,6 +1175,8 @@ public:
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE void requestOpenFile(const QUrl &_url);
+    Q_INVOKABLE void importAdobeXmp(const QUrl &url);
+    Q_INVOKABLE void matchReferenceImage(const QUrl &url);
     Q_INVOKABLE bool importLayer(const QUrl &_url);
     Q_INVOKABLE bool importModel3D(const QUrl &_url);
     bool             importModel3DData(const QByteArray &_bytes, const QString &_name,
@@ -1458,6 +1461,7 @@ signals:
     void historyBrushSourceChanged();
     void historyChanged();
     void errorOccurred(const QString &_message);
+    void xmpSettingsSkipped(int added, const QStringList &settings);
     void statusMessage(const QString &_message);
 
 private:
@@ -1484,6 +1488,7 @@ private:
     QString m_queuedClipboardPaste;
     std::shared_ptr<PhotoCrap::Clipboard::Pixels> m_clipboardTransferPixels;
     QMetaObject::Connection                       m_clipboardFinishConnection;
+    bool appendLookLayers(const PhotoCrap::Look::Recipe &recipe, const QString &source, const QString &label);
     struct LayerMergePlan {
         QSet<int> inputs, removed;
         int       insertion = 0;

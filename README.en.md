@@ -4,9 +4,9 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-**v0.26.0** · Relight photos with lights you can drag beyond the frame, compare two documents side by side, and create adjustment layers from Adobe XMP settings or a reference photo. [XMP and reference photo guide (in French)](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
+**v0.26.1** · Relight photos with lights you can drag beyond the frame, compare two documents side by side, and create adjustment layers from Adobe XMP settings or a reference photo. [XMP and reference photo guide (in French)](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
 
-## v0.26.0 · Changes since v0.21.0
+## v0.26.1 · Changes since v0.21.0
 
 - Redesigned workspace and typography panel with live font previews on hover.
 - Editable text on fabric folds or across two faces of a wall, with perspective

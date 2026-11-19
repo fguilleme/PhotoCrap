@@ -1506,7 +1506,7 @@ ApplicationWindow {
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { objectName: "model3dPaintMenuItem"; action: model3dPaintAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
-        DarkMenuItem { action: relightAction }
+        DarkMenuItem { objectName: "relightMenuItem"; action: relightAction }
     }
     Action {
         id: importXmpAction

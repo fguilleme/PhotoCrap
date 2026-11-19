@@ -189,12 +189,13 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     auto *createModelMenu = window->findChild<QObject *>("createLayerModel3DMenu");
     auto *layerModelMenu  = window->findChild<QObject *>("layerModel3DMenu");
     for (auto *submenu : {createModelMenu, layerModelMenu})
-        if (!require(submenu && submenu->property("count").toInt() == 4 &&
+        if (!require(submenu &&
                          submenu->findChild<QObject *>("importModel3DMenuItem") &&
                          submenu->findChild<QObject *>("meshyMenuItem") &&
                          submenu->findChild<QObject *>("model3dPaintMenuItem") &&
-                         submenu->findChild<QObject *>("surfacePaintMenuItem"),
-                     "both 3D submenus contain import, Meshy and surface painting commands"))
+                         submenu->findChild<QObject *>("surfacePaintMenuItem") &&
+                         submenu->findChild<QObject *>("relightMenuItem"),
+                     "both 3D submenus expose import, Meshy, model painting, surface painting and relighting"))
             return false;
     auto *modelMenu        = createModelMenu->findChild<QObject *>("importModel3DMenuItem");
     auto *modelPicker      = window->findChild<QObject *>("importModel3DDialog");

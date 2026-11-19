@@ -4,9 +4,9 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-**v0.26.0** · Rééclairez une photo avec des sources déplaçables jusque hors cadre, comparez deux documents côte à côte et créez des calques de réglage à partir d’un XMP Adobe ou d’une photo de référence. [Guide XMP et photo de référence](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
+**v0.26.1** · Rééclairez une photo avec des sources déplaçables jusque hors cadre, comparez deux documents côte à côte et créez des calques de réglage à partir d’un XMP Adobe ou d’une photo de référence. [Guide XMP et photo de référence](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
 
-## v0.26.0 · Évolutions depuis v0.21.0
+## v0.26.1 · Évolutions depuis v0.21.0
 
 - Espace de travail repensé et panneau de typographie avec aperçu des polices au survol.
 - Texte éditable sur les plis d’un tissu ou les deux faces d’un mur. La

@@ -46,6 +46,7 @@ namespace PhotoCrap::Ai
 {
 struct Input;
 struct Result;
+struct SurfaceGeometry;
 } // namespace PhotoCrap::Ai
 
 namespace PhotoCrap::Transform
@@ -1203,6 +1204,7 @@ public:
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
+    bool addRelightLayer(const PhotoCrap::Ai::Input &source, const PhotoCrap::Ai::SurfaceGeometry &geometry);
     bool addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
                          std::optional<QPoint> textPosition = {}, bool followRelief = false,
                          qreal focalRatio = .85, const QVariantList &crease = {});

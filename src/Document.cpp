@@ -8,6 +8,7 @@
 #include "storage/ScratchImageCache.h"
 
 #include <QFont>
+#include <QMatrix4x4>
 #include <QPainter>
 #include <QTimer>
 #include <QtMath>
@@ -870,6 +871,15 @@ QVariantList Document::layers() const
                                   {"groupCollapsed", l.groupCollapsed},
                                   {"selected", m_selectedLayers.contains(i)},
                                   {"editingMask", m_editingMask && i == m_active}});
+        if (l.adjustmentType == "relight") {
+            // Light positions are percentages of the geometry at the time of analysis.
+            const auto toCanvas = QTransform::fromScale(l.surfaceNormalCanvas.width() / 100.,
+                                                        l.surfaceNormalCanvas.height() / 100.)
+                                  * l.surfaceNormalTransform;
+            auto info = result.last().toMap();
+            info.insert("lightToCanvas", QMatrix4x4(toCanvas));
+            result.last() = info;
+        }
     }
     return result;
 }

@@ -151,3 +151,5 @@ RGB sans perte, limité à 768 px sur le grand côté. `surfaceNormals.width` et
 sur le canevas courant. Le masque de surface reste un plan raster éditable.
 Un calque de texte conserve aussi son contenu, sa mise en forme et son rendu
 déformé, ce qui permet de reprendre l’édition après réouverture.
+
+Les projets contenant un calque de rééclairage utilisent la version logique 18. La liste `lights` contient la position X/Y/Z, la couleur, l’intensité et la douceur de chaque source. La carte de géométrie embarquée stocke les normales en RVB et la profondeur inverse relative dans le canal alpha (zéro indique une mesure invalide).

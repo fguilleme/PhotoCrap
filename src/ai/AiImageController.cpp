@@ -107,7 +107,7 @@ void AiImageController::cancel()
 {
     ++m_generation;
     stop();
-    m_status = m_surfaceAnalysis ? tr("Peinture sur surface annulée")
+    m_status = m_surfaceAnalysis ? tr("Analyse de surface annulée")
                : m_completed ? tr("Demande annulée — %1 variante(s) conservée(s)").arg(m_completed)
                              : tr("Demande IA annulée");
     emit changed();
@@ -180,14 +180,14 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
     return true;
 }
 
-bool AiImageController::analyzeSurfaceLocally()
+bool AiImageController::analyzeSurfaceLocally(bool relight)
 {
     if (!localSurfaceAvailable() || m_busy || pendingResult() || !m_document ||
         m_document->aiInsertionBusy() || m_document->transformActive())
         return false;
     begin({},
           {{"name", tr("Sur cet ordinateur")},
-           {"model", "MoGe-2 ViT-S"},
+           {"model", "MoGe-2 ViT-S"}, {"relight", relight},
            {"maxEdge", PhotoCrap::Ai::MaxSurfaceNormalEdge}},
           {}, false, 1, false, false, true);
     return true;
@@ -400,6 +400,16 @@ void AiImageController::surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry)
     }
     if (!geometry.isValid()) {
         stop(tr("MoGe‑2 n’a détecté aucune surface exploitable."));
+        return;
+    }
+    if (m_provider.value("relight").toBool()) {
+        if (!m_document->addRelightLayer(m_input, geometry)) {
+            stop(tr("Impossible de créer le calque de rééclairage."));
+            return;
+        }
+        m_completed = 1;
+        stop();
+        emit layerAdded();
         return;
     }
     m_surfaceGeometry = std::move(geometry);

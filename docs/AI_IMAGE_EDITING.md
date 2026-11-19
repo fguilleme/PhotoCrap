@@ -463,3 +463,9 @@ pour Topaz et Real-ESRGAN ; les autres profils proposent le nouveau calque.
 Chaque onglet conserve son contrôleur IA, y compris lorsqu’un autre document est
 actif. Un résultat terminé en arrière-plan n’interrompt pas l’édition de l’autre
 onglet. [Comportements de fermeture et limites](DOCUMENTS.md).
+
+## Rééclairer une photo
+
+Dans **Calque → 3D → Rééclairage…**, PhotoCrap estime localement le relief de la composition avec MoGe-2 et crée un calque de réglage. Une sélection active limite la zone éclairée.
+
+Dans les propriétés du calque, **+** ajoute une lumière et **−** retire la lumière choisie. Sélectionnez le calque et faites glisser une poignée numérotée sur la photo pour placer la lumière correspondante. Le zoom permet de la positionner plus précisément. Pour éclairer depuis le hors-champ, glissez la poignée dans la marge autour de la photo. Dézoomez pour agrandir la marge visible. Les réglages **X** et **Y** permettent aussi de placer la source hors cadre. **Profondeur Z** déplace la source vers l’observateur quand la valeur augmente. Chaque lumière possède sa couleur, son intensité et sa douceur. **Ambiance** règle la lumière de fond pour tout le calque. À 100 %, la photo conserve sa luminosité initiale ; à 0 %, seules les sources ajoutées éclairent la scène. Le projet conserve la carte de relief et jusqu’à seize lumières modifiables.

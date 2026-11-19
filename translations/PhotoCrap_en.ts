@@ -902,7 +902,8 @@
         <source>Source de calque IA invalide.</source>
         <translation>Invalid AI layer source.</translation>
     </message>
-</context>
+  <message><source>Rééclairage</source><translation>Relight</translation></message>
+  </context>
   <context>
     <name>LanguageManager</name>
     <message>
@@ -2856,7 +2857,8 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Enregistrez les fournisseurs et prompts avec leur bouton Enregistrer.</source>
         <translation>Save providers and prompts using their Save button.</translation>
     </message>
-</context>
+  <message><source>Rééclairage…</source><translation>Relight…</translation></message>
+  </context>
   <context>
     <name>DockablePanel</name>
     <message>
@@ -5726,7 +5728,9 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Impossible d’accéder au trousseau : %1</source>
         <translation>Cannot access the system credential store: %1</translation>
     </message>
-</context>
+  <message><source>Analyse de surface annulée</source><translation>Surface analysis canceled</translation></message>
+    <message><source>Impossible de créer le calque de rééclairage.</source><translation>Could not create the relight layer.</translation></message>
+  </context>
 <context>
     <name>QObject</name>
     <message>
@@ -6133,7 +6137,8 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Fermer</source>
         <translation>Close</translation>
     </message>
-</context>
+  <message><source>Analyse de surface</source><translation>Surface analysis</translation></message>
+  </context>
   <context>
     <name>Main</name>
     <message><source>Fournisseur : %1</source><translation>Provider: %1</translation></message>
@@ -6642,5 +6647,20 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Import des réglages XMP</source><translation>XMP settings import</translation></message>
     <message><source>Calques créés : %1</source><translation>Layers added: %1</translation></message>
     <message><source>Réglages Adobe ignorés</source><translation>Skipped Adobe settings</translation></message>
+  </context>
+  <context>
+    <name>RelightEditor</name>
+    <message><source>Ambiance</source><translation>Ambient light</translation></message>
+    <message><source>Lumière ambiante</source><translation>Ambient light</translation></message>
+    <message><source>Douceur</source><translation>Softness</translation></message>
+    <message><source>Intensité</source><translation>Intensity</translation></message>
+    <message><source>Profondeur Z</source><translation>Z depth</translation></message>
+    <message><source>Position Y</source><translation>Y position</translation></message>
+    <message><source>Position X</source><translation>X position</translation></message>
+    <message><source>Couleur de la lumière…</source><translation>Light color…</translation></message>
+    <message><source>Retirer la lumière</source><translation>Remove light</translation></message>
+    <message><source>Ajouter une lumière</source><translation>Add light</translation></message>
+    <message><source>Lumière %1</source><translation>Light %1</translation></message>
+    <message><source>Source lumineuse</source><translation>Light source</translation></message>
   </context>
 </TS>

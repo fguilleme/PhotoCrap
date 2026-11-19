@@ -155,6 +155,7 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/AdjustmentRecipe.h
     src/filters/AdobeXmp.cpp
     src/filters/ReferenceLook.cpp
+    src/filters/RelightFilter.cpp
     src/filters/CurvesFilter.cpp
     src/filters/HueSaturationFilter.cpp
     src/filters/InvertFilter.cpp
@@ -522,6 +523,7 @@ qt_add_library(photocrap_core STATIC
     src/filters/AdjustmentRecipe.h
     src/filters/AdobeXmp.cpp
     src/filters/ReferenceLook.cpp
+    src/filters/RelightFilter.cpp
     src/filters/CurvesFilter.cpp
     src/filters/HueSaturationFilter.cpp
     src/filters/InvertFilter.cpp
@@ -750,6 +752,8 @@ qt_add_qml_module(PhotoCrap
         qml/GradientMapEditor.qml
         qml/FrequencySeparationEditor.qml
         qml/LightEditor.qml
+        qml/RelightEditor.qml
+        qml/RelightHandles.qml
         qml/LayerPropertiesActions.qml
         qml/LevelsChart.qml
         qml/LevelsGraph.qml

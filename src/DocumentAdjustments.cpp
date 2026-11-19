@@ -12,7 +12,7 @@
 void Document::addAdjustmentLayer(const QString &_type)
 {
     const auto name = adjustmentName(_type);
-    if (name.isEmpty() || !validSize(width(), height(), int(m_layers.size()) + 1) ||
+    if (_type == "relight" || name.isEmpty() || !validSize(width(), height(), int(m_layers.size()) + 1) ||
         !validLayerStorage(width(), height(), 0, hasSelection() ? 1 : 0))
         return;
     QVariantMap params = adjustmentDefaults(_type);
@@ -186,7 +186,7 @@ void Document::resetAdjustmentLayer()
         parameters = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
     else if (type == QStringLiteral("colorBalance"))
         parameters = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
-    else if (type == "splitToning" || type == "texture")
+    else if (type == "splitToning" || type == "texture" || type == "relight")
         parameters = adjustmentDefaults(type);
     else if (type == QStringLiteral("selectiveColor"))
         parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
@@ -397,6 +397,7 @@ QString Document::adjustmentName(const QString &_type) const
                                        {"hueSaturation", tr("Teinte / Saturation")},
                                        {"colorBalance", tr("Balance des couleurs")},
                                        {"splitToning", tr("Virage partiel")},
+                                       {"relight", tr("Rééclairage")},
                                        {"texture", tr("Texture")},
                                        {"blackWhite", tr("Noir et blanc")},
                                        {"photoFilter", tr("Filtre photo")},
@@ -446,6 +447,9 @@ QVariantMap Document::adjustmentDefaults(const QString &_type) const
         params = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
     else if (_type == "colorBalance")
         params = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
+    else if (_type == "relight")
+        params = {{"ambient", 100}, {"lights", QVariantList{QVariantMap{{"x", 35}, {"y", 30}, {"z", 65},
+                    {"intensity", 100}, {"softness", 45}, {"color", "#ffffff"}}}}};
     else if (_type == "splitToning")
         params = {{"shadowHue", 0}, {"shadowSaturation", 0}, {"highlightHue", 0},
                   {"highlightSaturation", 0}, {"balance", 0}};

@@ -308,6 +308,9 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     if (renderSize != _size) {
         const qreal scale = qreal(renderSize.width()) / qMax(1, _size.width());
         for (Layer &layer : _layers) {
+            if (layer.adjustmentType == "relight")
+                layer.transformSurfaceNormals(QTransform::fromScale(qreal(renderSize.width())/_size.width(),
+                                                                  qreal(renderSize.height())/_size.height()));
             if (!layer.directType.isEmpty())
                 layer.directParameters["_canvasSize"] = renderSize;
             if (!layer.directSelection.isNull())

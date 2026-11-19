@@ -76,7 +76,7 @@ Rectangle {
                     objectName: "aiProgressTitle"
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: panel.controller.surfaceAnalysis ? qsTr("Peinture sur surface")
+                    text: panel.controller.surfaceAnalysis ? qsTr("Analyse de surface")
                           : panel.controller.busy ? qsTr("Création IA en cours")
                           : panel.controller.pendingResult ? qsTr("Résultat IA prêt à ajouter")
                           : panel.controller.error.length ? qsTr("La génération IA s’est arrêtée")

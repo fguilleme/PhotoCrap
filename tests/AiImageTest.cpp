@@ -1460,7 +1460,96 @@ private slots:
         document.undo();
         document.undo();
         QCOMPARE(document.composite(), initial);
+        QVERIFY(controller.analyzeSurfaceLocally(true));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), timeout);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QVERIFY(!controller.surfacePicking());
+        QCOMPARE(document.layerCount(), 2);
+        QVERIFY(document.composite() != initial);
     }
+    void relightLayerUsesEditableLightsAndPreservesGeometry()
+    {
+        for (const int bits : {8, 16}) {
+            Document document;
+            fixture(document, bits);
+            document.setColor(QColor(90, 90, 90));
+            document.fillWithColor(true);
+            const QImage initial = document.composite();
+            const auto   source =
+                document
+                    .prepareAiInput(false, 256, std::make_shared<std::atomic_bool>(false), false,
+                                    false, true)
+                    .result();
+            const QSize                    grid(16, 12);
+            PhotoCrap::Ai::SurfaceGeometry geometry{QImage(grid, QImage::Format_Grayscale8),
+                                                    QImage(grid, QImage::Format_RGB888),
+                                                    QImage(grid, QImage::Format_Grayscale8)};
+            geometry.disparity.fill(100);
+            geometry.normals.fill(QColor(128, 128, 255));
+            geometry.validity.fill(255);
+            geometry.validity.scanLine(0)[0] = 0;
+            QVERIFY(document.addRelightLayer(source, geometry));
+            QVERIFY(document.composite() != initial);
+            QCOMPARE(document.composite().pixelColor(0, 0), initial.pixelColor(0, 0));
+            const auto lights = [&](const QVariantList &list) {
+                document.previewLayerParameter("lights", list);
+                document.finishLayerPreview();
+                return document.composite();
+            };
+            QCOMPARE(lights({}), initial);
+            const auto setAmbient = [&](int percent) {
+                document.previewLayerParameter("ambient", percent);
+                document.finishLayerPreview();
+                return document.composite();
+            };
+            QCOMPARE(setAmbient(0).pixelColor(30, 45), QColor(Qt::black));
+            const auto half = setAmbient(50);
+            QVERIFY(qAbs(half.pixelColor(30, 45).red() - 45) <= 1);
+            QCOMPARE(half.pixelColor(0, 0).alpha(), initial.pixelColor(0, 0).alpha());
+            QCOMPARE(setAmbient(100), initial);
+            QVariantMap red{
+                {"x", 25},       {"y", 50}, {"z", 35}, {"intensity", 100}, {"color", "#ff0000"},
+                {"softness", 20}};
+            QVariantMap offFrame = red;
+            offFrame["x"] = -20.;
+            const auto fromLeft = lights({offFrame});
+            QVERIFY(fromLeft.pixelColor(0, 45).red() > initial.pixelColor(0, 45).red());
+            QVERIFY(fromLeft.pixelColor(0, 45).red() > fromLeft.pixelColor(115, 45).red());
+            const auto one    = lights({red});
+            const auto sample = one.pixelColor(30, 45);
+            QVERIFY(sample.red() > sample.green());
+            QVERIFY(sample.red() > one.pixelColor(95, 45).red());
+            QVariantMap blue = red;
+            blue["x"]        = 80;
+            blue["color"]    = "#0000ff";
+            const auto both  = lights({red, blue});
+            QVERIFY(both.pixelColor(95, 45).blue() > both.pixelColor(30, 45).blue());
+            QCOMPARE(both.pixelColor(30, 45).red(), sample.red());
+            red["z"]           = 155;
+            const auto distant = lights({red, blue});
+            QVERIFY(distant.pixelColor(30, 45).red() < sample.red());
+            red["softness"] = 95;
+            const auto soft = lights({red, blue});
+            QVERIFY(soft != distant);
+            const QRect crop(35, 20, 48, 35);
+            QCOMPARE(document.compositeRegion(crop), soft.copy(crop));
+            document.undo();
+            QCOMPARE(document.composite(), distant);
+            document.redo();
+            QCOMPARE(document.composite(), soft);
+            const auto dark = setAmbient(0);
+            QVERIFY(dark.pixelColor(30, 45).red() > 0);
+            QCOMPARE(dark.pixelColor(30, 45).green(), 0);
+            QCOMPARE(document.compositeRegion(crop), dark.copy(crop));
+            QTemporaryDir files;
+            const auto    url = QUrl::fromLocalFile(files.filePath("relight.pcr"));
+            QVERIFY(document.saveProject(url));
+            Document reopened;
+            QVERIFY(reopened.openFile(url));
+            QCOMPARE(reopened.composite(), dark);
+        }
+    }
+
     void reliefSelectionFollowsFoldsAndStopsAtOcclusions()
     {
         using PhotoCrap::Ai::SurfaceGeometry;

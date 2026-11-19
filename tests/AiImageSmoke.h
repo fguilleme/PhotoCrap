@@ -380,5 +380,84 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
                  "returning to a LoRA restores the previous inference settings"))
         return false;
     QMetaObject::invokeMethod(dialog, "reject");
+    QTest::qWait(50);
+    const auto relightInput = _document.prepareAiInput(false, 256, std::make_shared<std::atomic_bool>(false),
+                                                false, false, true).result();
+    const QSize tile(8, 6);
+    PhotoCrap::Ai::SurfaceGeometry geometry{QImage(tile, QImage::Format_Grayscale8),
+                                             QImage(tile, QImage::Format_RGB888),
+                                             QImage(tile, QImage::Format_Grayscale8)};
+    geometry.disparity.fill(128);
+    geometry.normals.fill(QColor(128, 128, 255));
+    geometry.validity.fill(255);
+    if (!require(_document.addRelightLayer(relightInput, geometry), "relight layer created"))
+        return false;
+    QMetaObject::invokeMethod(_window, "openActiveLayerProperties");
+    auto *relight = _window->findChild<QQuickItem *>("relightEditor");
+    if (!require(relight && QTest::qWaitFor([&] { return relight->isVisible(); }, 1000),
+                 "relight controls appear for the active adjustment"))
+        return false;
+    auto *addLight = relight->findChild<QQuickItem *>("relightAdd");
+    auto *removeLight = relight->findChild<QQuickItem *>("relightRemove");
+    if (!require(addLight && removeLight && QMetaObject::invokeMethod(addLight, "clicked") &&
+                 relight->property("index").toInt() == 1,
+                 "adding a second light selects it in the panel"))
+        return false;
+    const QVariantMap moved{{"z", 125}, {"color", "#00ff00"}};
+    QMetaObject::invokeMethod(relight, "change", Q_ARG(QVariant, QVariant(moved)),
+                              Q_ARG(QVariant, QVariant(true)));
+    const auto values = _window->property("activeInfo").value<QJSValue>().toVariant().toMap()
+                            .value("parameters").toMap().value("lights").toList();
+    if (!require(values.size() == 2 && values[1].toMap().value("z").toInt() == 125 &&
+                 values[0].toMap().value("z").toInt() == 65,
+                 "editing depth affects only the selected source"))
+        return false;
+    auto *board = _window->findChild<QQuickItem *>("artboard");
+    auto *properties = _window->findChild<QObject *>("layerPropertiesDialog");
+    auto *ambient = relight->findChild<QQuickItem *>("relightAmbient");
+    if (!require(board && properties && ambient && ambient->property("value").toInt() == 100,
+                 "scene ambience defaults to full brightness"))
+        return false;
+    _window->setProperty("zoom", 2.);
+    QMetaObject::invokeMethod(_window, "centerCanvas");
+    properties->setProperty("x", _window->width() - 180);
+    QTest::qWait(50);
+    const auto pointOnPhoto = [&](double x, double y) {
+        return board->mapToScene({board->width() * x, board->height() * y}).toPoint();
+    };
+    const auto start = pointOnPhoto(.35, .30);
+    const auto end = pointOnPhoto(.514, .65);
+    const int history = _document.historyIndex();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(_window, end);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
+    const auto afterDrag = _window->property("activeInfo").value<QJSValue>().toVariant().toMap()
+                               .value("parameters").toMap().value("lights").toList();
+    if (!require(properties->property("opened").toBool() && afterDrag.size() == 2 &&
+                     std::abs(afterDrag[0].toMap().value("x").toDouble() - 51.4) < .5 &&
+                     std::abs(afterDrag[0].toMap().value("y").toDouble() - 65.) < .5 &&
+                     afterDrag[1] == values[1] && relight->property("index").toInt() == 0 &&
+                     _document.historyIndex() == history + 1,
+                 "dragging a different light on the zoomed photo selects and moves just that source"))
+        return false;
+    const auto outside = pointOnPhoto(-.12, .64);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, end);
+    QTest::mouseMove(_window, outside);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, outside);
+    auto firstX = [&] {
+        return _window->property("activeInfo").value<QJSValue>().toVariant().toMap()
+            .value("parameters").toMap().value("lights").toList().first().toMap().value("x").toDouble();
+    };
+    if (!require(firstX() < -11., "the source can be placed beyond the image edge"))
+        return false;
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, outside);
+    QTest::mouseMove(_window, end);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
+    if (!require(firstX() > 50., "a light in the workspace margin can be grabbed again"))
+        return false;
+    QMetaObject::invokeMethod(removeLight, "clicked");
+    if (!require(relight->property("index").toInt() == 0, "removing a light selects its neighbor"))
+        return false;
+    QMetaObject::invokeMethod(_window->findChild<QObject *>("layerPropertiesDialog"), "reject");
     return runAiProgressSmoke(_window);
 }

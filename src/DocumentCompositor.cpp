@@ -1,5 +1,6 @@
 #include "Document.h"
 #include "ImageAlpha.h"
+#include "filters/RelightFilter.h"
 #include "ImagePixels.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
@@ -219,7 +220,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     const auto compositeLayer  = [&](const QImage &_source, const Layer &layer) {
         const bool preserveAlpha =
             layer.kind == "adjustment" &&
-            (layer.adjustmentType == "texture" || layer.adjustmentType == "splitToning");
+            (layer.adjustmentType == "texture" || layer.adjustmentType == "splitToning" || layer.adjustmentType == "relight");
         if (preserveAlpha) {
             if (layer.blend == 0 && layer.opacity == 1. && !needsMask(layer) &&
                 !layer.clippingMask && layer.directType.isEmpty()) {
@@ -306,7 +307,9 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             const bool draft = m_previewingLayer && layerIndex == m_active &&
                                scalableFilters.contains(layer.adjustmentType) &&
                                qMax(input.width(), input.height()) > 960;
-            if (draft) {
+            if (layer.adjustmentType == "relight")
+                rendered = PhotoCrap::Filters::relight(input, layer, _region.topLeft());
+            else if (draft) {
                 const qreal scale = 960. / qreal(qMax(input.width(), input.height()));
                 const QSize draftSize(qMax(1, qRound(input.width() * scale)),
                                       qMax(1, qRound(input.height() * scale)));

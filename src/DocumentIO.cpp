@@ -468,8 +468,11 @@ bool Document::saveProject(const QUrl &_url)
     const bool paintedModels =
         std::any_of(m_layers.cbegin(), m_layers.cend(),
                     [](const Layer &layer) { return !layer.modelPaint.isEmpty(); });
+    const bool relighting = std::any_of(m_layers.cbegin(), m_layers.cend(),
+                                       [](const Layer &layer) { return layer.adjustmentType == "relight"; });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", paintedModels      ? 17
+                     {"version", relighting ? 18
+                                 : paintedModels      ? 17
                                  : surfacePaint     ? 16
                                  : models           ? 15
                                  : vectors          ? 14
@@ -598,7 +601,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 17)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 18)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -843,12 +846,15 @@ bool Document::loadProject(const QString &_path)
         layer.groupId        = object["groupId"].toString().left(64);
         layer.groupCollapsed = object["groupCollapsed"].toBool(false);
         layer.source         = source;
+        const bool relight = kind == "adjustment" && layer.adjustmentType == "relight";
+        if (relight && (version < 18 || !object.contains("surfaceNormals")))
+            return fail(tr("Carte de normales de surface invalide."));
         if (object.contains("surfaceNormals")) {
             const auto  surface = object.value("surfaceNormals").toObject();
             const int   id      = surface.value("png").toInt(-1);
             const QSize surfaceCanvas(surface["width"].toInt(), surface["height"].toInt());
             const auto  transform = surface.value("transform").toArray();
-            if (version < 16 || (kind != "pixel" && kind != "text") || !index.binary ||
+            if (version < 16 || (kind != "pixel" && kind != "text" && !relight) || !index.binary ||
                 !index.archive.isOriginal(id, 4 * 1024 * 1024) ||
                 !PhotoCrap::Ai::validSize(surfaceCanvas) || transform.size() != 9 ||
                 std::any_of(
@@ -865,7 +871,8 @@ bool Document::loadProject(const QString &_path)
             if (!layer.surfaceNormalTransform.isInvertible())
                 return fail(tr("Carte de normales de surface invalide."));
             layer.surfaceNormalCanvas = surfaceCanvas;
-            if (!normalMaps.contains(id)) {
+            const int cacheId = relight ? ~id : id;
+            if (!normalMaps.contains(cacheId)) {
                 QBuffer buffer;
                 buffer.setData(index.archive.original(id));
                 buffer.open(QIODevice::ReadOnly);
@@ -874,12 +881,12 @@ bool Document::loadProject(const QString &_path)
                 if (size.isEmpty() ||
                     qMax(size.width(), size.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge)
                     return fail(tr("Carte de normales de surface invalide."));
-                const auto normals = reader.read().convertToFormat(QImage::Format_RGB888);
+                const auto normals = reader.read().convertToFormat(relight ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
                 if (normals.isNull())
                     return fail(tr("Carte de normales de surface invalide."));
-                normalMaps.insert(id, normals);
+                normalMaps.insert(cacheId, normals);
             }
-            layer.surfaceNormals = normalMaps.value(id);
+            layer.surfaceNormals = normalMaps.value(cacheId);
             normalBytes += layer.surfaceNormals.sizeInBytes();
             if (!validStorageBytes(normalBytes))
                 return false;

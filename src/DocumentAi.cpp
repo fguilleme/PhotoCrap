@@ -228,6 +228,46 @@ bool Document::matchesAiSource(const PhotoCrap::Ai::Input &source) const
            source.canvas == m_size;
 }
 
+bool Document::addRelightLayer(const PhotoCrap::Ai::Input &source,
+                               const PhotoCrap::Ai::SurfaceGeometry &geometry)
+{
+    if (!matchesAiSource(source) || aiInsertionBusy() || transformActive() || !geometry.isValid())
+        return false;
+    const QSize size = geometry.normals.size();
+    if (qMax(size.width(), size.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge ||
+        !validSize(width(), height(), int(m_layers.size()) + 1) ||
+        !validLayerStorage(width(), height(), 0, hasSelection() ? 1 : 0, 0, 4LL * size.width() * size.height()))
+        return false;
+    Layer layer;
+    layer.kind = "adjustment";
+    layer.adjustmentType = "relight";
+    layer.name = adjustmentName(layer.adjustmentType);
+    layer.parameters = adjustmentDefaults(layer.adjustmentType);
+    layer.mask = hasSelection() ? selectionMask() : ImageUtils::uniformMask(255);
+    layer.surfaceNormalCanvas = m_size;
+    // RGB stores camera-facing normals. Alpha stores relative inverse depth,
+    // reserving zero for samples outside the model's validity mask.
+    layer.surfaceNormals = geometry.normals.convertToFormat(QImage::Format_RGBA8888);
+    if (layer.surfaceNormals.isNull())
+        return false;
+    for (int y = 0; y < size.height(); ++y) {
+        auto *out = layer.surfaceNormals.scanLine(y);
+        const auto *depth = geometry.disparity.constScanLine(y);
+        const auto *valid = geometry.validity.constScanLine(y);
+        for (int x = 0; x < size.width(); ++x)
+            out[4*x+3] = valid[x] ? 1 + (depth[x]*254+127)/255 : 0;
+    }
+    const auto before = snapshot(layer.name);
+    m_layers.append(std::move(layer));
+    m_active = int(m_layers.size()) - 1;
+    m_editingMask = false;
+    selectOnly(m_active);
+    commit(before, tr("Rééclairage"), true, false);
+    requestPreviewRender(true, true);
+    emit imageChanged();
+    return true;
+}
+
 bool Document::addSurfaceLayer(const PhotoCrap::Ai::Input &source, PixelPlane mask, QImage normals,
                                std::optional<QPoint> textPosition, bool followRelief,
                                qreal focalRatio, const QVariantList &crease)

@@ -67,7 +67,7 @@ public:
     Q_INVOKABLE bool generate(const QString &_providerId, const QString &_prompt, bool _selection,
                               int _variants = 1, bool _original = false,
                               const QVariantMap &_options = {}, bool newDocument = false);
-    Q_INVOKABLE bool analyzeSurfaceLocally();
+    Q_INVOKABLE bool analyzeSurfaceLocally(bool relight = false);
     Q_INVOKABLE void pickSurface(int x, int y, bool followRelief = false, bool subtract = false);
     Q_INVOKABLE void protectSurfaceObject(int x, int y, bool subtract = false);
     Q_INVOKABLE void applySurfaceSelection();

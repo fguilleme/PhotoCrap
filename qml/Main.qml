@@ -1493,12 +1493,20 @@ ApplicationWindow {
                  && !editor.selectionBusy && !aiImages.busy && !aiImages.pendingResult && editor.width > 0
         onTriggered: aiImages.analyzeSurfaceLocally()
     }
+    Action {
+        id: relightAction
+        objectName: "relightAction"
+        text: qsTr("Rééclairage…")
+        enabled: surfacePaintAction.enabled && !aiImages.surfacePicking && !editor.transformActive
+        onTriggered: aiImages.analyzeSurfaceLocally(true)
+    }
     component Model3DMenu: DarkMenu {
         title: "3D"
         DarkMenuItem { objectName: "importModel3DMenuItem"; action: importModel3DAction }
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { objectName: "model3dPaintMenuItem"; action: model3dPaintAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
+        DarkMenuItem { action: relightAction }
     }
     Action {
         id: importXmpAction
@@ -1719,6 +1727,7 @@ ApplicationWindow {
                 title: qsTr("Nouveau calque de réglage")
                 DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
                 DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
+                DarkMenuItem { action: relightAction }
                 DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
                 DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
                 DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
@@ -2997,6 +3006,32 @@ ApplicationWindow {
                                     panCanvas(-horizontal,-vertical)
                                 }
                                 wheel.accepted=true
+                            }
+                        }
+                        RelightHandles {
+                            id: lightHandles
+                            anchors.centerIn: artboard
+                            width: viewport.contentWidth
+                            height: viewport.contentHeight
+                            rotation: artboard.rotation
+                            imageWidth: artboard.width
+                            imageHeight: artboard.height
+                            z: 43
+                            visible: activeInfo.adjustmentType === "relight" && activeInfo.visible &&
+                                     !activeInfo.editingMask && !activeInfo.locked && !activeInfo.direct &&
+                                     !window.modalOpen && !editor.operationBusy && !aiImages.surfacePicking &&
+                                     (!activeInfo.groupId || !editor.layers.some(layer => layer.kind === "group" &&
+                                         layer.groupId === activeInfo.groupId && (layer.locked || !layer.visible)))
+                            enabled: !window.spacePressed && editor.tool !== "hand" && editor.tool !== "rotateView"
+                            panel: lightPanel
+                            zoom: window.zoom
+                            onDragStarted: {
+                                if (!layerPropertiesDialog.opened) layerPreview.checked = true
+                                editor.beginLayerPreview()
+                            }
+                            onDragCanceled: {
+                                window.cancelLayerPreviewQueue()
+                                editor.cancelLayerPreview()
                             }
                         }
                         Item {
@@ -4722,6 +4757,7 @@ ApplicationWindow {
         MenuSeparator {}
         DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
         DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
+        DarkMenuItem { action: relightAction }
         DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
         DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
         DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
@@ -5090,6 +5126,9 @@ ApplicationWindow {
     }
     Connections {
         target: aiImages
+        function onLayerAdded() {
+            if (activeInfo.adjustmentType === "relight") window.openActiveLayerProperties()
+        }
         function onChanged() { if(!aiImages.busy) { window.status = aiImages.error || aiImages.status; statusTimer.restart() } }
     }
     Dialog {
@@ -5336,7 +5375,7 @@ ApplicationWindow {
         width: 430
         height: Math.min(610, window.height-150)
         modal: activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length
-        closePolicy: activeInfo.direct ? Popup.CloseOnEscape : Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        closePolicy: activeInfo.direct || activeInfo.adjustmentType === "relight" ? Popup.CloseOnEscape : Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         onOpened: {
             keepChanges = false
             directPresetBefore = null
@@ -5397,6 +5436,16 @@ ApplicationWindow {
                 contentWidth: availableWidth
                 ColumnLayout {
                     width: layerPropertiesScroll.availableWidth; spacing: 11
+                    RelightEditor {
+                        id: lightPanel
+                        lightToCanvas: activeInfo.lightToCanvas
+                        onAmbientEdited: (value, finished) => window.previewLayerValue("ambient", value, finished)
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "relight"
+                        Layout.fillWidth: true
+                        parameters: activeInfo.parameters || ({})
+                        onEditStarted: editor.beginLayerPreview()
+                        onEdited: (lights, finished) => window.previewLayerValue("lights", lights, finished)
+                    }
                     Repeater {
                         model: activeInfo.editingMask ? [
                             {key:activeInfo.editingVectorMask?"_vectorDensity":"_maskDensity",label:qsTr("Densité (%)"),from:0,to:100,step:1},

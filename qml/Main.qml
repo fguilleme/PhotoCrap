@@ -1,5 +1,6 @@
 import QtQuick
 import "Studio.js" as Studio
+import "MenuVisibility.js" as MenuVisibility
 import QtQuick.Controls
 // Bundle the desktop skins used by Qt Quick fallback dialogs.
 import QtQuick.Controls.Fusion as DialogFusion
@@ -1304,6 +1305,7 @@ ApplicationWindow {
         }
         else if (id.indexOf("blend") === 0) applyBlendShortcut(Number(id.substring(5)))
     }
+    property var layerMenuEntries: []
     function openPreferences() { preferencesDialog.open() }
     onClosing: function(event) {
         editor.endStroke()
@@ -1376,6 +1378,8 @@ ApplicationWindow {
         editor.gradientDither = true
         sampleDocumentSession=editor.documentSession
         refreshToolLayout()
+        layerMenuEntries = MenuVisibility.capture(createLayerMenu)
+        MenuVisibility.apply(createLayerMenu, layerMenuEntries, workspaceSettings.hiddenLayerAdjustments)
         defaultWorkspaceLayout = currentWorkspaceLayout()
         restoreWorkspaceLayout()
         Qt.callLater(fitCanvas)
@@ -1383,6 +1387,9 @@ ApplicationWindow {
     }
     Connections {
         target: workspaceSettings
+        function onHiddenLayerAdjustmentsChanged() {
+            MenuVisibility.apply(createLayerMenu, window.layerMenuEntries, workspaceSettings.hiddenLayerAdjustments)
+        }
         function onToolLayoutChanged() { window.refreshToolLayout() }
     }
     Connections {
@@ -1521,7 +1528,7 @@ ApplicationWindow {
         DarkMenuItem { objectName: "meshyMenuItem"; action: meshyAction }
         DarkMenuItem { objectName: "model3dPaintMenuItem"; action: model3dPaintAction }
         DarkMenuItem { objectName: "surfacePaintMenuItem"; action: surfacePaintAction }
-        DarkMenuItem { objectName: "relightMenuItem"; action: relightAction }
+        DarkMenuItem { objectName: "relightMenuItem"; property string adjustmentType: "relight"; action: relightAction }
     }
     Action {
         id: importXmpAction
@@ -4511,7 +4518,7 @@ ApplicationWindow {
                     }
                     RowLayout {
                         Layout.fillWidth: true; spacing: 2
-                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
+                        IconButton { objectName: "createLayerButton"; implicitWidth: 28; implicitHeight: 30; glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
                         IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
                         IconButton { implicitWidth: 28; implicitHeight: 30; objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: window.openActiveLayerProperties() }
@@ -4768,53 +4775,81 @@ ApplicationWindow {
         }
     }
 
+    component LayerAdjustmentItem: DarkMenuItem {
+        required property string adjustmentType
+        onTriggered: window.addAdjustmentLayer(adjustmentType)
+    }
+
     DarkMenu {
         id: createLayerMenu
         objectName: "createLayerMenu"
         DarkMenuItem { text: qsTr("Calque de pixels"); onTriggered: editor.addLayer() }
-        DarkMenuItem {
-            objectName: "importLayerMenuItem"
-            text: qsTr("Importer une image…")
-            enabled: !editor.pixelEditBusy && !editor.rawLoading
-            onTriggered: importLayerDialog.open()
+        DarkMenu {
+            objectName: "createLayerImportMenu"
+            title: qsTr("Importer…")
+            DarkMenuItem {
+                objectName: "importLayerMenuItem"
+                text: qsTr("Image comme calque…")
+                enabled: !editor.pixelEditBusy && !editor.rawLoading
+                onTriggered: importLayerDialog.open()
+            }
+            DarkMenuItem { objectName: "importXmpMenuItem"; action: importXmpAction; text: qsTr("Réglages Adobe XMP…") }
+            DarkMenuItem { objectName: "referenceLookMenuItem"; action: referenceLookAction; text: qsTr("Photo de référence…") }
         }
-        DarkMenuItem { objectName: "importXmpMenuItem"; action: importXmpAction }
-        DarkMenuItem { objectName: "referenceLookMenuItem"; action: referenceLookAction }
         Model3DMenu { objectName: "createLayerModel3DMenu" }
         DarkMenuItem { text: qsTr("Séparation de fréquences…"); enabled: !editor.pixelEditBusy; onTriggered: window.createFrequencySeparation() }
         MenuSeparator {}
-        DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
-        DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
-        DarkMenuItem { action: relightAction }
-        DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
-        DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
-        DarkMenuItem { text: qsTr("Exposition"); onTriggered: addAdjustmentLayer("exposure") }
-        DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
-        DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
-        DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
-        DarkMenuItem { text: qsTr("Virage partiel"); onTriggered: addAdjustmentLayer("splitToning") }
-        DarkMenuItem { text: qsTr("Texture"); onTriggered: addAdjustmentLayer("texture") }
-        DarkMenuItem { text: qsTr("Clarté / Correction du voile"); onTriggered: addAdjustmentLayer("clarityDehaze") }
-        DarkMenuItem { text: qsTr("Grain"); onTriggered: addAdjustmentLayer("grain") }
-        DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
-        DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
-        DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }
-        DarkMenuItem { text: qsTr("Style colorimétrique (LUT)"); onTriggered: addAdjustmentLayer("colorLookup") }
-        DarkMenuItem { text: qsTr("Négatif"); onTriggered: addAdjustmentLayer("invert") }
-        DarkMenuItem { text: qsTr("Isohélie"); onTriggered: addAdjustmentLayer("posterize") }
-        DarkMenuItem { text: qsTr("Seuil"); onTriggered: addAdjustmentLayer("threshold") }
-        DarkMenuItem { text: qsTr("Transfert de dégradé"); onTriggered: addAdjustmentLayer("gradientMap") }
-        DarkMenuItem { text: qsTr("Correction sélective"); onTriggered: addAdjustmentLayer("selectiveColor") }
+        LayerAdjustmentItem { adjustmentType: "solidColor"; text: qsTr("Couleur unie…") }
+        DarkMenu {
+            title: qsTr("Tons et éclairage")
+            LayerAdjustmentItem { adjustmentType: "light"; text: qsTr("Lumière") }
+            DarkMenuItem { property string adjustmentType: "relight"; action: relightAction }
+            LayerAdjustmentItem { adjustmentType: "levels"; text: qsTr("Niveaux") }
+            LayerAdjustmentItem { adjustmentType: "curves"; text: qsTr("Courbes") }
+            LayerAdjustmentItem { adjustmentType: "exposure"; text: qsTr("Exposition") }
+        }
+        DarkMenu {
+            title: qsTr("Colorimétrie")
+            LayerAdjustmentItem { adjustmentType: "color"; text: qsTr("Couleur") }
+            LayerAdjustmentItem { adjustmentType: "hueSaturation"; text: qsTr("Teinte / Saturation") }
+            LayerAdjustmentItem { adjustmentType: "colorBalance"; text: qsTr("Balance des couleurs") }
+            LayerAdjustmentItem { adjustmentType: "splitToning"; text: qsTr("Virage partiel") }
+            LayerAdjustmentItem { adjustmentType: "blackWhite"; text: qsTr("Noir et blanc") }
+            LayerAdjustmentItem { adjustmentType: "photoFilter"; text: qsTr("Filtre photo") }
+            LayerAdjustmentItem { adjustmentType: "channelMixer"; text: qsTr("Mélangeur de couches") }
+            LayerAdjustmentItem { adjustmentType: "colorLookup"; text: qsTr("Style colorimétrique (LUT)") }
+            LayerAdjustmentItem { adjustmentType: "selectiveColor"; text: qsTr("Correction sélective") }
+        }
+        DarkMenu {
+            objectName: "createLayerDetailMenu"
+            title: qsTr("Détails et grain")
+            LayerAdjustmentItem { adjustmentType: "texture"; text: qsTr("Texture") }
+            LayerAdjustmentItem { adjustmentType: "clarityDehaze"; text: qsTr("Clarté / Correction du voile") }
+            LayerAdjustmentItem { adjustmentType: "grain"; text: qsTr("Grain") }
+        }
+        DarkMenu {
+            title: qsTr("Effets graphiques")
+            LayerAdjustmentItem { adjustmentType: "invert"; text: qsTr("Négatif") }
+            LayerAdjustmentItem { adjustmentType: "posterize"; text: qsTr("Isohélie") }
+            LayerAdjustmentItem { adjustmentType: "threshold"; text: qsTr("Seuil") }
+            LayerAdjustmentItem { adjustmentType: "gradientMap"; text: qsTr("Transfert de dégradé") }
+        }
         MenuSeparator {}
         DarkMenu {
             title: qsTr("Filtres")
-            DarkMenuItem { text: qsTr("Flou gaussien…"); onTriggered: addAdjustmentLayer("gaussianBlur") }
-            DarkMenuItem { text: qsTr("Flou directionnel…"); onTriggered: addAdjustmentLayer("motionBlur") }
-            DarkMenuItem { text: qsTr("Flou de boîte…"); onTriggered: addAdjustmentLayer("boxBlur") }
-            DarkMenuItem { text: qsTr("Netteté optimisée…"); onTriggered: addAdjustmentLayer("unsharpMask") }
-            DarkMenuItem { text: qsTr("Passe-haut…"); onTriggered: addAdjustmentLayer("highPass") }
-            DarkMenuItem { text: qsTr("Mosaïque…"); onTriggered: addAdjustmentLayer("mosaic") }
-            DarkMenuItem { text: qsTr("Ajout de bruit…"); onTriggered: addAdjustmentLayer("noise") }
+            LayerAdjustmentItem { adjustmentType: "gaussianBlur"; text: qsTr("Flou gaussien…") }
+            LayerAdjustmentItem { adjustmentType: "motionBlur"; text: qsTr("Flou directionnel…") }
+            LayerAdjustmentItem { adjustmentType: "boxBlur"; text: qsTr("Flou de boîte…") }
+            LayerAdjustmentItem { adjustmentType: "unsharpMask"; text: qsTr("Netteté optimisée…") }
+            LayerAdjustmentItem { adjustmentType: "highPass"; text: qsTr("Passe-haut…") }
+            LayerAdjustmentItem { adjustmentType: "mosaic"; text: qsTr("Mosaïque…") }
+            LayerAdjustmentItem { adjustmentType: "noise"; text: qsTr("Ajout de bruit…") }
+        }
+        MenuSeparator {}
+        DarkMenuItem {
+            objectName: "customizeLayerMenuItem"
+            text: qsTr("Personnaliser le menu…")
+            onTriggered: { window.preferencesPage = 5; window.openPreferences() }
         }
     }
 
@@ -5968,6 +6003,12 @@ ApplicationWindow {
                     }
                     ItemDelegate {
                         Layout.fillWidth: true
+                        highlighted: window.preferencesPage===5
+                        text: qsTr("Menu des calques")
+                        onClicked: window.preferencesPage=5
+                    }
+                    ItemDelegate {
+                        Layout.fillWidth: true
                         highlighted: window.preferencesPage===3
                         text: qsTr("Cache de travail")
                         Accessible.name: qsTr("Cache de travail")
@@ -6286,6 +6327,50 @@ ApplicationWindow {
                     settings: workspaceSettings
                 }
                 AiPreferences { id: aiPreferences; settings: aiSettings; onProviderSaved: function(id) { aiDialog.chooseProvider(id) } }
+                ColumnLayout {
+                    Label { text: qsTr("Menu + des calques"); color: Studio.ink; font.pixelSize: 20; font.bold: true }
+                    Label { text: qsTr("Choisissez les calques de réglage à afficher dans le menu +."); color: Studio.secondary }
+                    ScrollView {
+                        id: menuSettingsScroll
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentWidth: availableWidth
+                        clip: true
+                        Column {
+                            width: menuSettingsScroll.availableWidth
+                            Repeater {
+                                model: MenuVisibility.choices(window.layerMenuEntries)
+                                delegate: Column {
+                                    id: menuSection
+                                    required property var modelData
+                                    width: menuSettingsScroll.availableWidth
+                                    Label {
+                                        visible: !!menuSection.modelData.group
+                                        topPadding: 10
+                                        text: menuSection.modelData.group ? menuSection.modelData.group.title : ""
+                                        color: Studio.ink
+                                        font.bold: true
+                                    }
+                                    Repeater {
+                                        model: menuSection.modelData.choices
+                                        delegate: CheckBox {
+                                            required property var modelData
+                                            objectName: "menuChoice_" + modelData.type
+                                            width: menuSection.width
+                                            text: modelData.control.text
+                                            checked: workspaceSettings.hiddenLayerAdjustments.indexOf(modelData.type) < 0
+                                            onToggled: {
+                                                const hidden = workspaceSettings.hiddenLayerAdjustments.filter(key => key !== modelData.type)
+                                                if (!checked) hidden.push(modelData.type)
+                                                workspaceSettings.hiddenLayerAdjustments = hidden
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -6294,10 +6379,12 @@ ApplicationWindow {
             RowLayout {
                 anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 8
             DialogActionButton {
+                objectName: "resetPreferencesPage"
                 text: qsTr("Valeurs par défaut")
                 visible: window.preferencesPage !== 4
                 onClicked: {
                     if (window.preferencesPage === 0) shortcuts.resetDefaults()
+                    else if (window.preferencesPage === 5) workspaceSettings.hiddenLayerAdjustments = []
                     else if (window.preferencesPage === 2) window.resetToolLayout()
                     else if (window.preferencesPage === 3) {
                         workspaceSettings.scratchDirectory = ""

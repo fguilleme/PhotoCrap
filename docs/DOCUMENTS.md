@@ -19,7 +19,7 @@ activé au lieu d’être chargé une deuxième fois. Le document vierge initial
 **Nouveau…** crée un onglet indépendant. Les images RAW conservent leur développement
 asynchrone et la précision 16 bits.
 
-Le dépôt dans la pile des calques et **+ → Importer une image…** continuent à
+Le dépôt dans la pile des calques et **+ → Importer… → Image comme calque…** continuent à
 importer dans le document actif, sans créer d’onglet.
 
 ## Naviguer, enregistrer et fermer

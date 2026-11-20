@@ -733,6 +733,7 @@ qt_add_qml_module(PhotoCrap
         qml/LayerImageDropArea.qml
         qml/DocumentImageDropArea.qml
         qml/MaskContextMenu.qml
+        qml/MenuVisibility.js
         qml/DarkMenu.qml
         qml/DarkMenuItem.qml
         qml/DarkSlider.qml

@@ -12,6 +12,7 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
         m_useShiftToCycleTools = QSettings().value("tools/useShiftToCycle", true).toBool();
         m_autoCreatePaintLayer = QSettings().value("tools/autoCreatePaintLayer", true).toBool();
         m_springLoadedTools    = QSettings().value("tools/springLoaded", true).toBool();
+        m_hiddenLayerAdjustments = QSettings().value(QStringLiteral("workspace/hiddenLayerAdjustments")).toStringList();
         m_layout               = QSettings().value(QStringLiteral("workspace/layout")).toMap();
         m_toolLayout           = QSettings().value(QStringLiteral("workspace/toolLayout")).toList();
         m_planeRamMiB      = qBound(0, QSettings().value("cache/planeRamMiB", 256).toInt(), 4096);
@@ -119,6 +120,16 @@ QVariantList WorkspaceSettings::normalizedToolLayout(const QVariantList &_layout
             result.append(group);
     }
     return result;
+}
+
+void WorkspaceSettings::setHiddenLayerAdjustments(const QStringList &entries)
+{
+    if (entries == m_hiddenLayerAdjustments)
+        return;
+    m_hiddenLayerAdjustments = entries;
+    if (m_persist)
+        QSettings().setValue(QStringLiteral("workspace/hiddenLayerAdjustments"), entries);
+    emit hiddenLayerAdjustmentsChanged();
 }
 
 void WorkspaceSettings::saveLayout(const QVariantMap &_layout)

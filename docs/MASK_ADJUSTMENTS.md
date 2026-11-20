@@ -70,6 +70,10 @@ bit pour bit. L’affichage des piles contenant ces nouveaux masques ou un aper�
 direct utilise le compositeur CPU asynchrone ; leur prise en charge analytique
 par les shaders de pile reste à faire.
 
+## Personnaliser le menu + des calques
+
+Dans **Réglages → Menu des calques**, cochez les types de calques de réglage que vous souhaitez retrouver sous le bouton **+**. Vous pouvez aussi ouvrir cette page avec **+ → Personnaliser le menu…**. Une famille apparaît dès qu’au moins un de ses réglages est coché. Les choix sont enregistrés automatiquement et **Valeurs par défaut** réaffiche tous les réglages.
+
 ## Importer un rendu sur la photo ouverte
 
 ### À partir d’un fichier Adobe XMP

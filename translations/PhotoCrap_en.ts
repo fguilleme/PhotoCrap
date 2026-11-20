@@ -6652,6 +6652,18 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Saturation des hautes lumières (%)</source><translation>Highlight saturation (%)</translation></message>
     <message><source>Balance</source><translation>Balance</translation></message>
     <message><source>Documents côte à côte</source><translation>Side-by-side documents</translation></message>
+    <message><source>Menu des calques</source><translation>Layer menu</translation></message>
+    <message><source>Menu + des calques</source><translation>Layers + menu</translation></message>
+    <message><source>Choisissez les calques de réglage à afficher dans le menu +.</source><translation>Select the adjustment layers to show in the + menu.</translation></message>
+    <message><source>Personnaliser le menu…</source><translation>Customize menu…</translation></message>
+    <message><source>Importer…</source><translation>Import…</translation></message>
+    <message><source>Image comme calque…</source><translation>Image as layer…</translation></message>
+    <message><source>Réglages Adobe XMP…</source><translation>Adobe XMP settings…</translation></message>
+    <message><source>Photo de référence…</source><translation>Reference photo…</translation></message>
+    <message><source>Tons et éclairage</source><translation>Tone and lighting</translation></message>
+    <message><source>Colorimétrie</source><translation>Color adjustments</translation></message>
+    <message><source>Détails et grain</source><translation>Detail and grain</translation></message>
+    <message><source>Effets graphiques</source><translation>Graphic effects</translation></message>
     <message><source>Importer des réglages Adobe XMP…</source><translation>Import Adobe XMP settings…</translation></message>
     <message><source>Reproduire le rendu d’une image…</source><translation>Match a reference image…</translation></message>
     <message><source>Réglages Adobe XMP (*.xmp *.XMP)</source><translation>Adobe XMP settings (*.xmp *.XMP)</translation></message>

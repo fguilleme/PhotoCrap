@@ -36,6 +36,57 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     auto *line   = window->findChild<QQuickItem *>("layerImageDropIndicator");
     if (!require(menu && dialog && area && list && line, "menu, picker and drop target exist"))
         return false;
+    auto *addButton = window->findChild<QQuickItem *>("createLayerButton");
+    auto *addMenu = window->findChild<QObject *>("createLayerMenu");
+    auto *imports = addMenu ? addMenu->findChild<QObject *>("createLayerImportMenu") : nullptr;
+    if (!require(addButton && imports && imports->property("count").toInt() == 3 &&
+                     imports->findChild<QObject *>("importLayerMenuItem") == menu &&
+                     imports->findChild<QObject *>("importXmpMenuItem") &&
+                     imports->findChild<QObject *>("referenceLookMenuItem"),
+                 "all three import commands are in the add-layer import submenu"))
+        return false;
+    const auto initialSize = window->size();
+    window->resize(window->minimumSize());
+    if (!require(QMetaObject::invokeMethod(addButton, "click") &&
+                     QTest::qWaitFor([&] { return addMenu->property("opened").toBool(); }) &&
+                     addMenu->property("implicitHeight").toReal() <= window->height(),
+                 "the add-layer menu fits the minimum window height"))
+        return false;
+    QMetaObject::invokeMethod(addMenu, "close");
+    window->resize(initialSize);
+    auto *details = addMenu->findChild<QObject *>("createLayerDetailMenu");
+    auto *customize = addMenu->findChild<QObject *>("customizeLayerMenuItem");
+    auto *preferences = window->findChild<QObject *>("preferencesDialog");
+    auto *resetPage = window->findChild<QObject *>("resetPreferencesPage");
+    const int defaultCount = addMenu->property("count").toInt();
+    if (!require(details && customize && preferences && resetPage &&
+                     QMetaObject::invokeMethod(customize, "triggered") &&
+                     QTest::qWaitFor([&] { return preferences->property("opened").toBool(); }),
+                 "the add menu opens its preferences"))
+        return false;
+    const auto findChoice = [](auto &&self, QQuickItem *item, const QString &name) -> QQuickItem * {
+        if (item->objectName() == name)
+            return item;
+        for (auto *child : item->childItems())
+            if (auto *found = self(self, child, name))
+                return found;
+        return nullptr;
+    };
+    auto *page = preferences->property("contentItem").value<QQuickItem *>();
+    for (auto type : {"grain", "texture", "clarityDehaze"}) {
+        auto *box = page ? findChoice(findChoice, page, QStringLiteral("menuChoice_") + type) : nullptr;
+        if (!require(box && box->property("checked").toBool() && QMetaObject::invokeMethod(box, "click") &&
+                         !box->property("checked").toBool(), "an adjustment can be hidden"))
+            return false;
+    }
+    if (!require(details->property("count").toInt() == 0 &&
+                     addMenu->property("count").toInt() < defaultCount &&
+                     QMetaObject::invokeMethod(resetPage, "click") &&
+                     details->property("count").toInt() == 3 &&
+                     addMenu->property("count").toInt() == defaultCount,
+                 "empty families disappear and defaults restore their entries"))
+        return false;
+    QMetaObject::invokeMethod(preferences, "close");
     QTemporaryDir dir;
     QList<QUrl>   files;
     for (const auto name : {"First", "Second"}) {

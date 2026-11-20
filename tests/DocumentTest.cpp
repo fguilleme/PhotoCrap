@@ -2100,13 +2100,16 @@ private slots:
             customized = defaults;
             customized.append(customized.takeFirst());
             settings.saveToolLayout(customized);
+            settings.setHiddenLayerAdjustments({"grain", "levels"});
         }
         {
             WorkspaceSettings restored;
             QCOMPARE(restored.toolLayout(), customized);
+            QCOMPARE(restored.hiddenLayerAdjustments(), QStringList({"grain", "levels"}));
             QVERIFY(!restored.autoCreatePaintLayer());
             WorkspaceSettings temporary(nullptr, false);
             QVERIFY(temporary.autoCreatePaintLayer());
+            QVERIFY(temporary.hiddenLayerAdjustments().isEmpty());
             temporary.setAutoCreatePaintLayer(true);
             QVERIFY(!QSettings().value("tools/autoCreatePaintLayer").toBool());
             restored.resetToolLayout();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
@@ -15,6 +16,7 @@ class WorkspaceSettings final : public QObject
     Q_PROPERTY(bool autoCreatePaintLayer READ autoCreatePaintLayer WRITE setAutoCreatePaintLayer
                    NOTIFY toolBehaviorChanged)
     Q_PROPERTY(QVariantMap layout READ layout NOTIFY layoutChanged)
+    Q_PROPERTY(QStringList hiddenLayerAdjustments READ hiddenLayerAdjustments WRITE setHiddenLayerAdjustments NOTIFY hiddenLayerAdjustmentsChanged)
     Q_PROPERTY(QVariantList toolLayout READ toolLayout NOTIFY toolLayoutChanged)
     Q_PROPERTY(
         int scratchDiskGiB READ scratchDiskGiB WRITE setScratchDiskGiB NOTIFY scratchCacheChanged)
@@ -32,6 +34,8 @@ public:
     {
         return m_layout;
     }
+    QStringList hiddenLayerAdjustments() const { return m_hiddenLayerAdjustments; }
+    void setHiddenLayerAdjustments(const QStringList &entries);
     Q_INVOKABLE void saveLayout(const QVariantMap &_layout);
     QVariantList     toolLayout() const
     {
@@ -79,6 +83,7 @@ public:
 signals:
     void toolBehaviorChanged();
     void layoutChanged();
+    void hiddenLayerAdjustmentsChanged();
     void toolLayoutChanged();
     void scratchCacheChanged();
     void textureCacheChanged();
@@ -88,6 +93,7 @@ private:
     static QVariantList defaultToolLayout();
     static QVariantList normalizedToolLayout(const QVariantList &_layout);
 
+    QStringList   m_hiddenLayerAdjustments;
     QVariantMap  m_layout;
     QVariantList m_toolLayout;
     bool         m_persist              = true;

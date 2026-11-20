@@ -421,6 +421,7 @@ ApplicationWindow {
         return {name:"", opacity:1, blend:0, locked:false, kind:"pixel", parameters:({}), hasMask:false, maskEnabled:true, clippingMask:false, groupId:"", groupCollapsed:false, selected:false}
     }
     readonly property bool frequencyPrepared: isPreparedFrequency(activeInfo)
+    readonly property bool relightPaintMode: activeInfo.adjustmentType === "relight" && !activeInfo.editingMask && window.paintToolActive
     readonly property bool frequencyProperties: frequencyPrepared || activeInfo.kind.indexOf("frequency") === 0
     function isPreparedFrequency(info) {
         return info.kind === "pixel" && info.parameters &&
@@ -1021,7 +1022,12 @@ ApplicationWindow {
     function removeNearestColorSample(x,y) { removeColorSample(nearestColorSample(x,y)) }
     function activateLayerContent(layerIndex) {
         const document = editor
+        if (layerPropertiesDialog.opened && activeInfo.adjustmentType === "relight" && document.activeLayer !== layerIndex) {
+            layerPropertiesDialog.keepChanges = true
+            layerPropertiesDialog.accept()
+        }
         document.activeLayer = layerIndex
+        document.setLayerVisible(document.activeLayer, true, true)
         if (document.editingVectorMask)
             document.setActivePenPath(-1)
         document.showCompositeView()
@@ -2208,13 +2214,20 @@ ApplicationWindow {
         }
         Rectangle {
             id: toolOptionsBar
-            visible: !editor.transformActive && ((window.paintToolActive && editor.tool !== "mixerBrush")
+            visible: !editor.transformActive && (window.relightPaintMode || (window.paintToolActive && editor.tool !== "mixerBrush")
                      || window.opacityToolActive || window.smartSelectionToolActive
                      || window.shapeToolActive || editor.tool === "gradient"
                      || (editor.textEditing && canvasTextEditor.state.surfaceText === true)
                      || editor.tool === "rotateView" || editor.tool === "zoomTool")
             Layout.fillWidth: true; Layout.preferredHeight: 42; color: Studio.panel
+            Button {
+                anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                visible: window.relightPaintMode
+                text: qsTr("Rééclairage…")
+                onClicked: window.openActiveLayerProperties()
+            }
             RowLayout {
+                visible: !window.relightPaintMode
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
                 RowLayout {
                     visible: window.paintToolActive && !window.shapeToolActive
@@ -2738,21 +2751,21 @@ ApplicationWindow {
         HistoryBrushOptions {
             objectName: "historyBrushOptions"
             Layout.fillWidth: true
-            visible: !editor.transformActive && editor.tool === "historyBrush"
+            visible: !editor.transformActive && !window.relightPaintMode && editor.tool === "historyBrush"
             document: editor
             blendModes: window.blendModeNames
         }
         ArtHistoryBrushOptions {
             objectName: "artHistoryBrushOptions"
             Layout.fillWidth: true
-            visible: !editor.transformActive && editor.tool === "artHistoryBrush"
+            visible: !editor.transformActive && !window.relightPaintMode && editor.tool === "artHistoryBrush"
             document: editor
             blendModes: window.blendModeNames
         }
         RemoveOptions {
             objectName: "removeOptions"
             Layout.fillWidth: true
-            visible: !editor.transformActive && editor.tool === "remove"
+            visible: !editor.transformActive && !window.relightPaintMode && editor.tool === "remove"
             document: editor
         }
         ContentAwareMoveOptions {
@@ -2770,13 +2783,13 @@ ApplicationWindow {
         SpotHealingOptions {
             objectName: "spotHealingOptions"
             Layout.fillWidth: true
-            visible: !editor.transformActive && editor.tool === "spotHealing"
+            visible: !editor.transformActive && !window.relightPaintMode && editor.tool === "spotHealing"
             document: editor
         }
         HealingBrushOptions {
             objectName: "healingBrushOptions"
             Layout.fillWidth: true
-            visible: !editor.transformActive && editor.tool === "healing"
+            visible: !editor.transformActive && !window.relightPaintMode && editor.tool === "healing"
             document: editor
         }
         RedEyeOptions {
@@ -2789,7 +2802,7 @@ ApplicationWindow {
             objectName: "mixerBrushOptions"
             onBrushSettingsRequested: brushSettingsDialog.open()
             Layout.fillWidth: true
-            visible: !editor.transformActive && editor.tool === "mixerBrush"
+            visible: !editor.transformActive && !window.relightPaintMode && editor.tool === "mixerBrush"
             document: editor
             onColorRequested: {
                 changingSecondary = false
@@ -2825,7 +2838,7 @@ ApplicationWindow {
                             glyph: displayedTool ? displayedTool.icon : "?"
                             toolName: displayedTool ? displayedTool.name : ""
                             hint: displayedTool ? displayedTool.label + " (" + window.toolGroupShortcut(modelData) + ")" : ""
-                            selected: window.toolGroupContains(modelData, editor.tool)
+                            selected: !window.relightPaintMode && window.toolGroupContains(modelData, editor.tool)
                             hasMenu: window.groupTools(modelData, false, true).length > 1
                             onClicked: if (!toolGroupMenu.visible) window.selectActiveGroupTool(modelData.id)
                             onAlternateClicked: window.cycleGroupTool(modelData.id)
@@ -3206,6 +3219,7 @@ ApplicationWindow {
                                 hoverEnabled: true
                                 enabled: !aiImages.surfacePicking && !editor.operationBusy && !editor.magicEraserBusy && !editor.sliceBusy && !editor.cropBusy && editor.tool!=="hand" && editor.tool!=="rotateView"
                                          && editor.tool!=="zoomTool"
+                                         && !window.relightPaintMode
                                 preventStealing: true
                                 cursorShape: window.canvasCursorShape
                                 function syncSystemCursor() {
@@ -4726,7 +4740,7 @@ ApplicationWindow {
             Layout.fillWidth: true; implicitHeight: 32; color: Studio.rail
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 8
-                Label { text: window.toolName; color: Studio.ink; font.pixelSize: 11; font.weight: Font.DemiBold; Layout.maximumWidth: 160; elide: Text.ElideRight }
+                Label { text: window.relightPaintMode ? qsTranslate("Document", "Rééclairage") : window.toolName; color: Studio.ink; font.pixelSize: 11; font.weight: Font.DemiBold; Layout.maximumWidth: 160; elide: Text.ElideRight }
                 Rectangle { width: 1; height: 14; color: Studio.line }
                 Label { text: window.status; color: Studio.muted; font.pixelSize: 11; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
                 Label { text: editor.width + " × " + editor.height + " px"; color: Studio.secondary; font.pixelSize: 11 }
@@ -5126,6 +5140,9 @@ ApplicationWindow {
     }
     Connections {
         target: aiImages
+        function onRelightPhotoUpdated() {
+            if (activeInfo.adjustmentType === "relight") window.openActiveLayerProperties()
+        }
         function onLayerAdded() {
             if (activeInfo.adjustmentType === "relight") window.openActiveLayerProperties()
         }
@@ -5439,6 +5456,18 @@ ApplicationWindow {
                     RelightEditor {
                         id: lightPanel
                         lightToCanvas: activeInfo.lightToCanvas
+                        photos: activeInfo.adjustmentType === "relight" ? editor.layers.filter(l =>
+                            l.kind === "pixel" && !l.clippingMask &&
+                            l.groupId === activeInfo.groupId) : []
+                        activeLayerIndex: editor.activeLayer
+                        canRefresh: aiImages.localSurfaceAvailable && !aiImages.busy && !aiImages.pendingResult &&
+                                    !editor.pixelEditBusy && !activeInfo.locked
+                        onRefreshPhoto: photoIndex => {
+                            window.cancelLayerPreviewQueue()
+                            layerPropertiesDialog.keepChanges = true
+                            layerPropertiesDialog.accept()
+                            aiImages.refreshRelightPhoto(photoIndex)
+                        }
                         onAmbientEdited: (value, finished) => window.previewLayerValue("ambient", value, finished)
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType === "relight"
                         Layout.fillWidth: true

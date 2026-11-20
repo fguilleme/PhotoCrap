@@ -169,16 +169,31 @@ void Document::renameLayer(int _index, const QString &_name)
             m_layers[_index].parameters["autoName"] = false;
     });
 }
-void Document::setLayerVisible(int _i, bool _visible)
+void Document::setLayerVisible(int _i, bool _visible, bool revealGroup)
 {
     _i = finishTextForLayer(_i);
-    if (_i < 0)
+    if (_i < 0 || _i >= m_layers.size())
         return;
-    if (_i < 0 || _i >= m_layers.size() || m_layers[_i].visible == _visible)
+    int hiddenGroup = -1;
+    const auto &layer = m_layers.at(_i);
+    if (_visible && revealGroup && !layer.groupId.isEmpty() && layer.kind != "group") {
+        for (int i = 0; i < m_layers.size(); ++i) {
+            const auto &candidate = m_layers.at(i);
+            if (candidate.kind == "group" && candidate.groupId == layer.groupId && !candidate.visible) {
+                hiddenGroup = i;
+                break;
+            }
+        }
+    }
+    if (layer.visible == _visible && hiddenGroup < 0)
         return;
     m_visibilityBeforeIsolation.clear();
     m_isolatedLayer = -1;
-    edit(tr("Visibilité du calque"), [&] { m_layers[_i].visible = _visible; });
+    edit(tr("Visibilité du calque"), [&] {
+        m_layers[_i].visible = _visible;
+        if (hiddenGroup >= 0)
+            m_layers[hiddenGroup].visible = true;
+    });
 }
 void Document::toggleLayerIsolation(int _i)
 {

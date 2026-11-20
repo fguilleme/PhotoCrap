@@ -6,6 +6,53 @@
 #include <QBuffer>
 #include <QImageReader>
 #include <QtConcurrentRun>
+#include <algorithm>
+
+namespace
+{
+// Stage the exact same stack for inference and for the final, undoable edit.
+bool selectRelightPhoto(QVector<Layer> &layers, int &lightIndex, int photoIndex)
+{
+    if (photoIndex == -1)
+        return true;
+    const QString group = layers[lightIndex].groupId;
+    const auto isPhoto = [&](int i) {
+        return layers[i].kind == "pixel" && !layers[i].clippingMask && layers[i].groupId == group;
+    };
+    if (photoIndex < 0 || photoIndex >= layers.size() || !isPhoto(photoIndex))
+        return false;
+    layers[lightIndex].visible = true;
+    if (!group.isEmpty()) {
+        for (auto &layer : layers)
+            if (layer.kind == "group" && layer.groupId == group)
+                layer.visible = true;
+    }
+    int previous = lightIndex - 1;
+    while (previous >= 0 && (!isPhoto(previous) || !layers[previous].visible))
+        --previous;
+    if (previous == photoIndex)
+        return true;
+    if (previous >= 0)
+        layers[previous].visible = false;
+    layers[photoIndex].visible = true;
+
+    // Reuse the previous photo's place in the stack so the same adjustments still cover it.
+    // If the light is clipped, put the new photo directly beneath it as its clipping base.
+    const int slot = previous < 0 || layers[lightIndex].clippingMask ? lightIndex : previous;
+    int end = photoIndex + 1;
+    while (end < layers.size() && end != lightIndex && layers[end].clippingMask &&
+           layers[end].groupId == group)
+        ++end;
+    if (photoIndex > slot) {
+        std::rotate(layers.begin() + slot, layers.begin() + photoIndex, layers.begin() + end);
+        if (lightIndex < photoIndex)
+            lightIndex += end - photoIndex;
+    } else if (end < slot && (previous >= 0 || layers[lightIndex].clippingMask)) {
+        std::rotate(layers.begin() + photoIndex, layers.begin() + end, layers.begin() + slot);
+    }
+    return true;
+}
+} // namespace
 
 bool Document::adoptAiDocument(const PhotoCrap::Ai::Result &result, const QVariantMap &metadata,
                                const PhotoCrap::Ai::Input &source, QString &error)
@@ -74,7 +121,7 @@ QVariantMap Document::originalAiSource() const
 QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _maxEdge,
                                                        std::shared_ptr<std::atomic_bool> _cancel,
                                                        bool _original, bool _nativePrecision,
-                                                       bool localImage)
+                                                       bool localImage, std::optional<int> relightPhoto)
 {
     endStroke();
     finishTextEdit();
@@ -111,7 +158,19 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
         (_selection && !hasSelection()))
         input.error =
             tr("Terminez les opérations en cours et choisissez une image ou une sélection valide.");
-    const auto layers   = m_layers;
+    auto layers = m_layers;
+    if (relightPhoto) {
+        input.relightPhoto = relightPhoto;
+        if (m_active < 0 || m_active >= layers.size() || layers[m_active].adjustmentType != "relight" ||
+            layers[m_active].locked || m_editingMask) {
+            input.error = tr("Sélectionnez un calque de rééclairage modifiable.");
+        } else {
+            int lightIndex = m_active;
+            if (!selectRelightPhoto(layers, lightIndex, *relightPhoto))
+                input.error = tr("Le calque photo choisi est indisponible.");
+            layers.resize(lightIndex); // The light itself and everything above it are excluded.
+        }
+    }
     const auto coverage = m_selectionMask;
     const auto region   = m_selectionRegion;
     const auto scratch  = m_scratchCache;
@@ -234,35 +293,74 @@ bool Document::addRelightLayer(const PhotoCrap::Ai::Input &source,
     if (!matchesAiSource(source) || aiInsertionBusy() || transformActive() || !geometry.isValid())
         return false;
     const QSize size = geometry.normals.size();
-    if (qMax(size.width(), size.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge ||
-        !validSize(width(), height(), int(m_layers.size()) + 1) ||
-        !validLayerStorage(width(), height(), 0, hasSelection() ? 1 : 0, 0, 4LL * size.width() * size.height()))
+    const bool refreshing = source.relightPhoto.has_value();
+    if (refreshing && (m_active < 0 || m_active >= m_layers.size() || layerIdentity(m_active) != source.layerId ||
+                       m_layers[m_active].adjustmentType != "relight" || m_layers[m_active].locked ||
+                       m_editingMask))
         return false;
-    Layer layer;
-    layer.kind = "adjustment";
-    layer.adjustmentType = "relight";
-    layer.name = adjustmentName(layer.adjustmentType);
-    layer.parameters = adjustmentDefaults(layer.adjustmentType);
-    layer.mask = hasSelection() ? selectionMask() : ImageUtils::uniformMask(255);
-    layer.surfaceNormalCanvas = m_size;
+    if (qMax(size.width(), size.height()) > PhotoCrap::Ai::MaxSurfaceNormalEdge ||
+        !validSize(width(), height(), int(m_layers.size()) + (refreshing ? 0 : 1)) ||
+        !validLayerStorage(width(), height(), 0, !refreshing && hasSelection() ? 1 : 0, 0,
+                           4LL * size.width() * size.height()))
+        return false;
     // RGB stores camera-facing normals. Alpha stores relative inverse depth,
     // reserving zero for samples outside the model's validity mask.
-    layer.surfaceNormals = geometry.normals.convertToFormat(QImage::Format_RGBA8888);
-    if (layer.surfaceNormals.isNull())
+    QImage packed = geometry.normals.convertToFormat(QImage::Format_RGBA8888);
+    if (packed.isNull())
         return false;
     for (int y = 0; y < size.height(); ++y) {
-        auto *out = layer.surfaceNormals.scanLine(y);
+        auto *out = packed.scanLine(y);
         const auto *depth = geometry.disparity.constScanLine(y);
         const auto *valid = geometry.validity.constScanLine(y);
         for (int x = 0; x < size.width(); ++x)
             out[4*x+3] = valid[x] ? 1 + (depth[x]*254+127)/255 : 0;
     }
-    const auto before = snapshot(layer.name);
-    m_layers.append(std::move(layer));
-    m_active = int(m_layers.size()) - 1;
-    m_editingMask = false;
-    selectOnly(m_active);
-    commit(before, tr("Rééclairage"), true, false);
+    const QString label = refreshing ? tr("Adapter le rééclairage à la photo") : tr("Rééclairage");
+    const auto before = snapshot(label);
+    if (refreshing) {
+        if (!selectRelightPhoto(m_layers, m_active, *source.relightPhoto))
+            return false;
+        if (*source.relightPhoto >= 0) {
+            m_visibilityBeforeIsolation.clear();
+            m_isolatedLayer = -1;
+        }
+        selectOnly(m_active);
+        auto &layer = m_layers[m_active];
+        // Keep handles at the same document positions after a crop or rotation.
+        if (!layer.surfaceNormalTransform.isIdentity() || layer.surfaceNormalCanvas != m_size) {
+            auto lights = layer.parameters.value("lights").toList();
+            for (auto &entry : lights) {
+                auto lamp = entry.toMap();
+                const auto remap = [&](const QString &x, const QString &y) {
+                    const QPointF p(lamp.value(x).toDouble() * layer.surfaceNormalCanvas.width() / 100.,
+                                    lamp.value(y).toDouble() * layer.surfaceNormalCanvas.height() / 100.);
+                    const auto mapped = layer.surfaceNormalTransform.map(p);
+                    lamp[x] = mapped.x() * 100. / width();
+                    lamp[y] = mapped.y() * 100. / height();
+                };
+                remap("x", "y");
+                if (lamp.contains("targetX") && lamp.contains("targetY"))
+                    remap("targetX", "targetY");
+                entry = lamp;
+            }
+            layer.parameters["lights"] = lights;
+        }
+    } else {
+        Layer layer;
+        layer.kind = "adjustment";
+        layer.adjustmentType = "relight";
+        layer.name = label;
+        layer.parameters = adjustmentDefaults(layer.adjustmentType);
+        layer.mask = hasSelection() ? selectionMask() : ImageUtils::uniformMask(255);
+        m_layers.append(std::move(layer));
+        m_active = int(m_layers.size()) - 1;
+        m_editingMask = false;
+        selectOnly(m_active);
+    }
+    m_layers[m_active].surfaceNormals = std::move(packed);
+    m_layers[m_active].surfaceNormalCanvas = m_size;
+    m_layers[m_active].surfaceNormalTransform = {};
+    commit(before, label, true, false);
     requestPreviewRender(true, true);
     emit imageChanged();
     return true;

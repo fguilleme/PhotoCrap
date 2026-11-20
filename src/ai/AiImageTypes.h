@@ -5,6 +5,7 @@
 #include <QString>
 #include <atomic>
 #include <memory>
+#include <optional>
 
 namespace PhotoCrap::Ai
 {
@@ -15,6 +16,7 @@ struct Input {
     QImage     coverage;
     QImage     localImage;
     QString    layerId, error;
+    std::optional<int> relightPhoto; // -1 refreshes the visible composition underneath.
     quint64    session  = 0;
     quint64    contentId = 0;
     bool       selected = false, originalSource = false;

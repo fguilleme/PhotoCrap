@@ -1466,6 +1466,27 @@ private slots:
         QVERIFY(!controller.surfacePicking());
         QCOMPARE(document.layerCount(), 2);
         QVERIFY(document.composite() != initial);
+        const QString lightId = document.layerIdentity(document.activeLayer());
+        const auto settingsBefore = document.layers().first().toMap().value("parameters");
+        const auto replacement = files.filePath("replacement.png");
+        QVERIFY(scene.transformed(QTransform().rotate(180)).save(replacement));
+        const int lightIndex = document.activeLayer();
+        QVERIFY(document.importLayer(QUrl::fromLocalFile(replacement)));
+        const int photoIndex = document.activeLayer();
+        document.setActiveLayer(lightIndex);
+        QVERIFY(controller.refreshRelightPhoto(photoIndex));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), timeout);
+        QVERIFY2(controller.error().isEmpty(), qPrintable(controller.error()));
+        QCOMPARE(document.layerCount(), 3);
+        QCOMPARE(document.layerIdentity(document.activeLayer()), lightId);
+        QCOMPARE(document.layers().first().toMap().value("parameters"), settingsBefore);
+        Document comparison;
+        QVERIFY(comparison.openFile(QUrl::fromLocalFile(replacement)));
+        AiImageController fresh(&comparison, &settings);
+        QVERIFY(fresh.analyzeSurfaceLocally(true));
+        QTRY_VERIFY_WITH_TIMEOUT(!fresh.busy(), timeout);
+        QVERIFY2(fresh.error().isEmpty(), qPrintable(fresh.error()));
+        QCOMPARE(document.composite(), comparison.composite());
     }
     void relightLayerUsesEditableLightsAndPreservesGeometry()
     {
@@ -1515,6 +1536,15 @@ private slots:
             const auto fromLeft = lights({offFrame});
             QVERIFY(fromLeft.pixelColor(0, 45).red() > initial.pixelColor(0, 45).red());
             QVERIFY(fromLeft.pixelColor(0, 45).red() > fromLeft.pixelColor(115, 45).red());
+            QVariantMap spot = red;
+            spot["aimed"] = true;
+            spot["targetX"] = 25;
+            spot["targetY"] = 50;
+            const auto aimedLeft = lights({spot});
+            spot["targetX"] = 80;
+            const auto aimedRight = lights({spot});
+            QVERIFY(aimedLeft.pixelColor(30, 45).red() > aimedRight.pixelColor(30, 45).red());
+            QVERIFY(aimedRight.pixelColor(96, 45).red() > aimedLeft.pixelColor(96, 45).red());
             const auto one    = lights({red});
             const auto sample = one.pixelColor(30, 45);
             QVERIFY(sample.red() > sample.green());
@@ -1548,6 +1578,66 @@ private slots:
             QVERIFY(reopened.openFile(url));
             QCOMPARE(reopened.composite(), dark);
         }
+    }
+
+    void switchingRelightPhotoReplacesGeometryInPlace()
+    {
+        Document d;
+        fixture(d, 8);
+        d.addLayer();
+        d.setColor(Qt::blue);
+        d.fillWithColor(true);
+        d.setLayerVisible(0, false);
+        const QSize size(16, 12);
+        PhotoCrap::Ai::SurfaceGeometry geometry{QImage(size, QImage::Format_Grayscale8),
+                                                QImage(size, QImage::Format_RGB888),
+                                                QImage(size, QImage::Format_Grayscale8)};
+        geometry.disparity.fill(128);
+        geometry.normals.fill(QColor(128, 128, 255));
+        geometry.validity.fill(255);
+        const auto cancel = std::make_shared<std::atomic_bool>(false);
+        auto input = d.prepareAiInput(false, 256, cancel, false, false, true).result();
+        QVERIFY(d.addRelightLayer(input, geometry));
+        const int index = d.activeLayer();
+        const QString id = d.layerIdentity(index);
+        d.previewLayerParameter("ambient", 42);
+        d.finishLayerPreview();
+        const auto params = d.layers().first().toMap()["parameters"];
+        const QImage blue = d.composite();
+        auto refresh = d.prepareAiInput(false, 256, cancel, false, false, true, 0).result();
+        QVERIFY(refresh.error.isEmpty());
+        QCOMPARE(refresh.localImage.pixelColor(10, 10), QColor(Qt::red));
+        QCOMPARE(d.composite(), blue); // Staging or cancelling must not change visibility.
+        geometry.normals.fill(QColor(128, 128, 0));
+        d.setActiveLayer(0);
+        QVERIFY(!d.addRelightLayer(refresh, geometry));
+        d.setActiveLayer(index);
+        QVERIFY(d.addRelightLayer(refresh, geometry));
+        QCOMPARE(d.layerCount(), index + 1);
+        QCOMPARE(d.layerIdentity(index), id);
+        QCOMPARE(d.layers().first().toMap()["parameters"], params);
+        QCOMPARE(d.layers().at(1).toMap()["visible"].toBool(), false);
+        QCOMPARE(d.layers().last().toMap()["visible"].toBool(), true);
+        const QImage red = d.composite();
+        QVERIFY(red.pixelColor(10, 10).red() > red.pixelColor(10, 10).blue());
+        d.undo();
+        QCOMPARE(d.composite(), blue);
+        QCOMPARE(d.layers().at(1).toMap()["visible"].toBool(), true);
+        QCOMPARE(d.layers().last().toMap()["visible"].toBool(), false);
+        d.redo();
+        QCOMPARE(d.composite(), red);
+        d.addLayer();
+        d.setColor(Qt::green);
+        d.fillWithColor(true);
+        const int above = d.activeLayer();
+        QVERIFY(above > index);
+        d.setActiveLayer(index);
+        refresh = d.prepareAiInput(false, 256, cancel, false, false, true, above).result();
+        QCOMPARE(refresh.localImage.pixelColor(10, 10), QColor(Qt::green));
+        QVERIFY(d.addRelightLayer(refresh, geometry));
+        QCOMPARE(d.layerIdentity(d.activeLayer()), id);
+        QCOMPARE(d.activeLayer(), above);
+        QVERIFY(d.composite().pixelColor(10, 10).green() > 0);
     }
 
     void reliefSelectionFollowsFoldsAndStopsAtOcclusions()

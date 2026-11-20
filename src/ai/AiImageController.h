@@ -68,6 +68,7 @@ public:
                               int _variants = 1, bool _original = false,
                               const QVariantMap &_options = {}, bool newDocument = false);
     Q_INVOKABLE bool analyzeSurfaceLocally(bool relight = false);
+    Q_INVOKABLE bool refreshRelightPhoto(int photoIndex = -1);
     Q_INVOKABLE void pickSurface(int x, int y, bool followRelief = false, bool subtract = false);
     Q_INVOKABLE void protectSurfaceObject(int x, int y, bool subtract = false);
     Q_INVOKABLE void applySurfaceSelection();
@@ -118,11 +119,13 @@ public:
 signals:
     void changed();
     void layerAdded();
+    void relightPhotoUpdated();
 
 private:
     friend class AiImageTest;
     void begin(const QString &providerId, const QVariantMap &provider, const QString &prompt,
                bool selection, int variants, bool original, bool newDocument, bool surface);
+    bool startLocalAnalysis(bool relight, std::optional<int> photoIndex);
     void prepareLocalSurface(const QString &path);
     void surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry);
     bool canEditSurfaceSelection();

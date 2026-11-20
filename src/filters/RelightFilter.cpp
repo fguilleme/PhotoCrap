@@ -12,6 +12,8 @@ namespace
 struct Lamp {
     QVector3D position, color;
     float     radius;
+    QVector3D beamDirection;
+    float     beamExponent; // Zero is an omnidirectional light.
 };
 } // namespace
 QImage relight(const QImage &source, const Layer &layer, const QPoint &origin)
@@ -32,10 +34,23 @@ QImage relight(const QImage &source, const Layer &layer, const QPoint &origin)
         const float  power = number("intensity", 100, 0, 400);
         if (!c.isValid() || power <= 0)
             continue;
-        lamps.append({{w * number("x", 50, -100, 200), -h * number("y", 50, -100, 200),
+        Lamp lamp{{w * number("x", 50, -100, 200), -h * number("y", 50, -100, 200),
                        number("z", 65, -100, 200)},
                       QVector3D(c.redF(), c.greenF(), c.blueF()) * power,
-                      .025f + .65f * number("softness", 45, 0, 100)});
+                      .025f + .65f * number("softness", 45, 0, 100), {}, 0.f};
+        if (params.value("aimed").toBool()) {
+            const float tx = number("targetX", 50, 0, 100);
+            const float ty = number("targetY", 50, 0, 100);
+            const int x = qMin(int(tx * map.width()), map.width() - 1);
+            const int y = qMin(int(ty * map.height()), map.height() - 1);
+            const uchar disparity = map.constScanLine(y)[4 * x + 3];
+            const float z = disparity ? ((disparity - 1) / 254.f - .5f) * .5f : 0.f;
+            lamp.beamDirection = (QVector3D(w * tx, -h * ty, z) - lamp.position).normalized();
+            if (lamp.beamDirection.isNull())
+                lamp.beamDirection = QVector3D(0.f, 0.f, -1.f);
+            lamp.beamExponent = 3.f + 25.f * (1.f - number("softness", 45, 0, 100));
+        }
+        lamps.append(lamp);
     }
     const double ambient = qBound(0., layer.parameters.value("ambient", 100).toDouble(), 100.) / 100.;
     if (lamps.isEmpty() && ambient == 1.)
@@ -64,7 +79,13 @@ QImage relight(const QImage &source, const Layer &layer, const QPoint &origin)
                 // A finite emitter softens the terminator and broadens the falloff.
                 const float spread  = lamp.radius / std::sqrt(squared + r2);
                 const float diffuse = qBound(0.f, (incidence + spread) / (1 + spread), 1.f);
-                sum += lamp.color * (diffuse * (.22f + r2) / (squared + r2 + .04f));
+                float beam = 1.f;
+                if (lamp.beamExponent > 0.f && squared > 1e-8f) {
+                    const float cosine = QVector3D::dotProduct(lamp.beamDirection, -delta)
+                                         / std::sqrt(squared);
+                    beam = std::pow(qBound(0.f, cosine, 1.f), lamp.beamExponent);
+                }
+                sum += lamp.color * (beam * diffuse * (.22f + r2) / (squared + r2 + .04f));
             }
             grid[y * map.width() + x] = sum;
         }

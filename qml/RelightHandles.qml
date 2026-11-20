@@ -12,74 +12,84 @@ Item {
     signal dragStarted()
     signal dragCanceled()
 
-    Repeater {
-        model: root.visible ? root.panel.lights.length : 0
-        delegate: Rectangle {
-            id: handle
-            required property int index
-            objectName: "relightHandle" + index
-            readonly property var light: root.panel.lights[index]
-            readonly property var center: light ? root.panel.canvasPoint(light) : Qt.point(0, 0)
-            readonly property bool selected: root.panel.index === index
-            property point draggingCenter
-            property point grabOffset
-            property bool dragging: false
-            property bool moved: false
-            width: 24; height: 24; radius: 12
-            x: root.imageLeft + (dragging ? draggingCenter.x : center.x) * root.zoom - width / 2
-            y: root.imageTop + (dragging ? draggingCenter.y : center.y) * root.zoom - height / 2
-            z: selected ? 1 : 0
-            color: Studio.field
-            border.color: selected ? Studio.accent : "white"
-            border.width: selected ? 3 : 1
-            Text {
-                anchors.centerIn: parent
-                text: handle.index + 1
-                color: "white"
-                font.pixelSize: 12
-                font.bold: handle.selected
+    component LightHandle: Rectangle {
+        id: handle
+        required property int lampIndex
+        property bool target: false
+        objectName: target ? "relightTarget" : "relightHandle" + lampIndex
+        readonly property var light: root.panel.lights[lampIndex]
+        readonly property var center: light ? root.panel.canvasPoint(target ? {x: light.targetX ?? 50, y: light.targetY ?? 50} : light) : Qt.point(0, 0)
+        readonly property bool selected: root.panel.index === lampIndex
+        property point draggingCenter
+        property point grabOffset
+        property bool dragging: false
+        property bool moved: false
+        width: 24; height: 24; radius: 12
+        x: root.imageLeft + (dragging ? draggingCenter.x : center.x) * root.zoom - width / 2
+        y: root.imageTop + (dragging ? draggingCenter.y : center.y) * root.zoom - height / 2
+        z: target ? 2 : selected ? 1 : 0
+        color: target ? "#90000000" : Studio.field
+        border.color: selected ? Studio.accent : "white"
+        border.width: selected ? 3 : 1
+        Text {
+            anchors.centerIn: parent
+            text: handle.target ? "＋" : handle.lampIndex + 1
+            color: "white"
+            font.pixelSize: 12
+            font.bold: handle.selected
+        }
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            preventStealing: true
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+            function position(mouse) {
+                const p = mapToItem(root, mouse.x, mouse.y)
+                return Qt.point((p.x - root.imageLeft) / root.zoom - handle.grabOffset.x,
+                                (p.y - root.imageTop) / root.zoom - handle.grabOffset.y)
             }
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
-                preventStealing: true
-                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                function position(mouse) {
-                    const p = mapToItem(root, mouse.x, mouse.y)
-                    return Qt.point((p.x - root.imageLeft) / root.zoom - handle.grabOffset.x,
-                                    (p.y - root.imageTop) / root.zoom - handle.grabOffset.y)
+            onPressed: mouse => {
+                root.panel.selected = handle.lampIndex
+                const p = mapToItem(root, mouse.x, mouse.y)
+                handle.grabOffset = Qt.point((p.x - root.imageLeft) / root.zoom - handle.center.x,
+                                             (p.y - root.imageTop) / root.zoom - handle.center.y)
+                handle.draggingCenter = Qt.point(handle.center.x, handle.center.y)
+                handle.moved = false
+                handle.dragging = true
+            }
+            onPositionChanged: mouse => {
+                if (!handle.dragging) return
+                const p = position(mouse)
+                if (!handle.moved) {
+                    if (Math.abs(p.x - handle.center.x) + Math.abs(p.y - handle.center.y) < 0.01) return
+                    handle.moved = true
+                    root.dragStarted()
                 }
-                onPressed: mouse => {
-                    root.panel.selected = handle.index
-                    const p = mapToItem(root, mouse.x, mouse.y)
-                    handle.grabOffset = Qt.point((p.x - root.imageLeft) / root.zoom - handle.center.x,
-                                                 (p.y - root.imageTop) / root.zoom - handle.center.y)
-                    handle.draggingCenter = Qt.point(handle.center.x, handle.center.y)
-                    handle.moved = false
-                    handle.dragging = true
-                }
-                onPositionChanged: mouse => {
-                    if (!handle.dragging) return
-                    const p = position(mouse)
-                    if (!handle.moved) {
-                        if (Math.abs(p.x - handle.center.x) + Math.abs(p.y - handle.center.y) < 0.01) return
-                        handle.moved = true
-                        root.dragStarted()
-                    }
-                    handle.draggingCenter = p
-                    root.panel.placeOnCanvas(handle.draggingCenter.x, handle.draggingCenter.y, false)
-                }
-                onReleased: mouse => {
-                    if (!handle.dragging) return
-                    const p = position(mouse)
-                    if (handle.moved) root.panel.placeOnCanvas(p.x, p.y, true)
-                    handle.dragging = false
-                }
-                onCanceled: {
-                    if (handle.dragging && handle.moved) root.dragCanceled()
-                    handle.dragging = false
-                }
+                handle.draggingCenter = p
+                root.panel.placeOnCanvas(handle.draggingCenter.x, handle.draggingCenter.y, false, handle.target)
+            }
+            onReleased: mouse => {
+                if (!handle.dragging) return
+                const p = position(mouse)
+                if (handle.moved) root.panel.placeOnCanvas(p.x, p.y, true, handle.target)
+                handle.dragging = false
+            }
+            onCanceled: {
+                if (handle.dragging && handle.moved) root.dragCanceled()
+                handle.dragging = false
             }
         }
+    }
+    Repeater {
+        model: root.visible ? root.panel.lights.length : 0
+        delegate: LightHandle {
+            required property int index
+            lampIndex: index
+        }
+    }
+    LightHandle {
+        lampIndex: root.panel.index
+        visible: root.visible && !!root.panel.lamp.aimed
+        target: true
     }
 }

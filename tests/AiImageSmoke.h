@@ -425,6 +425,18 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     const auto pointOnPhoto = [&](double x, double y) {
         return board->mapToScene({board->width() * x, board->height() * y}).toPoint();
     };
+    _document.setTool("brush");
+    const int lightLayer = _document.activeLayer();
+    const int layerCount = _document.layerCount();
+    const int beforeEmptyDrag = _document.historyIndex();
+    const QImage beforeStroke = _document.composite();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, pointOnPhoto(.12, .78));
+    QTest::mouseMove(_window, pointOnPhoto(.24, .81));
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, pointOnPhoto(.24, .81));
+    if (!require(_document.activeLayer() == lightLayer && _document.layerCount() == layerCount &&
+                 _document.historyIndex() == beforeEmptyDrag && _document.composite() == beforeStroke,
+                 "dragging away from light handles leaves the document untouched"))
+        return false;
     const auto start = pointOnPhoto(.35, .30);
     const auto end = pointOnPhoto(.514, .65);
     const int history = _document.historyIndex();
@@ -455,9 +467,31 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, end);
     if (!require(firstX() > 50., "a light in the workspace margin can be grabbed again"))
         return false;
+    auto *aim = relight->findChild<QQuickItem *>("relightAim");
+    if (!require(aim && QMetaObject::invokeMethod(aim, "click"), "aimed light can be enabled"))
+        return false;
+    const auto aimEnd = pointOnPhoto(.72, .26);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, pointOnPhoto(.5, .5));
+    QTest::mouseMove(_window, aimEnd);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, aimEnd);
+    const auto aimed = _window->property("activeInfo").value<QJSValue>().toVariant().toMap()
+                           .value("parameters").toMap().value("lights").toList().first().toMap();
+    if (!require(aimed.value("aimed").toBool() &&
+                 std::abs(aimed.value("targetX").toDouble() - 72) < .5 &&
+                 std::abs(aimed.value("targetY").toDouble() - 26) < .5 &&
+                 std::abs(firstX() - 51.4) < .5,
+                 "the target can be dragged independently of the emitter"))
+        return false;
     QMetaObject::invokeMethod(removeLight, "clicked");
     if (!require(relight->property("index").toInt() == 0, "removing a light selects its neighbor"))
         return false;
     QMetaObject::invokeMethod(_window->findChild<QObject *>("layerPropertiesDialog"), "reject");
+    _document.setLayerVisible(0, false);
+    QMetaObject::invokeMethod(_window, "activateLayerContent", Q_ARG(QVariant, QVariant(0)));
+    auto *drawing = _window->findChild<QQuickItem *>("drawingArea");
+    if (!require(_document.layers().last().toMap()["visible"].toBool() &&
+                 _document.activeLayer() == 0 && drawing && drawing->isEnabled(),
+                 "selecting a hidden photo reveals it and restores the brush"))
+        return false;
     return runAiProgressSmoke(_window);
 }

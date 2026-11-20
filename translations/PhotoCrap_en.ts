@@ -113,6 +113,9 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Adapter le rééclairage à la photo</source><translation>Adapt relighting to the photo</translation></message>
+    <message><source>Sélectionnez un calque de rééclairage modifiable.</source><translation>Select an editable relight layer.</translation></message>
+    <message><source>Le calque photo choisi est indisponible.</source><translation>The selected photo layer is unavailable.</translation></message>
     <message><source>Pot de peinture</source><translation>Paint Bucket</translation></message>
     <message><source>Mémoire insuffisante pour le remplissage.</source><translation>Not enough memory for the fill.</translation></message>
     <message><source>Choisissez un motif disponible pour le remplissage.</source><translation>Choose an available fill pattern.</translation></message>
@@ -5730,6 +5733,7 @@ Independent software, not affiliated with Adobe.</translation>
     </message>
   <message><source>Analyse de surface annulée</source><translation>Surface analysis canceled</translation></message>
     <message><source>Impossible de créer le calque de rééclairage.</source><translation>Could not create the relight layer.</translation></message>
+    <message><source>Impossible de mettre à jour le calque de rééclairage.</source><translation>Could not update the relight layer.</translation></message>
   </context>
 <context>
     <name>QObject</name>
@@ -6650,6 +6654,11 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>RelightEditor</name>
+    <message><source>Photo</source><translation>Photo</translation></message>
+    <message><source>Photo à éclairer</source><translation>Photo to light</translation></message>
+    <message><source>Recalculer le relief</source><translation>Recalculate surface</translation></message>
+    <message><source>Diriger vers une cible</source><translation>Aim at a target</translation></message>
+    <message><source>Déplacez le viseur sur la zone à éclairer.</source><translation>Drag the crosshair to the area to light.</translation></message>
     <message><source>Ambiance</source><translation>Ambient light</translation></message>
     <message><source>Lumière ambiante</source><translation>Ambient light</translation></message>
     <message><source>Douceur</source><translation>Softness</translation></message>

@@ -1200,7 +1200,8 @@ public:
                          const PhotoCrap::Ai::Input &source, QString &error);
     QFuture<PhotoCrap::Ai::Input>
          prepareAiInput(bool _selection, int _maxEdge, std::shared_ptr<std::atomic_bool> _cancel,
-                        bool _original = false, bool _nativePrecision = false, bool localImage = false);
+                        bool _original = false, bool _nativePrecision = false, bool localImage = false,
+                        std::optional<int> relightPhoto = std::nullopt);
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;
@@ -1261,7 +1262,7 @@ public:
     Q_INVOKABLE void finishTextEdit(bool _cancel = false);
     Q_INVOKABLE void rasterizeTextLayer();
 
-    Q_INVOKABLE void setLayerVisible(int _index, bool _visible);
+    Q_INVOKABLE void setLayerVisible(int _index, bool _visible, bool revealGroup = false);
     Q_INVOKABLE void toggleLayerIsolation(int _index);
     Q_INVOKABLE void setLayerLocked(int _index, bool _locked);
     Q_INVOKABLE void setLayerOpacity(int _index, qreal _opacity);

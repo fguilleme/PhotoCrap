@@ -182,14 +182,24 @@ bool AiImageController::generate(const QString &_providerId, const QString &_pro
 
 bool AiImageController::analyzeSurfaceLocally(bool relight)
 {
+    return startLocalAnalysis(relight, std::nullopt);
+}
+
+bool AiImageController::refreshRelightPhoto(int photoIndex)
+{
+    return startLocalAnalysis(true, photoIndex);
+}
+
+bool AiImageController::startLocalAnalysis(bool relight, std::optional<int> photoIndex)
+{
     if (!localSurfaceAvailable() || m_busy || pendingResult() || !m_document ||
         m_document->aiInsertionBusy() || m_document->transformActive())
         return false;
-    begin({},
-          {{"name", tr("Sur cet ordinateur")},
-           {"model", "MoGe-2 ViT-S"}, {"relight", relight},
-           {"maxEdge", PhotoCrap::Ai::MaxSurfaceNormalEdge}},
-          {}, false, 1, false, false, true);
+    QVariantMap options{{"name", tr("Sur cet ordinateur")}, {"model", "MoGe-2 ViT-S"},
+                        {"relight", relight}, {"maxEdge", PhotoCrap::Ai::MaxSurfaceNormalEdge}};
+    if (photoIndex)
+        options["relightPhoto"] = *photoIndex;
+    begin({}, options, {}, false, 1, false, false, true);
     return true;
 }
 
@@ -293,7 +303,8 @@ void AiImageController::prepareInput(bool _selection, quint64 generation, bool _
         _selection,
         m_provider.value("nativeInput", false).toBool() ? 16384
                                                         : m_provider.value("maxEdge", 1536).toInt(),
-        m_cancel, _original, m_provider.value("nativeInput", false).toBool(), m_surfaceAnalysis));
+        m_cancel, _original, m_provider.value("nativeInput", false).toBool(), m_surfaceAnalysis,
+        m_provider.contains("relightPhoto") ? std::optional<int>{m_provider["relightPhoto"].toInt()} : std::nullopt));
 }
 QString AiImageController::variantStatus(const QString &_status) const
 {
@@ -403,13 +414,18 @@ void AiImageController::surfaceReady(PhotoCrap::Ai::SurfaceGeometry geometry)
         return;
     }
     if (m_provider.value("relight").toBool()) {
+        const bool updated = m_input.relightPhoto.has_value();
         if (!m_document->addRelightLayer(m_input, geometry)) {
-            stop(tr("Impossible de créer le calque de rééclairage."));
+            stop(updated ? tr("Impossible de mettre à jour le calque de rééclairage.")
+                         : tr("Impossible de créer le calque de rééclairage."));
             return;
         }
         m_completed = 1;
         stop();
-        emit layerAdded();
+        if (updated)
+            emit relightPhotoUpdated();
+        else
+            emit layerAdded();
         return;
     }
     m_surfaceGeometry = std::move(geometry);

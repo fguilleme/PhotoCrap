@@ -7,6 +7,9 @@ import "Studio.js" as Studio
 ColumnLayout {
     id: root
     objectName: "relightEditor"
+    required property var photos
+    required property int activeLayerIndex
+    required property bool canRefresh
     required property var parameters
     required property var lightToCanvas
     readonly property var lights: parameters.lights || []
@@ -16,11 +19,17 @@ ColumnLayout {
     function canvasPoint(lamp) {
         return lightToCanvas ? lightToCanvas.times(Qt.vector3d(lamp.x, lamp.y, 0)) : Qt.vector3d(0, 0, 0)
     }
-    function placeOnCanvas(x, y, finished) {
+    function placeOnCanvas(x, y, finished, target) {
         if (!lightToCanvas) return
         const local = lightToCanvas.inverted().times(Qt.vector3d(x, y, 0))
+        if (target) {
+            change({targetX: Math.max(0, Math.min(100, local.x)),
+                    targetY: Math.max(0, Math.min(100, local.y))}, finished)
+            return
+        }
         change({x: Math.max(-100, Math.min(200, local.x)), y: Math.max(-100, Math.min(200, local.y))}, finished)
     }
+    signal refreshPhoto(int photoIndex)
     signal ambientEdited(real value, bool finished)
     signal editStarted()
     signal edited(var lights, bool finished)
@@ -29,6 +38,26 @@ ColumnLayout {
         const list = lights.slice()
         list[index] = Object.assign({}, lamp, values)
         edited(list, finished)
+    }
+    RowLayout {
+        Layout.fillWidth: true
+        Label { text: qsTr("Photo"); color: Studio.secondary }
+        ComboBox {
+            objectName: "relightPhoto"
+            Layout.fillWidth: true
+            Accessible.name: qsTr("Photo à éclairer")
+            enabled: root.canRefresh && root.photos.length > 0
+            model: root.photos
+            textRole: "name"
+            currentIndex: root.photos.findIndex(p => p.visible && p.layerIndex < root.activeLayerIndex)
+            onActivated: i => root.refreshPhoto(root.photos[i].layerIndex)
+        }
+        Button {
+            objectName: "relightRefresh"
+            enabled: root.canRefresh
+            text: qsTr("Recalculer le relief")
+            onClicked: root.refreshPhoto(-1)
+        }
     }
     RowLayout {
         Layout.fillWidth: true
@@ -82,6 +111,16 @@ ColumnLayout {
         leftPadding: 31
         Rectangle { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 15; height: 15; radius: 3; color: root.lamp.color || "white"; border.color: Studio.line }
         onClicked: { picker.selectedColor = root.lamp.color; picker.open() }
+    }
+    CheckBox {
+        objectName: "relightAim"
+        visible: root.index >= 0
+        text: qsTr("Diriger vers une cible")
+        checked: !!root.lamp.aimed
+        onClicked: root.change({aimed: checked, targetX: root.lamp.targetX ?? 50,
+                                targetY: root.lamp.targetY ?? 50}, true)
+        ToolTip.visible: hovered
+        ToolTip.text: qsTr("Déplacez le viseur sur la zone à éclairer.")
     }
     ColorDialog {
         id: picker

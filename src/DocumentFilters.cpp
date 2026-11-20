@@ -672,6 +672,89 @@ double luminance(double r, double g, double b)
     return .2126 * r + .7152 * g + .0722 * b;
 }
 
+template <typename Pixel>
+QImage clarityDehaze(const QImage &source, const QImage &neighborhood, double clarity, double dehaze)
+{
+    using P = ImageUtils::PixelAccess<Pixel>;
+    const QImage mean = neighborhood.convertToFormat(P::format);
+    if (mean.isNull())
+        return {};
+    return adjustRows<Pixel>(source, [&](Pixel *row, int width, int y) {
+        const auto *base = reinterpret_cast<const Pixel *>(mean.constScanLine(y));
+        for (int x = 0; x < width; ++x) {
+            const auto p = row[x], b = base[x];
+            const double r = P::red(p), g = P::green(p), blue = P::blue(p);
+            const double local = luminance(P::red(b), P::green(b), P::blue(b));
+            const double detail = luminance(r, g, blue) - local;
+            // Broad luminance contrast with a soft limit around silhouettes.
+            const double shift = clarity * detail / (1. + std::abs(detail) / 48.);
+            // A bright neighborhood in all three channels suggests scattered light.
+            // Invert a white veil for positive correction, or mix one in for negative values.
+            const double airlight = std::min({P::red(b), P::green(b), P::blue(b)}) / 255.;
+            const double veil = .65 * dehaze * airlight;
+            const double gain = veil > 0. ? 1. / (1. - veil) : 1. + veil;
+            const auto channel = [&](double c) { return 255. + (c + shift - 255.) * gain; };
+            row[x] = P::rgba(channel(r), channel(g), channel(blue), P::alpha(p));
+        }
+    });
+}
+
+// Sample a continuous monochrome noise field in document coordinates so adjacent
+// preview tiles and the exported image share the same grain.
+double grainSample(double x, double y, quint32 salt)
+{
+    const int ix = qFloor(x), iy = qFloor(y);
+    const auto smooth = [](double t) { return t * t * (3. - 2. * t); };
+    const double fx = smooth(x - ix), fy = smooth(y - iy);
+    const auto sample = [salt](int col, int row) {
+        quint32 seed = PhotoCrap::Filters::noiseSeed(col, row) ^ salt;
+        return PhotoCrap::Filters::noiseDelta(seed, 32767) / 32767.;
+    };
+    return std::lerp(std::lerp(sample(ix, iy), sample(ix + 1, iy), fx),
+                     std::lerp(sample(ix, iy + 1), sample(ix + 1, iy + 1), fx), fy);
+}
+
+template <typename Pixel>
+QImage filmGrain(const QImage &source, const QVariantMap &params, const QPoint &origin)
+{
+    using P = ImageUtils::PixelAccess<Pixel>;
+    const double amount = qBound(0., params.value("amount").toDouble(), 100.) * .24;
+    if (amount == 0.)
+        return source;
+    const double size = qBound(1., params.value("size", 2.).toDouble(), 8.);
+    const double roughness = qBound(0., params.value("roughness", 50).toDouble(), 100.) / 100.;
+    // Keep RMS contrast stable while mixing the coarse and fine bands.
+    const double strength = amount / std::sqrt(1. + roughness * roughness);
+    const QSizeF footprint = params.value("_grainFootprint", QSizeF(1., 1.)).toSizeF();
+    const int nx = qBound(1, qCeil(footprint.width()), 4);
+    const int ny = qBound(1, qCeil(footprint.height()), 4);
+    const double stepX = footprint.width() / nx, stepY = footprint.height() / ny;
+    // At very low zoom a single subsample represents several independent grain cells.
+    const auto attenuation = [&](double cell) {
+        return std::sqrt(qMin(1., cell / stepX) * qMin(1., cell / stepY));
+    };
+    const double coarseGain = attenuation(size);
+    const double fineGain = roughness * attenuation(qMax(1., size / 2.3));
+    return adjustRows<Pixel>(source, [&](Pixel *row, int width, int y) {
+        for (int x = 0; x < width; ++x) {
+            double noise = 0.;
+            for (int j = 0; j < ny; ++j) {
+                const double gy = ((origin.y() + y) * footprint.height() + (j + .5) * stepY - .5) / size;
+                for (int i = 0; i < nx; ++i) {
+                    const double gx = ((origin.x() + x) * footprint.width() + (i + .5) * stepX - .5) / size;
+                    noise += coarseGain * grainSample(gx, gy, 0xb5297a4du)
+                             + fineGain * grainSample(gx * 2.3, gy * 2.3, 0x68e31da4u);
+                }
+            }
+            const auto p = row[x];
+            const double r = P::red(p), g = P::green(p), b = P::blue(p);
+            const double luma = luminance(r, g, b) / 255.;
+            const double shift = strength * noise / (nx * ny) * (4. * luma * (1. - luma));
+            row[x] = P::rgba(r + shift, g + shift, b + shift, P::alpha(p));
+        }
+    });
+}
+
 std::array<double, 3> tintVector(double hue, double saturation)
 {
     const QColor color = QColor::fromHsvF(std::fmod(qBound(0., hue, 360.), 360.) / 360., 1., 1.);
@@ -797,6 +880,16 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return PhotoCrap::Filters::applyColorBalance(_source, _p);
         if (_type == "splitToning")
             return splitToning<Pixel>(_source, _p);
+        if (_type == "grain")
+            return filmGrain<Pixel>(_source, _p, _origin);
+        if (_type == "clarityDehaze") {
+            const double clarity = qBound(-100., _p.value("clarity").toDouble(), 100.) / 100.;
+            const double dehaze = qBound(-100., _p.value("dehaze").toDouble(), 100.) / 100.;
+            if (clarity == 0. && dehaze == 0.)
+                return _source;
+            return clarityDehaze<Pixel>(_source, blurImage(_source, _p.value("radius", 18).toInt()),
+                                        clarity, dehaze);
+        }
         if (_type == "texture") {
             const double gain = qBound(-100., _p.value("amount").toDouble(), 100.) / 100.;
             if (gain == 0.)

@@ -321,6 +321,15 @@ ApplicationWindow {
             {key:"highlightSaturation",label:qsTr("Saturation des hautes lumières (%)"),from:0,to:100,step:1},
             {key:"balance",label:qsTr("Balance"),from:-100,to:100,step:1}
         ],
+        clarityDehaze: [
+            {key:"clarity",label:qsTr("Clarté"),from:-100,to:100,step:1},
+            {key:"dehaze",label:qsTr("Correction du voile"),from:-100,to:100,step:1}
+        ],
+        grain: [
+            {key:"amount",label:qsTr("Quantité (%)"),from:0,to:100,step:1},
+            {key:"size",label:qsTr("Taille du grain (px)"),from:1,to:8,step:0.25},
+            {key:"roughness",label:qsTr("Rugosité (%)"),from:0,to:100,step:1}
+        ],
         texture: [{key:"amount",label:qsTr("Texture"),from:-100,to:100,step:1}],
         colorBalance: [{key:"cyanRed",label:qsTr("Cyan ↔ Rouge"),from:-100,to:100,step:1},{key:"magentaGreen",label:qsTr("Magenta ↔ Vert"),from:-100,to:100,step:1},{key:"yellowBlue",label:qsTr("Jaune ↔ Bleu"),from:-100,to:100,step:1}],
         blackWhite: [{key:"reds",label:qsTr("Rouges"),from:0,to:100,step:1},{key:"greens",label:qsTr("Verts"),from:0,to:100,step:1},{key:"blues",label:qsTr("Bleus"),from:0,to:100,step:1}],
@@ -1730,16 +1739,21 @@ ApplicationWindow {
             DarkMenuItem { action: referenceLookAction }
             DarkMenuItem { action: aiAction }
             DarkMenu {
+                objectName: "newAdjustmentLayerMenu"
                 title: qsTr("Nouveau calque de réglage")
                 DarkMenuItem { text: qsTr("Couleur unie…"); onTriggered: addAdjustmentLayer("solidColor") }
                 DarkMenuItem { text: qsTr("Lumière"); onTriggered: addAdjustmentLayer("light") }
                 DarkMenuItem { action: relightAction }
                 DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
                 DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
+                DarkMenuItem { text: qsTr("Exposition"); onTriggered: addAdjustmentLayer("exposure") }
                 DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
+                DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
                 DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
                 DarkMenuItem { text: qsTr("Virage partiel"); onTriggered: addAdjustmentLayer("splitToning") }
                 DarkMenuItem { text: qsTr("Texture"); onTriggered: addAdjustmentLayer("texture") }
+                DarkMenuItem { text: qsTr("Clarté / Correction du voile"); onTriggered: addAdjustmentLayer("clarityDehaze") }
+                DarkMenuItem { text: qsTr("Grain"); onTriggered: addAdjustmentLayer("grain") }
                 DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
                 DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
                 DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }
@@ -4774,10 +4788,14 @@ ApplicationWindow {
         DarkMenuItem { action: relightAction }
         DarkMenuItem { text: qsTr("Niveaux"); onTriggered: addAdjustmentLayer("levels") }
         DarkMenuItem { text: qsTr("Courbes"); onTriggered: addAdjustmentLayer("curves") }
+        DarkMenuItem { text: qsTr("Exposition"); onTriggered: addAdjustmentLayer("exposure") }
         DarkMenuItem { text: qsTr("Couleur"); onTriggered: addAdjustmentLayer("color") }
+        DarkMenuItem { text: qsTr("Teinte / Saturation"); onTriggered: addAdjustmentLayer("hueSaturation") }
         DarkMenuItem { text: qsTr("Balance des couleurs"); onTriggered: addAdjustmentLayer("colorBalance") }
         DarkMenuItem { text: qsTr("Virage partiel"); onTriggered: addAdjustmentLayer("splitToning") }
         DarkMenuItem { text: qsTr("Texture"); onTriggered: addAdjustmentLayer("texture") }
+        DarkMenuItem { text: qsTr("Clarté / Correction du voile"); onTriggered: addAdjustmentLayer("clarityDehaze") }
+        DarkMenuItem { text: qsTr("Grain"); onTriggered: addAdjustmentLayer("grain") }
         DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
         DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
         DarkMenuItem { text: qsTr("Mélangeur de couches"); onTriggered: addAdjustmentLayer("channelMixer") }

@@ -5,16 +5,6 @@
 #include <QFileInfo>
 #include <limits>
 
-namespace
-{
-QSize sampleSize(QSize size)
-{
-    if (qMax(size.width(), size.height()) > 384)
-        size = size.scaled(384, 384, Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
-    return size;
-}
-} // namespace
-
 bool Document::appendLookLayers(const PhotoCrap::Look::Recipe &recipe, const QString &source,
                                 const QString &label)
 {
@@ -84,22 +74,20 @@ void Document::matchReferenceImage(const QUrl &url)
     deferOperation(
         label, std::numeric_limits<qint64>::max(),
         [path, recipe](Document &worker) {
-            if (!worker.operationStep(0, 1))
+            if (!worker.operationStep(0, 3))
                 return;
-            const auto source =
-                renderPreviewSnapshot(worker.m_layers, worker.m_size, sampleSize(worker.m_size),
-                                      true, worker.m_scratchCache);
-            // Decode with the same orientation, RAW development and sRGB conversion as opening a
-            // document. Sample both images with the canvas proxy's nearest-pixel filter so texture
-            // in the reference does not look like a change in contrast.
-            auto reference = worker.readImage(path);
-            if (reference.isNull())
+            const auto reference = worker.readImage(path);
+            if (reference.isNull() || !worker.operationStep(1, 3))
                 return;
-            reference = reference.scaled(sampleSize(reference.size()), Qt::IgnoreAspectRatio,
-                                         Qt::FastTransformation);
-            if (!worker.operationStep(4, 4))
+            const auto source = worker.composite();
+            if (!worker.operationStep(2, 3))
                 return;
-            *recipe = PhotoCrap::Look::matchReference(source, reference);
+            *recipe = PhotoCrap::Look::matchReference(
+                source, reference,
+                [](const QImage &image, const QString &type, const QVariantMap &params) {
+                    return adjustedImage(image, type, params);
+                });
+            worker.operationStep(3, 3);
             if (!recipe->error.isEmpty())
                 worker.fail(recipe->error);
         },

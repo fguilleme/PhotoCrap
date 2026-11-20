@@ -308,6 +308,9 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
     if (renderSize != _size) {
         const qreal scale = qreal(renderSize.width()) / qMax(1, _size.width());
         for (Layer &layer : _layers) {
+            if (layer.adjustmentType == "grain")
+                layer.parameters["_grainFootprint"] = QSizeF(double(_size.width()) / renderSize.width(),
+                                                            double(_size.height()) / renderSize.height());
             if (layer.adjustmentType == "relight")
                 layer.transformSurfaceNormals(QTransform::fromScale(qreal(renderSize.width())/_size.width(),
                                                                   qreal(renderSize.height())/_size.height()));

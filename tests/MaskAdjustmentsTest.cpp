@@ -38,6 +38,78 @@ class MaskAdjustmentsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void clarityAndGrainLayers_data()
+    {
+        QTest::addColumn<bool>("wide");
+        QTest::newRow("8-bit") << false;
+        QTest::newRow("16-bit") << true;
+    }
+
+    void clarityAndGrainLayers()
+    {
+        QFETCH(bool, wide);
+        QTemporaryDir tmp;
+        QImage image(192, 96, wide ? QImage::Format_RGBA64 : QImage::Format_ARGB32);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int value = x < 96 ? 125 : 155;
+                image.setPixelColor(x, y, QColor(value, value, value, y < 12 ? 128 : 255));
+            }
+        const auto file = QUrl::fromLocalFile(tmp.filePath("haze.png"));
+        QVERIFY(image.save(file.toLocalFile()));
+        Document doc;
+        QVERIFY(doc.openFile(file));
+        const auto original = doc.composite();
+        const auto set = [&](const QString &key, double value) {
+            doc.beginLayerPreview();
+            doc.previewLayerParameter(key, value);
+            doc.finishLayerPreview();
+        };
+        const auto contrast = [](const QImage &im) {
+            return im.pixelColor(97, 40).red() - im.pixelColor(94, 40).red();
+        };
+        doc.addAdjustmentLayer("clarityDehaze");
+        QCOMPARE(doc.composite(), original);
+        set("clarity", 75);
+        QVERIFY(contrast(doc.composite()) > contrast(original));
+        set("clarity", -75);
+        QVERIFY(contrast(doc.composite()) < contrast(original));
+        set("clarity", 0);
+        set("dehaze", -70);
+        QVERIFY(doc.composite().pixelColor(40, 40).red() > original.pixelColor(40, 40).red());
+        set("dehaze", 70);
+        const auto clear = doc.composite();
+        QVERIFY(clear.pixelColor(40, 40).red() < original.pixelColor(40, 40).red());
+        doc.addAdjustmentLayer("grain");
+        QCOMPARE(doc.composite(), clear);
+        set("amount", 65);
+        const auto fine = doc.composite();
+        QVERIFY(fine != clear);
+        set("size", 4.5);
+        QVERIFY(doc.composite() != fine);
+        const auto smooth = doc.composite();
+        set("roughness", 100);
+        const auto grain = doc.composite();
+        QVERIFY(grain != smooth);
+        QCOMPARE(grain.format(), original.format());
+        QCOMPARE(grain.pixelColor(50, 6).alpha(), original.pixelColor(50, 6).alpha());
+        const QRect tile(70, 24, 57, 41);
+        QCOMPARE(doc.compositeRegion(tile), grain.copy(tile));
+        const auto project = QUrl::fromLocalFile(tmp.filePath("grain.pcr"));
+        QVERIFY(doc.saveProject(project));
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.composite(), grain);
+        doc.resetAdjustmentLayer();
+        QCOMPARE(doc.composite(), clear);
+        doc.undo();
+        QCOMPARE(doc.composite(), grain);
+        doc.setLayerVisible(2, false);
+        doc.setActiveLayer(1);
+        doc.resetAdjustmentLayer();
+        QCOMPARE(doc.composite(), original);
+    }
+
     void importXmpAsOneEditableStack()
     {
         QTemporaryDir tmp;
@@ -198,7 +270,8 @@ private slots:
             "<r:RDF xmlns:r=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" "
             "xmlns:c=\"http://ns.adobe.com/camera-raw-settings/1.0/\"> "
             "<r:Description c:SplitToningShadowHue=\"40\" c:SplitToningShadowSaturation=\"0\" "
-            "c:SplitToningHighlightHue=\"280\" c:SplitToningBalance=\"30\" c:Texture=\"0\"/> "
+            "c:SplitToningHighlightHue=\"280\" c:SplitToningBalance=\"30\" c:Texture=\"0\" c:Clarity=\"0\" "
+            "c:Dehaze=\"0\" c:GrainAmount=\"0\" c:GrainSize=\"40\" c:GrainFrequency=\"90\"/> "
             "</r:RDF>");
         xmp.close();
         Document doc;
@@ -209,6 +282,33 @@ private slots:
         QCOMPARE(doc.layers().size(), 1);
         QCOMPARE(doc.history(), before);
         QCOMPARE(skipped.size(), 0);
+    }
+
+    void xmpPresenceAndGrain()
+    {
+        QTemporaryDir tmp;
+        QFile preset(tmp.filePath("presence.xmp"));
+        QVERIFY(preset.open(QIODevice::WriteOnly));
+        preset.write("<r:RDF xmlns:r='http://www.w3.org/1999/02/22-rdf-syntax-ns#' "
+                     "xmlns:c='http://ns.adobe.com/camera-raw-settings/1.0/'>"
+                     "<r:Description c:Clarity='5' c:Clarity2012='-40' c:Dehaze='25' "
+                     "c:Saturation='-30' c:GrainFrequency='0' c:GrainSize='0'>"
+                     "<c:GrainAmount>55</c:GrainAmount></r:Description></r:RDF>");
+        preset.close();
+        Document doc;
+        QVERIFY(doc.newDocument(32, 32, false));
+        QSignalSpy skipped(&doc, &Document::xmpSettingsSkipped);
+        doc.importAdobeXmp(QUrl::fromLocalFile(preset.fileName()));
+        QCOMPARE(skipped.size(), 0);
+        QCOMPARE(doc.layerCount(), 4);
+        QCOMPARE(layer(doc, 1)["adjustmentType"].toString(), "hueSaturation");
+        QCOMPARE(layer(doc, 1)["parameters"].toMap()["saturation"].toInt(), -30);
+        QCOMPARE(layer(doc, 2)["parameters"].toMap()["clarity"].toInt(), -40);
+        QCOMPARE(layer(doc, 2)["parameters"].toMap()["dehaze"].toInt(), 25);
+        const auto grain = layer(doc, 3)["parameters"].toMap();
+        QCOMPARE(grain["amount"].toInt(), 55);
+        QCOMPARE(grain["size"].toDouble(), 1.);
+        QCOMPARE(grain["roughness"].toInt(), 0);
     }
 
     void invalidXmpIsAtomic()
@@ -291,10 +391,165 @@ private slots:
         QCOMPARE(doc.history().size(), count);
     }
 
+    void referenceFindsAdjustments_data()
+    {
+        QTest::addColumn<QString>("type");
+        QTest::addColumn<QString>("key");
+        QTest::addColumn<double>("value");
+        QTest::newRow("exposure") << QString("exposure") << QString("exposure") << .65;
+        QTest::newRow("hue") << QString("hueSaturation") << QString("hue") << 35.;
+        QTest::newRow("saturation") << QString("hueSaturation") << QString("saturation") << -40.;
+        QTest::newRow("clarity") << QString("clarityDehaze") << QString("clarity") << 80.;
+        QTest::newRow("veil") << QString("clarityDehaze") << QString("dehaze") << -65.;
+        QTest::newRow("grain") << QString("grain") << QString("amount") << 55.;
+    }
+
+    void referenceFindsAdjustments()
+    {
+        QFETCH(QString, type);
+        QFETCH(QString, key);
+        QFETCH(double, value);
+        QTemporaryDir tmp;
+        const auto    photo = QUrl::fromLocalFile(tmp.filePath("source.png"));
+        const auto    ref   = QUrl::fromLocalFile(tmp.filePath("reference.png"));
+        QImage        image(640, 320, QImage::Format_RGB32);
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int v = 48 + 90 * x / image.width() + 14 * ((x / 17 + y / 23) % 2);
+                image.setPixel(x, y,
+                               type == "hueSaturation" ? qRgb(v + 35, v, v - 20) : qRgb(v, v, v));
+            }
+        QVERIFY(image.save(photo.toLocalFile()));
+        Document doc;
+        QVERIFY(doc.openFile(photo));
+        doc.addAdjustmentLayer(type);
+        doc.beginLayerPreview();
+        doc.previewLayerParameter(key, value);
+        doc.finishLayerPreview();
+        const auto originalTarget = doc.composite();
+        QVERIFY(originalTarget.save(ref.toLocalFile()));
+        Document matched;
+        QVERIFY(matched.openFile(photo));
+        matched.matchReferenceImage(ref);
+        QTRY_VERIFY(!matched.operationBusy());
+        double inferred = 0.;
+        for (const auto &layer : matched.layers()) {
+            const auto item = layer.toMap();
+            if (item["adjustmentType"] == type)
+                inferred = item["parameters"].toMap()[key].toDouble();
+        }
+        QVERIFY2(inferred / value > .75 && inferred / value < 1.25,
+                 qPrintable(QString("%1 estimated as %2").arg(key).arg(inferred)));
+        if (type != "grain")
+            QCOMPARE(matched.layerCount(), 2);
+        if (key == "dehaze")
+            QCOMPARE(layer(matched, 1)["parameters"].toMap()["clarity"].toInt(), 0);
+        matched.undo();
+        QCOMPARE(matched.layerCount(), 1);
+    }
+
+    void grainPreviewAndNativeStrength()
+    {
+        QTemporaryDir tmp;
+        QImage flat(512, 512, QImage::Format_RGB32);
+        flat.fill(qRgb(128, 128, 128));
+        const auto file = QUrl::fromLocalFile(tmp.filePath("midgray.png"));
+        QVERIFY(flat.save(file.toLocalFile()));
+        Document doc;
+        QVERIFY(doc.openFile(file));
+        doc.setGpuTonePreviewEnabled(false);
+        doc.setPreviewSize(128, 128);
+        doc.addAdjustmentLayer("grain");
+        doc.beginLayerPreview();
+        doc.previewLayerParameter("amount", 50);
+        QTRY_COMPARE(doc.displayComposite().size(), QSize(128, 128));
+        const auto draft = doc.displayComposite();
+        doc.finishLayerPreview();
+        const auto full = doc.composite();
+        const auto down = full.scaled(draft.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        double nativeEnergy = 0.;
+        for (int y = 0; y < full.height(); ++y)
+            for (int x = 0; x < full.width(); ++x) {
+                const int delta = qRed(full.pixel(x, y)) - 128;
+                nativeEnergy += delta * delta;
+            }
+        const auto rms = std::sqrt(nativeEnergy / (full.width() * full.height()));
+        QVERIFY(rms > 3. && rms < 7.);
+        int maxDifference = 0;
+        for (int y = 0; y < down.height(); ++y)
+            for (int x = 0; x < down.width(); ++x)
+                maxDifference = qMax(maxDifference, qAbs(qRed(draft.pixel(x, y)) - qRed(down.pixel(x, y))));
+        QVERIFY2(maxDifference <= 2, qPrintable(QString::number(maxDifference)));
+    }
+
+    void referenceStructuredTextureIsNotGrain()
+    {
+        QTemporaryDir tmp;
+        const auto file = QUrl::fromLocalFile(tmp.filePath("source.png"));
+        const auto ref = QUrl::fromLocalFile(tmp.filePath("weave.png"));
+        QImage image(320, 256, QImage::Format_RGB32);
+        image.fill(qRgb(128, 128, 128));
+        QVERIFY(image.save(file.toLocalFile()));
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int v = (x + y) % 2 ? 104 : 152;
+                image.setPixel(x, y, qRgb(v, v, v));
+            }
+        QVERIFY(image.save(ref.toLocalFile()));
+        Document doc;
+        QVERIFY(doc.openFile(file));
+        doc.matchReferenceImage(ref);
+        QTRY_VERIFY(!doc.operationBusy());
+        for (const auto &entry : doc.layers())
+            QVERIFY(entry.toMap()["adjustmentType"].toString() != "grain");
+    }
+
+    void referenceGrainAcrossResolutions()
+    {
+        QTemporaryDir tmp;
+        const auto    source = QUrl::fromLocalFile(tmp.filePath("source.png"));
+        const auto    ref    = QUrl::fromLocalFile(tmp.filePath("reference.png"));
+        QImage        gray(960, 480, QImage::Format_RGB32);
+        gray.fill(qRgb(120, 120, 120));
+        QVERIFY(gray.save(source.toLocalFile()));
+        Document author;
+        QVERIFY(author.openFile(source));
+        author.addAdjustmentLayer("grain");
+        author.beginLayerPreview();
+        author.previewLayerParameter("amount", 55);
+        author.previewLayerParameter("size", 6);
+        author.previewLayerParameter("roughness", 15);
+        author.finishLayerPreview();
+        const auto target = author.composite();
+        QVERIFY(target.save(ref.toLocalFile()));
+        QVERIFY(gray.copy(0, 0, 320, 180).save(source.toLocalFile()));
+        Document matched;
+        QVERIFY(matched.openFile(source));
+        matched.matchReferenceImage(ref);
+        QTRY_VERIFY(!matched.operationBusy());
+        QCOMPARE(layer(matched, matched.layerCount() - 1)["adjustmentType"].toString(), "grain");
+        const auto result = matched.composite();
+        // Compare spatial differences at one and five original pixels, independent of image size.
+        const auto difference = [](const QImage &image, int distance) {
+            double total = 0.;
+            for (int y = 0; y < 180; ++y)
+                for (int x = 0; x < 315; ++x)
+                    total += qAbs(qRed(image.pixel(x + distance, y)) - qRed(image.pixel(x, y)));
+            return total / (180 * 315);
+        };
+        for (int distance : {1, 5}) {
+            const double ratio = difference(result, distance) / difference(target, distance);
+            QVERIFY2(
+                ratio > .7 && ratio < 1.3,
+                qPrintable(
+                    QString("Grain difference ratio at %1 pixels: %2").arg(distance).arg(ratio)));
+        }
+    }
+
     void referencePreservesHighFrequencyContrast()
     {
         QTemporaryDir tmp;
-        QImage image(1024, 768, QImage::Format_RGB32);
+        QImage        image(1024, 768, QImage::Format_RGB32);
         for (int y = 0; y < image.height(); ++y)
             for (int x = 0; x < image.width(); ++x)
                 image.setPixel(x, y, (x + y) % 2 ? qRgb(42, 19, 80) : qRgb(211, 144, 162));

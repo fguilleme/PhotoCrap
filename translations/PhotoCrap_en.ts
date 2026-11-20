@@ -113,6 +113,8 @@
   </context>
   <context>
     <name>Document</name>
+    <message><source>Clarté / Correction du voile</source><translation>Clarity and Dehaze</translation></message>
+    <message><source>Grain</source><translation>Grain</translation></message>
     <message><source>Adapter le rééclairage à la photo</source><translation>Adapt relighting to the photo</translation></message>
     <message><source>Sélectionnez un calque de rééclairage modifiable.</source><translation>Select an editable relight layer.</translation></message>
     <message><source>Le calque photo choisi est indisponible.</source><translation>The selected photo layer is unavailable.</translation></message>
@@ -928,6 +930,12 @@
   </context>
   <context>
     <name>Main</name>
+    <message><source>Clarté / Correction du voile</source><translation>Clarity and Dehaze</translation></message>
+    <message><source>Grain</source><translation>Grain</translation></message>
+    <message><source>Clarté</source><translation>Clarity</translation></message>
+    <message><source>Correction du voile</source><translation>Dehaze</translation></message>
+    <message><source>Taille du grain (px)</source><translation>Grain size (px)</translation></message>
+    <message><source>Rugosité (%)</source><translation>Roughness (%)</translation></message>
     <message>
       <source>Parcourir les commandes au clavier</source>
       <translation>Navigate controls with the keyboard</translation>

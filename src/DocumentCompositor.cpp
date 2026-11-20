@@ -75,6 +75,8 @@ int effectMargin(const Layer &_layer)
         return maskMargin + radius() * 3;
     if (_layer.adjustmentType == QStringLiteral("boxBlur"))
         return maskMargin + radius();
+    if (_layer.adjustmentType == QStringLiteral("clarityDehaze"))
+        return maskMargin + vectorMargin + qBound(1, _layer.parameters.value("radius", 18).toInt(), 100);
     if (_layer.adjustmentType == QStringLiteral("texture")) {
         const int r = qBound(1, qRound(_layer.parameters.value("radius", 4.).toDouble()), 100);
         return maskMargin + vectorMargin + r + r / 4;
@@ -220,7 +222,9 @@ QImage Document::renderCompositeRect(const QRect &_region) const
     const auto compositeLayer  = [&](const QImage &_source, const Layer &layer) {
         const bool preserveAlpha =
             layer.kind == "adjustment" &&
-            (layer.adjustmentType == "texture" || layer.adjustmentType == "splitToning" || layer.adjustmentType == "relight");
+            (layer.adjustmentType == "texture" || layer.adjustmentType == "splitToning" ||
+             layer.adjustmentType == "relight" || layer.adjustmentType == "clarityDehaze" ||
+             layer.adjustmentType == "grain");
         if (preserveAlpha) {
             if (layer.blend == 0 && layer.opacity == 1. && !needsMask(layer) &&
                 !layer.clippingMask && layer.directType.isEmpty()) {

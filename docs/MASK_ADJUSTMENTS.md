@@ -78,11 +78,15 @@ Ouvrez la photo à retoucher, puis choisissez **Calque → Importer des réglage
 
 | Calque | Réglages repris |
 | --- | --- |
-| Lumière | Exposition, contraste, hautes lumières, ombres, blancs et noirs |
-| Couleur | Vibrance, saturation et corrections relatives de température et de teinte |
+| Exposition | Correction en indices de lumination (IL) |
+| Lumière | Contraste, hautes lumières, ombres, blancs et noirs |
+| Couleur | Vibrance et corrections relatives de température et de teinte |
+| Teinte / Saturation | Saturation globale |
 | Noir et blanc | Conversion en niveaux de gris |
 | Courbes | Courbe à points RVB et courbes rouge, verte et bleue |
 | Texture | Une valeur négative adoucit les détails, une valeur positive les accentue |
+| Clarté / Correction du voile | Clarté actuelle ou ancienne et correction du voile, positives ou négatives |
+| Grain | Quantité, taille et rugosité. La taille Adobe de 0 à 100 est convertie en 1 à 8 pixels |
 | Virage partiel | Teinte et saturation des ombres et des hautes lumières. Une balance positive favorise les hautes lumières, une balance négative les ombres |
 | Netteté optimisée | Gain et rayon de l’accentuation |
 
@@ -90,6 +94,6 @@ Si un réglage est ignoré, le bilan indique son nom et le nombre de calques cr�
 
 ### À partir d’une photo de référence
 
-Ouvrez la photo à retoucher, puis choisissez **Calque → Reproduire le rendu d’une image…** et sélectionnez la photo dont vous souhaitez retrouver l’aspect. PhotoCrap compare localement les pixels visibles des deux images et ajoute jusqu’à trois calques selon les écarts mesurés, **Tonalité**, **Saturation** et **Courbes couleur**. Des sujets et des éclairages proches donnent généralement un meilleur point de départ.
+Ouvrez la photo à retoucher, puis choisissez **Calque → Reproduire le rendu d’une image…** et sélectionnez la photo dont vous souhaitez retrouver l’aspect. PhotoCrap compare les pixels visibles pour estimer l’exposition, le voile, la teinte dominante et la saturation. Des échantillons à la résolution d’origine servent à estimer la clarté et le grain supplémentaire. Les courbes ajustent les écarts de tonalité et de couleur restants. Seuls les réglages retenus sont ajoutés. Des sujets, des textures et des éclairages proches facilitent la comparaison.
 
 Les deux commandes ajoutent leurs calques en haut de la pile. Double-cliquez sur un calque pour modifier ses réglages ou réduisez son opacité pour atténuer l’effet. **Annuler** retire tout l’import en une étape. Enregistrez en `.pcr` pour retrouver les réglages à la réouverture.

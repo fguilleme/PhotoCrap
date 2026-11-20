@@ -160,16 +160,20 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     xmp.write("<r:RDF xmlns:r='http://www.w3.org/1999/02/22-rdf-syntax-ns#' "
               "xmlns:c='http://ns.adobe.com/camera-raw-settings/1.0/'>"
               "<r:Description c:Exposure2012='0.5' c:Clarity2012='30' c:Texture='-20' "
+              "c:Saturation='12' c:Dehaze='-15' c:GrainAmount='35' c:Temperature='5200' "
               "c:SplitToningShadowHue='215' c:SplitToningShadowSaturation='30'/></r:RDF>");
     xmp.close();
     auto *report = window->findChild<QObject *>("xmpReport");
     if (!require(report && importLook("importXmpMenuItem", "xmpDialog", preset) &&
                      QTest::qWaitFor([&] { return report->property("opened").toBool(); }) &&
-                     report->property("added").toInt() == 3 &&
-                     document.layers().first().toMap()["adjustmentType"] == "splitToning" &&
-                     document.layers().at(1).toMap()["adjustmentType"] == "texture" &&
-                     document.layers().at(2).toMap()["adjustmentType"] == "light",
-                 "XMP picker creates editable light, texture and toning layers"))
+                     report->property("added").toInt() == 6 &&
+                     document.layers().first().toMap()["adjustmentType"] == "grain" &&
+                     document.layers().at(1).toMap()["adjustmentType"] == "splitToning" &&
+                     document.layers().at(2).toMap()["adjustmentType"] == "clarityDehaze" &&
+                     document.layers().at(3).toMap()["adjustmentType"] == "texture" &&
+                     document.layers().at(4).toMap()["adjustmentType"] == "hueSaturation" &&
+                     document.layers().at(5).toMap()["adjustmentType"] == "exposure",
+                 "XMP picker creates the expected editable stack"))
         return false;
     QMetaObject::invokeMethod(report, "close");
     document.undo();
@@ -187,6 +191,35 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
         return false;
     document.undo();
     auto *createModelMenu = window->findChild<QObject *>("createLayerModel3DMenu");
+    auto *adjustmentProperties = window->findChild<QObject *>("layerPropertiesDialog");
+    for (const auto menuName : {"newAdjustmentLayerMenu", "createLayerMenu"}) {
+        auto *layerMenu = window->findChild<QObject *>(menuName);
+        if (!require(layerMenu && adjustmentProperties, "adjustment layer menu and properties exist"))
+            return false;
+        for (const auto type : {"exposure", "hueSaturation", "clarityDehaze", "grain"}) {
+            QObject *entry = nullptr;
+            for (auto *item : layerMenu->findChildren<QObject *>()) {
+                if (item->metaObject()->indexOfSignal("triggered()") >= 0 &&
+                    item->property("text").toString() == document.adjustmentName(type)) {
+                    entry = item;
+                    break;
+                }
+            }
+            const auto count = document.layerCount();
+            if (!require(entry && QMetaObject::invokeMethod(entry, "triggered") &&
+                         document.layerCount() == count + 1 &&
+                         document.layers().first().toMap()["adjustmentType"].toString() == type &&
+                         QTest::qWaitFor([&] { return adjustmentProperties->property("opened").toBool(); }),
+                         "choosing the adjustment creates the requested layer and opens its controls"))
+                return false;
+            adjustmentProperties->setProperty("keepChanges", true);
+            QMetaObject::invokeMethod(adjustmentProperties, "accept");
+            if (!require(QTest::qWaitFor([&] { return !adjustmentProperties->property("visible").toBool(); }),
+                         "adjustment properties close"))
+                return false;
+            document.undo();
+        }
+    }
     auto *layerModelMenu  = window->findChild<QObject *>("layerModel3DMenu");
     for (auto *submenu : {createModelMenu, layerModelMenu})
         if (!require(submenu &&

@@ -124,7 +124,7 @@ Recipe readAdobeXmp(const QString &path)
         return result;
     QSet<QString> handled;
     const auto    scalar = [&](QVariantMap &params, const char *dest, QStringList keys, double min,
-                            double max) {
+                            double max, bool keepZero = false) {
         for (const auto &key : keys)
             handled.insert(key);
         for (const auto &key : keys) {
@@ -134,26 +134,30 @@ Recipe readAdobeXmp(const QString &path)
             const double value = values[key].toDouble(&ok);
             if (!ok || !std::isfinite(value) || value < min || value > max)
                 result.skipped.append(key);
-            else if (value != 0)
+            else if (value != 0 || keepZero)
                 params.insert(QString::fromLatin1(dest), value);
             break;
         }
     };
-    QVariantMap light, color, tone;
-    scalar(light, "exposure", {"Exposure2012", "Exposure"}, -5, 5);
+    QVariantMap exposure, light, color, saturation, tone;
+    scalar(exposure, "exposure", {"Exposure2012", "Exposure"}, -5, 5);
     scalar(light, "contrast", {"Contrast2012", "Contrast"}, -100, 100);
     scalar(light, "highlights", {"Highlights2012"}, -100, 100);
     scalar(light, "shadows", {"Shadows2012"}, -100, 100);
     scalar(light, "whites", {"Whites2012"}, -100, 100);
     scalar(light, "blacks", {"Blacks2012"}, -100, 100);
     scalar(color, "vibrance", {"Vibrance"}, -100, 100);
-    scalar(color, "saturation", {"Saturation"}, -100, 100);
+    scalar(saturation, "saturation", {"Saturation"}, -100, 100);
     scalar(color, "temperature", {"IncrementalTemperature"}, -100, 100);
     scalar(color, "tint", {"IncrementalTint"}, -100, 100);
+    if (!exposure.isEmpty())
+        result.layers.append({"exposure", exposure, {}});
     if (!light.isEmpty())
         result.layers.append({"light", light, {}});
     if (!color.isEmpty())
         result.layers.append({"color", color, {}});
+    if (!saturation.isEmpty())
+        result.layers.append({"hueSaturation", saturation, {}});
     const auto gray = values.value("ConvertToGrayscale").toLower();
     handled.insert("ConvertToGrayscale");
     if (gray == "true" || gray == "1")
@@ -181,6 +185,11 @@ Recipe readAdobeXmp(const QString &path)
     scalar(texture, "amount", {"Texture"}, -100, 100);
     if (!texture.isEmpty())
         result.layers.append({"texture", texture, {}});
+    QVariantMap presence;
+    scalar(presence, "clarity", {"Clarity2012", "Clarity"}, -100, 100);
+    scalar(presence, "dehaze", {"Dehaze"}, -100, 100);
+    if (!presence.isEmpty())
+        result.layers.append({"clarityDehaze", presence, {}});
     scalar(grading, "shadowHue", {"SplitToningShadowHue"}, 0, 360);
     scalar(grading, "highlightHue", {"SplitToningHighlightHue"}, 0, 360);
     scalar(grading, "shadowSaturation", {"SplitToningShadowSaturation"}, 0, 100);
@@ -198,6 +207,15 @@ Recipe readAdobeXmp(const QString &path)
         sharp.insert("radius", 1.);
         scalar(sharp, "radius", {"SharpenRadius"}, .5, 3.);
         result.layers.append({"unsharpMask", sharp, {}});
+    }
+    QVariantMap grain;
+    scalar(grain, "amount", {"GrainAmount"}, 0, 100);
+    scalar(grain, "size", {"GrainSize"}, 0, 100, true);
+    scalar(grain, "roughness", {"GrainFrequency"}, 0, 100, true);
+    if (grain.contains("amount")) {
+        // Lightroom's relative size 0..100 maps onto the layer's 1..8 px range.
+        grain["size"] = 1. + .07 * grain.value("size", 25).toDouble();
+        result.layers.append({"grain", grain, {}});
     }
     static const QSet<QString> metadata{"Version",
                                         "ProcessVersion",

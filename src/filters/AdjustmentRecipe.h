@@ -4,6 +4,7 @@
 #include <QList>
 #include <QStringList>
 #include <QVariantMap>
+#include <functional>
 
 namespace PhotoCrap::Look
 {
@@ -20,5 +21,8 @@ struct Recipe {
 };
 
 Recipe readAdobeXmp(const QString &path);
-Recipe matchReference(const QImage &source, const QImage &reference);
+using RenderAdjustment =
+    std::function<QImage(const QImage &, const QString &, const QVariantMap &)>;
+Recipe matchReference(const QImage &source, const QImage &reference,
+                      const RenderAdjustment &render);
 } // namespace PhotoCrap::Look

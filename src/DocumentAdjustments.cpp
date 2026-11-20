@@ -186,7 +186,8 @@ void Document::resetAdjustmentLayer()
         parameters = {{"hue", 0}, {"saturation", 0}, {"lightness", 0}};
     else if (type == QStringLiteral("colorBalance"))
         parameters = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
-    else if (type == "splitToning" || type == "texture" || type == "relight")
+    else if (type == "splitToning" || type == "texture" || type == "relight" ||
+             type == "clarityDehaze" || type == "grain")
         parameters = adjustmentDefaults(type);
     else if (type == QStringLiteral("selectiveColor"))
         parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
@@ -399,6 +400,8 @@ QString Document::adjustmentName(const QString &_type) const
                                        {"splitToning", tr("Virage partiel")},
                                        {"relight", tr("Rééclairage")},
                                        {"texture", tr("Texture")},
+                                       {"clarityDehaze", tr("Clarté / Correction du voile")},
+                                       {"grain", tr("Grain")},
                                        {"blackWhite", tr("Noir et blanc")},
                                        {"photoFilter", tr("Filtre photo")},
                                        {"channelMixer", tr("Mélangeur de couches")},
@@ -453,6 +456,10 @@ QVariantMap Document::adjustmentDefaults(const QString &_type) const
     else if (_type == "splitToning")
         params = {{"shadowHue", 0}, {"shadowSaturation", 0}, {"highlightHue", 0},
                   {"highlightSaturation", 0}, {"balance", 0}};
+    else if (_type == "clarityDehaze")
+        params = {{"clarity", 0}, {"dehaze", 0}, {"radius", 18}};
+    else if (_type == "grain")
+        params = {{"amount", 0}, {"size", 2.}, {"roughness", 50}};
     else if (_type == "texture")
         params = {{"amount", 0}, {"radius", 4.}};
     else if (_type == "selectiveColor")

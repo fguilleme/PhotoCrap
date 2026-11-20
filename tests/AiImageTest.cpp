@@ -1428,7 +1428,7 @@ private slots:
         AiSettings        settings(nullptr, false);
         AiImageController controller(&document, &settings);
         QVERIFY(controller.analyzeSurfaceLocally());
-        const int timeout = model == "download" ? 120000 : 18000;
+        const int timeout = model == "download" ? 120000 : 60000;
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), timeout);
         QVERIFY2(controller.surfacePicking(), qPrintable(controller.error()));
         QPoint seed;

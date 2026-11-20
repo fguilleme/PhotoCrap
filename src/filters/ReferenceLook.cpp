@@ -207,6 +207,10 @@ QPair<double, int> exposureAndVeil(const Statistics &a, const Statistics &b)
         for (int step = -100; step <= 100; ++step) {
             const double ev = step * .05, factor = std::exp2(ev);
             double       error = std::abs(ev) * .3 + std::abs(d) * .015 + (d ? 1.5 : 0.);
+            // A second layer must improve the fit by more than one 8-bit tonal level.
+            // Local blur and histogram quantization can otherwise mimic a small exposure shift.
+            if (d && step)
+                error += 1.;
             for (int i = 0; i < 5; ++i) {
                 const double v    = qMin(255., input[i] * factor);
                 const double haze = .65 * d / 100. * v / 255.;

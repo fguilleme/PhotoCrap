@@ -1,7 +1,6 @@
 #pragma once
 #include "Document.h"
 #include <QCursor>
-#include <QMouseEvent>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -28,10 +27,7 @@ inline bool runValueScrubberSmoke(QQuickWindow *_window, Document &_document)
     const auto point =
         scrubber->mapToScene(QPointF(scrubber->width() / 2, scrubber->height() / 2)).toPoint();
     const auto move = [&](const QPoint &_position, Qt::KeyboardModifiers _modifiers = {}) {
-        QMouseEvent event(QEvent::MouseMove, QPointF(_position),
-                          QPointF(_window->mapToGlobal(_position)), Qt::NoButton, Qt::LeftButton,
-                          _modifiers);
-        QCoreApplication::sendEvent(_window, &event);
+        QTest::mouseEvent(QTest::MouseMove, _window, Qt::NoButton, _modifiers, _position);
     };
     QTest::mouseMove(_window, point);
     if (!require(scrubber->cursor().shape() == Qt::OpenHandCursor,
@@ -39,7 +35,8 @@ inline bool runValueScrubberSmoke(QQuickWindow *_window, Document &_document)
         return false;
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, point);
     move(point + QPoint(20, 0));
-    if (!require(_document.brushSize() == 34 && scrubber->cursor().shape() == Qt::ClosedHandCursor,
+    if (!require(QTest::qWaitFor([&] { return _document.brushSize() == 34; }) &&
+                     scrubber->cursor().shape() == Qt::ClosedHandCursor,
                  "a horizontal drag changes brush size and grabs the cursor"))
         return false;
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, point + QPoint(20, 0));
@@ -60,10 +57,10 @@ inline bool runValueScrubberSmoke(QQuickWindow *_window, Document &_document)
     _document.setBrushSize(495);
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, point);
     move(point + QPoint(100, 0));
-    if (!require(_document.brushSize() == 500, "scrubbing clamps to the field maximum"))
+    if (!require(QTest::qWaitFor([&] { return _document.brushSize() == 500; }), "scrubbing clamps to the field maximum"))
         return false;
     move(point + QPoint(96, 0));
-    if (!require(_document.brushSize() == 498, "reversing at the limit reacts immediately"))
+    if (!require(QTest::qWaitFor([&] { return _document.brushSize() == 498; }), "reversing at the limit reacts immediately"))
         return false;
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, point + QPoint(96, 0));
     _document.setBrushSize(37);

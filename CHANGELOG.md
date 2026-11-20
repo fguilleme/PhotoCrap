@@ -4,7 +4,7 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
-## v0.27.0 — 20 novembre 2026
+## v0.27.1 — 20 novembre 2026
 
 - Le calque de rééclairage permet de changer de photo en conservant ses lumières et de diriger chaque source vers une cible. Les marqueurs apparaissent au mouvement de la souris, même hors cadre, et se masquent sur les panneaux de réglage et des calques.
 - Les nouveaux calques Clarté / Correction du voile et Grain sont pris en compte dans l’import XMP et le rendu d’après une photo de référence. Exposition et Teinte / Saturation sont accessibles depuis le menu des calques de réglage.

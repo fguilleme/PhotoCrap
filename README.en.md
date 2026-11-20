@@ -4,9 +4,9 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-**v0.27.0** · Reuse lighting across photos, aim individual lights and choose which adjustments appear in the **+** menu. Clarity / Dehaze and Grain layers are available for XMP imports and reference photo matching. [XMP and reference photo guide (in French)](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
+**v0.27.1** · Reuse lighting across photos, aim individual lights and choose which adjustments appear in the **+** menu. Clarity / Dehaze and Grain layers are available for XMP imports and reference photo matching. [XMP and reference photo guide (in French)](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
 
-## v0.27.0 · Changes since v0.21.0
+## v0.27.1 · Changes since v0.21.0
 
 - Redesigned workspace and typography panel with live font previews on hover.
 - Editable text on fabric folds or across two faces of a wall, with perspective

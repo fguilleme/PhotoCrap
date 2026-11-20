@@ -7,12 +7,41 @@ Item {
     required property real zoom
     required property real imageWidth
     required property real imageHeight
+    required property Item workspace
+    required property Item settingsPanel
+    required property Item rightDock
     readonly property real imageLeft: (width - imageWidth) / 2
     readonly property real imageTop: (height - imageHeight) / 2
     signal dragStarted()
     signal dragCanceled()
 
-    component LightHandle: Rectangle {
+    Item {
+        parent: root.workspace
+        anchors.fill: parent
+        z: 100
+        visible: root.visible
+        HoverHandler {
+            id: pointer
+            property point lastPosition: Qt.point(-1, -1)
+            onPointChanged: {
+                const pos = point.scenePosition
+                if (pos.x === lastPosition.x && pos.y === lastPosition.y) return
+                lastPosition = pos
+                markerTimeout.restart()
+            }
+            onHoveredChanged: {
+                if (hovered) markerTimeout.restart()
+                else markerTimeout.stop()
+            }
+        }
+    }
+    Timer { id: markerTimeout; interval: 1500 }
+    function pointerOver(item) {
+        return item && item.visible && item.contains(item.mapFromItem(null, pointer.point.scenePosition))
+    }
+    readonly property bool overPanel: pointerOver(settingsPanel) || pointerOver(rightDock)
+
+    component LightHandle: Item {
         id: handle
         required property int lampIndex
         property bool target: false
@@ -24,19 +53,26 @@ Item {
         property point grabOffset
         property bool dragging: false
         property bool moved: false
-        width: 24; height: 24; radius: 12
+        width: 24; height: 24
         x: root.imageLeft + (dragging ? draggingCenter.x : center.x) * root.zoom - width / 2
         y: root.imageTop + (dragging ? draggingCenter.y : center.y) * root.zoom - height / 2
         z: target ? 2 : selected ? 1 : 0
-        color: target ? "#90000000" : Studio.field
-        border.color: selected ? Studio.accent : "white"
-        border.width: selected ? 3 : 1
-        Text {
-            anchors.centerIn: parent
-            text: handle.target ? "＋" : handle.lampIndex + 1
-            color: "white"
-            font.pixelSize: 12
-            font.bold: handle.selected
+        // Keep the hit area available to pick up a light placed outside the photo.
+        Rectangle {
+            objectName: "relightMarker"
+            anchors.fill: parent
+            visible: pointer.hovered && !root.overPanel && (markerTimeout.running || handle.dragging)
+            radius: width / 2
+            color: handle.target ? "#90000000" : Studio.field
+            border.color: handle.selected ? Studio.accent : "white"
+            border.width: handle.selected ? 3 : 1
+            Text {
+                anchors.centerIn: parent
+                text: handle.target ? "＋" : handle.lampIndex + 1
+                color: "white"
+                font.pixelSize: 12
+                font.bold: handle.selected
+            }
         }
         MouseArea {
             anchors.fill: parent

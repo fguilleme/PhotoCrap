@@ -3050,6 +3050,9 @@ ApplicationWindow {
                             rotation: artboard.rotation
                             imageWidth: artboard.width
                             imageHeight: artboard.height
+                            workspace: window.contentItem
+                            settingsPanel: layerPropertiesDialog.visible ? layerPropertiesDialog.contentItem.parent : null
+                            rightDock: dockArea
                             z: 43
                             visible: activeInfo.adjustmentType === "relight" && activeInfo.visible &&
                                      !activeInfo.editingMask && !activeInfo.locked && !activeInfo.direct &&
@@ -3925,6 +3928,7 @@ ApplicationWindow {
             Rectangle { width: 1; Layout.fillHeight: true; color: Studio.field }
             Rectangle {
                 id: dockArea
+                objectName: "rightPanelDock"
                 visible: !window.panelsTemporarilyHidden
                 Layout.preferredWidth: window.dockWidth
                 Layout.minimumWidth: 230

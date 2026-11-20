@@ -470,6 +470,55 @@ inline bool runAiImageSmoke(QQuickWindow *_window, Document &_document, AiSettin
     auto *aim = relight->findChild<QQuickItem *>("relightAim");
     if (!require(aim && QMetaObject::invokeMethod(aim, "click"), "aimed light can be enabled"))
         return false;
+    auto *target = _window->findChild<QQuickItem *>("relightTarget");
+    if (!require(target && target->parentItem(), "target handle exists"))
+        return false;
+    const auto visibleMarkerCount = [&] {
+        int count = 0;
+        for (auto *handle : target->parentItem()->childItems()) {
+            auto *marker = handle->findChild<QQuickItem *>("relightMarker", Qt::FindDirectChildrenOnly);
+            if (marker && marker->isVisible())
+                ++count;
+        }
+        return count;
+    };
+    QTest::mouseMove(_window, outside);
+    if (!require(QTest::qWaitFor([&] { return visibleMarkerCount() == 3; }, 500),
+                 "moving in the workspace margin reveals lights and targets") ||
+        !require(QTest::qWaitFor([&] { return visibleMarkerCount() == 0; }, 2500),
+                 "markers hide when the pointer rests"))
+        return false;
+    QTest::mouseMove(_window, outside + QPoint(4, 0));
+    if (!require(QTest::qWaitFor([&] { return visibleMarkerCount() == 3; }, 500),
+                 "moving again in the margin restores the markers"))
+        return false;
+    auto *dock = _window->findChild<QQuickItem *>("rightPanelDock");
+    if (!require(dock && dock->isVisible(), "right panel dock is visible"))
+        return false;
+    auto *settingsContent = properties->property("contentItem").value<QQuickItem *>();
+    if (!require(settingsContent && settingsContent->parentItem(), "settings panel exists"))
+        return false;
+    auto *settingsPanel = settingsContent->parentItem();
+    const auto dockPoint = dock->mapToScene({dock->width() / 2, dock->height() - 8}).toPoint();
+    if (!require(!settingsPanel->contains(settingsPanel->mapFromScene(dockPoint)),
+                 "dock hover is tested outside the floating settings panel"))
+        return false;
+    QTest::mouseMove(_window, dockPoint);
+    if (!require(QTest::qWaitFor([&] { return visibleMarkerCount() == 0; }, 500),
+                 "moving over the right panel dock immediately hides all markers"))
+        return false;
+    QTest::mouseMove(_window, outside);
+    if (!require(QTest::qWaitFor([&] { return visibleMarkerCount() == 3; }, 500),
+                 "returning from the dock to the workspace margin reveals the markers"))
+        return false;
+    QTest::mouseMove(_window, settingsPanel->mapToScene({16, 16}).toPoint());
+    if (!require(QTest::qWaitFor([&] { return visibleMarkerCount() == 0; }, 500),
+                 "markers hide immediately over the properties panel"))
+        return false;
+    QTest::mouseMove(_window, pointOnPhoto(.5, .5));
+    if (!require(QTest::qWaitFor([&] { return visibleMarkerCount() == 3; }),
+                 "both sources and the target appear over the photo, including over a handle"))
+        return false;
     const auto aimEnd = pointOnPhoto(.72, .26);
     QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, pointOnPhoto(.5, .5));
     QTest::mouseMove(_window, aimEnd);

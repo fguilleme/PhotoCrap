@@ -17,7 +17,10 @@ inline bool runValueScrubberSmoke(QQuickWindow *_window, Document &_document)
     };
     _document.setTool("brush");
     _document.setBrushSize(24);
-    QTest::qWait(40);
+    QSignalSpy toolbarFrame(_window, &QQuickWindow::frameSwapped);
+    _window->update();
+    if (!require(toolbarFrame.wait(2000), "brush toolbar is laid out before the drag"))
+        return false;
     auto *label    = _window->findChild<QQuickItem *>("brushSizeLabel");
     auto *field    = _window->findChild<QQuickItem *>("brushSizeTop");
     auto *scrubber = label ? label->findChild<QQuickItem *>("valueScrubber") : nullptr;

@@ -65,15 +65,22 @@ private slots:
         auto *opened = manager.activeDocument();
         QVERIFY(opened != source);
         QTRY_VERIFY_WITH_TIMEOUT(!opened->operationBusy(), 5000);
+        QCOMPARE(opened->tool(), QStringLiteral("move"));
+        QVERIFY(opened->layers().first().toMap().value("locked").toBool());
+        QVERIFY(!opened->canUndo());
         QCOMPARE(opened->width(), 37);
         QCOMPARE(opened->channelBits(), 16);
         QCOMPARE(opened->layerImage(0).pixelColor(1, 1), image.pixelColor(1, 1));
         QCOMPARE(source->composite(), original);
         QCOMPARE(source->historyIndex(), history);
         QVERIFY(source->modified());
+        opened->setLayerLocked(0, false);
+        opened->setTool(QStringLiteral("brush"));
         QVERIFY(manager.activate(source->documentId()));
         QVERIFY(manager.openFile(url));
         QCOMPARE(manager.activeDocument(), opened);
+        QCOMPARE(opened->tool(), QStringLiteral("brush"));
+        QVERIFY(!opened->layers().first().toMap().value("locked").toBool());
         QCOMPARE(manager.count(), 2);
         QSignalSpy errors(&manager, &DocumentManager::errorOccurred);
         QVERIFY(!manager.openFile(QUrl::fromLocalFile(dir.filePath("missing.png"))));
@@ -90,6 +97,13 @@ private slots:
         QCOMPARE(manager.count(), 2);
         QCOMPARE(manager.activeDocument(), opened);
         QCOMPARE(source->composite(), original);
+        const auto project = QUrl::fromLocalFile(dir.filePath("editable.pcr"));
+        QVERIFY(opened->saveProject(project));
+        QVERIFY(manager.closeDocument(opened->documentId()));
+        QVERIFY(manager.openFile(project));
+        auto *restored = manager.activeDocument();
+        QTRY_VERIFY_WITH_TIMEOUT(!restored->operationBusy(), 5000);
+        QVERIFY(!restored->layers().first().toMap().value("locked").toBool());
     }
     void guardedCloseAndFreshLastDocument()
     {

@@ -117,6 +117,16 @@ bool Document::openFile(const QUrl &_url)
         return false;
     return adoptDecodedImage(image, _url, false);
 }
+void Document::prepareOpenedPhoto()
+{
+    if (!m_projectUrl.isEmpty() || m_layers.size() != 1)
+        return;
+    // This is the starting state of a photo tab, before the first undoable edit.
+    m_layers.first().locked = true;
+    setTool(QStringLiteral("move"));
+    emit layersChanged();
+}
+
 void Document::requestOpenFile(const QUrl &_url)
 {
     const QUrl target = _url;

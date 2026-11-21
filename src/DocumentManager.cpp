@@ -68,8 +68,12 @@ DocumentManager::Entry DocumentManager::makeEntry(bool placeholder)
             }
         emit documentsChanged();
     };
-    connect(entry.document, &Document::fileOpened, this, opened);
-    connect(entry.document, &Document::rawFileOpened, this, opened);
+    const auto fileOpened = [doc = entry.document, opened](const QUrl &url) {
+        doc->prepareOpenedPhoto();
+        opened(url);
+    };
+    connect(entry.document, &Document::fileOpened, this, fileOpened);
+    connect(entry.document, &Document::rawFileOpened, this, fileOpened);
     connect(entry.document, &Document::projectSaved, this, opened);
     connect(entry.document, &Document::errorOccurred, this,
             [this, doc = entry.document](const QString &error) {

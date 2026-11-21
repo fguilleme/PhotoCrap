@@ -6,6 +6,7 @@ Un [résumé en anglais](README.en.md) est également disponible.
 
 ## v0.27.2 — 21 novembre 2026
 
+- À l’ouverture d’une photo ou d’un RAW, son calque de fond est verrouillé et l’outil **Déplacement (V)** est actif.
 - Sous Windows, l’installateur associe les fichiers `.pcr` à PhotoCrap pour les ouvrir au double-clic. L’Explorateur affiche la composition enregistrée en miniature. Pour générer la miniature d’un ancien projet, ouvrez-le et réenregistrez-le.
 - Le menu **Aide** ouvre le guide et les notes de la version installée. **Raccourcis clavier** mène directement au bon onglet et **À propos** décrit les fonctions actuelles.
 

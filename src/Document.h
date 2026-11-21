@@ -1174,6 +1174,7 @@ public:
 
     Q_INVOKABLE bool newDocument(int _width, int _height, bool _transparent = false, int _bits = 8);
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
+    void prepareOpenedPhoto();
     Q_INVOKABLE bool openFile(const QUrl &_url);
     Q_INVOKABLE void requestOpenFile(const QUrl &_url);
     Q_INVOKABLE void importAdobeXmp(const QUrl &url);

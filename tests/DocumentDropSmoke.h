@@ -135,7 +135,8 @@ inline bool runDocumentDropSmoke(QQuickWindow *window, DocumentManager &manager)
         return false;
     auto *rawDoc = manager.activeDocument();
     if (!require(QTest::qWaitFor([&] { return !rawDoc->rawLoading(); }, 10000) &&
-                     rawDoc->channelBits() == 16 && rawDoc->width() == 128 && manager.count() == 7,
+                     rawDoc->channelBits() == 16 && rawDoc->width() == 128 && manager.count() == 7 &&
+                     rawDoc->tool() == "move" && rawDoc->layers().first().toMap()["locked"].toBool(),
                  "RAW drop develops into its own 16-bit document"))
         return false;
     return require(original->composite() == before && original->historyIndex() == history,

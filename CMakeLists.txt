@@ -1183,8 +1183,10 @@ elseif(WIN32)
     set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
     set(CPACK_NSIS_MODIFY_PATH OFF)
-    set(CPACK_NSIS_DEFINES "!include '${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/Projects.nsh'")
-    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "!insertmacro RegisterPhotoCrapProjects")
+    # CPack replaces its internal NSIS defines when packaging multiple components.
+    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
+        "!include '${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/Projects.nsh'
+!insertmacro RegisterPhotoCrapProjects")
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "!insertmacro UnregisterPhotoCrapProjects")
     set(CPACK_PACKAGE_EXECUTABLES "PhotoCrap" "PhotoCrap")
     set(CPACK_CREATE_DESKTOP_LINKS "PhotoCrap")

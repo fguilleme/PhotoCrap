@@ -62,7 +62,12 @@ jobs:
       - name: Create macOS or Windows package
         if: runner.os != 'Linux'
         run: cpack --config build/CPackConfig.cmake -C Release -B "${{ github.workspace }}/packages"
+      - name: Show installer diagnostics on failure
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: Get-ChildItem packages -Filter NSISOutput.log -Recurse -ErrorAction SilentlyContinue | Get-Content -Tail 30
       - name: Verify installed Windows project association and thumbnails
+        timeout-minutes: 5
         if: runner.os == 'Windows'
         shell: pwsh
         run: |

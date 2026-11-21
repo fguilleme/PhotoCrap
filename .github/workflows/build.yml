@@ -62,6 +62,15 @@ jobs:
       - name: Create macOS or Windows package
         if: runner.os != 'Linux'
         run: cpack --config build/CPackConfig.cmake -C Release -B "${{ github.workspace }}/packages"
+      - name: Verify installed Windows project association and thumbnails
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem packages -Filter '*.exe' -File | Select-Object -First 1
+          $setup = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer exited with $($setup.ExitCode)" }
+          $test = Start-Process -FilePath ./build/Release/photocrap_explorer_tests.exe -NoNewWindow -Wait -PassThru
+          exit $test.ExitCode
       - name: Verify packaged macOS application signature
         if: runner.os == 'macOS'
         shell: bash

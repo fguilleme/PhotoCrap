@@ -4,6 +4,11 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.27.2 — 21 novembre 2026
+
+- Sous Windows, l’installateur associe les fichiers `.pcr` à PhotoCrap pour les ouvrir au double-clic. L’Explorateur affiche la composition enregistrée en miniature. Pour générer la miniature d’un ancien projet, ouvrez-le et réenregistrez-le.
+- Le menu **Aide** ouvre le guide et les notes de la version installée. **Raccourcis clavier** mène directement au bon onglet et **À propos** décrit les fonctions actuelles.
+
 ## v0.27.1 — 20 novembre 2026
 
 - Le calque de rééclairage permet de changer de photo en conservant ses lumières et de diriger chaque source vers une cible. Les marqueurs apparaissent au mouvement de la souris, même hors cadre, et se masquent sur les panneaux de réglage et des calques.

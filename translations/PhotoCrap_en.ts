@@ -2585,20 +2585,24 @@ The operation can be undone.</translation>
     </message>
     <message>
       <location filename="../qml/Main.qml" line="1200" />
-      <source>Un atelier de création d’images en C++ et Qt Quick.
+      <source>PhotoCrap est un éditeur photo pour macOS, Linux et Windows. Développez vos RAW, retouchez vos images en 8 ou 16 bits et conservez vos calques et masques dans un projet .pcr.
 
-Calques, dessin, sélection, transformations et retouche, sur macOS, Linux et Windows.
-
-Cette première version utilise des calques raster en sRGB 8 bits. Elle ne lit pas les PSD et n’inclut pas les objets dynamiques, les masques de calque, le RAW ou les fonctions IA.
+Les calques de réglage permettent notamment de rééclairer une photo, d’importer des réglages XMP ou de reproduire le rendu d’une image de référence.
 
 Logiciel indépendant, sans affiliation avec Adobe.</source>
-      <translation>An image creation studio built with C++ and Qt Quick.
+      <translation>PhotoCrap is a photo editor for macOS, Linux and Windows. Develop RAW files, edit images in 8 or 16 bits and save your layers and masks in a .pcr project.
 
-Layers, painting, selections, transformations, and retouching on macOS, Linux, and Windows.
-
-This first version uses 8-bit sRGB raster layers. It does not read PSD files or include smart objects, vector masks, RAW, or AI features.
+Use adjustment layers to relight a photo, import XMP settings or match the look of a reference image.
 
 Independent software, not affiliated with Adobe.</translation>
+    </message>
+    <message>
+      <source>Guide de PhotoCrap en ligne…</source>
+      <translation>Online PhotoCrap Guide…</translation>
+    </message>
+    <message>
+      <source>Notes de version…</source>
+      <translation>Release Notes…</translation>
     </message>
     <message>
       <source>Panneaux</source>

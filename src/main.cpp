@@ -24,6 +24,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImageReader>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -225,6 +226,9 @@ int main(int argc, char *argv[])
 #endif
     Application app(argc, argv);
     app.setApplicationName("PhotoCrap");
+#ifdef Q_OS_WIN
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/PhotoCrap.ico")));
+#endif
     app.setOrganizationName("PhotoCrap");
     app.setApplicationVersion(PHOTOCRAP_VERSION);
     QQuickStyle::setStyle("Basic");

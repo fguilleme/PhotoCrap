@@ -4,9 +4,9 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-**v0.27.1** · Reuse lighting across photos, aim individual lights and choose which adjustments appear in the **+** menu. Clarity / Dehaze and Grain layers are available for XMP imports and reference photo matching. [XMP and reference photo guide (in French)](docs/MASK_ADJUSTMENTS.md#importer-un-rendu-sur-la-photo-ouverte)
+**v0.27.2** · The Windows installer adds project thumbnails and lets you open `.pcr` files with a double-click. The **Help** menu links to the guide and release notes for the installed version.
 
-## v0.27.1 · Changes since v0.21.0
+## v0.27.2 · Changes since v0.21.0
 
 - Redesigned workspace and typography panel with live font previews on hover.
 - Editable text on fabric folds or across two faces of a wall, with perspective
@@ -26,6 +26,8 @@ files. The packages bundle Qt. GitHub publishes them after builds, tests,
 and deployment checks pass on all three platforms.
 [Download](https://github.com/fguilleme/PhotoCrap/releases/latest) ·
 [GitHub Actions](https://github.com/fguilleme/PhotoCrap/actions/workflows/build.yml)
+
+On Windows, the installer registers `.pcr` files with PhotoCrap. Double-click a project in Explorer to open it. Large icons show its saved composite. Open and resave older projects to generate a thumbnail. With the portable ZIP, use **File → Open**.
 
 ## Features
 

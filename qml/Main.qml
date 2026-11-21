@@ -1894,7 +1894,16 @@ ApplicationWindow {
         }
         DarkMenu {
             title: qsTr("Aide")
-            DarkMenuItem { text: qsTr("Raccourcis clavier…"); onTriggered: preferencesDialog.open() }
+            DarkMenuItem {
+                text: qsTr("Guide de PhotoCrap en ligne…")
+                onTriggered: Qt.openUrlExternally("https://github.com/fguilleme/PhotoCrap/blob/v" +
+                    Qt.application.version + (languages.language === "en" ? "/README.en.md" : "/README.md"))
+            }
+            DarkMenuItem { text: qsTr("Raccourcis clavier…"); onTriggered: window.activateShortcut("keyboardSettings") }
+            DarkMenuItem {
+                text: qsTr("Notes de version…")
+                onTriggered: Qt.openUrlExternally("https://github.com/fguilleme/PhotoCrap/releases/tag/v" + Qt.application.version)
+            }
             DarkMenuItem { text: qsTr("À propos de PhotoCrap"); onTriggered: aboutDialog.open() }
         }
     }
@@ -6433,7 +6442,7 @@ ApplicationWindow {
         id: aboutDialog; title: qsTr("PhotoCrap %1").arg(Qt.application.version); anchors.centerIn: parent; modal: true; width: 480
         Label {
             width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.4
-            text: qsTr("Un atelier de création d’images en C++ et Qt Quick.\n\nCalques, dessin, sélection, transformations et retouche, sur macOS, Linux et Windows.\n\nCette première version utilise des calques raster en sRGB 8 bits. Elle ne lit pas les PSD et n’inclut pas les objets dynamiques, les masques de calque, le RAW ou les fonctions IA.\n\nLogiciel indépendant, sans affiliation avec Adobe.")
+            text: qsTr("PhotoCrap est un éditeur photo pour macOS, Linux et Windows. Développez vos RAW, retouchez vos images en 8 ou 16 bits et conservez vos calques et masques dans un projet .pcr.\n\nLes calques de réglage permettent notamment de rééclairer une photo, d’importer des réglages XMP ou de reproduire le rendu d’une image de référence.\n\nLogiciel indépendant, sans affiliation avec Adobe.")
         }
         footer: DialogButtonBox { DialogActionButton { text: qsTr("OK"); defaultButton: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; onClicked: aboutDialog.accept() } }
     }

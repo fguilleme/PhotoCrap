@@ -550,6 +550,11 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     _document.setColor(Qt::red);
     _document.setBrushSize(16);
     _document.setTool("brush");
+    // The contextual toolbar can resize the viewport when leaving Move.
+    QSignalSpy paintedFrame(_window, &QQuickWindow::frameSwapped);
+    _window->update();
+    if (!require(paintedFrame.wait(2000), "brush toolbar and canvas finish layout"))
+        return false;
     QPoint start = area->mapToScene(QPointF(area->width() / 3, area->height() / 2)).toPoint();
     QPoint end   = area->mapToScene(QPointF(area->width() * 2 / 3, area->height() / 2)).toPoint();
     QTest::mouseMove(_window, start);

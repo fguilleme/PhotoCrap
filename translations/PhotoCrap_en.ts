@@ -6655,6 +6655,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Teinte des hautes lumières (°)</source><translation>Highlight hue (°)</translation></message>
     <message><source>Saturation des hautes lumières (%)</source><translation>Highlight saturation (%)</translation></message>
     <message><source>Balance</source><translation>Balance</translation></message>
+    <message><source>Lier le zoom et le déplacement</source><translation>Link zoom and pan</translation></message>
     <message><source>Documents côte à côte</source><translation>Side-by-side documents</translation></message>
     <message><source>Menu des calques</source><translation>Layer menu</translation></message>
     <message><source>Menu + des calques</source><translation>Layers + menu</translation></message>

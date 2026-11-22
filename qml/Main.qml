@@ -48,6 +48,7 @@ ApplicationWindow {
     property string peerId: ""
     property bool editorOnRight: false
     property var peerView: null
+    property bool viewsLinked: false
     readonly property bool sideBySide: peerId !== ""
     readonly property ImageDocument peerDocument: sideBySide
         ? (documents.documents.find(d => d.id === peerId)?.document ?? null) : null
@@ -63,6 +64,35 @@ ApplicationWindow {
             peerId = tabs[index > 0 ? index - 1 : 1].id
             Qt.callLater(window.fitCanvas)
         }
+    }
+    function toggleViewLink() {
+        if (!sideBySide) return
+        if (viewsLinked) peerView = peerImage.view
+        viewsLinked = !viewsLinked
+    }
+    // Scroll coordinates are the point at the viewport centre, measured on
+    // the zoomed artboard. Map that point through each image's own rotation.
+    function correspondingView(view, target, angle) {
+        if (!view.width || !view.height || !target.width || !target.height) return null
+        const scale = view.zoom
+        const dx = view.x / scale - view.width / 2
+        const dy = view.y / scale - view.height / 2
+        const a = view.rotation * Math.PI / 180, b = angle * Math.PI / 180
+        const x = (dx * Math.cos(a) + dy * Math.sin(a)) * target.width / view.width
+        const y = (dy * Math.cos(a) - dx * Math.sin(a)) * target.height / view.height
+        return {zoom: scale, rotation: angle, width: target.width, height: target.height,
+                x: clampScroll(scale * (target.width / 2 + x * Math.cos(b) - y * Math.sin(b)), scale * target.width),
+                y: clampScroll(scale * (target.height / 2 + x * Math.sin(b) + y * Math.cos(b)), scale * target.height)}
+    }
+    function navigateFromPeer(scale, x, y) {
+        if (!viewsLinked || !peerDocument) return
+        const view = correspondingView({zoom: scale, x: x, y: y, rotation: peerImage.rotation,
+                                        width: peerDocument.width, height: peerDocument.height},
+                                       editor, canvasRotation)
+        if (!view) return
+        setZoom(view.zoom)
+        viewport.contentX = view.x
+        viewport.contentY = view.y
     }
     property real canvasRotation: 0
     property string status: qsTr("Prêt à créer")
@@ -1055,7 +1085,8 @@ ApplicationWindow {
         }
     }
     function currentDocumentView() {
-        return {zoom: zoom, x: viewport.contentX, y: viewport.contentY, rotation: canvasRotation}
+        return {zoom: zoom, x: viewport.contentX, y: viewport.contentY, rotation: canvasRotation,
+                width: editor.width, height: editor.height}
     }
     function activateDocument(id) {
         if (window.blockingModalOpen || saveInFlight) return
@@ -1343,6 +1374,7 @@ ApplicationWindow {
         target: documents
         property string departingId: ""
         property var departingView: null
+        property var departingPeerView: null
         function onDocumentsChanged() {
             if (window.sideBySide && !documents.documents.some(d => d.id === window.peerId))
                 window.toggleSideBySide()
@@ -1352,6 +1384,7 @@ ApplicationWindow {
             editor.cancelTransform()
             if (editor.textEditing) canvasTextEditor.sync()
             departingView = window.currentDocumentView()
+            departingPeerView = window.sideBySide ? peerImage.view : null
             documents.saveView(departingView)
         }
         function onActiveChanged() {
@@ -1365,13 +1398,15 @@ ApplicationWindow {
             let view = documents.activeView
             if (window.sideBySide && id === window.peerId) {
                 if (documents.documents.some(d => d.id === departingId)) {
-                    view = window.peerView || {}
+                    view = departingPeerView || {}
                     window.peerView = departingView
                     window.peerId = departingId
                     window.editorOnRight = !window.editorOnRight
                 } else {
                     window.toggleSideBySide()
                 }
+            } else if (window.sideBySide && window.viewsLinked && departingView) {
+                view = window.correspondingView(departingView, editor, view.rotation || 0) || view
             }
             Qt.callLater(function() {
                 if(documents.activeId!==id)return
@@ -1896,6 +1931,12 @@ ApplicationWindow {
                 enabled: documents.count >= 2 && !window.blockingModalOpen
                 onTriggered: window.toggleSideBySide()
             }
+            DarkMenuItem {
+                text: qsTr("Lier le zoom et le déplacement")
+                checkable: true; checked: window.sideBySide && window.viewsLinked
+                enabled: window.sideBySide && !window.blockingModalOpen
+                onTriggered: window.toggleViewLink()
+            }
             DarkMenu {
                 title: qsTr("Afficher")
                 DarkMenuItem { action: selectionMenu.edgesAction }
@@ -2167,6 +2208,14 @@ ApplicationWindow {
                     hint: qsTr("Documents côte à côte"); selected: window.sideBySide
                     enabled: documents.count >= 2 && !window.blockingModalOpen
                     onClicked: window.toggleSideBySide()
+                }
+                IconButton {
+                    objectName: "linkViewsButton"; toolName: "linkViews"
+                    visible: window.sideBySide; enabled: !window.blockingModalOpen
+                    hint: qsTr("Lier le zoom et le déplacement")
+                    selected: window.viewsLinked
+                    Accessible.checkable: true; Accessible.checked: selected
+                    onClicked: window.toggleViewLink()
                 }
                 IconButton { toolName: "undo"; hint: qsTr("Annuler"); enabled: editor.canUndo; onClicked: editor.undo() }
                 IconButton { toolName: "redo"; hint: qsTr("Rétablir"); enabled: editor.canRedo; onClicked: editor.redo() }
@@ -3938,12 +3987,15 @@ ApplicationWindow {
                         color: Studio.secondary; background: Rectangle { color: Studio.panel }
                     }
                     Item {
+                        id: peerViewport
                         anchors.fill: parent; anchors.topMargin: 50; anchors.leftMargin: 24; clip: true
                         Image {
                             id: peerImage
                             objectName: "peerImage"
                             readonly property var doc: window.peerDocument
-                            readonly property var view: window.peerView
+                            readonly property var view: window.viewsLinked && doc
+                                ? window.correspondingView(window.currentDocumentView(), doc, window.peerView?.rotation || 0)
+                                : window.peerView
                             readonly property real scaleFactor: !doc ? 0 : view ? view.zoom
                                 : Math.max(0.02, Math.min(1, (parent.width-110)/Math.max(1,doc.width),
                                                              (parent.height-110)/Math.max(1,doc.height)))
@@ -3952,16 +4004,59 @@ ApplicationWindow {
                             x: parent.width / 2 - (view ? view.x : width / 2)
                             y: parent.height / 2 - (view ? view.y : height / 2)
                             rotation: view ? view.rotation : 0
-                            sourceSize.width: Math.max(1, Math.min(4096, Math.ceil(width * Screen.devicePixelRatio)))
-                            sourceSize.height: Math.max(1, Math.min(4096, Math.ceil(height * Screen.devicePixelRatio)))
+                            // Keep the same pixels during small wheel-zoom steps.
+                            readonly property real previewScale: Math.min(1, Math.pow(2,
+                                Math.ceil(Math.log2(Math.max(0.02, scaleFactor * Screen.devicePixelRatio)))))
+                            sourceSize.width: Math.max(1, Math.min(4096, Math.ceil((doc?.width || 1) * previewScale)))
+                            sourceSize.height: Math.max(1, Math.min(4096, Math.ceil((doc?.height || 1) * previewScale)))
                             cache: false
                             source: doc ? "image://layers/"+doc.documentId+"/composite/"+doc.revision : ""
                         }
                     }
                     MouseArea {
+                        id: peerNavigation
                         anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: window.activateDocument(window.peerId)
+                        property point pressPoint
+                        property var pressView: null
+                        property bool dragged: false
+                        cursorShape: pressed && dragged ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+                        onPressed: function(mouse) {
+                            dragged = false
+                            pressPoint = Qt.point(mouse.x, mouse.y)
+                            pressView = window.viewsLinked && mouse.y >= peerViewport.y ? peerImage.view : null
+                        }
+                        onPositionChanged: function(mouse) {
+                            if (!pressed || !pressView) return
+                            const dx = mouse.x - pressPoint.x, dy = mouse.y - pressPoint.y
+                            if (!dragged && Math.hypot(dx, dy) < Qt.styleHints.startDragDistance) return
+                            dragged = true
+                            window.navigateFromPeer(pressView.zoom, pressView.x - dx, pressView.y - dy)
+                        }
+                        onReleased: pressView = null
+                        onCanceled: { pressView = null; dragged = false }
+                        onClicked: { if (!dragged) window.activateDocument(window.peerId); dragged = false }
+                        onWheel: function(wheel) {
+                            const view = peerImage.view
+                            if (!window.viewsLinked || !view || wheel.y < peerViewport.y) {
+                                wheel.accepted = false
+                                return
+                            }
+                            const dx = wheel.pixelDelta.x || wheel.angleDelta.x / 2
+                            const dy = wheel.pixelDelta.y || wheel.angleDelta.y / 2
+                            if (wheel.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) {
+                                const steps = wheel.angleDelta.y ? wheel.angleDelta.y / 120 : dy / 40
+                                const scale = Math.max(0.02, Math.min(4, view.zoom * Math.pow(1.15, steps)))
+                                const p = peerViewport.mapFromItem(peerNavigation, wheel.x, wheel.y)
+                                const x = p.x - peerViewport.width / 2, y = p.y - peerViewport.height / 2
+                                window.navigateFromPeer(scale, (view.x + x) * scale / view.zoom - x,
+                                                        (view.y + y) * scale / view.zoom - y)
+                            } else if (wheel.modifiers & Qt.ShiftModifier) {
+                                window.navigateFromPeer(view.zoom, view.x - (dy || dx), view.y)
+                            } else {
+                                window.navigateFromPeer(view.zoom, view.x - dx, view.y - dy)
+                            }
+                            wheel.accepted = true
+                        }
                     }
                 }
             }

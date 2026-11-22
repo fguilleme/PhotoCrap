@@ -4,6 +4,7 @@
 #include <QKeySequence>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QWheelEvent>
 #include <QtTest>
 #include <functional>
 
@@ -130,6 +131,46 @@ inline bool runDocumentsSmoke(QQuickWindow *window, DocumentManager &manager, Ai
                  "comparison displays both documents' pixels"))
         return false;
     const auto rightEdge = peer->mapToScene(QPointF()).x();
+    auto *link = window->findChild<QQuickItem *>("linkViewsButton");
+    if (!require(link && link->isVisible(), "split view offers linked navigation"))
+        return false;
+    clickCenter(link);
+    window->setProperty("zoom", 2.);
+    viewport->setProperty("contentX", 150.);
+    viewport->setProperty("contentY", 70.);
+    const auto peerCenter = [&] {
+        auto *area = peerImage->parentItem();
+        return QPointF(area->width() / 2 - peerImage->x(), area->height() / 2 - peerImage->y());
+    };
+    if (!require(qAbs(peerImage->width() - 128.) < .01 &&
+                     QLineF(peerCenter(), QPointF(48, 24)).length() < .01,
+                 "different-sized documents share zoom and normalized image centre"))
+        return false;
+    const auto peerPoint = peerImage->mapToScene({peerImage->width()/2, peerImage->height()/2}).toPoint();
+    QTest::mousePress(window, Qt::LeftButton, {}, peerPoint);
+    QTest::mouseMove(window, peerPoint + QPoint(16, 10));
+    QTest::mouseRelease(window, Qt::LeftButton, {}, peerPoint + QPoint(16, 10));
+    if (!require(manager.activeDocument() == first &&
+                     QLineF(peerCenter(), QPointF(32, 14)).length() < 1 &&
+                     qAbs(viewport->property("contentX").toDouble() - 100.) < 1,
+                 "dragging the reference pans both images without selecting another tab"))
+        return false;
+    QWheelEvent wheel(peerPoint, window->mapToGlobal(peerPoint), {}, {0, 120},
+                      Qt::NoButton, Qt::ControlModifier, Qt::ScrollUpdate, false);
+    QCoreApplication::sendEvent(window, &wheel);
+    const auto linkedScale = window->property("zoom").toDouble();
+    if (!require(qAbs(linkedScale - 2.3) < .001 && qAbs(peerImage->width() - 64 * linkedScale) < .01,
+                 "control-wheel on the reference zooms both images"))
+        return false;
+    clickCenter(link);
+    const auto unlinked = peerCenter();
+    window->setProperty("zoom", 2.);
+    viewport->setProperty("contentX", 180.);
+    if (!require(peerCenter() == unlinked && qAbs(peerImage->width() - 64 * linkedScale) < .01,
+                 "unlink preserves the reference framing"))
+        return false;
+    clickCenter(link);
+    const auto expectedCentre = peerCenter();
     clickCenter(peer);
     if (!require(QTest::qWaitFor([&] {
                      return manager.activeDocument() == second &&
@@ -138,6 +179,13 @@ inline bool runDocumentsSmoke(QQuickWindow *window, DocumentManager &manager, Ai
                  }),
                  "clicking the right pane activates it in place"))
         return false;
+    if (!require(QTest::qWaitFor([&] {
+                     return qAbs(window->property("zoom").toDouble() - 2.) < .001 &&
+                            qAbs(viewport->property("contentX").toDouble() - expectedCentre.x()) < 1;
+                 }),
+                 "activating the linked peer preserves the displayed framing"))
+        return false;
+    clickCenter(link);
     clickCenter(peer);
     if (!require(manager.activeDocument() == first, "clicking the left pane restores its tools"))
         return false;

@@ -31,6 +31,8 @@ suivent le document actif. Si d’autres onglets sont ouverts, cliquez sur l’u
 d’eux pour remplacer le document du volet actif. Un second clic sur l’icône
 rétablit la vue à un seul document.
 
+Pour comparer un détail, activez **Lier le zoom et le déplacement** avec l’icône de chaîne à côté des deux volets. Les deux photos utilisent le même pourcentage de zoom et restent centrées sur la même position relative. Vous pouvez aussi faire glisser la photo de comparaison ou y utiliser la molette. Cliquez de nouveau sur la chaîne pour reprendre la navigation indépendante.
+
 Cliquer un onglet affiche son document et rétablit sa vue. Le point indique des
 modifications non enregistrées ; une activité ou un résultat IA en attente est
 également signalé dans l’onglet. **Enregistrer** et **Exporter** concernent uniquement

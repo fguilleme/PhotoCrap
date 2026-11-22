@@ -26,7 +26,8 @@ bool requiresFullComposite(const Layer &_layer, bool _opaqueBase, bool _hasClipp
         return false;
     // Preserve the full-image rounding paths for clipped dissolve stacks and
     // for noise over transparency.
-    return (_layer.blend == 1 && _hasClipping) ||
+    // Neural tiles are anchored to the full input, including its reflected edges.
+    return _layer.adjustmentType == QStringLiteral("denoise") || (_layer.blend == 1 && _hasClipping) ||
            (_layer.kind == QStringLiteral("adjustment") &&
             _layer.adjustmentType == QStringLiteral("noise") &&
             (!_opaqueBase || _layer.clippingMask));
@@ -224,7 +225,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
             layer.kind == "adjustment" &&
             (layer.adjustmentType == "texture" || layer.adjustmentType == "splitToning" ||
              layer.adjustmentType == "relight" || layer.adjustmentType == "clarityDehaze" ||
-             layer.adjustmentType == "grain");
+             layer.adjustmentType == "grain" || layer.adjustmentType == "denoise");
         if (preserveAlpha) {
             if (layer.blend == 0 && layer.opacity == 1. && !needsMask(layer) &&
                 !layer.clippingMask && layer.directType.isEmpty()) {

@@ -188,22 +188,29 @@ bool DocumentManager::newDocument(int width, int height, bool transparent, int b
     append(std::move(entry));
     return true;
 }
-bool DocumentManager::openFile(const QUrl &url)
+QString DocumentManager::openedDocumentId(const QUrl &url) const
+{
+    const auto path = fileIdentity(url);
+    for (const auto &entry : m_entries)
+        if (!entry.openedUrl.isEmpty() && fileIdentity(entry.openedUrl) == path)
+            return entry.document->documentId();
+    return {};
+}
+bool DocumentManager::openFile(const QUrl &url, bool denoiseRaw)
 {
     if (!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isFile()) {
         emit errorOccurred(tr("Le fichier demandé est introuvable."));
         return false;
     }
-    const auto path = fileIdentity(url);
-    for (int i = 0; i < m_entries.size(); ++i)
-        if (!m_entries[i].openedUrl.isEmpty() && fileIdentity(m_entries[i].openedUrl) == path)
-            return activate(m_entries[i].document->documentId());
+    const auto existing = openedDocumentId(url);
+    if (!existing.isEmpty())
+        return activate(existing);
     if (!reusablePlaceholder())
         append(makeEntry());
     m_entries[m_active].placeholder = false;
     m_entries[m_active].openedUrl   = url;
     m_entries[m_active].opening     = true;
-    activeDocument()->requestOpenFile(url);
+    activeDocument()->requestOpenFile(url, denoiseRaw);
     emit documentsChanged();
     return true;
 }

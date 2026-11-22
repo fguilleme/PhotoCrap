@@ -32,7 +32,8 @@ public:
     QImage           surfacePreview(const QString &id) const;
     Q_INVOKABLE bool activate(const QString &id);
     Q_INVOKABLE bool newDocument(int width, int height, bool transparent, int bits = 8);
-    Q_INVOKABLE bool openFile(const QUrl &url);
+    Q_INVOKABLE bool openFile(const QUrl &url, bool denoiseRaw = RawImageReader::denoiseByDefault());
+    Q_INVOKABLE QString openedDocumentId(const QUrl &url) const;
     Q_INVOKABLE bool canOpenFiles(const QList<QUrl> &urls) const;
     Q_INVOKABLE bool closeDocument(const QString &id, bool discard = false);
     Q_INVOKABLE void saveView(const QVariantMap &view);

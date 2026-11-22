@@ -1,4 +1,5 @@
 #include "WorkspaceSettings.h"
+#include "RawImageReader.h"
 
 #include <QDir>
 #include <QMap>
@@ -9,6 +10,7 @@ WorkspaceSettings::WorkspaceSettings(QObject *_parent, bool _persist)
     : QObject(_parent), m_persist(_persist)
 {
     if (m_persist) {
+        m_rawDenoise = RawImageReader::denoiseByDefault();
         m_useShiftToCycleTools = QSettings().value("tools/useShiftToCycle", true).toBool();
         m_autoCreatePaintLayer = QSettings().value("tools/autoCreatePaintLayer", true).toBool();
         m_springLoadedTools    = QSettings().value("tools/springLoaded", true).toBool();
@@ -219,6 +221,16 @@ void WorkspaceSettings::setScratchDirectoryUrl(const QUrl &_url)
 {
     if (_url.isLocalFile())
         setScratchDirectory(_url.toLocalFile());
+}
+
+void WorkspaceSettings::setRawDenoise(bool value)
+{
+    if (m_rawDenoise == value)
+        return;
+    m_rawDenoise = value;
+    if (m_persist)
+        QSettings().setValue("raw/denoise", value);
+    emit rawDenoiseChanged();
 }
 
 void WorkspaceSettings::setAutoCreatePaintLayer(bool _value)

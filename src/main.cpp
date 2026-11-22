@@ -344,7 +344,8 @@ int main(int argc, char *argv[])
         document.createDemo();
     else if (args.size() > 1 && !args[1].startsWith("--")) {
         const QUrl url = QUrl::fromLocalFile(args[1]);
-        documents.openFile(url);
+        QMetaObject::invokeMethod(engine.rootObjects().first(), "openNativeDocument",
+                                  Q_ARG(QVariant, QVariant(url)));
     }
     if (smoke) {
         QTimer::singleShot(1200, &app, [&] {

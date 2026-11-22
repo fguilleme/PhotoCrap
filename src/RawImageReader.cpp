@@ -1,8 +1,10 @@
 #include "RawImageReader.h"
+#include "filters/PhotoDenoise.h"
 #include <QBuffer>
 #include <QColorSpace>
 #include <QCoreApplication>
 #include <QFile>
+#include <QSettings>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QStringList>
@@ -11,6 +13,83 @@
 
 namespace
 {
+// LibRaw supplies black-corrected, white-balanced samples at its demosaic hook.
+// Undo the per-channel balance for RawNIND, then restore it before handing
+// camera RGB back to LibRaw for the usual colour transform, gamma and rotation.
+class DenoiseDecoder final : public LibRaw
+{
+public:
+    PhotoCrap::Denoise::Cancel cancel;
+    QString                    error;
+    bool                       enableBayer()
+    {
+        const auto &id = imgdata.idata;
+        if (id.filters <= 1000 || id.colors != 3 || imgdata.sizes.width < 2 ||
+            imgdata.sizes.height < 2)
+            return false;
+        for (int y = 0; y < 8; ++y)
+            for (int x = 0; x < 2; ++x)
+                if (id.cdesc[COLOR(y, x)] == 'R') {
+                    redX = x;
+                    redY = y % 2;
+                }
+        // Some four-colour or non-rectangular sensors also set a Bayer filter
+        // mask. Send those through the linear model after LibRaw demosaics.
+        for (int y = 0; y < 8; ++y)
+            for (int x = 0; x < 2; ++x) {
+                const char expected = "RGGB"[2 * ((y + redY) % 2) + (x + redX) % 2];
+                if (id.cdesc[COLOR(y, x)] != expected)
+                    return false;
+            }
+        callbacks.interpolate_bayer_cb = [](void *context) {
+            static_cast<DenoiseDecoder *>(static_cast<LibRaw *>(context))->demosaic();
+        };
+        return true;
+    }
+
+private:
+    int  redX = 0, redY = 0;
+    void demosaic()
+    {
+        const int w = imgdata.sizes.width, h = imgdata.sizes.height;
+        QImage    packed((w + redX + 1) / 2, (h + redY + 1) / 2, QImage::Format_RGBA64);
+        if (packed.isNull())
+            throw std::bad_alloc();
+        const auto   reflect = [](int p, int n) { return p < 0 ? -p : p >= n ? 2 * n - 2 - p : p; };
+        const float *wb      = imgdata.color.pre_mul;
+        for (int y = 0; y < packed.height(); ++y) {
+            auto *row = reinterpret_cast<QRgba64 *>(packed.scanLine(y));
+            for (int x = 0; x < packed.width(); ++x) {
+                quint16 sample[4];
+                for (int c = 0; c < 4; ++c) {
+                    const int sx      = reflect(2 * x + c % 2 - redX, w);
+                    const int sy      = reflect(2 * y + c / 2 - redY, h);
+                    const int channel = COLOR(sy, sx);
+                    sample[c]         = quint16(qBound(
+                        0, qRound(imgdata.image[sy * w + sx][channel] / qMax(0.0001f, wb[channel])),
+                        65535));
+                }
+                row[x] = QRgba64::fromRgba64(sample[0], sample[1], sample[2], sample[3]);
+            }
+        }
+        const auto rgb =
+            PhotoCrap::Denoise::run(packed, PhotoCrap::Denoise::Domain::Bayer, cancel, error);
+        if (rgb.isNull())
+            throw LIBRAW_EXCEPTION_CANCELLED_BY_CALLBACK;
+        for (int y = 0; y < h; ++y) {
+            const auto *row = reinterpret_cast<const QRgba64 *>(rgb.constScanLine(y + redY));
+            for (int x = 0; x < w; ++x) {
+                const auto p    = row[x + redX];
+                auto      &dest = imgdata.image[y * w + x];
+                dest[0]         = qBound(0, qRound(p.red() * wb[0]), 65535);
+                dest[1]         = qBound(0, qRound(p.green() * wb[1]), 65535);
+                dest[2]         = qBound(0, qRound(p.blue() * wb[2]), 65535);
+                dest[3]         = dest[1];
+            }
+        }
+    }
+};
+
 QString message(const char *_text)
 {
     return QCoreApplication::translate("RawImageReader", _text);
@@ -67,6 +146,11 @@ QImage RawImageReader::embeddedThumbnail(const QString &_path, const QSize &_siz
             .copy();
     return {};
 }
+bool RawImageReader::denoiseByDefault()
+{
+    return QSettings().value("raw/denoise", false).toBool();
+}
+
 bool RawImageReader::isRawFile(const QString &_path)
 {
     return extensions.contains(QFileInfo(_path).suffix().toLower());
@@ -79,7 +163,7 @@ QString RawImageReader::filePatterns()
     return patterns.join(' ');
 }
 RawImageResult RawImageReader::read(const QString                           &_path,
-                                    const std::shared_ptr<std::atomic_bool> &_cancel)
+                                    const std::shared_ptr<std::atomic_bool> &_cancel, bool denoise)
 try {
     if (_cancel && _cancel->load())
         return {{}, {}, true};
@@ -94,7 +178,8 @@ try {
     if (!data)
         return {{}, message("Impossible de lire le fichier RAW.")};
     // LibRaw contains large lookup tables; keep them off Qt worker stacks.
-    auto decoder = std::make_unique<LibRaw>();
+    auto decoder    = std::make_unique<DenoiseDecoder>();
+    decoder->cancel = _cancel;
     decoder->set_progress_handler(checkCancelled, _cancel.get());
     decoder->imgdata.rawparams.max_raw_memory_mb = 512;
     decoder->imgdata.params.use_camera_wb        = 1;
@@ -123,7 +208,15 @@ try {
     result = decoder->unpack();
     if (result != LIBRAW_SUCCESS)
         return failure(result);
+    const bool linearDenoise = denoise && !decoder->enableBayer();
+    if (linearDenoise) {
+        decoder->imgdata.params.output_color = 8; // Rec.2020 primaries
+        decoder->imgdata.params.gamm[0]      = 1.;
+        decoder->imgdata.params.gamm[1]      = 1.;
+    }
     result = decoder->dcraw_process();
+    if (!decoder->error.isEmpty())
+        return {{}, decoder->error};
     if (result != LIBRAW_SUCCESS)
         return failure(result);
     auto      *processed = decoder->dcraw_make_mem_image(&result);
@@ -149,6 +242,16 @@ try {
             std::memcpy(channels, processed->data + (size_t(y) * image.width() + x) * 6, 6);
             row[x] = QRgba64::fromRgba64(channels[0], channels[1], channels[2], 65535);
         }
+    }
+    if (linearDenoise) {
+        image.setColorSpace(QColorSpace({.3127, .3290}, {.708, .292}, {.170, .797}, {.131, .046},
+                                        QColorSpace::TransferFunction::Linear));
+        QString error;
+        image = PhotoCrap::Denoise::run(image, PhotoCrap::Denoise::Domain::Linear, _cancel, error);
+        if (image.isNull())
+            return {{}, error, _cancel && _cancel->load()};
+        image.convertToColorSpace(QColorSpace::SRgb);
+        image.convertTo(QImage::Format_RGBA64_Premultiplied);
     }
     image.setColorSpace(QColorSpace::SRgb);
     return {image, {}};

@@ -191,6 +191,9 @@ Document::Document(QObject *_parent) : QObject(_parent)
                     m_previewComposite = screenResult;
                 }
             }
+            m_hasCommittedDraft = current && m_runningPreviewDraft && m_runningPreviewRefine &&
+                                  !m_previewingLayer && !m_transform && !m_model3DPreview &&
+                                  !m_textEditing && !m_gpuToneActive;
             if (!m_runningPreviewDraft) {
                 m_cacheDirty         = false;
                 m_fullCompositeDirty = false;
@@ -677,6 +680,8 @@ void Document::edit(const QString &_label, const std::function<void()> &_operati
 }
 void Document::changed(bool _metadata, bool _notifyImage)
 {
+    m_denoiseComparison = {};
+    m_hasCommittedDraft = false;
     m_textFontPreview = {};
     if (m_transform) {
         m_transform.reset();

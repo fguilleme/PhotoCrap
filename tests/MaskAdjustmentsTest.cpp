@@ -1,6 +1,10 @@
 #include "Document.h"
+#include "RawImageReader.h"
+#include "RawTestImage.h"
+#include "filters/PhotoDenoise.h"
 #include "PreviewRenderWait.h"
 #include <QColorSpace>
+#include <QRandomGenerator>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -38,6 +42,77 @@ class MaskAdjustmentsTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void rawDenoiseAtImport()
+    {
+        if (!PhotoCrap::Denoise::available())
+            QSKIP("ONNX Runtime unavailable");
+        QTemporaryDir tmp;
+        QFile file(tmp.filePath("sensor.dng"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(RawTestImage::dng(6));
+        file.close();
+        const auto original = RawImageReader::read(file.fileName());
+        const auto clean = RawImageReader::read(file.fileName(), {}, true);
+        QVERIFY2(!clean.image.isNull(), qPrintable(clean.error));
+        QCOMPARE(clean.image.size(), QSize(96, 128));
+        QCOMPARE(clean.image.format(), original.image.format());
+        QVERIFY(clean.image != original.image);
+        QVERIFY(clean.image.pixelColor(48, 64).lightness() > 20);
+    }
+    void rgbDenoiseLayer()
+    {
+        if (!PhotoCrap::Denoise::available())
+            QSKIP("ONNX Runtime unavailable");
+        QTemporaryDir tmp;
+        QImage noisy(120, 64, QImage::Format_RGBA64);
+        QRandomGenerator random(19);
+        for (int y = 0; y < noisy.height(); ++y)
+            for (int x = 0; x < noisy.width(); ++x) {
+                const int gray = (x < 60 ? 80 : 180) + int(random.bounded(41)) - 20;
+                noisy.setPixelColor(x, y, QColor(gray, gray, gray, y < 4 ? 128 : 255));
+            }
+        const auto photo = QUrl::fromLocalFile(tmp.filePath("noise.png"));
+        QVERIFY(noisy.save(photo.toLocalFile()));
+        Document doc;
+        QVERIFY(doc.openFile(photo));
+        const auto original = doc.composite();
+        doc.setPreviewSize(60, 32);
+        doc.addAdjustmentLayer("denoise");
+        QTRY_COMPARE_WITH_TIMEOUT(doc.displayComposite().size(), QSize(60, 32), 30000);
+        const auto draft = doc.displayComposite();
+        QCOMPARE(draft.size(), QSize(60, 32));
+        doc.setLayerVisible(1, false);
+        QCOMPARE(doc.displayComposite().cacheKey(), original.cacheKey());
+        doc.setLayerVisible(1, true);
+        QCOMPARE(doc.displayComposite().cacheKey(), draft.cacheKey());
+        QSignalSpy refinement(&doc, &Document::imageChanged);
+        QTRY_VERIFY_WITH_TIMEOUT(!refinement.isEmpty(), 30000);
+        const auto clean = doc.composite();
+        doc.setLayerVisible(1, false);
+        doc.setLayerVisible(1, true);
+        QCOMPARE(doc.composite().cacheKey(), clean.cacheKey());
+        QCOMPARE(clean.format(), original.format());
+        QCOMPARE(clean.pixelColor(20, 2).alpha(), original.pixelColor(20, 2).alpha());
+        double before = 0, after = 0;
+        for (int y = 10; y < 50; ++y)
+            for (int x = 10; x < 110; ++x) {
+                const int target = x < 60 ? 80 : 180;
+                before += std::abs(original.pixelColor(x,y).red() - target);
+                after += std::abs(clean.pixelColor(x,y).red() - target);
+            }
+        QVERIFY(after < before * .9);
+        const auto project = QUrl::fromLocalFile(tmp.filePath("noise.pcr"));
+        QVERIFY(doc.saveProject(project));
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.composite(), clean);
+        reopened.moveLayer(-1);
+        QCOMPARE(reopened.composite(), original);
+        doc.setLayerVisible(1, false);
+        doc.setLayerOpacity(0, .5);
+        doc.setLayerVisible(1, true);
+        QVERIFY(doc.composite().pixelColor(60, 30).alpha() < 140);
+    }
     void clarityAndGrainLayers_data()
     {
         QTest::addColumn<bool>("wide");

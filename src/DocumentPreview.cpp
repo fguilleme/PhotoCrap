@@ -52,6 +52,8 @@ void Document::beginLayerPreview()
 {
     if (m_previewingLayer || m_active < 0 || m_active >= m_layers.size())
         return;
+    m_denoiseComparison = {};
+    m_hasCommittedDraft = false;
     cancelOperation();
     endStroke();
     // Starting a drag must never force a full-resolution composition on the
@@ -143,6 +145,8 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
         return;
     if (_draft && _allowGpu && updateGpuTonePreview())
         return;
+    if (_draft)
+        m_hasCommittedDraft = false;
     m_pendingPreviewGpuBase =
         _draft && _allowGpu && m_previewingLayer && !m_gpuToneRejected && gpuToneEligible();
     m_pendingPreviewGpuAux     = _draft && !_allowGpu && gpuTonePreviewActive();

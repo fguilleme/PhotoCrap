@@ -69,10 +69,10 @@ bool Document::newDocument(int _w, int _h, bool _transparent, int _bits)
     resetHistory(true);
     return true;
 }
-QImage Document::readImage(const QString &_path)
+QImage Document::readImage(const QString &_path, bool denoiseRaw)
 {
     if (RawImageReader::isRawFile(_path)) {
-        const auto result = RawImageReader::read(_path, m_backgroundCancel);
+        const auto result = RawImageReader::read(_path, m_backgroundCancel, denoiseRaw);
         if (result.image.isNull())
             fail(result.error);
         return result.image;
@@ -112,7 +112,7 @@ bool Document::openFile(const QUrl &_url)
         return fail(tr("Choisissez un fichier local."));
     if (QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0)
         return loadProject(path);
-    auto image = readImage(path);
+    auto image = readImage(path, RawImageReader::denoiseByDefault());
     if (image.isNull())
         return false;
     return adoptDecodedImage(image, _url, false);
@@ -127,11 +127,11 @@ void Document::prepareOpenedPhoto()
     emit layersChanged();
 }
 
-void Document::requestOpenFile(const QUrl &_url)
+void Document::requestOpenFile(const QUrl &_url, bool denoiseRaw)
 {
     const QUrl target = _url;
     if (isRawFile(target)) {
-        openRawFile(target);
+        openRawFile(target, false, denoiseRaw);
         return;
     }
     const QString path = localPath(target);
@@ -178,7 +178,7 @@ QString Document::rawFilePatterns() const
 {
     return RawImageReader::filePatterns();
 }
-bool Document::openRawFile(const QUrl &_url, bool _asLayer)
+bool Document::openRawFile(const QUrl &_url, bool _asLayer, bool denoise)
 {
     if (!isRawFile(_url))
         return fail(tr("Choisissez un fichier RAW local."));
@@ -208,11 +208,11 @@ bool Document::openRawFile(const QUrl &_url, bool _asLayer)
     m_rawLoading           = true;
     emit rawLoadingChanged();
     m_rawWatcher.setFuture(QtConcurrent::run(
-        [target, cancel, before, cache, planeRamMiB, tool, color, secondary, _asLayer] {
+        [target, cancel, before, cache, planeRamMiB, tool, color, secondary, _asLayer, denoise] {
             PreparedRawResult output;
             output.cache = cache;
             try {
-                auto decoded     = RawImageReader::read(target.toLocalFile(), cancel);
+                auto decoded     = RawImageReader::read(target.toLocalFile(), cancel, denoise);
                 output.error     = decoded.error;
                 output.cancelled = decoded.cancelled || cancel->load();
                 if (!output.cancelled && !decoded.image.isNull()) {
@@ -371,11 +371,11 @@ bool Document::adoptDecodedImage(const QImage &_image, const QUrl &_url, bool _a
     resetHistory(false);
     return true;
 }
-void Document::requestImportLayer(const QUrl &_url)
+void Document::requestImportLayer(const QUrl &_url, bool denoiseRaw)
 {
     const QUrl target = _url;
     if (isRawFile(target)) {
-        openRawFile(target, true);
+        openRawFile(target, true, denoiseRaw);
         return;
     }
     if (localPath(target).isEmpty()) {
@@ -389,12 +389,12 @@ void Document::requestImportLayer(const QUrl &_url)
                    [target](Document &_renderer) { _renderer.importLayer(target); }))
         importLayer(target);
 }
-bool Document::importLayer(const QUrl &_url)
+bool Document::importLayer(const QUrl &_url, bool denoiseRaw)
 {
     if (!validSize(width(), height(), int(m_layers.size()) + 1) ||
         !validLayerStorage(width(), height(), 1))
         return false;
-    auto image = readImage(localPath(_url));
+    auto image = readImage(localPath(_url), denoiseRaw);
     if (image.isNull())
         return false;
     return adoptDecodedImage(image, _url, true);

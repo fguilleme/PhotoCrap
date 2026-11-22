@@ -6696,4 +6696,18 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Lumière %1</source><translation>Light %1</translation></message>
     <message><source>Source lumineuse</source><translation>Light source</translation></message>
   </context>
+<context><name>Main</name>
+    <message><source>Importer un RAW</source><translation>Import RAW</translation></message>
+    <message><source>%1 fichiers RAW</source><translation>%1 RAW files</translation></message>
+    <message><source>Réduire le bruit à l’import</source><translation>Reduce noise on import</translation></message>
+    <message><source>Importer</source><translation>Import</translation></message>
+    <message><source>Débruiter les RAW à l’import</source><translation>Denoise RAW files on import</translation></message>
+    <message><source>Réduction du bruit RVB</source><translation>RGB noise reduction</translation></message>
+</context>
+<context><name>Document</name>
+    <message><source>Réduction du bruit RVB</source><translation>RGB noise reduction</translation></message>
+</context>
+<context><name>RawImageReader</name>
+    <message><source>Modèle de débruitage indisponible.</source><translation>Denoising model unavailable.</translation></message>
+</context>
 </TS>

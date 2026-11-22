@@ -303,7 +303,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool model3dPropertiesShown: false
-    property bool blockingModalOpen: xmpDialog.visible || referenceDialog.visible || xmpReport.opened || model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: rawImportDialog.visible || xmpDialog.visible || referenceDialog.visible || xmpReport.opened || model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -326,6 +326,7 @@ ApplicationWindow {
             {key:"clarity",label:qsTr("Clarté"),from:-100,to:100,step:1},
             {key:"dehaze",label:qsTr("Correction du voile"),from:-100,to:100,step:1}
         ],
+        denoise: [{key:"amount",label:qsTr("Intensité (%)"),from:0,to:100,step:1}],
         grain: [
             {key:"amount",label:qsTr("Quantité (%)"),from:0,to:100,step:1},
             {key:"size",label:qsTr("Taille du grain (px)"),from:1,to:8,step:0.25},
@@ -1127,7 +1128,30 @@ ApplicationWindow {
         welcomeDialog.close()
         openRecentFile(url)
     }
-    function openRecentFile(url) { documents.openFile(url) }
+    function openRecentFile(url) { requestPhotoImport([url], "open") }
+    function openDroppedDocuments(files) {
+        nativeDocumentOpening = true
+        welcomeDialog.close()
+        requestPhotoImport(files, "open")
+    }
+    function requestPhotoImport(files, mode, insertion = -1) {
+        // Copy the native picker/drop list before its event or dialog is released.
+        const urls = Array.from(files)
+        const target = editor
+        const load = function(denoise) {
+            if (mode === "layers") target.requestImportLayers(urls, insertion, denoise)
+            else if (mode === "layer") target.requestImportLayer(urls[0], denoise)
+            else for (const url of urls) documents.openFile(url, denoise)
+        }
+        const raw = urls.filter(url => target.isRawFile(url)
+                                && (mode !== "open" || !documents.openedDocumentId(url)))
+        if (!raw.length) { load(false); return }
+        rawImportDialog.fileLabel = raw.length === 1
+                ? raw[0].toString().split("/").pop() : qsTr("%1 fichiers RAW").arg(raw.length)
+        rawDenoiseCheck.checked = workspaceSettings.rawDenoise
+        rawImportDialog.loadFiles = load
+        rawImportDialog.open()
+    }
     function compactRecentPath(path) {
         const limit=36
         if(path.length<=limit) return path
@@ -1647,6 +1671,12 @@ ApplicationWindow {
             DarkMenuItem { text: qsTr("Accueil…"); enabled: !window.modalOpen; onTriggered: { recentFiles.refresh(); welcomeDialog.open() } }
             DarkMenuItem { action: newAction }
             DarkMenuItem { action: openAction }
+            DarkMenuItem {
+                text: qsTr("Débruiter les RAW à l’import")
+                checkable: true
+                checked: workspaceSettings.rawDenoise
+                onTriggered: workspaceSettings.rawDenoise = checked
+            }
             DarkMenuItem { action: closeDocumentAction }
             DarkMenu {
                 id: recentFilesMenu
@@ -1760,6 +1790,7 @@ ApplicationWindow {
                 DarkMenuItem { text: qsTr("Virage partiel"); onTriggered: addAdjustmentLayer("splitToning") }
                 DarkMenuItem { text: qsTr("Texture"); onTriggered: addAdjustmentLayer("texture") }
                 DarkMenuItem { text: qsTr("Clarté / Correction du voile"); onTriggered: addAdjustmentLayer("clarityDehaze") }
+                DarkMenuItem { text: qsTr("Réduction du bruit RVB"); onTriggered: addAdjustmentLayer("denoise") }
                 DarkMenuItem { text: qsTr("Grain"); onTriggered: addAdjustmentLayer("grain") }
                 DarkMenuItem { text: qsTr("Noir et blanc"); onTriggered: addAdjustmentLayer("blackWhite") }
                 DarkMenuItem { text: qsTr("Filtre photo"); onTriggered: addAdjustmentLayer("photoFilter") }
@@ -3863,7 +3894,7 @@ ApplicationWindow {
                         document: editor
                         enabled: !window.blockingModalOpen && !editor.transformActive
                         documentManager: documents
-                        onFilesDropped: function(files) { for (const file of files) window.openNativeDocument(file) }
+                        onFilesDropped: function(files) { window.openDroppedDocuments(files) }
                     }
                 }
                 Rectangle {
@@ -4284,6 +4315,7 @@ ApplicationWindow {
                             z: 20
                             document: editor
                             listView: layerList
+                            onFilesDropped: function(files, insertion) { window.requestPhotoImport(files, "layers", insertion) }
                             enabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading
                         }
                         delegate: Rectangle {
@@ -4838,6 +4870,7 @@ ApplicationWindow {
             title: qsTr("Détails et grain")
             LayerAdjustmentItem { adjustmentType: "texture"; text: qsTr("Texture") }
             LayerAdjustmentItem { adjustmentType: "clarityDehaze"; text: qsTr("Clarté / Correction du voile") }
+            LayerAdjustmentItem { adjustmentType: "denoise"; text: qsTr("Réduction du bruit RVB") }
             LayerAdjustmentItem { adjustmentType: "grain"; text: qsTr("Grain") }
         }
         DarkMenu {
@@ -4936,7 +4969,7 @@ ApplicationWindow {
                 document: editor
                 enabled: !window.blockingModalOpen
                 documentManager: documents
-                        onFilesDropped: function(files) { for (const file of files) window.openNativeDocument(file) }
+                        onFilesDropped: function(files) { window.openDroppedDocuments(files) }
             }
         }
         contentItem: ColumnLayout {
@@ -5076,7 +5109,7 @@ ApplicationWindow {
         fileMode: FileDialog.OpenFiles
         nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
                       qsTr("Tous les fichiers (*)")]
-        onAccepted: editor.requestImportLayers(selectedFiles)
+        onAccepted: window.requestPhotoImport(selectedFiles, "layers")
     }
     FileDialog {
         id: openDialog; objectName: "openDialog"; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
@@ -5085,11 +5118,50 @@ ApplicationWindow {
             ? qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns())
             : qsTr("Images et projets (%1)").arg("*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
             qsTr("Fichiers RAW (%1)").arg(editor.rawFilePatterns()), qsTr("Tous les fichiers (*)")]
-        onAccepted: {
-            if(window.importing && editor.isRawFile(selectedFile)) editor.openRawFile(selectedFile, true)
-            else if(window.importing) editor.requestImportLayer(selectedFile)
-            else for (const file of selectedFiles) documents.openFile(file)
+        onAccepted: window.requestPhotoImport(selectedFiles, window.importing ? "layer" : "open")
+    }
+    Dialog {
+        id: rawImportDialog
+        objectName: "rawImportDialog"
+        title: qsTr("Importer un RAW")
+        anchors.centerIn: parent
+        width: Math.min(390, window.width - 32)
+        modal: true
+        focus: true
+        property string fileLabel
+        property var loadFiles: null
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 8
+            Label {
+                text: rawImportDialog.fileLabel
+                Layout.fillWidth: true
+                elide: Text.ElideMiddle
+                color: Studio.secondary
+            }
+            CheckBox {
+                id: rawDenoiseCheck
+                objectName: "rawDenoiseCheck"
+                text: qsTr("Réduire le bruit à l’import")
+            }
         }
+        footer: DialogButtonBox {
+            DialogActionButton { text: qsTr("Annuler"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; onClicked: rawImportDialog.reject() }
+            DialogActionButton {
+                objectName: "rawImportButton"
+                text: qsTr("Importer")
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                defaultButton: true
+                onClicked: rawImportDialog.accept()
+            }
+        }
+        onAccepted: {
+            const load = loadFiles
+            loadFiles = null
+            workspaceSettings.rawDenoise = rawDenoiseCheck.checked
+            if (load) load(rawDenoiseCheck.checked)
+        }
+        onRejected: loadFiles = null
     }
     Popup {
         objectName: "rawLoadPopup"

@@ -19,6 +19,12 @@ void Document::addAdjustmentLayer(const QString &_type)
     endStroke();
     const auto before = snapshot(tr("Nouveau calque de réglage"));
     const bool fromSelection = hasSelection();
+    // Inserting a new base directly below a clipped layer changes the stack
+    // even with its eye off. In all other positions the current image is "before".
+    QImage beforeDenoise;
+    if (_type == "denoise" && !m_cacheDirty &&
+        (m_active + 1 == m_layers.size() || !m_layers.at(m_active + 1).clippingMask))
+        beforeDenoise = m_composite;
     {
         Layer layer;
         layer.name           = name;
@@ -42,6 +48,8 @@ void Document::addAdjustmentLayer(const QString &_type)
     // Publish the new layer metadata without prompting the canvas to compose
     // the full document synchronously on the UI thread.
     commit(before, tr("Nouveau calque de réglage"), true, false);
+    if (!beforeDenoise.isNull())
+        m_denoiseComparison = {m_layers.at(m_active).historyId, beforeDenoise, {}};
     // Present a screen-sized result first, then refine the document pixels in
     // the background. Adding a costly filter must never block the QML thread.
     requestPreviewRender(true, true);
@@ -187,7 +195,7 @@ void Document::resetAdjustmentLayer()
     else if (type == QStringLiteral("colorBalance"))
         parameters = {{"cyanRed", 0}, {"magentaGreen", 0}, {"yellowBlue", 0}, {"black", 0}};
     else if (type == "splitToning" || type == "texture" || type == "relight" ||
-             type == "clarityDehaze" || type == "grain")
+             type == "clarityDehaze" || type == "grain" || type == "denoise")
         parameters = adjustmentDefaults(type);
     else if (type == QStringLiteral("selectiveColor"))
         parameters = PhotoCrap::Filters::defaultSelectiveColorParameters();
@@ -402,6 +410,7 @@ QString Document::adjustmentName(const QString &_type) const
                                        {"texture", tr("Texture")},
                                        {"clarityDehaze", tr("Clarté / Correction du voile")},
                                        {"grain", tr("Grain")},
+                                       {"denoise", tr("Réduction du bruit RVB")},
                                        {"blackWhite", tr("Noir et blanc")},
                                        {"photoFilter", tr("Filtre photo")},
                                        {"channelMixer", tr("Mélangeur de couches")},
@@ -458,6 +467,8 @@ QVariantMap Document::adjustmentDefaults(const QString &_type) const
                   {"highlightSaturation", 0}, {"balance", 0}};
     else if (_type == "clarityDehaze")
         params = {{"clarity", 0}, {"dehaze", 0}, {"radius", 18}};
+    else if (_type == "denoise")
+        params = {{"amount", 60}};
     else if (_type == "grain")
         params = {{"amount", 0}, {"size", 2.}, {"roughness", 50}};
     else if (_type == "texture")

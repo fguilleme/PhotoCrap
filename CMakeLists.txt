@@ -19,6 +19,7 @@ include(cmake/MeshOptimizer.cmake)
 
 set(PHOTOCRAP_CXX_SOURCES
     src/RawImageReader.cpp
+    src/filters/PhotoDenoise.cpp
     src/ToolInput.cpp
     src/CanvasItem.cpp
     src/CanvasRendering.cpp
@@ -443,6 +444,7 @@ qt_add_library(photocrap_core STATIC
     src/storage/StreamingImageWriter.h
     src/storage/WebpExport.cpp src/storage/WebpExport.h
     src/RawImageReader.cpp
+    src/filters/PhotoDenoise.cpp
     src/RawImageReader.h
     src/DocumentLayers.cpp
     src/DocumentLayerMerge.cpp
@@ -939,7 +941,7 @@ if(BUILD_TESTING)
     qt_add_executable(photocrap_mask_adjustments_tests tests/MaskAdjustmentsTest.cpp)
     target_link_libraries(photocrap_mask_adjustments_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME mask_adjustments COMMAND photocrap_mask_adjustments_tests)
-    set_tests_properties(mask_adjustments PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 60)
+    set_tests_properties(mask_adjustments PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 180)
     qt_add_executable(photocrap_pen_shape_tests tests/PenShapeTest.cpp)
     target_link_libraries(photocrap_pen_shape_tests PRIVATE photocrap_core Qt6::Test)
     add_test(NAME pen_shape COMMAND photocrap_pen_shape_tests)
@@ -1119,6 +1121,7 @@ endif()
 
 include(GNUInstallDirs)
 if(TARGET photocrap_onnx_runtime)
+    include(cmake/DenoiseModels.cmake)
     photocrap_install_onnx_runtime()
 endif()
 include(cmake/MacQuickLook.cmake)

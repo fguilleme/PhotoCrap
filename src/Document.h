@@ -1176,10 +1176,10 @@ public:
     Q_INVOKABLE void setPreviewSize(int _width, int _height);
     void prepareOpenedPhoto();
     Q_INVOKABLE bool openFile(const QUrl &_url);
-    Q_INVOKABLE void requestOpenFile(const QUrl &_url);
+    Q_INVOKABLE void requestOpenFile(const QUrl &_url, bool denoiseRaw = RawImageReader::denoiseByDefault());
     Q_INVOKABLE void importAdobeXmp(const QUrl &url);
     Q_INVOKABLE void matchReferenceImage(const QUrl &url);
-    Q_INVOKABLE bool importLayer(const QUrl &_url);
+    Q_INVOKABLE bool importLayer(const QUrl &_url, bool denoiseRaw = RawImageReader::denoiseByDefault());
     Q_INVOKABLE bool importModel3D(const QUrl &_url);
     bool             importModel3DData(const QByteArray &_bytes, const QString &_name,
                                        const QRectF &_reference = {});
@@ -1211,12 +1211,12 @@ public:
                          std::optional<QPoint> textPosition = {}, bool followRelief = false,
                          qreal focalRatio = .85, const QVariantList &crease = {});
 
-    Q_INVOKABLE void requestImportLayer(const QUrl &_url);
+    Q_INVOKABLE void requestImportLayer(const QUrl &_url, bool denoiseRaw = RawImageReader::denoiseByDefault());
     Q_INVOKABLE bool    canImportLayerFiles(const QList<QUrl> &_urls) const;
-    Q_INVOKABLE void    requestImportLayers(const QList<QUrl> &_urls, int _insertion = -1);
+    Q_INVOKABLE void    requestImportLayers(const QList<QUrl> &_urls, int _insertion = -1, bool denoiseRaw = RawImageReader::denoiseByDefault());
     Q_INVOKABLE bool isRawFile(const QUrl &_url) const;
     Q_INVOKABLE QString rawFilePatterns() const;
-    Q_INVOKABLE bool    openRawFile(const QUrl &_url, bool _asLayer = false);
+    Q_INVOKABLE bool    openRawFile(const QUrl &_url, bool _asLayer = false, bool denoiseRaw = RawImageReader::denoiseByDefault());
     Q_INVOKABLE void    cancelRawLoad();
     bool                rawLoading() const
     {
@@ -1896,6 +1896,14 @@ private:
     QSize                               m_pendingPreviewTargetSize;
     QSize                               m_previewTargetSize;
     QImage                              m_previewComposite;
+    // The opposite eye state for one denoise layer, valid until the next edit.
+    struct DenoiseComparison {
+        QString layerId;
+        QImage native;
+        QImage draft;
+    };
+    DenoiseComparison m_denoiseComparison;
+    bool m_hasCommittedDraft = false;
     bool                                m_pendingPreviewDraft  = false;
     bool                                m_pendingPreviewRefine = false;
     bool                                m_runningPreviewDraft  = false;
@@ -2015,7 +2023,7 @@ private:
     int               m_maskPenPathIndex = -1;
     QRect             m_maskPenBounds;
     bool              renderMaskPenShape(const QVariantMap &_style);
-    QImage  readImage(const QString &_path);
+    QImage  readImage(const QString &_path, bool denoiseRaw = false);
     bool    loadProject(const QString &_path);
     void    adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project);
     void    acceptProjectSave(const QString &_path);

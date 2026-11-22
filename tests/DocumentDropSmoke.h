@@ -133,11 +133,24 @@ inline bool runDocumentDropSmoke(QQuickWindow *window, DocumentManager &manager)
         return false;
     if (!drop(area, {raw}, true))
         return false;
+    auto *options = window->findChild<QObject *>("rawImportDialog");
+    auto *denoise = window->findChild<QObject *>("rawDenoiseCheck");
+    auto *importButton = window->findChild<QQuickItem *>("rawImportButton");
+    if (!require(options && denoise && importButton && importButton->isVisible() &&
+                     options->property("visible").toBool() &&
+                     manager.count() == 6 && denoise->setProperty("checked", true) &&
+                     QMetaObject::invokeMethod(importButton, "click"),
+                 "dropping a RAW offers denoising before decoding any pixels"))
+        return false;
     auto *rawDoc = manager.activeDocument();
-    if (!require(QTest::qWaitFor([&] { return !rawDoc->rawLoading(); }, 10000) &&
+    if (!require(QTest::qWaitFor([&] { return !rawDoc->rawLoading(); }, 30000) &&
                      rawDoc->channelBits() == 16 && rawDoc->width() == 128 && manager.count() == 7 &&
                      rawDoc->tool() == "move" && rawDoc->layers().first().toMap()["locked"].toBool(),
                  "RAW drop develops into its own 16-bit document"))
+        return false;
+    const auto expected = RawImageReader::read(raw.toLocalFile(), {}, true);
+    if (!require(!expected.image.isNull() && rawDoc->layerImage(0) == expected.image,
+                 "the selected RAW denoise option reaches the actual decoder"))
         return false;
     return require(original->composite() == before && original->historyIndex() == history,
                    "all open routes preserve original pixels and history");

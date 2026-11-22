@@ -20,7 +20,7 @@ bool Document::canImportLayerFiles(const QList<QUrl> &_urls) const
     return true;
 }
 
-void Document::requestImportLayers(const QList<QUrl> &_urls, int _insertion)
+void Document::requestImportLayers(const QList<QUrl> &_urls, int _insertion, bool denoiseRaw)
 {
     if (!canImportLayerFiles(_urls)) {
         fail(tr("Choisissez des fichiers image locaux pris en charge."));
@@ -52,10 +52,10 @@ void Document::requestImportLayers(const QList<QUrl> &_urls, int _insertion)
     // after every file succeeds, and retain one undo entry on the live document.
     // Always dispatch, even when the synchronous single-image test override is set.
     deferEdit(tr("Importer des images comme calques"), std::numeric_limits<qint64>::max(),
-              [urls = _urls, insertion, group](Document &renderer) {
+              [urls = _urls, insertion, group, denoiseRaw](Document &renderer) {
                   for (const auto &url : urls) {
                       renderer.m_active = insertion - 1;
-                      if (!renderer.importLayer(url))
+                      if (!renderer.importLayer(url, denoiseRaw))
                           return;
                       renderer.m_layers[renderer.m_active].groupId = group;
                       renderer.m_undo.clear();

@@ -4,6 +4,7 @@ DropArea {
     id: root
     required property var document
     required property ListView listView
+    signal filesDropped(var files, int insertion)
     property int insertion: 0
     property real indicatorY: 2
     property real pointerY: 0
@@ -43,7 +44,7 @@ DropArea {
     onDropped: function(drop) {
         if (!validDrop || !drop.hasUrls) return
         updateTarget(drop.y)
-        document.requestImportLayers(drop.urls, insertion)
+        filesDropped(drop.urls, insertion)
         drop.accept(Qt.CopyAction)
         validDrop = false
     }

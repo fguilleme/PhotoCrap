@@ -200,7 +200,18 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document, Document
     rawFile.close();
     if (!require(openDialog->setProperty("selectedFile", raw) &&
                      QMetaObject::invokeMethod(openDialog, "accepted"),
-                 "the RAW picker starts its prepared load"))
+                 "the RAW picker offers import options"))
+        return false;
+    auto *options = window->findChild<QObject *>("rawImportDialog");
+    auto *denoise = window->findChild<QObject *>("rawDenoiseCheck");
+    if (!require(options && denoise && options->property("visible").toBool() &&
+                     documents.activeDocument() == &document && !document.rawLoading() &&
+                     QMetaObject::invokeMethod(options, "reject") &&
+                     documents.activeDocument() == &document &&
+                     QMetaObject::invokeMethod(openDialog, "accepted") &&
+                     options->property("visible").toBool() &&
+                     QMetaObject::invokeMethod(options, "accept"),
+                 "RAW options can be cancelled before opening a tab or starting development"))
         return false;
     QPointer<Document> rawDocument(documents.activeDocument());
     QTest::qWait(50);

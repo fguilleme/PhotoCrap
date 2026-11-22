@@ -189,11 +189,47 @@ void Document::setLayerVisible(int _i, bool _visible, bool revealGroup)
         return;
     m_visibilityBeforeIsolation.clear();
     m_isolatedLayer = -1;
-    edit(tr("Visibilité du calque"), [&] {
-        m_layers[_i].visible = _visible;
-        if (hiddenGroup >= 0)
-            m_layers[hiddenGroup].visible = true;
-    });
+    const QString label = tr("Visibilité du calque");
+    if (layer.adjustmentType != QStringLiteral("denoise") || hiddenGroup >= 0) {
+        edit(label, [&] {
+            m_layers[_i].visible = _visible;
+            if (hiddenGroup >= 0)
+                m_layers[hiddenGroup].visible = true;
+        });
+        return;
+    }
+
+    // Toggling the eye can race the first full-resolution refinement. Keep
+    // the published draft available without forcing that render on the GUI.
+    endStroke();
+    if (m_editingMask)
+        m_maskPenBase = {};
+    const auto before = snapshot(label);
+    const auto layerId = m_layers.at(_i).historyId;
+    const auto restore = m_denoiseComparison.layerId == layerId ? m_denoiseComparison
+                                                                 : DenoiseComparison{};
+    DenoiseComparison previous{layerId, {}, {}};
+    if (!m_cacheDirty)
+        previous.native = m_composite;
+    else if (m_hasCommittedDraft)
+        previous.draft = m_previewComposite;
+    m_layers[_i].visible = _visible;
+    commit(before, label, true, false);
+    m_denoiseComparison = std::move(previous);
+    if (!restore.native.isNull()) {
+        QMutexLocker locker(&m_previewImageMutex);
+        m_composite = restore.native;
+        m_cacheDirty = m_fullCompositeDirty = false;
+        m_dirtyRegion = {};
+    } else {
+        if (!restore.draft.isNull()) {
+            QMutexLocker locker(&m_previewImageMutex);
+            m_previewComposite = restore.draft;
+            m_hasCommittedDraft = true;
+        }
+        requestPreviewRender(restore.draft.isNull(), true);
+    }
+    emit imageChanged();
 }
 void Document::toggleLayerIsolation(int _i)
 {

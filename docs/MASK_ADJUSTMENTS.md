@@ -101,3 +101,9 @@ Si un réglage est ignoré, le bilan indique son nom et le nombre de calques cr�
 Ouvrez la photo à retoucher, puis choisissez **Calque → Reproduire le rendu d’une image…** et sélectionnez la photo dont vous souhaitez retrouver l’aspect. PhotoCrap compare les pixels visibles pour estimer l’exposition, le voile, la teinte dominante et la saturation. Des échantillons à la résolution d’origine servent à estimer la clarté et le grain supplémentaire. Les courbes ajustent les écarts de tonalité et de couleur restants. Seuls les réglages retenus sont ajoutés. Des sujets, des textures et des éclairages proches facilitent la comparaison.
 
 Les deux commandes ajoutent leurs calques en haut de la pile. Double-cliquez sur un calque pour modifier ses réglages ou réduisez son opacité pour atténuer l’effet. **Annuler** retire tout l’import en une étape. Enregistrez en `.pcr` pour retrouver les réglages à la réouverture.
+
+## Réduction du bruit
+
+À l’ouverture ou à l’importation d’un RAW, cochez **Réduire le bruit à l’import** dans la fenêtre **Importer un RAW**, puis cliquez sur **Importer**. Le même choix s’applique à tous les RAW de la sélection. PhotoCrap mémorise le dernier choix, initialement désactivé. RawNIND reconstruit les couleurs et débruite les mosaïques Bayer en une passe. Pour les autres capteurs pris en charge par LibRaw, il intervient sur le RVB linéaire avant conversion en sRGB. Le fichier original est conservé.
+
+Pour un JPEG, un TIFF ou une composition en cours, sélectionnez le calque voulu puis **+ → Détails et grain → Réduction du bruit RVB**. Le réglage NAFNet traite la composition située sous lui. Déplacez-le pour choisir les calques concernés, ajustez son intensité ou peignez sur son masque. Jugez les détails à 100 % de zoom. Les modèles sont fournis avec l’application et le calcul se fait sur cet ordinateur.

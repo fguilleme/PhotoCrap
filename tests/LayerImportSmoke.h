@@ -73,7 +73,7 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
         return nullptr;
     };
     auto *page = preferences->property("contentItem").value<QQuickItem *>();
-    for (auto type : {"grain", "texture", "clarityDehaze"}) {
+    for (auto type : {"grain", "texture", "clarityDehaze", "denoise"}) {
         auto *box = page ? findChoice(findChoice, page, QStringLiteral("menuChoice_") + type) : nullptr;
         if (!require(box && box->property("checked").toBool() && QMetaObject::invokeMethod(box, "click") &&
                          !box->property("checked").toBool(), "an adjustment can be hidden"))
@@ -82,7 +82,7 @@ inline bool runLayerImportSmoke(QQuickWindow *window, Document &document)
     if (!require(details->property("count").toInt() == 0 &&
                      addMenu->property("count").toInt() < defaultCount &&
                      QMetaObject::invokeMethod(resetPage, "click") &&
-                     details->property("count").toInt() == 3 &&
+                     details->property("count").toInt() == 4 &&
                      addMenu->property("count").toInt() == defaultCount,
                  "empty families disappear and defaults restore their entries"))
         return false;

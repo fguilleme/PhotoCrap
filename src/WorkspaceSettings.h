@@ -11,6 +11,7 @@ class WorkspaceSettings final : public QObject
     Q_OBJECT
     Q_PROPERTY(bool useShiftToCycleTools READ useShiftToCycleTools WRITE setUseShiftToCycleTools
                    NOTIFY toolBehaviorChanged)
+    Q_PROPERTY(bool rawDenoise READ rawDenoise WRITE setRawDenoise NOTIFY rawDenoiseChanged)
     Q_PROPERTY(bool springLoadedTools READ springLoadedTools WRITE setSpringLoadedTools NOTIFY
                    toolBehaviorChanged)
     Q_PROPERTY(bool autoCreatePaintLayer READ autoCreatePaintLayer WRITE setAutoCreatePaintLayer
@@ -55,6 +56,8 @@ public:
     {
         return m_autoCreatePaintLayer;
     }
+    bool rawDenoise() const { return m_rawDenoise; }
+    void setRawDenoise(bool value);
     void setAutoCreatePaintLayer(bool _value);
     void setUseShiftToCycleTools(bool _value);
     void setSpringLoadedTools(bool _value);
@@ -81,6 +84,7 @@ public:
     void setPlaneRamMiB(int value);
 
 signals:
+    void rawDenoiseChanged();
     void toolBehaviorChanged();
     void layoutChanged();
     void hiddenLayerAdjustmentsChanged();
@@ -98,6 +102,7 @@ private:
     QVariantList m_toolLayout;
     bool         m_persist              = true;
     bool         m_useShiftToCycleTools = true, m_springLoadedTools = true;
+    bool         m_rawDenoise = false;
     bool         m_autoCreatePaintLayer = true;
     int          m_planeRamMiB          = 256;
     int          m_scratchDiskGiB       = 4;

@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "filters/PhotoDenoise.h"
 #include "ImagePixels.h"
 #include "ImageSampling.h"
 #include "filters/BlackWhiteFilter.h"
@@ -880,6 +881,8 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
             return PhotoCrap::Filters::applyColorBalance(_source, _p);
         if (_type == "splitToning")
             return splitToning<Pixel>(_source, _p);
+        if (_type == "denoise")
+            return PhotoCrap::Denoise::adjust(_source, _p.value("amount", 60.).toDouble());
         if (_type == "grain")
             return filmGrain<Pixel>(_source, _p, _origin);
         if (_type == "clarityDehaze") {

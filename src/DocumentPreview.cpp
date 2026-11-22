@@ -12,6 +12,7 @@
 #include <QSet>
 #include <QtConcurrent>
 #include <QtMath>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -47,6 +48,44 @@ QImage cachedScreenProxy(const Image &_source, const QSize &_size, QImage::Forma
     return proxy;
 }
 } // namespace
+
+bool Document::hasVisibleDenoise() const
+{
+    for (const auto &layer : m_layers) {
+        if (layer.adjustmentType != QStringLiteral("denoise") || !layer.visible || layer.opacity <= 0)
+            continue;
+        if (layer.groupId.isEmpty() ||
+            std::none_of(m_layers.cbegin(), m_layers.cend(), [&](const Layer &group) {
+                return group.kind == "group" && group.groupId == layer.groupId && !group.visible;
+            }))
+            return true;
+    }
+    return false;
+}
+
+void Document::setDenoiseRendering(bool busy)
+{
+    if (m_denoiseRendering != busy) {
+        m_denoiseRendering = busy;
+        emit denoiseRenderingChanged();
+    }
+}
+
+void Document::finishPreviewOverlays(bool native)
+{
+    if (m_patchAwaitingImage) {
+        m_patchAwaitingImage = false;
+        clearPatch();
+    }
+    if (m_contentMoveAwaitingImage) {
+        m_contentMoveAwaitingImage = false;
+        clearPatch();
+    }
+    if (native && m_gpuToneActive) {
+        m_gpuToneActive = false;
+        emit gpuTonePreviewChanged();
+    }
+}
 
 void Document::beginLayerPreview()
 {
@@ -114,7 +153,10 @@ void Document::finishLayerPreview(const QString &_label)
         return;
     m_previewingLayer       = false;
     m_frequencyPreviewDraft = false;
-    if (m_layerPreviewChanged) {
+    if (m_layerPreviewChanged && hasVisibleDenoise()) {
+        // changed() schedules the latest draft before notifying the histogram and canvas.
+        commit(m_beforeLayerPreview, _label);
+    } else if (m_layerPreviewChanged) {
         QImage screenPreview;
         {
             QMutexLocker locker(&m_previewImageMutex);
@@ -167,6 +209,7 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
     m_previewRenderPending     = true;
     m_previewRenderActive.store(true);
     ++m_previewRequestGeneration;
+    setDenoiseRendering(hasVisibleDenoise());
     emit gpuStackChanged();
     if (_draft && (m_previewingLayer || m_gradientGesture != NoGradientGesture) &&
         m_gpuStackDisplayActive) {
@@ -175,15 +218,22 @@ void Document::requestPreviewRender(bool _draft, bool _refine, bool _allowGpu)
     } else {
         m_gpuStackAuxTimer.stop();
     }
-    if (!m_previewRenderWatcher.isRunning() && !m_gpuStackAuxTimer.isActive())
-        startPendingPreviewRender();
+    startPendingPreviewRender();
 }
 
 void Document::startPendingPreviewRender()
 {
-    if (!m_previewRenderPending || m_previewRenderWatcher.isRunning() ||
+    if (!m_previewRenderPending || m_previewWorkerBusy ||
         m_gpuStackAuxTimer.isActive())
         return;
+    if (!m_pendingPreviewDraft && hasVisibleDenoise()) {
+        // A RAW-sized prediction can take tens of seconds. Leave the preview
+        // worker free to reblend its cached screen prediction during a drag.
+        if (!m_nativeDenoiseWatcher)
+            startNativeDenoiseRender();
+        return;
+    }
+    m_previewWorkerBusy = true;
     QVector<Layer> layers      = std::move(m_pendingPreviewLayers);
     const QSize    size        = m_pendingPreviewSize;
     const QSize    targetSize  = m_pendingPreviewTargetSize;
@@ -251,6 +301,39 @@ void Document::startPendingPreviewRender()
             }
             return {result, {}};
         }));
+}
+
+void Document::startNativeDenoiseRender()
+{
+    const auto generation = m_previewRequestGeneration;
+    m_previewRenderPending = false;
+    auto *watcher = new QFutureWatcher<QImage>(this);
+    m_nativeDenoiseWatcher = watcher;
+    connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, generation] {
+        m_nativeDenoiseWatcher = nullptr;
+        const QImage result = watcher->result();
+        watcher->deleteLater();
+        if (generation == m_previewRequestGeneration) {
+            if (!result.isNull()) {
+                QMutexLocker lock(&m_previewImageMutex);
+                m_composite = result;
+                m_previewComposite = {};
+                m_cacheDirty = m_fullCompositeDirty = false;
+                m_dirtyRegion = {};
+                m_hasCommittedDraft = false;
+            }
+            m_previewRenderActive.store(false);
+            setDenoiseRendering(false);
+            finishPreviewOverlays(true);
+            ++m_revision;
+            emit imageChanged();
+        }
+        startPendingPreviewRender();
+    });
+    watcher->setFuture(QtConcurrent::run([layers = std::move(m_pendingPreviewLayers),
+                                          size = m_pendingPreviewSize, scratch = m_scratchCache]() mutable {
+        return renderPreviewSnapshot(std::move(layers), size, {}, false, scratch);
+    }));
 }
 
 QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size,

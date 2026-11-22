@@ -72,6 +72,7 @@ class Document : public QObject
     Q_PROPERTY(quint64 documentSession READ documentSession NOTIFY documentChanged)
     Q_PROPERTY(QString documentId READ documentId CONSTANT)
     Q_PROPERTY(bool rawLoading READ rawLoading NOTIFY rawLoadingChanged)
+    Q_PROPERTY(bool denoiseRendering READ denoiseRendering NOTIFY denoiseRenderingChanged)
     Q_PROPERTY(
         bool frequencyRetouchBusy READ frequencyRetouchBusy NOTIFY frequencyRetouchBusyChanged)
     Q_PROPERTY(int selectedLayerCount READ selectedLayerCount NOTIFY layersChanged)
@@ -1218,6 +1219,7 @@ public:
     Q_INVOKABLE QString rawFilePatterns() const;
     Q_INVOKABLE bool    openRawFile(const QUrl &_url, bool _asLayer = false, bool denoiseRaw = RawImageReader::denoiseByDefault());
     Q_INVOKABLE void    cancelRawLoad();
+    bool denoiseRendering() const { return m_denoiseRendering; }
     bool                rawLoading() const
     {
         return m_rawLoading;
@@ -1435,6 +1437,7 @@ signals:
     void penHoverChanged();
     void penOptionsChanged();
     void rawLoadingChanged();
+    void denoiseRenderingChanged();
     void frequencyRetouchBusyChanged();
     void rawFileOpened(const QUrl &_url);
     void projectSaved(const QUrl &_url);
@@ -1862,6 +1865,9 @@ private:
     QTimer                              m_gpuStackAuxTimer;
     bool                                m_gpuStackDisplayActive = false;
     QFutureWatcher<PreviewRenderResult> m_previewRenderWatcher;
+    QFutureWatcher<QImage> *m_nativeDenoiseWatcher = nullptr;
+    bool m_denoiseRendering = false;
+    bool m_previewWorkerBusy = false;
     struct Model3DPreview {
         int         layer;
         QVariantMap parameters;
@@ -2049,6 +2055,10 @@ private:
     void          requestPreviewRender(bool _draft, bool _refine = false, bool _allowGpu = true);
     void          applyMagicEraser(const QPoint &_seed);
     void          startPendingPreviewRender();
+    bool          hasVisibleDenoise() const;
+    void          setDenoiseRendering(bool busy);
+    void          startNativeDenoiseRender();
+    void          finishPreviewOverlays(bool native);
     QImage        renderCompositeRect(const QRect &_region) const;
     std::unique_ptr<Document> nativeCompositeSource(QVector<Layer> _layers) const;
     static QImage

@@ -160,6 +160,7 @@ Document::Document(QObject *_parent) : QObject(_parent)
         const QImage result = output.image;
         if (m_runningPreviewGpuBase) {
             finishGpuToneBase(output, m_runningGpuToneEpoch);
+            m_previewWorkerBusy = false;
             if (m_previewRenderPending)
                 QTimer::singleShot(0, this, &Document::startPendingPreviewRender);
             else
@@ -199,26 +200,20 @@ Document::Document(QObject *_parent) : QObject(_parent)
                 m_fullCompositeDirty = false;
                 m_dirtyRegion        = {};
             }
-            if (m_patchAwaitingImage) {
-                m_patchAwaitingImage = false;
-                clearPatch();
-            }
-            if (m_contentMoveAwaitingImage) {
-                m_contentMoveAwaitingImage = false;
-                clearPatch();
-            }
-            if (!m_runningPreviewDraft && m_gpuToneActive) {
-                m_gpuToneActive = false;
-                emit gpuTonePreviewChanged();
-            }
+            finishPreviewOverlays(!m_runningPreviewDraft);
             ++m_revision;
             emit imageChanged();
         }
+        m_previewWorkerBusy = false;
         if (m_previewRenderPending)
             QTimer::singleShot(0, this, &Document::startPendingPreviewRender);
-        else if (current && m_runningPreviewDraft && m_runningPreviewRefine)
+        else if (m_runningPreviewGeneration == m_previewRequestGeneration &&
+                 m_runningPreviewDraft && m_runningPreviewRefine)
             requestPreviewRender(false);
-        else
+        else if (m_runningPreviewGeneration == m_previewRequestGeneration) {
+            m_previewRenderActive.store(m_gpuToneActive);
+            setDenoiseRendering(false);
+        } else if (!m_nativeDenoiseWatcher)
             m_previewRenderActive.store(m_gpuToneActive);
     });
     connect(this, &Document::selectionChanged, this, [this] {
@@ -704,8 +699,9 @@ void Document::changed(bool _metadata, bool _notifyImage)
     m_previewRenderPending = false;
     m_model3DPreview.reset();
     m_pendingModel3DPreview.reset();
-    m_previewRenderActive.store(false);
-    {
+    const bool denoise = hasVisibleDenoise() && !m_backgroundWorker;
+    m_previewRenderActive.store(denoise);
+    if (!denoise) {
         QMutexLocker locker(&m_previewImageMutex);
         m_previewComposite = {};
     }
@@ -713,6 +709,10 @@ void Document::changed(bool _metadata, bool _notifyImage)
     if (_metadata)
         m_fullCompositeDirty = true;
     ++m_revision;
+    if (denoise && _notifyImage)
+        requestPreviewRender(true, true);
+    else if (!denoise)
+        setDenoiseRendering(false);
     if (_metadata) {
         ++m_thumbnailRevision;
         emit thumbnailsChanged();

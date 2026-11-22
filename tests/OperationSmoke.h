@@ -2,6 +2,7 @@
 #include "Document.h"
 #include "DocumentManager.h"
 #include "RawTestImage.h"
+#include "filters/PhotoDenoise.h"
 #ifdef Q_OS_MACOS
 #include "MacToolCursorTest.h"
 #endif
@@ -300,5 +301,42 @@ inline bool runOperationSmoke(QQuickWindow *window, Document &document, Document
         return false;
     if (!require(QMetaObject::invokeMethod(properties, "reject"), "close the direct-source panel"))
         return false;
+    if (PhotoCrap::Denoise::available()) {
+        document.requestOpenFile(raw, false);
+        if (!require(QTest::qWaitFor([&] { return !document.rawLoading(); }, 10000) &&
+                         document.channelBits() == 16, "open the RAW without import denoising"))
+            return false;
+        const QImage original = document.composite();
+        // Hold the render worker. A slider release, including its synchronous
+        // histogram bindings, must keep displaying the last published pixels.
+        pool->start([&] { entered.release(); release.acquire(); });
+        entered.acquire();
+        if (!require(QMetaObject::invokeMethod(window, "addAdjustmentLayer",
+                                              Q_ARG(QVariant, QVariant("denoise"))) &&
+                         QTest::qWaitFor([&] { return properties->property("opened").toBool(); }),
+                     "open the RGB denoise panel"))
+            return false;
+        auto *toggle = window->findChild<QQuickItem *>("denoiseLayerEnabled");
+        auto *panel = properties->property("contentItem").value<QQuickItem *>();
+        auto *slider = panel ? find(find, panel, "parameterSlider") : nullptr;
+        if (!require(toggle && toggle->isVisible() && slider && slider->isVisible() &&
+                         QMetaObject::invokeMethod(toggle, "click") && !document.denoiseRendering() &&
+                         QMetaObject::invokeMethod(toggle, "click") && document.denoiseRendering(),
+                     "the panel switch disables and reactivates the denoise layer"))
+            return false;
+        QTest::mouseClick(window, Qt::LeftButton, {},
+                          slider->mapToScene({slider->width() - 1, slider->height() / 2}).toPoint());
+        if (!require(slider->property("value").toInt() == 100 &&
+                         document.displayComposite().cacheKey() == original.cacheKey(),
+                     "changing intensity returns before any worker publishes pixels"))
+            return false;
+        release.release();
+        if (!require(QTest::qWaitFor([&] { return !document.denoiseRendering(); }, 30000) &&
+                         document.displayComposite().size() == original.size() &&
+                         document.displayComposite() == document.composite() &&
+                         document.displayComposite() != original,
+                     "the canvas shows the final denoised RAW pixels at native resolution"))
+            return false;
+    }
     return true;
 }

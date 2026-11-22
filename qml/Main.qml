@@ -4808,7 +4808,7 @@ ApplicationWindow {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 8
                 Label { text: window.relightPaintMode ? qsTranslate("Document", "Rééclairage") : window.toolName; color: Studio.ink; font.pixelSize: 11; font.weight: Font.DemiBold; Layout.maximumWidth: 160; elide: Text.ElideRight }
                 Rectangle { width: 1; height: 14; color: Studio.line }
-                Label { text: window.status; color: Studio.muted; font.pixelSize: 11; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
+                Label { text: editor.denoiseRendering ? qsTr("Calcul du débruitage…") : window.status; color: Studio.muted; font.pixelSize: 11; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
                 Label { text: editor.width + " × " + editor.height + " px"; color: Studio.secondary; font.pixelSize: 11 }
                 Label { objectName: "documentDepthLabel"; text: qsTr("RVB") + " / " + editor.channelBits; color: Studio.muted; font.pixelSize: 11 }
                 Rectangle { width: 1; height: 14; color: Studio.line }
@@ -5561,11 +5561,18 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Label { text: activeInfo.direct ? qsTr("Appliquer directement") : activeInfo.editingVectorMask ? qsTr("Masque vectoriel") : activeInfo.editingMask?qsTr("Masque de fusion"):window.frequencyProperties?qsTr("Séparation de fréquences"):qsTr("Calque de réglage"); color: Studio.ink; font.pixelSize: 17; font.bold: true }
                 Item { Layout.fillWidth: true }
-                CheckBox { id: layerPreview; objectName: "layerPreviewCheck"; visible: !window.frequencyPrepared || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true; onToggled: { if (activeInfo.direct) editor.setDirectAdjustmentPreview(checked) } }
+                CheckBox { id: layerPreview; objectName: "layerPreviewCheck"; visible: (activeInfo.adjustmentType !== "denoise" && !window.frequencyPrepared) || activeInfo.editingMask; text: qsTr("Aperçu"); checked: true; onToggled: { if (activeInfo.direct) editor.setDirectAdjustmentPreview(checked) } }
+                CheckBox {
+                    objectName: "denoiseLayerEnabled"
+                    visible: activeInfo.adjustmentType === "denoise" && !activeInfo.editingMask
+                    text: qsTr("Activer le calque")
+                    checked: activeInfo.visible === true
+                    onToggled: editor.setLayerVisible(editor.activeLayer, checked)
+                }
             }
             Label {
                 Layout.fillWidth: true
-                text: activeInfo.direct ? (activeInfo.maskTarget ? qsTr("Le réglage modifie le masque sélectionné. Les pixels couleur du calque restent intacts.") : qsTr("Le réglage modifie les pixels du calque actif, dans la sélection éventuelle. Annuler restaure l’état d’ouverture.")) : activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : window.frequencyPrepared ? qsTr("Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
+                text: activeInfo.direct ? (activeInfo.maskTarget ? qsTr("Le réglage modifie le masque sélectionné. Les pixels couleur du calque restent intacts.") : qsTr("Le réglage modifie les pixels du calque actif, dans la sélection éventuelle. Annuler restaure l’état d’ouverture.")) : activeInfo.editingMask ? qsTr("Le blanc révèle, le noir masque et les gris donnent une transparence partielle. Densité réduit l’effet du masque ; Contour progressif adoucit ses bords.") : activeInfo.adjustmentType === "denoise" ? qsTr("À 100 % de zoom, désactivez puis réactivez le calque pour comparer le bruit dans les ombres et les détails fins.") : window.frequencyPrepared ? qsTr("Ces calques de pixels séparent les couleurs et les volumes de la texture. Retouchez-les directement sur l’image.") : activeInfo.kind.indexOf("frequency")===0 ? qsTr("Deux calques liés séparent la couleur et les volumes (basses fréquences) de la texture (hautes fréquences, Lumière linéaire). Le rayon est recalculé sur les deux calques pendant le déplacement.") : qsTr("Les réglages restent modifiables, possèdent automatiquement un masque et s’appliquent à tous les calques visibles situés en dessous.")
                 color: Studio.muted; wrapMode: Text.WordWrap
             }
             CheckBox {

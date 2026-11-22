@@ -494,7 +494,7 @@ QImage Document::displayComposite() const
         else if (m_previewRenderActive.load())
             displayed = m_composite;
     }
-    if (displayed.isNull())
+    if (displayed.isNull() && !m_previewRenderActive.load())
         displayed = composite();
     if (m_displayChannel == 0 || displayed.isNull())
         return displayed;

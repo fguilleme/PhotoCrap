@@ -219,8 +219,12 @@ void Document::setLayerVisible(int _i, bool _visible, bool revealGroup)
     if (!restore.native.isNull()) {
         QMutexLocker locker(&m_previewImageMutex);
         m_composite = restore.native;
+        m_previewComposite = {};
         m_cacheDirty = m_fullCompositeDirty = false;
         m_dirtyRegion = {};
+        m_previewRenderActive.store(false);
+        locker.unlock();
+        setDenoiseRendering(false);
     } else {
         if (!restore.draft.isNull()) {
             QMutexLocker locker(&m_previewImageMutex);

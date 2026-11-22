@@ -6697,6 +6697,9 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Source lumineuse</source><translation>Light source</translation></message>
   </context>
 <context><name>Main</name>
+    <message><source>Calcul du débruitage…</source><translation>Reducing noise…</translation></message>
+    <message><source>Activer le calque</source><translation>Enable layer</translation></message>
+    <message><source>À 100 % de zoom, désactivez puis réactivez le calque pour comparer le bruit dans les ombres et les détails fins.</source><translation>At 100% zoom, toggle the layer to compare shadow noise and fine detail.</translation></message>
     <message><source>Importer un RAW</source><translation>Import RAW</translation></message>
     <message><source>%1 fichiers RAW</source><translation>%1 RAW files</translation></message>
     <message><source>Réduire le bruit à l’import</source><translation>Reduce noise on import</translation></message>

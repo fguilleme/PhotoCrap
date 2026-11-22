@@ -4,9 +4,9 @@
 
 Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Linux, and Windows. Its interface, pixel engine, and project format are developed independently.
 
-**v0.27.2** · The Windows installer adds project thumbnails and lets you open `.pcr` files with a double-click. The **Help** menu links to the guide and release notes for the installed version.
+**v0.28.0** · Denoise a RAW file on import or an RGB image with an adjustment layer. In side-by-side view, link pan and zoom to compare the same detail in both photos.
 
-## v0.27.2 · Changes since v0.21.0
+## v0.28.0 · Changes since v0.21.0
 
 - Redesigned workspace and typography panel with live font previews on hover.
 - Editable text on fabric folds or across two faces of a wall, with perspective

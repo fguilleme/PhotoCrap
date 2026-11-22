@@ -4,6 +4,12 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.28.0 — 22 novembre 2026
+
+- **Débruitage RAW.** Cochez **Réduire le bruit à l’import** pour débruiter la photo pendant son développement. Le calcul est local et le fichier RAW original est conservé.
+- **Débruitage RVB.** Dans **+ → Détails et grain**, ajoutez le calque **Réduction du bruit RVB**. Son intensité et son masque sont réglables. Le résultat pleine résolution se calcule en arrière-plan. Activez ou désactivez le calque à 100 % de zoom pour comparer les détails.
+- **Vue côte à côte.** Activez **Lier le zoom et le déplacement** avec l’icône de chaîne. Naviguez depuis l’une ou l’autre photo pour comparer la même zone au même grossissement, même si les dimensions diffèrent.
+
 ## v0.27.2 — 21 novembre 2026
 
 - À l’ouverture d’une photo ou d’un RAW, son calque de fond est verrouillé et l’outil **Déplacement (V)** est actif.

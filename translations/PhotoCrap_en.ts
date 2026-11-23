@@ -5785,6 +5785,10 @@ Independent software, not affiliated with Adobe.</translation>
         <translation>Entire visible composite</translation>
     </message>
     <message>
+        <source>Image entière avec masque de sélection</source>
+        <translation>Full image with selection mask</translation>
+    </message>
+    <message>
         <source>Sélection uniquement</source>
         <translation>Selection only</translation>
     </message>

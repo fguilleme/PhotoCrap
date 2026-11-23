@@ -350,9 +350,33 @@ void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, con
     const auto kind    = _provider.value("kind").toString();
     auto       options = object(_provider.value("options", "{}").toString().toUtf8());
     if (kind == "openai" || kind == "compatible") {
+        const bool masked = _input.selected && _input.maskEnabled;
+        QString editPrompt = _prompt;
+        if (masked && !_input.originalSource) {
+            QString instructions = QStringLiteral(
+                "Edit the supplied photograph in place. Return the entire photograph with the same "
+                "framing, camera angle and perspective. Apply the requested change within the "
+                "transparent area of the mask. Fit any added subject naturally inside that area. "
+                "Preserve the existing scene, lighting, colors and textures wherever the request "
+                "does not require a change, including at the mask boundary.");
+            if (!_input.editRegion.isEmpty() && !_input.canvas.isEmpty()) {
+                const auto area = _input.editRegion;
+                instructions += QStringLiteral(
+                    " The mask spans x=%1% to %2% from the left and y=%3% to %4% from the top "
+                    "of the full image. Follow its actual outline within those bounds.")
+                    .arg(qRound(100.0 * area.x() / _input.canvas.width()))
+                    .arg(qRound(100.0 * (area.x() + area.width()) / _input.canvas.width()))
+                    .arg(qRound(100.0 * area.y() / _input.canvas.height()))
+                    .arg(qRound(100.0 * (area.y() + area.height()) / _input.canvas.height()));
+            }
+            instructions += QStringLiteral("\n\nRequested edit:\n");
+            // Preserve user text in full even at the API's prompt length limit.
+            if (instructions.size() + _prompt.size() <= 32000)
+                editPrompt.prepend(instructions);
+        }
         QList<QPair<QByteArray, QByteArray>> fields{
             {"model", _provider.value("model").toString().toUtf8()},
-            {"prompt", _prompt.toUtf8()},
+            {"prompt", editPrompt.toUtf8()},
             {"n", "1"}};
         for (auto it = options.constBegin(); it != options.constEnd(); ++it) {
             if (QStringList{"model", "prompt", "n", "image", "mask"}.contains(it.key()))
@@ -367,7 +391,7 @@ void AiImageJob::start(const QVariantMap &_rawProvider, const QString &_key, con
                                                         .chopped(1)});
         }
         QList<QPair<QByteArray, QByteArray>> files{{"image", _input.image}};
-        if (_input.selected && _input.maskEnabled)
+        if (masked)
             files.append({"mask", _input.mask});
         multipart(endpoint("images/edits"), fields, files,
                   [this](const QByteArray &_bytes) { parseImages(_bytes); });

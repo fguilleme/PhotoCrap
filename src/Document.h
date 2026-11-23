@@ -1203,7 +1203,7 @@ public:
     QFuture<PhotoCrap::Ai::Input>
          prepareAiInput(bool _selection, int _maxEdge, std::shared_ptr<std::atomic_bool> _cancel,
                         bool _original = false, bool _nativePrecision = false, bool localImage = false,
-                        std::optional<int> relightPhoto = std::nullopt);
+                        std::optional<int> relightPhoto = std::nullopt, bool fullSelectionContext = false);
     bool insertAiResult(const PhotoCrap::Ai::Input &_input, const PhotoCrap::Ai::Result &_result,
                         const QVariantMap &_metadata, QString &_error);
     bool matchesAiSource(const PhotoCrap::Ai::Input &source) const;

@@ -368,9 +368,7 @@ avec **Ajouter le résultat** et **Annuler**.
 
 ## Image source et résultat
 
-Par défaut, la source est la **composition visible** capturée au lancement. Pour une
-sélection, seul son rectangle englobant est envoyé, avec la forme de sélection
-et les pixels extérieurs transparents. Le grand côté est limité par configuration
+Par défaut, la source est la **composition visible** capturée au lancement. Avec OpenAI ou un serveur compatible, **Image entière avec masque de sélection** envoie deux PNG de mêmes dimensions. Le premier contient la composition entière. Le second conserve les couleurs de la photo et rend la sélection transparente, avec un alpha intermédiaire sur les contours progressifs. PhotoCrap accompagne le prompt d’une consigne de retouche locale pour conserver le cadrage, la perspective et la lumière de la photo. Avec les autres fournisseurs, une sélection est recadrée à son rectangle englobant, avec les pixels extérieurs transparents. Le grand côté est limité par configuration
 à 256–4096 px (1536 par défaut, 1024 pour ComfyUI). Sans l’option native, l’envoi
 utilise du PNG 8 bits, même depuis un document 16 bits. L’option **Envoyer à la
 résolution native** contourne cette réduction et conserve le PNG 16 bits lorsque

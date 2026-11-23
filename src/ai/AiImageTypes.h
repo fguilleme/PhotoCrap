@@ -13,6 +13,7 @@ struct Input {
     QByteArray image, mask;
     QSize      canvas, sentSize;
     QRect      bounds;
+    QRect      editRegion; // Selection in full-document coordinates for masked image edits.
     QImage     coverage;
     QImage     localImage;
     QString    layerId, error;

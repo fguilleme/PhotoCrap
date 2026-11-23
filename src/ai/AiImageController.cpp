@@ -304,7 +304,8 @@ void AiImageController::prepareInput(bool _selection, quint64 generation, bool _
         m_provider.value("nativeInput", false).toBool() ? 16384
                                                         : m_provider.value("maxEdge", 1536).toInt(),
         m_cancel, _original, m_provider.value("nativeInput", false).toBool(), m_surfaceAnalysis,
-        m_provider.contains("relightPhoto") ? std::optional<int>{m_provider["relightPhoto"].toInt()} : std::nullopt));
+        m_provider.contains("relightPhoto") ? std::optional<int>{m_provider["relightPhoto"].toInt()} : std::nullopt,
+        m_provider.value("kind") == "openai" || m_provider.value("kind") == "compatible"));
 }
 QString AiImageController::variantStatus(const QString &_status) const
 {

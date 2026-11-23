@@ -1278,7 +1278,8 @@ private slots:
         QSignalSpy finished(&job, &AiImageJob::finished);
         auto       source = input();
         source.selected   = true;
-        job.start(provider(settings, server, "openai"), "test-key", "Un décor \"bleu\"\npréservé",
+        source.editRegion = QRect(8, 12, 16, 6);
+        job.start(provider(settings, server, "openai"), "test-key", "Un bébé nage dans la piscine",
                   source);
         QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 5000);
         QCOMPARE(finished.first().at(0).toByteArray(), bytes);
@@ -1290,7 +1291,15 @@ private slots:
         QVERIFY(request.body.contains("name=\"mask\""));
         QVERIFY(request.body.contains(source.image));
         QVERIFY(request.body.contains(source.mask));
-        QVERIFY(request.body.contains(QStringLiteral("préservé").toUtf8()));
+        QVERIFY(request.body.contains("Return the entire photograph"));
+        QVERIFY(request.body.contains("x=25% to 75% from the left and y=50% to 75% from the top"));
+        QVERIFY(request.body.contains(QStringLiteral("Requested edit:\nUn bébé nage dans la piscine").toUtf8()));
+        source.selected = false;
+        job.start(provider(settings, server, "openai"), "test-key", "Edit", source);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 2, 5000);
+        const auto &unmasked = server.requests.last().body;
+        QVERIFY(unmasked.contains("name=\"prompt\"\r\n\r\nEdit\r\n"));
+        QVERIFY(!unmasked.contains("name=\"mask\""));
     }
     void falQueueDownloadsResultWithoutForwardingCredentials()
     {
@@ -2203,7 +2212,7 @@ private slots:
         d.modifySelection("feather", 2);
         QTRY_VERIFY(!d.selectionBusy());
         const auto          mask     = d.selectionMask();
-        const auto          bounds   = d.selection();
+        const QRect         bounds(QPoint{}, QSize(d.width(), d.height()));
         const auto          original = d.layerImage(0);
         int                 history  = d.historyIndex();
         const QList<QColor> colors{Qt::green, Qt::blue, Qt::yellow};
@@ -2234,6 +2243,21 @@ private slots:
         QVERIFY(controller.error().isEmpty());
         QCOMPARE(server.requests.size(), 3);
         QVERIFY(!sources.first().isEmpty());
+        const QImage sent = QImage::fromData(sources.first());
+        QCOMPARE(sent.size(), original.size());
+        QCOMPARE(sent.pixelColor(0, 0), QColor(Qt::red));
+        QCOMPARE(sent.pixelColor(40, 40), QColor(Qt::red));
+        const auto &body = server.requests.first().body;
+        const auto field = body.indexOf("name=\"mask\"");
+        QVERIFY(field >= 0);
+        const auto start = body.indexOf("\r\n\r\n", field) + 4;
+        const QImage sentMask = QImage::fromData(body.mid(start, body.indexOf("\r\n--", start) - start));
+        QCOMPARE(sentMask.size(), sent.size());
+        QCOMPARE(sentMask.pixelColor(0, 0), QColor(Qt::red));
+        QCOMPARE(sentMask.pixelColor(40, 40).alpha(), 0);
+        for (int y = 0; y < mask.height(); ++y)
+            for (int x = 0; x < mask.width(); ++x)
+                QCOMPARE(sentMask.pixelColor(x, y).alpha(), 255 - mask.constScanLine(y)[x]);
         QCOMPARE(sources[0], sources[1]);
         QCOMPARE(sources[0], sources[2]);
         QCOMPARE(d.layers().size(), 4);

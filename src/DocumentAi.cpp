@@ -121,7 +121,8 @@ QVariantMap Document::originalAiSource() const
 QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _maxEdge,
                                                        std::shared_ptr<std::atomic_bool> _cancel,
                                                        bool _original, bool _nativePrecision,
-                                                       bool localImage, std::optional<int> relightPhoto)
+                                                       bool localImage, std::optional<int> relightPhoto,
+                                                       bool fullSelectionContext)
 {
     endStroke();
     finishTextEdit();
@@ -133,9 +134,12 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
     input.canvas   = m_size;
     input.selected = _selection;
     input.originalSource = _original;
-    input.bounds   = _selection
+    const bool maskedEdit = _selection && fullSelectionContext;
+    input.bounds   = _selection && !maskedEdit
                          ? m_selectionRegion.boundingRect().intersected(QRect(QPoint{}, m_size))
                          : QRect(QPoint{}, m_size);
+    if (maskedEdit)
+        input.editRegion = m_selectionRegion.boundingRect().intersected(input.bounds);
     if (m_active >= 0 && m_active < m_layers.size())
         input.layerId = m_layers[m_active].historyId;
     QByteArray original;
@@ -176,7 +180,7 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
     const auto scratch  = m_scratchCache;
     const auto bits     = m_channelBits;
     return QtConcurrent::run([input, layers, coverage, region, scratch, bits, _maxEdge, _cancel,
-                              original, originalMask, _nativePrecision, localImage]() mutable {
+                              original, originalMask, _nativePrecision, localImage, maskedEdit]() mutable {
         if (!input.error.isEmpty() || _cancel->load())
             return input;
         Document renderer;
@@ -213,6 +217,8 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
                 input.error = tr("Impossible de préparer la sélection à envoyer.");
                 return input;
             }
+        }
+        if (input.selected && !maskedEdit) {
             // Clip the submitted image to the selected support, but apply the
             // fractional feather only once on the returned layer's mask.
             auto support =
@@ -246,12 +252,14 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
             input.localImage = std::move(image);
             return input;
         }
-        QImage mask(input.sentSize, QImage::Format_RGBA8888);
+        QImage mask = maskedEdit ? image.convertToFormat(QImage::Format_RGBA8888)
+                                 : QImage(input.sentSize, QImage::Format_RGBA8888);
         if (mask.isNull()) {
             input.error = tr("Impossible de préparer la sélection à envoyer.");
             return input;
         }
-        mask.fill(Qt::transparent);
+        if (!maskedEdit)
+            mask.fill(input.selected && input.maskEnabled ? Qt::white : Qt::transparent);
         if (input.selected && input.maskEnabled) {
             const auto selected =
                 input.coverage.copy(input.bounds)
@@ -263,10 +271,8 @@ QFuture<PhotoCrap::Ai::Input> Document::prepareAiInput(bool _selection, int _max
             for (int y = 0; y < mask.height(); ++y) {
                 const auto *row = selected.constScanLine(y);
                 auto *      out = mask.scanLine(y);
-                for (int x = 0; x < mask.width(); ++x) {
-                    out[4 * x] = out[4 * x + 1] = out[4 * x + 2] = 255;
-                    out[4 * x + 3]                               = 255 - row[x];
-                }
+                for (int x = 0; x < mask.width(); ++x)
+                    out[4 * x + 3] = 255 - row[x];
             }
         }
         QBuffer imageBuffer(&input.image), maskBuffer(&input.mask);

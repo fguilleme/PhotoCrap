@@ -18,7 +18,8 @@ Dialog {
     readonly property bool upscaling: topaz || esrgan
     readonly property var originalSource: document.originalAiSource
     readonly property var sources: [{name: qsTr("Composition visible complète"), kind: "full"}]
-        .concat(document.hasSelection ? [{name: qsTr("Sélection uniquement"), kind: "selection"}] : [])
+        .concat(document.hasSelection ? [{name: (selectedProvider.kind === "openai" || selectedProvider.kind === "compatible")
+                       ? qsTr("Image entière avec masque de sélection") : qsTr("Sélection uniquement"), kind: "selection"}] : [])
         .concat(originalSource.width ? [{name: qsTr("Calque actif · image IA d’origine (%1 × %2)").arg(originalSource.width).arg(originalSource.height), kind: "original"}] : [])
     readonly property string sourceKind: source.currentIndex >= 0 && source.currentIndex < sources.length ? sources[source.currentIndex].kind : "full"
     function refreshSource() {

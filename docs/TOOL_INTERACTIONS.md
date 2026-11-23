@@ -62,6 +62,7 @@ J les active donc aussi en 16 bits, sans le suffixe de limitation « 8 bits ».
 
 
 - Maj-clic relie le dernier point de peinture au nouveau point. Maj pendant un glisser contraint le trait horizontalement ou verticalement.
+- Avec **Suppression**, cliquez au début d’un fil puis faites Maj-clic à l’autre extrémité. Pour un fil courbe, décochez **Après chaque tracé**, suivez la courbe par Maj-clics successifs puis cliquez sur **Appliquer**. Un clic simple commence un nouveau tracé.
 - Les chiffres règlent l’opacité (0 = 100 %, 4 puis 5 = 45 %) ; Maj + chiffres règle le débit. Avec Flou/Netteté/Doigt/Densité/Éponge, les chiffres règlent l’intensité.
 - `[` / `]` parcourent les tailles usuelles de brosse ; Maj + `[` / `]` change la dureté par pas de 25 %. D rétablit noir/blanc ; X échange premier et arrière-plan.
 - **Mac : Control + Option + glisser** ; **Windows/Linux : Alt + bouton droit + glisser** : horizontalement pour la taille, verticalement pour la dureté. Ce geste ne peint pas. Le clic droit simple ouvre les réglages de la brosse.

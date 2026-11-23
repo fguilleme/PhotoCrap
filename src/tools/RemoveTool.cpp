@@ -162,6 +162,7 @@ void Document::cancelRemoval()
     if (m_tool == "remove")
         m_drawing = false;
     m_removePath.clear();
+    m_removeLastEnd.reset();
     if (!m_removeRegion.isEmpty()) {
         m_removeRegion = {};
         emit removeRegionChanged();
@@ -175,7 +176,8 @@ void Document::beginRemove(const QPointF &_point, bool _alternate)
     // avoids losing a stroke when another stroke starts while the worker runs.
     stopRemovalJob();
     m_removeStrokeSubtract = m_removeSubtract || _alternate;
-    m_removePath           = {_point};
+    m_strokeConnect        = m_toolShift && m_removeLastEnd.has_value();
+    m_removePath           = {m_strokeConnect ? *m_removeLastEnd : _point};
     m_drawing              = true;
     continueRemove(_point);
 }
@@ -207,7 +209,8 @@ void Document::finishRemove()
 {
     m_drawing = false;
     // Mark the interior of loops and edge-to-edge contours, as well as the rim.
-    const QPolygonF loop = closedRemovalLoop(m_removePath, m_size, m_brushSize);
+    const QPolygonF loop = m_strokeConnect ? QPolygonF{}
+                                           : closedRemovalLoop(m_removePath, m_size, m_brushSize);
     if (!loop.isEmpty()) {
         QRegion interior(loop.toPolygon(), Qt::OddEvenFill);
         interior &= QRegion(QRect(QPoint{}, m_size));
@@ -219,6 +222,7 @@ void Document::finishRemove()
             m_removeRegion |= interior;
         emit removeRegionChanged();
     }
+    m_removeLastEnd = m_removePath.last();
     m_removePath.clear();
     if (m_removeAfterEachStroke)
         applyRemoval();
@@ -247,9 +251,12 @@ void Document::applyRemoval()
     m_removeBusy                    = true;
     emit  settingsChanged();
     emit  historyChanged();
+    // Automatic reconstruction keeps the endpoint for the next Shift-click.
+    // Explicit Apply completes the chain.
+    const auto nextAnchor = m_removeAfterEachStroke ? m_removeLastEnd : std::nullopt;
     auto *watcher = new QFutureWatcher<RemovalResult>(this);
     connect(watcher, &QFutureWatcher<RemovalResult>::finished, this,
-            [this, watcher, before, generation, cancel] {
+            [this, watcher, before, generation, cancel, nextAnchor] {
                 const RemovalResult result = watcher->result();
                 watcher->deleteLater();
                 if (cancel->load() || generation != m_removeGeneration || m_stateId != before.id ||
@@ -266,6 +273,7 @@ void Document::applyRemoval()
                 }
                 cancelRemoval();
                 if (result.dirty.isEmpty()) {
+                    m_removeLastEnd = nextAnchor;
                     emit historyChanged();
                     return;
                 }
@@ -275,6 +283,7 @@ void Document::applyRemoval()
                     return;
                 m_dirtyRegion            = m_dirtyRegion.united(result.dirty);
                 commit(before, tr("Suppression"), false, false);
+                m_removeLastEnd = nextAnchor;
                 ++m_thumbnailRevision;
                 emit thumbnailsChanged();
                 requestPreviewRender(true, true);

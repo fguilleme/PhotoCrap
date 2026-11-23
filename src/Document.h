@@ -1640,6 +1640,7 @@ private:
     std::shared_ptr<std::atomic_bool> m_removeCancel;
     QRegion                           m_removeRegion;
     QPolygonF                         m_removePath;
+    std::optional<QPointF>            m_removeLastEnd;
     void                              beginRemove(const QPointF &_point, bool _alternate);
     void                              continueRemove(const QPointF &_point);
     void                              finishRemove();

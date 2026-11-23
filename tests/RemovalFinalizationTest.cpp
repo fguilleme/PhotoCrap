@@ -50,6 +50,122 @@ private slots:
         QTest::newRow("empty-hard") << true << false;
         QTest::newRow("empty-soft") << true << true;
     }
+    void shiftClickFollowsWire_data()
+    {
+        QTest::addColumn<bool>("automatic");
+        QTest::addColumn<bool>("waitBetweenClicks");
+        QTest::newRow("apply-once") << false << false;
+        QTest::newRow("after-each-stroke") << true << true;
+        QTest::newRow("while-reconstructing") << true << false;
+    }
+    void shiftClickFollowsWire()
+    {
+        QFETCH(bool, automatic);
+        QFETCH(bool, waitBetweenClicks);
+        const QColor sky(125, 184, 223);
+        const QPoint a(20, 24), b(92, 48), c(164, 36);
+        QImage image(184, 86, QImage::Format_RGB32);
+        image.fill(sky);
+        QPainter painter(&image);
+        painter.setPen(QPen(Qt::black, 2));
+        painter.drawLine(a, b);
+        painter.drawLine(b, c);
+        painter.end();
+        QTemporaryDir dir;
+        const auto path = dir.filePath("wire.png");
+        QVERIFY(image.save(path));
+        Document doc;
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(path)));
+        doc.setLayerLocked(doc.activeLayer(), false);
+        doc.setTool("remove");
+        doc.setBrushSize(10);
+        doc.setRemoveAfterEachStroke(automatic);
+        const auto before = doc.layerImage(0);
+        const int history = doc.historyIndex();
+        for (const QPoint point : {a, b, c}) {
+            doc.beginStroke(point.x(), point.y(), false, point != a);
+            doc.endStroke();
+            if (waitBetweenClicks)
+                QTRY_VERIFY_WITH_TIMEOUT(!doc.removeBusy(), 5000);
+        }
+        if (!automatic) {
+            QCOMPARE(doc.layerImage(0), before);
+            QVERIFY(doc.removeRegion().contains((a + b) / 2));
+            QVERIFY(doc.removeRegion().contains((b + c) / 2));
+            QVERIFY(!doc.removeRegion().contains((a + c) / 2));
+            doc.applyRemoval();
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.removeBusy(), 5000);
+        const auto after = doc.layerImage(0);
+        for (const QPoint mid : {(a + b) / 2, (b + c) / 2}) {
+            QCOMPARE(before.pixelColor(mid), QColor(Qt::black));
+            QVERIFY(after.pixelColor(mid).blue() > 180);
+        }
+        QCOMPARE(after.pixelColor((a + c) / 2), sky);
+        if (!waitBetweenClicks) {
+            QCOMPARE(doc.historyIndex(), history + 1);
+            doc.undo();
+            QCOMPARE(doc.layerImage(0), before);
+        }
+    }
+    void cancelStartsANewRemovalLine()
+    {
+        Document doc;
+        QVERIFY(doc.newDocument(128, 96, false));
+        doc.setTool("remove");
+        doc.setBrushSize(8);
+        doc.setRemoveAfterEachStroke(false);
+        doc.beginStroke(10, 12);
+        doc.endStroke();
+        doc.cancelRemoval();
+        doc.beginStroke(90, 60, false, true);
+        doc.endStroke();
+        QVERIFY(doc.removeRegion().contains(QPoint(90, 60)));
+        QVERIFY(!doc.removeRegion().contains(QPoint(50, 36)));
+    }
+    void removingHalfAWireUsesTheNearbySky()
+    {
+        QImage scene(380, 260, QImage::Format_RGB32);
+        for (int y = 0; y < scene.height(); ++y)
+            for (int x = 0; x < scene.width(); ++x) {
+                const int offset = y - (30 + x / 2);
+                const bool nearby = qAbs(offset) < 36;
+                const int detail = nearby ? 0 : ((x + y) % 9 < 3 ? 55 : -35);
+                scene.setPixelColor(x, y, QColor(65 + y / 6 + detail, 124 + y / 5 + detail,
+                                                165 + y / 8 + detail));
+            }
+        QImage wired = scene;
+        QPainter painter(&wired);
+        painter.setPen(QPen(Qt::black, 2));
+        painter.drawLine(0, 30, 360, 210);
+        painter.end();
+        QTemporaryDir dir;
+        const auto path = dir.filePath("half-wire.png");
+        QVERIFY(wired.save(path));
+        Document doc;
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(path)));
+        doc.setLayerLocked(0, false);
+        doc.setTool("remove");
+        doc.setRemoveAfterEachStroke(false);
+        doc.setBrushSize(12);
+        doc.beginStroke(0, 30);
+        doc.endStroke();
+        doc.beginStroke(180, 120, false, true);
+        doc.endStroke();
+        const QRegion marked = doc.removeRegion();
+        doc.applyRemoval();
+        QTRY_VERIFY_WITH_TIMEOUT(!doc.removeBusy(), 5000);
+        const QImage result = doc.layerImage(0);
+        for (int x = 0; x < wired.width(); ++x) {
+            const QPoint wire(x, 30 + x / 2);
+            if (x < 174) {
+                QVERIFY(marked.contains(wire));
+                QVERIFY(qAbs(qGray(result.pixel(wire)) - qGray(scene.pixel(wire))) <= 6);
+            } else if (!marked.contains(wire)) {
+                QCOMPARE(result.pixel(wire), wired.pixel(wire));
+            }
+        }
+    }
     void pixelsMatchRasterReference()
     {
         QFETCH(bool, sampleAll);

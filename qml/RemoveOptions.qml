@@ -48,7 +48,7 @@ Rectangle {
         }
         Label {
             text: root.document.removeBusy ? qsTr("Reconstruction en cours… (Échap pour annuler)")
-                                          : qsTr("Peignez ou entourez l’objet à supprimer")
+                                          : qsTr("Peignez ou entourez l’objet. Maj-clic pour prolonger en ligne droite.")
             color: "#87929e"
             Layout.fillWidth: true; elide: Text.ElideRight
         }

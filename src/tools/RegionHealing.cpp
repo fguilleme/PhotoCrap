@@ -39,7 +39,7 @@ struct PatchTone {
 // avoiding both a full-image filter and a blur that would reintroduce the defect.
 PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegion &_region,
                     const QPoint &_offset, int _diffusion,
-                    const std::shared_ptr<std::atomic_bool> &_cancel)
+                    const std::shared_ptr<std::atomic_bool> &_cancel, const QRegion &excludedFromTone)
 {
     const QRect   bounds = _region.boundingRect()
                                .adjusted(-RegionHealing::ToneHalo, -RegionHealing::ToneHalo,
@@ -70,7 +70,8 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
                     const QPoint p(cell.x() + px * (cell.width() - 1) / 2,
                                    cell.y() + py * (cell.height() - 1) / 2);
                     const QPoint donor = p + _offset;
-                    if (_region.contains(p) || !_source.rect().contains(donor))
+                    if (_region.contains(p) || !_source.rect().contains(donor) ||
+                        excludedFromTone.contains(p) || excludedFromTone.contains(donor))
                         continue;
                     const auto a = HealingPixels::color(_reference, p);
                     const auto b = HealingPixels::color(_source, donor);
@@ -122,13 +123,13 @@ PatchTone patchTone(const QImage &_source, const QImage &_reference, const QRegi
 QImage RegionHealing::blend(const QImage &_source, const QImage &_reference, const QRegion &_region,
                             const QPoint &_offset, int _diffusion, qreal _colorBlend,
                             bool _composite, int _feather,
-                            const std::shared_ptr<std::atomic_bool> &_cancel)
+                            const std::shared_ptr<std::atomic_bool> &_cancel, const QRegion &excludedFromTone)
 {
     if (_region.isEmpty() || (_cancel && _cancel->load()))
         return {};
     const QRect     bounds = _region.boundingRect();
     const PatchTone tone =
-        _colorBlend > 0 ? patchTone(_source, _reference, _region, _offset, _diffusion, _cancel)
+        _colorBlend > 0 ? patchTone(_source, _reference, _region, _offset, _diffusion, _cancel, excludedFromTone)
                         : PatchTone{};
     if (_cancel && _cancel->load())
         return {};

@@ -4,6 +4,11 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.28.1 — 23 novembre 2026
+
+- **Suppression.** Cliquez au début d’un fil, puis faites Maj-clic à son extrémité. Pour suivre une courbe, décochez **Après chaque tracé**, enchaînez les segments puis cliquez sur **Appliquer**. La reconstruction d’une marque fine recherche des pixels à proximité du tracé.
+- **Retouche OpenAI avec sélection.** PhotoCrap envoie la composition visible entière et un masque qui rend la sélection transparente. Le modèle dispose ainsi du contexte autour de la retouche et le résultat est appliqué dans la sélection.
+
 ## v0.28.0 — 22 novembre 2026
 
 - **Débruitage RAW.** Cochez **Réduire le bruit à l’import** pour débruiter la photo pendant son développement. Le calcul est local et le fichier RAW original est conservé.

@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "ImageUtils.h"
 #include "text/TextLayer.h"
 #include <QPainter>
@@ -235,9 +236,8 @@ void Document::beginTextGesture(qreal _x, qreal _y, bool _forceNew)
             if (layer.kind != "text" || !layer.visible || layer.locked || layer.opacity <= 0)
                 continue;
             bool protectedGroup = false;
-            for (const auto &group : m_layers)
-                if (group.kind == "group" && group.groupId == layer.groupId &&
-                    (group.locked || !group.visible))
+            for (int i : LayerGroups(m_layers).ancestors(layer))
+                if (m_layers[i].locked || !m_layers[i].visible)
                     protectedGroup = true;
             if (protectedGroup)
                 continue;
@@ -303,9 +303,8 @@ void Document::beginTextEdit(int _index, bool _fromCanvas)
         fail(tr("Ce calque est verrouillé."));
         return;
     }
-    for (const auto &group : m_layers)
-        if (group.kind == "group" && group.groupId == layer.groupId &&
-            (group.locked || !group.visible)) {
+    for (int i : LayerGroups(m_layers).ancestors(layer))
+        if (m_layers[i].locked || !m_layers[i].visible) {
             fail(tr("Ce groupe est verrouillé ou masqué."));
             return;
         }

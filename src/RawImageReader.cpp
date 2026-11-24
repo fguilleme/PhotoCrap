@@ -202,7 +202,7 @@ try {
     const auto &sizes = decoder->imgdata.sizes;
     if (!validDimensions(sizes.width, sizes.height) ||
         quint64(sizes.raw_width) * sizes.raw_height > 40ULL * 1024 * 1024)
-        return {{}, message("Ce RAW dépasse la limite de 32 mégapixels du document.")};
+        return {{}, message("Ce RAW dépasse la limite de 32 mégapixels du décodeur RAW.")};
     if (_cancel && _cancel->load())
         return {{}, {}, true};
     result = decoder->unpack();

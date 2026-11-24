@@ -6,7 +6,7 @@ ColumnLayout {
     id: root
     objectName: "posterizeEditorRoot"
     property var parameters: ({})
-    readonly property int levels: parameters.levels === undefined ? 4 : Number(parameters.levels)
+    readonly property int levels: parameters.levels === undefined ? 4 : Math.max(2, Math.min(255, Number(parameters.levels)))
     signal editStarted()
     signal previewed(string key, var value)
     signal committed(string key, var value)
@@ -73,7 +73,7 @@ ColumnLayout {
         objectName: "posterizeLevelSlider"
         Layout.fillWidth: true
         from: 2
-        to: 32
+        to: 255
         stepSize: 1
         value: root.levels
         onPressedChanged: {

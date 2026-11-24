@@ -1,5 +1,6 @@
 #include "PhotoFilterFilter.h"
 #include "ImagePixels.h"
+#include "PhotoshopColor.h"
 
 #include <QColor>
 #include <QColorSpace>
@@ -70,6 +71,8 @@ QImage applyPhotoFilterPixels(const QImage &_source, const QVariantMap &_paramet
 }
 QImage applyPhotoFilter(const QImage &_source, const QVariantMap &_parameters)
 {
+    if (_parameters.value("photoshopAdjustment").toBool())
+        return photoshopPhotoFilter(_source, _parameters);
     return ImageUtils::is16Bit(_source) ? applyPhotoFilterPixels<QRgba64>(_source, _parameters)
                                         : applyPhotoFilterPixels<QRgb>(_source, _parameters);
 }

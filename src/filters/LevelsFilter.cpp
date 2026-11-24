@@ -38,11 +38,13 @@ QImage applyLevels(const QImage &_source, const QVariantMap &_parameters)
                                        table[_pixel.blue()], _pixel.alpha());
         });
     }
+    const bool           photoshop = _parameters.value("photoshopAdjustment").toBool();
     std::array<int, 256> table{};
     for (int value = 0; value < 256; ++value) {
         const double normalized = qBound(0., (value - inputBlack) / (inputWhite - inputBlack), 1.);
+        const double gammaInput = photoshop ? qRound(normalized * 255.) / 255. : normalized;
         table[value]            = qBound(
-            0, qRound(outputBlack + std::pow(normalized, 1 / gamma) * (outputWhite - outputBlack)),
+            0, qRound(outputBlack + std::pow(gammaInput, 1 / gamma) * (outputWhite - outputBlack)),
             255);
     }
     const QImage input = _source.convertToFormat(QImage::Format_ARGB32);

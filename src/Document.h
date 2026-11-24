@@ -447,6 +447,7 @@ public:
     QVariantList             layers() const;
     Q_INVOKABLE QString      layerIdentity(int _index) const;
     Q_INVOKABLE QVariantList histogram() const;
+    Q_INVOKABLE QVariantList levelsInputHistogram() const;
     Q_INVOKABLE QVariantMap  colorHistogram() const;
     int                      activeLayer() const
     {
@@ -1468,6 +1469,7 @@ signals:
     void historyBrushSourceChanged();
     void historyChanged();
     void errorOccurred(const QString &_message);
+    void psdImportReport(QString file, int imported, QStringList details);
     void xmpSettingsSkipped(int added, const QStringList &settings);
     void statusMessage(const QString &_message);
 
@@ -2032,6 +2034,7 @@ private:
     bool              renderMaskPenShape(const QVariantMap &_style);
     QImage  readImage(const QString &_path, bool denoiseRaw = false);
     bool    loadProject(const QString &_path);
+    bool    openFileWithReport(const QUrl &url, QStringList &details);
     void    adoptFileSnapshot(const Snapshot &_loaded, const QString &_path, bool _project);
     void    acceptProjectSave(const QString &_path);
     static QImage applyMask(const QImage &_source, const QImage &_mask, qreal _density = 1,
@@ -2060,13 +2063,14 @@ private:
     void          setDenoiseRendering(bool busy);
     void          startNativeDenoiseRender();
     void          finishPreviewOverlays(bool native);
-    QImage        renderCompositeRect(const QRect &_region) const;
+    QImage        renderCompositeRect(const QRect &_region, int _inputLayer = -1) const;
     std::unique_ptr<Document> nativeCompositeSource(QVector<Layer> _layers) const;
     static QImage
     renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_size, const QSize &_targetSize,
                           bool _draft, std::shared_ptr<ScratchImageCache> _scratch = {},
                           std::shared_ptr<const PhotoCrap::Transform::Job> _transform = {},
-                          std::shared_ptr<const Model3DPreview>            _model     = {});
+                          std::shared_ptr<const Model3DPreview>            _model     = {},
+                          int _inputLayer = -1);
     QImage                    projectPreview() const;
 
     mutable PhotoCrap::Tools::SliceDescriptionCache m_sliceDescriptions;

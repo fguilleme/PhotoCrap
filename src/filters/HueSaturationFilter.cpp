@@ -19,6 +19,8 @@ QImage applyHueSaturationPixels(const QImage &_source, const QVariantMap &_param
     const double hue        = _parameters.value("hue", 0).toDouble() / 360.;
     const double saturation = 1 + _parameters.value("saturation", 0).toDouble() / 100.;
     const double lightness  = _parameters.value("lightness", 0).toDouble() / 100.;
+    const bool   photoshop  = _parameters.value("photoshopAdjustment").toBool();
+    const bool   colorize   = _parameters.value("colorize").toBool();
     const QImage input      = _source.convertToFormat(P::format);
     QImage       result(input.size(), P::format);
     const int    jobCount =
@@ -36,12 +38,23 @@ QImage applyHueSaturationPixels(const QImage &_source, const QVariantMap &_param
                 color.getHslF(&h, &s, &l, &a);
                 // QColor reports -1 for achromatic pixels; rotating that sentinel
                 // can produce an invalid HSL color when the requested hue is negative.
-                h = std::fmod(qMax(0.f, h) + hue + 1., 1.);
-                s = qBound(0., s * saturation, 1.);
-                l = qBound(0., l + lightness, 1.);
+                h = std::fmod((colorize ? 0.f : qMax(0.f, h)) + hue + 1., 1.);
+                s = qBound(0.,
+                           colorize
+                               ? saturation - 1.
+                               : (photoshop && saturation > 1. ? s / qMax(.001, 2. - saturation)
+                                                               : s * saturation),
+                           1.);
+                if (!photoshop)
+                    l = qBound(0., l + lightness, 1.);
                 color.setHslF(h, s, l, a);
-                output[x] = P::rgba(P::round(color.redF() * 255.), P::round(color.greenF() * 255.),
-                                    P::round(color.blueF() * 255.), P::alpha(source[x]));
+                const auto channel = [&](double v) {
+                    if (photoshop)
+                        v = lightness < 0. ? v * (1. + lightness) : v + (1. - v) * lightness;
+                    return P::round(v * 255.);
+                };
+                output[x] = P::rgba(channel(color.redF()), channel(color.greenF()),
+                                    channel(color.blueF()), P::alpha(source[x]));
             }
         }
     });

@@ -21,6 +21,7 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
         _parameters.value("greens", 40).toDouble(), _parameters.value("cyans", 60).toDouble(),
         _parameters.value("blues", 20).toDouble(),  _parameters.value("magentas", 80).toDouble()};
     const std::array<double, 6> defaults{40., 60., 40., 60., 20., 80.};
+    const bool                  photoshop   = _parameters.value("photoshopAdjustment").toBool();
     const bool                  tintEnabled = _parameters.value("tintEnabled", false).toBool();
     QColor tint(_parameters.value("tintColor", QStringLiteral("#d6aa78")).toString());
     if (!tint.isValid())
@@ -32,7 +33,7 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
             const double red = _pixel.red(), green = _pixel.green(), blue = _pixel.blue();
             const double maximum = std::max({red, green, blue}),
                          minimum = std::min({red, green, blue}), chroma = maximum - minimum;
-            double       family = 0.;
+            double family = 0.;
             if (chroma > 0) {
                 if (maximum == red)
                     family = std::fmod((green - blue) / chroma + 6., 6.);
@@ -42,12 +43,16 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
                     family = (red - green) / chroma + 4.;
             }
             const int    first = int(std::floor(family)) % 6, second = (first + 1) % 6;
-            const double fraction   = family - std::floor(family);
-            const double adjustment = ((values[first] - defaults[first]) * (1. - fraction) +
-                                       (values[second] - defaults[second]) * fraction) /
-                                      100.;
-            const int    gray       = qBound(
-                0, qRound(.2126 * red + .7152 * green + .0722 * blue + adjustment * chroma), 65535);
+            const double fraction = family - std::floor(family);
+            const double adjustment =
+                ((values[first] - (photoshop ? 0. : defaults[first])) * (1. - fraction) +
+                 (values[second] - (photoshop ? 0. : defaults[second])) * fraction) /
+                100.;
+            const int gray =
+                qBound(0,
+                       qRound((photoshop ? minimum : .2126 * red + .7152 * green + .0722 * blue) +
+                              adjustment * chroma),
+                       65535);
             if (!tintEnabled)
                 return QRgba64::fromRgba64(gray, gray, gray, _pixel.alpha());
             QColor mapped;
@@ -97,11 +102,14 @@ QImage applyBlackWhite(const QImage &_source, const QVariantMap &_parameters)
                 const int    second   = (first + 1) % 6;
                 const double fraction = hue - std::floor(hue);
                 const double adjustment =
-                    ((values[size_t(first)] - defaults[size_t(first)]) * (1. - fraction) +
-                     (values[size_t(second)] - defaults[size_t(second)]) * fraction) /
+                    ((values[size_t(first)] - (photoshop ? 0. : defaults[size_t(first)])) *
+                         (1. - fraction) +
+                     (values[size_t(second)] - (photoshop ? 0. : defaults[size_t(second)])) *
+                         fraction) /
                     100.;
-                const double luminance = .2126 * red + .7152 * green + .0722 * blue;
-                const int    gray      = qBound(0, qRound(luminance + adjustment * chroma), 255);
+                const double luminance =
+                    photoshop ? minimum : .2126 * red + .7152 * green + .0722 * blue;
+                const int gray = qBound(0, qRound(luminance + adjustment * chroma), 255);
                 if (tintEnabled) {
                     const QRgb mapped = tintLookup[size_t(gray)];
                     output[x] = qRgba(qRed(mapped), qGreen(mapped), qBlue(mapped), qAlpha(pixel));

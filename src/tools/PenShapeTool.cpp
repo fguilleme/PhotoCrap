@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "masks/VectorMask.h"
 #include "shapes/ShapeLayer.h"
 #include <QPainter>
@@ -73,12 +74,11 @@ bool Document::penShapeEditable(int _layer)
         return false;
     if (m_layers[_layer].locked)
         return fail(tr("Ce calque est verrouillé."));
-    const auto groupId = m_layers[_layer].groupId;
-    for (const auto &group : m_layers)
-        if (!groupId.isEmpty() && group.kind == "group" && group.groupId == groupId &&
-            (group.locked || !group.visible))
-            return fail(group.locked ? tr("Ce groupe est verrouillé.")
-                                     : tr("Ce groupe est masqué."));
+    for (int i : LayerGroups(m_layers).ancestors(m_layers[_layer])) {
+        const auto &group = m_layers[i];
+        if (group.locked || !group.visible)
+            return fail(group.locked ? tr("Ce groupe est verrouillé.") : tr("Ce groupe est masqué."));
+    }
     return true;
 }
 void Document::setPenMode(const QString &_mode)

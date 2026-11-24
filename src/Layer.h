@@ -40,6 +40,8 @@ struct Layer {
     bool        maskEnabled  = true;
     bool        clippingMask = false;
     QString     groupId;
+    QString     parentGroupId; // Group headers have their own groupId.
+    QString parentGroup() const { return kind == "group" ? parentGroupId : groupId; }
     bool        groupCollapsed = false;
     // Runtime-only preview: never serialized as document parameters.
     QString                                           directType;

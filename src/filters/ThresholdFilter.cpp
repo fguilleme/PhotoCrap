@@ -13,11 +13,15 @@ QImage applyThreshold(const QImage &_source, const QVariantMap &_parameters)
     if (_source.isNull())
         return _source;
 
-    const int threshold = qBound(0, _parameters.value("level", 128).toInt(), 255);
+    const bool photoshop = _parameters.value("photoshopAdjustment").toBool();
+    const int  threshold = qBound(0, _parameters.value("level", 128).toInt(), 255);
     if (ImageUtils::is16Bit(_source)) {
         return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
             const double luminance =
-                .2126 * _pixel.red() + .7152 * _pixel.green() + .0722 * _pixel.blue();
+                photoshop
+                    ? (9830. * _pixel.red() + 19333. * _pixel.green() + 3605. * _pixel.blue()) /
+                          32768.
+                    : .2126 * _pixel.red() + .7152 * _pixel.green() + .0722 * _pixel.blue();
             const int value = luminance >= threshold * 257. ? 65535 : 0;
             return QRgba64::fromRgba64(value, value, value, _pixel.alpha());
         });
@@ -37,7 +41,12 @@ QImage applyThreshold(const QImage &_source, const QVariantMap &_parameters)
             for (int x = 0; x < input.width(); ++x) {
                 const QRgb pixel = source[x];
                 const int  luminance =
-                    (2126 * qRed(pixel) + 7152 * qGreen(pixel) + 722 * qBlue(pixel) + 5000) / 10000;
+                    photoshop
+                         ? (9830 * qRed(pixel) + 19333 * qGreen(pixel) + 3605 * qBlue(pixel) +
+                           16384) /
+                              32768
+                         : (2126 * qRed(pixel) + 7152 * qGreen(pixel) + 722 * qBlue(pixel) + 5000) /
+                              10000;
                 const int value = luminance >= threshold ? 255 : 0;
                 output[x]       = qRgba(value, value, value, qAlpha(pixel));
             }

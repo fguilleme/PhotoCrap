@@ -41,6 +41,7 @@ void Document::addAdjustmentLayer(const QString &_type)
             m_lastSelectionOutline = m_selectionOutline;
             applySelectionCoverage({});
         }
+        layer.groupId = m_active >= 0 ? m_layers[m_active].parentGroup() : QString{};
         m_layers.insert(++m_active, layer);
         m_editingMask = false;
         selectOnly(m_active);
@@ -238,9 +239,26 @@ void Document::resetAdjustmentLayer()
     else if (type == QStringLiteral("noise"))
         parameters = {{"amount", 8.}};
 
+    if (type == "light" && m_layers[m_active].parameters.value("photoshopLight").toBool())
+        parameters["photoshopLight"] = true;
+    if (type == "exposure" && m_layers[m_active].parameters.value("photoshopExposure").toBool())
+        parameters["photoshopExposure"] = true;
+    if (m_layers[m_active].parameters.value("photoshopAdjustment").toBool()) {
+        if (type == "colorBalance") {
+            for (const QString &tone : {QStringLiteral("shadow"), QStringLiteral("highlight")})
+                for (const QString &axis : {QStringLiteral("CyanRed"), QStringLiteral("MagentaGreen"),
+                                            QStringLiteral("YellowBlue")})
+                    parameters[tone + axis] = 0;
+            parameters["preserveLuminosity"] = true;
+        } else if (type == "clarityDehaze") {
+            parameters["radius"] = 32;
+        }
+    }
+
     for (auto it = m_layers[m_active].parameters.cbegin();
          it != m_layers[m_active].parameters.cend(); ++it)
-        if (it.key().startsWith("_vector"))
+        if (it.key().startsWith("_vector") || it.key() == "photoshopAdjustment" ||
+            it.key() == "gradientMethod")
             parameters[it.key()] = it.value();
     parameters.insert(QStringLiteral("_maskDensity"),
                       m_layers[m_active].parameters.value(QStringLiteral("_maskDensity"), 100.));

@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "ImageAlpha.h"
 #include "filters/RelightFilter.h"
 #include "ImagePixels.h"
@@ -27,7 +28,9 @@ bool requiresFullComposite(const Layer &_layer, bool _opaqueBase, bool _hasClipp
     // Preserve the full-image rounding paths for clipped dissolve stacks and
     // for noise over transparency.
     // Neural tiles are anchored to the full input, including its reflected edges.
-    return _layer.adjustmentType == QStringLiteral("denoise") || (_layer.blend == 1 && _hasClipping) ||
+    const bool sceneDehaze = _layer.adjustmentType == "clarityDehaze" &&
+        _layer.parameters.value("photoshopAdjustment").toBool() && _layer.parameters.value("dehaze").toDouble() != 0.;
+    return sceneDehaze || _layer.adjustmentType == QStringLiteral("denoise") || (_layer.blend == 1 && _hasClipping) ||
            (_layer.kind == QStringLiteral("adjustment") &&
             _layer.adjustmentType == QStringLiteral("noise") &&
             (!_opaqueBase || _layer.clippingMask));
@@ -217,7 +220,7 @@ QImage Document::compositeRegion(const QRect &_region) const
                                 : rendered.copy(region.translated(-workRegion.topLeft()));
 }
 
-QImage Document::renderCompositeRect(const QRect &_region) const
+QImage Document::renderCompositeRect(const QRect &_region, int _inputLayer) const
 {
     QImage     regionComposite = ImageUtils::blank(_region.size(), workingFormat());
     const auto compositeLayer  = [&](const QImage &_source, const Layer &layer) {
@@ -264,22 +267,93 @@ QImage Document::renderCompositeRect(const QRect &_region) const
         clippingBase     = {};
         clippingCoverage = {};
     };
-    QHash<QString, bool> groupVisibility;
-    for (const auto &layer : m_layers)
-        if (layer.kind == QStringLiteral("group"))
-            groupVisibility.insert(layer.groupId, layer.visible);
+    const auto maskRegionFor = [&](const Layer &layer) -> QImage {
+        const qreal feather = layer.parameters.value("_maskFeather", 0.).toDouble();
+        QImage      maskRegion;
+        if (!layer.directType.isEmpty() && layer.directMask) {
+            const int    radius = qBound(0, qRound(feather), 100);
+            const QRect  bounds = expanded(_region, radius, QRect(QPoint{}, m_size));
+            const QImage raw    = ImageUtils::compact(layer.mask)
+                                      ? ImageUtils::expandedPlane(layer.mask, bounds.size())
+                                      : layer.mask.region(bounds);
+            maskRegion          = directAdjustedImage(raw, layer, bounds);
+            if (radius > 0)
+                maskRegion = blurImage(maskRegion, radius);
+            if (bounds != _region)
+                maskRegion =
+                    maskRegion.copy(QRect(_region.topLeft() - bounds.topLeft(), _region.size()));
+        } else if (ImageUtils::compact(layer.mask))
+            maskRegion = QImage(layer.mask);
+        else if (feather >= .5) {
+            const int    radius     = qBound(1, qRound(feather), 100);
+            const QRect  maskBounds = expanded(_region, radius, QRect(QPoint{}, m_size));
+            const QImage blurred    = blurImage(layer.mask.region(maskBounds), radius);
+            maskRegion =
+                maskBounds == _region
+                    ? blurred
+                    : blurred.copy(QRect(_region.topLeft() - maskBounds.topLeft(), _region.size()));
+        } else
+            maskRegion = layer.mask.region(_region);
+        return maskRegion;
+    };
+    const LayerGroups groups(m_layers);
+    struct GroupScope {
+        int    header;
+        QImage backdrop;
+    };
+    QList<GroupScope> scopes;
+    // A pass-through group filters the incoming backdrop. Interpolate the completed
+    // result once at its boundary, including alpha, so overlapping children share a mask.
+    const auto enterGroups = [&](const QList<int> &parents) {
+        int common = 0;
+        while (common < scopes.size() && common < parents.size() &&
+               scopes[common].header == parents[common])
+            ++common;
+        while (scopes.size() > common) {
+            const auto scope = scopes.takeLast();
+            if (scope.backdrop.isNull())
+                continue;
+            const auto &group    = m_layers[scope.header];
+            QImage      coverage = group.maskEnabled && !group.mask.isNull()
+                                       ? maskRegionFor(group)
+                                       : ImageUtils::uniformMask(255);
+            if (ImageUtils::compact(coverage))
+                coverage = ImageUtils::expandedPlane(coverage, _region.size());
+            if (coverage.isNull())
+                continue;
+            const double density =
+                qBound(0., group.parameters.value("_maskDensity", 100.).toDouble() / 100., 1.);
+            if (density != 1. || group.opacity != 1.) {
+                for (int y = 0; y < coverage.height(); ++y) {
+                    auto *row = coverage.scanLine(y);
+                    for (int x = 0; x < coverage.width(); ++x)
+                        row[x] = uchar(qRound(group.opacity * (255. - (255. - row[x]) * density)));
+                }
+            }
+            SelectionCoverage::blend(regionComposite, scope.backdrop, coverage,
+                                     regionComposite.rect());
+        }
+        for (int i = common; i < parents.size(); ++i) {
+            const auto &group = m_layers[parents[i]];
+            scopes.append(GroupScope{
+                parents[i], needsMask(group) || group.opacity < 1. ? regionComposite : QImage{}});
+        }
+    };
     for (int layerIndex = opaqueCoverIndex(m_layers, m_size); layerIndex < m_layers.size();
          ++layerIndex) {
         const auto &layer = m_layers[layerIndex];
         if (!layer.clippingMask || layer.kind == QStringLiteral("group") ||
             (layerIndex > 0 && m_layers[layerIndex - 1].groupId != layer.groupId))
             finishClipping();
-        if (layer.kind == QStringLiteral("group"))
+        if (layerIndex == _inputLayer) {
+            enterGroups(groups.ancestors(layer));
+            if (layer.clippingMask && clippingBase.isNull())
+                return {};
+            return isolatedBase >= 0 ? clippingBase : regionComposite;
+        }
+        if (layer.kind == "group" || !groups.visible(layer) || !contributes(layer))
             continue;
-        const bool groupVisible =
-            layer.groupId.isEmpty() || groupVisibility.value(layer.groupId, true);
-        if (!groupVisible || !contributes(layer))
-            continue;
+        enterGroups(groups.ancestors(layer));
         // A clipped layer cannot contribute without coverage from a visible
         // base. Reject it before filters, masks or frequency bands are built.
         if (layer.clippingMask && clippingBase.isNull())
@@ -346,34 +420,8 @@ QImage Document::renderCompositeRect(const QRect &_region) const
         if (!layer.directType.isEmpty() && !layer.directMask)
             rendered = directAdjustedImage(rendered, layer, _region);
         if (layer.maskEnabled && !layer.mask.isNull() && (needsMask(layer) || layer.directMask)) {
-            const qreal density = layer.parameters.value("_maskDensity", 100.).toDouble() / 100.;
-            const qreal feather = layer.parameters.value("_maskFeather", 0.).toDouble();
-            QImage      maskRegion;
-            if (!layer.directType.isEmpty() && layer.directMask) {
-                const int    radius = qBound(0, qRound(feather), 100);
-                const QRect  bounds = expanded(_region, radius, QRect(QPoint{}, m_size));
-                const QImage raw    = ImageUtils::compact(layer.mask)
-                                          ? ImageUtils::expandedPlane(layer.mask, bounds.size())
-                                          : layer.mask.region(bounds);
-                maskRegion          = directAdjustedImage(raw, layer, bounds);
-                if (radius > 0)
-                    maskRegion = blurImage(maskRegion, radius);
-                if (bounds != _region)
-                    maskRegion = maskRegion.copy(
-                        QRect(_region.topLeft() - bounds.topLeft(), _region.size()));
-            } else if (ImageUtils::compact(layer.mask))
-                maskRegion = QImage(layer.mask);
-            else if (feather >= .5) {
-                const int    radius     = qBound(1, qRound(feather), 100);
-                const QRect  maskBounds = expanded(_region, radius, QRect(QPoint{}, m_size));
-                const QImage blurred    = blurImage(layer.mask.region(maskBounds), radius);
-                maskRegion = maskBounds == _region
-                                 ? blurred
-                                 : blurred.copy(QRect(_region.topLeft() - maskBounds.topLeft(),
-                                                      _region.size()));
-            } else
-                maskRegion = layer.mask.region(_region);
-            rendered = applyMask(rendered, maskRegion, density, 0);
+            rendered = applyMask(rendered, maskRegionFor(layer),
+                                 layer.parameters.value("_maskDensity", 100.).toDouble() / 100.);
         }
         if (PhotoCrap::Masks::vectorEnabled(layer)) {
             const int radius =
@@ -409,6 +457,7 @@ QImage Document::renderCompositeRect(const QRect &_region) const
         compositeLayer(rendered, layer);
     }
     finishClipping();
+    enterGroups({});
     return regionComposite;
 }
 

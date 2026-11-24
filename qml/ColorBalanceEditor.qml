@@ -14,6 +14,20 @@ ColumnLayout {
 
     spacing: 9
 
+    readonly property bool tonal: parameters.shadowCyanRed !== undefined
+    ComboBox {
+        id: tone
+        visible: root.tonal
+        Layout.fillWidth: true
+        model: [qsTr("Ombres"), qsTr("Tons moyens"), qsTr("Hautes lumières")]
+        currentIndex: 1
+    }
+    CheckBox {
+        visible: root.tonal
+        text: qsTr("Préserver la luminosité")
+        checked: Boolean(root.parameters.preserveLuminosity)
+        onClicked: { root.editStarted(); root.committed("preserveLuminosity", checked ? 1 : 0) }
+    }
     Repeater {
         id: controls
         model: [
@@ -23,6 +37,9 @@ ColumnLayout {
         ]
         delegate: ColumnLayout {
             required property var modelData
+            id: axis
+            readonly property string prefix: root.tonal ? ["shadow", "", "highlight"][tone.currentIndex] : ""
+            readonly property string parameterKey: prefix ? prefix + modelData.key[0].toUpperCase() + modelData.key.slice(1) : modelData.key
             Layout.fillWidth: true
             spacing: 2
             RowLayout {
@@ -40,8 +57,8 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 26
                 from: -100; to: 100; stepSize: 1
-                value: root.parameters[modelData.key] === undefined ? 0
-                                                                    : Number(root.parameters[modelData.key])
+                value: root.parameters[axis.parameterKey] === undefined ? 0
+                                                                    : Number(root.parameters[axis.parameterKey])
                 background: Rectangle {
                     x: slider.leftPadding
                     y: slider.topPadding + (slider.availableHeight-height)/2
@@ -62,9 +79,9 @@ ColumnLayout {
                 }
                 onPressedChanged: {
                     if (pressed) root.editStarted()
-                    else root.committed(modelData.key, value)
+                    else root.committed(axis.parameterKey, value)
                 }
-                onMoved: root.previewed(modelData.key, value)
+                onMoved: root.previewed(axis.parameterKey, value)
             }
         }
     }

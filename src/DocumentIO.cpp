@@ -11,6 +11,7 @@
 #include "storage/ProjectPng.h"
 #include "storage/ProjectPreview.h"
 #include "storage/ProjectReadIndex.h"
+#include "storage/PsdReader.h"
 #include "storage/ProjectWriteDevice.h"
 #include "storage/StreamingImageWriter.h"
 #include "storage/WebpExport.h"
@@ -71,6 +72,14 @@ bool Document::newDocument(int _w, int _h, bool _transparent, int _bits)
 }
 QImage Document::readImage(const QString &_path, bool denoiseRaw)
 {
+    if (PhotoCrap::Psd::isFile(_path)) {
+        auto result = PhotoCrap::Psd::read(_path, true, [this](int n, int total) {
+            return operationStep(n, total);
+        });
+        if (!result.error.isEmpty())
+            fail(result.error);
+        return result.layers.isEmpty() ? QImage{} : QImage(result.layers.first().image);
+    }
     if (RawImageReader::isRawFile(_path)) {
         const auto result = RawImageReader::read(_path, m_backgroundCancel, denoiseRaw);
         if (result.image.isNull())
@@ -105,13 +114,45 @@ QImage Document::readImage(const QString &_path, bool denoiseRaw)
     image.convertTo(ImageUtils::workingFormat(image));
     return operationStep(4, 4) ? image : QImage{};
 }
-bool Document::openFile(const QUrl &_url)
+bool Document::openFile(const QUrl &url)
+{
+    QStringList details;
+    const bool opened = openFileWithReport(url, details);
+    if (opened && !details.isEmpty())
+        emit psdImportReport(QFileInfo(url.toLocalFile()).fileName(), layerCount(), details);
+    return opened;
+}
+bool Document::openFileWithReport(const QUrl &_url, QStringList &details)
 {
     const QString path = localPath(_url);
     if (path.isEmpty())
         return fail(tr("Choisissez un fichier local."));
     if (QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0)
         return loadProject(path);
+    if (PhotoCrap::Psd::isFile(path)) {
+        auto result = PhotoCrap::Psd::read(path, false, [this](int n, int total) {
+            return operationStep(n, total);
+        });
+        if (!result.error.isEmpty())
+            return fail(result.error);
+        if (result.layers.isEmpty())
+            return false;
+        PreparedPlaneBudget budget;
+        const auto format = result.bits == 16 ? QImage::Format_RGBA64_Premultiplied :
+                                                QImage::Format_ARGB32_Premultiplied;
+        for (auto &layer : result.layers)
+            if (!prepareNativePlane(layer.image, format, budget) ||
+                !prepareNativePlane(layer.mask, QImage::Format_Grayscale8, budget))
+                return false;
+        Snapshot state{};
+        state.layers = std::move(result.layers);
+        state.active = int(state.layers.size()) - 1;
+        state.channelBits = result.bits;
+        state.size = result.size;
+        adoptFileSnapshot(state, path, false);
+        details = std::move(result.notes);
+        return true;
+    }
     auto image = readImage(path, RawImageReader::denoiseByDefault());
     if (image.isNull())
         return false;
@@ -138,6 +179,7 @@ void Document::requestOpenFile(const QUrl &_url, bool denoiseRaw)
     if (!path.isEmpty()) {
         const bool project = QFileInfo(path).suffix().compare("pcr", Qt::CaseInsensitive) == 0;
         struct LoadedFile {
+            QStringList                        details;
             Snapshot                           state{};
             std::shared_ptr<ScratchImageCache> cache;
         };
@@ -149,7 +191,7 @@ void Document::requestOpenFile(const QUrl &_url, bool denoiseRaw)
                 std::numeric_limits<qint64>::max() - 1,
                 [target, loaded](Document &_renderer) {
                     loaded->cache = _renderer.m_scratchCache;
-                    if (_renderer.openFile(target))
+                    if (_renderer.openFileWithReport(target, loaded->details))
                         loaded->state = _renderer.snapshot({});
                 },
                 false,
@@ -163,6 +205,8 @@ void Document::requestOpenFile(const QUrl &_url, bool denoiseRaw)
                     if (reuseCache)
                         m_scratchCache = loaded->cache;
                     emit fileOpened(target);
+                    if (!loaded->details.isEmpty())
+                        emit psdImportReport(QFileInfo(path).fileName(), layerCount(), loaded->details);
                 },
                 false))
             return;
@@ -478,11 +522,18 @@ bool Document::saveProject(const QUrl &_url)
     const bool paintedModels =
         std::any_of(m_layers.cbegin(), m_layers.cend(),
                     [](const Layer &layer) { return !layer.modelPaint.isEmpty(); });
-    const bool relighting = std::any_of(m_layers.cbegin(), m_layers.cend(),
-                                       [](const Layer &layer) { return layer.adjustmentType == "relight"; });
+    const bool relighting = std::any_of(m_layers.cbegin(), m_layers.cend(), [](const Layer &layer) {
+        return layer.adjustmentType == "relight";
+    });
+    const bool groupFeatures =
+        std::any_of(m_layers.cbegin(), m_layers.cend(), [](const Layer &layer) {
+            return layer.kind == "group" &&
+                   (!layer.parentGroupId.isEmpty() || !layer.mask.isNull() || layer.opacity != 1.);
+        });
     QJsonObject root{{"format", "PhotoCrap"},
-                     {"version", relighting ? 18
-                                 : paintedModels      ? 17
+                     {"version", groupFeatures      ? 19
+                                 : relighting       ? 18
+                                 : paintedModels    ? 17
                                  : surfacePaint     ? 16
                                  : models           ? 15
                                  : vectors          ? 14
@@ -528,6 +579,7 @@ bool Document::saveProject(const QUrl &_url)
                              {"maskEnabled", layer.maskEnabled},
                              {"clippingMask", layer.clippingMask},
                              {"groupId", layer.groupId},
+                             {"parentGroupId", layer.parentGroupId},
                              {"groupCollapsed", layer.groupCollapsed}};
         const bool  useOriginal = compactAi(layer);
         if (useOriginal) {
@@ -611,7 +663,7 @@ bool Document::loadProject(const QString &_path)
         return false;
     const auto root    = index.metadata;
     const int  version = root["version"].toInt();
-    if (root["format"] != "PhotoCrap" || version < 1 || version > 18)
+    if (root["format"] != "PhotoCrap" || version < 1 || version > 19)
         return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
     const int   w = root["width"].toInt(), h = root["height"].toInt();
     const auto &array = index.layers;
@@ -623,6 +675,7 @@ bool Document::loadProject(const QString &_path)
     if (!validSize(w, h, int(array.size())))
         return false;
     int colors = 0, masks = 0;
+    qint64 tiledColors = 0;
     QVector<ProjectReadIndex::LayerEntry> entries;
     entries.reserve(array.size());
     // Reserve the complete logical storage before decoding any pixel. The
@@ -632,19 +685,24 @@ bool Document::loadProject(const QString &_path)
         auto entry = index.layer(layerIndex, valid);
         if (!valid)
             return fail(tr("Projet PhotoCrap invalide ou version non prise en charge."));
-        colors += (entry.payload("png").size > 0 &&
-                   !(version >= 7 && entry.metadata["compactPixels"].toBool())) +
-                  (entry.payload("source").size > 0);
+        const auto color = entry.payload("png");
+        if (color.size && !(version >= 7 && entry.metadata["compactPixels"].toBool())) {
+            if (color.binary)
+                tiledColors += index.archive.colorReservation(color.plane, QSize(w, h), bits);
+            else
+                ++colors;
+        }
+        colors += entry.payload("source").size > 0;
         masks += entry.payload("mask").size > 0 &&
                  !(version >= 7 && entry.metadata["compactMask"].toBool());
         entries.append(std::move(entry));
     }
-    if (!validStorageBytes(DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
+    if (!validStorageBytes(tiledColors + DocumentStorage::estimateBytes(w, h, colors, masks, bits)))
         return false;
     QVector<Layer>                                                           layers;
     QHash<QPair<int, int>, std::shared_ptr<const PhotoCrap::Model3D::Asset>> models;
     QHash<int, QImage>                                                       normalMaps;
-    qint64 normalBytes = DocumentStorage::estimateBytes(w, h, colors, masks, bits);
+    qint64 normalBytes = tiledColors + DocumentStorage::estimateBytes(w, h, colors, masks, bits);
     qsizetype                                                                modelBytes = 0;
     QVariantMap                                                              sceneLight;
     PreparedPlaneBudget                                                      budget;
@@ -853,6 +911,7 @@ bool Document::loadProject(const QString &_path)
         layer.mask           = mask;
         layer.maskEnabled    = object["maskEnabled"].toBool(true);
         layer.clippingMask   = object["clippingMask"].toBool(false);
+        layer.parentGroupId = object["parentGroupId"].toString().left(64);
         layer.groupId        = object["groupId"].toString().left(64);
         layer.groupCollapsed = object["groupCollapsed"].toBool(false);
         layer.source         = source;
@@ -907,6 +966,26 @@ bool Document::loadProject(const QString &_path)
             layers.last().image      = source;
             layers.last().source     = {};
             layers.last().parameters = {};
+        }
+    }
+    if (version >= 19) {
+        QHash<QString, int> headers;
+        for (int i = 0; i < layers.size(); ++i) {
+            if (layers[i].kind != "group")
+                continue;
+            const auto &id = layers[i].groupId;
+            if (id.isEmpty() || headers.contains(id))
+                return fail(tr("Hiérarchie de groupes invalide."));
+            headers.insert(id, i);
+        }
+        for (const auto &layer : layers) {
+            QSet<QString> path;
+            for (auto parent = layer.parentGroup(); !parent.isEmpty();) {
+                if (path.contains(parent) || !headers.contains(parent))
+                    return fail(tr("Hiérarchie de groupes invalide."));
+                path.insert(parent);
+                parent = layers[headers.value(parent)].parentGroupId;
+            }
         }
     }
     QVector<QRect> slices;

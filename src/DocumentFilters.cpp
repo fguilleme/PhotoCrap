@@ -673,8 +673,87 @@ double luminance(double r, double g, double b)
     return .2126 * r + .7152 * g + .0722 * b;
 }
 
+// Use a scene-wide highlight percentile as atmospheric light. A local estimate
+// would give the same subject different colours on opposite sides of a tile.
+template <class Pixel>
+std::array<double, 3> atmosphere(const QImage &source)
+{
+    using P                                   = ImageUtils::PixelAccess<Pixel>;
+    const auto                          input = source.convertToFormat(P::format);
+    std::array<std::array<int, 256>, 3> histogram{};
+    int                                 count = 0;
+    const int step = std::max(1, int(std::sqrt(double(input.width()) * input.height() / 65536.)));
+    for (int y = 0; y < input.height(); y += step) {
+        const auto *row = reinterpret_cast<const Pixel *>(input.constScanLine(y));
+        for (int x = 0; x < input.width(); x += step) {
+            const auto p = row[x];
+            if (!P::alpha(p))
+                continue;
+            ++histogram[0][qRound(P::red(p))];
+            ++histogram[1][qRound(P::green(p))];
+            ++histogram[2][qRound(P::blue(p))];
+            ++count;
+        }
+    }
+    std::array<double, 3> white{};
+    for (int c = 0; c < 3; ++c) {
+        int n = 0;
+        for (int i = 0; i < 256; ++i) {
+            n += histogram[c][i];
+            if (n >= count * .99) {
+                white[c] = i;
+                break;
+            }
+        }
+    }
+    return white;
+}
+
+template <class Pixel>
+QImage photoshopClarityDehaze(const QImage &source, const QImage &neighborhood, double clarity,
+                              double dehaze)
+{
+    using P         = ImageUtils::PixelAccess<Pixel>;
+    const auto base = neighborhood.convertToFormat(P::format);
+    if (base.isNull())
+        return {};
+    const auto white = dehaze != 0. ? atmosphere<Pixel>(source) : std::array<double, 3>{};
+    // Measured change in transmission at five Dehaze settings across a neutral step chart.
+    constexpr double response[5][9] = {
+        {-.267, -.444, -.592, -.704, -.764, -.779, -.825, -.871, -1.},
+        {0, -.166, -.251, -.358, -.417, -.432, -.476, -.516, -.57},
+        {},
+        {0, .054, .11, .17, .244, .274, .317, .387, .57},
+        {0, .117, .241, .415, .583, .653, .794, .903, 1.43}};
+    const double          setting = 2. * (1. + dehaze);
+    const int             lo      = std::min(int(setting), 3);
+    std::array<double, 9> gain{};
+    for (int i = 0; i < 9; ++i)
+        gain[i] = std::lerp(response[lo][i], response[lo + 1][i], setting - lo);
+    return adjustRows<Pixel>(source, [&](Pixel *row, int width, int y) {
+        const auto *mean = reinterpret_cast<const Pixel *>(base.constScanLine(y));
+        for (int x = 0; x < width; ++x) {
+            const auto   p = row[x], m = mean[x];
+            const double local        = luminance(P::red(m), P::green(m), P::blue(m));
+            const double l            = luminance(P::red(p), P::green(p), P::blue(p));
+            const double position     = local * 8. / 255.;
+            const int    i            = std::min(int(position), 7);
+            const double transmission = .9 * std::lerp(gain[i], gain[i + 1], position - i);
+            const double detail       = l - local;
+            const double shift        = clarity < 0. ? clarity * detail * l / 255. * 1.15
+                                                     : clarity * detail / (1. + std::abs(detail) / 64.);
+            auto         channel      = [&](double c, int k) {
+                return c + (c - white[k]) * transmission + shift;
+            };
+            row[x] = P::rgba(channel(P::red(p), 0), channel(P::green(p), 1), channel(P::blue(p), 2),
+                             P::alpha(p));
+        }
+    });
+}
+
 template <typename Pixel>
-QImage clarityDehaze(const QImage &source, const QImage &neighborhood, double clarity, double dehaze)
+QImage clarityDehaze(const QImage &source, const QImage &neighborhood, double clarity,
+                     double dehaze)
 {
     using P = ImageUtils::PixelAccess<Pixel>;
     const QImage mean = neighborhood.convertToFormat(P::format);
@@ -715,10 +794,63 @@ double grainSample(double x, double y, quint32 salt)
                      std::lerp(sample(ix, iy + 1), sample(ix + 1, iy + 1), fx), fy);
 }
 
+// A seeded monochrome field with a short separable kernel. Size and roughness
+// determine the measured RMS contrast and one-pixel correlation independently.
+template <class Pixel>
+QImage photoshopGrain(const QImage &source, const QVariantMap &params, QPoint origin)
+{
+    using P             = ImageUtils::PixelAccess<Pixel>;
+    const double amount = qBound(0., params.value("amount").toDouble(), 100.);
+    if (!amount)
+        return source;
+    const double size   = qBound(0., (params.value("size", 2.).toDouble() - 1.) / 7., 1.);
+    const double rough  = qBound(0., params.value("roughness", 50).toDouble() / 100., 1.);
+    const double weight = .60 * size * std::pow(rough, 1.9);
+    const double rms    = amount *
+                       (.384 + .07 * std::pow(1. - rough, 2.) + .205 * std::pow(rough, 6.)) /
+                       (1. + 1.4 * size * std::pow(rough, .7));
+    const quint32 seed  = quint32(params.value("seed").toInt());
+    const QSizeF  scale = params.value("_grainFootprint", QSizeF(1, 1)).toSizeF();
+    const int     nx = qBound(1, qCeil(scale.width()), 4), ny = qBound(1, qCeil(scale.height()), 4);
+    const double  gain =
+        rms / (1. + 2. * weight * weight) /
+        std::sqrt(std::max(1., scale.width() / nx) * std::max(1., scale.height() / ny)) / (nx * ny);
+    auto white = [&](int x, int y) {
+        quint32 hash = PhotoCrap::Filters::noiseSeed(x, y) ^ seed;
+        hash         = (hash ^ (hash >> 16)) * 0x7feb352du;
+        hash         = (hash ^ (hash >> 15)) * 0x846ca68bu;
+        hash ^= hash >> 16;
+        // Four uniform bytes give a centered, nearly Gaussian unit-variance sample.
+        return (double((hash & 255) + ((hash >> 8) & 255) + ((hash >> 16) & 255) + (hash >> 24)) -
+                510.) /
+               147.8;
+    };
+    auto sample = [&](int x, int y) {
+        auto horizontal = [&](int row) {
+            return white(x, row) + weight * (white(x - 1, row) + white(x + 1, row));
+        };
+        return horizontal(y) + weight * (horizontal(y - 1) + horizontal(y + 1));
+    };
+    return adjustRows<Pixel>(source, [&](Pixel *row, int width, int y) {
+        for (int x = 0; x < width; ++x) {
+            double sum = 0.;
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i) {
+                    const int px = qFloor((origin.x() + x + (i + .5) / nx) * scale.width());
+                    const int py = qFloor((origin.y() + y + (j + .5) / ny) * scale.height());
+                    sum += sample(px, py);
+                }
+            const auto p = row[x];
+            row[x]       = P::rgba(P::red(p) + gain * sum, P::green(p) + gain * sum,
+                                   P::blue(p) + gain * sum, P::alpha(p));
+        }
+    });
+}
+
 template <typename Pixel>
 QImage filmGrain(const QImage &source, const QVariantMap &params, const QPoint &origin)
 {
-    using P = ImageUtils::PixelAccess<Pixel>;
+    using P             = ImageUtils::PixelAccess<Pixel>;
     const double amount = qBound(0., params.value("amount").toDouble(), 100.) * .24;
     if (amount == 0.)
         return source;
@@ -734,6 +866,7 @@ QImage filmGrain(const QImage &source, const QVariantMap &params, const QPoint &
     const auto attenuation = [&](double cell) {
         return std::sqrt(qMin(1., cell / stepX) * qMin(1., cell / stepY));
     };
+    const quint32 seed = quint32(params.value("seed", 0).toInt());
     const double coarseGain = attenuation(size);
     const double fineGain = roughness * attenuation(qMax(1., size / 2.3));
     return adjustRows<Pixel>(source, [&](Pixel *row, int width, int y) {
@@ -743,8 +876,8 @@ QImage filmGrain(const QImage &source, const QVariantMap &params, const QPoint &
                 const double gy = ((origin.y() + y) * footprint.height() + (j + .5) * stepY - .5) / size;
                 for (int i = 0; i < nx; ++i) {
                     const double gx = ((origin.x() + x) * footprint.width() + (i + .5) * stepX - .5) / size;
-                    noise += coarseGain * grainSample(gx, gy, 0xb5297a4du)
-                             + fineGain * grainSample(gx * 2.3, gy * 2.3, 0x68e31da4u);
+                    noise += coarseGain * grainSample(gx, gy, seed ^ 0xb5297a4du)
+                             + fineGain * grainSample(gx * 2.3, gy * 2.3, seed ^ 0x68e31da4u);
                 }
             }
             const auto p = row[x];
@@ -866,7 +999,7 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         if (_type == "vibrance")
             return PhotoCrap::Filters::applyVibrance(_source, _p);
         if (_type == "colorLookup")
-            return PhotoCrap::Filters::applyColorLookup(_source, _p);
+            return PhotoCrap::Filters::applyColorLookup(_source, _p, _origin);
         if (_type == "light")
             return PhotoCrap::Filters::applyLight(_source, _p);
         if (_type == "photoFilter")
@@ -884,14 +1017,18 @@ QImage Document::adjustedImage(const QImage &_source, const QString &_type, cons
         if (_type == "denoise")
             return PhotoCrap::Denoise::adjust(_source, _p.value("amount", 60.).toDouble());
         if (_type == "grain")
-            return filmGrain<Pixel>(_source, _p, _origin);
+            return _p.value("photoshopAdjustment").toBool()
+                       ? photoshopGrain<Pixel>(_source, _p, _origin)
+                       : filmGrain<Pixel>(_source, _p, _origin);
         if (_type == "clarityDehaze") {
             const double clarity = qBound(-100., _p.value("clarity").toDouble(), 100.) / 100.;
-            const double dehaze = qBound(-100., _p.value("dehaze").toDouble(), 100.) / 100.;
+            const double dehaze  = qBound(-100., _p.value("dehaze").toDouble(), 100.) / 100.;
             if (clarity == 0. && dehaze == 0.)
                 return _source;
-            return clarityDehaze<Pixel>(_source, blurImage(_source, _p.value("radius", 18).toInt()),
-                                        clarity, dehaze);
+            const auto base = blurImage(_source, _p.value("radius", 18).toInt());
+            return _p.value("photoshopAdjustment").toBool()
+                       ? photoshopClarityDehaze<Pixel>(_source, base, clarity, dehaze)
+                       : clarityDehaze<Pixel>(_source, base, clarity, dehaze);
         }
         if (_type == "texture") {
             const double gain = qBound(-100., _p.value("amount").toDouble(), 100.) / 100.;

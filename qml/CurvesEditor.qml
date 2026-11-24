@@ -6,6 +6,7 @@ import "CurveInterpolation.js" as CurveInterpolation
 ColumnLayout {
     id: root
     objectName: "curvesEditorRoot"
+    property bool naturalSpline: false
     property var histogram: []
     property var sourcePoints: [{"x": 0, "y": 0}, {"x": 255, "y": 255}]
     readonly property int channel: Math.max(0, channelBox.currentIndex)
@@ -45,7 +46,7 @@ ColumnLayout {
         points=points.slice()
         committed(emittedPoints())
     }
-    readonly property var interpolationState: ({points:points,slopes:CurveInterpolation.prepare(points)})
+    readonly property var interpolationState: ({points:points,slopes:CurveInterpolation.prepare(points, naturalSpline)})
     readonly property var curveSamples: CurveInterpolation.sample(interpolationState.points,interpolationState.slopes)
     function curveValue(input) { return CurveInterpolation.value(interpolationState.points,interpolationState.slopes,input) }
 

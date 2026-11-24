@@ -1,4 +1,5 @@
 #include "SelectionGeometry.h"
+#include "DocumentStorage.h"
 #include <QImage>
 #include <algorithm>
 #include <cmath>
@@ -186,8 +187,7 @@ SelectionGeometry::Result
 SelectionGeometry::modify(const QRegion &_selection, const QSize &_size, const QString &_operation,
                           int _amount, const std::shared_ptr<std::atomic_bool> &_cancel)
 {
-    if (!_cancel || _selection.isEmpty() || !_size.isValid() || _size.width() > 16384 ||
-        _size.height() > 16384 || qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
+    if (!_cancel || _selection.isEmpty() || !DocumentStorage::validDimensions(_size.width(), _size.height()) ||
         _amount < 1 || _amount > (_operation == "border" ? 200 : 100) ||
         (_operation != "expand" && _operation != "contract" && _operation != "border" &&
          _operation != "smooth"))

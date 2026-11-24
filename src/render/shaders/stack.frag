@@ -233,8 +233,11 @@ vec4 nativeTone(vec3 rgb) {
     }
     if (mode == 11) {
         vec3 hsl = rgbToHsl(index / 255.0);
-        hsl.x = floor(fract(hsl.x + ubuf.parameters[0].x + 1.0) * 36000.0 + 0.5) / 36000.0;
-        hsl.y = floor(clamp(hsl.y * ubuf.parameters[0].y, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
+        bool colorize = ubuf.parameters[0].w != 0.0;
+        float hue = (colorize ? 0.0 : hsl.x) + ubuf.parameters[0].x;
+        float sat = colorize ? ubuf.parameters[0].y - 1.0 : hsl.y * ubuf.parameters[0].y;
+        hsl.x = floor(fract(hue + 1.0) * 36000.0 + 0.5) / 36000.0;
+        hsl.y = floor(clamp(sat, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
         hsl.z = floor(clamp(hsl.z + ubuf.parameters[0].z, 0.0, 1.0) * 65535.0 + 0.5) / 65535.0;
         vec3 mapped = hslToRgb(hsl);
         return tonePixel(mapped * 255.0);

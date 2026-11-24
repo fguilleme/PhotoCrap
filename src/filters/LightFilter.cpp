@@ -1,4 +1,5 @@
 #include "LightFilter.h"
+#include "PhotoshopLight.h"
 #include "ImagePixels.h"
 
 #include <QColorSpace>
@@ -29,6 +30,9 @@ QImage applyLight(const QImage &_source, const QVariantMap &_parameters)
 {
     if (_source.isNull())
         return _source;
+
+    if (_parameters.value("photoshopLight").toBool())
+        return applyPhotoshopLight(_source, _parameters);
 
     const double exposure = qBound(-5., _parameters.value("exposure", 0.).toDouble(), 5.);
     const double contrast = qBound(-1., _parameters.value("contrast", 0.).toDouble() / 100., 1.);

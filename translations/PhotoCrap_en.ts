@@ -44,6 +44,7 @@
   </context>
   <context>
     <name>ColorLookupEditor</name>
+    <message><source>LUT importée</source><translation>Imported LUT</translation></message>
     <message>
       <source>Ambre doux</source>
       <translation>Soft Amber</translation>
@@ -218,8 +219,8 @@
     </message>
     <message>
       <location filename="../src/Document.cpp" line="54" />
-      <source>Dimensions invalides : 1 à 16 384 px, 32 mégapixels maximum.</source>
-      <translation>Invalid dimensions: 1 to 16,384 px, 32 megapixels maximum.</translation>
+      <source>Dimensions invalides : %1 × %2 px. Maximum : %3 px par côté et %4 mégapixels.</source>
+      <translation>Invalid dimensions: %1 × %2 px. Maximum: %3 px per side and %4 megapixels.</translation>
     </message>
     <message>
       <location filename="../src/Document.cpp" line="56" />
@@ -930,6 +931,8 @@
   </context>
   <context>
     <name>Main</name>
+    <message><source>Bilan de l’import PSD</source><translation>PSD import report</translation></message>
+    <message><source>%1 · %2 calque(s) créé(s)</source><translation>%1 · Layers created: %2</translation></message>
     <message><source>Clarté / Correction du voile</source><translation>Clarity and Dehaze</translation></message>
     <message><source>Grain</source><translation>Grain</translation></message>
     <message><source>Clarté</source><translation>Clarity</translation></message>
@@ -4776,7 +4779,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Fichier RAW vide, incomplet ou trop volumineux (1 Gio maximum).</source><translation>RAW file is empty, incomplete or too large (1 GiB maximum).</translation></message>
     <message><source>Impossible de lire le fichier RAW.</source><translation>Unable to read the RAW file.</translation></message>
     <message><source>Impossible de développer ce RAW : %1</source><translation>Unable to develop this RAW file: %1</translation></message>
-    <message><source>Ce RAW dépasse la limite de 32 mégapixels du document.</source><translation>This RAW file exceeds the 32-megapixel document limit.</translation></message>
+    <message><source>Ce RAW dépasse la limite de 32 mégapixels du décodeur RAW.</source><translation>This file exceeds the RAW decoder’s 32-megapixel limit.</translation></message>
     <message><source>Le décodeur RAW a produit une image invalide.</source><translation>The RAW decoder produced an invalid image.</translation></message>
     <message><source>Mémoire insuffisante pour ouvrir ce RAW.</source><translation>Insufficient memory to open this RAW file.</translation></message>
   </context>
@@ -5150,6 +5153,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Étendre la sélection</source><translation>Grow Selection</translation></message>
   </context>
   <context><name>Document</name>
+    <message><source>Hiérarchie de groupes invalide.</source><translation>Invalid group hierarchy.</translation></message>
     <message><source>Déplacer le contour de sélection</source><translation>Move Selection Boundary</translation></message>
     <message><source>Sélection depuis le tracé</source><translation>Selection from Path</translation></message>
   </context>
@@ -6717,5 +6721,61 @@ Independent software, not affiliated with Adobe.</translation>
 </context>
 <context><name>RawImageReader</name>
     <message><source>Modèle de débruitage indisponible.</source><translation>Denoising model unavailable.</translation></message>
+</context>
+  <context>
+    <name>PsdReader</name>
+    <message><source>Type de donnée de réglage Photoshop non pris en charge.</source><translation>Unsupported Photoshop adjustment data type.</translation></message>
+    <message><source>dégradé converti en interpolation linéaire entre les deux couleurs extrêmes</source><translation>gradient converted to linear interpolation between its endpoint colors</translation></message>
+    <message><source>table 3D intégrée importée, tramage Photoshop ignoré</source><translation>embedded 3D lookup table imported, Photoshop dithering omitted</translation></message>
+    <message><source>réglages de luminosité historiques utilisés</source><translation>legacy brightness settings used</translation></message>
+    <message><source>mode de fusion « %1 » remplacé par Normal</source><translation>blend mode “%1” replaced with Normal</translation></message>
+    <message><source>masque complexe ignoré</source><translation>complex mask skipped</translation></message>
+    <message><source>plages de fusion ignorées</source><translation>blending ranges skipped</translation></message>
+    <message><source>perçage ignoré</source><translation>knockout skipped</translation></message>
+    <message><source>fusion isolée du groupe ignorée</source><translation>isolated group blending skipped</translation></message>
+    <message><source>opacité du fond convertie en opacité du calque</source><translation>fill opacity converted to layer opacity</translation></message>
+    <message><source>type ou variante de réglage Photoshop non pris en charge (%1)</source><translation>unsupported Photoshop adjustment type or variant (%1)</translation></message>
+    <message><source>réglage global des niveaux importé, niveaux par couleur ignorés</source><translation>master levels imported, per-channel levels skipped</translation></message>
+    <message><source>valeurs de niveaux limitées à la plage de PhotoCrap</source><translation>levels values limited to PhotoCrap’s range</translation></message>
+    <message><source>réglage global de teinte importé, plages de couleurs ignorées</source><translation>master hue adjustment imported, individual color ranges skipped</translation></message>
+    <message><source>effets de calque ignorés</source><translation>layer effects skipped</translation></message>
+    <message><source>masque vectoriel ignoré</source><translation>vector mask skipped</translation></message>
+    <message><source>texte importé en pixels</source><translation>text imported as pixels</translation></message>
+    <message><source>objet dynamique importé en pixels</source><translation>smart object imported as pixels</translation></message>
+    <message><source>calque de remplissage Photoshop non pris en charge</source><translation>unsupported Photoshop fill layer</translation></message>
+    <message><source>Calque %1</source><translation>Layer %1</translation></message>
+    <message><source>groupe imbriqué regroupé dans « %1 »</source><translation>nested group moved into “%1”</translation></message>
+    <message><source>masque de groupe ignoré</source><translation>group mask skipped</translation></message>
+    <message><source>opacité du groupe ignorée</source><translation>group opacity skipped</translation></message>
+    <message><source>mode de fusion du groupe ignoré</source><translation>group blend mode skipped</translation></message>
+    <message><source>aucune représentation en pixels exploitable</source><translation>no usable pixel representation</translation></message>
+    <message><source>limite de %1 calques atteinte</source><translation>limit of %1 layers reached</translation></message>
+    <message><source>budget de %1 Mio pour les calques dépassé</source><translation>layer storage budget of %1 MiB exceeded</translation></message>
+    <message><source>calque masqué car sa base d’écrêtage n’a pas été importée</source><translation>layer hidden because its clipping base was not imported</translation></message>
+    <message><source>%1 — ignoré : %2</source><translation>%1 — skipped: %2</translation></message>
+    <message><source>%1 — %2</source><translation>%1 — %2</translation></message>
+    <message><source>Aucun calque de pixels récupérable. Affichage du composite enregistré dans le PSD.</source><translation>No recoverable pixel layers. Showing the composite stored in the PSD.</translation></message>
+    <message><source>Données PSD invalides ou incomplètes.</source><translation>Invalid or incomplete PSD data.</translation></message>
+    <message><source>Le calque PSD dépasse les dimensions prises en charge.</source><translation>The PSD layer exceeds the supported dimensions.</translation></message>
+    <message><source>Les données PSD dépassent la limite mémoire.</source><translation>The PSD data exceeds the memory limit.</translation></message>
+    <message><source>Compression PSD non prise en charge.</source><translation>Unsupported PSD compression.</translation></message>
+    <message><source>Allocation des pixels impossible.</source><translation>Could not allocate pixels.</translation></message>
+    <message><source>Allocation du masque impossible.</source><translation>Could not allocate the mask.</translation></message>
+    <message><source>Seuls les fichiers PSD version 1 sont pris en charge.</source><translation>Only version 1 PSD files are supported.</translation></message>
+    <message><source>Ce PSD mesure %1 × %2 px. PhotoCrap accepte jusqu’à %3 px par côté et %4 mégapixels.</source><translation>This PSD is %1 × %2 px. PhotoCrap supports up to %3 px per side and %4 megapixels.</translation></message>
+    <message><source>L’import PSD accepte les documents RVB et niveaux de gris en 8 ou 16 bits.</source><translation>PSD import supports 8-bit and 16-bit RGB and grayscale documents.</translation></message>
+    <message><source>Ce PSD nécessite une image fusionnée. Dans Photoshop, activez « Maximiser la compatibilité » puis réenregistrez-le.</source><translation>This PSD requires a merged image. In Photoshop, enable “Maximize Compatibility” and save it again.</translation></message>
+    <message><source>Composite PSD — %1</source><translation>PSD composite — %1</translation></message>
+    <message><source>Taille de fichier PSD invalide.</source><translation>Invalid PSD file size.</translation></message>
+    <message><source>Mémoire insuffisante pour ouvrir ce PSD.</source><translation>Not enough memory to open this PSD.</translation></message>
+  </context>
+<context><name>ColorBalanceEditor</name>
+    <message><source>Ombres</source><translation>Shadows</translation></message>
+    <message><source>Tons moyens</source><translation>Midtones</translation></message>
+    <message><source>Hautes lumières</source><translation>Highlights</translation></message>
+    <message><source>Préserver la luminosité</source><translation>Preserve luminosity</translation></message>
+</context>
+<context><name>Main</name>
+    <message><source>Coloriser</source><translation>Colorize</translation></message>
 </context>
 </TS>

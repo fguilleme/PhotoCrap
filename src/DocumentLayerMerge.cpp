@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
@@ -27,16 +28,13 @@ bool Document::planLayerMerge(const QString &_requested, LayerMergePlan &_plan,
     for (int i = 0; i < m_layers.size(); ++i)
         if (m_layers[i].kind == "group")
             groups.insert(m_layers[i].groupId, i);
-    const auto visible = [&](int _index) {
-        const auto &layer = m_layers[_index];
-        const int   group = groups.value(layer.groupId, -1);
-        return layer.visible && (group < 0 || m_layers[group].visible);
-    };
+    const LayerGroups hierarchy(m_layers);
+    const auto visible = [&](int index) { return hierarchy.visible(m_layers[index]); };
     const auto select = [&](int _index) {
         _plan.inputs.insert(_index);
         if (m_layers[_index].kind == "group")
             for (int i = 0; i < m_layers.size(); ++i)
-                if (m_layers[i].groupId == m_layers[_index].groupId)
+                if (hierarchy.ancestors(m_layers[i]).contains(_index))
                     _plan.inputs.insert(i);
     };
     if (allVisible) {
@@ -120,7 +118,7 @@ bool Document::planLayerMerge(const QString &_requested, LayerMergePlan &_plan,
                     continue;
                 bool remains = false;
                 for (int i = 0; i < m_layers.size(); ++i)
-                    remains |= m_layers[i].kind != "group" && m_layers[i].groupId == it.key() &&
+                    remains |= m_layers[i].kind != "group" && hierarchy.ancestors(m_layers[i]).contains(it.value()) &&
                                !_plan.removed.contains(i);
                 if (!remains)
                     _plan.removed.insert(it.value());
@@ -148,6 +146,8 @@ bool Document::planLayerMerge(const QString &_requested, LayerMergePlan &_plan,
         if (same)
             _plan.groupId = parent;
     }
+    if (mode == "group")
+        _plan.groupId = m_layers[m_active].parentGroupId;
     // A root result must sit outside any partial folder, not split its children.
     if (_plan.groupId.isEmpty())
         for (int i : _plan.inputs) {
@@ -216,15 +216,16 @@ void Document::mergeLayers(const QString &_mode)
     if (!validSize(width(), height(), count))
         return;
     int colors = 1, masks = 0;
+    qint64 pixels = 0;
     for (int i = 0; i < m_layers.size(); ++i)
         if (!plan.removed.contains(i)) {
             const auto &layer = m_layers[i];
-            colors += (!layer.image.isNull() && !ImageUtils::compact(layer.image)) +
-                      !layer.source.isNull();
+            pixels += layer.image.reservedColorBytes(m_size, channelBits());
+            colors += !layer.source.isNull();
             masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
         }
-    if (!validStorageBytes(
-            DocumentStorage::estimateBytes(width(), height(), colors, masks, channelBits())))
+    if (!validStorageBytes(pixels + DocumentStorage::estimateBytes(width(), height(), colors, masks,
+                                                                   channelBits())))
         return;
     if (deferEdit(
             plan.label, editCost(false) * qMax(1, int(plan.inputs.size())),
@@ -240,6 +241,15 @@ bool Document::applyLayerMerge(const LayerMergePlan &_plan)
     for (int i = 0; i < layers.size(); ++i)
         if (layers[i].kind != "group" && !_plan.inputs.contains(i))
             layers[i].visible = false;
+    // Parent masking will be applied to the inserted row in the live stack.
+    if (!_plan.groupId.isEmpty()) {
+        Layer output;
+        output.groupId = _plan.groupId;
+        for (int ancestor : LayerGroups(layers).ancestors(output)) {
+            layers[ancestor].maskEnabled = false;
+            layers[ancestor].opacity     = 1.;
+        }
+    }
     auto renderer                  = nativeCompositeSource(std::move(layers));
     renderer->m_backgroundCancel   = m_backgroundCancel;
     renderer->m_backgroundProgress = m_backgroundProgress;

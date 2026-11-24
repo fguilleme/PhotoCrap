@@ -10,12 +10,35 @@
 #include <QDataStream>
 #include <algorithm>
 
+namespace
+{
+bool supportsAdjustmentShader(const Layer &layer)
+{
+    const auto &type = layer.adjustmentType;
+    if (type == "light" && layer.parameters.value("photoshopLight").toBool() &&
+        (layer.parameters.value("shadows").toDouble() != 0. ||
+         layer.parameters.value("highlights").toDouble() != 0.))
+        return false;
+    if (layer.parameters.value("photoshopAdjustment").toBool() && type != "levels" &&
+        type != "curves" && type != "posterize")
+        return false;
+    return PhotoCrap::Filters::gpuTonePreviewTypes().contains(type) &&
+           !(type == "colorLookup" && layer.parameters.value("preset").toInt() == -1) &&
+           !(type == "colorBalance" && layer.parameters.contains("shadowCyanRed")) &&
+           (type != "selectiveColor" || layer.parameters.contains("redsCyanRed"));
+}
+} // namespace
+
 PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
 {
     using namespace PhotoCrap::Render;
     LayerStack stack;
     if (m_displayChannel || m_maskOnlyView || m_size.isEmpty() || transformActive() ||
         m_model3DPreview || !m_textFontPreview.isNull())
+        return stack;
+    if (std::any_of(m_layers.cbegin(), m_layers.cend(), [](const Layer &l) {
+            return l.kind == "group" && (!l.parentGroupId.isEmpty() || l.opacity < 1. || LayerVisibility::needsMask(l));
+        }))
         return stack;
     stack.size = m_size;
     stack.bits = m_channelBits;
@@ -63,10 +86,7 @@ PhotoCrap::Render::LayerStack Document::gpuLayerStack() const
         const bool mosaic = layer.kind == "adjustment" && layer.adjustmentType == "mosaic";
         const bool tonal =
             noise || mosaic || gradient ||
-            (layer.kind == "adjustment" &&
-             PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
-             (layer.adjustmentType != "selectiveColor" ||
-              layer.parameters.contains("redsCyanRed")));
+            (layer.kind == "adjustment" && supportsAdjustmentShader(layer));
         const bool                                 masked = LayerVisibility::needsMask(layer);
         static const QHash<QString, SpatialFilter> spatialTypes{
             {"boxBlur", SpatialFilter::Box},
@@ -398,9 +418,7 @@ bool Document::gpuToneEligible() const
            PhotoCrap::Filters::gpuToneBlendSupported(layer.adjustmentType, layer.blend,
                                                      fullCoverage) &&
            layer.groupId.isEmpty() && !layer.clippingMask &&
-           PhotoCrap::Filters::gpuTonePreviewTypes().contains(layer.adjustmentType) &&
-           (layer.adjustmentType != QStringLiteral("selectiveColor") ||
-            layer.parameters.contains(QStringLiteral("redsCyanRed")));
+           supportsAdjustmentShader(layer);
 }
 
 bool Document::gpuTonePreviewActive() const

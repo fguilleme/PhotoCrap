@@ -1,3 +1,4 @@
+#include "storage/PsdReader.h"
 #include "DocumentManager.h"
 #include <QFileInfo>
 #include <QQmlEngine>
@@ -69,9 +70,13 @@ DocumentManager::Entry DocumentManager::makeEntry(bool placeholder)
         emit documentsChanged();
     };
     const auto fileOpened = [doc = entry.document, opened](const QUrl &url) {
-        doc->prepareOpenedPhoto();
+        if (PhotoCrap::Psd::isFile(url.toLocalFile()))
+            doc->setTool(QStringLiteral("move"));
+        else
+            doc->prepareOpenedPhoto();
         opened(url);
     };
+    connect(entry.document, &Document::psdImportReport, this, &DocumentManager::psdImportReport);
     connect(entry.document, &Document::fileOpened, this, fileOpened);
     connect(entry.document, &Document::rawFileOpened, this, fileOpened);
     connect(entry.document, &Document::projectSaved, this, opened);

@@ -20,7 +20,7 @@ Item {
     readonly property real topEdge: 8
     readonly property real bottomEdge: height-28
     function px(value) { return leftEdge+value/255*(rightEdge-leftEdge) }
-    function gammaT(value) { return value>=1?.5-(value-1)/4:.5+(1-value)/1.8 }
+    function gammaT(value) { return Math.pow(0.5, value) }
     // Values and size only: moving the markers leaves both paths unchanged.
     readonly property string histogramPath: {
         if(output || !histogram || histogram.length!==256)return ""

@@ -65,8 +65,8 @@ Item {
         property real bottomEdge: height-28
         function px(value) { return leftEdge+value/255*(rightEdge-leftEdge) }
         function valueX(pixel) { return Math.max(0,Math.min(255,(pixel-leftEdge)/(rightEdge-leftEdge)*255)) }
-        function gammaT(value) { return value>=1?.5-(value-1)/4:.5+(1-value)/1.8 }
-        function gammaValue(t) { return t<=.5?1+(.5-t)*4:1-(t-.5)*1.8 }
+        function gammaT(value) { return Math.pow(0.5, value) }
+        function gammaValue(t) { return -Math.log2(Math.max(t, 0.125)) }
         function gammaX() { return px(fixture.inputBlack+(fixture.inputWhite-fixture.inputBlack)*gammaT(fixture.gamma)) }
         function triangle(c,x,color) { c.beginPath();c.moveTo(x,bottomEdge+2);c.lineTo(x-7,bottomEdge+15);c.lineTo(x+7,bottomEdge+15);c.closePath();c.fillStyle=color;c.fill();c.strokeStyle="#dbe2e8";c.stroke() }
         onPaint: {

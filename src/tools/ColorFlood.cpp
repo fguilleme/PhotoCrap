@@ -1,4 +1,5 @@
 #include "ColorFlood.h"
+#include "DocumentStorage.h"
 #include "storage/TiledImage.h"
 
 #include <QBitArray>
@@ -19,8 +20,7 @@ ColorFloodResult colorFlood(const QSize &_size, const QPoint &_seed, int _tolera
         return result;
     }
     const QRect bounds(QPoint{}, _size);
-    if (!_read || !bounds.contains(_seed) || _size.width() > 16384 || _size.height() > 16384 ||
-        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 || _tolerance < 0 ||
+    if (!_read || !bounds.contains(_seed) || !DocumentStorage::validDimensions(_size.width(), _size.height()) || _tolerance < 0 ||
         _tolerance > 255)
         return result;
     try {

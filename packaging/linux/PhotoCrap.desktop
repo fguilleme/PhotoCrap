@@ -7,4 +7,4 @@ Icon=PhotoCrap
 Categories=Graphics;RasterGraphics;Photography;
 Terminal=false
 StartupNotify=true
-MimeType=image/png;image/jpeg;image/webp;image/bmp;image/tiff;image/gif;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/tiff;image/vnd.adobe.photoshop;image/gif;

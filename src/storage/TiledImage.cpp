@@ -1,4 +1,5 @@
 #include "TiledImage.h"
+#include "DocumentStorage.h"
 #include "ImageSampling.h"
 #include "ScratchImageCache.h"
 
@@ -376,8 +377,7 @@ struct TiledImage::Data {
 
 TiledImage::TiledImage(const QSize &_size, QImage::Format _format, const QColor &_background)
 {
-    if (!_size.isValid() || _size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
-        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
+    if (!DocumentStorage::validDimensions(_size.width(), _size.height()) ||
         (_format != QImage::Format_ARGB32_Premultiplied &&
          _format != QImage::Format_RGBA64_Premultiplied && _format != QImage::Format_Grayscale8))
         return;

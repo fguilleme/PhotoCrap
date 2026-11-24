@@ -92,7 +92,7 @@ inline int opaqueCoverIndex(const QVector<Layer> &_layers, const QSize &_size)
     QHash<QString, bool> groups;
     for (const auto &layer : _layers)
         if (layer.kind == QStringLiteral("group"))
-            groups.insert(layer.groupId, layer.visible);
+            groups.insert(layer.groupId, layer.visible && layer.parentGroupId.isEmpty() && layer.opacity == 1. && !needsMask(layer));
     for (int i = int(_layers.size()) - 1; i > 0; --i) {
         const auto &layer = _layers[i];
         if (layer.kind != QStringLiteral("pixel") || !layer.visible || layer.opacity < 1. ||

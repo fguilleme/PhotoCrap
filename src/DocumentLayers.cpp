@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "ImageUtils.h"
 
 #include <QFont>
@@ -14,8 +15,10 @@ void Document::addLayer()
     if (!validSize(width(), height(), int(m_layers.size()) + 1))
         return;
     edit(tr("Nouveau calque"), [&] {
+        const QString parent = m_active >= 0 ? m_layers[m_active].parentGroup() : QString{};
         m_layers.insert(++m_active, {tr("Calque %1").arg(m_layers.size() + 1),
                                      ImageUtils::blank(QSize(1, 1), workingFormat())});
+        m_layers[m_active].groupId = parent;
         selectOnly(m_active);
     });
 }
@@ -51,10 +54,13 @@ void Document::removeLayer()
         return;
     edit(tr("Supprimer le calque"), [&] {
         if (m_layers[m_active].kind == QStringLiteral("group")) {
-            const QString groupId = m_layers[m_active].groupId;
-            for (int i = m_layers.size() - 1; i >= 0; --i)
-                if (m_layers[i].groupId == groupId)
-                    m_layers.removeAt(i);
+            const LayerGroups groups(m_layers);
+            QList<int> removed;
+            for (int i = 0; i < m_layers.size(); ++i)
+                if (i == m_active || groups.ancestors(m_layers[i]).contains(m_active))
+                    removed.prepend(i);
+            for (int i : removed)
+                m_layers.removeAt(i);
         } else
             m_layers.removeAt(m_active);
         if (m_layers.isEmpty())
@@ -74,7 +80,7 @@ void Document::moveLayer(int _direction)
     const int to = m_active + (_direction > 0 ? 1 : -1);
     if (to < 0 || to >= m_layers.size())
         return;
-    if (!m_layers[m_active].groupId.isEmpty() && m_layers[to].groupId != m_layers[m_active].groupId)
+    if (m_layers[to].kind == "group" || m_layers[to].groupId != m_layers[m_active].groupId)
         return;
     edit(tr("Réordonner le calque"), [&] {
         m_layers.swapItemsAt(m_active, to);
@@ -100,6 +106,7 @@ void Document::groupSelectedLayers()
 
         const QString groupId = QUuid::createUuid().toString(QUuid::WithoutBraces);
         const int insertion = qBound(0, indices.last() - indices.size() + 1, int(m_layers.size()));
+        const auto parent = selected.first().groupId;
         for (int i = 0; i < selected.size(); ++i) {
             selected[i].groupId = groupId;
             m_layers.insert(insertion + i, selected[i]);
@@ -112,6 +119,7 @@ void Document::groupSelectedLayers()
         group.name    = tr("Groupe %1").arg(groupCount + 1);
         group.kind    = QStringLiteral("group");
         group.groupId = groupId;
+        group.parentGroupId = parent;
         m_active      = insertion + selected.size();
         m_layers.insert(m_active, group);
         m_editingMask = false;
@@ -127,14 +135,17 @@ void Document::ungroupActiveLayers()
     const QString groupId = m_layers[m_active].groupId;
     edit(tr("Sortir du groupe"), [&] {
         int header = -1;
-        for (int i = 0; i < m_layers.size(); ++i) {
-            if (m_layers[i].groupId != groupId)
-                continue;
-            if (m_layers[i].kind == QStringLiteral("group"))
+        for (int i = 0; i < m_layers.size(); ++i)
+            if (m_layers[i].kind == "group" && m_layers[i].groupId == groupId)
                 header = i;
-            else
-                m_layers[i].groupId.clear();
-        }
+        if (header < 0)
+            return;
+        const QString parent = m_layers[header].parentGroupId;
+        for (auto &layer : m_layers)
+            if (layer.parentGroup() == groupId) {
+                if (layer.kind == "group") layer.parentGroupId = parent;
+                else layer.groupId = parent;
+            }
         if (header >= 0)
             m_layers.removeAt(header);
         m_active      = qBound(0, header - 1, int(m_layers.size()) - 1);
@@ -174,27 +185,22 @@ void Document::setLayerVisible(int _i, bool _visible, bool revealGroup)
     _i = finishTextForLayer(_i);
     if (_i < 0 || _i >= m_layers.size())
         return;
-    int hiddenGroup = -1;
     const auto &layer = m_layers.at(_i);
-    if (_visible && revealGroup && !layer.groupId.isEmpty() && layer.kind != "group") {
-        for (int i = 0; i < m_layers.size(); ++i) {
-            const auto &candidate = m_layers.at(i);
-            if (candidate.kind == "group" && candidate.groupId == layer.groupId && !candidate.visible) {
-                hiddenGroup = i;
-                break;
-            }
-        }
-    }
-    if (layer.visible == _visible && hiddenGroup < 0)
+    QList<int> hiddenGroups;
+    if (_visible && revealGroup)
+        for (int parent : LayerGroups(m_layers).ancestors(layer))
+            if (!m_layers[parent].visible)
+                hiddenGroups.append(parent);
+    if (layer.visible == _visible && hiddenGroups.isEmpty())
         return;
     m_visibilityBeforeIsolation.clear();
     m_isolatedLayer = -1;
     const QString label = tr("Visibilité du calque");
-    if (layer.adjustmentType != QStringLiteral("denoise") || hiddenGroup >= 0) {
+    if (layer.adjustmentType != QStringLiteral("denoise") || !hiddenGroups.isEmpty()) {
         edit(label, [&] {
             m_layers[_i].visible = _visible;
-            if (hiddenGroup >= 0)
-                m_layers[hiddenGroup].visible = true;
+            for (int group : hiddenGroups)
+                m_layers[group].visible = true;
         });
         return;
     }
@@ -257,21 +263,12 @@ void Document::toggleLayerIsolation(int _i)
     previousVisibility.reserve(m_layers.size());
     for (const Layer &layer : std::as_const(m_layers))
         previousVisibility.append(layer.visible);
-    const QString targetGroup   = m_layers[_i].groupId;
-    const bool    targetIsGroup = m_layers[_i].kind == QStringLiteral("group");
-    const QString targetGroupId = targetIsGroup ? m_layers[_i].groupId : QString{};
+    const LayerGroups groups(m_layers);
+    const auto parents = groups.ancestors(m_layers[_i]);
     edit(tr("Isoler le calque"), [&] {
-        for (int index = 0; index < m_layers.size(); ++index) {
-            Layer &layer = m_layers[index];
-            if (targetIsGroup)
-                layer.visible = index == _i || (layer.groupId == targetGroupId &&
-                                                layer.kind != QStringLiteral("group") &&
-                                                previousVisibility[index]);
-            else
-                layer.visible =
-                    index == _i || (layer.kind == QStringLiteral("group") &&
-                                    !targetGroup.isEmpty() && layer.groupId == targetGroup);
-        }
+        for (int index = 0; index < m_layers.size(); ++index)
+            m_layers[index].visible = index == _i || parents.contains(index) ||
+                (previousVisibility[index] && groups.ancestors(m_layers[index]).contains(_i));
     });
     m_visibilityBeforeIsolation = previousVisibility;
     m_isolatedLayer             = _i;
@@ -290,7 +287,7 @@ void Document::setLayerOpacity(int _i, qreal _opacity)
     _i = finishTextForLayer(_i);
     if (_i < 0)
         return;
-    if (_i < 0 || _i >= m_layers.size() || m_layers[_i].kind == QStringLiteral("group") ||
+    if (_i < 0 || _i >= m_layers.size() ||
         !std::isfinite(_opacity))
         return;
     _opacity = qBound(0., _opacity, 1.);
@@ -343,8 +340,7 @@ void Document::addLayerMask(bool _revealAll)
 {
     if (finishTextForLayer(m_active) < 0)
         return;
-    if (m_active < 0 || m_active >= m_layers.size() ||
-        m_layers[m_active].kind == QStringLiteral("group"))
+    if (m_active < 0 || m_active >= m_layers.size())
         return;
     if (!m_layers[m_active].mask.isNull()) {
         m_editingMask = true;
@@ -382,7 +378,7 @@ void Document::copyLayerMask(int _sourceIndex, int _targetIndex)
     if (_sourceIndex < 0 || _sourceIndex >= m_layers.size() || _targetIndex < 0 ||
         _targetIndex >= m_layers.size() || _sourceIndex == _targetIndex ||
         m_layers[_sourceIndex].mask.isNull() ||
-        m_layers[_targetIndex].kind == QStringLiteral("group") || m_layers[_targetIndex].locked)
+        m_layers[_targetIndex].locked)
         return;
     if (!validLayerStorage(width(), height(), 0,
                            !ImageUtils::compact(m_layers[_sourceIndex].mask) &&

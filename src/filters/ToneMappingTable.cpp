@@ -110,7 +110,8 @@ ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap 
         return {ToneMappingMode::HueSaturation,
                 {float(_parameters.value("hue", 0).toDouble() / 360.),
                  float(1 + _parameters.value("saturation", 0).toDouble() / 100.),
-                 float(_parameters.value("lightness", 0).toDouble() / 100.), 0.f}};
+                 float(_parameters.value("lightness", 0).toDouble() / 100.),
+                 _parameters.value("colorize").toBool() ? 1.f : 0.f}};
     if (_type == QStringLiteral("vibrance"))
         return {ToneMappingMode::Vibrance,
                 {float(_parameters.value("vibrance", 0).toDouble() / 100.),
@@ -178,7 +179,8 @@ ToneMappingSettings toneMappingSettings(const QString &_type, const QVariantMap 
         return result;
     }
     if (_type == QStringLiteral("light"))
-        return {ToneMappingMode::Luminance, {}};
+        return {_parameters.value("photoshopLight").toBool() ? ToneMappingMode::Channels
+                                                            : ToneMappingMode::Luminance, {}};
     if (_type == QStringLiteral("gradientMap"))
         return {ToneMappingMode::GradientMap, {}};
     if (_type == QStringLiteral("blackWhite")) {

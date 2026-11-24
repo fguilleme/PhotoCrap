@@ -1,4 +1,14 @@
 #include "Document.h"
+#include "filters/ColorLookupFilter.h"
+#include "filters/LightFilter.h"
+#include "filters/ExposureFilter.h"
+#include "filters/HueSaturationFilter.h"
+#include "filters/PhotoFilterFilter.h"
+#include "filters/GradientMapFilter.h"
+#include "filters/ColorBalanceFilter.h"
+#include "filters/ColorFilter.h"
+#include "filters/ToneMappingTable.h"
+#include "filters/PosterizeFilter.h"
 #include "Model3DTestImage.h"
 #include "RawTestImage.h"
 #include "model3d/Model3D.h"
@@ -14,6 +24,410 @@ class LayerImportTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void largePsdSurvivesProjectRoundTrip()
+    {
+        // A sparse, flat 8192 x 4097 grayscale PSD just above the former pixel limit.
+        QTemporaryDir temp;
+        QFile psd(temp.filePath("large.psd"));
+        QVERIFY(psd.open(QIODevice::WriteOnly));
+        const auto header = QByteArray::fromHex(
+            "38425053 0001 000000000000 0001 00001001 00002000 0008 0001 "
+            "00000000 00000000 00000000 0000");
+        QCOMPARE(psd.write(header), header.size());
+        QVERIFY(psd.seek(header.size() + 8192LL * 4097 - 1));
+        QVERIFY(psd.putChar(char(230)));
+        psd.close();
+
+        Document doc;
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(psd.fileName())));
+        QCOMPARE(doc.width(), 8192);
+        QCOMPARE(doc.height(), 4097);
+        const auto project = QUrl::fromLocalFile(temp.filePath("large.pcr"));
+        QVERIFY(doc.saveProject(project));
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.width(), 8192);
+        QCOMPARE(reopened.height(), 4097);
+        QCOMPARE(reopened.layerImage(0).pixelColor(8191, 4096).red(), 230);
+    }
+
+    void nestedPsdGroupKeepsEditableMask()
+    {
+        Document doc;
+        QSignalSpy report(&doc, &Document::psdImportReport);
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(QFINDTESTDATA("fixtures/nested-masked-group.psd"))));
+        QCOMPARE(report.size(), 0);
+        QCOMPARE(doc.layerCount(), 5);
+        const auto layers = doc.layers();
+        QCOMPARE(layers[2].toMap()["groupDepth"].toInt(), 2);
+        QVERIFY(layers[1].toMap()["hasMask"].toBool());
+        QCOMPARE(doc.composite().pixelColor(0, 0), QColor(Qt::blue));
+        QCOMPARE(doc.composite().pixelColor(1, 0), QColor(0, 128, 127));
+        QCOMPARE(doc.composite().pixelColor(2, 0), QColor(Qt::green));
+        doc.selectLayer(3);
+        doc.setEditingMask(true);
+        QVERIFY(doc.layers()[1].toMap()["editingMask"].toBool());
+        doc.setTool("brush");
+        doc.setColor(Qt::white);
+        doc.beginStroke(0, 0);
+        doc.endStroke();
+        QCOMPARE(doc.composite().pixelColor(0, 0), QColor(Qt::green));
+        doc.undo();
+        QCOMPARE(doc.composite().pixelColor(0, 0), QColor(Qt::blue));
+        doc.invertLayerMask();
+        QCOMPARE(doc.composite().pixelColor(0, 0), QColor(Qt::green));
+        doc.undo();
+        QCOMPARE(doc.composite().pixelColor(0, 0), QColor(Qt::blue));
+        doc.toggleGroupCollapsed(4);
+        QCOMPARE(doc.layers().size(), 2);
+        doc.setLayerVisible(4, false);
+        QCOMPARE(doc.composite().pixelColor(2, 0), QColor(Qt::blue));
+        doc.setLayerVisible(4, true);
+        QTemporaryDir temp;
+        const auto url = QUrl::fromLocalFile(temp.filePath("nested.pcr"));
+        QVERIFY(doc.saveProject(url));
+        Document reopened;
+        QVERIFY(reopened.openFile(url));
+        QCOMPARE(reopened.layers().size(), 2);
+        QCOMPARE(reopened.composite(), doc.composite());
+        reopened.toggleGroupCollapsed(4);
+        QCOMPARE(reopened.layers()[1].toMap()["groupDepth"].toInt(), 1);
+        reopened.selectLayer(3);
+        reopened.setMaskEnabled(false);
+        QCOMPARE(reopened.composite().pixelColor(0, 0), QColor(Qt::green));
+        reopened.selectLayer(4);
+        reopened.removeLayer();
+        QCOMPARE(reopened.layerCount(), 1);
+    }
+
+    void psdAdjustmentsKeepSettingsAndLocalMask()
+    {
+        Document doc;
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(QFINDTESTDATA("fixtures/adjustment-layers.psd"))));
+        QCOMPARE(doc.layerCount(), 6);
+        const auto layers = doc.layers();
+        const QStringList types{"vibrance", "colorBalance", "levels", "curves", "hueSaturation"};
+        for (int i = 0; i < types.size(); ++i) {
+            const auto layer = layers[i].toMap();
+            QCOMPARE(layer["kind"].toString(), QString("adjustment"));
+            QCOMPARE(layer["adjustmentType"].toString(), types[i]);
+        }
+        const auto params = [&](int row) { return layers[row].toMap().value("parameters").toMap(); };
+        QCOMPARE(params(0)["vibrance"].toInt(), -22);
+        QCOMPARE(params(1)["shadowCyanRed"].toInt(), -15);
+        QCOMPARE(params(1)["highlightYellowBlue"].toInt(), 15);
+        QCOMPARE(params(2)["gamma"].toDouble(), 1.25);
+        QCOMPARE(params(3)["points"].toList().last().toMap().value("y").toInt(), 240);
+        QVERIFY(params(4)["colorize"].toBool());
+        for (int index = 2; index < doc.layerCount(); ++index)
+            doc.setLayerVisible(index, false);
+        auto image = doc.composite();
+        QCOMPARE(image.pixelColor(0, 0), QColor(128, 128, 128));
+        QVERIFY(image.pixelColor(1, 0).green() > image.pixelColor(1, 0).red() + 100);
+        QTemporaryDir temp;
+        const auto url = QUrl::fromLocalFile(temp.filePath("adjustments.pcr"));
+        QVERIFY(doc.saveProject(url));
+        Document reopened;
+        QVERIFY(reopened.openFile(url));
+        QCOMPARE(reopened.composite(), image);
+        QCOMPARE(reopened.layers().first().toMap()["parameters"], layers.first().toMap()["parameters"]);
+    }
+
+    void psdSelectiveColorKeepsMethodsAndInkDirections()
+    {
+        Document doc;
+        QSignalSpy report(&doc, &Document::psdImportReport);
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(QFINDTESTDATA("fixtures/selective-color.psd"))));
+        QVERIFY(report.isEmpty());
+        QCOMPARE(doc.layerCount(), 3);
+        const auto layers = doc.layers();
+        for (int row = 0; row < 2; ++row) {
+            const auto layer = layers[row].toMap();
+            QCOMPARE(layer["adjustmentType"].toString(), QString("selectiveColor"));
+            const auto params = layer["parameters"].toMap();
+            QVERIFY(params["photoshopAdjustment"].toBool());
+            QCOMPARE(params.size(), 38);
+            QCOMPARE(params["relative"].toBool(), row == 1);
+            QCOMPARE(params["redsCyanRed"].toInt(), 12);
+            QCOMPARE(params["redsMagentaGreen"].toInt(), -18);
+            QCOMPARE(params["redsYellowBlue"].toInt(), 24);
+            QCOMPARE(params["redsBlack"].toInt(), 30);
+            QCOMPARE(params["neutralsBlack"].toInt(), -28);
+            QCOMPARE(params["blacksCyanRed"].toInt(), -34);
+        }
+        const auto both = doc.composite();
+        doc.setLayerVisible(layers.first().toMap()["layerIndex"].toInt(), false);
+        const auto relativeOnly = doc.composite();
+        QCOMPARE(both.pixelColor(0, 0), relativeOnly.pixelColor(0, 0));
+        QVERIFY(both.pixelColor(1, 0) != relativeOnly.pixelColor(1, 0));
+    }
+
+    void modernPsdImportsEditableAdjustments()
+    {
+        Document   doc;
+        QSignalSpy report(&doc, &Document::psdImportReport);
+        QVERIFY(
+            doc.openFile(QUrl::fromLocalFile(QFINDTESTDATA("fixtures/modern-adjustments.psd"))));
+        QVERIFY(report.isEmpty());
+        QCOMPARE(doc.layerCount(), 14);
+        QMap<QString, QVariantMap> params;
+        for (const auto &row : doc.layers()) {
+            const auto layer = row.toMap();
+            if (layer["kind"] == "adjustment")
+                params.insert(layer["adjustmentType"].toString(), layer["parameters"].toMap());
+        }
+        QCOMPARE(params.size(), 13);
+        QVERIFY(params["light"]["photoshopLight"].toBool());
+        QCOMPARE(params["light"]["exposure"].toDouble(), 1.25);
+        QCOMPARE(params["light"]["contrast"].toInt(), -22);
+        QCOMPARE(params["color"]["temperature"].toInt(), 20);
+        QCOMPARE(params["clarityDehaze"]["dehaze"].toInt(), 21);
+        QCOMPARE(params["grain"]["size"].toDouble(), 4.5);
+        QCOMPARE(params["grain"]["seed"].toInt(), -9);
+        QVERIFY(params["exposure"]["photoshopExposure"].toBool());
+        QCOMPARE(params["exposure"]["offset"].toDouble(), -.125);
+        QCOMPARE(params["blackWhite"]["tintColor"].toString(), QString("#4080e0"));
+        QCOMPARE(params["photoFilter"]["density"].toInt(), 65);
+        QCOMPARE(params["photoFilter"]["color"].toString(), QString("#00ff00"));
+        QCOMPARE(params["channelMixer"]["monoConstant"].toInt(), -12);
+        QCOMPARE(params["threshold"]["level"].toInt(), 169);
+        QCOMPARE(params["gradientMap"]["shadowColor"].toString(), QString("#0000ff"));
+        QCOMPARE(params["gradientMap"]["highlightColor"].toString(), QString("#00ff00"));
+        QVERIFY(params.contains("invert"));
+        QImage sample(1, 1, QImage::Format_RGB32);
+        sample.fill(QColor(64, 96, 160));
+        QCOMPARE(
+            PhotoCrap::Filters::applyColorLookup(sample, params["colorLookup"]).pixelColor(0, 0),
+            QColor(191, 96, 160));
+        QCOMPARE(PhotoCrap::Filters::applyPosterize(sample, params["posterize"]).pixelColor(0, 0),
+                 QColor(64, 97, 161));
+    }
+
+    void photoshopColourChartMatchesReference()
+    {
+        using namespace PhotoCrap::Filters;
+        // Isolated Photoshop adjustment layers on a synthetic RGB chart.
+        QImage patch(1, 1, QImage::Format_RGB32);
+        patch.fill(QColor(99, 8, 206));
+        const auto check = [](const QImage &out, QColor expected, int tolerance) {
+            const auto actual = out.pixelColor(0, 0);
+            const int  error  = std::max({std::abs(actual.red() - expected.red()),
+                                          std::abs(actual.green() - expected.green()),
+                                          std::abs(actual.blue() - expected.blue())});
+            QVERIFY2(error <= tolerance, qPrintable(actual.name() + " vs " + expected.name()));
+        };
+        check(applyHueSaturation(patch, {{"photoshopAdjustment", true},
+                                         {"hue", 49},
+                                         {"saturation", -38},
+                                         {"lightness", -28}}),
+              QColor(122, 33, 98), 2);
+        check(applyColorBalance(patch, {{"photoshopAdjustment", true},
+                                        {"cyanRed", -39},
+                                        {"yellowBlue", 18},
+                                        {"preserveLuminosity", true}}),
+              QColor(80, 10, 214), 2);
+        check(applyPhotoFilter(patch, {{"photoshopAdjustment", true},
+                                       {"color", "#19c919"},
+                                       {"density", 25},
+                                       {"preserveLuminosity", true}}),
+              QColor(89, 18, 181), 2);
+        check(applyGradientMap(patch, {{"photoshopAdjustment", true},
+                                       {"shadowColor", "#000000"},
+                                       {"highlightColor", "#ffffff"},
+                                       {"gradientMethod", "Smoo"}}),
+              QColor(23, 23, 23), 2);
+        patch.fill(QColor(128, 128, 128));
+        check(applyColor(patch, {{"photoshopAdjustment", true}, {"temperature", -50}}),
+              QColor(102, 146, 211), 2);
+        QImage fine(2, 1, QImage::Format_RGBA64);
+        fine.setPixelColor(0, 0, QColor::fromRgba64(32000, 32010, 32020, 65535));
+        fine.setPixelColor(1, 0, QColor::fromRgba64(32004, 32014, 32024, 65535));
+        const auto mapped = applyColor(fine, {{"photoshopAdjustment", true}, {"temperature", -50}});
+        QVERIFY(mapped.pixelColor(0, 0).rgba64().green() <
+                mapped.pixelColor(1, 0).rgba64().green());
+    }
+
+    void photoshopExposureMatchesReferenceSamples()
+    {
+        using namespace PhotoCrap::Filters;
+        const QVariantMap settings{
+            {"photoshopExposure", true}, {"exposure", 1.06}, {"offset", -.117}, {"gamma", .84}};
+        QImage patch(1, 1, QImage::Format_RGB32);
+        patch.fill(QColor(64, 96, 160));
+        QCOMPARE(applyExposure(patch, settings).pixelColor(0, 0), QColor(0, 83, 199));
+        const auto lut = toneMappingTable("exposure", settings);
+        QCOMPARE(qRed(lut.pixel(96, 0)), 83);
+        QCOMPARE(qRed(lut.pixel(160, 0)), 199);
+        QImage fine(1, 1, QImage::Format_RGBA64);
+        fine.setPixelColor(0, 0, QColor::fromRgba64(32001, 32002, 32003, 65535));
+        const auto pixel = applyExposure(fine, settings).pixelColor(0, 0).rgba64();
+        QVERIFY(pixel.red() < pixel.green() && pixel.green() < pixel.blue());
+    }
+
+    void photoshopLightPreservesTonalOrderAndHighlightDetail()
+    {
+        using namespace PhotoCrap::Filters;
+        const QVariantMap params{{"photoshopLight", true}, {"exposure", .9}, {"contrast", -11},
+                                 {"highlights", 19}, {"shadows", -41}, {"whites", -50}, {"blacks", 28}};
+        QCOMPARE(toneMappingSettings("light", params).mode, ToneMappingMode::Channels);
+        QImage ramp(256, 1, QImage::Format_RGB32);
+        for (int x = 0; x < 256; ++x)
+            ramp.setPixel(x, 0, qRgb(x, x, x));
+        const auto result = applyLight(ramp, params);
+        int previous = 0;
+        for (int x = 0; x < 256; ++x) {
+            const int v = qRed(result.pixel(x, 0));
+            QVERIFY(v >= previous);
+            previous = v;
+        }
+        QVERIFY(qRed(result.pixel(16, 0)) < 40);
+        QVERIFY(qRed(result.pixel(224, 0)) - qRed(result.pixel(192, 0)) > 10);
+        QVERIFY(qRed(result.pixel(248, 0)) - qRed(result.pixel(224, 0)) > 8);
+        QImage fine(256, 1, QImage::Format_RGBA64);
+        for (int x = 0; x < fine.width(); ++x)
+            reinterpret_cast<QRgba64 *>(fine.scanLine(0))[x] =
+                QRgba64::fromRgba64(42000 + x, 42000 + x, 42000 + x, 65535);
+        const auto wide = applyLight(fine, params);
+        const auto *pixels = reinterpret_cast<const QRgba64 *>(wide.constScanLine(0));
+        QVERIFY(pixels[255].red() > pixels[0].red() + 100);
+        const auto neutral = applyLight(fine, {{"photoshopLight", true}});
+        QCOMPARE(neutral.pixelColor(0, 0).rgba64(), fine.pixelColor(0, 0).rgba64());
+    }
+
+    void layeredPsdOpensAndImportsAsComposite()
+    {
+        // Independent 8-bit PackBits fixture written by ImageMagick.
+        const auto path = QFINDTESTDATA("fixtures/offset-layers.psd");
+        QVERIFY(!path.isEmpty());
+        const auto url = QUrl::fromLocalFile(path);
+        Document document;
+        QVERIFY(document.canImportLayerFiles({url}));
+        QVERIFY(document.openFile(url));
+        QCOMPARE(document.layerCount(), 2);
+        QVERIFY(document.projectUrl().isEmpty());
+        QCOMPARE(document.layers().first().toMap()["name"].toString(), QString("Patch"));
+        QCOMPARE(document.layers().last().toMap()["name"].toString(), QString("Fond"));
+        QCOMPARE(document.layerImage(1).pixelColor(0, 0).alpha(), 0);
+        QCOMPARE(document.composite().pixelColor(2, 1), QColor(Qt::blue));
+        document.setLayerVisible(1, false);
+        QCOMPARE(document.composite().pixelColor(2, 1), QColor(Qt::red));
+        QTemporaryDir temp;
+        const auto project = QUrl::fromLocalFile(temp.filePath("import.pcr"));
+        QVERIFY(document.saveProject(project));
+        Document reopened;
+        QVERIFY(reopened.openFile(project));
+        QCOMPARE(reopened.layerCount(), 2);
+        QCOMPARE(reopened.composite().pixelColor(2, 1), QColor(Qt::red));
+        QVERIFY(reopened.importLayer(url));
+        QCOMPARE(reopened.layerCount(), 3);
+        QCOMPARE(reopened.composite().pixelColor(2, 1), QColor(Qt::blue));
+        QCOMPARE(reopened.composite().pixelColor(0, 0), QColor(Qt::red));
+    }
+
+    void unsupportedPsdBlendKeepsPixelsAndReportsEachLayer()
+    {
+        QFile source(QFINDTESTDATA("fixtures/offset-layers.psd"));
+        QVERIFY(source.open(QIODevice::ReadOnly));
+        auto data = source.readAll();
+        QVERIFY(data.contains("8BIMmron"));
+        data.replace("8BIMmron", "8BIMtest");
+        QTemporaryDir temp;
+        QFile file(temp.filePath("fallback.psd"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(data), data.size());
+        file.close();
+        Document doc;
+        QSignalSpy report(&doc, &Document::psdImportReport);
+        QVERIFY(doc.openFile(QUrl::fromLocalFile(file.fileName())));
+        QCOMPARE(doc.layerCount(), 2);
+        QCOMPARE(report.size(), 1);
+        QCOMPARE(report.first()[1].toInt(), 2);
+        const auto details = report.first()[2].toStringList();
+        QCOMPARE(details.size(), 2);
+        QVERIFY(details[0].contains("Fond"));
+        QVERIFY(details[1].contains("Patch"));
+        QCOMPARE(doc.composite().pixelColor(0, 0), QColor(Qt::red));
+        QCOMPARE(doc.composite().pixelColor(2, 1), QColor(Qt::blue));
+    }
+
+    void mixedPsdReportsOnlyOmittedLayerAfterAsyncOpen()
+    {
+        QFile source(QFINDTESTDATA("fixtures/offset-layers.psd"));
+        QVERIFY(source.open(QIODevice::ReadOnly));
+        auto data = source.readAll();
+        // Photoshop marks pixel data irrelevant for layers rendered by a special feature.
+        const auto key = data.indexOf("8BIMmron");
+        QVERIFY(key >= 0);
+        data[key + 10] = char(24);
+        QTemporaryDir temp;
+        QFile file(temp.filePath("partial.psd"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(data), data.size());
+        file.close();
+        Document doc;
+        QSignalSpy report(&doc, &Document::psdImportReport);
+        QSignalSpy opened(&doc, &Document::fileOpened);
+        doc.requestOpenFile(QUrl::fromLocalFile(file.fileName()));
+        QTRY_COMPARE(report.size(), 1);
+        QCOMPARE(opened.size(), 1);
+        QCOMPARE(doc.layerCount(), 1);
+        QCOMPARE(doc.layers().first().toMap()["name"].toString(), QString("Patch"));
+        QCOMPARE(doc.layerImage(0).pixelColor(2, 1), QColor(Qt::blue));
+        QCOMPARE(doc.layerImage(0).pixelColor(0, 0).alpha(), 0);
+        QCOMPARE(report.first()[0].toString(), QString("partial.psd"));
+        const auto notes = report.first()[2].toStringList();
+        QCOMPARE(notes.size(), 1);
+        QVERIFY(notes.first().contains("Fond"));
+    }
+
+    void masked16BitLayerAndMergedTransparency()
+    {
+        const auto path = QFINDTESTDATA("fixtures/masked-16bit.psd");
+        QVERIFY(!path.isEmpty());
+        const auto url = QUrl::fromLocalFile(path);
+        Document doc;
+        QVERIFY(doc.openFile(url));
+        QCOMPARE(doc.channelBits(), 16);
+        const auto layer = doc.layers().first().toMap();
+        QCOMPARE(layer["name"].toString(), QString("Essai é"));
+        QVERIFY(layer["hasMask"].toBool());
+        QCOMPARE(layer["opacity"].toDouble(), 128 / 255.);
+        QCOMPARE(doc.composite().pixelColor(0, 0).alpha(), 0);
+        QVERIFY(doc.composite().pixelColor(1, 0).alpha() > 0);
+        QVERIFY(doc.newDocument(2, 1, true, 16));
+        QVERIFY(doc.importLayer(url));
+        const auto color = doc.layerImage(1).pixelColor(1, 0).rgba64();
+        QCOMPARE(color.red(), 0);
+        QCOMPARE(color.blue(), 65535);
+        QCOMPARE(color.alpha(), 32768);
+    }
+
+    void zipPsdPreserves16BitSamplesAndRejectsTruncation()
+    {
+        // Flattened grayscale image, two rows, ZIP with 16-bit delta prediction.
+        const auto header = QByteArray::fromHex(
+            "38425053 0001 000000000000 0001 00000002 00000002 0010 0001 "
+            "00000000 00000000 00000000 0003");
+        const auto encoded = qCompress(QByteArray::fromHex("1234 0001 9876 ffff")).mid(4);
+        QTemporaryDir temp;
+        QFile file(temp.filePath("gray.PSD"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(header + encoded);
+        file.close();
+        Document doc;
+        const auto url = QUrl::fromLocalFile(file.fileName());
+        QVERIFY(doc.openFile(url));
+        QCOMPARE(doc.channelBits(), 16);
+        QCOMPARE(doc.layerImage(0).pixelColor(1, 0).rgba64().red(), 0x1235);
+        QCOMPARE(doc.layerImage(0).pixelColor(1, 1).rgba64().green(), 0x9875);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write(header + encoded.first(4));
+        file.close();
+        QVERIFY(!doc.openFile(url));
+        QCOMPARE(doc.layerCount(), 1);
+        QCOMPARE(doc.layerImage(0).pixelColor(1, 1).rgba64().green(), 0x9875);
+    }
+
     void paintOnModelSurvivesSaveAndRotation()
     {
         Document document;

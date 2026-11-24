@@ -333,7 +333,7 @@ ApplicationWindow {
     property bool aiReturnToGeneration: false
     property bool pathDialogOpen: false
     property bool model3dPropertiesShown: false
-    property bool blockingModalOpen: rawImportDialog.visible || xmpDialog.visible || referenceDialog.visible || xmpReport.opened || model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
+    property bool blockingModalOpen: rawImportDialog.visible || xmpDialog.visible || referenceDialog.visible || psdReport.opened || xmpReport.opened || model3dPanel.colorPickerOpen || importModel3DDialog.visible || aiDialog.opened || meshyDialog.opened || flattenDialog.opened || pathDialogOpen || editor.operationBusy || (editor.selectionBusy && !editor.colorSelectionActive) || colorSelectionDialog.visible || selectionModifyDialog.opened || penOptionsControl.modalOpen || frequencyRadiusDialog.opened || editor.frequencyRetouchBusy || brushSettingsDialog.opened || editor.rawLoading || editor.sliceBusy || sliceFolderDialog.visible || editor.cropBusy || newDialog.opened || resizeDialog.opened || adjustmentDialog.opened || renameDialog.opened || preferencesDialog.opened || unsavedDialog.opened || errorDialog.opened || aboutDialog.opened || colorDialog.visible || importLayerDialog.visible || openDialog.visible || saveDialog.visible || exportDialog.visible
     property bool modalOpen: welcomeDialog.opened || blockingModalOpen || editor.transformActive || (layerPropertiesDialog.opened && activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length)
     property string adjustment: "brightness"
     property string adjustmentTitle: qsTr("Luminosité")
@@ -342,7 +342,7 @@ ApplicationWindow {
         brightnessContrast: [{key:"brightness",label:qsTr("Luminosité"),from:-100,to:100,step:1},{key:"contrast",label:qsTr("Contraste"),from:-100,to:100,step:1}],
         levels: [{key:"inputBlack",label:qsTr("Point noir d’entrée"),from:0,to:254,step:1},{key:"inputWhite",label:qsTr("Point blanc d’entrée"),from:1,to:255,step:1},{key:"gamma",label:qsTr("Gamma"),from:0.1,to:3,step:0.05},{key:"outputBlack",label:qsTr("Noir de sortie"),from:0,to:255,step:1},{key:"outputWhite",label:qsTr("Blanc de sortie"),from:0,to:255,step:1}],
         curves: [{key:"shadows",label:qsTr("Ombres"),from:-100,to:100,step:1},{key:"midtones",label:qsTr("Tons moyens"),from:-100,to:100,step:1},{key:"highlights",label:qsTr("Hautes lumières"),from:-100,to:100,step:1}],
-        exposure: [{key:"exposure",label:qsTr("Exposition"),from:-5,to:5,step:0.1},{key:"offset",label:qsTr("Décalage"),from:-0.5,to:0.5,step:0.01},{key:"gamma",label:qsTr("Gamma"),from:0.1,to:3,step:0.05}],
+        exposure: [{key:"exposure",label:qsTr("Exposition"),from:-5,to:5,step:0.01},{key:"offset",label:qsTr("Décalage"),from:-0.5,to:0.5,step:0.001,decimals:3},{key:"gamma",label:qsTr("Gamma"),from:0.1,to:3,step:0.01}],
         vibrance: [{key:"vibrance",label:qsTr("Vibrance"),from:-100,to:100,step:1},{key:"saturation",label:qsTr("Saturation"),from:-100,to:100,step:1}],
         hueSaturation: [{key:"hue",label:qsTr("Teinte"),from:-180,to:180,step:1},{key:"saturation",label:qsTr("Saturation"),from:-100,to:100,step:1},{key:"lightness",label:qsTr("Luminosité"),from:-100,to:100,step:1}],
         splitToning: [
@@ -511,7 +511,7 @@ ApplicationWindow {
         } else layerPropertiesDialog.open()
     }
     function canOpenLayerProperties(info) {
-        return info.kind !== "group" && (info.kind !== "pixel" || info.editingMask || isPreparedFrequency(info))
+        return (info.kind !== "group" || info.editingMask) && (info.kind !== "pixel" || info.editingMask || isPreparedFrequency(info))
     }
     property string toolName: {
         for (let i=0; i<toolCatalog.length; ++i) if (toolCatalog[i].name === editor.tool) return toolCatalog[i].label
@@ -1077,6 +1077,8 @@ ApplicationWindow {
     function activateMaskThumbnail(layerIndex, modifiers) {
         editor.activeLayer = layerIndex
         editor.setEditingMask(true)
+        if (window.activeInfo.kind === "group")
+            editor.tool = "brush"
         if (modifiers & Qt.AltModifier)
             editor.toggleMaskOnlyView(layerIndex)
         else {
@@ -1372,6 +1374,11 @@ ApplicationWindow {
     }
     Connections {
         target: documents
+        function onPsdImportReport(file, imported, details) {
+            psdReport.pending.push({file: file, imported: imported, details: details})
+            if (!psdReport.visible)
+                psdReport.showNext()
+        }
         property string departingId: ""
         property var departingView: null
         property var departingPeerView: null
@@ -4340,7 +4347,7 @@ ApplicationWindow {
                         DarkSlider {
                             id: layerOpacity; Accessible.name: qsTr("Opacité du calque"); Layout.fillWidth: true; Layout.minimumWidth: 30; from: 0; to: 1; stepSize: 0.01
                             onMoved: if (!pressed) editor.setLayerOpacity(editor.activeLayer, value)
-                            enabled: activeInfo.kind!=="group"
+                            enabled: !activeInfo.locked
                             value: window.activeInfo.opacity
                             onPressedChanged: if(!pressed) editor.setLayerOpacity(editor.activeLayer,value)
                         }
@@ -4354,6 +4361,18 @@ ApplicationWindow {
                         clip: true; spacing: 5; model: layerRows
                         readonly property var layerRows: editor.layers
                         readonly property bool clippingEnabled: !window.modalOpen && !editor.pixelEditBusy && !editor.rawLoading
+
+                        function toggleEye(row, isolate) {
+                            const offset = contentY - originY
+                            if (isolate)
+                                editor.toggleLayerIsolation(row.layerIndex)
+                            else
+                                editor.setLayerVisible(row.layerIndex, !row.visible)
+                            // Updating editor.layers resets the delegate model. Finish its
+                            // pending layout before restoring the position of the clicked row.
+                            forceLayout()
+                            contentY = originY + window.clampScroll(offset, contentHeight - height)
+                        }
 
                         function clippingTargetAt(scenePosition) {
                             // contentY can change while ListView is replacing its delegate model.
@@ -4430,7 +4449,7 @@ ApplicationWindow {
                                 keys: ["photocrap-layer-mask"]
                                 property bool validDrop: containsDrag && drag.source &&
                                                          drag.source.sourceLayerIndex !== modelData.layerIndex &&
-                                                         modelData.kind !== "group" && !modelData.locked
+                                                         !modelData.locked
                                 onDropped: function(drop) {
                                     if (!validDrop)
                                         return
@@ -4474,7 +4493,7 @@ ApplicationWindow {
                             }
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 6
-                                anchors.leftMargin: modelData.groupId!=="" && modelData.kind!=="group" ? 24 : 6
+                                anchors.leftMargin: 6 + Math.min(5, modelData.groupDepth || 0) * 18
                                 spacing: 7
                                 IconButton {
                                     visible: modelData.kind==="group"
@@ -4492,8 +4511,8 @@ ApplicationWindow {
                                     Accessible.name: qsTr("Visibilité : %1").arg(modelData.name)
                                     Accessible.checkable: true
                                     Accessible.checked: modelData.visible
-                                    Accessible.onPressAction: editor.setLayerVisible(modelData.layerIndex, !modelData.visible)
-                                    Keys.onSpacePressed: editor.setLayerVisible(modelData.layerIndex, !modelData.visible)
+                                    Accessible.onPressAction: layerList.toggleEye(modelData, false)
+                                    Keys.onSpacePressed: layerList.toggleEye(modelData, false)
                                     Rectangle { anchors.centerIn: parent; width: 23; height: 25; radius: 3; visible: parent.activeFocus; color: "transparent"; border.width: 2; border.color: Studio.accent }
                                     ToolIcon { anchors.centerIn: parent; width: 19; height: 19; toolName: modelData.visible ? "eye" : "eyeOff"; iconColor: visibilityMouse.containsMouse ? Studio.ink : modelData.visible ? Studio.secondary : Studio.disabled }
                                     MouseArea {
@@ -4502,10 +4521,7 @@ ApplicationWindow {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         onClicked: function(mouse) {
-                                            if(mouse.modifiers & Qt.AltModifier)
-                                                editor.toggleLayerIsolation(modelData.layerIndex)
-                                            else
-                                                editor.setLayerVisible(modelData.layerIndex,!modelData.visible)
+                                            layerList.toggleEye(modelData, Boolean(mouse.modifiers & Qt.AltModifier))
                                         }
                                     }
                                     ToolTip.visible: visibilityMouse.containsMouse
@@ -4660,7 +4676,7 @@ ApplicationWindow {
                         Layout.fillWidth: true; spacing: 2
                         IconButton { objectName: "createLayerButton"; implicitWidth: 28; implicitHeight: 30; glyph: "+"; hint: qsTr("Nouveau calque ou réglage"); onClicked: createLayerMenu.popup() }
                         IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "⧉"; hint: qsTr("Dupliquer le calque"); enabled: activeInfo.kind!=="group"; onClicked: editor.duplicateLayer() }
-                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: activeInfo.kind!=="group"; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
+                        IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "◐"; hint: activeInfo.hasMask?qsTr("Sélectionner le masque"):qsTr("Ajouter un masque de fusion"); enabled: !activeInfo.locked; onClicked: activeInfo.hasMask?editor.setEditingMask(true):editor.addLayerMask(true) }
                         IconButton { implicitWidth: 28; implicitHeight: 30; objectName: "layerPropertiesButton"; glyph: "ƒ"; hint: qsTr("Propriétés du calque"); enabled: window.canOpenLayerProperties(activeInfo); onClicked: window.openActiveLayerProperties() }
                         IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "↑"; hint: qsTr("Monter le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer<editor.layers.length-1; onClicked: editor.moveLayer(1) }
                         IconButton { implicitWidth: 28; implicitHeight: 30; glyph: "↓"; hint: qsTr("Descendre le calque"); enabled: activeInfo.kind!=="group" && editor.activeLayer>0; onClicked: editor.moveLayer(-1) }
@@ -5158,9 +5174,48 @@ ApplicationWindow {
         id: referenceDialog
         objectName: "referenceDialog"
         title: qsTr("Choisir la photo de référence")
-        nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff " + editor.rawFilePatterns()),
+        nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.psd " + editor.rawFilePatterns()),
                       qsTr("Tous les fichiers (*)")]
         onAccepted: editor.matchReferenceImage(selectedFile)
+    }
+    Dialog {
+        id: psdReport
+        objectName: "psdImportReport"
+        title: qsTr("Bilan de l’import PSD")
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(560, window.width - 32)
+        standardButtons: Dialog.Ok
+        property var pending: []
+        property var current: ({file: "", imported: 0, details: []})
+        function showNext() {
+            if (pending.length) {
+                current = pending.shift()
+                open()
+            }
+        }
+        onClosed: Qt.callLater(showNext)
+        ColumnLayout {
+            anchors.fill: parent
+            Label {
+                Layout.fillWidth: true
+                textFormat: Text.PlainText
+                wrapMode: Text.WrapAnywhere
+                text: qsTr("%1 · %2 calque(s) créé(s)").arg(psdReport.current.file).arg(psdReport.current.imported)
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(reportText.implicitHeight, 340, window.height * 0.5)
+                contentWidth: availableWidth
+                Label {
+                    id: reportText
+                    width: parent.width
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                    text: psdReport.current.details.join("\n")
+                }
+            }
+        }
     }
     Dialog {
         id: xmpReport
@@ -5202,7 +5257,7 @@ ApplicationWindow {
         objectName: "importLayerDialog"
         title: qsTr("Importer des images comme calques")
         fileMode: FileDialog.OpenFiles
-        nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
+        nameFilters: [qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff *.psd " + editor.rawFilePatterns()),
                       qsTr("Tous les fichiers (*)")]
         onAccepted: window.requestPhotoImport(selectedFiles, "layers")
     }
@@ -5210,8 +5265,8 @@ ApplicationWindow {
         id: openDialog; objectName: "openDialog"; title: window.importing ? qsTr("Importer comme calque") : qsTr("Ouvrir une image ou un projet")
         fileMode: window.importing ? FileDialog.OpenFile : FileDialog.OpenFiles
         nameFilters: [window.importing
-            ? qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns())
-            : qsTr("Images et projets (%1)").arg("*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff " + editor.rawFilePatterns()),
+            ? qsTr("Images (%1)").arg("*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff *.psd " + editor.rawFilePatterns())
+            : qsTr("Images et projets (%1)").arg("*.pcr *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff *.psd " + editor.rawFilePatterns()),
             qsTr("Fichiers RAW (%1)").arg(editor.rawFilePatterns()), qsTr("Tous les fichiers (*)")]
         onAccepted: window.requestPhotoImport(selectedFiles, window.importing ? "layer" : "open")
     }
@@ -5715,6 +5770,12 @@ ApplicationWindow {
                         onEditStarted: editor.beginLayerPreview()
                         onEdited: (lights, finished) => window.previewLayerValue("lights", lights, finished)
                     }
+                    CheckBox {
+                        visible: !activeInfo.editingMask && activeInfo.adjustmentType === "hueSaturation" && activeInfo.parameters.colorize !== undefined
+                        text: qsTr("Coloriser")
+                        checked: Boolean(activeInfo.parameters && activeInfo.parameters.colorize)
+                        onClicked: { editor.beginLayerPreview(); window.previewLayerValue("colorize", checked, true) }
+                    }
                     Repeater {
                         model: activeInfo.editingMask ? [
                             {key:activeInfo.editingVectorMask?"_vectorDensity":"_maskDensity",label:qsTr("Densité (%)"),from:0,to:100,step:1},
@@ -5727,7 +5788,7 @@ ApplicationWindow {
                             RowLayout {
                                 Layout.fillWidth: true
                                 Label { text: modelData.label; color: Studio.secondary; Layout.fillWidth: true }
-                                Label { text: Number(parameterSlider.value).toFixed(modelData.step<1?2:0); color: Studio.muted; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
+                                Label { text: Number(parameterSlider.value).toFixed(modelData.decimals ?? (modelData.step<1?2:0)); color: Studio.muted; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
                             DarkSlider {
                                 id: parameterSlider
@@ -5789,6 +5850,7 @@ ApplicationWindow {
                     }
                     CurvesEditor {
                         id: curvesEditorControl
+                        naturalSpline: !!activeInfo.parameters.photoshopAdjustment
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="curves"
                         Layout.fillWidth: true
                         histogram: (editor.revision, channel === 0 ? editor.histogram()
@@ -6004,7 +6066,9 @@ ApplicationWindow {
                     LevelsEditor {
                         visible: !activeInfo.editingMask && activeInfo.adjustmentType==="levels"
                         Layout.fillWidth: true
-                        histogram: (editor.revision, editor.histogram())
+                        readonly property string inputLayerId: layerPropertiesDialog.visible && visible
+                            ? editor.layerIdentity(editor.activeLayer) : ""
+                        histogram: inputLayerId.length ? editor.levelsInputHistogram() : []
                         parameters: activeInfo.parameters
                         onEditStarted: editor.beginLayerPreview()
                         onPreviewed: function(key,value) {

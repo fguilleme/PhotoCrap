@@ -8,6 +8,8 @@ namespace PhotoCrap
 // Gather the exact legacy grid before asking Qt to convert pixel formats.
 QImage histogramSamples(const QImage &_source, int _stride);
 
+QVariantList levelsHistogram(const QImage &_source);
+
 // GUI-thread cache: retain only normalized bins, never the source image.
 class ImageHistogramCache
 {

@@ -1,4 +1,5 @@
 #include "TextLayer.h"
+#include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "Layer.h"
 #include "ai/SurfaceGeometry.h"
@@ -599,8 +600,7 @@ QRect bounds(const QVariantMap &_p, const QSize &_canvas, const Layer *surface)
 PixelPlane renderPlane(const QVariantMap &_p, const QSize &_size, QImage::Format _format,
                        const Layer *surface)
 {
-    if (_size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
-        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
+    if (!DocumentStorage::validDimensions(_size.width(), _size.height()) ||
         (_format != QImage::Format_ARGB32_Premultiplied &&
          _format != QImage::Format_RGBA64_Premultiplied))
         return {};

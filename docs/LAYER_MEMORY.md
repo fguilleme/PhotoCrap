@@ -649,7 +649,7 @@ fonctions déjà disponibles.
 
 Le maximum de 512 calques est une limite de structure, pas la promesse de conserver
 512 photographies pleine résolution en mémoire. Le budget des plans de calques est
-de 2 Gio, avec une limite de document à 32 mégapixels.
+de 2 Gio, avec une limite de document à 128 mégapixels.
 
 Pour une photographie de 6 000 × 4 000 pixels :
 

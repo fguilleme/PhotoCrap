@@ -28,6 +28,13 @@ ColumnLayout {
         wrapMode: Text.WordWrap
     }
 
+    RadioButton {
+        visible: Boolean(root.parameters.lookupData)
+        text: root.parameters.lookupName || qsTr("LUT importée")
+        checked: Number(root.parameters.preset) === -1
+        onClicked: root.presetRequested(-1)
+    }
+
     GridLayout {
         Layout.fillWidth: true
         columns: 2

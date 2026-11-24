@@ -1,4 +1,5 @@
 #include "ImageClipboard.h"
+#include "DocumentStorage.h"
 #include <QBuffer>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -20,8 +21,7 @@ quint64       changes   = 0;
 bool          connected = false;
 bool          validSize(const QSize &_size)
 {
-    return _size.width() > 0 && _size.height() > 0 && _size.width() <= 16384 &&
-           _size.height() <= 16384 && qint64(_size.width()) * _size.height() <= 32LL * 1024 * 1024;
+    return DocumentStorage::validDimensions(_size.width(), _size.height());
 }
 QClipboard *clipboard()
 {
@@ -128,7 +128,7 @@ Pixels read()
     const QSize  size(data.value("width").toInt(), data.value("height").toInt());
     const QPoint point(data.value("x").toInt(), data.value("y").toInt());
     if (data.value("version").toInt() == 1 && data.value("positioned").toBool() &&
-        validSize(size) && qAbs(qint64(point.x())) <= 16384 && qAbs(qint64(point.y())) <= 16384) {
+        validSize(size) && qAbs(qint64(point.x())) <= DocumentStorage::MaxDimension && qAbs(qint64(point.y())) <= DocumentStorage::MaxDimension) {
         result.positioned = true;
         result.origin     = point;
         result.canvas     = size;

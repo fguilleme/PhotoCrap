@@ -230,17 +230,27 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
     for (int i = 0; i < 15; ++i)
         _document.addLayer();
     _document.setLayerVisible(1, false);
-    const auto bottomVisibility = [&]() -> QQuickItem * {
-        QMetaObject::invokeMethod(layerList, "positionViewAtEnd");
-        QQuickItem *item     = nullptr;
-        const bool  scrolled = QTest::qWaitFor(
-            [&] {
-                item = thumbnail(0, "layerVisibilityMouse");
-                return item && layerList->property("contentY").toDouble() > 0.;
-            },
-            1000);
-        return scrolled ? item : nullptr;
+    QMetaObject::invokeMethod(layerList, "positionViewAtEnd");
+    QQuickItem *bottomEye = nullptr;
+    if (!require(QTest::qWaitFor([&] {
+                     bottomEye = thumbnail(0, "layerVisibilityMouse");
+                     return bottomEye && layerList->property("contentY").toDouble() > 0.;
+                 }, 1000), "the visibility icon is shown after scrolling the layers"))
+        return false;
+    const auto eye = bottomEye->mapToScene(QPointF(bottomEye->width() / 2, bottomEye->height() / 2)).toPoint();
+    const auto initialScroll = layerList->property("contentY").toDouble();
+    const auto initialLayer = _document.activeLayer();
+    const auto stayedInPlace = [&] {
+        QTest::qWait(50); // Let ListView finish its pending layout after the model notification.
+        return qAbs(layerList->property("contentY").toDouble() - initialScroll) < .5 &&
+               _document.activeLayer() == initialLayer;
     };
+    for (bool visible : {false, true}) {
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, eye);
+        if (!require(stayedInPlace() && _document.layers().last().toMap()["visible"].toBool() == visible,
+                     "clicking the same eye hides and shows the layer without scrolling or selecting it"))
+            return false;
+    }
     const auto visibleCount = [&] {
         int count = 0;
         for (const auto &layer : _document.layers())
@@ -248,16 +258,12 @@ inline bool runLayerContextMenuSmoke(QQuickWindow *_window, Document &_document)
         return count;
     };
     for (const int expected : {1, 15}) {
-        auto *item = bottomVisibility();
-        if (!require(item, "the visibility icon is shown after scrolling the layers"))
-            return false;
-        const auto eye = item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint();
         QTest::mouseMove(_window, eye);
         QTest::keyPress(_window, Qt::Key_Alt);
         QTest::mouseClick(_window, Qt::LeftButton, Qt::AltModifier, eye);
         QTest::keyRelease(_window, Qt::Key_Alt);
         const auto rows = _document.layers();
-        if (!require(visibleCount() == expected && rows.last().toMap()["visible"].toBool() &&
+        if (!require(stayedInPlace() && visibleCount() == expected && rows.last().toMap()["visible"].toBool() &&
                          !rows.at(rows.size() - 2).toMap()["visible"].toBool(),
                      "Option-click isolates and restores visibility in a scrolled layer list"))
             return false;

@@ -67,6 +67,28 @@ class ImageHistogramTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void levelsUsesRgbInputBeforeAdjustment()
+    {
+        Document d;
+        QVERIFY(d.newDocument(32, 24, false, 8));
+        d.setColor(QColor(25, 70, 180));
+        d.fillWithColor(true);
+        d.addAdjustmentLayer("invert");
+        d.addAdjustmentLayer("levels");
+        const int index = d.activeLayer();
+        d.addAdjustmentLayer("solidColor");
+        d.setActiveLayer(index);
+        const auto input = d.levelsInputHistogram();
+        QCOMPARE(input.size(), 256);
+        for (int i = 0; i < input.size(); ++i)
+            QCOMPARE(input[i].toDouble(), i == 230 || i == 185 || i == 75 ? 1. : 0.);
+        d.beginLayerPreview();
+        d.previewLayerParameter("inputBlack", 190);
+        QCOMPARE(d.levelsInputHistogram(), input);
+        d.cancelLayerPreview();
+        d.setLayerVisible(index - 1, false);
+        QVERIFY(d.levelsInputHistogram() != input);
+    }
     void sampledFormats_data()
     {
         QTest::addColumn<int>("format");

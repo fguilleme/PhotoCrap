@@ -77,7 +77,7 @@ Limites du lecteur et de l’écriture :
 - fichier binaire : **8 Gio** ; anciens fichiers JSON : **256 Mio** ;
 - index compressé et décompressé : **32 Mio** chacun ;
 - une tuile native : **512 Kio** maximum ; fichier IA original : **100 Mio** ;
-- 512 calques, 32 Mpx et budget logique de plans de 2 Gio inchangés ;
+- 512 calques, 128 Mpx, 16 384 px par côté et budget logique de plans de 2 Gio ;
 - au plus 1 536 plans et 262 144 blocs uniques ;
 - fenêtre de décompression Zstandard bornée à 8 Mio.
 
@@ -153,3 +153,5 @@ Un calque de texte conserve aussi son contenu, sa mise en forme et son rendu
 déformé, ce qui permet de reprendre l’édition après réouverture.
 
 Les projets contenant un calque de rééclairage utilisent la version logique 18. La liste `lights` contient la position X/Y/Z, la couleur, l’intensité et la douceur de chaque source. La carte de géométrie embarquée stocke les normales en RVB et la profondeur inverse relative dans le canal alpha (zéro indique une mesure invalide).
+
+Les documents contenant des groupes imbriqués, masqués ou à opacité réduite utilisent la version logique 19. Un dossier conserve son identifiant et référence son parent par `parentGroupId`. Son masque utilise le même plan 8 bits que les autres masques. Pour les plans couleur binaires non uniformes, le budget compte les tuiles présentes, avec une réservation indépendante pour chaque calque.

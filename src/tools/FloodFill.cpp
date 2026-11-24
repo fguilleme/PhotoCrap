@@ -1,4 +1,5 @@
 #include "FloodFill.h"
+#include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "selection/SelectionCoverage.h"
 #include <QPainter>
@@ -18,9 +19,7 @@ FloodFillResult floodFill(const PixelPlane &_source, const QPoint &_seed,
         return result;
     }
     const auto format = _source.format();
-    if (_options.size.width() <= 0 || _options.size.height() <= 0 ||
-        _options.size.width() > 16384 || _options.size.height() > 16384 ||
-        qint64(_options.size.width()) * _options.size.height() > 32LL * 1024 * 1024 ||
+    if (!DocumentStorage::validDimensions(_options.size.width(), _options.size.height()) ||
         (format != QImage::Format_ARGB32_Premultiplied &&
          format != QImage::Format_RGBA64_Premultiplied && format != QImage::Format_Grayscale8) ||
         (_options.overlayFormat != QImage::Format_ARGB32_Premultiplied &&

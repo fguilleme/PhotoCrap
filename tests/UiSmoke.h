@@ -2583,7 +2583,7 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
             chart->mapToScene(QPointF(14 + gesture.to * (chart->width() - 28), y)).toPoint();
         const qreal t        = (chart->mapFromScene(end).x() - 14) / (chart->width() - 28);
         const qreal expected = QByteArray(gesture.key) == "gamma"
-                                   ? (t <= .5 ? 1 + (.5 - t) * 4 : 1 - (t - .5) * 1.8)
+                                   ? -std::log2(t)
                                    : t * 255;
         const auto  stored   = [&] {
             for (const auto &entry : _document.layers()) {

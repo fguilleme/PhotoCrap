@@ -1,5 +1,6 @@
 #include "GradientMapFilter.h"
 #include "ImagePixels.h"
+#include "PhotoshopColor.h"
 
 #include <QColor>
 #include <QColorSpace>
@@ -12,6 +13,8 @@ namespace PhotoCrap::Filters
 {
 QImage applyGradientMap(const QImage &_source, const QVariantMap &_parameters)
 {
+    if (_parameters.value("photoshopAdjustment").toBool())
+        return photoshopGradientMap(_source, _parameters);
     if (_source.isNull())
         return _source;
 

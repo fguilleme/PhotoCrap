@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 
 #include "DocumentStorage.h"
 #include "LayerTransform.h"
@@ -111,17 +112,17 @@ bool Document::beginTransform(const QString &_mode, bool _copy, bool _selectionO
         QSet<int> selected = job.mask || job.vectorMask ? QSet<int>{m_active} : m_selectedLayers;
         if (selected.isEmpty())
             selected.insert(m_active);
-        QSet<QString> groups;
-        for (const int i : selected)
-            if (i >= 0 && i < m_layers.size() && m_layers[i].kind == "group") {
-                if (!penShapeEditable(i))
-                    return false;
-                groups.insert(m_layers[i].groupId);
-            }
+        const LayerGroups hierarchy(m_layers);
         for (int i = 0; i < m_layers.size(); ++i) {
             const auto &layer = m_layers[i];
-            if ((!selected.contains(i) && !groups.contains(layer.groupId)) || layer.kind == "group")
+            const auto parents = hierarchy.ancestors(layer);
+            const bool inside = !job.mask && std::any_of(parents.begin(), parents.end(), [&](int p) { return selected.contains(p); });
+            if (!selected.contains(i) && !inside)
                 continue;
+            if (layer.kind == "group" && layer.mask.isNull()) {
+                if (!penShapeEditable(i)) return false;
+                continue;
+            }
             if (!penShapeEditable(i))
                 return false;
             if (!layer.source.isNull())
@@ -637,12 +638,13 @@ bool Document::applyTransformJob(const Transform::Job &_job, const QString &_lab
         return fail(tr("Impossible de transformer les calques."));
     if (!_job.selectionOnly) {
         int colorPlanes = 0, maskPlanes = 0;
+        qint64 pixels = 0;
         for (const auto &layer : std::as_const(layers)) {
-            colorPlanes += (!layer.image.isNull() && layer.image.size() != QSize(1, 1)) +
-                           !layer.source.isNull();
+            pixels += layer.image.reservedColorBytes(m_size, channelBits());
+            colorPlanes += !layer.source.isNull();
             maskPlanes += !layer.mask.isNull() && layer.mask.size() != QSize(1, 1);
         }
-        if (!validStorageBytes(DocumentStorage::estimateBytes(width(), height(), colorPlanes,
+        if (!validStorageBytes(pixels + DocumentStorage::estimateBytes(width(), height(), colorPlanes,
                                                               maskPlanes, channelBits())))
             return false;
     }

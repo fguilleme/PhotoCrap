@@ -1,4 +1,5 @@
 #include "BinaryProject.h"
+#include "DocumentStorage.h"
 #include <QCborMap>
 #include <QColorSpace>
 #include <QCryptographicHash>
@@ -376,8 +377,7 @@ bool BinaryProjectReader::read(QIODevice &file, Continue progress)
                 return false;
             continue;
         }
-        if ((bpp != 1 && bpp != 4 && bpp != 8) || w < 1 || h < 1 || w > 32768 || h > 32768 ||
-            w * h > 32LL * 1024 * 1024)
+        if ((bpp != 1 && bpp != 4 && bpp != 8) || !DocumentStorage::validDimensions(w, h))
             return false;
         if (!p[5].isArray())
             return false;
@@ -431,6 +431,18 @@ QByteArray BinaryProjectReader::block(int id, int w, int h, int bpp)
 QByteArray BinaryProjectReader::original(int id)
 {
     return isOriginal(id) ? block(m_planes[id].toArray()[4].toInteger(), 0, 0, 0) : QByteArray{};
+}
+qint64 BinaryProjectReader::colorReservation(int id, QSize canvas, int bits) const
+{
+    const auto plane = m_planes[id].toArray();
+    const auto ids = plane[4].toArray();
+    if (ids.isEmpty() || plane[0].toInteger() != canvas.width() ||
+        plane[1].toInteger() != canvas.height() || plane[2].toInteger() != bits / 2)
+        return DocumentStorage::estimateBytes(canvas.width(), canvas.height(), 1, 0, bits);
+    qint64 tiles = 0;
+    for (const auto &value : ids)
+        tiles += value.toInteger() >= 0;
+    return DocumentStorage::tiledColorBytes(canvas.width(), canvas.height(), bits, tiles);
 }
 PixelPlane BinaryProjectReader::plane(int id, QSize expected, QImage::Format format)
 {

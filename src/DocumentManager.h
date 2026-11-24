@@ -46,6 +46,7 @@ signals:
     void documentsChanged();
     void documentAdded(Document *document);
     void errorOccurred(QString message);
+    void psdImportReport(QString file, int imported, QStringList details);
 
 private:
     struct Entry {

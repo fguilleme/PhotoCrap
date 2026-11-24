@@ -14,11 +14,14 @@ QImage applyPosterize(const QImage &_source, const QVariantMap &_parameters)
     if (_source.isNull())
         return _source;
 
-    const int levels = qBound(2, _parameters.value("levels", 4).toInt(), 32);
+    const int  levels    = qBound(2, _parameters.value("levels", 4).toInt(), 255);
+    const bool photoshop = _parameters.value("photoshopAdjustment").toBool();
     if (ImageUtils::is16Bit(_source)) {
         const double step = 65535. / (levels - 1);
         return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
             auto channel = [&](int _value) {
+                if (photoshop)
+                    return int((qint64(_value) * levels / 65536) * 65535 / (levels - 1));
                 return qBound(0, qRound(qRound(_value / step) * step), 65535);
             };
             return QRgba64::fromRgba64(channel(_pixel.red()), channel(_pixel.green()),
@@ -28,7 +31,9 @@ QImage applyPosterize(const QImage &_source, const QVariantMap &_parameters)
     const double           step = 255. / (levels - 1);
     std::array<uchar, 256> table{};
     for (int value = 0; value < int(table.size()); ++value)
-        table[size_t(value)] = uchar(qBound(0, qRound(qRound(value / step) * step), 255));
+        table[size_t(value)] =
+            uchar(photoshop ? (value * levels / 256) * 255 / (levels - 1)
+                            : qBound(0, qRound(qRound(value / step) * step), 255));
 
     const QImage input = _source.convertToFormat(QImage::Format_ARGB32);
     QImage       result(input.size(), QImage::Format_ARGB32);

@@ -1,4 +1,5 @@
 #include "MarqueeCoverage.h"
+#include "DocumentStorage.h"
 #include <QPainter>
 #include <new>
 
@@ -56,8 +57,7 @@ SelectionCoverage::Result MarqueeCoverage::create(const QRegion &_region, const 
                                                   const QImage &_previousMask, int _mode,
                                                   const std::shared_ptr<std::atomic_bool> &_cancel)
 {
-    if (!_cancel || _cancel->load() || !_size.isValid() || _size.width() > 16384 ||
-        _size.height() > 16384 || qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
+    if (!_cancel || _cancel->load() || !DocumentStorage::validDimensions(_size.width(), _size.height()) ||
         _feather < 0 || _feather > 1000 || _mode < 0 || _mode > 3)
         return {};
     try {

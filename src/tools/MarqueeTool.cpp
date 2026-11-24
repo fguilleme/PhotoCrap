@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "DocumentStorage.h"
 #include "selection/MarqueeCoverage.h"
 #include <QtConcurrent>
 #include <cmath>
@@ -27,14 +28,14 @@ void Document::setMarqueeStyle(int _value)
 }
 void Document::setMarqueeWidth(qreal _value)
 {
-    if (!std::isfinite(_value) || _value < .01 || _value > 16384 || m_marqueeWidth == _value)
+    if (!std::isfinite(_value) || _value < .01 || _value > DocumentStorage::MaxDimension || m_marqueeWidth == _value)
         return;
     m_marqueeWidth = _value;
     emit settingsChanged();
 }
 void Document::setMarqueeHeight(qreal _value)
 {
-    if (!std::isfinite(_value) || _value < .01 || _value > 16384 || m_marqueeHeight == _value)
+    if (!std::isfinite(_value) || _value < .01 || _value > DocumentStorage::MaxDimension || m_marqueeHeight == _value)
         return;
     m_marqueeHeight = _value;
     emit settingsChanged();

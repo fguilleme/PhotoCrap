@@ -1,4 +1,5 @@
 #include "WebpExport.h"
+#include "DocumentStorage.h"
 
 #include <QScopeGuard>
 #include <cstring>
@@ -12,7 +13,7 @@ bool writeWebpBands(QIODevice &_output, const QSize &_size, const ImageBandReade
     _error.clear();
     if (!_output.isWritable() || !_read || _size.isEmpty() || _size.width() > WEBP_MAX_DIMENSION ||
         _size.height() > WEBP_MAX_DIMENSION ||
-        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024) {
+        qint64(_size.width()) * _size.height() > DocumentStorage::MaxPixels) {
         _error = QStringLiteral("Invalid WebP dimensions or output");
         return false;
     }

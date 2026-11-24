@@ -1,6 +1,7 @@
 #include "ImageHistogram.h"
 #include <QColorSpace>
 #include <QtMath>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -58,6 +59,33 @@ QVariantList normalized(const Bins &_bins, quint64 _maximum)
     return result;
 }
 } // namespace
+
+QVariantList levelsHistogram(const QImage &_source)
+{
+    const auto image = histogramSamples(_source, 1);
+    Bins bins{};
+    for (int y = 0; y < image.height(); ++y) {
+        const auto *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            const QRgb pixel = row[x];
+            const auto weight = quint64(qAlpha(pixel));
+            bins[qRed(pixel)] += weight;
+            bins[qGreen(pixel)] += weight;
+            bins[qBlue(pixel)] += weight;
+        }
+    }
+    // Limit tall spikes on the plot so the rest of the distribution stays legible.
+    // For sparse images, scale against the occupied bins only.
+    auto ranked = bins;
+    std::sort(ranked.begin(), ranked.end());
+    const auto first = std::upper_bound(ranked.begin(), ranked.end(), quint64(0));
+    if (first == ranked.end())
+        return normalized(bins, 0);
+    const auto ceiling = *(ranked.end() - 1 - (ranked.end() - first) / 20);
+    for (auto &count : bins)
+        count = std::min(count, ceiling);
+    return normalized(bins, ceiling);
+}
 
 ImageHistogramCache::Key ImageHistogramCache::key(const QImage &_source)
 {

@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "text/TextLayer.h"
 
 #include <QtMath>
@@ -11,12 +12,13 @@ bool Document::selectedLayerContentEditable() const
         !m_selectedLayers.contains(m_active) || m_editingMask || editingVectorMask())
         return false;
     const auto &layer = m_layers[m_active];
-    return layer.visible && !layer.locked &&
-           (layer.groupId.isEmpty() ||
-            std::none_of(m_layers.cbegin(), m_layers.cend(), [&](const Layer &group) {
-                return group.kind == "group" && group.groupId == layer.groupId &&
-                       (group.locked || !group.visible);
-            }));
+    const LayerGroups groups(m_layers);
+    if (!groups.visible(layer) || layer.locked)
+        return false;
+    for (int parent : groups.ancestors(layer))
+        if (m_layers[parent].locked)
+            return false;
+    return true;
 }
 
 bool Document::selectedTextEditable() const

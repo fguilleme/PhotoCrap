@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "ImageUtils.h"
 #include "masks/VectorMask.h"
 #include "model3d/Model3D.h"
@@ -54,10 +55,7 @@ bool Document::hasVisibleDenoise() const
     for (const auto &layer : m_layers) {
         if (layer.adjustmentType != QStringLiteral("denoise") || !layer.visible || layer.opacity <= 0)
             continue;
-        if (layer.groupId.isEmpty() ||
-            std::none_of(m_layers.cbegin(), m_layers.cend(), [&](const Layer &group) {
-                return group.kind == "group" && group.groupId == layer.groupId && !group.visible;
-            }))
+        if (LayerGroups(m_layers).visible(layer))
             return true;
     }
     return false;
@@ -340,7 +338,8 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
                                        const QSize &_targetSize, bool _draft,
                                        std::shared_ptr<ScratchImageCache>               _scratch,
                                        std::shared_ptr<const PhotoCrap::Transform::Job> _transform,
-                                       std::shared_ptr<const Model3DPreview>            _model)
+                                       std::shared_ptr<const Model3DPreview>            _model,
+                                       int _inputLayer)
 {
     int modelIndex = -1;
     if (_model) {
@@ -356,21 +355,17 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
             _layers[modelIndex].modelPaint = _model->paint;
     }
     int                  channelBits = 8;
-    QHash<QString, bool> groupVisibility;
-    for (const Layer &layer : std::as_const(_layers)) {
+    const LayerGroups groups(_layers);
+    for (const auto &layer : std::as_const(_layers))
         if (ImageUtils::is16Bit(layer.image) || ImageUtils::is16Bit(layer.source))
             channelBits = 16;
-        if (layer.kind == QStringLiteral("group"))
-            groupVisibility.insert(layer.groupId, layer.visible);
-    }
     for (Layer &layer : _layers) {
         if (layer.kind == QStringLiteral("group"))
             continue;
         if (_transform && _transform->maskView && !_transform->layers.isEmpty() &&
             &layer == &_layers[_transform->layers.first()])
             continue;
-        if (!layer.visible || layer.opacity <= 0 ||
-            (!layer.groupId.isEmpty() && !groupVisibility.value(layer.groupId, true))) {
+        if (!groups.visible(layer) || layer.opacity <= 0) {
             // Keep the placeholder so an invisible clipping base still breaks
             // its clipping chain, but do not scale or retain unused image planes.
             layer.visible = false;
@@ -490,6 +485,8 @@ QImage Document::renderPreviewSnapshot(QVector<Layer> _layers, const QSize &_siz
             displayed.setColorSpace(QColorSpace::SRgb);
             return displayed;
         }
+    if (_inputLayer >= 0)
+        return renderer.renderCompositeRect(QRect(QPoint{}, renderSize), _inputLayer);
     return renderer.composite();
 }
 void Document::cancelLayerPreview()
@@ -578,6 +575,31 @@ QColor Document::sampleCompositeColor(int _x, int _y) const
     const QPoint point(qBound(0, _x, m_size.width() - 1), qBound(0, _y, m_size.height() - 1));
     const QImage sample = compositeRegion(QRect(point, QSize(1, 1)));
     return sample.isNull() ? QColor{} : sample.pixelColor(0, 0);
+}
+
+QVariantList Document::levelsInputHistogram() const
+{
+    if (m_active < 0 || m_active >= m_layers.size() || m_size.isEmpty())
+        return {};
+    const auto &layer = m_layers[m_active];
+    const QSize size = m_size.scaled(768, 768, Qt::KeepAspectRatio).boundedTo(m_size).expandedTo({1, 1});
+    QImage input;
+    if (layer.directType == "levels") {
+        const auto &plane = layer.directMask ? layer.mask : layer.image;
+        input = plane.scaled(size, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    } else if (layer.adjustmentType == "levels") {
+        auto layers = m_layers;
+        // Keep group headers for the compositor's ancestry and clipping rules.
+        for (int i = m_active + 1; i < layers.size(); ++i)
+            if (layers[i].kind != "group")
+                layers[i].visible = false;
+        auto &target = layers[m_active];
+        target.visible = true;
+        target.opacity = 1.;
+        target.maskEnabled = false;
+        input = renderPreviewSnapshot(std::move(layers), m_size, size, true, m_scratchCache, {}, {}, m_active);
+    }
+    return PhotoCrap::levelsHistogram(input);
 }
 
 QVariantList Document::autoBlackWhiteValues() const

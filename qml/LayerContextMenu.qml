@@ -64,8 +64,7 @@ DarkMenu {
     }
     DarkMenu {
         title: qsTr("Ajouter un masque")
-        enabled: menu.singleLayer && menu.layerInfo.kind !== "group" &&
-                 !menu.layerInfo.hasMask && !menu.layerInfo.locked
+        enabled: menu.singleLayer && !menu.layerInfo.hasMask && !menu.layerInfo.locked
         ContextMenuItem {
             text: menu.document.hasSelection ? qsTr("Faire apparaître la sélection") : qsTr("Tout faire apparaître")
             onTriggered: menu.document.addLayerMask(true)

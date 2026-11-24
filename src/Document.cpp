@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "ai/AiImageTypes.h"
@@ -20,8 +21,7 @@
 
 namespace
 {
-constexpr qint64      MaxPixels = 32LL * 1024 * 1024;
-constexpr int         MaxLayers = 512;
+using DocumentStorage::MaxLayers;
 QHash<qint64, qint64> layerBlocks(const Layer &layer)
 {
     auto blocks = layer.image.storageBlocks();
@@ -279,8 +279,9 @@ bool Document::fail(const QString &_message)
 }
 bool Document::validSize(int _w, int _h, int _count)
 {
-    if (_w < 1 || _h < 1 || _w > 16384 || _h > 16384 || qint64(_w) * _h > MaxPixels)
-        return fail(tr("Dimensions invalides : 1 à 16 384 px, 32 mégapixels maximum."));
+    if (!DocumentStorage::validDimensions(_w, _h))
+        return fail(tr("Dimensions invalides : %1 × %2 px. Maximum : %3 px par côté et %4 mégapixels.").arg(_w).arg(_h)
+                        .arg(DocumentStorage::MaxDimension).arg(DocumentStorage::MaxPixels / 1000000));
     if (_count < 1 || _count > MaxLayers)
         return fail(tr("Limite atteinte : %1 calques par document (demandés : %2).")
                         .arg(MaxLayers)
@@ -301,8 +302,8 @@ bool Document::validLayerStorage(int _w, int _h, int _extraColors, int _extraMas
 {
     int colors = _extraColors, masks = _extraMasks;
     for (const auto &layer : std::as_const(m_layers)) {
-        colors +=
-            (!layer.image.isNull() && !ImageUtils::compact(layer.image)) + !layer.source.isNull();
+        colors += !layer.source.isNull();
+        extraBytes += layer.image.reservedColorBytes(QSize(_w, _h), _bits ? _bits : m_channelBits);
         masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
         extraBytes += layer.surfaceNormals.sizeInBytes();
     }
@@ -319,12 +320,10 @@ bool Document::editable(bool _materialize, bool _allowText)
         return false;
     if (m_layers[m_active].locked)
         return fail(tr("Ce calque est verrouillé."));
-    if (!m_layers[m_active].groupId.isEmpty())
-        for (const auto &layer : std::as_const(m_layers))
-            if (layer.kind == QStringLiteral("group") &&
-                layer.groupId == m_layers[m_active].groupId && (layer.locked || !layer.visible))
-                return fail(layer.locked ? tr("Ce groupe est verrouillé.")
-                                         : tr("Ce groupe est masqué."));
+    for (int i : LayerGroups(m_layers).ancestors(m_layers[m_active])) {
+        if (m_layers[i].locked || !m_layers[i].visible)
+            return fail(m_layers[i].locked ? tr("Ce groupe est verrouillé.") : tr("Ce groupe est masqué."));
+    }
     if (!m_editingMask && m_layers[m_active].kind.startsWith(QStringLiteral("frequency")))
         return fail(tr("Choisissez « Préparer la retouche » dans les propriétés de la séparation "
                        "de fréquences pour modifier ses pixels."));
@@ -565,9 +564,10 @@ QVariantMap Document::memoryUsage() const
     countSelection(m_historyBrushSource);
     const qint64 historySelectionBytes =
         selections.bytes - selectionRegionBytes + retainedMaskBytes;
+    qint64 reservedColors = 0;
     for (const auto &layer : m_layers) {
-        colors +=
-            (!layer.image.isNull() && !ImageUtils::compact(layer.image)) + !layer.source.isNull();
+        colors += !layer.source.isNull();
+        reservedColors += layer.image.reservedColorBytes(m_size, m_channelBits);
         masks += !layer.mask.isNull() && !ImageUtils::compact(layer.mask);
         compactPlanes += ImageUtils::compact(layer.image) + ImageUtils::compact(layer.mask);
     }
@@ -587,7 +587,7 @@ QVariantMap Document::memoryUsage() const
             {"selectionBytes", selectionBytes},
             {"historySelectionBytes", historySelectionBytes},
             {"reservedLayerBytes",
-             DocumentStorage::estimateBytes(width(), height(), colors, masks, m_channelBits)},
+             reservedColors + DocumentStorage::estimateBytes(width(), height(), colors, masks, m_channelBits)},
             {"frequencyCacheBytes", qint64(m_frequencyCache.totalCost()) * 1024},
             {"strokeCoverageBytes", m_tiledStrokeCoverage.allocatedBytes()},
             {"strokeCoverageTiles", m_tiledStrokeCoverage.tileCount()}};
@@ -644,11 +644,15 @@ void Document::clearScratchCache()
 void Document::commit(const Snapshot &_before, const QString &_label, bool _invalidateFull,
                       bool _notifyImage)
 {
+    freezeLayers(m_layers);
+    if (!_before.layers.isEmpty() && !validLayerStorage(width(), height())) {
+        restore(_before);
+        return;
+    }
     Snapshot state = _before;
     state.label    = _label;
     m_undo.append(state);
     m_redo.clear();
-    freezeLayers(m_layers);
     m_stateId = m_contentId = m_nextId++;
     trimHistory();
     changed(_invalidateFull, _notifyImage);
@@ -844,14 +848,12 @@ void Document::resetHistory(bool _clean)
 QVariantList Document::layers() const
 {
     QVariantList  result;
-    QSet<QString> collapsedGroups;
-    for (const auto &layer : m_layers)
-        if (layer.kind == QStringLiteral("group") && layer.groupCollapsed)
-            collapsedGroups.insert(layer.groupId);
+    const LayerGroups groups(m_layers);
     // UI order is top to bottom, storage order is bottom to top.
     for (int i = int(m_layers.size()) - 1; i >= 0; --i) {
         const auto &l = m_layers[i];
-        if (l.kind != QStringLiteral("group") && collapsedGroups.contains(l.groupId))
+        const auto parents = groups.ancestors(l);
+        if (std::any_of(parents.cbegin(), parents.cend(), [&](int p) {return m_layers[p].groupCollapsed;}))
             continue;
         const bool clippingBase =
             !l.clippingMask && l.kind != QStringLiteral("group") && i + 1 < m_layers.size() &&
@@ -873,6 +875,8 @@ QVariantList Document::layers() const
                                   {"clippingMask", l.clippingMask},
                                   {"clippingBase", clippingBase},
                                   {"groupId", l.groupId},
+                                  {"groupDepth", parents.size()},
+                                  {"parentGroupId", l.parentGroup()},
                                   {"groupCollapsed", l.groupCollapsed},
                                   {"selected", m_selectedLayers.contains(i)},
                                   {"editingMask", m_editingMask && i == m_active}});
@@ -1026,7 +1030,7 @@ bool Document::canGroupSelected() const
     return std::all_of(m_selectedLayers.cbegin(), m_selectedLayers.cend(), [&](int _index) {
         return _index >= 0 && _index < m_layers.size() &&
                m_layers[_index].kind != QStringLiteral("group") &&
-               m_layers[_index].groupId.isEmpty();
+               m_layers[_index].groupId == m_layers[m_active].groupId;
     });
 }
 bool Document::canUngroupActive() const

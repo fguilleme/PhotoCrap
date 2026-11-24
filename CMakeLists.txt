@@ -65,6 +65,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/storage/PsdReader.cpp
+    src/storage/PsdReader.h
     src/DocumentLayerImport.cpp
     src/DocumentModel3D.cpp
     src/model3d/GlbImport.cpp
@@ -164,6 +166,8 @@ set(PHOTOCRAP_CXX_SOURCES
     src/filters/VibranceFilter.cpp
     src/filters/GradientMapFilter.cpp
     src/filters/LightFilter.cpp
+    src/filters/PhotoshopColor.cpp
+    src/filters/PhotoshopLight.cpp
     src/filters/LevelsFilter.cpp
     src/filters/ToneMappingTable.cpp
     src/filters/PhotoFilterFilter.cpp
@@ -426,6 +430,8 @@ qt_add_library(photocrap_core STATIC
     src/DocumentFilters.cpp
     src/DocumentFrequency.cpp
     src/DocumentIO.cpp
+    src/storage/PsdReader.cpp
+    src/storage/PsdReader.h
     src/DocumentLayerImport.cpp
     src/DocumentModel3D.cpp
     src/model3d/GlbImport.cpp
@@ -539,6 +545,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/GradientMapFilter.cpp
     src/filters/GradientMapFilter.h
     src/filters/LightFilter.cpp
+    src/filters/PhotoshopColor.cpp
+    src/filters/PhotoshopLight.cpp
     src/filters/LightFilter.h
     src/filters/LevelsFilter.cpp
     src/filters/ToneMappingTable.cpp
@@ -553,6 +561,8 @@ qt_add_library(photocrap_core STATIC
     src/filters/ThresholdFilter.cpp
     src/filters/ThresholdFilter.h
 )
+qt_add_resources(photocrap_core photoshop_calibration PREFIX "/psd" BASE src/filters/calibration
+    FILES src/filters/calibration/color-controls.png src/filters/calibration/color-balance.png)
 target_link_libraries(photocrap_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Concurrent)
 target_link_libraries(photocrap_core PRIVATE qt6keychain photocrap_libraw photocrap_raw_zlib photocrap_png_codec photocrap_zstd
     photocrap_jpeg_codec webp meshoptimizer)

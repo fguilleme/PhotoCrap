@@ -37,6 +37,7 @@ public:
     PixelPlane  plane(int id, QSize expected, QImage::Format format);
     QByteArray  original(int id);
     bool        isOriginal(int id, qint64 maxBytes = MaxOriginalBytes) const;
+    qint64 colorReservation(int id, QSize canvas, int bits) const;
     int         planeCount() const
     {
         return int(m_planes.size());

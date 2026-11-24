@@ -1,3 +1,4 @@
+#include "storage/PsdReader.h"
 #include "Document.h"
 
 #include <QFileInfo>
@@ -14,7 +15,8 @@ bool Document::canImportLayerFiles(const QList<QUrl> &_urls) const
             return false;
         const QFileInfo file(url.toLocalFile());
         if (!file.isFile() || !file.isReadable() ||
-            (!isRawFile(url) && !formats.contains(file.suffix().toLower().toLatin1())))
+            (!isRawFile(url) && !PhotoCrap::Psd::isFile(url.toLocalFile()) &&
+             !formats.contains(file.suffix().toLower().toLatin1())))
             return false;
     }
     return true;

@@ -17,7 +17,7 @@ namespace PhotoCrap::Filters
 {
 namespace
 {
-QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255)
+QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255, bool natural = false)
 {
     const double     scale = _maximum / 255.;
     QVector<QPointF> points;
@@ -66,8 +66,28 @@ QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255)
             const double left  = unique[i].x() - unique[i - 1].x();
             const double right = unique[i + 1].x() - unique[i].x();
             slopes[i]          = (left + right) / ((left + 2 * right) / (3 * delta[i - 1]) +
-                                                   (2 * left + right) / (3 * delta[i]));
+                                          (2 * left + right) / (3 * delta[i]));
         }
+    }
+    if (natural && unique.size() > 2) {
+        // Solve for first derivatives of a cubic spline with zero endpoint curvature.
+        const int       n = unique.size();
+        QVector<double> upper(n);
+        upper[0]  = .5;
+        slopes[0] = 1.5 * delta[0];
+        for (int i = 1; i < n; ++i) {
+            const double left  = unique[i].x() - unique[i - 1].x();
+            const double right = i + 1 < n ? unique[i + 1].x() - unique[i].x() : left;
+            const bool   end   = i == n - 1;
+            const double diagonal =
+                (end ? 2. : 2. * (left + right)) - (end ? 1. : right) * upper[i - 1];
+            upper[i] = end ? 0. : left / diagonal;
+            const double rhs =
+                end ? 3. * delta.last() : 3. * (right * delta[i - 1] + left * delta[i]);
+            slopes[i] = (rhs - (end ? 1. : right) * slopes[i - 1]) / diagonal;
+        }
+        for (int i = n - 2; i >= 0; --i)
+            slopes[i] -= upper[i] * slopes[i + 1];
     }
     int segment = 0;
     for (int x = 0; x <= _maximum; ++x) {
@@ -87,7 +107,7 @@ QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255)
                          (t3 - 2 * t2 + t) * width * slopes[segment] +
                          (-2 * t3 + 3 * t2) * unique[segment + 1].y() +
                          (t3 - t2) * width * slopes[segment + 1];
-        table[x]       = qBound(0, qRound(y), _maximum);
+        table[x] = qBound(0, qRound(y), _maximum);
     }
     return table;
 }
@@ -95,10 +115,10 @@ QVector<int> curveTable(const QVariantMap &_parameters, int _maximum = 255)
 QVariantList channelPoints(const QVariantMap &_parameters, int _channel)
 {
     constexpr std::array keys{"redPoints", "greenPoints", "bluePoints"};
-    QVariantList result = _parameters.value(keys[_channel]).toList();
+    QVariantList         result = _parameters.value(keys[_channel]).toList();
     if (result.isEmpty())
         result = {QVariantMap{{"x", 0}, {"y", 0}}, QVariantMap{{"x", 255}, {"y", 255}}};
-    const auto   appendSample = [&](const QString &_key, int _output) {
+    const auto appendSample = [&](const QString &_key, int _output) {
         const QVariantList sample = _parameters.value(_key).toList();
         if (sample.size() == 3)
             result.append(QVariantMap{{"x", sample[_channel].toInt()}, {"y", _output}});
@@ -119,20 +139,21 @@ QImage applyCurves(const QImage &_source, const QVariantMap &_parameters)
 {
     if (_source.isNull())
         return _source;
+    const bool natural = _parameters.value("photoshopAdjustment").toBool();
     if (ImageUtils::is16Bit(_source)) {
-        const auto table = curveTable(_parameters, 65535);
-        const auto red   = curveTable({{"points", channelPoints(_parameters, 0)}}, 65535);
-        const auto green = curveTable({{"points", channelPoints(_parameters, 1)}}, 65535);
-        const auto blue  = curveTable({{"points", channelPoints(_parameters, 2)}}, 65535);
+        const auto table = curveTable(_parameters, 65535, natural);
+        const auto red   = curveTable({{"points", channelPoints(_parameters, 0)}}, 65535, natural);
+        const auto green = curveTable({{"points", channelPoints(_parameters, 1)}}, 65535, natural);
+        const auto blue  = curveTable({{"points", channelPoints(_parameters, 2)}}, 65535, natural);
         return ImageUtils::map16(_source, [&](QRgba64 _pixel) {
             return QRgba64::fromRgba64(red[table[_pixel.red()]], green[table[_pixel.green()]],
                                        blue[table[_pixel.blue()]], _pixel.alpha());
         });
     }
-    const auto   table      = curveTable(_parameters);
-    const auto   redTable   = curveTable({{"points", channelPoints(_parameters, 0)}});
-    const auto   greenTable = curveTable({{"points", channelPoints(_parameters, 1)}});
-    const auto   blueTable  = curveTable({{"points", channelPoints(_parameters, 2)}});
+    const auto   table      = curveTable(_parameters, 255, natural);
+    const auto   redTable   = curveTable({{"points", channelPoints(_parameters, 0)}}, 255, natural);
+    const auto   greenTable = curveTable({{"points", channelPoints(_parameters, 1)}}, 255, natural);
+    const auto   blueTable  = curveTable({{"points", channelPoints(_parameters, 2)}}, 255, natural);
     const QImage input      = _source.convertToFormat(QImage::Format_ARGB32);
     QImage       result(input.size(), QImage::Format_ARGB32);
     const int    jobCount =

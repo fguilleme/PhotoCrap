@@ -5,5 +5,6 @@
 
 namespace PhotoCrap::Filters
 {
-QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters);
+bool readLookTable(const QByteArray &xml, QVariantMap &parameters);
+QImage applyColorLookup(const QImage &_source, const QVariantMap &_parameters, QPoint origin = {});
 }

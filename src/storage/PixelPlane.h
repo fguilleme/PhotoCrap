@@ -1,5 +1,6 @@
 #pragma once
 #include "TiledImage.h"
+#include "DocumentStorage.h"
 #include <QColorSpace>
 #include <atomic>
 
@@ -77,6 +78,14 @@ public:
     QImage::Format format() const
     {
         return m_image.isNull() ? m_tiles.format() : m_image.format();
+    }
+    qint64 reservedColorBytes(QSize canvas, int bits) const
+    {
+        if (isNull() || size() == QSize(1, 1))
+            return 0;
+        if (size() == canvas && !m_dirty && !m_tiles.isNull() && m_tiles.tileCount() > 0)
+            return DocumentStorage::tiledColorBytes(canvas.width(), canvas.height(), bits, m_tiles.tileCount());
+        return DocumentStorage::estimateBytes(canvas.width(), canvas.height(), 1, 0, bits);
     }
     qint64 sizeInBytes() const
     {

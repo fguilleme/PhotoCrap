@@ -1,4 +1,5 @@
 #include "SelectionMove.h"
+#include "DocumentStorage.h"
 #include "ImageUtils.h"
 #include "selection/SelectionCoverage.h"
 #include <QPainter>
@@ -8,8 +9,7 @@ namespace PhotoCrap::Tools
 {
 bool canMoveLayerTiled(const PixelPlane &_source, const QSize &_size)
 {
-    if (_source.isNull() || _size.isEmpty() || _size.width() > 16384 || _size.height() > 16384 ||
-        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024 ||
+    if (_source.isNull() || !DocumentStorage::validDimensions(_size.width(), _size.height()) ||
         (_source.format() != QImage::Format_ARGB32_Premultiplied &&
          _source.format() != QImage::Format_RGBA64_Premultiplied &&
          _source.format() != QImage::Format_Grayscale8))

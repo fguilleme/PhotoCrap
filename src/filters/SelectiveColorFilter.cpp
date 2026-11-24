@@ -62,9 +62,10 @@ QImage applySelectiveColorPixels(const QImage &_source, const QVariantMap &_para
     using P = ImageUtils::PixelAccess<Pixel>;
     if (_source.isNull())
         return _source;
-    const bool   relative = _parameters.value("relative", true).toBool();
-    const bool   legacy   = !_parameters.contains("redsCyanRed");
-    const QImage input    = _source.convertToFormat(P::format);
+    const bool   photoshop = _parameters.value("photoshopAdjustment").toBool();
+    const bool   relative  = _parameters.value("relative", true).toBool();
+    const bool   legacy    = !_parameters.contains("redsCyanRed");
+    const QImage input     = _source.convertToFormat(P::format);
     QImage       result(input.size(), P::format);
     std::array<RangeAdjustment, RangeNames.size()> adjustments{};
     for (size_t range = 0; range < RangeNames.size(); ++range) {
@@ -100,18 +101,37 @@ QImage applySelectiveColorPixels(const QImage &_source, const QVariantMap &_para
                     green -= legacyAdjustment.black;
                     blue -= legacyAdjustment.black;
                 } else {
-                    const auto weights  = rangeWeights(red, green, blue);
-                    double     redDelta = 0., greenDelta = 0., blueDelta = 0.;
+                    auto weights = rangeWeights(red, green, blue);
+                    if (photoshop) {
+                        const double lo = std::min({red, green, blue}),
+                                     hi = std::max({red, green, blue});
+                        weights[6]      = std::max(0., 2. * lo - 255.) / 255.;
+                        weights[7]      = 1. - (std::abs(hi - 127.5) + std::abs(lo - 127.5)) / 255.;
+                        weights[8]      = std::max(0., 255. - 2. * hi) / 255.;
+                    }
+                    double redDelta = 0., greenDelta = 0., blueDelta = 0.;
                     for (size_t range = 0; range < RangeNames.size(); ++range) {
                         const double           weight     = weights[range];
                         const RangeAdjustment &adjustment = adjustments[range];
+                        if (photoshop) {
+                            const auto ink = [&](double channel, double axis) {
+                                double d = axis * (1. + adjustment.black / 255.) - adjustment.black;
+                                if (relative)
+                                    d *= 1. - channel / 255.;
+                                return weight * qBound(-channel, d, 255. - channel);
+                            };
+                            redDelta += ink(red, adjustment.cyanRed);
+                            greenDelta += ink(green, adjustment.magentaGreen);
+                            blueDelta += ink(blue, adjustment.yellowBlue);
+                            continue;
+                        }
                         redDelta += (adjustment.cyanRed - adjustment.black) * weight;
                         greenDelta += (adjustment.magentaGreen - adjustment.black) * weight;
                         blueDelta += (adjustment.yellowBlue - adjustment.black) * weight;
                     }
-                    red   = adjustedChannel(red, redDelta, relative);
-                    green = adjustedChannel(green, greenDelta, relative);
-                    blue  = adjustedChannel(blue, blueDelta, relative);
+                    red   = adjustedChannel(red, redDelta, relative && !photoshop);
+                    green = adjustedChannel(green, greenDelta, relative && !photoshop);
+                    blue  = adjustedChannel(blue, blueDelta, relative && !photoshop);
                 }
                 output[x] =
                     P::rgba(qBound(0., P::round(red), 255.), qBound(0., P::round(green), 255.),

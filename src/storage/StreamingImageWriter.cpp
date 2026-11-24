@@ -1,4 +1,5 @@
 #include "StreamingImageWriter.h"
+#include "DocumentStorage.h"
 #include "JpegExportCodec.h"
 #include <QColorSpace>
 #include <QPainter>
@@ -158,9 +159,7 @@ bool writeImageBands(QIODevice &_output, const QSize &_size, int _bits, bool _pn
                      QString &_error)
 {
     _error.clear();
-    if (!_output.isWritable() || !_read || (_bits != 8 && _bits != 16) || _size.width() < 1 ||
-        _size.height() < 1 || _size.width() > 16384 || _size.height() > 16384 ||
-        qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024) {
+    if (!_output.isWritable() || !_read || (_bits != 8 && _bits != 16) || !DocumentStorage::validDimensions(_size.width(), _size.height())) {
         _error = QStringLiteral("Invalid streaming image dimensions or output");
         return false;
     }
@@ -176,8 +175,7 @@ bool writeJpegBands(QIODevice &_output, const QSize &_size, const ImageBandReade
                     const ImageWriteProgress &_progress, QString &_error)
 {
     _error.clear();
-    if (!_output.isWritable() || !_read || _size.isEmpty() || _size.width() > 16384 ||
-        _size.height() > 16384 || qint64(_size.width()) * _size.height() > 32LL * 1024 * 1024) {
+    if (!_output.isWritable() || !_read || !DocumentStorage::validDimensions(_size.width(), _size.height())) {
         _error = QStringLiteral("Invalid streaming JPEG dimensions or output");
         return false;
     }

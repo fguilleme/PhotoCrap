@@ -1,4 +1,5 @@
 #include "Document.h"
+#include "LayerGroups.h"
 #include "ImageUtils.h"
 
 #include <QtConcurrentRun>
@@ -37,9 +38,8 @@ bool Document::prepareFrequencyRetouch()
     for (const Layer *layer : {&low, &high}) {
         if (layer->locked)
             return fail(tr("Ce calque est verrouillé."));
-        for (const auto &group : std::as_const(m_layers))
-            if (group.kind == QStringLiteral("group") && group.locked &&
-                !layer->groupId.isEmpty() && group.groupId == layer->groupId)
+        for (int i : LayerGroups(m_layers).ancestors(*layer))
+            if (m_layers[i].locked)
                 return fail(tr("Ce groupe est verrouillé."));
     }
     if (low.source.isNull() || high.source.isNull())
@@ -185,9 +185,8 @@ bool Document::restoreDynamicFrequency()
         const auto &layer = m_layers[index];
         if (layer.locked)
             return fail(tr("Ce calque est verrouillé."));
-        for (const auto &group : std::as_const(m_layers))
-            if (group.kind == QStringLiteral("group") && group.locked && !layer.groupId.isEmpty() &&
-                group.groupId == layer.groupId)
+        for (int i : LayerGroups(m_layers).ancestors(layer))
+            if (m_layers[i].locked)
                 return fail(tr("Ce groupe est verrouillé."));
         if (layer.source.isNull())
             return fail(tr("Source de séparation de fréquences manquante."));

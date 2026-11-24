@@ -4,9 +4,9 @@
 
 Éditeur d’images de bureau en **C++20, Qt 6 et QML**, conçu pour macOS, Linux et Windows. L’interface, le moteur de pixels et le format de projet sont développés indépendamment.
 
-**v0.28.1** · Avec l’outil Suppression, un Maj-clic prolonge le tracé pour effacer un fil. Les retouches OpenAI reçoivent la photo entière et le masque de sélection.
+**v0.29.0** · Ouvrez un PSD avec ses calques, ses groupes et ses masques modifiables. Faites glisser la fenêtre Propriétés par son titre pour dégager la pile des calques.
 
-## v0.28.1 · Évolutions depuis v0.21.0
+## v0.29.0 · Évolutions depuis v0.21.0
 
 - Espace de travail repensé et panneau de typographie avec aperçu des polices au survol.
 - Texte éditable sur les plis d’un tissu ou les deux faces d’un mur. La

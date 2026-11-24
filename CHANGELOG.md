@@ -4,6 +4,12 @@ Les fonctions disponibles et leurs limites sont détaillées dans le [README](RE
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
 Un [résumé en anglais](README.en.md) est également disponible.
 
+## v0.29.0 — 24 novembre 2026
+
+- **Import PSD.** Ouvrez les documents Photoshop RVB ou en niveaux de gris, en 8 ou 16 bits. Les groupes imbriqués, leurs masques et les réglages compatibles restent modifiables. Un bilan détaille les conversions et les éléments ignorés.
+- **Rendu des réglages.** Les corrections portent notamment sur les courbes, l’exposition, la teinte et la saturation, le filtre photo, le transfert de dégradé et le grain. Les 17 réglages du PSD de référence ont été comparés individuellement à Photoshop.
+- **Fenêtre Propriétés.** Déplacez-la par sa barre de titre pour dégager la liste des calques. L’œil indique la visibilité du calque et la poubelle rouge permet de le supprimer.
+
 ## v0.28.1 — 23 novembre 2026
 
 - **Suppression.** Cliquez au début d’un fil, puis faites Maj-clic à son extrémité. Pour suivre une courbe, décochez **Après chaque tracé**, enchaînez les segments puis cliquez sur **Appliquer**. La reconstruction d’une marque fine recherche des pixels à proximité du tracé.

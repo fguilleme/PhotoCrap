@@ -2,7 +2,7 @@
 
 Les fonctions disponibles et leurs limites sont détaillées dans le [README](README.md),
 le [guide Sélections](docs/SELECTIONS.md) et la [roadmap](ROADMAP.md).
-Un [résumé en anglais](README.en.md) est également disponible.
+[Release notes in English](CHANGELOG.en.md)
 
 ## v0.29.0 — 24 novembre 2026
 

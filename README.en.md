@@ -6,17 +6,16 @@ Desktop image editor written in **C++20, Qt 6, and QML**, designed for macOS, Li
 
 **v0.29.0** · Open a PSD with editable layers, groups and masks. Drag the Properties dialog by its title to keep the layer stack in view.
 
-## v0.29.0 · Changes since v0.21.0
+## User guide
 
-- Redesigned workspace and typography panel with live font previews on hover.
-- Editable text on fabric folds or across two faces of a wall, with perspective
-  along long lines and a frame that appears when the layer is selected.
-- Surface painting with MoGe‑2 locally and foreground object
-  protection with MobileSAM.
-- GLB 3D layers, Meshy generation, adjustable lighting, and painting directly on models.
-- Free Transform, vector masks, and direct adjustments on layers and masks.
+| I want to… | Guide |
+| --- | --- |
+| Open a PSD, compare two photos at the same zoom, or save a layered project | [Documents and files](docs/en/DOCUMENTS.md) |
+| Import an Adobe XMP, match a reference photo, reduce noise, or edit a mask | [Adjustments and layers](docs/en/ADJUSTMENTS.md) |
+| Remove a wire, transform a selection, edit text, or look up a shortcut | [Tools and shortcuts](docs/en/TOOLS.md) |
+| Retouch a selection with AI, paint across a wall corner, or position lights | [AI edits, surface painting and relighting](docs/en/AI_AND_SURFACES.md) |
 
-[Surface text and painting guide](docs/AI_IMAGE_EDITING.md#peindre-sur-une-surface) · [Release notes](CHANGELOG.md)
+[Release notes](CHANGELOG.en.md)
 
 ## Download
 
@@ -34,21 +33,22 @@ On Windows, the installer registers `.pcr` files with PhotoCrap. Double-click a 
 - 8- or 16-bit-per-channel sRGB RGB documents with a white or transparent background, custom dimensions, and presets.
 - **File → Open** reads RGB and grayscale PSDs (8 or 16 bits). Pixel layers retain their position, opacity and visibility. Supported adjustments retain their settings and editable masks, including Light, Color and Vibrance, Clarity and Dehaze, Grain, Levels, Curves, Exposure, color corrections and Black & White. Embedded Adobe LOOK 3D tables are retained. Gradient maps use their two endpoint colors. An import report lists skipped layers and conversions. Nested groups and their layer masks remain editable. Importing as a single layer uses the merged image stored in the PSD. Save the edited document as a `.pcr` project.
 - Image import, project opening, and clipboard paste. **+ → Import… → Image as layer…** adds one or more centered image layers; dropping files into the layer stack shows an insertion line at the chosen position. Background loading, RAW developed at 16 bits, one undo step for the whole batch; document dimensions stay unchanged.
-- Drop **one image file onto the main editing area** to open it as a document at its native dimensions (JPEG, PNG, TIFF, WebP, BMP and GIF depending on installed codecs, plus RAW through LibRaw). Dropping onto the layer stack still imports layers. Save/Discard/Cancel protects unsaved changes. Dropping onto Welcome also opens the image; macOS declares image types for Open With, and the Linux launcher now passes the selected file to the application.
+- Drop photos on the canvas or welcome screen to open each in its own tab. To add them as layers in one document, drop them onto its layer stack. [Compare two documents with linked zoom and pan](docs/en/DOCUMENTS.md#compare-two-documents).
 - Round stamp brush and eraser with size, hardness, opacity, cumulative flow, spacing, angle, roundness, and smoothing. A tip outline follows the pointer, and a stroke preview is available under **View → Brush…**. Photoshop-style shortcuts control size (`[`/`]`), hardness (`Shift+[`/`Shift+]`), and foreground/background colors (`D`/`X`).
 - Grouped toolbar: right-click to choose a tool, the last chosen tool supplies the icon, and tooltips identify tools. Group order, tool order, and visibility are configurable under **Settings → Toolbar**. Unimplemented tools remain visible, disabled, and marked **NYI**.
 - **Pen Shape mode**: automatically creates a retained vector shape layer, with editable solid fill/stroke, anchors, properties, duplication and explicit rasterization. **Path → Make: Shape** preserves the source and editable geometry; None/solid paint, decimal stroke width and linked dimensions. Native 8/16-bit tiled display caches and v11 persistence.
-- **Pen and Paths**: dockable thumbnails, naming, duplication, ordering and fill/stroke/selection actions; grouped with Layers/Channels by default. P draws; A and its alternate edit paths or individual anchors. See [behavior and remaining Photoshop differences](docs/PEN_TOOL.md).
-- Magic Eraser in the **E** group: right-click to choose it, then click a color to erase matching pixels on the active layer. The options bar provides tolerance, anti-aliasing, contiguous pixels, sampling all visible layers, and opacity. Background processing, **Escape** to cancel, selection clipping, and native 8/16-bit precision. This tool erases pixels, not layer masks.
+- **Pen and Paths**: dockable thumbnails, naming, duplication, ordering and fill/stroke/selection actions; grouped with Layers/Channels by default. P draws; A and its alternate edit paths or individual anchors. See [how to draw and edit paths](docs/en/TOOLS.md#draw-a-path-shape-or-vector-mask).
+- Magic Eraser in the **E** group: right-click to choose it, then click a color to erase matching pixels on the active layer. The options bar provides tolerance, anti-aliasing, contiguous pixels, sampling all visible layers, and opacity. Background processing, **Escape** to cancel, selection clipping, and native 8/16-bit precision. On a selected raster mask the eraser uses the grayscale value of the background color.
 - Painting and retouching: brush, pencil, color replacement, mixer brush, eraser, clone stamp, pattern stamp, blur, sharpen, smudge, dodge/burn, sponge, red eye correction, healing brush, spot healing, patch, content-aware move, remove, and history brushes.
 - Eyedropper with point/average sampling, four color samplers, ruler, contiguous fill, and two-color gradient. Raster shapes include rectangle, ellipse, triangle, polygon, star, and line with fill/stroke controls. Horizontal text is editable; the Pen also creates retained vector shape layers in Shape mode.
 - Photoshop-style navigation: `Ctrl/⌘ + wheel` zooms around the pointer, the wheel scrolls vertically, `Shift + wheel` scrolls horizontally, and `Space + drag` freely pans the canvas.
-- Rectangular, elliptical, single-row/column, lasso, polygonal lasso, quick selection, and magic wand tools. Animated selection contours, replace/add/subtract/intersect modes, selected-pixel movement, deletion, native 8/16-bit cut/copy/paste to a new layer, merged copy, Paste in Place/Into/Outside with editable masks, and cropping. See the [clipboard guide](docs/CLIPBOARD.md). Marquee options add Feather, real anti-aliasing, Normal/Fixed Ratio/Fixed Size styles, and a width/height swap.
-- Pixel layers, Solid Color fills, adjustments, groups, and clipping: add, duplicate, rename, reorder, show/hide, lock, opacity, merge down, selected/group/visible merges, stamped copies, and flattening. [Merge guide](docs/LAYER_MERGE.md). White/black raster masks can be painted, inverted, enabled/disabled, and copied to another layer by dragging. Alt/Option-click an eye to isolate a layer or a mask thumbnail to display the mask alone.
+- Rectangular, elliptical, single-row/column, lasso, polygonal lasso, quick selection, and magic wand tools. Animated selection contours, replace/add/subtract/intersect modes, selected-pixel movement, deletion, native 8/16-bit cut/copy/paste to a new layer, merged copy, Paste in Place/Into/Outside with editable masks, and cropping. See the [clipboard guide](docs/en/TOOLS.md#cut-copy-and-paste). Marquee options add Feather, real anti-aliasing, Normal/Fixed Ratio/Fixed Size styles, and a width/height swap.
+- Pixel layers, Solid Color fills, adjustments, groups, and clipping: add, duplicate, rename, reorder, show/hide, lock, opacity, merge down, selected/group/visible merges, stamped copies, and flattening. [Merge guide](docs/en/ADJUSTMENTS.md#merge-or-stamp-layers). White/black raster masks can be painted, inverted, enabled/disabled, and copied to another layer by dragging. Alt/Option-click an eye to isolate a layer or a mask thumbnail to display the mask alone.
 - Separate context menus for layers and mask thumbnails: properties, locking, duplication, grouping, and merge down for layers; viewing, enabling, inversion, and deletion for masks. Unavailable commands are disabled; missing features are marked **NYI**.
+- Import a GLB or generate a model with Meshy, pose it and paint on its surface. [3D model layers](docs/en/AI_AND_SURFACES.md#import-and-paint-a-3d-model).
 - All 27 RGB blend modes arranged by family with hover previews: clicking commits the mode, while leaving the menu restores the previous state.
-- [Mixer Brush](docs/MIXER_BRUSH.md) (French): multicolour load, visible clean/reload controls, twelve combinations, Wet/Load/Mix/Flow, airbrush and continuous pickup of freshly deposited paint. 8-bit pixels; bristle and stylus simulation NYI.
-- Nondestructive adjustment layers: **Light** (exposure, contrast, highlights, shadows, whites, blacks), **Color** (temperature, tint, vibrance, saturation, and white-balance eyedropper), Levels, Curves, Color Balance, Black & White, Photo Filter, Channel Mixer, Color Style (LUT), Invert, Posterize, Threshold, Gradient Map, and Selective Color. Gaussian blur, motion blur, box blur, unsharp mask, high pass, mosaic, and noise are also available as filter layers. Older project parameters remain readable; each adjustment receives a white or selection-derived mask.
+- [Mixer Brush](docs/en/TOOLS.md#mix-paint): multicolour load, visible clean/reload controls, twelve combinations, Wet/Load/Mix/Flow, airbrush and continuous pickup of freshly deposited paint. 8-bit pixels; bristle and stylus simulation NYI.
+- Nondestructive adjustment layers: **Light** (exposure, contrast, highlights, shadows, whites, blacks), **Color** (temperature, tint, vibrance, saturation, and white-balance eyedropper), Levels, Curves, Exposure, Hue/Saturation, Color Balance, Split Toning, Texture, Clarity and Dehaze, Grain, RGB Noise Reduction, Black & White, Photo Filter, Channel Mixer, Color Style (LUT), Invert, Posterize, Threshold, Gradient Map, and Selective Color. Gaussian blur, motion blur, box blur, unsharp mask, high pass, mosaic, and noise are also available as filter layers. Older project parameters remain readable; each adjustment receives a white or selection-derived mask.
 - Specialized editors: Curves with histogram, control points, and four eyedroppers; Levels with input/output handles; Black & White with six color families, presets, Auto, and Tint; Gradient Map with a two-pointer color wheel; Photo Filter and Channel Mixer with presets. A common action bar provides clipping, visibility, reset, and deletion.
 - Dynamic frequency separation with a blurred low-frequency layer and a linked high-frequency layer in Linear Light mode. Their shared radius is recomputed while the slider moves; downscaled preview and caching avoid unnecessary blur recomputation. **Prepare retouching** passes their shared native sources to the worker without copying them on the interface thread, then computes both bands in the background and converts them to editable pixels, leaving the original untouched: brush/blur on Low frequencies, Clone Stamp sampling the current layer on High frequencies. Masks, opacity, blend modes and 8/16-bit depth are preserved. Sources are retained within the document budget. **Return to radius settings** restores the dynamic pair after confirmation that its retouches will be discarded; this operation can itself be undone. The **ƒ** button remains available on both layers to reopen the panel and retouching guidance, including after reopening the project.
 - Direct active-layer adjustments: brightness, contrast, saturation, black and white, invert, sepia, blur, and sharpen. Selections restrict their application area.
@@ -56,7 +56,7 @@ On Windows, the installer registers `.pcr` files with PhotoCrap. Double-click a 
 - Resize, 90° rotation, flips, zoom, view rotation, canvas panning, rulers, and navigator preview.
 - **Histogram, Navigator, Color, Layers, Channels, History, and Info** panels support rearrangement, tab groups, columns, collapse, resizing, floating windows, and persistent workspace layout. **View → Panels** controls visibility. Channels displays RGB or an individual grayscale channel without changing the document.
 - Undo/redo history with saved-state tracking. Unsaved-change protection when opening, creating, or closing a document.
-- A **Settings** window with **Keyboard Shortcuts**, **Interface**, and **Toolbar** sections. Shortcuts are editable, validated, and persistent; French or English can be applied at runtime and the language choice is retained.
+- A **Settings** window for keyboard shortcuts, interface language, toolbar groups and the adjustment-layer menu. Shortcuts are editable, validated, and persistent; French or English can be applied at runtime and the language choice is retained.
 - Atomic `.pcr` project saving with layers. Flattened PNG, JPEG, BMP, and WebP export when the corresponding module is installed. JPEG and BMP composite transparency over white.
 - An editable demo composition from **File → Open Demo Composition**, or with the `--demo` option.
 - A persistent list of the ten most recently opened or saved files under **File → Open Recent Files**. Missing files are removed automatically.
@@ -139,7 +139,7 @@ ctest --preset release
 
 1. Create a document, open an image, or load the demo.
 2. Select a layer in the list on the right. Right-click the layer for its commands, or right-click its **mask thumbnail** for mask commands without opening the properties dialog. The **◐** button adds or selects its mask. The **ƒ** button opens adjustment, active mask, or frequency-separation settings. Double-click opens properties when available, otherwise renaming.
-3. Select a tool on the left and draw on the canvas. Text options appear in the bar below the canvas; each click rasterizes the text into the active layer.
+3. Select a tool on the left and draw on the canvas. With Type (T), click to start a text layer or drag a paragraph box. Double-click the T thumbnail to edit the text again.
 4. To crop, draw a region and click **Crop**. Adjustments and brush strokes honor the selection; deselect it to affect the whole image.
 5. Save as `.pcr` to preserve layers, then export a flattened image for sharing.
 
@@ -147,7 +147,7 @@ ctest --preset release
 
 Promptless processing is available for fal.ai and ComfyUI profiles (required/optional/no prompt). Add **fal.ai · Topaz Upscale Precision** or **fal.ai · Real-ESRGAN** (x2plus, face restoration disabled) in AI settings, then choose its model and ×1–×4 factor in the request dialog. Upscale can send the active AI layer’s original small image instead of its already enlarged canvas representation. The output can open in a new native-size document without changing its source, or return on a new layer with its mask and placement. Input can retain native resolution and PNG precision. Topaz integration is tested with simulated servers; automated tests do not assess the visual quality of either model.
 
-**File / Layer → Create with AI…** sends the visible composite or selection to GPT Image, fal.ai, ComfyUI, or an OpenAI-compatible image editing API. Generate 1–8 sequential variants from the same source, each on an undoable layer with the original selection mask. Only the latest variant is visible initially. Unedited AI layers keep the original provider image in v13 projects instead of saving an enlarged 16-bit raster; pixel edits use native raster storage. Older raster-only AI layers retain their existing representation. **Settings → AI** stores multiple provider profiles and reusable prompts; API keys are kept in the system credential store or supplied by environment variables. [Setup and limitations](docs/AI_IMAGE_EDITING.md) (French). OpenAI and fal.ai have been tested in the application; ComfyUI still needs a real-server/workflow trial.
+**File → Create with AI…** opens the generation dialog. For an OpenAI selection edit, PhotoCrap sends the entire visible photo and a second PNG with transparency inside the selection. Other providers can use the selection bounds as input. Generate 1–8 sequential variants from the same source, each on an undoable layer with the original selection mask. Only the latest variant is visible initially. Unedited AI layers keep the original provider image in v13 projects instead of saving an enlarged 16-bit raster; pixel edits use native raster storage. Older raster-only AI layers retain their existing representation. **Settings → AI** stores multiple provider profiles and reusable prompts; API keys are kept in the system credential store or supplied by environment variables. [Provider setup and selection masks](docs/en/AI_AND_SURFACES.md)
 
 ### Tools and shortcuts
 
@@ -170,15 +170,15 @@ Each toolbar button represents a group. **Right-click** reveals its variants; th
 | O | Dodge, burn, sponge |
 | P | Pen, Add/Delete Anchor Point, Convert Point |
 | A | Path Selection and Direct Selection |
-| T | Rasterized horizontal text |
+| T | Editable type: point text and paragraph boxes |
 | U | Rectangle, ellipse, triangle, polygon, star, line |
 | H / R / Z | Hand / rotate view / zoom |
 
-**Y** selects history brushes. **Shift + key** and **Option/Alt-click** cycle variants; holding a letter temporarily selects its tool. These behaviors are configurable in Settings. Blur, Sharpen, and Smudge share a group without a default letter. **NYI** entries remain disabled. The [mouse and keyboard guide](docs/TOOL_INTERACTIONS.md) (French) lists Adobe references and current limitations.
+**Y** selects history brushes. **Shift + key** and **Option/Alt-click** cycle variants; holding a letter temporarily selects its tool. These behaviors are configurable in Settings. Blur, Sharpen, and Smudge share a group without a default letter. **NYI** entries remain disabled. [Mouse and keyboard gestures](docs/en/TOOLS.md#choose-a-tool-and-find-its-shortcuts)
 
 `[` / `]` change brush size; `Shift+[` / `Shift+]` change hardness; `D` restores black/white and `X` swaps colors. `Ctrl/⌘ + 0` fits the image; `Ctrl/⌘ + 1` displays 100%. `Ctrl/⌘ + wheel` zooms under the pointer, the wheel scrolls vertically, `Shift + wheel` horizontally, and `Space + drag` pans the canvas. Undo/Redo preserves the navigation zoom.
 
-The catalog contains **303 entries, including 110 NYI**, with action/key/context search and **Available**, **NYI**, and **Contextual gestures** filters. Missing features remain disabled references and never capture keys. Mouse gestures are documented without registering global shortcuts. The [detailed inventory](docs/SHORTCUTS.md) (French) also tracks missing functionality.
+Open **Help → Keyboard Shortcuts…** to search by command, key or context. Use the **Available**, **NYI** and **Contextual gestures** filters to distinguish active commands, planned features and tool-specific gestures.
 
 Customize shortcuts and the toolbar in **Settings**: **PhotoCrap → Preferences…** or **⌘,** on macOS, **Edit → Settings…** on other platforms. Shortcuts are suspended during text entry or modal dialogs. Empty combinations disable commands, duplicates are rejected, and customizations persist between launches.
 
@@ -198,7 +198,7 @@ Up to four numbered samplers remain on the image; their RGB values appear in **I
 
 **Info** also displays pointer RGB values and coordinates, Ruler X/Y/width/height/angle/D1, and selection/document dimensions. It is initially hidden and opens automatically with measuring/sampling tools and adjustment eyedroppers. It floats by default; after docking or grouping, it reuses the saved workspace placement. **View → Panels → Info** toggles it; closing its floating window hides it without discarding its placement. Shift constrains the Ruler to 45° increments.
 
-Tool cursors have precise native hotspots, including Curves and white-balance eyedroppers. Sampling uses the completed full-resolution composite, or the latest finished proxy while a render is pending, excluding selection overlays and channel visualization. The unresolved first-activation macOS cursor check is tracked in the [roadmap](ROADMAP.md).
+Tool cursors have precise native hotspots, including Curves and white-balance eyedroppers. Sampling uses the completed full-resolution composite, or the latest finished proxy while a render is pending, excluding selection overlays and channel visualization. The unresolved first-activation macOS cursor check is tracked in the [roadmap (French)](ROADMAP.md).
 
 Adobe references: [pixel values and color samplers](https://helpx.adobe.com/photoshop/desktop/adjust-color/selective-color-adjustments/view-pixel-color-values-in-an-image.html), [Ruler](https://helpx.adobe.com/photoshop/using/positioning-ruler-tool.html), [Info panel](https://helpx.adobe.com/photoshop/desktop/get-started/settings-and-preferences/use-the-info-panel-and-document-status-bar.html).
 
@@ -248,7 +248,7 @@ Right-click the **E** group and choose **Magic Eraser**, then click the color to
 
 ### Layer and mask context menus
 
-The **layer** menu provides available properties, duplication, renaming, deletion, locking, clipping, grouping, selected/group/visible merges, stamped copies, flattening, and visibility. [Merge guide](docs/LAYER_MERGE.md). Single-layer actions are disabled when multiple layers are selected; grouping uses the multiple selection.
+The **layer** menu provides available properties, duplication, renaming, deletion, locking, clipping, grouping, selected/group/visible merges, stamped copies, flattening, and visibility. [Merge guide](docs/en/ADJUSTMENTS.md#merge-or-stamp-layers). Single-layer actions are disabled when multiple layers are selected; grouping uses the multiple selection.
 
 Right-clicking a **mask thumbnail** targets that mask: properties, isolated viewing, enable/disable, inversion, and deletion. Inversion and deletion are undoable; mutation commands in this menu are disabled on locked layers. Missing features remain visible with **NYI**, including applying/unlinking masks, loading a mask as a selection, smart objects, and advanced blending options.
 
@@ -275,7 +275,7 @@ during hover, with a bounded composition layer preserving opacity. The provision
 segment also uses GPU geometry when its control hull is fully visible. Clipped
 or very long provisional curves retain their Canvas, as do software and older
 Qt kits. The main path, handles and provisional segment keep separate caches.
-The dockable Paths panel adds thumbnails, naming, duplication, ordering, fill, stroke and selection actions. P draws; A and its alternate select complete paths or individual anchors/segments. Endpoint-resume dragging and Option/Alt on the last anchor preserve incoming tangents. See the [Pen guide and remaining Photoshop differences](docs/PEN_TOOL.md).
+The dockable Paths panel adds thumbnails, naming, duplication, ordering, fill, stroke and selection actions. P draws; A and its alternate select complete paths or individual anchors/segments. Endpoint-resume dragging and Option/Alt on the last anchor preserve incoming tangents. See the [Pen guide](docs/en/TOOLS.md#draw-a-path-shape-or-vector-mask).
 
 GPU selection animation also skips tile and cache preparation when only the dash
 phase changes. Image, zoom, viewport and memory-budget changes still receive full
@@ -363,9 +363,9 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
   ./build/PhotoCrap.app/Contents/MacOS/PhotoCrap --smoke-test --screenshot /tmp/photocrap.png
 ```
 
-On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) for verified workflow status and the [roadmap](ROADMAP.md) for remaining validation and features.
+On Linux, use `./build/PhotoCrap`. Native macOS tests use Cocoa separately from the offscreen smoke test. See [Download](#download) for verified workflow status and the [roadmap (French)](ROADMAP.md) for remaining validation and features.
 
-Known limitations: one document at a time; CPU raster composition with native accelerated blur on macOS; some editing paths remain synchronous and may slow down very large images; text cannot be edited after rasterization; no PSD/PSB, CMYK, HDR, 32-bit, general vector masks on pixel layers, smart objects, generative repair, textured brush tips and advanced dynamics, stylus pressure/tilt. Adjustment algorithms are simplified sRGB implementations and do not exactly reproduce Photoshop’s color results. Fill compares colors exactly, without tolerance. Direct filters modify pixels; history can undo them. The navigator is a preview without an interactive navigation rectangle. sRGB is normalized on import without a display/print proofing pipeline.
+PhotoCrap imports layered RGB and grayscale PSDs. PSB, CMYK and 32-bit HDR documents are unsupported. Some Photoshop effects and adjustments have an approximate rendering or are skipped. Read the import report before saving a layered .pcr copy. Editing uses sRGB and has no display or print proofing mode. Some operations on very large documents can still block the interface.
 
 ## Technical references
 

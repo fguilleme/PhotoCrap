@@ -12,6 +12,7 @@
 #include "ToolLayerSmoke.h"
 #include "TransformSmoke.h"
 #include "WorkspaceSettings.h"
+#include "storage/PsdReader.h"
 #include <QFile>
 #include <QOperatingSystemVersion>
 #include <QPointingDevice>
@@ -20,6 +21,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QtMath>
 #include <QtTest>
 #include <cmath>
@@ -633,6 +635,14 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
     if (!require(_window->property("interfaceLanguage").toString() == "en" &&
                      _window->property("newActionText").toString() == "New…",
                  "English interface loads immediately"))
+        return false;
+    auto psdReport = _window->findChild<QObject *>("psdImportReport");
+    QTemporaryFile emptyPsd;
+    if (!require(psdReport && psdReport->property("title").toString() == "PSD import report" &&
+                     emptyPsd.open() &&
+                     PhotoCrap::Psd::read(emptyPsd.fileName(), false, {}).error ==
+                         "Invalid PSD file size.",
+                 "PSD import report and reader errors use the selected language"))
         return false;
     QMetaObject::invokeMethod(_window, "setInterfaceLanguage", Q_ARG(QVariant, QVariant("fr")));
     QTest::qWait(100);

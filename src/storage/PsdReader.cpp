@@ -21,7 +21,7 @@ namespace
 {
 QString tr(const char *message)
 {
-    return QCoreApplication::translate("PsdReader", message);
+    return QCoreApplication::translate("PhotoCrap::Psd", message);
 }
 
 void require(bool ok)

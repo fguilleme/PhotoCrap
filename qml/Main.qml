@@ -1981,7 +1981,9 @@ ApplicationWindow {
             DarkMenuItem { text: qsTr("Raccourcis clavier…"); onTriggered: window.activateShortcut("keyboardSettings") }
             DarkMenuItem {
                 text: qsTr("Notes de version…")
-                onTriggered: Qt.openUrlExternally("https://github.com/fguilleme/PhotoCrap/releases/tag/v" + Qt.application.version)
+                onTriggered: Qt.openUrlExternally(languages.language === "en"
+                    ? "https://github.com/fguilleme/PhotoCrap/blob/v" + Qt.application.version + "/CHANGELOG.en.md"
+                    : "https://github.com/fguilleme/PhotoCrap/releases/tag/v" + Qt.application.version)
             }
             DarkMenuItem { text: qsTr("À propos de PhotoCrap"); onTriggered: aboutDialog.open() }
         }

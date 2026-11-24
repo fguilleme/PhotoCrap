@@ -100,6 +100,11 @@
       <source>Hautes lumières</source>
       <translation>Highlights</translation>
     </message>
+    <message><source>Définir le point blanc</source><translation>Set white point</translation></message>
+    <message><source>Définir le point noir</source><translation>Set black point</translation></message>
+    <message><source>Neutraliser un gris</source><translation>Set neutral gray</translation></message>
+    <message><source>Pipettes</source><translation>Eyedroppers</translation></message>
+    <message><source>Échantillonner une couleur dans la courbe</source><translation>Sample a color on the curve</translation></message>
   </context>
   <context>
     <name>LevelsEditor</name>
@@ -909,6 +914,44 @@
         <translation>Invalid AI layer source.</translation>
     </message>
   <message><source>Rééclairage</source><translation>Relight</translation></message>
+    <message><source>Baguette magique</source><translation>Magic Wand</translation></message>
+    <message><source>Calque 1</source><translation>Layer 1</translation></message>
+    <message><source>Calque de dégradé invalide.</source><translation>Invalid gradient layer.</translation></message>
+    <message><source>Ce calque 3D a atteint la limite de peinture.</source><translation>This 3D layer has reached its paint limit.</translation></message>
+    <message><source>Colonne unique</source><translation>Single Column Marquee</translation></message>
+    <message><source>Copie dans le presse-papiers</source><translation>Copy to clipboard</translation></message>
+    <message><source>Copier le masque de fusion</source><translation>Copy layer mask</translation></message>
+    <message><source>Correcteur localisé</source><translation>Spot Healing Brush</translation></message>
+    <message><source>Crayon</source><translation>Pencil</translation></message>
+    <message><source>Créer un dégradé</source><translation>Create a gradient</translation></message>
+    <message><source>Densité moins</source><translation>Dodge</translation></message>
+    <message><source>Densité plus</source><translation>Burn</translation></message>
+    <message><source>Flou</source><translation>Blur</translation></message>
+    <message><source>Impossible d’enregistrer la peinture 3D.</source><translation>Could not save 3D paint.</translation></message>
+    <message><source>Impossible d’écrire le projet binaire.</source><translation>Could not write the binary project.</translation></message>
+    <message><source>Lasso</source><translation>Lasso</translation></message>
+    <message><source>Lasso polygonal</source><translation>Polygonal lasso</translation></message>
+    <message><source>Modifier le dégradé</source><translation>Edit gradient</translation></message>
+    <message><source>Mémoire insuffisante pour dessiner la forme.</source><translation>Not enough memory to draw the shape.</translation></message>
+    <message><source>Mémoire insuffisante pour dessiner le dégradé.</source><translation>Not enough memory to draw the gradient.</translation></message>
+    <message><source>Mémoire insuffisante pour déplacer la sélection.</source><translation>Not enough memory to move the selection.</translation></message>
+    <message><source>Mémoire insuffisante pour déplacer le calque.</source><translation>Not enough memory to move the layer.</translation></message>
+    <message><source>Netteté</source><translation>Sharpen</translation></message>
+    <message><source>Peinture 3D</source><translation>3D paint</translation></message>
+    <message><source>Peinture 3D du projet invalide.</source><translation>Invalid 3D paint data in the project.</translation></message>
+    <message><source>Plan binaire corrompu ou allocation impossible.</source><translation>The binary plane is corrupt or could not be allocated.</translation></message>
+    <message><source>Polygone</source><translation>Polygon</translation></message>
+    <message><source>Projet trop volumineux.</source><translation>Project too large.</translation></message>
+    <message><source>Rangée unique</source><translation>Single Row Marquee</translation></message>
+    <message><source>Réinitialiser le réglage</source><translation>Reset adjustment</translation></message>
+    <message><source>Réinitialiser les courbes</source><translation>Reset curves</translation></message>
+    <message><source>Sélection elliptique</source><translation>Elliptical Marquee</translation></message>
+    <message><source>Sélection rapide</source><translation>Quick Selection</translation></message>
+    <message><source>Sélection rectangulaire</source><translation>Rectangular Marquee</translation></message>
+    <message><source>Triangle</source><translation>Triangle</translation></message>
+    <message><source>Échantillonner le point de la courbe</source><translation>Sample curve point</translation></message>
+    <message><source>Éponge</source><translation>Sponge</translation></message>
+    <message><source>Étoile</source><translation>Star</translation></message>
   </context>
   <context>
     <name>LanguageManager</name>
@@ -2876,6 +2919,46 @@ Independent software, not affiliated with Adobe.</translation>
         <translation>Save providers and prompts using their Save button.</translation>
     </message>
   <message><source>Rééclairage…</source><translation>Relight…</translation></message>
+    <message><source> (NYI)</source><translation> (NYI)</translation></message>
+    <message><source>Améliorer le contour</source><translation>Refine Edge</translation></message>
+    <message><source>Appliquer un style de mélangeur de couches</source><translation>Apply Channel Mixer preset</translation></message>
+    <message><source>Appliquer un style noir et blanc</source><translation>Apply Black &amp; White preset</translation></message>
+    <message><source>Arrière-plan</source><translation>Background</translation></message>
+    <message><source>Bleu</source><translation>Blue</translation></message>
+    <message><source>Calques</source><translation>Layers</translation></message>
+    <message><source>Canal bleu</source><translation>Blue channel</translation></message>
+    <message><source>Canal rouge</source><translation>Red channel</translation></message>
+    <message><source>Canal vert</source><translation>Green channel</translation></message>
+    <message><source>Choisir…</source><translation>Choose…</translation></message>
+    <message><source>Cliquez sur le tissu pour inclure ses plis.</source><translation>Click the fabric to include its folds.</translation></message>
+    <message><source>Cliquez sur une surface sélectionnée pour placer le texte.</source><translation>Click a selected surface to place the text.</translation></message>
+    <message><source>Coller</source><translation>Paste</translation></message>
+    <message><source>Couleur composite</source><translation>Composite color</translation></message>
+    <message><source>Couleur du remplissage</source><translation>Fill color</translation></message>
+    <message><source>Couleur unie…</source><translation>Solid colour…</translation></message>
+    <message><source>Déformation</source><translation>Warp</translation></message>
+    <message><source>Dégradé et remplissage</source><translation>Gradient and Fill</translation></message>
+    <message><source>Effacement auto</source><translation>Auto Erase</translation></message>
+    <message><source>Graine : %1</source><translation>Seed: %1</translation></message>
+    <message><source>Intensité (%)</source><translation>Intensity (%)</translation></message>
+    <message><source>Intersection avec la sélection</source><translation>Intersect with Selection</translation></message>
+    <message><source>LoRA : %1 · %2 étapes · guidance %3</source><translation>LoRA: %1 · %2 steps · guidance %3</translation></message>
+    <message><source>Lumière</source><translation>Light</translation></message>
+    <message><source>Modifier la couleur du calque</source><translation>Change layer color</translation></message>
+    <message><source>Modifier la couleur du filtre photo</source><translation>Change photo filter color</translation></message>
+    <message><source>Modifier la teinte noir et blanc</source><translation>Change Black &amp; White tint</translation></message>
+    <message><source>Modifier le filtre photo</source><translation>Edit photo filter</translation></message>
+    <message><source>Nouvelle sélection</source><translation>New Selection</translation></message>
+    <message><source>OK</source><translation>OK</translation></message>
+    <message><source>Peindre sur le modèle 3D</source><translation>Paint on the 3D model</translation></message>
+    <message><source>Pour poser du texte sur un angle, sélectionnez les deux faces avant de le placer.</source><translation>To wrap text around a corner, select both faces before placing the text.</translation></message>
+    <message><source>Protéger les tons</source><translation>Protect Tones</translation></message>
+    <message><source>Rouge</source><translation>Red</translation></message>
+    <message><source>Réglage automatique noir et blanc</source><translation>Auto Black &amp; White</translation></message>
+    <message><source>Réinitialiser la vue</source><translation>Reset view</translation></message>
+    <message><source>Tons clairs</source><translation>Highlights</translation></message>
+    <message><source>Tons foncés</source><translation>Shadows</translation></message>
+    <message><source>Vert</source><translation>Green</translation></message>
   </context>
   <context>
     <name>DockablePanel</name>
@@ -5469,6 +5552,26 @@ Independent software, not affiliated with Adobe.</translation>
   <context>
     <name>GradientOptions</name>
     <message><source>Masque de fusion</source><translation>Layer Mask</translation></message>
+    <message><source>Angulaire</source><translation>Angle</translation></message>
+    <message><source>Classique</source><translation>Classic</translation></message>
+    <message><source>Crépuscule</source><translation>Twilight</translation></message>
+    <message><source>Dégradé classique</source><translation>Classic gradient</translation></message>
+    <message><source>Dégradé dynamique</source><translation>Live gradient</translation></message>
+    <message><source>Inverser</source><translation>Invert</translation></message>
+    <message><source>Linéaire</source><translation>Linear</translation></message>
+    <message><source>Losange</source><translation>Diamond</translation></message>
+    <message><source>Méthode</source><translation>Method</translation></message>
+    <message><source>Noir, blanc</source><translation>Black, White</translation></message>
+    <message><source>Opacité</source><translation>Opacity</translation></message>
+    <message><source>Perceptive</source><translation>Perceptual</translation></message>
+    <message><source>Premier plan vers arrière-plan</source><translation>Foreground to Background</translation></message>
+    <message><source>Premier plan vers transparent</source><translation>Foreground to Transparent</translation></message>
+    <message><source>Préréglage du dégradé</source><translation>Gradient preset</translation></message>
+    <message><source>Préréglages du dégradé</source><translation>Gradient presets</translation></message>
+    <message><source>Radial</source><translation>Radial</translation></message>
+    <message><source>Réfléchi</source><translation>Reflected</translation></message>
+    <message><source>Spectre</source><translation>Spectrum</translation></message>
+    <message><source>Tramage</source><translation>Dither</translation></message>
   </context>
   <context>
     <name>HealingBrushOptions</name>
@@ -5564,6 +5667,8 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Le fournisseur IA a changé.</source>
         <translation>The AI provider has changed.</translation>
     </message>
+    <message><source>Paramètres Qwen invalides : graine entière positive, 1 à 100 étapes, guidance de 0 à 100 et aléatoire booléen.</source><translation>Invalid Qwen parameters. Use a positive whole-number seed, 1–100 steps, guidance from 0 to 100 and a true or false value for randomization.</translation></message>
+    <message><source>Vérifiez le nom de l’API Gradio et l’utilisateur HTTP Basic.</source><translation>Check the Gradio API name and HTTP Basic username.</translation></message>
 </context>
 <context>
     <name>AiImageJob</name>
@@ -5652,6 +5757,18 @@ Independent software, not affiliated with Adobe.</translation>
         <source>En attente du résultat chez le fournisseur…</source>
         <translation>Waiting for the result from the provider…</translation>
     </message>
+    <message><source>Connexion Qwen interrompue — reprise de la lecture (%1/3)…</source><translation>Qwen connection interrupted. Reconnecting (%1/3)…</translation></message>
+    <message><source>En attente du résultat Qwen…</source><translation>Waiting for the Qwen result…</translation></message>
+    <message><source>Envoi à Qwen non confirmé : %1. Aucun nouvel envoi automatique.</source><translation>Qwen submission could not be confirmed (%1). The request will not be resubmitted automatically.</translation></message>
+    <message><source>Erreur Qwen : %1</source><translation>Qwen error: %1</translation></message>
+    <message><source>Génération de l’image avec Qwen…</source><translation>Generating image with Qwen…</translation></message>
+    <message><source>La génération Qwen a échoué.</source><translation>Qwen image generation failed.</translation></message>
+    <message><source>Le flux Qwen s’est interrompu avant le résultat final (tâche %1).</source><translation>The Qwen stream ended before the final result (job %1).</translation></message>
+    <message><source>Le nom de l’API Qwen n’est pas valide.</source><translation>Invalid Qwen API name.</translation></message>
+    <message><source>Lecture du résultat Qwen interrompue (tâche %1) : %2</source><translation>Could not finish reading the Qwen result (job %1): %2</translation></message>
+    <message><source>L’API Qwen n’a renvoyé aucune image encodée valide.</source><translation>The Qwen API returned no valid encoded image.</translation></message>
+    <message><source>Qwen n’a pas renvoyé un identifiant de tâche valide.</source><translation>Qwen did not return a valid job ID.</translation></message>
+    <message><source>Renseignez l’utilisateur et le mot de passe HTTP Basic dans Réglages → IA.</source><translation>Enter the HTTP Basic username and password in Settings → AI.</translation></message>
 </context>
 <context>
     <name>AiImageController</name>
@@ -5750,6 +5867,9 @@ Independent software, not affiliated with Adobe.</translation>
   <message><source>Analyse de surface annulée</source><translation>Surface analysis canceled</translation></message>
     <message><source>Impossible de créer le calque de rééclairage.</source><translation>Could not create the relight layer.</translation></message>
     <message><source>Impossible de mettre à jour le calque de rééclairage.</source><translation>Could not update the relight layer.</translation></message>
+    <message><source>Ajoutez le mot de passe HTTP Basic dans Réglages → IA.</source><translation>Enter the HTTP Basic password in Settings → AI.</translation></message>
+    <message><source>Mémoire insuffisante pour lire les cartes de surface.</source><translation>Not enough memory to read the surface maps.</translation></message>
+    <message><source>Renseignez l’utilisateur HTTP Basic dans Réglages → IA.</source><translation>Enter the HTTP Basic username in Settings → AI.</translation></message>
   </context>
 <context>
     <name>QObject</name>
@@ -5872,6 +5992,7 @@ Independent software, not affiliated with Adobe.</translation>
         <source>%1 génération(s) · grand côté limité à %2 px</source>
         <translation>%1 generation(s) · longest edge limited to %2 px</translation>
     </message>
+    <message><source>Destination</source><translation>Destination</translation></message>
 </context>
 <context>
     <name>AiPreferences</name>
@@ -6091,6 +6212,20 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Une clé déjà enregistrée sera chargée uniquement à la génération.</source>
         <translation>Any saved key will only be loaded when generating.</translation>
     </message>
+    <message><source>Aucun identifiant n’est envoyé à ce serveur.</source><translation>No credentials are sent to this server.</translation></message>
+    <message><source>Authentification</source><translation>Authentication</translation></message>
+    <message><source>Configuration et identifiant secret enregistrés.</source><translation>Configuration and credentials saved.</translation></message>
+    <message><source>HTTP Basic</source><translation>HTTP Basic</translation></message>
+    <message><source>Le mot de passe reste dans le trousseau, hors du JSON et des projets.</source><translation>The password is stored in the keychain and excluded from JSON files and projects.</translation></message>
+    <message><source>Mot de passe HTTP Basic</source><translation>HTTP Basic password</translation></message>
+    <message><source>Mot de passe disponible · saisir pour le remplacer</source><translation>Password on file · type to replace it</translation></message>
+    <message><source>Mot de passe du serveur Qwen</source><translation>Qwen server password</translation></message>
+    <message><source>Mot de passe enregistré dans le trousseau sécurisé.</source><translation>Password saved in the secure keychain.</translation></message>
+    <message><source>Mot de passe saisi, pas encore enregistré.</source><translation>Password entered but not yet saved.</translation></message>
+    <message><source>Nom de l’API</source><translation>API name</translation></message>
+    <message><source>Sans authentification</source><translation>No authentication</translation></message>
+    <message><source>Utilisateur HTTP Basic</source><translation>HTTP Basic username</translation></message>
+    <message><source>Vérifiez l’adaptateur LoRA et la graine.</source><translation>Check the LoRA adapter and seed.</translation></message>
 </context>
 <context>
     <name>AiProviderList</name>
@@ -6114,6 +6249,9 @@ Independent software, not affiliated with Adobe.</translation>
         <source>Clé à renseigner</source>
         <translation>API key needed</translation>
     </message>
+    <message><source>HTTP Basic · %1</source><translation>HTTP Basic · %1</translation></message>
+    <message><source>Qwen · sans authentification</source><translation>Qwen · no authentication</translation></message>
+    <message><source>à configurer</source><translation>setup required</translation></message>
 </context>
 <context>
     <name>AiProgressPanel</name>
@@ -6233,7 +6371,6 @@ Independent software, not affiliated with Adobe.</translation>
   </context>
   <context>
     <name>Main</name>
-    <message><source>Fermer le document</source><translation>Close document</translation></message>
     <message><source>Le document « %1 » contient une demande IA en cours ou un résultat en attente. Le fermer annulera cette demande. Enregistrer les modifications ?</source><translation>Document “%1” has an AI request in progress or a pending result. Closing it will cancel this request. Save changes?</translation></message>
   </context>
   <context>
@@ -6566,6 +6703,13 @@ Independent software, not affiliated with Adobe.</translation>
   <context>
     <name>QwenParameters</name>
     <message><source>Sans LoRA</source><translation>No LoRA</translation></message>
+    <message><source>Adaptateur LoRA</source><translation>LoRA adapter</translation></message>
+    <message><source>Aléatoire</source><translation>Random</translation></message>
+    <message><source>Choisissez un adaptateur LoRA.</source><translation>Choose a LoRA adapter.</translation></message>
+    <message><source>Graine</source><translation>Seed</translation></message>
+    <message><source>Guidance</source><translation>Guidance</translation></message>
+    <message><source>Indiquez une graine entière entre 0 et 9 007 199 254 740 991.</source><translation>Enter a whole-number seed between 0 and 9,007,199,254,740,991.</translation></message>
+    <message><source>Étapes</source><translation>Steps</translation></message>
   </context>
   <context>
     <name>Main</name>
@@ -6579,7 +6723,6 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Cliquez sur chaque face plane. Clic droit pour en retirer une.</source><translation>Click each flat surface. Right-click to remove one.</translation></message>
     <message><source>Cliquez sur le tissu pour sélectionner l’ensemble de la pièce.</source><translation>Click the fabric to select the whole piece.</translation></message>
     <message><source>Cliquez dans la surface sélectionnée pour placer le texte.</source><translation>Click inside the selected surface to place the text.</translation></message>
-    <message><source>Orientation du texte</source><translation>Text Orientation</translation></message>
     <message><source>Suivre les plis</source><translation>Follow Folds</translation></message>
     <message><source>Peindre</source><translation>Paint</translation></message>
   </context>
@@ -6723,7 +6866,7 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Modèle de débruitage indisponible.</source><translation>Denoising model unavailable.</translation></message>
 </context>
   <context>
-    <name>PsdReader</name>
+    <name>PhotoCrap::Psd</name>
     <message><source>Type de donnée de réglage Photoshop non pris en charge.</source><translation>Unsupported Photoshop adjustment data type.</translation></message>
     <message><source>dégradé converti en interpolation linéaire entre les deux couleurs extrêmes</source><translation>gradient converted to linear interpolation between its endpoint colors</translation></message>
     <message><source>table 3D intégrée importée, tramage Photoshop ignoré</source><translation>embedded 3D lookup table imported, Photoshop dithering omitted</translation></message>
@@ -6768,14 +6911,115 @@ Independent software, not affiliated with Adobe.</translation>
     <message><source>Composite PSD — %1</source><translation>PSD composite — %1</translation></message>
     <message><source>Taille de fichier PSD invalide.</source><translation>Invalid PSD file size.</translation></message>
     <message><source>Mémoire insuffisante pour ouvrir ce PSD.</source><translation>Not enough memory to open this PSD.</translation></message>
+    <message><source>dégradé approché avec les deux couleurs extrêmes</source><translation>gradient approximated using its two end colors</translation></message>
   </context>
 <context><name>ColorBalanceEditor</name>
     <message><source>Ombres</source><translation>Shadows</translation></message>
     <message><source>Tons moyens</source><translation>Midtones</translation></message>
     <message><source>Hautes lumières</source><translation>Highlights</translation></message>
     <message><source>Préserver la luminosité</source><translation>Preserve luminosity</translation></message>
+    <message><source>Cyan ↔ Rouge</source><translation>Cyan ↔ Red</translation></message>
+    <message><source>Jaune ↔ Bleu</source><translation>Yellow ↔ Blue</translation></message>
+    <message><source>Magenta ↔ Vert</source><translation>Magenta ↔ Green</translation></message>
 </context>
 <context><name>Main</name>
     <message><source>Coloriser</source><translation>Colorize</translation></message>
 </context>
+  <context>
+    <name>BlackWhiteEditor</name>
+    <message><source>Auto</source><translation>Auto</translation></message>
+    <message><source>Bleus</source><translation>Blues</translation></message>
+    <message><source>Contraste fort</source><translation>High contrast</translation></message>
+    <message><source>Cyans</source><translation>Cyans</translation></message>
+    <message><source>Filtre bleu</source><translation>Blue filter</translation></message>
+    <message><source>Filtre jaune</source><translation>Yellow filter</translation></message>
+    <message><source>Filtre rouge</source><translation>Red filter</translation></message>
+    <message><source>Filtre vert</source><translation>Green filter</translation></message>
+    <message><source>Infrarouge</source><translation>Infrared</translation></message>
+    <message><source>Jaunes</source><translation>Yellows</translation></message>
+    <message><source>Magentas</source><translation>Magentas</translation></message>
+    <message><source>Par défaut</source><translation>Default</translation></message>
+    <message><source>Rouges</source><translation>Reds</translation></message>
+    <message><source>Teinte</source><translation>Hue</translation></message>
+    <message><source>Verts</source><translation>Greens</translation></message>
+  </context>
+  <context>
+    <name>ChannelMixerEditor</name>
+    <message><source>Bleu</source><translation>Blue</translation></message>
+    <message><source>Canal de sortie</source><translation>Output channel</translation></message>
+    <message><source>Constante</source><translation>Constant</translation></message>
+    <message><source>Monochrome</source><translation>Monochrome</translation></message>
+    <message><source>Noir et blanc infrarouge</source><translation>Infrared Black &amp; White</translation></message>
+    <message><source>Noir et blanc · filtre bleu</source><translation>Black &amp; White · blue filter</translation></message>
+    <message><source>Noir et blanc · filtre jaune</source><translation>Black &amp; White · yellow filter</translation></message>
+    <message><source>Noir et blanc · filtre orange</source><translation>Black &amp; White · orange filter</translation></message>
+    <message><source>Noir et blanc · filtre rouge</source><translation>Black &amp; White · red filter</translation></message>
+    <message><source>Noir et blanc · filtre vert</source><translation>Black &amp; White · green filter</translation></message>
+    <message><source>Par défaut</source><translation>Default</translation></message>
+    <message><source>Rouge</source><translation>Red</translation></message>
+    <message><source>Total</source><translation>Total</translation></message>
+    <message><source>Vert</source><translation>Green</translation></message>
+  </context>
+  <context>
+    <name>ColorEditor</name>
+    <message><source>Balance des blancs</source><translation>White balance</translation></message>
+    <message><source>Pipette de balance des blancs</source><translation>White balance eyedropper</translation></message>
+    <message><source>Saturation</source><translation>Saturation</translation></message>
+    <message><source>Teinte</source><translation>Hue</translation></message>
+    <message><source>Température</source><translation>Temperature</translation></message>
+    <message><source>Vibrance</source><translation>Vibrance</translation></message>
+  </context>
+  <context>
+    <name>GradientGuide</name>
+    <message><source>Cliquer pour ajouter un point de couleur</source><translation>Click to add a color stop</translation></message>
+    <message><source>Double-clic pour modifier la couleur</source><translation>Double-click to edit the color</translation></message>
+    <message><source>Glisser pour déplacer la couleur ; double-clic pour la modifier ; clic droit pour supprimer</source><translation>Drag to move the color stop, double-click to edit it, or right-click to remove it</translation></message>
+    <message><source>Glisser pour modifier la direction et la longueur du dégradé</source><translation>Drag to adjust the direction and length of the gradient</translation></message>
+  </context>
+  <context>
+    <name>GradientMapEditor</name>
+    <message><source>Couleurs du dégradé</source><translation>Gradient Colors</translation></message>
+    <message><source>Luminosité</source><translation>Luminosity</translation></message>
+  </context>
+  <context>
+    <name>LayerPropertiesActions</name>
+    <message><source>Activer le calque</source><translation>Enable layer</translation></message>
+    <message><source>Créer un masque d’écrêtage</source><translation>Create Clipping Mask</translation></message>
+    <message><source>Désactiver le calque</source><translation>Disable layer</translation></message>
+    <message><source>Libérer le masque d’écrêtage</source><translation>Release Clipping Mask</translation></message>
+    <message><source>Réinitialiser le réglage</source><translation>Reset adjustment</translation></message>
+    <message><source>Supprimer le calque</source><translation>Delete Layer</translation></message>
+  </context>
+  <context>
+    <name>LightEditor</name>
+    <message><source>Blancs</source><translation>Whites</translation></message>
+    <message><source>Contraste</source><translation>Contrast</translation></message>
+    <message><source>Exposition</source><translation>Exposure</translation></message>
+    <message><source>Hautes lumières</source><translation>Highlights</translation></message>
+    <message><source>Noirs</source><translation>Blacks</translation></message>
+    <message><source>Ombres</source><translation>Shadows</translation></message>
+  </context>
+  <context>
+    <name>PhotoFilterEditor</name>
+    <message><source>Bleu</source><translation>Blue</translation></message>
+    <message><source>Couleur</source><translation>Color</translation></message>
+    <message><source>Cyan</source><translation>Cyan</translation></message>
+    <message><source>Densité</source><translation>Dodge / Burn / Sponge</translation></message>
+    <message><source>Filtre</source><translation>Filter</translation></message>
+    <message><source>Filtre refroidissant (80)</source><translation>Cooling Filter (80)</translation></message>
+    <message><source>Filtre refroidissant (82)</source><translation>Cooling Filter (82)</translation></message>
+    <message><source>Filtre refroidissant (LBB)</source><translation>Cooling Filter (LBB)</translation></message>
+    <message><source>Filtre réchauffant (81)</source><translation>Warming Filter (81)</translation></message>
+    <message><source>Filtre réchauffant (85)</source><translation>Warming Filter (85)</translation></message>
+    <message><source>Filtre réchauffant (LBA)</source><translation>Warming Filter (LBA)</translation></message>
+    <message><source>Jaune</source><translation>Yellow</translation></message>
+    <message><source>Magenta</source><translation>Magenta</translation></message>
+    <message><source>Orange</source><translation>Orange</translation></message>
+    <message><source>Préserver la luminosité</source><translation>Preserve luminosity</translation></message>
+    <message><source>Rouge</source><translation>Red</translation></message>
+    <message><source>Sous-marin</source><translation>Underwater</translation></message>
+    <message><source>Sépia</source><translation>Sepia</translation></message>
+    <message><source>Vert</source><translation>Green</translation></message>
+    <message><source>Violet</source><translation>Violet</translation></message>
+  </context>
 </TS>

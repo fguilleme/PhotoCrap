@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import "Studio.js" as Studio
 
 RowLayout {
     id: root
@@ -17,7 +18,7 @@ RowLayout {
 
     IconButton {
         objectName: "layerPropertiesClipButton"
-        glyph: "↳"
+        toolName: "clipLayer"
         hint: root.clippingMask ? qsTr("Libérer le masque d’écrêtage")
                                 : qsTr("Créer un masque d’écrêtage")
         selected: root.clippingMask
@@ -26,22 +27,28 @@ RowLayout {
     }
     IconButton {
         objectName: "layerPropertiesVisibilityButton"
-        glyph: root.layerVisible ? "◉" : "○"
+        toolName: root.layerVisible ? "eye" : "eyeOff"
         hint: root.layerVisible ? qsTr("Désactiver le calque") : qsTr("Activer le calque")
         onClicked: root.visibilityToggled()
     }
     IconButton {
         objectName: "layerPropertiesResetButton"
-        glyph: "↶"
+        toolName: "resetAdjustment"
         hint: qsTr("Réinitialiser le réglage")
         onClicked: root.resetRequested()
     }
     IconButton {
+        id: deleteButton
         objectName: "layerPropertiesDeleteButton"
         hint: qsTr("Supprimer le calque")
         enabled: root.canDelete
-        contentItem: TrashIcon {
-            iconColor: parent.enabled ? (parent.hovered ? "#ffffff" : "#c0c7d0") : "#545d68"
+        contentItem: Item {
+            TrashIcon {
+                anchors.centerIn: parent
+                width: implicitWidth
+                height: implicitHeight
+                iconColor: !deleteButton.enabled ? Studio.disabled : deleteButton.hovered ? "#ffaca6" : "#f27f78"
+            }
         }
         onClicked: root.deleteRequested()
     }

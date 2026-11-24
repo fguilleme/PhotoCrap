@@ -2346,6 +2346,17 @@ inline bool runUiSmoke(QQuickWindow *_window, Document &_document, RecentFilesMa
                      layerProperties->property("visible").toBool(),
                  "Settings menu previews a direct adjustment without creating a layer"))
         return false;
+    auto *propertiesHandle = _window->findChild<QQuickItem *>("layerPropertiesDragHandle");
+    if (!require(propertiesHandle, "properties title bar accepts dragging"))
+        return false;
+    const QPoint titleStart = propertiesHandle->mapToScene(QPointF(36, 12)).toPoint();
+    const QPoint titleDelta(layerProperties->property("x").toReal() >= 32 ? -32 : 32, -22);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, titleStart);
+    QTest::mouseMove(_window, titleStart + titleDelta);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, titleStart + titleDelta);
+    if (!require(propertiesHandle->mapToScene(QPointF(36, 12)).toPoint() == titleStart + titleDelta,
+                 "dragging the properties title moves the dialog with the pointer"))
+        return false;
     layerProperties->setProperty("keepChanges", true);
     QMetaObject::invokeMethod(layerProperties, "accept");
     QTest::qWait(80);

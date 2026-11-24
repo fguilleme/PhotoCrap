@@ -5674,13 +5674,41 @@ ApplicationWindow {
         objectName: "layerPropertiesDialog"
         property bool keepChanges: false
         property bool directSession: false
+        property point draggedPosition: Qt.point(-1, -1)
         title: qsTr("Propriétés · ") + activeInfo.name
-        x: Math.max(20, window.width-width-310)
-        y: 105
+        parent: window.contentItem
+        x: Math.max(0, Math.min(parent.width - width, draggedPosition.x >= 0 ? draggedPosition.x
+                                : parent.width - (dockArea.visible ? dockArea.width : 0) - width - 8))
+        y: Math.max(0, Math.min(parent.height - height, draggedPosition.y >= 0 ? draggedPosition.y : 105))
         width: 430
         height: Math.min(610, window.height-150)
         modal: activeInfo.direct === true && !window.curvePickerMode.length && !window.colorPickerMode.length
         closePolicy: activeInfo.direct || activeInfo.adjustmentType === "relight" ? Popup.CloseOnEscape : Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        header: Label {
+            text: layerPropertiesDialog.title
+            padding: 12
+            color: Studio.ink
+            font.bold: true
+            elide: Text.ElideRight
+            MouseArea {
+                objectName: "layerPropertiesDragHandle"
+                anchors.fill: parent
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                property point grabOffset
+                onPressed: function(mouse) {
+                    const p = mapToItem(layerPropertiesDialog.parent, mouse.x, mouse.y)
+                    grabOffset = Qt.point(p.x - layerPropertiesDialog.x, p.y - layerPropertiesDialog.y)
+                }
+                onPositionChanged: function(mouse) {
+                    if (!pressed) return
+                    const dialog = layerPropertiesDialog
+                    const p = mapToItem(dialog.parent, mouse.x, mouse.y)
+                    dialog.draggedPosition = Qt.point(
+                        Math.max(0, Math.min(dialog.parent.width - dialog.width, p.x - grabOffset.x)),
+                        Math.max(0, Math.min(dialog.parent.height - dialog.height, p.y - grabOffset.y)))
+                }
+            }
+        }
         onOpened: {
             keepChanges = false
             directPresetBefore = null

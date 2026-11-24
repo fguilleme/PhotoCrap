@@ -6,7 +6,7 @@ Item {
     property string fallback: ""
     property color iconColor: "#c0c7d0"
     property int fallbackPixelSize: 19
-    readonly property bool supported: ["sideBySide", "linkViews", "studioMark", "move", "brush", "eye", "eyeOff", "locked", "unlocked", "undo", "redo", "open", "export", "zoomTool", "text", "rectSelect", "pathSelection", "directSelection", "pen", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
+    readonly property bool supported: ["sideBySide", "linkViews", "studioMark", "move", "brush", "eye", "eyeOff", "clipLayer", "resetAdjustment", "locked", "unlocked", "undo", "redo", "open", "export", "zoomTool", "text", "rectSelect", "pathSelection", "directSelection", "pen", "convertPoint", "magicEraser", "crop", "perspectiveCrop", "slice", "sliceSelect", "picker", "colorSampler", "ruler", "artHistoryBrush", "historyBrush", "remove", "contentAwareMove", "patch", "spotHealing", "healing", "redEye", "mixerBrush", "colorReplacement", "smudge", "cloneStamp", "patternStamp", "lasso", "polygonalLasso", "quickSelection", "magicWand", "blur", "sharpen", "dodge", "burn", "sponge"].indexOf(toolName) >= 0
 
     implicitWidth: 24
     implicitHeight: 24
@@ -73,6 +73,15 @@ Item {
             } else if (root.toolName === "eye" || root.toolName === "eyeOff") {
                 ctx.beginPath();ctx.moveTo(2,12);ctx.quadraticCurveTo(12,-1,22,12);ctx.quadraticCurveTo(12,25,2,12);ctx.closePath();ctx.stroke();ctx.beginPath();ctx.arc(12,12,2.5,0,2*Math.PI);ctx.fill()
                 if(root.toolName === "eyeOff") line([3,3,21,21])
+            } else if (root.toolName === "clipLayer") {
+                ctx.strokeRect(9, 13, 11, 7)
+                line([5, 4, 5, 12, 9, 8])
+                line([5, 12, 2, 9])
+            } else if (root.toolName === "resetAdjustment") {
+                ctx.beginPath()
+                ctx.arc(12, 12, 7.5, -2.6, 2.5)
+                ctx.stroke()
+                line([5, 4, 5, 8.5, 9.5, 8.5])
             } else if (root.toolName === "unlocked" || root.toolName === "locked") {
                 ctx.strokeRect(5,11,14,10); ctx.beginPath();ctx.moveTo(8,11);ctx.lineTo(8,7);ctx.bezierCurveTo(8,1,16,1,16,7);if(root.toolName === "locked")ctx.lineTo(16,11);ctx.stroke();line([12,15,12,17])
             } else if (root.toolName === "redo" || root.toolName === "undo") {
